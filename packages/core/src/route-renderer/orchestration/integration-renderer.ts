@@ -36,8 +36,8 @@ import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
-import { RenderExecutionService } from './render-execution.service.ts';
-import { RenderPreparationService } from './render-preparation.service.ts';
+import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
+import { RouteRenderFlow, type RouteRenderFlowCallbacks } from './route-render-flow.ts';
 import { RouteShellComposer } from './route-shell-composer.service.ts';
 import type { ComponentBoundaryRuntime } from './component-render-context.ts';
 import { normalizeBoundaryArtifactHtml } from './render-output.utils.ts';
@@ -91,8 +91,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
-	protected renderPreparationService: RenderPreparationService;
-	protected renderExecutionService: RenderExecutionService;
+	protected routeRenderFlow: RouteRenderFlow;
 	protected readonly routeShellComposer = new RouteShellComposer();
 	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
 
@@ -605,8 +604,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
-		this.renderPreparationService = new RenderPreparationService(appConfig, assetProcessingService);
-		this.renderExecutionService = new RenderExecutionService();
+		this.routeRenderFlow = new RouteRenderFlow(appConfig, assetProcessingService, {
+			boundaryOwnershipValidationService: new BoundaryOwnershipValidationService(appConfig),
+		});
 	}
 
 	/**
@@ -818,8 +818,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param options - The route renderer options.
 	 * @returns The prepared render options.
 	 */
-	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions> {
-		const preparedOptions = await this.renderPreparationService.prepare(options, this.name, {
+	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>> {
+		return this.routeRenderFlow.prepareRenderOptions(options, this.name, this.createRouteRenderFlowCallbacks());
+	}
+
+	protected createRouteRenderFlowCallbacks(): RouteRenderFlowCallbacks<C> {
+		return {
 			resolvePageModule: (file) => this.resolvePageModule(file),
 			getHtmlTemplate: () => this.getHtmlTemplate(),
 			resolvePageData: (pageModule, routeOptions) => this.resolvePageData(pageModule, routeOptions),
@@ -834,11 +838,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						componentInstanceId: 'eco-page-root',
 					},
 				}),
-		});
-
-		invariant(preparedOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
-		this.htmlTransformer.setPagePackage(preparedOptions.pagePackage);
-		return preparedOptions;
+			render: (renderOptions) => this.render(renderOptions),
+			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
+			applyAttributesToHtmlElement: (html, attributes) =>
+				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
+			applyAttributesToFirstBodyElement: (html, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
+			transformResponse: async (response) => {
+				const transformedResponse = await this.htmlTransformer.transform(response);
+				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
+			},
+			onPreparedRenderOptions: (preparedOptions) => {
+				invariant(preparedOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
+				this.htmlTransformer.setPagePackage(preparedOptions.pagePackage);
+			},
+		};
 	}
 
 	/**
@@ -909,20 +923,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		return this.renderExecutionService.execute(options, {
-			prepareRenderOptions: (routeOptions) =>
-				this.prepareRenderOptions(routeOptions) as Promise<IntegrationRendererRenderOptions<C>>,
-			render: (renderOptions) => this.render(renderOptions),
-			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
-			applyAttributesToHtmlElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
-			applyAttributesToFirstBodyElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
-			transformResponse: async (response) => {
-				const transformedResponse = await this.htmlTransformer.transform(response);
-				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
-			},
-		});
+		return this.routeRenderFlow.execute(options, this.name, this.createRouteRenderFlowCallbacks());
 	}
 
 	/**

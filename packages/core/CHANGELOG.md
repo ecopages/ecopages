@@ -13,6 +13,8 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Introduced a single `RouteRenderFlow` owner for route render preparation and execution, removing the separate execution service seam while keeping boundary planning shared.
+- Moved foreign-boundary ownership validation out of boundary-plan construction so route root graphs are validated before dependency and data preparation.
 - Moved page-package classification into the asset-processing module so render orchestration no longer carries a dedicated packaging service wrapper.
 - Split file-route page middleware onto its own context contract so page middleware no longer exposes handler-only `ctx.render()` helpers and the pipeline stops carrying fake render traps.
 

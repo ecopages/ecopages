@@ -15,7 +15,8 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
-import { RenderPreparationService } from './render-preparation.service.ts';
+import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
+import { RouteRenderFlow } from './route-render-flow.ts';
 
 declare module '../../types/public-types.ts' {
 	interface RequestLocals {
@@ -24,7 +25,7 @@ declare module '../../types/public-types.ts' {
 	}
 }
 
-describe('RenderPreparationService', () => {
+describe('RouteRenderFlow prepareRenderOptions', () => {
 	it('should prepare dynamic render options and merge renderer-owned assets', async () => {
 		const integrationDependency = {
 			kind: 'script',
@@ -59,7 +60,7 @@ describe('RenderPreparationService', () => {
 				},
 			],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
@@ -79,7 +80,7 @@ describe('RenderPreparationService', () => {
 			query: { preview: '1' },
 			locals: { user: 'andee' },
 		} as unknown as RouteRendererOptions;
-		const result = await service.prepare(routeOptions, 'ghtml', {
+		const result = await flow.prepareRenderOptions(routeOptions, 'ghtml', {
 			resolvePageModule: async () => ({
 				Page,
 				integrationSpecificProps: { layoutMode: 'full' },
@@ -121,7 +122,7 @@ describe('RenderPreparationService', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const DeferredChild = eco.component<{}, string>({
 			integration: 'react',
@@ -129,7 +130,7 @@ describe('RenderPreparationService', () => {
 		});
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 
-		const result = await service.prepare(
+		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -183,7 +184,7 @@ describe('RenderPreparationService', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.config = {
@@ -195,7 +196,7 @@ describe('RenderPreparationService', () => {
 			],
 		};
 
-		await service.prepare(
+		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -237,12 +238,12 @@ describe('RenderPreparationService', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		const renderPageComponent = vi.fn();
 
-		const result = await service.prepare(
+		const result = await flow.prepareRenderOptions(
 			{
 				file: '/app/pages/index.tsx',
 				params: {},
@@ -298,7 +299,7 @@ describe('RenderPreparationService', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
@@ -314,7 +315,7 @@ describe('RenderPreparationService', () => {
 			},
 		};
 
-		await service.prepare(
+		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -372,7 +373,7 @@ describe('RenderPreparationService', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
@@ -388,7 +389,7 @@ describe('RenderPreparationService', () => {
 			},
 		};
 
-		const result = await service.prepare(
+		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -434,7 +435,7 @@ describe('RenderPreparationService', () => {
 				},
 			],
 		} as unknown as EcoPagesAppConfig;
-		const service = new RenderPreparationService(appConfig, assetProcessingService);
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
@@ -448,7 +449,7 @@ describe('RenderPreparationService', () => {
 			},
 		};
 		await expect(
-			service.prepare(
+			flow.prepareRenderOptions(
 				{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 				'ghtml',
 				{
@@ -473,7 +474,7 @@ describe('RenderPreparationService', () => {
 			}),
 		);
 
-		const result = await service.prepare(
+		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -530,13 +531,17 @@ describe('RenderPreparationService', () => {
 		const injectedBoundaryPlanningService = {
 			buildPlan: vi.fn(() => boundaryPlan),
 		} as unknown as BoundaryPlanningService;
-		const service = new RenderPreparationService(appConfig, assetProcessingService, {
+		const injectedBoundaryOwnershipValidationService = {
+			validate: vi.fn(() => []),
+		} as unknown as BoundaryOwnershipValidationService;
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService, {
 			boundaryPlanningService: injectedBoundaryPlanningService,
+			boundaryOwnershipValidationService: injectedBoundaryOwnershipValidationService,
 		});
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 
-		const result = await service.prepare(
+		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
 			{
@@ -562,6 +567,7 @@ describe('RenderPreparationService', () => {
 			HtmlTemplate,
 			Layout: undefined,
 			Page,
+			validationErrors: [],
 		});
 		expect(result.boundaryPlan).toBe(boundaryPlan);
 	});

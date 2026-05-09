@@ -56,7 +56,6 @@ const routerAdapter: ReactRouterAdapter = {
 		outputName: 'router',
 		externals: [],
 	},
-	importMapKey: '@ecopages/react-router',
 	components: {
 		router: 'EcoRouter',
 		pageContent: 'PageContent',

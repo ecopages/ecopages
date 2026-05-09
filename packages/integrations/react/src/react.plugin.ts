@@ -251,18 +251,15 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 
 		const context = this.hmrManager.getDefaultContext();
 
-		return new ReactHmrStrategy(
+		return new ReactHmrStrategy({
 			context,
-			this.hmrPageMetadataCache,
-			this.mdxCompilerOptions,
-			this.extensions,
-			this.appConfig.templatesExt,
-			this.explicitGraphEnabled,
-		);
-	}
-
-	override getRuntimeSpecifierMap(): Record<string, string> {
-		return this.runtimeBundleService.getSpecifierMap();
+			pageMetadataCache: this.hmrPageMetadataCache,
+			runtimeAliasMap: new Map(Object.entries(this.runtimeBundleService.getRuntimeAliasMap('development'))),
+			mdxCompilerOptions: this.mdxCompilerOptions,
+			ownedTemplateExtensions: this.extensions,
+			allTemplateExtensions: this.appConfig.templatesExt,
+			explicitGraphEnabled: this.explicitGraphEnabled,
+		});
 	}
 }
 

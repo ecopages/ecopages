@@ -68,7 +68,6 @@ describe('createHydrationScript', () => {
 			router: {
 				name: 'eco-router',
 				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
-				importMapKey: '@ecopages/react-router',
 				components: { router: 'EcoRouter', pageContent: 'PageContent' },
 				getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
 			},
@@ -115,7 +114,6 @@ describe('createHydrationScript', () => {
 			router: {
 				name: 'eco-router',
 				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
-				importMapKey: '@ecopages/react-router',
 				components: { router: 'EcoRouter', pageContent: 'PageContent' },
 				getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
 			},
@@ -124,6 +122,24 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('const sr=()=>{');
 		expect(script).toContain('if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}');
+	});
+
+	test('router production output can emit an explicit page module URL expression', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			isDevelopment: false,
+			pageModuleUrlExpression: '"/src/pages/react-notes.react.tsx"',
+			router: {
+				name: 'eco-router',
+				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
+				components: { router: 'EcoRouter', pageContent: 'PageContent' },
+				getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
+			},
+			routerImportPath: '/assets/router.js',
+		});
+
+		expect(script).toContain('const u="/src/pages/react-notes.react.tsx";');
+		expect(script).toContain('window.__ECO_PAGES__.page={module:u,props:pr};');
 	});
 });
 

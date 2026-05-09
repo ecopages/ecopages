@@ -10,7 +10,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Fixed router-managed React HMR page entries to reload the active route with a cleared persisted-layout cache so shared layout edits apply while the current page stays mounted.
 - Fixed router-managed React HMR handlers to forward the active page HMR entry when reloading the current route through React Router.
-- Fixed React route hydration bundles to resolve the router through the published import-map key and keep rerun navigation on the shared runtime graph.
+- Fixed production React route hydration bundles to inline React runtime dependencies and import the router through the emitted page browser graph instead of a published import-map key.
 - Removed the redundant React page props bootstrap script so route hydration relies on the canonical `__ECO_PAGE_DATA__` payload.
 - Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer boundary resolution across Bun, Vite, and Nitro flows.
 - Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.
@@ -23,6 +23,9 @@ All notable changes to `@ecopages/react` are documented here.
 ### Refactoring
 
 - Collapsed React route hydration into one page-owned entry module that re-exports the page component and bundles runtime dependencies in production.
+- Removed the router adapter `importMapKey` contract so both development and production route hydration follow the router bundle import path instead of split import-map and bundle-path models.
+- Replaced the positional `ReactHmrStrategy` constructor with an options object so React HMR wiring can evolve without argument-order churn.
+- Renamed the remaining React runtime alias internals away from `specifierMap` terminology now that import-map-era core seams are gone.
 - Consolidated React bundling, hydration, and runtime state behind shared service boundaries and `window.__ECO_PAGES__`.
 - Moved React plugin option/default resolution into the factory and replaced renderer static config with instance-owned runtime wiring.
 - Extracted React page-payload and locals serialization into a dedicated service to keep the renderer focused on orchestration.

@@ -32,7 +32,6 @@ const mockRouterAdapter = {
 		outputName: 'test-router',
 		externals: ['react', 'react-dom'],
 	},
-	importMapKey: '@test/router',
 	components: {
 		router: 'TestRouter',
 		pageContent: 'TestPageContent',
@@ -92,7 +91,7 @@ class TestReactRenderer extends ReactRenderer {
 	shouldHydratePageOverride?: boolean;
 	isMdxFileOverride?: boolean;
 	declaredModulesOverride?: string[];
-	routeRenderAssetsOverride?: Awaited<ReturnType<ReactRenderer['buildRouteRenderAssets']>>;
+	pageBrowserGraphOverride?: Awaited<ReturnType<ReactRenderer['buildPageBrowserGraph']>>;
 	reactRuntimeModulesOverride?: TestReactRuntimeModules;
 
 	constructor(options: ConstructorParameters<typeof ReactRenderer>[0]) {
@@ -103,7 +102,7 @@ class TestReactRenderer extends ReactRenderer {
 		const originalCollectPageDeclaredModules = this.pageModuleService.collectPageDeclaredModules.bind(
 			this.pageModuleService,
 		);
-		const originalBuildRouteRenderAssets = this.hydrationAssetService.buildRouteRenderAssets.bind(
+		const originalBuildPageBrowserGraphAssets = this.hydrationAssetService.buildPageBrowserGraphAssets.bind(
 			this.hydrationAssetService,
 		);
 
@@ -115,13 +114,13 @@ class TestReactRenderer extends ReactRenderer {
 		this.pageModuleService.collectPageDeclaredModules = ((pageModule) =>
 			this.declaredModulesOverride ??
 			originalCollectPageDeclaredModules(pageModule)) as typeof this.pageModuleService.collectPageDeclaredModules;
-		this.hydrationAssetService.buildRouteRenderAssets = (async (pagePath, isMdx, declaredModules) =>
-			this.routeRenderAssetsOverride ??
-			originalBuildRouteRenderAssets(
+		this.hydrationAssetService.buildPageBrowserGraphAssets = (async (pagePath, isMdx, declaredModules) =>
+			this.pageBrowserGraphOverride?.assets ??
+			originalBuildPageBrowserGraphAssets(
 				pagePath,
 				isMdx,
 				declaredModules,
-			)) as typeof this.hydrationAssetService.buildRouteRenderAssets;
+			)) as typeof this.hydrationAssetService.buildPageBrowserGraphAssets;
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {
@@ -639,12 +638,14 @@ describe('ReactRenderer', () => {
 		testRenderer.shouldHydratePageOverride = true;
 		testRenderer.isMdxFileOverride = false;
 		testRenderer.declaredModulesOverride = [];
-		testRenderer.routeRenderAssetsOverride = hydrationAssets;
+		testRenderer.pageBrowserGraphOverride = { assets: hydrationAssets };
 
 		try {
 			process.env.NODE_ENV = 'development';
 
-			await expect(testRenderer.buildRouteRenderAssets(pageFilePath)).resolves.toEqual(hydrationAssets);
+			await expect(testRenderer.buildPageBrowserGraph(pageFilePath)).resolves.toEqual({
+				assets: hydrationAssets,
+			});
 		} finally {
 			process.env.NODE_ENV = originalNodeEnv;
 		}

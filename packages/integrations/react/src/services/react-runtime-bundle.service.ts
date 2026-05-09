@@ -17,7 +17,7 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from '../utils/react-dom-runtime-interop-plugin.ts';
-import { buildReactRuntimeSpecifierMap } from '../utils/react-runtime-specifier-map.ts';
+import { buildReactRuntimeAliasMap } from '../utils/react-runtime-alias-map.ts';
 
 export type ReactRuntimeImports = {
 	react: string;
@@ -99,8 +99,8 @@ export class ReactRuntimeBundleService {
 		return runtimeImports;
 	}
 
-	getSpecifierMap(mode = this.getCurrentRuntimeMode()): Record<string, string> {
-		return buildReactRuntimeSpecifierMap(this.getRuntimeImports(mode), this.config.routerAdapter);
+	getRuntimeAliasMap(mode = this.getCurrentRuntimeMode()): Record<string, string> {
+		return buildReactRuntimeAliasMap(this.getRuntimeImports(mode));
 	}
 
 	getDependencies(): AssetDefinition[] {
@@ -118,7 +118,7 @@ export class ReactRuntimeBundleService {
 				(plugin): plugin is EcoBuildPlugin => plugin !== null,
 			);
 			const runtimeAliasPlugin = this.createRuntimeAliasPlugin(mode);
-			const mappedSpecifiers = new Set(Object.keys(this.getSpecifierMap(mode)));
+			const mappedSpecifiers = new Set(Object.keys(this.getRuntimeAliasMap(mode)));
 
 			dependencies.push(
 				createBrowserRuntimeModuleAsset({
@@ -172,7 +172,7 @@ export class ReactRuntimeBundleService {
 	}
 
 	createRuntimeAliasPlugin(mode = this.getCurrentRuntimeMode()): EcoBuildPlugin {
-		return createRuntimeSpecifierAliasPlugin(this.getSpecifierMap(mode), {
+		return createRuntimeSpecifierAliasPlugin(this.getRuntimeAliasMap(mode), {
 			name: `react-plugin-runtime-alias-${mode}`,
 		})!;
 	}

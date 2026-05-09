@@ -31,11 +31,10 @@ export function ecoRouter(options?: EcoRouterOptions): ReactRouterAdapter {
 	return {
 		name: 'eco-router',
 		bundle: {
-			importPath: '@ecopages/react-router/browser.ts',
+			importPath: '@ecopages/react-router/browser',
 			outputName: 'react-router-esm',
 			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
 		},
-		importMapKey: '@ecopages/react-router',
 		components: {
 			router: 'EcoRouter',
 			pageContent: 'PageContent',

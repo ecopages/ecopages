@@ -5,6 +5,14 @@ import type { DefaultHmrContext } from '@ecopages/core';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { fileSystem } from '@ecopages/file-system';
 
+const defaultRuntimeAliasMap = new Map([
+	['react', '/assets/vendors/react.development.js'],
+	['react/jsx-runtime', '/assets/vendors/react.development.js'],
+	['react/jsx-dev-runtime', '/assets/vendors/react.development.js'],
+	['react-dom', '/assets/vendors/react-dom.development.js'],
+	['react-dom/client', '/assets/vendors/react-dom.development.js'],
+]);
+
 function createPageMetadataCache(
 	overrides: {
 		getDeclaredModules?: (entrypointPath: string) => string[] | undefined;
@@ -28,7 +36,6 @@ function createImportServerModuleMock(result: {
 function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultHmrContext {
 	return {
 		getWatchedFiles: () => new Map(),
-		getSpecifierMap: () => new Map(),
 		getDistDir: () => '/tmp/.eco/assets/_hmr',
 		getPlugins: () => [],
 		getSrcDir: () => '/tmp/src',
@@ -59,7 +66,11 @@ describe('ReactHmrStrategy', () => {
 	});
 
 	it('has INTEGRATION type', () => {
-		const strategy = new ReactHmrStrategy(createMockContext(), createPageMetadataCache() as any);
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
 	});
@@ -68,17 +79,17 @@ describe('ReactHmrStrategy', () => {
 		const watchedFiles = new Map<string, string>([
 			['/tmp/src/pages/react-lab.tsx', '/assets/_hmr/pages/react-lab.js'],
 		]);
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			createPageMetadataCache({
+			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
 			}) as any,
-			undefined,
-			['.tsx', '.react.tsx'],
-			['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
-		);
+			runtimeAliasMap: defaultRuntimeAliasMap,
+			ownedTemplateExtensions: ['.tsx', '.react.tsx'],
+			allTemplateExtensions: ['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
+		});
 
 		expect(strategy.matches('/tmp/src/pages/index.kita.tsx')).toBe(false);
 		expect(strategy.matches('/tmp/src/layouts/base-layout.lit.tsx')).toBe(false);
@@ -91,12 +102,13 @@ describe('ReactHmrStrategy', () => {
 		const watchedFiles = new Map<string, string>([
 			['/tmp/src/components/radiant-counter.script.tsx', '/assets/_hmr/components/radiant-counter.script.js'],
 		]);
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			createPageMetadataCache() as any,
-		);
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		expect(strategy.matches('/tmp/src/components/radiant-counter.script.tsx')).toBe(false);
 	});
@@ -111,15 +123,16 @@ describe('ReactHmrStrategy', () => {
 			throw new Error('React HMR browser rebuild should not call the raw build executor.');
 		});
 		const entrypointPath = '/tmp/src/pages/index.tsx';
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getBrowserBundleService: () => ({ bundle }) as any,
 				getBuildExecutor: () => ({ build }),
 			}),
-			createPageMetadataCache({
+			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-		);
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
 
@@ -152,14 +165,15 @@ describe('ReactHmrStrategy', () => {
 		const build = vi.fn(async () => {
 			throw new Error('React HMR metadata loading should not call the raw build executor.');
 		});
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				importServerModule,
 				getBrowserBundleService: () => ({ bundle }) as any,
 				getBuildExecutor: () => ({ build }),
 			}),
-			createPageMetadataCache() as any,
-		);
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
 
@@ -179,14 +193,15 @@ describe('ReactHmrStrategy', () => {
 			logs: [],
 			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js' }],
 		}));
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getBrowserBundleService: () => ({ bundle }) as any,
 			}),
-			createPageMetadataCache({
+			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-		);
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
 			return targetPath === '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
@@ -212,23 +227,18 @@ describe('ReactHmrStrategy', () => {
 		);
 	});
 
-	it('rewrites runtime specifiers from the shared HMR registry during output processing', async () => {
+	it('rewrites runtime aliases from the React-owned HMR runtime map during output processing', async () => {
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
 		vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
 		vi.spyOn(fileSystem, 'readFile').mockResolvedValue(
 			'import { useState } from "react";\nimport { jsxDEV } from "react/jsx-dev-runtime";\n',
 		);
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
-				getSpecifierMap: () =>
-					new Map([
-						['react', '/assets/vendors/react.development.js'],
-						['react/jsx-dev-runtime', '/assets/vendors/react.development.js'],
-					]),
-			}),
-			createPageMetadataCache() as any,
-		);
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeAliasMap: defaultRuntimeAliasMap,
+		});
 
 		const success = await (strategy as any).processOutput(
 			'/tmp/.eco/assets/_hmr/components/react-counter.123.tmp.js',
@@ -253,18 +263,18 @@ describe('ReactHmrStrategy', () => {
 			[otherEntrypoint, '/assets/_hmr/pages/react-content.js'],
 		]);
 
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			createPageMetadataCache({
+			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 			}) as any,
-			undefined,
-			['.react.tsx'],
-			['.react.tsx', '.mdx', '.kita.tsx'],
-		);
+			runtimeAliasMap: defaultRuntimeAliasMap,
+			ownedTemplateExtensions: ['.react.tsx'],
+			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
+		});
 
 		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
 
@@ -296,17 +306,18 @@ describe('ReactHmrStrategy', () => {
 			[entrypointB, '/assets/_hmr/pages/react-content.js'],
 		]);
 
-		const strategy = new ReactHmrStrategy(
-			createMockContext({
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
 				getWatchedFiles: () => watchedFiles,
 			}),
-			createPageMetadataCache({
+			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-			{},
-			['.react.tsx', '.mdx'],
-			['.react.tsx', '.mdx', '.kita.tsx'],
-		);
+			runtimeAliasMap: defaultRuntimeAliasMap,
+			mdxCompilerOptions: {},
+			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
+			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
+		});
 
 		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
 

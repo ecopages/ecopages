@@ -9,23 +9,14 @@ export const REACT_RUNTIME_SPECIFIERS = [
 	'react-dom/client',
 ] as const;
 
-export function buildReactRuntimeSpecifierMap(
-	runtimeImports: ReactRuntimeImports,
-	routerAdapter?: ReactRouterAdapter,
-): Record<string, string> {
-	const map: Record<string, string> = {
+export function buildReactRuntimeAliasMap(runtimeImports: ReactRuntimeImports): Record<string, string> {
+	return {
 		react: runtimeImports.react,
 		'react/jsx-runtime': runtimeImports.reactJsxRuntime,
 		'react/jsx-dev-runtime': runtimeImports.reactJsxDevRuntime,
 		'react-dom': runtimeImports.reactDom,
 		'react-dom/client': runtimeImports.reactDomClient,
 	};
-
-	if (routerAdapter && runtimeImports.router) {
-		map[routerAdapter.importMapKey] = runtimeImports.router;
-	}
-
-	return map;
 }
 
 export function getReactRuntimeExternalSpecifiers(): string[] {
@@ -39,7 +30,7 @@ export function getReactClientGraphAllowSpecifiers(
 	return [
 		'@ecopages/core',
 		...REACT_RUNTIME_SPECIFIERS,
-		...(routerAdapter ? [routerAdapter.importMapKey] : []),
+		...(routerAdapter ? [routerAdapter.bundle.importPath] : []),
 		...Array.from(runtimeSpecifiers),
 	];
 }

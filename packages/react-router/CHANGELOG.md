@@ -16,4 +16,5 @@ All notable changes to `@ecopages/react-router` are documented here.
 ### Refactoring
 
 - Routed browser handoff and current-page reloads through the shared navigation coordinator.
+- Removed the React router adapter `importMapKey` field so the adapter now exposes only the browser bundle import path used by both development and production hydration.
 - Updated package metadata for the current core, esbuild adapter, and React peer dependency surface.

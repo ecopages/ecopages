@@ -22,7 +22,9 @@ describe('ReactHydrationAssetService', () => {
 			'/app/src/pages/index.tsx',
 			'ecopages-react-index',
 			'/assets/pages/index.js',
+			'import.meta.url',
 			{},
+			false,
 			false,
 			false,
 		);
@@ -42,6 +44,43 @@ describe('ReactHydrationAssetService', () => {
 				'data-eco-persist': 'true',
 			},
 		});
+	});
+
+	it('bundles the React runtime into production page browser graph entries', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'production';
+		const createBundleOptions = vi.fn(async () => ({}));
+		const processDependencies = vi.fn(async () => []);
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+				processDependencies,
+			} as any,
+			bundleService: {
+				createBundleOptions,
+				getRuntimeImports: () => ({
+					react: 'react',
+					reactDomClient: 'react-dom/client',
+					router: undefined,
+				}),
+			} as any,
+		});
+
+		try {
+			await service.buildPageBrowserGraphAssets('/app/src/pages/index.tsx', false, []);
+
+			expect(createBundleOptions).toHaveBeenCalledWith(
+				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+				false,
+				[],
+				{
+					includeRuntime: true,
+				},
+			);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
 	});
 
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {

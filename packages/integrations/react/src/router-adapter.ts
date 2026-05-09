@@ -13,11 +13,10 @@
  * const myRouter: ReactRouterAdapter = {
  *   name: 'my-router',
  *   bundle: {
- *     importPath: '@my/router/browser.ts',
+ *     importPath: '@my/router/browser',
  *     outputName: 'my-router',
  *     externals: ['react', 'react-dom'],
  *   },
- *   importMapKey: '@my/router',
  *   components: {
  *     router: 'MyRouter',
  *     pageContent: 'PageOutlet',
@@ -38,30 +37,23 @@ export interface ReactRouterAdapter {
 	bundle: {
 		/**
 		 * Node module import path for the browser-compatible entry.
-		 * @example '@ecopages/react-router/browser.ts'
+		 * @example '@ecopages/react-router/browser'
 		 */
 		importPath: string;
 
 		/**
 		 * Output filename (without extension).
-		 * @example 'react-router-esm'
+		 * @example 'my-router'
 		 */
 		outputName: string;
 
 		/**
 		 * Packages to externalize when bundling.
-		 * These should be available through the runtime bare-specifier map.
-		 * @example ['react', 'react-dom', 'react/jsx-runtime']
+		 * These should stay as bare runtime dependencies for the router bundle.
+		 * @example ['react', 'react-dom']
 		 */
 		externals: string[];
 	};
-
-	/**
-	 * Bare specifier for the runtime mapping entry.
-	 * This is what the hydration script will import from.
-	 * @example '@ecopages/react-router'
-	 */
-	importMapKey: string;
 
 	/**
 	 * Component names to import from the router package.
@@ -69,13 +61,13 @@ export interface ReactRouterAdapter {
 	components: {
 		/**
 		 * The router component that wraps the layout.
-		 * @example 'EcoRouter'
+		 * @example 'MyRouter'
 		 */
 		router: string;
 
 		/**
 		 * The component that renders the current page content.
-		 * @example 'PageContent'
+		 * @example 'PageOutlet'
 		 */
 		pageContent: string;
 	};

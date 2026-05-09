@@ -96,4 +96,23 @@ describe('morphHead', () => {
 			document.head.querySelector('script[src="/assets/scripts/ecopages-react-island-123-hydration.js"]'),
 		).not.toBeNull();
 	});
+
+	it('skips inline React Router page bootstrap rerun scripts during head morphing', async () => {
+		document.head.innerHTML = '<title>Current route</title>';
+		const nextDocument = createDocument(
+			[
+				'<html><head>',
+				'<title>Next route</title>',
+				'<script type="module" data-eco-rerun="true" data-eco-persist="true" data-eco-script-id="ecopages-react-123">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"/@fs/src/pages/react-notes.tsx",props:{}};</script>',
+				'</head><body></body></html>',
+			].join(''),
+		);
+
+		const { cleanup, flushRerunScripts } = await morphHead(nextDocument);
+		flushRerunScripts();
+		cleanup();
+
+		expect(document.title).toBe('Next route');
+		expect(document.head.querySelector('script[data-eco-script-id="ecopages-react-123"]')).toBeNull();
+	});
 });

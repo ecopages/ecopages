@@ -281,8 +281,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			return;
 		}
 
-		const hydrationAssets = await this.buildRouteRenderAssets(filePath);
-		this.appendProcessedDependencies(hydrationAssets);
+		const pageBrowserGraph = await this.buildPageBrowserGraph(filePath);
+		this.appendProcessedDependencies(pageBrowserGraph.assets);
 	}
 
 	/**
@@ -633,19 +633,19 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		} as TPageModule;
 	}
 
-	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
+	override async buildPageBrowserGraph(pagePath: string): Promise<{ assets: ProcessedAsset[] }> {
 		try {
 			const pageModule = await this.importPageFile(pagePath);
 			const shouldHydrate = this.explicitGraphEnabled
 				? true
 				: this.pageModuleService.shouldHydratePage(pageModule);
 			if (!shouldHydrate) {
-				return [];
+				return { assets: [] };
 			}
 
 			const isMdx = this.pageModuleService.isMdxFile(pagePath);
 			const declaredModules = this.pageModuleService.collectPageDeclaredModules(pageModule);
-			const processedAssets = await this.hydrationAssetService.buildRouteRenderAssets(
+			const processedAssets = await this.hydrationAssetService.buildPageBrowserGraphAssets(
 				pagePath,
 				isMdx,
 				declaredModules,
@@ -658,10 +658,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					processComponentDependencies: async (components) =>
 						await this.processComponentDependencies(components),
 				});
-				return [...processedAssets, ...mdxConfigAssets];
+				return { assets: [...processedAssets, ...mdxConfigAssets] };
 			}
 
-			return processedAssets;
+			return { assets: processedAssets };
 		} catch (error) {
 			if (error instanceof BundleError) {
 				console.error('[ecopages] Bundle errors:', error.logs);

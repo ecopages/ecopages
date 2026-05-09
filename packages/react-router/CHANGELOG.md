@@ -8,6 +8,7 @@ All notable changes to `@ecopages/react-router` are documented here.
 
 ### Bug Fixes
 
+- Fixed same-page hash links and Shadow DOM TOC clicks to bypass React Router interception so anchor navigation preserves the URL fragment without a document fetch.
 - Extended page-module extraction to honor explicit hydration markers and self-owned React page entry bundles during navigation.
 - Fixed current-page reloads to accept HMR module overrides so persisted-layout refreshes import the rebuilt active page entry.
 - Fixed React-to-browser-router handoffs, queued-click replay, and stale-navigation races during mixed-router navigations.

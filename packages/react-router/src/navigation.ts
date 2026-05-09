@@ -57,8 +57,25 @@ export type InterceptDecision =
 				| 'explicit-reload'
 				| 'download'
 				| 'invalid-href'
-				| 'cross-origin';
+				| 'cross-origin'
+				| 'same-page-hash';
 	  };
+
+export function isSamePageHashNavigationHref(href: string): boolean {
+	if (!href) {
+		return false;
+	}
+
+	const currentUrl = new URL(window.location.href);
+	const targetUrl = new URL(href, currentUrl);
+
+	return (
+		targetUrl.origin === currentUrl.origin &&
+		targetUrl.hash.length > 0 &&
+		targetUrl.pathname === currentUrl.pathname &&
+		targetUrl.search === currentUrl.search
+	);
+}
 
 /**
  * Determines whether a link click should be intercepted for client-side navigation.
@@ -93,6 +110,9 @@ export function getInterceptDecision(
 
 	const url = new URL(href, window.location.origin);
 	if (url.origin !== window.location.origin) return { shouldIntercept: false, reason: 'cross-origin' };
+	if (isSamePageHashNavigationHref(href)) {
+		return { shouldIntercept: false, reason: 'same-page-hash' };
+	}
 
 	return { shouldIntercept: true };
 }

@@ -29,6 +29,7 @@ import {
 	type PageState,
 	fetchPageDocument,
 	getInterceptDecision,
+	isSamePageHashNavigationHref,
 	loadPageModuleFromDocument,
 	shouldInterceptClick,
 } from './navigation.ts';
@@ -628,7 +629,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			? {
 					href: link.getAttribute('href')!,
 					timestamp: performance.now(),
-			  }
+				}
 			: null;
 
 		if (decision.shouldIntercept && (activeNavigationRef.current || isNavigatingRef.current)) {
@@ -652,9 +653,14 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				return;
 			}
 
+			if (isSamePageHashNavigationHref(recoveredHref)) {
+				queuedNavigationHrefRef.current = null;
+				return;
+			}
+
 			event.preventDefault();
 			queuedNavigationHrefRef.current = null;
-			const recoveredUrl = new URL(recoveredHref, window.location.origin);
+			const recoveredUrl = new URL(recoveredHref, window.location.href);
 			navigate(recoveredUrl.pathname + recoveredUrl.search, { pushHistory: true });
 			return;
 		}

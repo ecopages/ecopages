@@ -4,6 +4,7 @@ import {
 	extractProps,
 	extractComponentUrl,
 	fetchPageDocument,
+	isSamePageHashNavigationHref,
 	loadPageModule,
 	loadPageModuleFromDocument,
 	shouldInterceptClick,
@@ -591,6 +592,17 @@ describe('shouldInterceptClick', () => {
 		const result = shouldInterceptClick(event, link, options);
 
 		expect(result).toBe(false);
+	});
+
+	it('should not intercept same-page links that only add a hash fragment', () => {
+		window.history.replaceState({}, '', 'http://localhost:63315/docs/ecosystem/browser-router');
+		const link = createLink('/docs/ecosystem/browser-router#setup');
+		links.push(link);
+
+		const result = shouldInterceptClick(createMouseEvent(), link, options);
+
+		expect(result).toBe(false);
+		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
 	});
 
 	it('should not intercept mailto links', () => {

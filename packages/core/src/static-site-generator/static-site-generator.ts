@@ -11,6 +11,7 @@ import type {
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
+import { prepareExplicitStaticRender } from '../adapters/shared/explicit-static-render-preparation.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
@@ -326,7 +327,13 @@ export class StaticSiteGenerator {
 		const { renderer, routeEntries } = await this.planExplicitStaticRoute(routePath, view, routeRendererFactory);
 
 		for (const { pathname, params } of routeEntries) {
-			const contents = await this.createExplicitStaticContents(view, params, renderer);
+			const contents = await this.createExplicitStaticContents(
+				routePath,
+				view,
+				params,
+				routeRendererFactory,
+				renderer,
+			);
 
 			const outputPath = this.writeStaticOutput(pathname, contents);
 
@@ -339,47 +346,41 @@ export class StaticSiteGenerator {
 		view: EcoPageComponent<any>,
 		routeRendererFactory: ExplicitStaticRouteRendererFactory,
 	): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
+		const { renderer } = await prepareExplicitStaticRender({
+			routePath,
+			view,
+			params: {},
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+			routeRendererFactory,
+			errors: STATIC_SITE_GENERATOR_ERRORS,
+		});
+
 		return {
-			renderer: this.getExplicitStaticRenderer(routePath, view, routeRendererFactory),
+			renderer,
 			routeEntries: await this.listExplicitStaticRouteEntries(routePath, view),
 		};
 	}
 
 	private async createExplicitStaticContents(
-		view: EcoPageComponent<any>,
-		params: Record<string, string | string[]>,
-		renderer: ExplicitViewRenderer,
-	): Promise<string> {
-		const props = view.staticProps
-			? (
-					await view.staticProps({
-						pathname: { params },
-						appConfig: this.appConfig,
-						runtimeOrigin: this.appConfig.baseUrl,
-					})
-				).props
-			: {};
-
-		const response = await renderer.renderToResponse(view, props, {});
-		return response.text();
-	}
-
-	private getExplicitStaticRenderer(
 		routePath: string,
 		view: EcoPageComponent<any>,
+		params: Record<string, string | string[]>,
 		routeRendererFactory: ExplicitStaticRouteRendererFactory,
-	) {
-		const integrationName = view.config?.__eco?.integration;
-		if (!integrationName) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
-		}
+		renderer: ExplicitViewRenderer,
+	): Promise<string> {
+		const { props, view: renderableView } = await prepareExplicitStaticRender({
+			routePath,
+			view,
+			params,
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+			routeRendererFactory,
+			errors: STATIC_SITE_GENERATOR_ERRORS,
+		});
 
-		const renderer = routeRendererFactory.getExplicitViewRenderer(integrationName);
-		if (!renderer) {
-			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
-		}
-
-		return renderer;
+		const response = await renderer.renderToResponse(renderableView, props, {});
+		return response.text();
 	}
 
 	private async listExplicitStaticRouteEntries(

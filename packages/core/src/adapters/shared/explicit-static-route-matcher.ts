@@ -2,18 +2,13 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import type { ExplicitViewRendererResolver } from '../../route-renderer/route-renderer.ts';
+import { prepareExplicitStaticRender } from './explicit-static-render-preparation.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	missingIntegration: (routePath: string) =>
 		`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page() and exported as default.`,
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 } as const;
-
-function getViewIntegrationName(view: {
-	config?: { integration?: string; __eco?: { integration?: string } };
-}): string | undefined {
-	return view.config?.integration ?? view.config?.__eco?.integration;
-}
 
 export interface ExplicitStaticRouteMatcherOptions {
 	appConfig: EcoPagesAppConfig;
@@ -110,28 +105,21 @@ export class ExplicitStaticRouteMatcher {
 		try {
 			const mod = await route.loader();
 			const view = mod.default;
+			const {
+				renderer,
+				props,
+				view: renderableView,
+			} = await prepareExplicitStaticRender({
+				routePath: route.path,
+				view,
+				params,
+				appConfig: this.appConfig,
+				runtimeOrigin: this.appConfig.baseUrl,
+				routeRendererFactory: this.routeRendererFactory,
+				errors: EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS,
+			});
 
-			const integrationName = getViewIntegrationName(view);
-			if (!integrationName) {
-				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.missingIntegration(route.path));
-			}
-
-			const renderer = this.routeRendererFactory.getExplicitViewRenderer(integrationName);
-			if (!renderer) {
-				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.noRendererForIntegration(integrationName));
-			}
-
-			const props = view.staticProps
-				? (
-						await view.staticProps({
-							pathname: { params },
-							appConfig: this.appConfig,
-							runtimeOrigin: this.appConfig.baseUrl,
-						})
-					).props
-				: {};
-
-			return renderer.renderToResponse(view, props, {});
+			return renderer.renderToResponse(renderableView, props, {});
 		} catch (error) {
 			appLogger.error(
 				`Error rendering explicit static route ${route.path}:`,

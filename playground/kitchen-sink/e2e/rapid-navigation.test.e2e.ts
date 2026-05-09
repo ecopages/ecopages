@@ -1,8 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { getPrimaryLinkTestId, getRouteLinkTestId, primaryLinks } from '../src/data/primary-links';
+import { getPrimaryLinkTestId, getRouteLinkTestId } from '../src/data/primary-links';
 import { assertSingleAppShell, gotoAndWait, settleOnRoute, trackRuntimeErrors, waitForPageReady } from './helpers';
-
-const primaryRoutePool = primaryLinks.map(({ href }) => href);
 
 const broadTraversalSequence = [
 	'/',

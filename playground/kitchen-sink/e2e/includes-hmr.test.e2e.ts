@@ -36,7 +36,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 
 	test.describe.configure({ mode: 'serial' });
 
-	test.beforeAll(async ({}, testInfo) => {
+	test.beforeAll(async (_workerArgs, testInfo) => {
 		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
 		originalSeoInclude = fs.readFileSync(seoIncludeFile, 'utf-8');
 	});

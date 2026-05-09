@@ -20,7 +20,7 @@ import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-se
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { rapidhash } from '@ecopages/core/hash';
-import type { MDXFile, MDXRendererOptions } from './mdx.types.ts';
+import type { MDXRendererOptions } from './mdx.types.ts';
 
 export type { MDXFile, MDXRendererConfig, MDXRendererOptions } from './mdx.types.ts';
 

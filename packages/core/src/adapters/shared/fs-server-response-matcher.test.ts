@@ -297,14 +297,14 @@ describe('FileSystemResponseMatcher', () => {
 
 			const loadPageModule = vi.fn(async () => ({}));
 			(matcher as any).routeRendererFactory = {
-				createRenderer: vi.fn(() => ({
+				getPageRenderer: vi.fn(() => ({
 					loadPageModule,
 				})),
 			};
 
 			await (matcher as any).importPageModule(INDEX_TEMPLATE_FILE);
 
-			expect((matcher as any).routeRendererFactory.createRenderer).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE);
+			expect((matcher as any).routeRendererFactory.getPageRenderer).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE);
 			expect(loadPageModule).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE, {
 				cacheScope: 'request-metadata',
 			});

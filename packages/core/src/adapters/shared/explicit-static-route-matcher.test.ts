@@ -246,7 +246,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
-					getRendererByIntegration: vi.fn(() => ({
+					getExplicitViewRenderer: vi.fn(() => ({
 						renderToResponse,
 					})),
 				} as any,
@@ -269,7 +269,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
-					getRendererByIntegration: vi.fn(() => null),
+					getExplicitViewRenderer: vi.fn(() => null),
 				} as any,
 				staticRoutes: [createMockRoute('/about', viewWithoutIntegration)],
 			});
@@ -282,7 +282,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should throw error when renderer is not found', async () => {
 			const view = createMockView('nonexistent-integration');
 			const RendererFactory = {
-				getRendererByIntegration: vi.fn(() => null),
+				getExplicitViewRenderer: vi.fn(() => null),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
@@ -303,7 +303,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
-				getRendererByIntegration: vi.fn(() => ({
+				getExplicitViewRenderer: vi.fn(() => ({
 					renderToResponse: RenderToResponse,
 				})),
 			};
@@ -331,7 +331,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
-				getRendererByIntegration: vi.fn(() => ({
+				getExplicitViewRenderer: vi.fn(() => ({
 					renderToResponse: RenderToResponse,
 				})),
 			};
@@ -357,7 +357,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 			const mockResponse = new Response('<html>Test</html>');
 			const RendererFactory = {
-				getRendererByIntegration: vi.fn(() => ({
+				getExplicitViewRenderer: vi.fn(() => ({
 					renderToResponse: vi.fn(() => mockResponse),
 				})),
 			};

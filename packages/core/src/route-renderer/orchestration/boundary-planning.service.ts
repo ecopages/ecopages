@@ -23,10 +23,10 @@ type BoundaryPlanBuildEntry = {
 /**
  * Builds a declared ownership plan from the component dependency graph.
  *
-	 * The plan reflects the declared component dependency graph for one route after
-	 * route-root ownership validation has already run. It records ownership shape,
-	 * foreign-edge counts, and any validation errors supplied by an earlier
-	 * validation pass.
+ * The plan reflects the declared component dependency graph for one route after
+ * route-root ownership validation has already run. It records ownership shape,
+ * foreign-edge counts, and any validation errors supplied by an earlier
+ * validation pass.
  */
 export class BoundaryPlanningService {
 	/**

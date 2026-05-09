@@ -1,1 +1,1 @@
-pnpm run test:all && pnpm run lint-staged && pnpm run typecheck
+pnpm run test:all && pnpm run lint && pnpm run lint-staged && pnpm run typecheck

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { eco } from '@ecopages/core';
 import { LitPlugin } from '../lit.plugin.ts';
 
 describe('LitPlugin', () => {

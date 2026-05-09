@@ -64,9 +64,9 @@ export class FileSystemServerResponseFactory {
 			return this.createDefaultNotFoundResponse();
 		}
 
-		const routeRenderer = this.routeRendererFactory.createRenderer(error404TemplatePath);
+		const routeRenderer = this.routeRendererFactory.getPageRenderer(error404TemplatePath);
 
-		const result = await routeRenderer.createRoute({
+		const result = await routeRenderer.execute({
 			file: error404TemplatePath,
 		});
 

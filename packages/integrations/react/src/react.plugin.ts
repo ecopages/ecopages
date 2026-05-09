@@ -120,7 +120,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
  * The React plugin class
  * This plugin provides support for React components in Ecopages
  */
-export class ReactPlugin extends IntegrationPlugin<React.JSX.Element> {
+export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	renderer = ReactRenderer;
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxEnabled: boolean;

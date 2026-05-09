@@ -1,42 +1,27 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { EcoPageFile, RouteRenderResult, RouteRendererOptions } from '../types/public-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
-import type { IntegrationRenderer, RouteModuleLoadOptions } from './orchestration/integration-renderer.ts';
+import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
 
 /**
- * Thin wrapper around one initialized integration renderer.
+ * Narrow route-render contract exposed to higher-level routing code.
  *
  * @remarks
- * This type exists so higher-level routing code can ask for a route renderer
- * without depending on the full integration plugin lifecycle. It delegates all
- * real work to the integration-specific renderer selected by the factory.
+ * Higher-level routing code only needs request execution and page-module
+ * loading. Returning this narrowed shape avoids a dedicated wrapper class while
+ * still keeping callers off the full integration renderer surface.
  */
-export class RouteRenderer {
-	private renderer: IntegrationRenderer;
+export type PageRouteRenderer = Pick<IntegrationRenderer, 'execute' | 'loadPageModule'>;
 
-	/**
-	 * Creates a route renderer bound to one integration renderer instance.
-	 */
-	constructor(renderer: IntegrationRenderer) {
-		this.renderer = renderer;
-	}
-
-	/**
-	 * Executes the render pipeline for one matched route.
-	 */
-	async createRoute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		return this.renderer.execute(options);
-	}
-
-	/**
-	 * Loads the route module through the owning integration renderer.
-	 */
-	async loadPageModule(filePath: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
-		return this.renderer.loadPageModule(filePath, options);
-	}
-}
+/**
+ * Narrow explicit-view render contract exposed to static route handling.
+ *
+ * @remarks
+ * Explicit static routes only need `renderToResponse()`, so the factory can
+ * hide the broader integration renderer surface there as well.
+ */
+export type ExplicitViewRenderer = Pick<IntegrationRenderer, 'renderToResponse'>;
 
 /**
  * Selects and caches integration renderers for route files and explicit views.
@@ -72,17 +57,16 @@ export class RouteRendererFactory {
 	/**
 	 * Returns a route renderer for the supplied route file.
 	 */
-	createRenderer(filePath: string): RouteRenderer {
+	getPageRenderer(filePath: string): PageRouteRenderer {
 		const integrationRenderer = this.getRouteRendererEngine(filePath);
 		invariant(!!integrationRenderer, `No integration renderer found for file: ${filePath}`);
-		return new RouteRenderer(integrationRenderer);
+		return integrationRenderer;
 	}
 
 	/**
-	 * Get an integration renderer by its name.
-	 * Used for explicit routing where views specify their integration via __eco.integration.
+	 * Returns a renderer for an explicit view integration.
 	 */
-	getRendererByIntegration(integrationName: string): IntegrationRenderer | null {
+	getExplicitViewRenderer(integrationName: string): ExplicitViewRenderer | null {
 		const integrationPlugin = this.appConfig.integrations.find((plugin) => plugin.name === integrationName);
 		if (!integrationPlugin) {
 			return null;

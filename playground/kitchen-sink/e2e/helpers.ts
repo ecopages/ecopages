@@ -27,8 +27,7 @@ function isRetriableNavigationError(error: unknown): error is Error {
 
 function isRetriableRequestError(error: unknown): error is Error {
 	return (
-		error instanceof Error &&
-		RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
+		error instanceof Error && RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
 	);
 }
 
@@ -158,7 +157,10 @@ export async function requestGetAndWait(request: APIRequestContext, href: string
 		)
 		.toBe(200);
 
-	expect(lastResponse?.ok(), `${href} should respond with a successful status after retrying transient request failures`).toBe(true);
+	expect(
+		lastResponse?.ok(),
+		`${href} should respond with a successful status after retrying transient request failures`,
+	).toBe(true);
 
 	return lastResponse!;
 }

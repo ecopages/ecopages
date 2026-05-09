@@ -8,7 +8,6 @@ import {
 import { appLogger } from '../../global/app-logger.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../config/constants.ts';
-import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 let appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
@@ -25,10 +24,6 @@ describe('FileSystemServerResponseFactory', () => {
 
 		responseFactory = new FileSystemServerResponseFactory({
 			appConfig,
-			routeRendererFactory: new RouteRendererFactory({
-				appConfig,
-				runtimeOrigin: appConfig.baseUrl,
-			}),
 			options: {
 				watchMode: false,
 			},
@@ -56,10 +51,6 @@ describe('FileSystemServerResponseFactory', () => {
 		it('should return false in watch mode', () => {
 			const responseFactoryWatch = new FileSystemServerResponseFactory({
 				appConfig,
-				routeRendererFactory: new RouteRendererFactory({
-					appConfig,
-					runtimeOrigin: appConfig.baseUrl,
-				}),
 				options: {
 					watchMode: true,
 				},
@@ -103,34 +94,9 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
-	describe('createCustomNotFoundResponse', () => {
-		it('should create a response with status 404 if error404 template file does not exist', async () => {
-			const customAppConfig = {
-				...appConfig,
-				absolutePaths: {
-					...appConfig.absolutePaths,
-					error404TemplatePath: 'non-existent-file',
-				},
-			};
-
-			const responseFactoryNo404Template = new FileSystemServerResponseFactory({
-				appConfig: customAppConfig,
-				routeRendererFactory: new RouteRendererFactory({
-					appConfig: customAppConfig,
-					runtimeOrigin: customAppConfig.baseUrl,
-				}),
-				options: {
-					watchMode: false,
-				},
-			});
-
-			const response = await responseFactoryNo404Template.createCustomNotFoundResponse();
-			expect(response.status).toBe(404);
-			expect(await response.text()).toBe(STATUS_MESSAGE[404]);
-		});
-
-		it('should create a response with the route renderer body if error404 template file exists', async () => {
-			const response = await responseFactory.createCustomNotFoundResponse();
+	describe('createHtmlNotFoundResponse', () => {
+		it('should create an html 404 response from a rendered body', async () => {
+			const response = await responseFactory.createHtmlNotFoundResponse('<h1>404 - Page Not Found</h1>');
 			const body = await response.text();
 			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 			expect(response.headers.get('Content-Type')).toBe('text/html');
@@ -149,14 +115,15 @@ describe('FileSystemServerResponseFactory', () => {
 				'image/svg+xml',
 			);
 			readFileAsBufferSpy.mockRestore();
+			if (!response) {
+				throw new Error('Expected static file response');
+			}
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 		});
 
-		it('should return custom 404 page if the file does not exist', async () => {
+		it('should return null if the file does not exist', async () => {
 			const response = await responseFactory.createFileResponse('/path/to/nonexistent.txt', 'text/plain');
-			const body = await response.text();
-			expect(body).toContain('<h1>404 - Page Not Found</h1>');
-			expect(response.status).toBe(404);
+			expect(response).toBeNull();
 		});
 
 		it('should log debug for ENOENT errors', async () => {
@@ -184,6 +151,9 @@ describe('FileSystemServerResponseFactory', () => {
 			existsSpy.mockRestore();
 			readFileAsBufferSpy.mockRestore();
 
+			if (!response) {
+				throw new Error('Expected gzip file response');
+			}
 			expect(response.headers.get('Content-Type')).toBe('text/css');
 			expect(response.headers.get('Content-Encoding')).toBe('gzip');
 		});
@@ -198,6 +168,9 @@ describe('FileSystemServerResponseFactory', () => {
 			);
 			readFileAsBufferSpy.mockRestore();
 
+			if (!response) {
+				throw new Error('Expected non-gzip file response');
+			}
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 			expect(response.headers.get('Content-Encoding')).toBeNull();
 		});

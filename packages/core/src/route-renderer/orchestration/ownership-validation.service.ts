@@ -1,5 +1,6 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../types/public-types.ts';
+import { mapDeclaredOwnershipGraph } from './declared-ownership-graph.ts';
 
 type OwnershipValidationInput = {
 	currentIntegrationName: string;
@@ -30,24 +31,19 @@ export class OwnershipValidationService {
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
 	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
-		const validationErrors: OwnershipValidationError[] = [];
-		let nextSyntheticId = 0;
+		return mapDeclaredOwnershipGraph({
+			roots: input.roots,
+			currentIntegrationName: input.currentIntegrationName,
+			mapNode: ({ component, integrationName, componentId, isForeignToParent }, children) => {
+				const componentMeta = component.config?.__eco;
+				const errors = children.flat();
 
-		const validateComponent = (
-			component: EcoComponent,
-			source: Exclude<OwnershipPlanNodeSource, 'route'>,
-			parentIntegrationName: string,
-			lineage: Set<object>,
-		) => {
-			const integrationName =
-				component.config?.integration ?? component.config?.__eco?.integration ?? parentIntegrationName;
-			const componentMeta = component.config?.__eco;
-			const isForeignToParent = integrationName !== parentIntegrationName;
-			const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(nextSyntheticId += 1)}`;
+				if (!isForeignToParent) {
+					return errors;
+				}
 
-			if (isForeignToParent) {
 				if (!componentMeta) {
-					validationErrors.push({
+					errors.push({
 						code: 'MISSING_COMPONENT_METADATA',
 						message: `[ecopages] Foreign child "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
 						componentId,
@@ -56,7 +52,7 @@ export class OwnershipValidationService {
 				}
 
 				if (!this.isRegisteredIntegration(integrationName, input.currentIntegrationName)) {
-					validationErrors.push({
+					errors.push({
 						code: 'UNKNOWN_INTEGRATION_OWNER',
 						message: `[ecopages] Foreign child "${componentId}" references unknown integration owner "${integrationName}". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
 						componentId,
@@ -64,25 +60,10 @@ export class OwnershipValidationService {
 						integrationName,
 					});
 				}
-			}
 
-			const nextLineage = new Set(lineage);
-			nextLineage.add(component);
-
-			for (const child of component.config?.dependencies?.components ?? []) {
-				if (!child || nextLineage.has(child)) {
-					continue;
-				}
-
-				validateComponent(child, 'dependency', integrationName, nextLineage);
-			}
-		};
-
-		for (const { component, source } of input.roots) {
-			validateComponent(component, source, input.currentIntegrationName, new Set());
-		}
-
-		return validationErrors;
+				return errors;
+			},
+		}).flat();
 	}
 
 	private isRegisteredIntegration(integrationName: string, currentIntegrationName: string): boolean {

@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -6,6 +7,7 @@ import {
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
+import { rapidhash } from '@ecopages/core/hash';
 import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { VFile } from 'vfile';
@@ -17,7 +19,6 @@ import type {
 	EcopagesJsxPluginOptions,
 	EcopagesJsxRendererConfig,
 } from './ecopages-jsx.types.ts';
-import { JsxRuntimeBundleService } from './services/jsx-runtime-bundle.service.ts';
 
 export type {
 	EcopagesJsxMdxCompileOptions,
@@ -148,28 +149,10 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
 	private mdxExtensions: string[];
 	private mdxLoaderPlugin?: EcoBuildPlugin;
-	private runtimeBundleService: JsxRuntimeBundleService;
-	private runtimeSpecifierMap: Record<string, string> = {};
-	private runtimeDepsInitialized = false;
 
 	/** Returns the build plugins required by the JSX integration. */
 	override get plugins(): EcoBuildPlugin[] {
 		return [this.mdxLoaderPlugin].filter((plugin): plugin is EcoBuildPlugin => plugin !== undefined);
-	}
-
-	/** Returns the browser-only build plugins required by the JSX integration. */
-	override get browserBuildPlugins(): EcoBuildPlugin[] {
-		return [this.runtimeBundleService.getBuildPlugin()];
-	}
-
-	/**
-	 * Exposes the bare-module specifier map used by the import map.
-	 *
-	 * Client bundles keep these imports external so the browser can load the
-	 * shared runtime packages from the generated vendor assets.
-	 */
-	override getRuntimeSpecifierMap(): Record<string, string> {
-		return this.runtimeSpecifierMap;
 	}
 
 	/**
@@ -202,7 +185,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		});
 
 		this.includeRadiant = includeRadiant;
-		this.runtimeBundleService = new JsxRuntimeBundleService({ radiant: includeRadiant });
 		this.mdxEnabled = mdxEnabled;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
@@ -210,14 +192,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */
 	override async prepareBuildContributions(): Promise<void> {
-		if (!this.runtimeDepsInitialized) {
-			this.runtimeDepsInitialized = true;
-			this.runtimeBundleService.setRootDir(this.appConfig?.rootDir);
-			this.runtimeSpecifierMap = await this.runtimeBundleService.getSpecifierMap();
-			const vendorDeps = await this.runtimeBundleService.getDependencies();
-			this.integrationDependencies.unshift(...vendorDeps);
-		}
-
 		this.ensureMdxLoaderPlugin();
 	}
 
@@ -233,7 +207,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		}
 
 		await this.buildCustomElementRegistry();
-
 		await super.setup();
 	}
 
@@ -290,13 +263,11 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 		for (const scriptFile of scriptFiles) {
 			const tagNames = await this.extractCustomElementTagNames(scriptFile);
-
 			if (tagNames.length === 0) {
 				continue;
 			}
 
 			const asset = await this.resolveCustomElementAsset(scriptFile);
-
 			if (!asset) {
 				continue;
 			}
@@ -333,10 +304,12 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return undefined;
 		}
 
+		const browserEntryFile = this.ensureIntrinsicScriptBrowserEntry(scriptFile);
 		const [asset] = await this.assetProcessingService.processDependencies(
 			[
 				AssetFactory.createFileScript({
-					filepath: scriptFile,
+					filepath: browserEntryFile,
+					name: `ecopages-jsx-intrinsic-${rapidhash(scriptFile).toString(16)}`,
 					position: 'head',
 					attributes: {
 						type: 'module',
@@ -350,13 +323,27 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		return asset;
 	}
 
+	private ensureIntrinsicScriptBrowserEntry(scriptFile: string): string {
+		const rootDir = this.appConfig?.rootDir ?? process.cwd();
+		const entriesDir = path.join(rootDir, 'node_modules', '.cache', 'ecopages-jsx-browser-entries');
+		const entryFile = path.join(entriesDir, `${rapidhash(scriptFile).toString(16)}.mjs`);
+		const statements = [
+			...(this.includeRadiant ? [`import '@ecopages/radiant/client/install-hydrator';`] : []),
+			`import ${JSON.stringify(scriptFile)};`,
+		];
+
+		mkdirSync(entriesDir, { recursive: true });
+		writeFileSync(entryFile, `${statements.join('\n')}\n`, 'utf8');
+
+		return entryFile;
+	}
+
 	private async extractCustomElementTagNames(scriptFile: string): Promise<string[]> {
 		const source = await readFile(scriptFile, 'utf8');
 		const tagNames = new Set<string>();
 
 		for (const match of source.matchAll(/@customElement\(\s*['"]([^'"]+)['"]/g)) {
 			const tagName = match[1];
-
 			if (tagName) {
 				tagNames.add(tagName);
 			}
@@ -364,7 +351,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 		for (const match of source.matchAll(/customElement\(\s*['"]([^'"]+)['"]\s*\)\s*\(/g)) {
 			const tagName = match[1];
-
 			if (tagName) {
 				tagNames.add(tagName);
 			}

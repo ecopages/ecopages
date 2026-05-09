@@ -44,14 +44,13 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 	/** Optional JSX route extensions. Defaults to `.tsx`. */
 	extensions?: string[];
 	/**
-	 * Whether to include the Radiant integration contract for JSX apps.
+	 * Whether to enable the Radiant SSR contract for JSX apps.
 	 *
 	 * When enabled, Ecopages JSX:
 	 * - imports `@ecopages/radiant/server/render-component` before Radiant SSR
-	 * - rewrites browser runtime specifiers to emitted vendor assets at build time
-	 * - folds `@ecopages/radiant/client/install-hydrator` into the emitted
-	 *   Radiant vendor so intrinsic custom-element modules install the
-	 *   hydrator before they connect
+	 * - prepends `@ecopages/radiant/client/install-hydrator` to generated
+	 *   intrinsic custom-element browser entries so hydrated hosts can attach
+	 *   before the custom element module connects
 	 *
 	 * Set to `false` when pages do not use Radiant web components.
 	 * @default true

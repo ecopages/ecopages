@@ -106,7 +106,9 @@ export class ReactHydrationAssetService {
 					importPath: isDevelopment ? importPath : pagePath,
 					pageModuleUrlExpression,
 					reactImportPath: useBrowserRuntimeImports ? runtimeImports.react : 'react',
-					reactDomClientImportPath: useBrowserRuntimeImports ? runtimeImports.reactDomClient : 'react-dom/client',
+					reactDomClientImportPath: useBrowserRuntimeImports
+						? runtimeImports.reactDomClient
+						: 'react-dom/client',
 					routerImportPath: useBrowserRuntimeImports
 						? runtimeImports.router
 						: this.config.routerAdapter?.bundle.importPath,

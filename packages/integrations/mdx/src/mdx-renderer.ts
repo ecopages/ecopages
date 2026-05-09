@@ -108,15 +108,15 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			throw new TypeError('MDX renderer expected a callable component.');
 		}
 
-		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(input, input.component);
+		return this.renderStringComponentWithQueuedForeignSubtrees(input, input.component);
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 		});
 	}

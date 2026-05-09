@@ -2,7 +2,7 @@ import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { ComponentBoundaryRuntime } from '../route-renderer/orchestration/component-render-context.ts';
+import type { ForeignChildRuntime } from '../route-renderer/orchestration/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -31,7 +31,7 @@ export type {
 	StandardSchemaFailureResult,
 	StandardSchemaIssue,
 	InferOutput,
-	ComponentBoundaryRuntime,
+	ForeignChildRuntime,
 };
 
 export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
@@ -763,7 +763,7 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
-	boundaryPlan?: BoundaryPlan;
+	ownershipPlan?: OwnershipPlan;
 };
 
 /**
@@ -819,19 +819,19 @@ export interface PageBrowserGraphResult {
 	assets: ProcessedAsset[];
 }
 
-export type BoundaryValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
+export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
 
-export interface BoundaryValidationError {
-	code: BoundaryValidationErrorCode;
+export interface OwnershipValidationError {
+	code: OwnershipValidationErrorCode;
 	message: string;
 	componentId?: string;
 	componentFile?: string;
 	integrationName?: string;
 }
 
-export type BoundaryPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
+export type OwnershipPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
 
-export interface BoundaryOwnership {
+export interface IntegrationOwnership {
 	integrationName: string;
 	componentId: string;
 	componentFile?: string;
@@ -839,35 +839,35 @@ export interface BoundaryOwnership {
 	isForeignToParent: boolean;
 }
 
-export interface BoundaryPlanNode {
+export interface OwnershipPlanNode {
 	id: string;
-	source: BoundaryPlanNodeSource;
-	ownership: BoundaryOwnership;
-	children: BoundaryPlanNode[];
+	source: OwnershipPlanNodeSource;
+	ownership: IntegrationOwnership;
+	children: OwnershipPlanNode[];
 	declaredDependenciesValid: boolean;
 }
 
-export interface BoundaryPlan {
-	root: BoundaryPlanNode;
+export interface OwnershipPlan {
+	root: OwnershipPlanNode;
 	rendererNames: string[];
 	foreignEdgeCount: number;
 	hasValidationErrors: boolean;
-	validationErrors: BoundaryValidationError[];
+	validationErrors: OwnershipValidationError[];
 }
 
-export type BoundaryAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
+export type ForeignSubtreeAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
 
-export interface BoundaryRenderPayload {
+export interface ForeignSubtreeRenderPayload {
 	html: string;
 	assets: ProcessedAsset[];
 	rootTag?: string;
 	rootAttributes?: Record<string, string>;
-	attachmentPolicy: BoundaryAttachmentPolicy;
+	attachmentPolicy: ForeignSubtreeAttachmentPolicy;
 	integrationName: string;
 }
 
 /**
- * Shared execution-scoped context threaded through component boundary renders.
+ * Shared execution-scoped context threaded through foreign-child renders.
  *
  * Integrations can extend this with renderer-local runtime keys, but the cache
  * and optional component instance identity are shared across all renderers.

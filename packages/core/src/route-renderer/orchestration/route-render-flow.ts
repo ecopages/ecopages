@@ -28,9 +28,9 @@ import {
 } from '../../services/assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
-import { inspectBoundaryArtifactHtml } from './render-output.utils.ts';
-import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
-import { BoundaryPlanningService } from './boundary-planning.service.ts';
+import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
+import { OwnershipValidationService } from './ownership-validation.service.ts';
+import { OwnershipPlanningService } from './ownership-planning.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 type ResolvedPageModule = {
@@ -107,7 +107,7 @@ export interface RouteRenderFlowCallbacks<C> {
 		options: RouteRendererOptions;
 	}): boolean;
 	/**
-	 * Renders the page root through the component boundary contract.
+	 * Renders the page root through the foreign-child-aware component contract.
 	 */
 	renderPageComponent(input: {
 		component: EcoComponent;
@@ -160,8 +160,8 @@ export interface FinalizeHtmlRenderOptions {
  * Optional app-scoped collaborators used by the route render flow.
  */
 export interface RouteRenderFlowDependencies {
-	boundaryPlanningService?: BoundaryPlanningService;
-	boundaryOwnershipValidationService?: BoundaryOwnershipValidationService;
+	ownershipPlanningService?: OwnershipPlanningService;
+	ownershipValidationService?: OwnershipValidationService;
 }
 
 /**
@@ -175,8 +175,8 @@ export interface RouteRenderFlowDependencies {
 export class RouteRenderFlow {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
-	private readonly boundaryPlanningService: BoundaryPlanningService;
-	private readonly boundaryOwnershipValidationService: BoundaryOwnershipValidationService;
+	private readonly ownershipPlanningService: OwnershipPlanningService;
+	private readonly ownershipValidationService: OwnershipValidationService;
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -185,9 +185,9 @@ export class RouteRenderFlow {
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
-		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService();
-		this.boundaryOwnershipValidationService =
-			dependencies.boundaryOwnershipValidationService ?? new BoundaryOwnershipValidationService(appConfig);
+		this.ownershipPlanningService = dependencies.ownershipPlanningService ?? new OwnershipPlanningService();
+		this.ownershipValidationService =
+			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
 	}
 
 	/**
@@ -206,7 +206,7 @@ export class RouteRenderFlow {
 		const { Page, integrationSpecificProps } = pageModule;
 		const HtmlTemplate = await callbacks.getHtmlTemplate();
 		const Layout = Page.config?.layout;
-		const validationErrors = this.boundaryOwnershipValidationService.validate({
+		const validationErrors = this.ownershipValidationService.validate({
 			currentIntegrationName,
 			roots: [
 				{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
@@ -215,7 +215,7 @@ export class RouteRenderFlow {
 			],
 		});
 		const { props, metadata } = await callbacks.resolvePageData(pageModule, routeOptions);
-		const boundaryPlan = this.boundaryPlanningService.buildPlan({
+		const ownershipPlan = this.ownershipPlanningService.buildPlan({
 			routeFile: routeOptions.file,
 			currentIntegrationName,
 			HtmlTemplate: HtmlTemplate as EcoComponent,
@@ -296,7 +296,7 @@ export class RouteRenderFlow {
 			locals,
 			pageLocals,
 			cacheStrategy,
-			boundaryPlan,
+			ownershipPlan,
 		};
 
 		callbacks.onPreparedRenderOptions?.(preparedOptions);
@@ -335,18 +335,18 @@ export class RouteRenderFlow {
 			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
 
 		const renderExecution = await this.captureHtmlRender(async () => callbacks.render(renderOptions));
-		const boundaryArtifacts = inspectBoundaryArtifactHtml(renderExecution.html);
+		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
 		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
-		const hasBoundaryMarkerHtml = boundaryArtifacts.hasUnresolvedBoundaryArtifacts;
+		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
 
-		if (hasBoundaryMarkerHtml) {
+		if (hasUnresolvedMarkerHtml) {
 			throw new Error(
-				'[ecopages] Route render returned unresolved boundary artifact HTML. Full-route unresolved-boundary fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
+				'[ecopages] Route render returned unresolved eco-marker artifact HTML. Full-route unresolved-marker fallback has been removed; resolve mixed foreign children inside renderComponentWithForeignChildren().',
 			);
 		}
 
 		const canReuseCapturedBody =
-			!hasBoundaryMarkerHtml &&
+			!hasUnresolvedMarkerHtml &&
 			!shouldApplyComponentRootAttributes &&
 			!(documentAttributes && Object.keys(documentAttributes).length > 0);
 
@@ -367,7 +367,7 @@ export class RouteRenderFlow {
 
 		const finalization = await this.finalizeHtmlRender(
 			{
-				html: boundaryArtifacts.normalizedHtml,
+				html: unresolvedArtifactInspection.normalizedHtml,
 				componentRootAttributes: shouldApplyComponentRootAttributes
 					? (renderOptions.componentRender?.rootAttributes as Record<string, string>)
 					: undefined,

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
-	type BoundaryRenderPayload,
+	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -87,7 +87,7 @@ class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
 
 describe('EcopagesJsxRenderer', () => {
 	describe('renderComponent', () => {
-		it('returns component-scoped dependency assets for component boundary renders', async () => {
+		it('returns component-scoped dependency assets for foreign-subtree renders', async () => {
 			const processDependencies = vi.fn(async () => [
 				{
 					kind: 'script',
@@ -128,7 +128,7 @@ describe('EcopagesJsxRenderer', () => {
 			]);
 		});
 
-		it('exposes the compatibility boundary payload contract', async () => {
+		it('exposes the compatibility foreign-subtree payload contract', async () => {
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: Config,
 				assetProcessingService: {
@@ -140,16 +140,16 @@ describe('EcopagesJsxRenderer', () => {
 
 			const Component = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',
-				render: () => <section data-jsx-boundary>ready</section>,
+				render: () => <section data-jsx-foreign-subtree>ready</section>,
 			});
 
-			const result = await renderer.renderBoundary({
+			const result = await renderer.renderForeignSubtree({
 				component: Component,
 				props: {},
 			});
 
-			expect(result).toEqual<BoundaryRenderPayload>({
-				html: '<section data-jsx-boundary="true">ready</section>',
+			expect(result).toEqual<ForeignSubtreeRenderPayload>({
+				html: '<section data-jsx-foreign-subtree="true">ready</section>',
 				assets: [],
 				rootTag: 'section',
 				rootAttributes: undefined,
@@ -181,7 +181,7 @@ describe('EcopagesJsxRenderer', () => {
 				}),
 			);
 
-			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
 				name = 'deferred';
 
 				async render(): Promise<string> {
@@ -201,8 +201,8 @@ describe('EcopagesJsxRenderer', () => {
 				}
 			}
 
-			class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredBoundaryRenderer;
+			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
+				renderer = DeferredForeignSubtreeRenderer;
 
 				constructor() {
 					super({
@@ -212,7 +212,7 @@ describe('EcopagesJsxRenderer', () => {
 				}
 			}
 
-			const deferredPlugin = new DeferredBoundaryPlugin();
+			const deferredPlugin = new DeferredForeignSubtreePlugin();
 			const config = await new ConfigBuilder()
 				.setRobotsTxt({
 					preferences: {
@@ -240,17 +240,14 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.tsx',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const Shell = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',
@@ -265,7 +262,7 @@ describe('EcopagesJsxRenderer', () => {
 				),
 			});
 
-			const result = await renderer.renderComponentBoundary({
+			const result = await renderer.renderComponentWithForeignChildren({
 				component: Shell,
 				props: {},
 				integrationContext: {
@@ -290,7 +287,7 @@ describe('EcopagesJsxRenderer', () => {
 	});
 
 	describe('renderToResponse', () => {
-		it('renders full route pages through renderer-owned explicit boundary renders', async () => {
+		it('renders full route pages through renderer-owned explicit foreign-subtree renders', async () => {
 			const deferredPlugin = new DeferredPlugin();
 			const config = await new ConfigBuilder()
 				.setRobotsTxt({
@@ -319,17 +316,14 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.tsx',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const Layout = eco.layout<JsxRenderable>({
 				integration: 'ecopages-jsx',
@@ -396,7 +390,7 @@ describe('EcopagesJsxRenderer', () => {
 			expect(body).not.toContain('<!DOCTYPE html>');
 		});
 
-		it('renders full JSX views through renderer-owned explicit boundary renders', async () => {
+		it('renders full JSX views through renderer-owned explicit foreign-subtree renders', async () => {
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: Config,
 				assetProcessingService: {

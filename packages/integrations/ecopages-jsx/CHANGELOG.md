@@ -20,7 +20,7 @@
 - Fixed intrinsic custom-element asset discovery so Ecopages JSX registers scripts declared with decorator and function-call `customElement(...)` syntax.
 - Fixed Ecopages JSX browser entries to stop relying on a shared JSX or Radiant import-map runtime while keeping server-only JSX modules out of emitted browser bundles.
 - Fixed the Ecopages JSX browser runtime bundle so Radiant custom-element scripts no longer fail on a duplicate `jsxDEV` export cycle.
-- Fixed Ecopages JSX boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
+- Fixed Ecopages JSX foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Refactoring
 
@@ -29,4 +29,4 @@
 
 ### Tests
 
-- Added renderer-level coverage for the boundary payload compatibility contract.
+- Added renderer-level coverage for the foreign-subtree payload compatibility contract.

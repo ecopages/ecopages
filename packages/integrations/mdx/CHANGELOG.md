@@ -12,8 +12,8 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ### Bug Fixes
 
-- Fixed loader registration, Node `source-map` interop, and renderer-owned mixed-boundary rendering for standalone MDX routes.
-- Fixed standalone MDX boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
+- Fixed loader registration, Node `source-map` interop, and renderer-owned mixed foreign-subtree rendering for standalone MDX routes.
+- Fixed standalone MDX foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Documentation
 
@@ -21,7 +21,7 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ### Tests
 
-- Added renderer-level coverage for the boundary payload compatibility contract.
+- Added renderer-level coverage for the foreign-subtree payload compatibility contract.
 
 ### Refactoring
 

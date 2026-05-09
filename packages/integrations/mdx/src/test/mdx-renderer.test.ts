@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
-	BoundaryRenderPayload,
+	ForeignSubtreeRenderPayload,
 	EcoComponent,
 	EcoPageFile,
 	HtmlTemplateProps,
@@ -241,17 +241,17 @@ describe('MDXRenderer', () => {
 			).rejects.toThrow('Error rendering page: Page failed to render');
 		});
 
-		it('should expose the compatibility boundary payload contract', async () => {
+		it('should expose the compatibility foreign-subtree payload contract', async () => {
 			const testRenderer = createRenderer();
-			const Component = (async () => '<article>Boundary</article>') as unknown as EcoComponent<object>;
+			const Component = (async () => '<article>Foreign Subtree</article>') as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderBoundary({
+			const result = await testRenderer.renderForeignSubtree({
 				component: Component,
 				props: {},
 			});
 
-			expect(result).toEqual<BoundaryRenderPayload>({
-				html: '<article>Boundary</article>',
+			expect(result).toEqual<ForeignSubtreeRenderPayload>({
+				html: '<article>Foreign Subtree</article>',
 				assets: [],
 				rootTag: 'article',
 				rootAttributes: undefined,

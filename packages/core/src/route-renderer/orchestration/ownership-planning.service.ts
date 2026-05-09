@@ -1,23 +1,23 @@
 import type {
-	BoundaryPlan,
-	BoundaryPlanNode,
-	BoundaryPlanNodeSource,
-	BoundaryValidationError,
+	OwnershipPlan,
+	OwnershipPlanNode,
+	OwnershipPlanNodeSource,
+	OwnershipValidationError,
 	EcoComponent,
 } from '../../types/public-types.ts';
 
-type BoundaryPlanBuildInput = {
+type OwnershipPlanBuildInput = {
 	routeFile: string;
 	currentIntegrationName: string;
 	HtmlTemplate: EcoComponent;
 	Layout?: EcoComponent;
 	Page: EcoComponent;
-	validationErrors?: BoundaryValidationError[];
+	validationErrors?: OwnershipValidationError[];
 };
 
-type BoundaryPlanBuildEntry = {
+type OwnershipPlanBuildEntry = {
 	component: EcoComponent;
-	source: Extract<BoundaryPlanNodeSource, 'page' | 'layout' | 'html-template'>;
+	source: Extract<OwnershipPlanNodeSource, 'page' | 'layout' | 'html-template'>;
 };
 
 /**
@@ -28,11 +28,11 @@ type BoundaryPlanBuildEntry = {
  * foreign-edge counts, and any validation errors supplied by an earlier
  * validation pass.
  */
-export class BoundaryPlanningService {
+export class OwnershipPlanningService {
 	/**
 	 * Builds the structural ownership plan for one route render.
 	 */
-	buildPlan(input: BoundaryPlanBuildInput): BoundaryPlan {
+	buildPlan(input: OwnershipPlanBuildInput): OwnershipPlan {
 		let nextSyntheticId = 0;
 
 		const validationErrors = input.validationErrors ?? [];
@@ -41,10 +41,10 @@ export class BoundaryPlanningService {
 
 		const buildNode = (
 			component: EcoComponent,
-			source: Exclude<BoundaryPlanNodeSource, 'route'>,
+			source: Exclude<OwnershipPlanNodeSource, 'route'>,
 			parentIntegrationName: string,
 			lineage: Set<object>,
-		): BoundaryPlanNode => {
+		): OwnershipPlanNode => {
 			const integrationName =
 				component.config?.integration ?? component.config?.__eco?.integration ?? parentIntegrationName;
 			const componentMeta = component.config?.__eco;
@@ -82,13 +82,13 @@ export class BoundaryPlanningService {
 			};
 		};
 
-		const roots: BoundaryPlanBuildEntry[] = [
+		const roots: OwnershipPlanBuildEntry[] = [
 			{ component: input.HtmlTemplate, source: 'html-template' },
 			...(input.Layout ? [{ component: input.Layout, source: 'layout' as const }] : []),
 			{ component: input.Page, source: 'page' },
 		];
 
-		const root: BoundaryPlanNode = {
+		const root: OwnershipPlanNode = {
 			id: `route:${input.routeFile}`,
 			source: 'route',
 			ownership: {

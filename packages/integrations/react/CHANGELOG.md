@@ -12,9 +12,9 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed router-managed React HMR handlers to forward the active page HMR entry when reloading the current route through React Router.
 - Fixed production React route hydration bundles to inline React runtime dependencies and import the router through the emitted page browser graph instead of a published import-map key.
 - Removed the redundant React page props bootstrap script so route hydration relies on the canonical `__ECO_PAGE_DATA__` payload.
-- Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer boundary resolution across Bun, Vite, and Nitro flows.
+- Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer foreign-subtree resolution across Bun, Vite, and Nitro flows.
 - Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.
-- Fixed React boundary payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
+- Fixed React foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 
 ### Features
 
@@ -37,7 +37,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - Added Vitest browser coverage for the React `dynamic()` utility using React Testing Library.
 - Added browser execution coverage for the generated React hydration bootstrap, including router ownership registration and page-root cleanup.
-- Added renderer-level coverage for the boundary payload compatibility contract, including non-attachable fragment roots.
+- Added renderer-level coverage for the foreign-subtree payload compatibility contract, including non-attachable fragment roots.
 
 ### Documentation
 

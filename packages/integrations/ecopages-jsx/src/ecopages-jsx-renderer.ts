@@ -25,10 +25,10 @@ import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
-type EcopagesJsxBoundaryRuntimeContext = {
+type EcopagesJsxForeignSubtreeResolutionContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
 	componentInstanceScope?: string;
-	nextBoundaryId: number;
+	nextForeignSubtreeId: number;
 	queuedResolutions: Array<{
 		token: string;
 		component: EcoComponent;
@@ -67,11 +67,11 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	/**
 	 * Re-renders queued JSX children inside the owning renderer so nested custom
-	 * elements and queued foreign boundaries contribute assets to the same frame.
+	 * elements and queued foreign subtrees contribute assets to the same frame.
 	 */
-	private async renderQueuedBoundaryChildren(
+	private async renderQueuedForeignSubtreeChildren(
 		children: unknown,
-		queuedResolutionsByToken: Map<string, EcopagesJsxBoundaryRuntimeContext['queuedResolutions'][number]>,
+		queuedResolutionsByToken: Map<string, EcopagesJsxForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
 		if (children === undefined) {
@@ -88,7 +88,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			html = renderedChildren.html;
 			assets = renderedChildren.assets;
 		}
-		html = await this.resolveQueuedBoundaryTokens(html, queuedResolutionsByToken, resolveToken);
+		html = await this.resolveQueuedForeignSubtreeTokens(html, queuedResolutionsByToken, resolveToken);
 
 		return {
 			assets,
@@ -97,21 +97,21 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	/**
-	 * Resolves queued foreign boundaries after JSX has been stringified.
+	 * Resolves queued foreign subtrees after JSX has been stringified.
 	 *
-	 * JSX content needs one extra render pass because child boundaries may emit
+	 * JSX content needs one extra render pass because child foreign subtrees may emit
 	 * additional browser assets while also replacing placeholder tokens.
 	 */
-	private async resolveOwnedBoundaryHtml(
+	private async resolveOwnedForeignSubtreeHtml(
 		html: string,
-		runtimeContext: EcopagesJsxBoundaryRuntimeContext | undefined,
+		runtimeContext: EcopagesJsxForeignSubtreeResolutionContext | undefined,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.resolveRendererOwnedQueuedBoundaryHtml({
+		return this.resolveRendererOwnedQueuedForeignSubtreeHtml({
 			html,
 			runtimeContext,
 			queueLabel: 'Ecopages JSX',
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-				this.renderQueuedBoundaryChildren(children, queuedResolutionsByToken, resolveToken),
+				this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 		});
 	}
 
@@ -195,21 +195,21 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 			const content = await this.renderEcoComponent(input.component, this.createComponentProps(input));
 			const rendered = await this.renderJsx(content);
-			const queuedBoundaryResolution = await this.resolveOwnedBoundaryHtml(
+			const queuedForeignSubtreeResolution = await this.resolveOwnedForeignSubtreeHtml(
 				rendered.html,
-				this.getQueuedBoundaryRuntime<EcopagesJsxBoundaryRuntimeContext>(input),
+				this.getQueuedForeignSubtreeResolutionContext<EcopagesJsxForeignSubtreeResolutionContext>(input),
 			);
 			const componentAssets = await this.collectComponentAssets(input.component);
 			const assets = this.htmlTransformer.dedupeProcessedAssets([
 				...this.endCollectedAssetFrame(assetFrame),
-				...queuedBoundaryResolution.assets,
+				...queuedForeignSubtreeResolution.assets,
 				...componentAssets,
 			]);
 
 			return {
-				html: queuedBoundaryResolution.html,
+				html: queuedForeignSubtreeResolution.html,
 				canAttachAttributes: true,
-				rootTag: this.getRootTagName(queuedBoundaryResolution.html),
+				rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 				integrationName: this.name,
 				assets,
 			};
@@ -221,12 +221,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		}
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime<EcopagesJsxBoundaryRuntimeContext>({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime<EcopagesJsxForeignSubtreeResolutionContext>({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 		});
 	}

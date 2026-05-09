@@ -1,22 +1,22 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { BoundaryPlanNodeSource, BoundaryValidationError, EcoComponent } from '../../types/public-types.ts';
+import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../types/public-types.ts';
 
-type BoundaryOwnershipValidationInput = {
+type OwnershipValidationInput = {
 	currentIntegrationName: string;
 	roots: Array<{
 		component: EcoComponent;
-		source: Extract<BoundaryPlanNodeSource, 'page' | 'layout' | 'html-template'>;
+		source: Extract<OwnershipPlanNodeSource, 'page' | 'layout' | 'html-template'>;
 	}>;
 };
 
 /**
- * Validates foreign boundary ownership as soon as the route root graph is loaded.
+ * Validates foreign ownership as soon as the route root graph is loaded.
  *
  * This check runs before route data and dependency preparation so ownership and
  * metadata problems are surfaced from the loaded component graph itself rather
- * than being entangled with boundary-plan construction.
+ * than being entangled with ownership-plan construction.
  */
-export class BoundaryOwnershipValidationService {
+export class OwnershipValidationService {
 	private readonly appConfig: EcoPagesAppConfig;
 
 	/**
@@ -29,13 +29,13 @@ export class BoundaryOwnershipValidationService {
 	/**
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
-	validate(input: BoundaryOwnershipValidationInput): BoundaryValidationError[] {
-		const validationErrors: BoundaryValidationError[] = [];
+	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
+		const validationErrors: OwnershipValidationError[] = [];
 		let nextSyntheticId = 0;
 
 		const validateComponent = (
 			component: EcoComponent,
-			source: Exclude<BoundaryPlanNodeSource, 'route'>,
+			source: Exclude<OwnershipPlanNodeSource, 'route'>,
 			parentIntegrationName: string,
 			lineage: Set<object>,
 		) => {
@@ -49,7 +49,7 @@ export class BoundaryOwnershipValidationService {
 				if (!componentMeta) {
 					validationErrors.push({
 						code: 'MISSING_COMPONENT_METADATA',
-						message: `[ecopages] Foreign boundary "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
+						message: `[ecopages] Foreign child "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
 						componentId,
 						integrationName,
 					});
@@ -58,7 +58,7 @@ export class BoundaryOwnershipValidationService {
 				if (!this.isRegisteredIntegration(integrationName, input.currentIntegrationName)) {
 					validationErrors.push({
 						code: 'UNKNOWN_INTEGRATION_OWNER',
-						message: `[ecopages] Foreign boundary "${componentId}" references unknown integration owner "${integrationName}". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
+						message: `[ecopages] Foreign child "${componentId}" references unknown integration owner "${integrationName}". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
 						componentId,
 						componentFile: componentMeta?.file,
 						integrationName,

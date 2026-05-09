@@ -30,18 +30,18 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = GHTML_PLUGIN_NAME;
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(
+		return this.renderStringComponentWithQueuedForeignSubtrees(
 			input,
 			input.component as GhtmlViewFn<Record<string, unknown>>,
 		);
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 		});
 	}

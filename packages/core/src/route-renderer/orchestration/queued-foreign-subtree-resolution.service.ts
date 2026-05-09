@@ -1,20 +1,20 @@
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
 	BaseIntegrationContext,
-	BoundaryRenderPayload,
+	ForeignSubtreeRenderPayload,
 	ComponentRenderInput,
 	EcoComponent,
 } from '../../types/public-types.ts';
-import type { ComponentBoundaryRuntime } from './component-render-context.ts';
+import type { ForeignChildRuntime } from './component-render-context.ts';
 
-export type QueuedBoundaryDecisionInput = {
+export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
 	targetIntegration?: string;
 	component: EcoComponent;
 	props: Record<string, unknown>;
 };
 
-export type QueuedBoundaryResolution = {
+export type QueuedForeignSubtreeResolution = {
 	token: string;
 	component: EcoComponent;
 	props: Record<string, unknown>;
@@ -22,48 +22,48 @@ export type QueuedBoundaryResolution = {
 };
 
 /**
- * Shared mutable state for one renderer-owned queued boundary runtime.
+ * Shared mutable state for one renderer-owned queued foreign-subtree runtime.
  *
- * Renderers that cannot resolve foreign boundaries inline can enqueue transport
+ * Renderers that cannot resolve foreign children inline can enqueue transport
  * tokens during their initial render, then resolve those tokens against the
  * owning renderer before returning final HTML.
  */
-export type QueuedBoundaryRuntimeContext = {
+export type QueuedForeignSubtreeResolutionContext = {
 	rendererCache: Map<string, unknown>;
 	componentInstanceScope?: string;
-	nextBoundaryId: number;
-	queuedResolutions: QueuedBoundaryResolution[];
+	nextForeignSubtreeId: number;
+	queuedResolutions: QueuedForeignSubtreeResolution[];
 };
 
-type QueuedBoundaryIntegrationContext = BaseIntegrationContext & Record<string, unknown>;
+type QueuedForeignSubtreeIntegrationContext = BaseIntegrationContext & Record<string, unknown>;
 
-type QueuedBoundaryChildRenderResult = {
+type QueuedForeignSubtreeChildRenderResult = {
 	assets: ProcessedAsset[];
 	html?: string;
 };
 
 /**
- * Shared queue orchestration for renderer-owned boundary runtimes that emit
+ * Shared queue orchestration for renderer-owned foreign-child runtimes that emit
  * temporary transport tokens during one render pass.
  *
  * The service keeps three responsibilities in one place:
  * - storing per-render queue state on the active integration context
- * - creating a `ComponentBoundaryRuntime` that enqueues foreign boundaries
+ * - creating a `ForeignChildRuntime` that enqueues foreign children
  * - resolving queued tokens back through the owning renderer before final HTML
  *   leaves the current renderer
  *
  * Renderers still own framework-specific child rendering. This service only
  * handles queue bookkeeping, recursion, cycle detection, and asset merging.
  */
-export class QueuedBoundaryRuntimeService {
+export class QueuedForeignSubtreeResolutionService {
 	/**
-	 * Reads the queued boundary runtime state previously attached to one render.
+	 * Reads the queued foreign-subtree runtime state previously attached to one render.
 	 */
-	getRuntimeContext<TContext extends QueuedBoundaryRuntimeContext>(
+	getRuntimeContext<TContext extends QueuedForeignSubtreeResolutionContext>(
 		input: ComponentRenderInput,
 		runtimeContextKey: string,
 	): TContext | undefined {
-		const integrationContext = input.integrationContext as QueuedBoundaryIntegrationContext | undefined;
+		const integrationContext = input.integrationContext as QueuedForeignSubtreeIntegrationContext | undefined;
 		const runtimeContext = integrationContext?.[runtimeContextKey];
 
 		if (typeof runtimeContext !== 'object' || runtimeContext === null) {
@@ -77,37 +77,37 @@ export class QueuedBoundaryRuntimeService {
 	 * Creates the runtime hook used by `runWithComponentRenderContext()` for one
 	 * renderer-owned queue.
 	 *
-	 * When the renderer decides a boundary must be handed off, the runtime returns
+	 * When the renderer decides a foreign child must be handed off, the runtime returns
 	 * a resolved transport token instead of rendering the foreign component inline.
 	 */
-	createRuntime<TContext extends QueuedBoundaryRuntimeContext>(options: {
-		boundaryInput: ComponentRenderInput;
+	createRuntime<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, unknown>;
 		runtimeContextKey: string;
 		tokenPrefix: string;
-		shouldQueueBoundary: (input: QueuedBoundaryDecisionInput) => boolean;
+		shouldQueueForeignChild: (input: QueuedForeignChildDecisionInput) => boolean;
 		createRuntimeContext?: (
-			integrationContext: QueuedBoundaryIntegrationContext,
+			integrationContext: QueuedForeignSubtreeIntegrationContext,
 			rendererCache: Map<string, unknown>,
 		) => TContext;
-	}): ComponentBoundaryRuntime {
+	}): ForeignChildRuntime {
 		const runtimeContext = this.ensureRuntimeContext(options);
 
-		const interceptBoundary = (input: QueuedBoundaryDecisionInput) => {
-			if (!options.shouldQueueBoundary(input)) {
+		const interceptForeignChild = (input: QueuedForeignChildDecisionInput) => {
+			if (!options.shouldQueueForeignChild(input)) {
 				return { kind: 'inline' as const };
 			}
 
-			runtimeContext.nextBoundaryId += 1;
-			const boundaryId = runtimeContext.nextBoundaryId;
-			const token = this.createBoundaryToken(options.tokenPrefix, runtimeContext, boundaryId);
+			runtimeContext.nextForeignSubtreeId += 1;
+			const foreignSubtreeId = runtimeContext.nextForeignSubtreeId;
+			const token = this.createForeignSubtreeToken(options.tokenPrefix, runtimeContext, foreignSubtreeId);
 			runtimeContext.queuedResolutions.push({
 				token,
 				component: input.component,
 				props: { ...input.props },
 				componentInstanceId: runtimeContext.componentInstanceScope
-					? `${runtimeContext.componentInstanceScope}_n_${boundaryId}`
-					: `n_${boundaryId}`,
+					? `${runtimeContext.componentInstanceScope}_n_${foreignSubtreeId}`
+					: `n_${foreignSubtreeId}`,
 			});
 
 			return {
@@ -117,8 +117,8 @@ export class QueuedBoundaryRuntimeService {
 		};
 
 		return {
-			interceptBoundary,
-			interceptBoundarySync: interceptBoundary,
+			interceptForeignChild,
+			interceptForeignChildSync: interceptForeignChild,
 		};
 	}
 
@@ -129,20 +129,20 @@ export class QueuedBoundaryRuntimeService {
 	 * handles recursive token replacement, cycle detection, root-attribute
 	 * application, and merged asset collection.
 	 */
-	async resolveQueuedHtml<TContext extends QueuedBoundaryRuntimeContext>(options: {
+	async resolveQueuedHtml<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
 		html: string;
 		runtimeContext?: TContext;
 		queueLabel: string;
 		renderQueuedChildren: (
 			children: unknown,
 			runtimeContext: TContext,
-			queuedResolutionsByToken: Map<string, QueuedBoundaryResolution>,
+			queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
 			resolveToken: (token: string) => Promise<string>,
-		) => Promise<QueuedBoundaryChildRenderResult>;
-		resolveBoundary: (
+		) => Promise<QueuedForeignSubtreeChildRenderResult>;
+		resolveForeignSubtree: (
 			input: ComponentRenderInput,
 			rendererCache: Map<string, unknown>,
-		) => Promise<BoundaryRenderPayload | undefined>;
+		) => Promise<ForeignSubtreeRenderPayload | undefined>;
 		applyAttributesToFirstElement: (html: string, attributes: Record<string, string>) => string;
 		dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
 	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
@@ -171,7 +171,7 @@ export class QueuedBoundaryRuntimeService {
 
 			if (resolvingTokens.has(token)) {
 				throw new Error(
-					`[ecopages] ${options.queueLabel} boundary queue contains a cycle or unresolved dependency links.`,
+					`[ecopages] ${options.queueLabel} foreign-subtree queue contains a cycle or unresolved dependency links.`,
 				);
 			}
 
@@ -189,7 +189,7 @@ export class QueuedBoundaryRuntimeService {
 					collectedAssets.push(...renderedChildren.assets);
 				}
 
-				const boundaryRender = await options.resolveBoundary(
+				const foreignSubtreeRender = await options.resolveForeignSubtree(
 					{
 						component: resolution.component,
 						props: { ...resolution.props },
@@ -202,20 +202,24 @@ export class QueuedBoundaryRuntimeService {
 					runtimeContext.rendererCache,
 				);
 
-				if (!boundaryRender) {
+				if (!foreignSubtreeRender) {
 					throw new Error(
-						`[ecopages] ${options.queueLabel} queued boundary could not resolve its owning renderer.`,
+						`[ecopages] ${options.queueLabel} queued foreign subtree could not resolve its owning renderer.`,
 					);
 				}
 
-				if ((boundaryRender.assets?.length ?? 0) > 0) {
-					collectedAssets.push(...(boundaryRender.assets ?? []));
+				if ((foreignSubtreeRender.assets?.length ?? 0) > 0) {
+					collectedAssets.push(...(foreignSubtreeRender.assets ?? []));
 				}
 
 				const resolvedHtml =
-					boundaryRender.attachmentPolicy.kind === 'first-element' && boundaryRender.rootAttributes
-						? options.applyAttributesToFirstElement(boundaryRender.html, boundaryRender.rootAttributes)
-						: boundaryRender.html;
+					foreignSubtreeRender.attachmentPolicy.kind === 'first-element' &&
+					foreignSubtreeRender.rootAttributes
+						? options.applyAttributesToFirstElement(
+								foreignSubtreeRender.html,
+								foreignSubtreeRender.rootAttributes,
+							)
+						: foreignSubtreeRender.html;
 
 				resolvedHtmlByToken.set(token, resolvedHtml);
 				return resolvedHtml;
@@ -240,29 +244,29 @@ export class QueuedBoundaryRuntimeService {
 		};
 	}
 
-	private createBoundaryToken(
+	private createForeignSubtreeToken(
 		tokenPrefix: string,
-		runtimeContext: QueuedBoundaryRuntimeContext,
-		boundaryId: number,
+		runtimeContext: QueuedForeignSubtreeResolutionContext,
+		foreignSubtreeId: number,
 	): string {
-		return `${tokenPrefix}${runtimeContext.componentInstanceScope ?? 'root'}__${boundaryId}__`;
+		return `${tokenPrefix}${runtimeContext.componentInstanceScope ?? 'root'}__${foreignSubtreeId}__`;
 	}
 
-	private ensureRuntimeContext<TContext extends QueuedBoundaryRuntimeContext>(options: {
-		boundaryInput: ComponentRenderInput;
+	private ensureRuntimeContext<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, unknown>;
 		runtimeContextKey: string;
 		createRuntimeContext?: (
-			integrationContext: QueuedBoundaryIntegrationContext,
+			integrationContext: QueuedForeignSubtreeIntegrationContext,
 			rendererCache: Map<string, unknown>,
 		) => TContext;
 	}): TContext {
-		let integrationContext: QueuedBoundaryIntegrationContext;
+		let integrationContext: QueuedForeignSubtreeIntegrationContext;
 		if (
-			typeof options.boundaryInput.integrationContext === 'object' &&
-			options.boundaryInput.integrationContext !== null
+			typeof options.renderInput.integrationContext === 'object' &&
+			options.renderInput.integrationContext !== null
 		) {
-			integrationContext = options.boundaryInput.integrationContext as QueuedBoundaryIntegrationContext;
+			integrationContext = options.renderInput.integrationContext as QueuedForeignSubtreeIntegrationContext;
 		} else {
 			integrationContext = {};
 		}
@@ -274,15 +278,15 @@ export class QueuedBoundaryRuntimeService {
 				({
 					rendererCache: options.rendererCache,
 					componentInstanceScope: integrationContext.componentInstanceId,
-					nextBoundaryId: 0,
+					nextForeignSubtreeId: 0,
 					queuedResolutions: [],
-				} satisfies QueuedBoundaryRuntimeContext);
+				} satisfies QueuedForeignSubtreeResolutionContext);
 		} else {
-			(existingRuntimeContext as QueuedBoundaryRuntimeContext).rendererCache = options.rendererCache;
+			(existingRuntimeContext as QueuedForeignSubtreeResolutionContext).rendererCache = options.rendererCache;
 		}
 
 		integrationContext.rendererCache = options.rendererCache;
-		options.boundaryInput.integrationContext = integrationContext;
+		options.renderInput.integrationContext = integrationContext;
 
 		return integrationContext[options.runtimeContextKey] as TContext;
 	}

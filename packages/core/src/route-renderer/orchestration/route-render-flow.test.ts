@@ -35,7 +35,7 @@ describe('RouteRenderFlow', () => {
 		expect(result.html).toContain('<main>Streamed</main>');
 	});
 
-	it('preserves streamed bodies when no boundary resolution or attribute stamping is required', async () => {
+	it('preserves streamed bodies when no foreign-subtree resolution or attribute stamping is required', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -121,7 +121,7 @@ describe('RouteRenderFlow', () => {
 		expect(result.body).toContain('<main data-eco-component-id="eco-page-root">Resolved</main>');
 	});
 
-	it('throws when route HTML contains escaped unresolved boundary artifacts', async () => {
+	it('throws when route HTML contains escaped unresolved eco-marker artifacts', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -154,10 +154,10 @@ describe('RouteRenderFlow', () => {
 					transformResponse: async (response) => await response.text(),
 				},
 			),
-		).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});
 
-	it('throws when route HTML returns unresolved boundary artifact HTML', async () => {
+	it('throws when route HTML returns unresolved eco-marker artifact HTML', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -190,6 +190,6 @@ describe('RouteRenderFlow', () => {
 					transformResponse: async (response) => await response.text(),
 				},
 			),
-		).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});
 });

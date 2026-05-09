@@ -3,12 +3,12 @@ import { eco } from '../../eco/eco.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import { getComponentRenderContext, type ComponentBoundaryRuntime } from './component-render-context.ts';
+import { getComponentRenderContext, type ForeignChildRuntime } from './component-render-context.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
 	ComponentRenderResult,
-	BoundaryRenderPayload,
+	ForeignSubtreeRenderPayload,
 	RouteRendererBody,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
@@ -20,7 +20,7 @@ import type {
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
 
-function createBoundaryMarker(nodeId: string, componentRef: string, propsRef: string): string {
+function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
 }
 
@@ -29,8 +29,8 @@ function createBoundaryMarker(nodeId: string, componentRef: string, propsRef: st
  */
 class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test-renderer';
-	BoundaryRuntimeCreationCount = 0;
-	BoundaryRenderCount = 0;
+	ForeignChildRuntimeCreationCount = 0;
+	ForeignChildRenderCount = 0;
 
 	/** Mock data container for page module */
 	PageModule: EcoPageFile | null = null;
@@ -59,9 +59,9 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return super.renderComponent(_input);
 	}
 
-	override async renderComponentBoundary(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		this.BoundaryRenderCount += 1;
-		return await super.renderComponentBoundary(input);
+	override async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		this.ForeignChildRenderCount += 1;
+		return await super.renderComponentWithForeignChildren(input);
 	}
 
 	async renderToResponse<P>(view: EcoComponent<P>, props: P, ctx: RenderToResponseContext): Promise<Response> {
@@ -128,22 +128,22 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.processComponentDependencies(components);
 	}
 
-	public testShouldResolveBoundaryInOwningRenderer(input: {
+	public testShouldResolveForeignChildInOwningRenderer(input: {
 		currentIntegration: string;
 		targetIntegration?: string;
 	}) {
-		return this.shouldResolveBoundaryInOwningRenderer(input);
+		return this.shouldResolveForeignChildInOwningRenderer(input);
 	}
 
-	public testHasForeignBoundaryDescendants(component: EcoComponent) {
-		return this.hasForeignBoundaryDescendants(component);
+	public testHasForeignChildDescendants(component: EcoComponent) {
+		return this.hasForeignChildDescendants(component);
 	}
 
-	public async testResolveBoundaryInOwningRenderer(
+	public async testResolveForeignChildInOwningRenderer(
 		input: ComponentRenderInput,
 		rendererCache = new Map<string, IntegrationRenderer<any>>(),
 	) {
-		return this.resolveBoundaryInOwningRenderer(input, rendererCache);
+		return this.resolveForeignChildInOwningRenderer(input, rendererCache);
 	}
 
 	public async testGetHtmlTemplate() {
@@ -195,16 +195,16 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		});
 	}
 
-	public async testRenderBoundary(input: ComponentRenderInput) {
-		return this.renderBoundary(input);
+	public async testRenderForeignSubtree(input: ComponentRenderInput) {
+		return this.renderForeignSubtree(input);
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}): ComponentBoundaryRuntime {
-		this.BoundaryRuntimeCreationCount += 1;
-		return super.createComponentBoundaryRuntime(options);
+	}): ForeignChildRuntime {
+		this.ForeignChildRuntimeCreationCount += 1;
+		return super.createForeignChildRuntime(options);
 	}
 }
 
@@ -439,7 +439,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
-	it('should include a boundary plan for page, layout, and html template roots', async () => {
+	it('should include an ownership plan for page, layout, and html template roots', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...AppConfig,
@@ -505,7 +505,7 @@ describe('IntegrationRenderer', () => {
 			query: {},
 		});
 
-		expect(result.boundaryPlan).toEqual(
+		expect(result.ownershipPlan).toEqual(
 			expect.objectContaining({
 				foreignEdgeCount: 1,
 				hasValidationErrors: false,
@@ -571,8 +571,8 @@ describe('IntegrationRenderer', () => {
 			query: {},
 		});
 
-		expect(result.boundaryPlan?.hasValidationErrors).toBe(true);
-		expect(result.boundaryPlan?.validationErrors).toEqual(
+		expect(result.ownershipPlan?.hasValidationErrors).toBe(true);
+		expect(result.ownershipPlan?.validationErrors).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					code: 'UNKNOWN_INTEGRATION_OWNER',
@@ -583,7 +583,7 @@ describe('IntegrationRenderer', () => {
 		);
 	});
 
-	it('should expose a compatibility boundary payload contract', async () => {
+	it('should expose a compatibility foreign-subtree payload contract', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: AppConfig,
 			assetProcessingService: AssetService,
@@ -600,24 +600,24 @@ describe('IntegrationRenderer', () => {
 				{
 					kind: 'script',
 					inline: true,
-					content: 'console.log("boundary")',
+					content: 'console.log("foreign-subtree")',
 					position: 'body',
 				},
 			],
 		};
 
-		const payload = await renderer.testRenderBoundary({
+		const payload = await renderer.testRenderForeignSubtree({
 			component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
 			props: {},
 		});
 
-		expect(payload).toEqual<BoundaryRenderPayload>({
+		expect(payload).toEqual<ForeignSubtreeRenderPayload>({
 			html: '<main data-root="true">Hello</main>',
 			assets: [
 				{
 					kind: 'script',
 					inline: true,
-					content: 'console.log("boundary")',
+					content: 'console.log("foreign-subtree")',
 					position: 'body',
 				},
 			],
@@ -635,7 +635,7 @@ describe('IntegrationRenderer', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const result = renderer.testShouldResolveBoundaryInOwningRenderer({
+		const result = renderer.testShouldResolveForeignChildInOwningRenderer({
 			currentIntegration: 'ghtml',
 			targetIntegration: 'react',
 		});
@@ -650,7 +650,7 @@ describe('IntegrationRenderer', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		const result = renderer.testShouldResolveBoundaryInOwningRenderer({
+		const result = renderer.testShouldResolveForeignChildInOwningRenderer({
 			currentIntegration: 'react',
 			targetIntegration: 'react',
 		});
@@ -660,7 +660,7 @@ describe('IntegrationRenderer', () => {
 
 	it('should delegate foreign component boundaries through the shared ownership helper', async () => {
 		const foreignRenderer = {
-			renderComponentBoundary: vi.fn(async () => ({
+			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<aside>Owned by foreign renderer</aside>',
 				canAttachAttributes: true,
 				rootTag: 'aside',
@@ -694,7 +694,7 @@ describe('IntegrationRenderer', () => {
 		};
 
 		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const result = await renderer.testResolveBoundaryInOwningRenderer(
+		const result = await renderer.testResolveForeignChildInOwningRenderer(
 			{
 				component: ForeignComponent,
 				props: { label: 'foreign' },
@@ -710,12 +710,12 @@ describe('IntegrationRenderer', () => {
 			}),
 		);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
-		expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledTimes(1);
+		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledTimes(1);
 	});
 
 	it('should preserve shared integration context fields when delegating to the owning renderer', async () => {
 		const foreignRenderer = {
-			renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) => ({
+			renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) => ({
 				html: `<aside>${String(
 					(input.integrationContext as BaseIntegrationContext | undefined)?.componentInstanceId ?? 'missing',
 				)}</aside>`,
@@ -751,7 +751,7 @@ describe('IntegrationRenderer', () => {
 		};
 
 		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		await renderer.testResolveBoundaryInOwningRenderer(
+		await renderer.testResolveForeignChildInOwningRenderer(
 			{
 				component: ForeignComponent,
 				props: { label: 'foreign' },
@@ -762,7 +762,7 @@ describe('IntegrationRenderer', () => {
 			rendererCache,
 		);
 
-		expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledWith(
+		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledWith(
 			expect.objectContaining({
 				integrationContext: expect.objectContaining({
 					componentInstanceId: 'host-1',
@@ -772,7 +772,7 @@ describe('IntegrationRenderer', () => {
 		);
 	});
 
-	it('should stop boundary delegation when the resolved owner renderer is the current renderer', async () => {
+	it('should stop foreign-child delegation when the resolved owner renderer is the current renderer', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...AppConfig,
@@ -798,7 +798,7 @@ describe('IntegrationRenderer', () => {
 		};
 
 		const rendererCache = new Map<string, IntegrationRenderer<any>>();
-		const result = await renderer.testResolveBoundaryInOwningRenderer(
+		const result = await renderer.testResolveForeignChildInOwningRenderer(
 			{
 				component: ForeignComponent,
 				props: { label: 'foreign' },
@@ -1129,7 +1129,7 @@ describe('IntegrationRenderer', () => {
 					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1266,7 +1266,7 @@ describe('IntegrationRenderer', () => {
 			).toHaveLength(1);
 		});
 
-		it('should fail route execution when unresolved boundary artifact HTML is returned', async () => {
+		it('should fail route execution when unresolved eco-marker artifact HTML is returned', async () => {
 			const explicitRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<aside>Nested Render</aside>',
@@ -1282,7 +1282,7 @@ describe('IntegrationRenderer', () => {
 						} as ProcessedAsset,
 					],
 				})),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1342,11 +1342,11 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 		});
 
-		it('should fail route execution when unresolved boundary artifact HTML remains inside surrounding shell html', async () => {
+		it('should fail route execution when unresolved eco-marker artifact HTML remains inside surrounding shell html', async () => {
 			const explicitRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<aside data-explicit-shell="nested"><span>Nested Render</span></aside>',
@@ -1362,7 +1362,7 @@ describe('IntegrationRenderer', () => {
 						} as ProcessedAsset,
 					],
 				})),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1422,11 +1422,11 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 		});
 
-		it('should fail route execution for deep multi-level unresolved boundary artifacts', async () => {
+		it('should fail route execution for deep multi-level unresolved eco-marker artifacts', async () => {
 			const renderOrder: string[] = [];
 			const explicitRenderer = {
 				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
@@ -1459,7 +1459,7 @@ describe('IntegrationRenderer', () => {
 						rootAttributes: { 'data-eco-component-id': 'root-node' },
 					};
 				}),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1480,10 +1480,10 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const _parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
-			const _leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
+			const _parentMarker = createUnresolvedMarkerArtifact('n_2', 'parent-component', 'props-parent');
+			const _leafMarker = createUnresolvedMarkerArtifact('n_3', 'leaf-component', 'props-leaf');
 
-			renderer.RenderedBody = `<html><body><main>${createBoundaryMarker('n_1', 'root-component', 'props-root')}</main></body></html>`;
+			renderer.RenderedBody = `<html><body><main>${createUnresolvedMarkerArtifact('n_1', 'root-component', 'props-root')}</main></body></html>`;
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
@@ -1541,7 +1541,7 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 			expect(renderOrder).toEqual([]);
 		});
 
@@ -1553,7 +1553,7 @@ describe('IntegrationRenderer', () => {
 					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1612,10 +1612,10 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 		});
 
-		it('should not recursively resolve boundary artifacts that were only passed through resolved child html', async () => {
+		it('should not recursively resolve unresolved eco-marker artifacts that were only passed through resolved child html', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1640,7 +1640,7 @@ describe('IntegrationRenderer', () => {
 			};
 
 			await expect(
-				renderer.renderComponentBoundary({
+				renderer.renderComponentWithForeignChildren({
 					component: Component,
 					props: {},
 					children: '<aside>already resolved child html</aside>',
@@ -1652,7 +1652,7 @@ describe('IntegrationRenderer', () => {
 			);
 		});
 
-		it('fails fast when a renderer without a boundary runtime crosses into a foreign owner', async () => {
+		it('fails fast when a renderer without a foreign-child runtime crosses into a foreign owner', async () => {
 			const foreignRenderer = {
 				renderComponent: vi.fn(async () => ({
 					html: '<span>resolved nested marker</span>',
@@ -1660,7 +1660,7 @@ describe('IntegrationRenderer', () => {
 					rootTag: 'span',
 					integrationName: 'foreign-renderer',
 				})),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					foreignRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1694,19 +1694,23 @@ describe('IntegrationRenderer', () => {
 				render: ({ children }) => `<section>${children ?? ''}${ForeignComponent({})}</section>`,
 			});
 
-			const passedThroughMarker = createBoundaryMarker('n_passed', 'passed-through-component', 'p_passed');
+			const passedThroughMarker = createUnresolvedMarkerArtifact(
+				'n_passed',
+				'passed-through-component',
+				'p_passed',
+			);
 
 			await expect(
-				renderer.renderComponentBoundary({
+				renderer.renderComponentWithForeignChildren({
 					component: ShellComponent,
 					props: { children: passedThroughMarker },
 					children: passedThroughMarker,
 				}),
-			).rejects.toThrow('without a renderer-owned boundary runtime');
+			).rejects.toThrow('without a renderer-owned foreign-child runtime');
 			expect(foreignRenderer.renderComponent).toHaveBeenCalledTimes(0);
 		});
 
-		it('fails route execution when deep mixed-integration boundary artifacts are returned at the route level', async () => {
+		it('fails route execution when deep mixed-integration eco-marker artifacts are returned at the route level', async () => {
 			const renderOrder: string[] = [];
 			const explicitRenderer = {
 				renderComponent: vi.fn(async (input: ComponentRenderInput) => {
@@ -1740,7 +1744,7 @@ describe('IntegrationRenderer', () => {
 						integrationName: 'explicit-renderer',
 					};
 				}),
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) =>
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
 					explicitRenderer.renderComponent(input),
 				),
 			} as unknown as IntegrationRenderer;
@@ -1761,10 +1765,10 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
-			const _parentMarker = createBoundaryMarker('n_2', 'parent-component', 'props-parent');
-			const _leafMarker = createBoundaryMarker('n_3', 'leaf-component', 'props-leaf');
+			const _parentMarker = createUnresolvedMarkerArtifact('n_2', 'parent-component', 'props-parent');
+			const _leafMarker = createUnresolvedMarkerArtifact('n_3', 'leaf-component', 'props-leaf');
 
-			renderer.RenderedBody = `<html><body><main><div data-shell="deep">${createBoundaryMarker('n_1', 'root-component', 'props-root')}</div></main></body></html>`;
+			renderer.RenderedBody = `<html><body><main><div data-shell="deep">${createUnresolvedMarkerArtifact('n_1', 'root-component', 'props-root')}</div></main></body></html>`;
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
@@ -1822,7 +1826,7 @@ describe('IntegrationRenderer', () => {
 					params: {},
 					query: {},
 				}),
-			).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
+			).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 			expect(renderOrder).toEqual([]);
 		});
 
@@ -1843,7 +1847,7 @@ describe('IntegrationRenderer', () => {
 					currentIntegration: 'foreign-renderer',
 				},
 				async () =>
-					renderer.renderComponentBoundary({
+					renderer.renderComponentWithForeignChildren({
 						component: LeafComponent,
 						props: {},
 					}),
@@ -1851,10 +1855,10 @@ describe('IntegrationRenderer', () => {
 
 			expect(result.value.html).toBe('<section>Leaf Render</section>');
 			expect(result.value.html).not.toContain('<eco-marker');
-			expect(renderer.BoundaryRuntimeCreationCount).toBe(0);
+			expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 		});
 
-		it('uses inline partial rendering when no foreign boundaries are present', async () => {
+		it('uses inline partial rendering when no foreign children are present', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1882,10 +1886,10 @@ describe('IntegrationRenderer', () => {
 
 			expect(await response.text()).toBe('<section>Inline</section>');
 			expect(inlineRenderCount).toBe(1);
-			expect(renderer.BoundaryRenderCount).toBe(0);
+			expect(renderer.ForeignChildRenderCount).toBe(0);
 		});
 
-		it('falls back to boundary partial rendering when compatibility is needed', async () => {
+		it('falls back to foreign-subtree partial rendering when compatibility is needed', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -1901,18 +1905,18 @@ describe('IntegrationRenderer', () => {
 				},
 			};
 
-			const View = (() => '<section>Boundary</section>') as EcoComponent<Record<string, unknown>>;
+			const View = (() => '<section>Foreign Subtree</section>') as EcoComponent<Record<string, unknown>>;
 			View.config = {
 				integration: 'test-renderer',
 				__eco: {
-					id: 'boundary-view',
-					file: '/app/components/boundary-view.ts',
+					id: 'foreign-subtree-view',
+					file: '/app/components/foreign-subtree-view.ts',
 					integration: 'test-renderer',
 				},
 				dependencies: { components: [ForeignChild] },
 			};
 			renderer.MockComponentRenderResult = {
-				html: '<section>Boundary</section>',
+				html: '<section>Foreign Subtree</section>',
 				canAttachAttributes: true,
 				rootTag: 'section',
 				integrationName: 'test-renderer',
@@ -1928,14 +1932,14 @@ describe('IntegrationRenderer', () => {
 				},
 			});
 
-			expect(await response.text()).toBe('<section>Boundary</section>');
+			expect(await response.text()).toBe('<section>Foreign Subtree</section>');
 			expect(inlineRenderCount).toBe(0);
-			expect(renderer.BoundaryRenderCount).toBe(1);
+			expect(renderer.ForeignChildRenderCount).toBe(1);
 		});
 
 		it('reuses one foreign renderer instance across shared view shell composition', async () => {
 			const foreignRenderer = {
-				renderComponentBoundary: vi.fn(async (input: ComponentRenderInput) => {
+				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) => {
 					const componentId = input.component.config?.__eco?.id;
 
 					if (componentId === 'foreign-html-template') {
@@ -2020,10 +2024,10 @@ describe('IntegrationRenderer', () => {
 
 			expect(await response.text()).toContain('<main><section>Foreign View</section></main>');
 			expect(initializeRenderer).toHaveBeenCalledTimes(1);
-			expect(foreignRenderer.renderComponentBoundary).toHaveBeenCalledTimes(3);
+			expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledTimes(3);
 		});
 
-		it('should skip foreign-boundary wrapping for pure same-integration component trees', () => {
+		it('should skip foreign-child wrapping for pure same-integration component trees', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: AppConfig,
 				assetProcessingService: AssetService,
@@ -2051,7 +2055,7 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [Child] },
 			};
 
-			expect(renderer.testHasForeignBoundaryDescendants(Root)).toBe(false);
+			expect(renderer.testHasForeignChildDescendants(Root)).toBe(false);
 		});
 
 		it('should detect nested cross-integration component trees', () => {
@@ -2082,7 +2086,7 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [ForeignChild] },
 			};
 
-			expect(renderer.testHasForeignBoundaryDescendants(Root)).toBe(true);
+			expect(renderer.testHasForeignChildDescendants(Root)).toBe(true);
 		});
 	});
 });

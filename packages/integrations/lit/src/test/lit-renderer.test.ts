@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	eco,
-	type BoundaryRenderPayload,
+	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -171,7 +171,7 @@ describe('LitRenderer', () => {
 			expect(result.html).toContain('<!--lit-part-->3<!--/lit-part-->');
 		});
 
-		it('should not rerender serialized children passed into a lit component boundary', async () => {
+		it('should not rerender serialized children passed into a Lit-owned foreign subtree', async () => {
 			const testRenderer = createRenderer();
 			const tagName = `lit-shell-test-${++customElementIndex}`;
 
@@ -210,7 +210,7 @@ describe('LitRenderer', () => {
 			expect(result.html).toContain('<!--lit-part-->5<!--/lit-part-->');
 		});
 
-		it('should inject non-string children inside the lit component boundary', async () => {
+		it('should inject non-string children inside the Lit-owned foreign subtree', async () => {
 			const testRenderer = createRenderer();
 			const Shell = ((props: { children?: string }) =>
 				litHtml`<section class="shell"><div class="shell__body">${props.children ? unsafeHTML(props.children) : ''}</div></section>`) as unknown as EcoComponent<{
@@ -371,24 +371,24 @@ describe('LitRenderer', () => {
 			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
 		});
 
-		it('should expose the compatibility boundary payload contract', async () => {
+		it('should expose the compatibility foreign-subtree payload contract', async () => {
 			const testRenderer = createRenderer();
-			const Component = (async () => '<section>Lit Boundary</section>') as unknown as EcoComponent<object>;
+			const Component = (async () => '<section>Lit Foreign Subtree</section>') as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderBoundary({
+			const result = await testRenderer.renderForeignSubtree({
 				component: Component,
 				props: {},
 			});
 
-			expect(result).toEqual<BoundaryRenderPayload>({
-				html: expect.stringContaining('<section>Lit Boundary</section>') as unknown as string,
+			expect(result).toEqual<ForeignSubtreeRenderPayload>({
+				html: expect.stringContaining('<section>Lit Foreign Subtree</section>') as unknown as string,
 				assets: [],
 				rootTag: 'section',
 				rootAttributes: undefined,
 				attachmentPolicy: { kind: 'first-element' },
 				integrationName: 'lit',
 			});
-			expect(result.html).toContain('<section>Lit Boundary</section>');
+			expect(result.html).toContain('<section>Lit Foreign Subtree</section>');
 		});
 
 		it('should resolve foreign boundaries inside the lit renderer and bubble nested assets', async () => {
@@ -414,7 +414,7 @@ describe('LitRenderer', () => {
 				}),
 			);
 
-			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
 				name = 'deferred';
 
 				async render(): Promise<string> {
@@ -434,8 +434,8 @@ describe('LitRenderer', () => {
 				}
 			}
 
-			class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredBoundaryRenderer;
+			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
+				renderer = DeferredForeignSubtreeRenderer;
 
 				constructor() {
 					super({
@@ -445,7 +445,7 @@ describe('LitRenderer', () => {
 				}
 			}
 
-			const deferredPlugin = new DeferredBoundaryPlugin();
+			const deferredPlugin = new DeferredForeignSubtreePlugin();
 
 			const config = await new ConfigBuilder()
 				.setRobotsTxt({
@@ -472,17 +472,14 @@ describe('LitRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.ts',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const Shell = eco.component<{ children?: unknown }, string>({
 				integration: 'lit',
@@ -493,7 +490,7 @@ describe('LitRenderer', () => {
 					litHtml`<main>${children ? unsafeHTML(String(children)) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
 			});
 
-			const result = await testRenderer.renderComponentBoundary({
+			const result = await testRenderer.renderComponentWithForeignChildren({
 				component: Shell,
 				props: {},
 				children: '<section>Host child</section>',
@@ -843,17 +840,14 @@ describe('LitRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.ts',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const Layout = eco.layout<string>({
 				integration: 'lit',

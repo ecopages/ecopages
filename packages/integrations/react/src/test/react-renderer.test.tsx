@@ -3,7 +3,7 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
-	type BoundaryRenderPayload,
+	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -394,7 +394,7 @@ describe('ReactRenderer', () => {
 				}),
 			);
 
-			class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
 				name = 'deferred';
 
 				async render(): Promise<string> {
@@ -414,8 +414,8 @@ describe('ReactRenderer', () => {
 				}
 			}
 
-			class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredBoundaryRenderer;
+			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
+				renderer = DeferredForeignSubtreeRenderer;
 
 				constructor() {
 					super({
@@ -425,7 +425,7 @@ describe('ReactRenderer', () => {
 				}
 			}
 
-			const deferredPlugin = new DeferredBoundaryPlugin();
+			const deferredPlugin = new DeferredForeignSubtreePlugin();
 			const config = await new ConfigBuilder()
 				.setDistDir(testDir)
 				.setRobotsTxt({
@@ -454,17 +454,14 @@ describe('ReactRenderer', () => {
 			});
 
 			const DeferredShell = eco.component<{ children?: React.ReactNode }, string>({
-				integration: 'deferred',
-				render: () => '',
-			});
-			DeferredShell.config = {
-				...DeferredShell.config,
 				__eco: {
 					id: 'deferred-shell',
 					file: '/app/components/deferred-shell.deferred.tsx',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '',
+			});
 
 			const Shell = eco.component<{ label: string; children?: React.ReactNode }, JSX.Element>({
 				integration: 'react',
@@ -479,7 +476,7 @@ describe('ReactRenderer', () => {
 				),
 			});
 
-			const result = await testRenderer.renderComponentBoundary({
+			const result = await testRenderer.renderComponentWithForeignChildren({
 				component: Shell,
 				props: { label: 'Host' },
 				children: '<span data-child="true">Child</span>',
@@ -501,7 +498,7 @@ describe('ReactRenderer', () => {
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
-		it('should expose the compatibility boundary payload contract for attachable roots', async () => {
+		it('should expose the compatibility foreign-subtree payload contract for attachable roots', async () => {
 			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
 				title: string;
@@ -514,13 +511,13 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const result = await testRenderer.renderBoundary({
+			const result = await testRenderer.renderForeignSubtree({
 				component: Component,
 				props: { title: 'Island' },
 				integrationContext: { componentInstanceId: 'island-1' },
 			});
 
-			expect(result).toEqual<BoundaryRenderPayload>({
+			expect(result).toEqual<ForeignSubtreeRenderPayload>({
 				html: '<h3>Island</h3>',
 				assets: [],
 				rootTag: 'h3',
@@ -543,7 +540,7 @@ describe('ReactRenderer', () => {
 				</>
 			)) as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderBoundary({
+			const result = await testRenderer.renderForeignSubtree({
 				component: Component,
 				props: {},
 			});
@@ -577,13 +574,13 @@ describe('ReactRenderer', () => {
 			},
 		};
 
-		const Boundary = eco.component<{ label: string }, JSX.Element>({
+		const ForeignSubtree = eco.component<{ label: string }, JSX.Element>({
 			integration: 'react',
 			render: ({ label }) => <section>{label}</section>,
 		});
 
-		const result = await testRenderer.renderComponentBoundary({
-			component: Boundary,
+		const result = await testRenderer.renderComponentWithForeignChildren({
+			component: ForeignSubtree,
 			props: { label: 'Hello' },
 		});
 
@@ -676,7 +673,7 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
-	it('should preserve unresolved boundary artifact html through non-react html templates', async () => {
+	it('should preserve unresolved eco-marker artifact html through non-react html templates', async () => {
 		const testRenderer = createRenderer();
 		const MarkerPage = (() =>
 			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
@@ -705,7 +702,7 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('&amp;lt;eco-marker');
 	});
 
-	it('should preserve unresolved boundary artifact html through react html templates', async () => {
+	it('should preserve unresolved eco-marker artifact html through react html templates', async () => {
 		const testRenderer = createRenderer();
 		const MarkerPage = (() =>
 			'<eco-marker data-eco-node-id="n_1" data-eco-integration="lit" data-eco-component-ref="cmp" data-eco-props-ref="p_1"></eco-marker>') as unknown as EcoComponent<object>;
@@ -784,17 +781,14 @@ describe('ReactRenderer', () => {
 		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
 		const DeferredWidget = eco.component<{}, string>({
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-		DeferredWidget.config = {
-			...DeferredWidget.config,
 			__eco: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
 			},
-		};
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
 
 		const NonReactLayout = (({ children }: { children: string }) =>
 			`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;
@@ -897,17 +891,14 @@ describe('ReactRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component<{}, string>({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget-partial',
 					file: '/app/components/deferred-widget-partial.deferred.tsx',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const View = eco.component<{ content: string }, JSX.Element>({
 				integration: 'react',
@@ -1005,17 +996,14 @@ describe('ReactRenderer', () => {
 			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
 			const DeferredWidget = eco.component<{}, string>({
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-			DeferredWidget.config = {
-				...DeferredWidget.config,
 				__eco: {
 					id: 'deferred-widget-view',
 					file: '/app/components/deferred-widget-view.deferred.tsx',
 					integration: 'deferred',
 				},
-			};
+				integration: 'deferred',
+				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+			});
 
 			const NonReactLayout = (({ children }: { children: string }) =>
 				`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;

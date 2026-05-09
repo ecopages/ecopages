@@ -3,11 +3,14 @@ import { eco } from '../../eco/eco.ts';
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
 	BaseIntegrationContext,
-	BoundaryRenderPayload,
+	ForeignSubtreeRenderPayload,
 	ComponentRenderInput,
 	EcoComponent,
 } from '../../types/public-types.ts';
-import { QueuedBoundaryRuntimeService, type QueuedBoundaryRuntimeContext } from './queued-boundary-runtime.service.ts';
+import {
+	QueuedForeignSubtreeResolutionService,
+	type QueuedForeignSubtreeResolutionContext,
+} from './queued-foreign-subtree-resolution.service.ts';
 
 function createComponent(name: string, integration = name): EcoComponent<Record<string, unknown>, string> {
 	return eco.component<Record<string, unknown>, string>({
@@ -50,12 +53,12 @@ function applyAttributesToFirstElement(html: string, attributes: Record<string, 
 	return html.replace(/^<([a-zA-Z][a-zA-Z0-9:-]*)/, `<$1${serializedAttributes}`);
 }
 
-describe('QueuedBoundaryRuntimeService', () => {
-	it('creates scoped queue tokens and stores runtime state on the boundary input', () => {
-		const service = new QueuedBoundaryRuntimeService();
+describe('QueuedForeignSubtreeResolutionService', () => {
+	it('creates scoped queue tokens and stores runtime state on the render input', () => {
+		const service = new QueuedForeignSubtreeResolutionService();
 		const shell = createComponent('shell', 'shell');
 		const deferredWidget = createComponent('deferred-widget', 'deferred');
-		const boundaryInput: ComponentRenderInput = {
+		const renderInput: ComponentRenderInput = {
 			component: shell,
 			props: {},
 			integrationContext: {
@@ -66,14 +69,14 @@ describe('QueuedBoundaryRuntimeService', () => {
 		const originalProps = { label: 'deferred' };
 
 		const runtime = service.createRuntime({
-			boundaryInput,
+			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedBoundaryRuntime',
+			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
 			tokenPrefix: '__TEST_QUEUE__',
-			shouldQueueBoundary: () => true,
+			shouldQueueForeignChild: () => true,
 		});
 
-		const interception = runtime.interceptBoundarySync?.({
+		const interception = runtime.interceptForeignChildSync?.({
 			currentIntegration: 'shell',
 			targetIntegration: 'deferred',
 			component: deferredWidget,
@@ -86,15 +89,15 @@ describe('QueuedBoundaryRuntimeService', () => {
 			value: '__TEST_QUEUE__host__1__',
 		});
 
-		const runtimeContext = service.getRuntimeContext<QueuedBoundaryRuntimeContext>(
-			boundaryInput,
-			'__testQueuedBoundaryRuntime',
+		const runtimeContext = service.getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+			renderInput,
+			'__testQueuedForeignSubtreeRuntime',
 		);
 
 		expect(runtimeContext).toEqual({
 			rendererCache,
 			componentInstanceScope: 'host',
-			nextBoundaryId: 1,
+			nextForeignSubtreeId: 1,
 			queuedResolutions: [
 				{
 					token: '__TEST_QUEUE__host__1__',
@@ -104,7 +107,7 @@ describe('QueuedBoundaryRuntimeService', () => {
 				},
 			],
 		});
-		expect(boundaryInput.integrationContext).toEqual(
+		expect(renderInput.integrationContext).toEqual(
 			expect.objectContaining({
 				rendererCache,
 			}),
@@ -112,9 +115,9 @@ describe('QueuedBoundaryRuntimeService', () => {
 	});
 
 	it('preserves existing shared integration context fields when queue runtime state is attached', () => {
-		const service = new QueuedBoundaryRuntimeService();
+		const service = new QueuedForeignSubtreeResolutionService();
 		const shell = createComponent('shell', 'shell');
-		const boundaryInput: ComponentRenderInput = {
+		const renderInput: ComponentRenderInput = {
 			component: shell,
 			props: {},
 			integrationContext: {
@@ -125,14 +128,14 @@ describe('QueuedBoundaryRuntimeService', () => {
 		const rendererCache = new Map<string, unknown>();
 
 		service.createRuntime({
-			boundaryInput,
+			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedBoundaryRuntime',
+			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
 			tokenPrefix: '__TEST_QUEUE__',
-			shouldQueueBoundary: () => true,
+			shouldQueueForeignChild: () => true,
 		});
 
-		expect(boundaryInput.integrationContext).toEqual(
+		expect(renderInput.integrationContext).toEqual(
 			expect.objectContaining({
 				componentInstanceId: 'host',
 				customKey: 'preserved',
@@ -141,12 +144,12 @@ describe('QueuedBoundaryRuntimeService', () => {
 		);
 	});
 
-	it('resolves nested queued boundaries, applies root attributes, and dedupes bubbled assets', async () => {
-		const service = new QueuedBoundaryRuntimeService();
+	it('resolves nested queued foreign subtrees, applies root attributes, and dedupes bubbled assets', async () => {
+		const service = new QueuedForeignSubtreeResolutionService();
 		const shell = createComponent('shell', 'shell');
-		const parentBoundary = createComponent('parent-boundary', 'deferred');
-		const childBoundary = createComponent('child-boundary', 'deferred');
-		const boundaryInput: ComponentRenderInput = {
+		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
+		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
+		const renderInput: ComponentRenderInput = {
 			component: shell,
 			props: {},
 			integrationContext: {
@@ -156,66 +159,68 @@ describe('QueuedBoundaryRuntimeService', () => {
 		const rendererCache = new Map<string, unknown>();
 
 		const runtime = service.createRuntime({
-			boundaryInput,
+			renderInput,
 			rendererCache,
-			runtimeContextKey: '__testQueuedBoundaryRuntime',
+			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
 			tokenPrefix: '__TEST_QUEUE__',
-			shouldQueueBoundary: () => true,
+			shouldQueueForeignChild: () => true,
 		});
 
-		const parentToken = runtime.interceptBoundarySync?.({
+		const parentToken = runtime.interceptForeignChildSync?.({
 			currentIntegration: 'shell',
 			targetIntegration: 'deferred',
-			component: parentBoundary,
+			component: parentForeignSubtree,
 			props: { label: 'parent' },
 		});
 
-		const childToken = runtime.interceptBoundarySync?.({
+		const childToken = runtime.interceptForeignChildSync?.({
 			currentIntegration: 'shell',
 			targetIntegration: 'deferred',
-			component: childBoundary,
+			component: childForeignSubtree,
 			props: { label: 'child' },
 		});
 
-		const runtimeContext = service.getRuntimeContext<QueuedBoundaryRuntimeContext>(
-			boundaryInput,
-			'__testQueuedBoundaryRuntime',
+		const runtimeContext = service.getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+			renderInput,
+			'__testQueuedForeignSubtreeRuntime',
 		);
 		if (!runtimeContext || parentToken?.kind !== 'resolved' || childToken?.kind !== 'resolved') {
-			throw new Error('Failed to initialize queued boundary test runtime.');
+			throw new Error('Failed to initialize queued foreign-subtree test runtime.');
 		}
 
 		runtimeContext.queuedResolutions[0].props.children = `<slot>${childToken.value}</slot>`;
 
-		const resolveBoundary = vi.fn(async (input: ComponentRenderInput): Promise<BoundaryRenderPayload> => {
-			if (input.component === childBoundary) {
+		const resolveForeignSubtree = vi.fn(
+			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => {
+				if (input.component === childForeignSubtree) {
+					return {
+						html: `<span>${String(input.props.label ?? '')}</span>`,
+						attachmentPolicy: { kind: 'first-element' },
+						rootTag: 'span',
+						integrationName: 'deferred',
+						rootAttributes: {
+							'data-owner': 'child',
+							'data-instance': String(
+								(input.integrationContext as { componentInstanceId?: string } | undefined)
+									?.componentInstanceId ?? 'missing',
+							),
+						},
+						assets: [createAsset('shared-asset'), createAsset('child-asset')],
+					};
+				}
+
 				return {
-					html: `<span>${String(input.props.label ?? '')}</span>`,
+					html: `<section>${input.children ?? ''}</section>`,
 					attachmentPolicy: { kind: 'first-element' },
-					rootTag: 'span',
+					rootTag: 'section',
 					integrationName: 'deferred',
 					rootAttributes: {
-						'data-owner': 'child',
-						'data-instance': String(
-							(input.integrationContext as { componentInstanceId?: string } | undefined)
-								?.componentInstanceId ?? 'missing',
-						),
+						'data-owner': 'parent',
 					},
-					assets: [createAsset('shared-asset'), createAsset('child-asset')],
+					assets: [createAsset('shared-asset'), createAsset('parent-asset')],
 				};
-			}
-
-			return {
-				html: `<section>${input.children ?? ''}</section>`,
-				attachmentPolicy: { kind: 'first-element' },
-				rootTag: 'section',
-				integrationName: 'deferred',
-				rootAttributes: {
-					'data-owner': 'parent',
-				},
-				assets: [createAsset('shared-asset'), createAsset('parent-asset')],
-			};
-		});
+			},
+		);
 
 		const result = await service.resolveQueuedHtml({
 			html: `<article>${parentToken.value}</article>`,
@@ -241,7 +246,7 @@ describe('QueuedBoundaryRuntimeService', () => {
 					html,
 				};
 			},
-			resolveBoundary,
+			resolveForeignSubtree,
 			applyAttributesToFirstElement,
 			dedupeProcessedAssets: dedupeAssets,
 		});
@@ -255,27 +260,27 @@ describe('QueuedBoundaryRuntimeService', () => {
 			createAsset('children-asset'),
 			createAsset('parent-asset'),
 		]);
-		expect(resolveBoundary).toHaveBeenCalledTimes(2);
+		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
 	});
 
-	it('throws when queued boundaries form a cycle', async () => {
-		const service = new QueuedBoundaryRuntimeService();
-		const boundaryA = createComponent('boundary-a', 'deferred');
-		const boundaryB = createComponent('boundary-b', 'deferred');
-		const runtimeContext: QueuedBoundaryRuntimeContext = {
+	it('throws when queued foreign subtrees form a cycle', async () => {
+		const service = new QueuedForeignSubtreeResolutionService();
+		const foreignSubtreeA = createComponent('foreign-subtree-a', 'deferred');
+		const foreignSubtreeB = createComponent('foreign-subtree-b', 'deferred');
+		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
 			rendererCache: new Map<string, unknown>(),
 			componentInstanceScope: 'host',
-			nextBoundaryId: 2,
+			nextForeignSubtreeId: 2,
 			queuedResolutions: [
 				{
 					token: '__TEST_QUEUE__host__1__',
-					component: boundaryA,
+					component: foreignSubtreeA,
 					props: { children: '__TEST_QUEUE__host__2__' },
 					componentInstanceId: 'host_n_1',
 				},
 				{
 					token: '__TEST_QUEUE__host__2__',
-					component: boundaryB,
+					component: foreignSubtreeB,
 					props: { children: '__TEST_QUEUE__host__1__' },
 					componentInstanceId: 'host_n_2',
 				},
@@ -304,7 +309,7 @@ describe('QueuedBoundaryRuntimeService', () => {
 
 					return { assets: [], html };
 				},
-				resolveBoundary: async (input) => ({
+				resolveForeignSubtree: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
 					assets: [],
 					attachmentPolicy: { kind: 'first-element' },

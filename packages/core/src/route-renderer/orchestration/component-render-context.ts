@@ -2,18 +2,18 @@ import type { EcoComponent } from '../../types/public-types.ts';
 import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './render-output.utils.ts';
 
 /**
- * Result returned by a renderer-owned boundary runtime.
+ * Result returned by a renderer-owned foreign-child runtime.
  *
  * `inline` keeps rendering inside the current integration. `resolved` returns a
  * renderer-owned value immediately, which can be final HTML or a renderer-local
  * transport token for later queue resolution.
  */
-export type ComponentBoundaryInterceptionResult = { kind: 'inline' } | { kind: 'resolved'; value: unknown };
+export type ForeignChildInterceptionResult = { kind: 'inline' } | { kind: 'resolved'; value: unknown };
 
 /**
- * Boundary metadata passed into the active renderer-owned runtime.
+ * Foreign-child metadata passed into the active renderer-owned runtime.
  */
-export type ComponentBoundaryInterceptionInput = {
+export type ForeignChildInterceptionInput = {
 	currentIntegration: string;
 	targetIntegration?: string;
 	component: EcoComponent;
@@ -21,20 +21,20 @@ export type ComponentBoundaryInterceptionInput = {
 };
 
 /**
- * Narrow renderer-owned boundary runtime injected into one active render
+ * Narrow renderer-owned foreign-child runtime injected into one active render
  * context.
  *
- * Integrations implement this contract when foreign boundaries must be handed
+ * Integrations implement this contract when foreign children must be handed
  * off inside the renderer instead of being left for route-level reconciliation.
  */
-export interface ComponentBoundaryRuntime {
-	interceptBoundary?(
-		input: ComponentBoundaryInterceptionInput,
-	): ComponentBoundaryInterceptionResult | Promise<ComponentBoundaryInterceptionResult>;
-	interceptBoundarySync?(input: ComponentBoundaryInterceptionInput): ComponentBoundaryInterceptionResult;
+export interface ForeignChildRuntime {
+	interceptForeignChild?(
+		input: ForeignChildInterceptionInput,
+	): ForeignChildInterceptionResult | Promise<ForeignChildInterceptionResult>;
+	interceptForeignChildSync?(input: ForeignChildInterceptionInput): ForeignChildInterceptionResult;
 }
 
-type ComponentBoundaryRenderInput = {
+type ForeignChildRenderInput = {
 	component: EcoComponent;
 	props: Record<string, unknown>;
 	targetIntegration?: string;
@@ -43,7 +43,7 @@ type ComponentBoundaryRenderInput = {
 /**
  * Shared output finalization behavior used both inside and outside active render contexts.
  *
- * This stage is responsible only for lazy trigger or injector wrapping. Boundary
+ * This stage is responsible only for lazy trigger or injector wrapping. Foreign-child
  * interception stays in `ContextualComponentRenderRuntime`.
  */
 class ComponentRenderOutputRuntime {
@@ -82,7 +82,7 @@ class ComponentRenderOutputRuntime {
 }
 
 /**
- * Render-context-aware runtime that delegates boundary interception.
+ * Render-context-aware runtime that delegates foreign-child interception.
  */
 class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	private readonly context: ComponentRenderContext;
@@ -92,7 +92,7 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		this.context = context;
 	}
 
-	private applyBoundaryInterceptionResult(result: ComponentBoundaryInterceptionResult): unknown | undefined {
+	private applyForeignChildInterceptionResult(result: ForeignChildInterceptionResult): unknown | undefined {
 		if (result.kind === 'resolved') {
 			return result.value;
 		}
@@ -101,44 +101,45 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	}
 
 	/**
-	 * Resolves one boundary interception through the active runtime.
+	 * Resolves one foreign-child interception through the active runtime.
 	 *
 	 * The runtime may choose inline rendering or immediate resolved output.
 	 */
-	interceptBoundary(input: ComponentBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined {
-		const boundaryRuntimeInput = {
+	interceptForeignChild(input: ForeignChildRenderInput): Promise<unknown | undefined> | unknown | undefined {
+		const foreignChildRuntimeInput = {
 			currentIntegration: this.context.currentIntegration,
 			targetIntegration: input.targetIntegration,
 			component: input.component,
 			props: input.props,
-		} satisfies ComponentBoundaryInterceptionInput;
+		} satisfies ForeignChildInterceptionInput;
 
-		const asyncInterception = this.context.boundaryRuntime?.interceptBoundary?.(boundaryRuntimeInput);
+		const asyncInterception = this.context.foreignChildRuntime?.interceptForeignChild?.(foreignChildRuntimeInput);
 		if (asyncInterception !== undefined) {
-			if (isThenable<ComponentBoundaryInterceptionResult>(asyncInterception)) {
-				return asyncInterception.then((result) => this.applyBoundaryInterceptionResult(result));
+			if (isThenable<ForeignChildInterceptionResult>(asyncInterception)) {
+				return asyncInterception.then((result) => this.applyForeignChildInterceptionResult(result));
 			}
 
-			return this.applyBoundaryInterceptionResult(asyncInterception);
+			return this.applyForeignChildInterceptionResult(asyncInterception);
 		}
 
-		const syncInterception = this.context.boundaryRuntime?.interceptBoundarySync?.(boundaryRuntimeInput);
+		const syncInterception =
+			this.context.foreignChildRuntime?.interceptForeignChildSync?.(foreignChildRuntimeInput);
 		if (syncInterception === undefined) {
 			return undefined;
 		}
 
-		return this.applyBoundaryInterceptionResult(syncInterception);
+		return this.applyForeignChildInterceptionResult(syncInterception);
 	}
 }
 
 /**
- * Per-render mutable state used while applying boundary interception and lazy
+ * Per-render mutable state used while applying foreign-child interception and lazy
  * output wrapping.
  */
 export type ComponentRenderContext = {
 	currentIntegration: string;
-	boundaryRuntime?: ComponentBoundaryRuntime;
-	interceptBoundary(input: ComponentBoundaryRenderInput): Promise<unknown | undefined> | unknown | undefined;
+	foreignChildRuntime?: ForeignChildRuntime;
+	interceptForeignChild(input: ForeignChildRenderInput): Promise<unknown | undefined> | unknown | undefined;
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T;
 };
 
@@ -250,14 +251,14 @@ export function getComponentRenderContext(): ComponentRenderContext | undefined 
 const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
 
 /**
- * Runs boundary interception for one component boundary.
+ * Runs foreign-child interception for one component render step.
  *
- * The active runtime may resolve the boundary immediately or keep it inline.
+ * The active runtime may resolve the foreign child immediately or keep it inline.
  */
-export function interceptComponentBoundary(
-	input: ComponentBoundaryRenderInput,
+export function interceptForeignChild(
+	input: ForeignChildRenderInput,
 ): Promise<unknown | undefined> | unknown | undefined {
-	return getComponentRenderContext()?.interceptBoundary(input);
+	return getComponentRenderContext()?.interceptForeignChild(input);
 }
 
 /**
@@ -276,24 +277,24 @@ export function finalizeComponentRender<T>(component: EcoComponent, content: T):
  * Runs render work under a fresh component render context and returns the
  * resulting value.
  *
- * @param input Execution metadata for current integration and boundary policy.
+ * @param input Execution metadata for current integration and foreign-child policy.
  * @param render Async render function to execute inside the context.
  * @returns Render result value.
  */
 export async function runWithComponentRenderContext<T>(
 	input: {
 		currentIntegration: string;
-		boundaryRuntime?: ComponentBoundaryRuntime;
+		foreignChildRuntime?: ForeignChildRuntime;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
 	const context = {
 		currentIntegration: input.currentIntegration,
-		boundaryRuntime: input.boundaryRuntime,
+		foreignChildRuntime: input.foreignChildRuntime,
 	} as ComponentRenderContext;
 	const runtime = new ContextualComponentRenderRuntime(context);
-	context.interceptBoundary = (deferredInput: ComponentBoundaryRenderInput) =>
-		runtime.interceptBoundary(deferredInput);
+	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
+		runtime.interceptForeignChild(deferredInput);
 	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
 		runtime.finalizeComponentRender(component, content);
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import {
 	eco,
-	type BoundaryRenderPayload,
+	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -156,16 +156,16 @@ describe('KitaRenderer', () => {
 		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
 	});
 
-	it('should expose the compatibility boundary payload contract', async () => {
-		const Component = createTestComponent(async () => '<section>Kita Boundary</section>');
+	it('should expose the compatibility foreign-subtree payload contract', async () => {
+		const Component = createTestComponent(async () => '<section>Kita Foreign Subtree</section>');
 
-		const result = await renderer.renderBoundary({
+		const result = await renderer.renderForeignSubtree({
 			component: Component,
 			props: {},
 		});
 
-		expect(result).toEqual<BoundaryRenderPayload>({
-			html: '<section>Kita Boundary</section>',
+		expect(result).toEqual<ForeignSubtreeRenderPayload>({
+			html: '<section>Kita Foreign Subtree</section>',
 			assets: [],
 			rootTag: 'section',
 			rootAttributes: undefined,
@@ -197,7 +197,7 @@ describe('KitaRenderer', () => {
 			}),
 		);
 
-		class DeferredBoundaryRenderer extends IntegrationRenderer<EcoPagesElement> {
+		class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
 			name = 'deferred';
 
 			async render(): Promise<string> {
@@ -217,8 +217,8 @@ describe('KitaRenderer', () => {
 			}
 		}
 
-		class DeferredBoundaryPlugin extends IntegrationPlugin<EcoPagesElement> {
-			renderer = DeferredBoundaryRenderer;
+		class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
+			renderer = DeferredForeignSubtreeRenderer;
 
 			constructor() {
 				super({
@@ -228,7 +228,7 @@ describe('KitaRenderer', () => {
 			}
 		}
 
-		const deferredPlugin = new DeferredBoundaryPlugin();
+		const deferredPlugin = new DeferredForeignSubtreePlugin();
 		const config = await new ConfigBuilder()
 			.setRobotsTxt({
 				preferences: {
@@ -256,17 +256,14 @@ describe('KitaRenderer', () => {
 		});
 
 		const DeferredWidget = eco.component({
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-		DeferredWidget.config = {
-			...DeferredWidget.config,
 			__eco: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
 			},
-		};
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
 
 		const Shell = eco.component<{ children?: string }, string>({
 			integration: 'kitajs',
@@ -276,7 +273,7 @@ describe('KitaRenderer', () => {
 			render: ({ children }) => `<main>${children ?? ''}${DeferredWidget({})}</main>`,
 		});
 
-		const result = await testRenderer.renderComponentBoundary({
+		const result = await testRenderer.renderComponentWithForeignChildren({
 			component: Shell,
 			props: {},
 			children: '<section>Host child</section>',
@@ -358,17 +355,14 @@ describe('KitaRenderer', () => {
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
 
 		const DeferredWidget = eco.component({
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-		DeferredWidget.config = {
-			...DeferredWidget.config,
 			__eco: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
 			},
-		};
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
 
 		const Layout = eco.layout<string>({
 			dependencies: {
@@ -430,17 +424,14 @@ describe('KitaRenderer', () => {
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
 
 		const DeferredWidget = eco.component({
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-		DeferredWidget.config = {
-			...DeferredWidget.config,
 			__eco: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
 			},
-		};
+			integration: 'deferred',
+			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+		});
 
 		const Layout = eco.layout({
 			dependencies: {

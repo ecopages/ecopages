@@ -43,10 +43,10 @@ type ReactComponentRenderContext = {
 	componentInstanceId?: string;
 };
 
-type ReactBoundaryRuntimeContext = {
+type ReactForeignSubtreeResolutionContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
 	componentInstanceScope?: string;
-	nextBoundaryId: number;
+	nextForeignSubtreeId: number;
 	queuedResolutions: Array<{
 		token: string;
 		component: EcoComponent;
@@ -306,27 +306,27 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Renders one React component boundary while preserving already-resolved child HTML.
+	 * Renders one React component while preserving already-resolved child HTML.
 	 *
-	 * When nested boundary resolution has already produced child HTML for this
-	 * boundary, the child payload must remain raw SSR output rather than a React
+	 * When nested foreign-subtree resolution has already produced child HTML for this
+	 * component, the child payload must remain raw SSR output rather than a React
 	 * string child, otherwise React would escape it. This helper renders a unique
 	 * token through React and swaps that token back to the resolved HTML
 	 * afterward.
 	 *
-	 * @param input Component render input for the current boundary.
+	 * @param input Component render input for the current render step.
 	 * @param context React-specific render context for stable token generation.
 	 * @returns Serialized component HTML with resolved child markup preserved.
 	 */
 	private renderComponentHtml(
 		input: ComponentRenderInput,
 		context: ReactComponentRenderContext,
-		runtimeContext?: ReactBoundaryRuntimeContext,
+		runtimeContext?: ReactForeignSubtreeResolutionContext,
 	): string {
 		const { react, reactDomServer } = this.getReactRuntimeModules();
 
 		if (input.children === undefined) {
-			return this.normalizeBoundaryArtifactHtml(
+			return this.normalizeUnresolvedMarkerArtifactHtml(
 				reactDomServer.renderToString(react.createElement(this.asReactComponent(input.component), input.props)),
 			);
 		}
@@ -340,19 +340,22 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const html = reactDomServer.renderToString(
 			react.createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
 		);
-		return this.normalizeBoundaryArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
+		return this.normalizeUnresolvedMarkerArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
 
 	/**
 	 * Restores raw child HTML that was temporarily replaced by a token during React SSR.
 	 *
-	 * Queued boundary resolution may render children through a fragment path before all
+	 * Queued foreign-subtree resolution may render children through a fragment path before all
 	 * nested integration tokens are resolved. When that happens, React must never see
 	 * the resolved child HTML as a normal string child or it would escape it. The
 	 * runtime context stores the placeholder token and the raw child HTML so the
-	 * fragment render path can reinsert it before foreign boundary tokens are handled.
+	 * fragment render path can reinsert it before foreign-subtree tokens are handled.
 	 */
-	private restoreRuntimeChildHtml(html: string, runtimeContext: ReactBoundaryRuntimeContext | undefined): string {
+	private restoreRuntimeChildHtml(
+		html: string,
+		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+	): string {
 		if (!runtimeContext?.rawChildrenToken || runtimeContext.rawChildrenHtml === undefined) {
 			return html;
 		}
@@ -361,17 +364,17 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Renders queued child content through React and then resolves nested boundary tokens.
+	 * Renders queued child content through React and then resolves nested foreign-subtree tokens.
 	 *
 	 * This path is only used for children that were deferred while React rendered the
-	 * parent boundary. It first restores any raw child HTML placeholders owned by the
-	 * current runtime context, then asks the shared queued-boundary resolver to swap
+	 * parent component. It first restores any raw child HTML placeholders owned by the
+	 * current runtime context, then asks the shared queued foreign-subtree resolver to swap
 	 * foreign integration tokens with their resolved HTML.
 	 */
 	private async renderQueuedChildrenToHtml(
 		children: unknown,
-		runtimeContext: ReactBoundaryRuntimeContext,
-		queuedResolutionsByToken: Map<string, ReactBoundaryRuntimeContext['queuedResolutions'][number]>,
+		runtimeContext: ReactForeignSubtreeResolutionContext,
+		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<string | undefined> {
 		if (children === undefined) {
@@ -380,29 +383,29 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const { react, reactDomServer } = this.getReactRuntimeModules();
 
-		let html = this.normalizeBoundaryArtifactHtml(
+		let html = this.normalizeUnresolvedMarkerArtifactHtml(
 			reactDomServer.renderToString(react.createElement(react.Fragment, null, children as ReactNode)),
 		);
 		html = this.restoreRuntimeChildHtml(html, runtimeContext);
 
-		html = await this.resolveQueuedBoundaryTokens(html, queuedResolutionsByToken, resolveToken);
+		html = await this.resolveQueuedForeignSubtreeTokens(html, queuedResolutionsByToken, resolveToken);
 
 		return html;
 	}
 
 	/**
-	 * Resolves queued renderer-owned boundary tokens produced during React component rendering.
+	 * Resolves queued renderer-owned foreign-subtree tokens produced during React component rendering.
 	 *
-	 * React components can enqueue nested boundaries while the parent HTML is being
+	 * React components can enqueue nested foreign subtrees while the parent HTML is being
 	 * rendered. This delegates to the shared renderer-owned queue resolver but keeps
 	 * the React-specific child rendering behavior local so raw child HTML and React's
 	 * fragment rendering semantics stay coordinated.
 	 */
-	private async resolveQueuedBoundaryHtml(
+	private async resolveQueuedForeignSubtreeHtml(
 		html: string,
-		runtimeContext: ReactBoundaryRuntimeContext | undefined,
+		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<{ assets: NonNullable<ComponentRenderResult['assets']>; html: string }> {
-		return this.resolveRendererOwnedQueuedBoundaryHtml({
+		return this.resolveRendererOwnedQueuedForeignSubtreeHtml({
 			html,
 			runtimeContext,
 			queueLabel: 'React',
@@ -451,15 +454,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Renders a foreign integration component boundary that participates in React composition.
+	 * Renders a foreign integration component that participates in React composition.
 	 *
 	 * Non-React components must resolve to serialized HTML so React can embed them as
-	 * mixed-shell boundaries. Any component-owned dependencies still need to flow
-	 * through the shared dependency resolver before queued boundary tokens are finalized.
+	 * mixed-shell children. Any component-owned dependencies still need to flow
+	 * through the shared dependency resolver before queued foreign-subtree tokens are finalized.
 	 */
-	private async renderForeignComponentBoundary(
+	private async renderForeignComponentWithSerializedHtml(
 		input: ComponentRenderInput,
-		runtimeContext: ReactBoundaryRuntimeContext | undefined,
+		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<ComponentRenderResult> {
 		let props = input.props;
 		if (input.children !== undefined) {
@@ -480,31 +483,31 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			hasDependencies && canResolveAssets
 				? await this.processComponentDependencies([input.component])
 				: undefined;
-		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
+		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(html, runtimeContext);
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(assets ?? []),
-			...queuedBoundaryResolution.assets,
+			...queuedForeignSubtreeResolution.assets,
 		]);
 
 		return {
-			html: queuedBoundaryResolution.html,
+			html: queuedForeignSubtreeResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedBoundaryResolution.html),
+			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			integrationName: this.name,
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		};
 	}
 
 	/**
-	 * Renders a React-owned component boundary and attaches island hydration metadata when possible.
+	 * Renders a React-owned component and attaches island hydration metadata when possible.
 	 *
-	 * This path keeps React-owned SSR, queued boundary resolution, and optional
+	 * This path keeps React-owned SSR, queued foreign-subtree resolution, and optional
 	 * island hydration wiring together so the public `renderComponent()` method can
 	 * read as orchestration rather than implementation detail.
 	 */
-	private async renderReactComponentBoundary(
+	private async renderReactManagedComponent(
 		input: ComponentRenderInput,
-		runtimeContext: ReactBoundaryRuntimeContext | undefined,
+		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<ComponentRenderResult> {
 		const componentConfig = input.component.config;
 		const context: ReactComponentRenderContext = {
@@ -512,8 +515,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
 		let html = this.renderComponentHtml(input, context, runtimeContext);
-		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(html, runtimeContext);
-		html = queuedBoundaryResolution.html;
+		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(html, runtimeContext);
+		html = queuedForeignSubtreeResolution.html;
 		const canAttachAttributes = hasSingleRootElement(html);
 		const rootTag = this.getRootTagName(html);
 		const componentFile = componentConfig?.__eco?.file;
@@ -539,7 +542,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(assets ?? []),
-			...queuedBoundaryResolution.assets,
+			...queuedForeignSubtreeResolution.assets,
 		]);
 
 		return {
@@ -560,33 +563,34 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * - When an explicit component instance id is provided, a stable
 	 *   `data-eco-component-id` attribute is attached so island hydration can target it.
 	 * - Without an explicit instance id, component renders remain plain SSR output.
-	 * - When resolved child HTML is provided, that boundary is treated as a pure SSR
+	 * - When resolved child HTML is provided, that foreign subtree is treated as a pure SSR
 	 *   composition step and does not emit hydration assets for the parent wrapper.
 	 *
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const runtimeContext = this.getQueuedBoundaryRuntime<ReactBoundaryRuntimeContext>(input);
+		const runtimeContext =
+			this.getQueuedForeignSubtreeResolutionContext<ReactForeignSubtreeResolutionContext>(input);
 
 		if (!this.isReactManagedComponent(input.component)) {
-			return this.renderForeignComponentBoundary(input, runtimeContext);
+			return this.renderForeignComponentWithSerializedHtml(input, runtimeContext);
 		}
 
-		return this.renderReactComponentBoundary(input, runtimeContext);
+		return this.renderReactManagedComponent(input, runtimeContext);
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime<ReactBoundaryRuntimeContext>({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime<ReactForeignSubtreeResolutionContext>({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 			createRuntimeContext: (integrationContext, rendererCache) => ({
 				rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
 				componentInstanceScope: integrationContext.componentInstanceId,
-				nextBoundaryId: 0,
+				nextForeignSubtreeId: 0,
 				queuedResolutions: [],
 				rawChildrenToken: undefined,
 				rawChildrenHtml: undefined,
@@ -765,18 +769,18 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			await this.prepareViewDependencies(view, Layout);
 			await this.appendHydrationAssetsForFile(viewConfig?.__eco?.file);
 
-			const viewRender = await this.renderComponentBoundary({
+			const viewRender = await this.renderComponentWithForeignChildren({
 				component: view,
 				props: normalizedProps,
 			});
 			const layoutRender = Layout
-				? await this.renderComponentBoundary({
+				? await this.renderComponentWithForeignChildren({
 						component: Layout,
 						props: {},
 						children: viewRender.html,
 					})
 				: undefined;
-			const documentRender = await this.renderComponentBoundary({
+			const documentRender = await this.renderComponentWithForeignChildren({
 				component: HtmlTemplate,
 				props: {
 					metadata,

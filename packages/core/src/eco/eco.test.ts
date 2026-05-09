@@ -13,16 +13,16 @@ import type {
 } from '../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
-	type ComponentBoundaryRuntime,
+	type ForeignChildRuntime,
 	getComponentRenderContext,
 	runWithComponentRenderContext,
 } from '../route-renderer/orchestration/component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
-function createResolvedBoundaryRuntime(targetIntegrations: string[], value: string): ComponentBoundaryRuntime {
+function createResolvedForeignChildRuntime(targetIntegrations: string[], value: string): ForeignChildRuntime {
 	return {
-		interceptBoundary: async ({ targetIntegration }: { targetIntegration?: string }) =>
+		interceptForeignChild: async ({ targetIntegration }: { targetIntegration?: string }) =>
 			targetIntegration !== undefined && targetIntegrations.includes(targetIntegration)
 				? ({ kind: 'resolved', value } as const)
 				: ({ kind: 'inline' } as const),
@@ -204,7 +204,7 @@ describe('eco namespace', () => {
 			expect(Component.config?.integration).toBe('lit');
 		});
 
-		test('should render inline when boundary context returns inline for a React component', async () => {
+		test('should render inline when the foreign-child runtime returns inline for a React component', async () => {
 			const ReactButton = eco.component({
 				integration: 'react',
 				__eco: {
@@ -225,7 +225,7 @@ describe('eco namespace', () => {
 			expect(execution.value).toBe('<button type="button">Click</button>');
 		});
 
-		test('should resolve foreign boundaries immediately when the runtime returns resolved output', async () => {
+		test('should resolve foreign children immediately when the runtime returns resolved output', async () => {
 			const ReactButton = eco.component({
 				integration: 'react',
 				__eco: {
@@ -239,7 +239,7 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					boundaryRuntime: createResolvedBoundaryRuntime(
+					foreignChildRuntime: createResolvedForeignChildRuntime(
 						['react'],
 						'<aside>Resolved in owning renderer</aside>',
 					),

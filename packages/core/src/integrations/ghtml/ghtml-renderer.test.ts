@@ -3,7 +3,7 @@ import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ghtml.js';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
 import {
 	eco,
-	type BoundaryRenderPayload,
+	type ForeignSubtreeRenderPayload,
 	type EcoComponent,
 	type EcoPagesElement,
 	type HtmlTemplateProps,
@@ -121,7 +121,7 @@ describe('GhtmlRenderer', () => {
 		).rejects.toThrow('Error rendering page: Page failed to render');
 	});
 
-	it('should resolve deferred foreign layout content without unresolved boundary artifacts', async () => {
+	it('should resolve deferred foreign layout content without unresolved eco-marker artifacts', async () => {
 		const deferredPlugin = new DeferredPlugin();
 		const config = await new ConfigBuilder()
 			.setRootDir(FIXTURE_APP_PROJECT_DIR)
@@ -177,17 +177,17 @@ describe('GhtmlRenderer', () => {
 		expect(body).not.toContain('<eco-marker');
 	});
 
-	it('should expose the compatibility boundary payload contract', async () => {
+	it('should expose the compatibility foreign-subtree payload contract', async () => {
 		const renderer = createRenderer();
-		const Component = (async () => '<main>Boundary</main>') as EcoComponent<Record<string, unknown>>;
+		const Component = (async () => '<main>Foreign Subtree</main>') as EcoComponent<Record<string, unknown>>;
 
-		const result = await renderer.renderBoundary({
+		const result = await renderer.renderForeignSubtree({
 			component: Component,
 			props: {},
 		});
 
-		expect(result).toEqual<BoundaryRenderPayload>({
-			html: '<main>Boundary</main>',
+		expect(result).toEqual<ForeignSubtreeRenderPayload>({
+			html: '<main>Foreign Subtree</main>',
 			assets: [],
 			rootTag: 'main',
 			rootAttributes: undefined,

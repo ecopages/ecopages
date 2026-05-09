@@ -8,7 +8,7 @@ import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	BoundaryRenderPayload,
+	ForeignSubtreeRenderPayload,
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
@@ -32,18 +32,18 @@ import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
-import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
+import { OwnershipValidationService } from './ownership-validation.service.ts';
 import { RouteRenderFlow, type RouteRenderFlowCallbacks } from './route-render-flow.ts';
-import type { ComponentBoundaryRuntime } from './component-render-context.ts';
-import { normalizeBoundaryArtifactHtml } from './render-output.utils.ts';
+import type { ForeignChildRuntime } from './component-render-context.ts';
+import { normalizeUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 import {
-	QueuedBoundaryRuntimeService,
-	type QueuedBoundaryResolution,
-	type QueuedBoundaryRuntimeContext,
-} from './queued-boundary-runtime.service.ts';
+	QueuedForeignSubtreeResolutionService,
+	type QueuedForeignSubtreeResolution,
+	type QueuedForeignSubtreeResolutionContext,
+} from './queued-foreign-subtree-resolution.service.ts';
 
-type BoundaryRenderDecisionInput = {
+type ForeignChildResolutionDecisionInput = {
 	currentIntegration: string;
 	targetIntegration?: string;
 };
@@ -87,7 +87,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderFlow: RouteRenderFlow;
-	protected readonly queuedBoundaryRuntimeService = new QueuedBoundaryRuntimeService();
+	protected readonly queuedForeignSubtreeResolutionService = new QueuedForeignSubtreeResolutionService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -104,7 +104,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Reads the execution-scoped foreign renderer cache from one boundary input.
+	 * Reads the execution-scoped owning-renderer cache from one render input.
 	 *
 	 * Shared page/layout/document shell helpers pass one cache through
 	 * `integrationContext` so repeated delegation to the same foreign integration
@@ -113,10 +113,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * stored on the renderer, which avoids leaking mutable integration state across
 	 * requests while still preventing redundant renderer initialization.
 	 *
-	 * @param integrationContext - Optional boundary context carried with one render input.
+	 * @param integrationContext - Optional render context carried with one render input.
 	 * @returns The current execution cache when present.
 	 */
-	private getBoundaryRendererCache(
+	private getOwningRendererCache(
 		integrationContext?: BaseIntegrationContext,
 	): Map<string, IntegrationRenderer<any>> | undefined {
 		if (integrationContext?.rendererCache instanceof Map) {
@@ -126,7 +126,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return undefined;
 	}
 
-	private getRegisteredBoundaryOwner(component: EcoComponent): string | undefined {
+	private getForeignOwnerIntegrationName(component: EcoComponent): string | undefined {
 		const integrationName = component.config?.integration ?? component.config?.__eco?.integration;
 		if (!integrationName || integrationName === this.name) {
 			return undefined;
@@ -138,18 +138,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Attaches an execution-scoped foreign renderer cache to one boundary input.
+	 * Attaches an execution-scoped owning-renderer cache to one render input.
 	 *
 	 * Foreign-owned page, layout, or document shells may delegate several times in
 	 * the same render flow. Threading the cache through `integrationContext`
-	 * preserves renderer reuse without changing the public boundary input contract.
+	 * preserves renderer reuse without changing the public render input contract.
 	 * Existing integration-specific context is preserved and augmented.
 	 *
-	 * @param input - Original boundary render input.
+	 * @param input - Original render input.
 	 * @param rendererCache - Execution-scoped renderer cache to propagate.
-	 * @returns Boundary input augmented with the shared renderer cache.
+	 * @returns Render input augmented with the shared renderer cache.
 	 */
-	private withBoundaryRendererCache(
+	private withOwningRendererCache(
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): ComponentRenderInput {
@@ -270,7 +270,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Merges component-scoped assets into the active HTML transformer state.
 	 *
 	 * Explicit page, layout, and document shell composition can produce assets at
-	 * each boundary. This helper deduplicates those groups and folds them back into
+	 * each foreign subtree. This helper deduplicates those groups and folds them back into
 	 * the transformer so downstream HTML finalization sees one canonical asset set.
 	 *
 	 * @param assetGroups - Optional groups of processed assets to merge.
@@ -324,7 +324,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * Same-integration views can optionally stream or render inline via the caller's
 	 * `renderInline()` hook. Once a view may cross integration boundaries, this
-	 * helper routes the render through `renderComponentBoundary()` instead so mixed
+	 * helper routes the render through `renderComponentWithForeignChildren()` instead so mixed
 	 * shells can reuse the execution-scoped renderer cache and resolve nested
 	 * foreign ownership before the partial response is returned.
 	 *
@@ -338,12 +338,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		renderInline?: () => Promise<BodyInit>;
 		transformHtml?: (html: string) => string;
 	}): Promise<Response> {
-		if (input.renderInline && !this.hasForeignBoundaryDescendants(input.view as EcoComponent)) {
+		if (input.renderInline && !this.hasForeignChildDescendants(input.view as EcoComponent)) {
 			return this.createHtmlResponse(await input.renderInline(), input.ctx);
 		}
 
 		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const viewRender = await this.renderComponentBoundary({
+		const viewRender = await this.renderComponentWithForeignChildren({
 			component: input.view as EcoComponent,
 			props: (input.props ?? {}) as Record<string, unknown>,
 			integrationContext: { rendererCache },
@@ -382,20 +382,20 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
 		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const viewRender = await this.renderComponentBoundary({
+		const viewRender = await this.renderComponentWithForeignChildren({
 			component: input.view as EcoComponent,
 			props: normalizedProps,
 			integrationContext: { rendererCache },
 		});
 		const layoutRender = input.layout
-			? await this.renderComponentBoundary({
+			? await this.renderComponentWithForeignChildren({
 					component: input.layout,
 					props: {},
 					children: viewRender.html,
 					integrationContext: { rendererCache },
 				})
 			: undefined;
-		const documentRender = await this.renderComponentBoundary({
+		const documentRender = await this.renderComponentWithForeignChildren({
 			component: HtmlTemplate as EcoComponent,
 			props: {
 				metadata,
@@ -418,10 +418,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	/**
 	 * Renders a route page through optional layout and document shells.
 	 *
-	 * Route rendering and explicit view rendering now share the same boundary-owned
+	 * Route rendering and explicit view rendering now share the same renderer-owned
 	 * shell composition model. This helper composes page, layout, and html template
-	 * boundaries while threading one execution-scoped renderer cache through every
-	 * delegated boundary so foreign shell ownership remains stable and renderer
+	 * renders while threading one execution-scoped renderer cache through every
+	 * delegated foreign subtree so foreign shell ownership remains stable and renderer
 	 * initialization is reused inside the current request.
 	 *
 	 * @param input - Page, layout, document, and metadata inputs for the route render.
@@ -443,20 +443,20 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		transformDocumentHtml?: (html: string) => string;
 	}): Promise<string> {
 		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const pageRender = await this.renderComponentBoundary({
+		const pageRender = await this.renderComponentWithForeignChildren({
 			component: input.page.component,
 			props: input.page.props,
 			integrationContext: { rendererCache },
 		});
 		const layoutRender = input.layout
-			? await this.renderComponentBoundary({
+			? await this.renderComponentWithForeignChildren({
 					component: input.layout.component,
 					props: input.layout.props ?? {},
 					children: pageRender.html,
 					integrationContext: { rendererCache },
 				})
 			: undefined;
-		const documentRender = await this.renderComponentBoundary({
+		const documentRender = await this.renderComponentWithForeignChildren({
 			component: input.htmlTemplate,
 			props: {
 				metadata: input.metadata,
@@ -477,19 +477,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Renders one string-first component boundary and collects its assets.
+	 * Renders one string-first component with serialized children and collects its assets.
 	 *
-	 * String-oriented integrations frequently share the same boundary contract:
+	 * String-oriented integrations frequently share the same component contract:
 	 * pass serialized children through props, coerce the render result to HTML, and
 	 * attach any component-scoped dependencies. This helper centralizes that flow
 	 * so integrations can opt into shared orchestration without repeating the same
-	 * boundary boilerplate.
+	 * string-render boilerplate.
 	 *
-	 * @param input - Boundary render input.
+	 * @param input - Component render input.
 	 * @param component - String-oriented component implementation to execute.
 	 * @returns Structured component render result for orchestration paths.
 	 */
-	protected async renderStringComponentBoundary(
+	protected async renderStringComponentWithSerializedChildren(
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
 	): Promise<ComponentRenderResult> {
@@ -511,24 +511,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	protected getBoundaryTokenPrefix(): string {
-		return `__${this.name}_boundary__`;
+	protected getForeignSubtreeTokenPrefix(): string {
+		return `__${this.name}_foreign_subtree__`;
 	}
 
-	protected getBoundaryRuntimeContextKey(): string {
-		return `__${this.name}_boundary_runtime__`;
+	protected getForeignSubtreeResolutionContextKey(): string {
+		return `__${this.name}_foreign_subtree_runtime__`;
 	}
 
-	protected getQueuedBoundaryRuntime<TContext extends QueuedBoundaryRuntimeContext>(
+	protected getQueuedForeignSubtreeResolutionContext<TContext extends QueuedForeignSubtreeResolutionContext>(
 		input: ComponentRenderInput,
-		runtimeContextKey = this.getBoundaryRuntimeContextKey(),
+		runtimeContextKey = this.getForeignSubtreeResolutionContextKey(),
 	): TContext | undefined {
-		return this.queuedBoundaryRuntimeService.getRuntimeContext<TContext>(input, runtimeContextKey);
+		return this.queuedForeignSubtreeResolutionService.getRuntimeContext<TContext>(input, runtimeContextKey);
 	}
 
-	protected async resolveQueuedBoundaryTokens(
+	protected async resolveQueuedForeignSubtreeTokens(
 		html: string,
-		queuedResolutionsByToken: Map<string, QueuedBoundaryResolution>,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<string> {
 		let resolvedHtml = html;
@@ -544,8 +544,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return resolvedHtml;
 	}
 
-	protected createQueuedBoundaryRuntime<TContext extends QueuedBoundaryRuntimeContext>(options: {
-		boundaryInput: ComponentRenderInput;
+	protected createQueuedForeignSubtreeResolutionRuntime<
+		TContext extends QueuedForeignSubtreeResolutionContext,
+	>(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 		runtimeContextKey?: string;
 		tokenPrefix?: string;
@@ -553,35 +555,37 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			integrationContext: BaseIntegrationContext & Record<string, unknown>,
 			rendererCache: Map<string, unknown>,
 		) => TContext;
-	}): ComponentBoundaryRuntime {
-		return this.queuedBoundaryRuntimeService.createRuntime<TContext>({
-			boundaryInput: options.boundaryInput,
+	}): ForeignChildRuntime {
+		return this.queuedForeignSubtreeResolutionService.createRuntime<TContext>({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache as Map<string, unknown>,
-			runtimeContextKey: options.runtimeContextKey ?? this.getBoundaryRuntimeContextKey(),
-			tokenPrefix: options.tokenPrefix ?? this.getBoundaryTokenPrefix(),
-			shouldQueueBoundary: (input) => this.shouldResolveBoundaryInOwningRenderer(input),
+			runtimeContextKey: options.runtimeContextKey ?? this.getForeignSubtreeResolutionContextKey(),
+			tokenPrefix: options.tokenPrefix ?? this.getForeignSubtreeTokenPrefix(),
+			shouldQueueForeignChild: (input) => this.shouldResolveForeignChildInOwningRenderer(input),
 			createRuntimeContext: options.createRuntimeContext,
 		});
 	}
 
-	protected async resolveRendererOwnedQueuedBoundaryHtml<TContext extends QueuedBoundaryRuntimeContext>(options: {
+	protected async resolveRendererOwnedQueuedForeignSubtreeHtml<
+		TContext extends QueuedForeignSubtreeResolutionContext,
+	>(options: {
 		html: string;
 		runtimeContext?: TContext;
 		queueLabel: string;
 		renderQueuedChildren: (
 			children: unknown,
 			runtimeContext: TContext,
-			queuedResolutionsByToken: Map<string, QueuedBoundaryResolution>,
+			queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
 			resolveToken: (token: string) => Promise<string>,
 		) => Promise<{ assets: ProcessedAsset[]; html?: string }>;
 	}): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.queuedBoundaryRuntimeService.resolveQueuedHtml({
+		return this.queuedForeignSubtreeResolutionService.resolveQueuedHtml({
 			html: options.html,
 			runtimeContext: options.runtimeContext,
 			queueLabel: options.queueLabel,
 			renderQueuedChildren: options.renderQueuedChildren,
-			resolveBoundary: (input, rendererCache) =>
-				this.resolveBoundaryPayloadInOwningRenderer(
+			resolveForeignSubtree: (input, rendererCache) =>
+				this.resolveForeignSubtreeInOwningRenderer(
 					input,
 					rendererCache as Map<string, IntegrationRenderer<any>>,
 				),
@@ -595,21 +599,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Renders a string-first component, then resolves any queued foreign
 	 * boundaries before returning final component HTML.
 	 */
-	protected async renderStringComponentBoundaryWithQueuedForeignBoundaries(
+	protected async renderStringComponentWithQueuedForeignSubtrees(
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
 	): Promise<ComponentRenderResult> {
-		const componentRender = await this.renderStringComponentBoundary(input, component);
-		const queuedBoundaryResolution = await this.resolveRendererOwnedQueuedBoundaryHtml({
+		const componentRender = await this.renderStringComponentWithSerializedChildren(input, component);
+		const queuedForeignSubtreeResolution = await this.resolveRendererOwnedQueuedForeignSubtreeHtml({
 			html: componentRender.html,
-			runtimeContext: this.getQueuedBoundaryRuntime<QueuedBoundaryRuntimeContext>(input),
+			runtimeContext: this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(input),
 			queueLabel: 'String',
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 				if (children === undefined) {
 					return { assets: [], html: undefined };
 				}
 
-				const html = await this.resolveQueuedBoundaryTokens(
+				const html = await this.resolveQueuedForeignSubtreeTokens(
 					typeof children === 'string' ? children : String(children ?? ''),
 					queuedResolutionsByToken,
 					resolveToken,
@@ -620,13 +624,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(componentRender.assets ?? []),
-			...queuedBoundaryResolution.assets,
+			...queuedForeignSubtreeResolution.assets,
 		]);
 
 		return {
 			...componentRender,
-			html: queuedBoundaryResolution.html,
-			rootTag: this.getRootTagName(queuedBoundaryResolution.html),
+			html: queuedForeignSubtreeResolution.html,
+			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		};
 	}
@@ -653,7 +657,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 		this.routeRenderFlow = new RouteRenderFlow(appConfig, assetProcessingService, {
-			boundaryOwnershipValidationService: new BoundaryOwnershipValidationService(appConfig),
+			ownershipValidationService: new OwnershipValidationService(appConfig),
 		});
 	}
 
@@ -848,7 +852,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			buildPageBrowserGraph: (file) => this.buildPageBrowserGraph(file),
 			shouldRenderPageComponent: (input) => this.shouldRenderPageComponent(input),
 			renderPageComponent: ({ component, props }) =>
-				this.renderComponentBoundary({
+				this.renderComponentWithForeignChildren({
 					component,
 					props,
 					integrationContext: {
@@ -897,7 +901,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
 	 * 2. Render the route body once.
-	 * 3. Reject unresolved route-level boundary artifacts.
+	 * 3. Reject unresolved route-level eco-marker artifacts.
 	 * 4. Optionally apply root attributes for page/component root boundaries.
 	 * 5. Run HTML transformer with final dependency set.
 	 *
@@ -916,7 +920,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Finalizes already-resolved HTML for explicit renderer-owned paths.
 	 *
 	 * This keeps document and root-attribute stamping plus HTML transformation
-	 * available after a renderer has completed nested boundary resolution without
+	 * available after a renderer has completed nested foreign-subtree resolution without
 	 * routing back through shared route execution.
 	 */
 	protected async finalizeResolvedHtml(options: {
@@ -991,7 +995,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const integrationPlugin = this.appConfig.integrations.find(
 			(integration) => integration.name === integrationName,
 		);
-		invariant(!!integrationPlugin, `[ecopages] Integration not found for boundary owner: ${integrationName}`);
+		invariant(!!integrationPlugin, `[ecopages] Integration not found for foreign owner: ${integrationName}`);
 		const renderer = integrationPlugin.initializeRenderer({
 			rendererModules: this.appConfig.runtime?.rendererModuleContext,
 		});
@@ -1008,62 +1012,64 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 
-	protected async resolveBoundaryInOwningRenderer(
+	protected async resolveForeignChildInOwningRenderer(
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
 	): Promise<ComponentRenderResult | undefined> {
-		const boundaryOwner = this.getRegisteredBoundaryOwner(input.component);
-		if (!boundaryOwner) {
+		const foreignOwnerIntegrationName = this.getForeignOwnerIntegrationName(input.component);
+		if (!foreignOwnerIntegrationName) {
 			return undefined;
 		}
 
-		const owningRenderer = this.getIntegrationRendererForName(boundaryOwner, rendererCache);
+		const owningRenderer = this.getIntegrationRendererForName(foreignOwnerIntegrationName, rendererCache);
 		if (owningRenderer === this || owningRenderer.name === this.name) {
 			return undefined;
 		}
-		return await owningRenderer.renderComponentBoundary(this.withBoundaryRendererCache(input, rendererCache));
+		return await owningRenderer.renderComponentWithForeignChildren(
+			this.withOwningRendererCache(input, rendererCache),
+		);
 	}
 
-	protected async resolveBoundaryPayloadInOwningRenderer(
+	protected async resolveForeignSubtreeInOwningRenderer(
 		input: ComponentRenderInput,
 		rendererCache: Map<string, IntegrationRenderer<any>>,
-	): Promise<BoundaryRenderPayload | undefined> {
-		const boundaryOwner = this.getRegisteredBoundaryOwner(input.component);
-		if (!boundaryOwner) {
+	): Promise<ForeignSubtreeRenderPayload | undefined> {
+		const foreignOwnerIntegrationName = this.getForeignOwnerIntegrationName(input.component);
+		if (!foreignOwnerIntegrationName) {
 			return undefined;
 		}
 
-		const owningRenderer = this.getIntegrationRendererForName(boundaryOwner, rendererCache);
+		const owningRenderer = this.getIntegrationRendererForName(foreignOwnerIntegrationName, rendererCache);
 		if (owningRenderer === this || owningRenderer.name === this.name) {
 			return undefined;
 		}
 
-		return await owningRenderer.renderBoundary(this.withBoundaryRendererCache(input, rendererCache));
+		return await owningRenderer.renderForeignSubtree(this.withOwningRendererCache(input, rendererCache));
 	}
 
 	/**
-	 * Renders one component under this integration's boundary runtime and resolves
-	 * any nested foreign boundaries captured during that render.
+	 * Renders one component under this integration's foreign-child runtime and resolves
+	 * any nested foreign children captured during that render.
 	 *
 	 * Without this wrapper, a component tree with foreign-owned descendants would
-	 * render them with no active boundary runtime, which bypasses the owning
-	 * renderer's nested-boundary handoff.
+	 * render them with no active foreign-child runtime, which bypasses the owning
+	 * renderer's nested foreign-child handoff.
 	 */
-	async renderComponentBoundary(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+	async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		const rendererCache =
-			this.getBoundaryRendererCache(input.integrationContext) ?? new Map<string, IntegrationRenderer<any>>();
-		const delegatedBoundaryRender = await this.resolveBoundaryInOwningRenderer(input, rendererCache);
+			this.getOwningRendererCache(input.integrationContext) ?? new Map<string, IntegrationRenderer<any>>();
+		const delegatedForeignChildRender = await this.resolveForeignChildInOwningRenderer(input, rendererCache);
 
-		if (delegatedBoundaryRender) {
-			return delegatedBoundaryRender;
+		if (delegatedForeignChildRender) {
+			return delegatedForeignChildRender;
 		}
 
-		const hasForeignBoundaries = this.hasForeignBoundaryDescendants(input.component);
+		const hasForeignChildren = this.hasForeignChildDescendants(input.component);
 		const activeRenderContext = getComponentRenderContext();
 
-		if (!hasForeignBoundaries) {
+		if (!hasForeignChildren) {
 			if (!activeRenderContext || activeRenderContext.currentIntegration === this.name) {
-				return this.normalizeComponentBoundaryRender(await this.renderComponent(input));
+				return this.normalizeComponentRenderOutput(await this.renderComponent(input));
 			}
 
 			const sameIntegrationExecution = await runWithComponentRenderContext(
@@ -1073,30 +1079,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				async () => this.renderComponent(input),
 			);
 
-			return this.normalizeComponentBoundaryRender(sameIntegrationExecution.value);
+			return this.normalizeComponentRenderOutput(sameIntegrationExecution.value);
 		}
 
 		const execution = await runWithComponentRenderContext(
 			{
 				currentIntegration: this.name,
-				boundaryRuntime: this.createComponentBoundaryRuntime({
-					boundaryInput: input,
+				foreignChildRuntime: this.createForeignChildRuntime({
+					renderInput: input,
 					rendererCache,
 				}),
 			},
 			async () => this.renderComponent(input),
 		);
 
-		return this.normalizeComponentBoundaryRender(execution.value);
+		return this.normalizeComponentRenderOutput(execution.value);
 	}
 
 	/**
-	 * Compatibility boundary contract that exposes a narrower payload shape for
+	 * Compatibility foreign-subtree contract that exposes a narrower payload shape for
 	 * future route-composition work while preserving the current
-	 * `renderComponentBoundary()` runtime semantics.
+	 * `renderComponentWithForeignChildren()` runtime semantics.
 	 */
-	async renderBoundary(input: ComponentRenderInput): Promise<BoundaryRenderPayload> {
-		const result = await this.renderComponentBoundary(input);
+	async renderForeignSubtree(input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> {
+		const result = await this.renderComponentWithForeignChildren(input);
 
 		return {
 			html: result.html,
@@ -1108,8 +1114,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	private normalizeComponentBoundaryRender(result: ComponentRenderResult): ComponentRenderResult {
-		const normalizedHtml = this.normalizeBoundaryArtifactHtml(result.html);
+	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {
+		const normalizedHtml = this.normalizeUnresolvedMarkerArtifactHtml(result.html);
 
 		return normalizedHtml === result.html
 			? result
@@ -1119,18 +1125,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				};
 	}
 
-	protected normalizeBoundaryArtifactHtml(html: string): string {
-		return normalizeBoundaryArtifactHtml(html);
+	protected normalizeUnresolvedMarkerArtifactHtml(html: string): string {
+		return normalizeUnresolvedMarkerArtifactHtml(html);
 	}
 
 	/**
 	 * Returns whether the component dependency tree crosses into another
 	 * integration.
 	 *
-	 * This keeps boundary-runtime setup narrow: same-integration trees can render
+	 * This keeps foreign-child runtime setup narrow: same-integration trees can render
 	 * directly without paying the queue orchestration cost.
 	 */
-	protected hasForeignBoundaryDescendants(component: EcoComponent): boolean {
+	protected hasForeignChildDescendants(component: EcoComponent): boolean {
 		const stack = [component];
 		const seen = new Set<EcoComponent>();
 
@@ -1173,8 +1179,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
 	 * the resulting HTML into the `ComponentRenderResult` contract.
 	 *
-	 * In boundary resolution, this method is the integration-owned step that turns an
-	 * already-resolved deferred boundary into concrete HTML, assets, and optional
+	 * In foreign-subtree resolution, this method is the integration-owned step that turns an
+	 * already-resolved deferred foreign subtree into concrete HTML, assets, and optional
 	 * root attributes.
 	 *
 	 * Integrations can override this for richer behavior (asset emission,
@@ -1222,47 +1228,47 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Creates the per-render boundary runtime adopted by the shared component
+	 * Creates the per-render foreign-child runtime adopted by the shared component
 	 * render context.
 	 *
 	 * Real mixed-integration renderers should override this and keep foreign
-	 * boundary resolution inside their own renderer-owned queue. The base runtime
+	 * child resolution inside their own renderer-owned queue. The base runtime
 	 * fails fast when a renderer crosses into a foreign owner without providing its
 	 * own handoff mechanism.
 	 */
-	protected createComponentBoundaryRuntime(_options: {
-		boundaryInput: ComponentRenderInput;
+	protected createForeignChildRuntime(_options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}): ComponentBoundaryRuntime {
-		const decideBoundaryInterception = (input: BoundaryRenderDecisionInput) => {
-			if (!this.shouldResolveBoundaryInOwningRenderer(input)) {
+	}): ForeignChildRuntime {
+		const decideForeignChildInterception = (input: ForeignChildResolutionDecisionInput) => {
+			if (!this.shouldResolveForeignChildInOwningRenderer(input)) {
 				return { kind: 'inline' as const };
 			}
 
 			throw new Error(
-				`[ecopages] ${this.name} renderer crossed into ${input.targetIntegration} without a renderer-owned boundary runtime. Override createComponentBoundaryRuntime() to resolve foreign boundaries inside the owning renderer.`,
+				`[ecopages] ${this.name} renderer crossed into ${input.targetIntegration} without a renderer-owned foreign-child runtime. Override createForeignChildRuntime() to resolve foreign children inside the owning renderer.`,
 			);
 		};
 
-		const runtime: ComponentBoundaryRuntime = {
-			interceptBoundary: decideBoundaryInterception,
-			interceptBoundarySync: decideBoundaryInterception,
+		const runtime: ForeignChildRuntime = {
+			interceptForeignChild: decideForeignChildInterception,
+			interceptForeignChildSync: decideForeignChildInterception,
 		};
 
 		return runtime;
 	}
 
 	/**
-	 * Resolves whether a boundary should leave the current render pass and be
+	 * Resolves whether a foreign child should leave the current render pass and be
 	 * resolved by its owning renderer.
 	 *
-	 * Boundaries owned by the current integration always render inline. Foreign-
-	 * owned boundaries must be handed off by a renderer-owned runtime.
+	 * Foreign children owned by the current integration always render inline.
+	 * Foreign-owned children must be handed off by a renderer-owned runtime.
 	 *
-	 * @param input Boundary metadata for the active render pass.
-	 * @returns `true` when the boundary should leave the current pass; otherwise `false`.
+	 * @param input Foreign-child metadata for the active render pass.
+	 * @returns `true` when the foreign child should leave the current pass; otherwise `false`.
 	 */
-	protected shouldResolveBoundaryInOwningRenderer(input: BoundaryRenderDecisionInput): boolean {
+	protected shouldResolveForeignChildInOwningRenderer(input: ForeignChildResolutionDecisionInput): boolean {
 		return !!input.targetIntegration && input.targetIntegration !== input.currentIntegration;
 	}
 }

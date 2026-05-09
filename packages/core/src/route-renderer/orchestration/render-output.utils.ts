@@ -290,21 +290,21 @@ export function decodeHtmlEntities(value: string): string {
 	return decoded;
 }
 
-export function normalizeBoundaryArtifactHtml(html: string): string {
+export function normalizeUnresolvedMarkerArtifactHtml(html: string): string {
 	return html.replace(
 		/&(?:amp;)?lt;eco-marker\b[\s\S]*?&(?:amp;)?gt;&(?:amp;)?lt;\/eco-marker&(?:amp;)?gt;/g,
 		(marker) => decodeHtmlEntities(marker),
 	);
 }
 
-export function inspectBoundaryArtifactHtml(html: string): {
-	hasUnresolvedBoundaryArtifacts: boolean;
+export function inspectUnresolvedMarkerArtifactHtml(html: string): {
+	hasUnresolvedMarkerArtifacts: boolean;
 	normalizedHtml: string;
 } {
-	const normalizedHtml = normalizeBoundaryArtifactHtml(html);
+	const normalizedHtml = normalizeUnresolvedMarkerArtifactHtml(html);
 
 	return {
 		normalizedHtml,
-		hasUnresolvedBoundaryArtifacts: normalizedHtml.includes('<eco-marker'),
+		hasUnresolvedMarkerArtifacts: normalizedHtml.includes('<eco-marker'),
 	};
 }

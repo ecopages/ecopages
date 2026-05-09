@@ -23,10 +23,10 @@ import {
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
 
-type LitBoundaryRuntimeContext = {
+type LitForeignSubtreeResolutionContext = {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
 	componentInstanceScope?: string;
-	nextBoundaryId: number;
+	nextForeignSubtreeId: number;
 	queuedResolutions: Array<{
 		token: string;
 		component: EcoComponent;
@@ -47,9 +47,9 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return typeof component === 'function';
 	}
 
-	private async resolveQueuedBoundaryChildren(
+	private async resolveQueuedForeignSubtreeChildren(
 		children: unknown,
-		queuedResolutionsByToken: Map<string, LitBoundaryRuntimeContext['queuedResolutions'][number]>,
+		queuedResolutionsByToken: Map<string, LitForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<string | undefined> {
 		if (children === undefined) {
@@ -57,7 +57,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 
 		let renderedChildren = typeof children === 'string' ? children : await renderLitValueToString(children);
-		renderedChildren = await this.resolveQueuedBoundaryTokens(
+		renderedChildren = await this.resolveQueuedForeignSubtreeTokens(
 			renderedChildren,
 			queuedResolutionsByToken,
 			resolveToken,
@@ -66,16 +66,16 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return renderedChildren;
 	}
 
-	private async resolveQueuedBoundaryHtml(
+	private async resolveQueuedForeignSubtreeHtml(
 		html: string,
-		runtimeContext: LitBoundaryRuntimeContext | undefined,
+		runtimeContext: LitForeignSubtreeResolutionContext | undefined,
 	): Promise<{ html: string; assets: ComponentRenderResult['assets'] }> {
-		const queuedBoundaryResolution = await this.resolveRendererOwnedQueuedBoundaryHtml({
+		const queuedForeignSubtreeResolution = await this.resolveRendererOwnedQueuedForeignSubtreeHtml({
 			html,
 			runtimeContext,
 			queueLabel: 'Lit',
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
-				const renderedChildren = await this.resolveQueuedBoundaryChildren(
+				const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
 					children,
 					queuedResolutionsByToken,
 					resolveToken,
@@ -89,8 +89,9 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		});
 
 		return {
-			html: queuedBoundaryResolution.html,
-			assets: queuedBoundaryResolution.assets.length > 0 ? queuedBoundaryResolution.assets : undefined,
+			html: queuedForeignSubtreeResolution.html,
+			assets:
+				queuedForeignSubtreeResolution.assets.length > 0 ? queuedForeignSubtreeResolution.assets : undefined,
 		};
 	}
 
@@ -103,11 +104,11 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	/**
-	 * Renders a Lit component boundary for component-level orchestration.
+	 * Renders a Lit component for component-level orchestration.
 	 *
 	 * SSR-eligible lazy scripts are preloaded first so custom elements registered
 	 * by the component can render their server markup even when the Lit renderer is
-	 * entered through cross-integration boundary handoff.
+	 * entered through cross-integration foreign-child handoff.
 	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
@@ -136,9 +137,9 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const renderedHtml = await renderLitValueToString(content);
 		const html =
 			renderedChildren === undefined ? renderedHtml : injectLitRenderedChildren(renderedHtml, renderedChildren);
-		const queuedBoundaryResolution = await this.resolveQueuedBoundaryHtml(
+		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(
 			html,
-			this.getQueuedBoundaryRuntime<LitBoundaryRuntimeContext>(input),
+			this.getQueuedForeignSubtreeResolutionContext<LitForeignSubtreeResolutionContext>(input),
 		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
@@ -148,23 +149,23 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				: undefined;
 
 		return {
-			html: queuedBoundaryResolution.html,
+			html: queuedForeignSubtreeResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedBoundaryResolution.html),
+			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			integrationName: this.name,
 			assets: this.htmlTransformer.dedupeProcessedAssets([
 				...(assets ?? []),
-				...(queuedBoundaryResolution.assets ?? []),
+				...(queuedForeignSubtreeResolution.assets ?? []),
 			]),
 		};
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime<LitBoundaryRuntimeContext>({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime<LitForeignSubtreeResolutionContext>({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 		});
 	}
@@ -276,18 +277,18 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 			await this.prepareViewDependencies(view, Layout);
 
-			const pageRender = await this.renderComponentBoundary({
+			const pageRender = await this.renderComponentWithForeignChildren({
 				component: view,
 				props: normalizedProps,
 			});
 			const layoutRender = Layout
-				? await this.renderComponentBoundary({
+				? await this.renderComponentWithForeignChildren({
 						component: Layout,
 						props: {},
 						children: pageRender.html,
 					})
 				: undefined;
-			const documentRender = await this.renderComponentBoundary({
+			const documentRender = await this.renderComponentWithForeignChildren({
 				component: HtmlTemplate,
 				props: {
 					metadata,

@@ -30,19 +30,19 @@ import type {
 } from './eco.types.ts';
 import {
 	finalizeComponentRender,
-	interceptComponentBoundary,
+	interceptForeignChild,
 } from '../route-renderer/orchestration/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/render-output.utils.ts';
 
 /**
- * Creates a component factory with lazy-trigger support and boundary-runtime
+ * Creates a component factory with lazy-trigger support and foreign-child-runtime
  * interception.
  *
  * Behavior:
  * - In normal render flow, returns `options.render(props)` with optional lazy
  *   trigger/script wrapping.
- * - When rendering under an active component boundary runtime and the current
- *   renderer-owned boundary runtime resolves the boundary immediately, returns
+ * - When rendering under an active foreign-child runtime and the current
+ *   renderer-owned foreign-child runtime resolves the foreign child immediately, returns
  *   that resolved output instead of rendering the component inline.
  *
  * @param options Component options for rendering and dependency declaration.
@@ -53,20 +53,20 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	const comp: EcoComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = () => finalizeComponentRender(comp, options.render(props)) as E;
-		const boundaryRender = interceptComponentBoundary({
+		const foreignChildRender = interceptForeignChild({
 			component: comp,
 			props: componentProps,
 			targetIntegration: integrationName,
 		});
 
-		if (isThenable<unknown | undefined>(boundaryRender)) {
-			return boundaryRender.then((resolvedBoundaryRender) =>
-				resolvedBoundaryRender !== undefined ? (resolvedBoundaryRender as E) : renderInline(),
+		if (isThenable<unknown | undefined>(foreignChildRender)) {
+			return foreignChildRender.then((resolvedForeignChildRender) =>
+				resolvedForeignChildRender !== undefined ? (resolvedForeignChildRender as E) : renderInline(),
 			) as E;
 		}
 
-		if (boundaryRender !== undefined) {
-			return boundaryRender as E;
+		if (foreignChildRender !== undefined) {
+			return foreignChildRender as E;
 		}
 
 		return renderInline();

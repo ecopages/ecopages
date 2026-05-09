@@ -30,7 +30,7 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	/**
-	 * Renders a Kita component boundary for component-level orchestration.
+	 * Renders a Kita-owned foreign subtree for component-level orchestration.
 	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
@@ -39,15 +39,15 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 			throw new TypeError('Kita renderer expected a callable component.');
 		}
 
-		return this.renderStringComponentBoundaryWithQueuedForeignBoundaries(input, input.component);
+		return this.renderStringComponentWithQueuedForeignSubtrees(input, input.component);
 	}
 
-	protected override createComponentBoundaryRuntime(options: {
-		boundaryInput: ComponentRenderInput;
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedBoundaryRuntime({
-			boundaryInput: options.boundaryInput,
+		return this.createQueuedForeignSubtreeResolutionRuntime({
+			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 		});
 	}

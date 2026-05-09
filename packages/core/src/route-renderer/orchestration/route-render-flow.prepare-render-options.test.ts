@@ -2,20 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
-	BoundaryPlan,
+	OwnershipPlan,
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
-import { BoundaryPlanningService } from './boundary-planning.service.ts';
+import { OwnershipPlanningService } from './ownership-planning.service.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
-import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
+import { OwnershipValidationService } from './ownership-validation.service.ts';
 import { type RouteRenderFlowCallbacks, RouteRenderFlow } from './route-render-flow.ts';
 
 declare module '../../types/public-types.ts' {
@@ -525,7 +525,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		);
 	});
 
-	it('uses an injected boundary planning service when provided', async () => {
+	it('uses an injected ownership planning service when provided', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),
 		} as unknown as AssetProcessingService;
@@ -533,7 +533,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const boundaryPlan = {
+		const ownershipPlan = {
 			root: {
 				id: 'route:/app/pages/index.tsx',
 				source: 'route',
@@ -551,16 +551,16 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			foreignEdgeCount: 0,
 			hasValidationErrors: false,
 			validationErrors: [],
-		} satisfies BoundaryPlan;
-		const injectedBoundaryPlanningService = {
-			buildPlan: vi.fn(() => boundaryPlan),
-		} as unknown as BoundaryPlanningService;
-		const injectedBoundaryOwnershipValidationService = {
+		} satisfies OwnershipPlan;
+		const injectedOwnershipPlanningService = {
+			buildPlan: vi.fn(() => ownershipPlan),
+		} as unknown as OwnershipPlanningService;
+		const injectedOwnershipValidationService = {
 			validate: vi.fn(() => []),
-		} as unknown as BoundaryOwnershipValidationService;
+		} as unknown as OwnershipValidationService;
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService, {
-			boundaryPlanningService: injectedBoundaryPlanningService,
-			boundaryOwnershipValidationService: injectedBoundaryOwnershipValidationService,
+			ownershipPlanningService: injectedOwnershipPlanningService,
+			ownershipValidationService: injectedOwnershipValidationService,
 		});
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
@@ -585,7 +585,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(injectedBoundaryPlanningService.buildPlan).toHaveBeenCalledWith({
+		expect(injectedOwnershipPlanningService.buildPlan).toHaveBeenCalledWith({
 			routeFile: '/app/pages/index.tsx',
 			currentIntegrationName: 'ghtml',
 			HtmlTemplate,
@@ -593,6 +593,6 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			Page,
 			validationErrors: [],
 		});
-		expect(result.boundaryPlan).toBe(boundaryPlan);
+		expect(result.ownershipPlan).toBe(ownershipPlan);
 	});
 });

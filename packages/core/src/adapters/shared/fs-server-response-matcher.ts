@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../types/internal-types.ts';
-import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import type { PageRendererResolver } from '../../route-renderer/route-renderer.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
@@ -27,7 +27,7 @@ export interface FileSystemResponseMatcherOptions {
 	appConfig: EcoPagesAppConfig;
 	assetPrefix: string;
 	router: RouteRegistry;
-	routeRendererFactory: RouteRendererFactory;
+	routeRendererFactory: PageRendererResolver;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
 	/** Optional cache service. When null, caching is disabled. */
 	cacheService?: PageCacheService | null;
@@ -38,7 +38,7 @@ export interface FileSystemResponseMatcherOptions {
 /**
  * Matches file-system routes to rendered HTML responses.
  *
- * render pipeline. It coordinates page module inspection, request-local policy,
+ * This render pipeline coordinates page module inspection, request-local policy,
  * renderer invocation, middleware execution, cache integration, and fallback
  * error translation.
  */
@@ -46,7 +46,7 @@ export class FileSystemResponseMatcher {
 	private appConfig: EcoPagesAppConfig;
 	private assetPrefix: string;
 	private router: RouteRegistry;
-	private routeRendererFactory: RouteRendererFactory;
+	private routeRendererFactory: PageRendererResolver;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
@@ -79,14 +79,15 @@ export class FileSystemResponseMatcher {
 		const isStaticFileRequest = ServerUtils.hasKnownExtension(requestUrl);
 
 		if (!isStaticFileRequest) {
-			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
+			return this.renderCustomNotFoundResponse();
 		}
 
 		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
 		const filePath = path.join(this.assetPrefix, relativeUrl);
 		const contentType = ServerUtils.getContentType(filePath);
 
-		return this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
+		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
+		return response ?? this.renderCustomNotFoundResponse();
 	}
 
 	/**
@@ -156,7 +157,30 @@ export class FileSystemResponseMatcher {
 					appLogger.error(`[FileSystemResponseMatcher] ${error.message} at ${match.requestedPathname}`);
 				}
 			}
-			return this.fileSystemResponseFactory.createCustomNotFoundResponse();
+			return this.renderCustomNotFoundResponse();
+		}
+	}
+
+	/**
+	 * Renders the app-owned custom 404 page, falling back to the default text 404
+	 * when the page template cannot be resolved.
+	 */
+	private async renderCustomNotFoundResponse(): Promise<Response> {
+		const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
+
+		try {
+			const routeRenderer = this.routeRendererFactory.getPageRenderer(error404TemplatePath);
+			const result = await routeRenderer.execute({
+				file: error404TemplatePath,
+			});
+
+			return this.fileSystemResponseFactory.createHtmlNotFoundResponse(result.body);
+		} catch {
+			appLogger.debug(
+				'Custom 404 template not found, falling back to default 404 response',
+				error404TemplatePath,
+			);
+			return this.fileSystemResponseFactory.createDefaultNotFoundResponse();
 		}
 	}
 

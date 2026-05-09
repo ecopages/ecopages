@@ -6,6 +6,7 @@ import type {
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
+	PageMetadataProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
@@ -16,7 +17,7 @@ import type {
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
-import { type RouteRenderFlowCallbacks, RouteRenderFlow } from './route-render-flow.ts';
+import { type RouteRenderFlowAdapter, RouteRenderFlow } from './route-render-flow.ts';
 
 declare module '../../types/public-types.ts' {
 	interface RequestLocals {
@@ -25,23 +26,80 @@ declare module '../../types/public-types.ts' {
 	}
 }
 
-function createFlowCallbacks<C>(
-	callbacks: Omit<
-		RouteRenderFlowCallbacks<C>,
-		| 'render'
-		| 'getDocumentAttributes'
-		| 'applyAttributesToHtmlElement'
-		| 'applyAttributesToFirstBodyElement'
-		| 'transformResponse'
-	>,
-): RouteRenderFlowCallbacks<C> {
+function createFlowAdapter<C>(input: {
+	resolvePageModule: (file: string) => Promise<{
+		Page: EcoPageComponent<any> | EcoComponent;
+		getStaticProps?: unknown;
+		getMetadata?: unknown;
+		integrationSpecificProps: Record<string, unknown>;
+	}>;
+	getHtmlTemplate: () => Promise<EcoComponent<HtmlTemplateProps>>;
+	resolvePageData: (
+		pageModule: {
+			getStaticProps?: unknown;
+			getMetadata?: unknown;
+		},
+		routeOptions: RouteRendererOptions,
+	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
+	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<ProcessedAsset[]>;
+	buildPageBrowserGraph: (file: string) => Promise<{ assets: ProcessedAsset[] } | undefined>;
+	shouldRenderPageComponent: (input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		options: RouteRendererOptions;
+	}) => boolean;
+	renderPageComponent: (input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		props: Record<string, unknown>;
+		routeOptions: RouteRendererOptions;
+	}) => Promise<any>;
+}): RouteRenderFlowAdapter<C> {
 	return {
-		...callbacks,
-		render: async () => '',
-		getDocumentAttributes: () => undefined,
-		applyAttributesToHtmlElement: (html) => html,
-		applyAttributesToFirstBodyElement: (html) => html,
-		transformResponse: async (response) => await response.text(),
+		name: 'ghtml',
+		resolveRouteRenderInputs: async (routeOptions) => {
+			const pageModule = await input.resolvePageModule(routeOptions.file);
+			const HtmlTemplate = await input.getHtmlTemplate();
+			const Layout = pageModule.Page.config?.layout;
+			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
+
+			return {
+				Page: pageModule.Page,
+				HtmlTemplate,
+				Layout,
+				props,
+				metadata,
+				integrationSpecificProps: pageModule.integrationSpecificProps,
+				shouldRenderPageComponent: input.shouldRenderPageComponent({
+					Page: pageModule.Page as EcoComponent,
+					Layout,
+					options: routeOptions,
+				}),
+			};
+		},
+		resolveRouteAssets: async ({ routeOptions, components }) => ({
+			resolvedDependencies: await input.resolveDependencies(components),
+			pageBrowserGraph: await input.buildPageBrowserGraph(routeOptions.file),
+		}),
+		resolveRoutePageComponentRender: async (renderInput) => {
+			if (
+				!input.shouldRenderPageComponent({
+					Page: renderInput.Page,
+					Layout: renderInput.Layout,
+					options: renderInput.routeOptions,
+				})
+			) {
+				return undefined;
+			}
+
+			return await input.renderPageComponent(renderInput);
+		},
+		renderRouteBody: async () => '',
+		getRouteHtmlFinalization: () => ({
+			hasStructuralChanges: false,
+			finalizeHtml: (html) => html,
+		}),
+		transformRouteResponse: async (response) => await response.text(),
 	};
 }
 
@@ -102,8 +160,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		} as unknown as RouteRendererOptions;
 		const result = await flow.prepareRenderOptions(
 			routeOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: { layoutMode: 'full' },
@@ -156,8 +213,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -222,8 +278,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -274,8 +329,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				query: {},
 				locals: { hidden: true },
 			} as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -341,8 +395,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -415,8 +468,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -475,8 +527,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		await expect(
 			flow.prepareRenderOptions(
 				{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-				'ghtml',
-				createFlowCallbacks({
+				createFlowAdapter({
 					resolvePageModule: async () => ({
 						Page,
 						integrationSpecificProps: {},
@@ -500,8 +551,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -567,8 +617,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			'ghtml',
-			createFlowCallbacks({
+			createFlowAdapter({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},

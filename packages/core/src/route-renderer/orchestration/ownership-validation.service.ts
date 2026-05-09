@@ -31,7 +31,7 @@ export class OwnershipValidationService {
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
 	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
-		return mapDeclaredOwnershipGraph({
+		return mapDeclaredOwnershipGraph<OwnershipValidationError[]>({
 			roots: input.roots,
 			currentIntegrationName: input.currentIntegrationName,
 			mapNode: ({ component, integrationName, componentId, isForeignToParent }, children) => {

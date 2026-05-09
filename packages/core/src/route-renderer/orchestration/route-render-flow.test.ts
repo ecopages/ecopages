@@ -2,10 +2,93 @@ import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
 	HtmlTemplateProps,
+	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
-import { RouteRenderFlow } from './route-render-flow.ts';
+import { type RouteHtmlFinalization, type RouteRenderFlowAdapter, RouteRenderFlow } from './route-render-flow.ts';
+
+function createFlowAdapter(input: {
+	resolvePageModule: (file: string) => Promise<{
+		Page: EcoComponent<Record<string, unknown>>;
+		integrationSpecificProps: Record<string, unknown>;
+		getStaticProps?: unknown;
+		getMetadata?: unknown;
+	}>;
+	getHtmlTemplate: () => Promise<EcoComponent<HtmlTemplateProps>>;
+	resolvePageData: (
+		pageModule: {
+			getStaticProps?: unknown;
+			getMetadata?: unknown;
+		},
+		routeOptions: RouteRendererOptions,
+	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
+	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<any[]>;
+	buildPageBrowserGraph: (file: string) => Promise<{ assets: any[] } | undefined>;
+	shouldRenderPageComponent: (input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		options: RouteRendererOptions;
+	}) => boolean;
+	renderPageComponent: (input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		props: Record<string, unknown>;
+		routeOptions: RouteRendererOptions;
+	}) => Promise<any>;
+	renderRouteBody: () => Promise<RouteRendererBody>;
+	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
+	transformRouteResponse: (response: Response) => Promise<RouteRendererBody>;
+}): RouteRenderFlowAdapter<unknown> {
+	return {
+		name: 'test-renderer',
+		resolveRouteRenderInputs: async (routeOptions) => {
+			const pageModule = await input.resolvePageModule(routeOptions.file);
+			const HtmlTemplate = await input.getHtmlTemplate();
+			const Layout = pageModule.Page.config?.layout;
+			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
+
+			return {
+				Page: pageModule.Page,
+				HtmlTemplate,
+				Layout,
+				props,
+				metadata,
+				integrationSpecificProps: pageModule.integrationSpecificProps,
+				shouldRenderPageComponent: input.shouldRenderPageComponent({
+					Page: pageModule.Page,
+					Layout,
+					options: routeOptions,
+				}),
+			};
+		},
+		resolveRouteAssets: async ({ routeOptions, components }) => ({
+			resolvedDependencies: await input.resolveDependencies(components),
+			pageBrowserGraph: await input.buildPageBrowserGraph(routeOptions.file),
+		}),
+		resolveRoutePageComponentRender: async (renderInput) => {
+			if (
+				!input.shouldRenderPageComponent({
+					Page: renderInput.Page,
+					Layout: renderInput.Layout,
+					options: renderInput.routeOptions,
+				})
+			) {
+				return undefined;
+			}
+
+			return await input.renderPageComponent(renderInput);
+		},
+		renderRouteBody: input.renderRouteBody,
+		getRouteHtmlFinalization:
+			input.getRouteHtmlFinalization ??
+			(() => ({
+				hasStructuralChanges: false,
+				finalizeHtml: (html) => html,
+			})),
+		transformRouteResponse: input.transformRouteResponse,
+	};
+}
 
 describe('RouteRenderFlow', () => {
 	const appConfig = {
@@ -48,8 +131,7 @@ describe('RouteRenderFlow', () => {
 				params: {},
 				query: {},
 			} as unknown as RouteRendererOptions,
-			'ghtml',
-			{
+			createFlowAdapter({
 				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
@@ -61,18 +143,15 @@ describe('RouteRenderFlow', () => {
 					canAttachAttributes: true,
 					integrationName: 'ghtml',
 				}),
-				render: async () =>
+				renderRouteBody: async () =>
 					new ReadableStream({
 						start(controller) {
 							controller.enqueue(encoder.encode('<html><body><main>Streamed</main></body></html>'));
 							controller.close();
 						},
 					}) as unknown as BodyInit,
-				getDocumentAttributes: () => undefined,
-				applyAttributesToHtmlElement: (html) => html,
-				applyAttributesToFirstBodyElement: (html) => html,
-				transformResponse: async (response) => response.body as RouteRendererBody,
-			},
+				transformRouteResponse: async (response) => response.body as RouteRendererBody,
+			}),
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
@@ -92,8 +171,7 @@ describe('RouteRenderFlow', () => {
 				params: {},
 				query: {},
 			} as unknown as RouteRendererOptions,
-			'ghtml',
-			{
+			createFlowAdapter({
 				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
@@ -106,14 +184,16 @@ describe('RouteRenderFlow', () => {
 					integrationName: 'ghtml',
 					rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
 				}),
-				render: async () => '<html><body><main>Resolved</main></body></html>',
-				getDocumentAttributes: () => ({ 'data-eco-document-owner': 'react-router' }),
-				applyAttributesToHtmlElement: (html, attributes) =>
-					html.replace('<html', `<html data-eco-document-owner="${attributes['data-eco-document-owner']}"`),
-				applyAttributesToFirstBodyElement: (html, attributes) =>
-					html.replace('<main', `<main data-eco-component-id="${attributes['data-eco-component-id']}"`),
-				transformResponse: async (response) => await response.text(),
-			},
+				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
+				getRouteHtmlFinalization: () => ({
+					hasStructuralChanges: true,
+					finalizeHtml: (html) =>
+						html
+							.replace('<html', '<html data-eco-document-owner="react-router"')
+							.replace('<main', '<main data-eco-component-id="eco-page-root"'),
+				}),
+				transformRouteResponse: async (response) => await response.text(),
+			}),
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
@@ -133,8 +213,7 @@ describe('RouteRenderFlow', () => {
 					params: {},
 					query: {},
 				} as unknown as RouteRendererOptions,
-				'ghtml',
-				{
+				createFlowAdapter({
 					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
@@ -146,13 +225,10 @@ describe('RouteRenderFlow', () => {
 						canAttachAttributes: true,
 						integrationName: 'ghtml',
 					}),
-					render: async () =>
+					renderRouteBody: async () =>
 						'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
-					getDocumentAttributes: () => undefined,
-					applyAttributesToHtmlElement: (html) => html,
-					applyAttributesToFirstBodyElement: (html) => html,
-					transformResponse: async (response) => await response.text(),
-				},
+					transformRouteResponse: async (response) => await response.text(),
+				}),
 			),
 		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});
@@ -169,8 +245,7 @@ describe('RouteRenderFlow', () => {
 					params: {},
 					query: {},
 				} as unknown as RouteRendererOptions,
-				'ghtml',
-				{
+				createFlowAdapter({
 					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
@@ -182,13 +257,10 @@ describe('RouteRenderFlow', () => {
 						canAttachAttributes: true,
 						integrationName: 'ghtml',
 					}),
-					render: async () =>
+					renderRouteBody: async () =>
 						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
-					getDocumentAttributes: () => undefined,
-					applyAttributesToHtmlElement: (html) => html,
-					applyAttributesToFirstBodyElement: (html) => html,
-					transformResponse: async (response) => await response.text(),
-				},
+					transformRouteResponse: async (response) => await response.text(),
+				}),
 			),
 		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});

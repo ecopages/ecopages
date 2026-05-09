@@ -44,7 +44,7 @@ export class OwnershipPlanningService {
 			{ component: input.Page, source: 'page' },
 		];
 
-		const children = mapDeclaredOwnershipGraph({
+		const children = mapDeclaredOwnershipGraph<OwnershipPlanNode>({
 			roots,
 			currentIntegrationName: input.currentIntegrationName,
 			mapNode: ({ component, source, integrationName, componentId, isForeignToParent }, children) => {

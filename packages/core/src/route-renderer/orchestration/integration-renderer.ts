@@ -33,7 +33,12 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
-import { RouteRenderFlow, type RouteRenderFlowCallbacks } from './route-render-flow.ts';
+import {
+	type RouteHtmlFinalization,
+	RouteRenderFlow,
+	type RouteRenderFlowAdapter,
+	type RouteRenderFlowResolvedInputs,
+} from './route-render-flow.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
@@ -74,7 +79,7 @@ export interface RenderToResponseContext {
  * It handles the import of page files, collection of dependencies, and preparation of render options.
  * The class is designed to be extended by specific integration renderers.
  */
-export abstract class IntegrationRenderer<C = EcoPagesElement> {
+export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteRenderFlowAdapter<C> {
 	abstract name: string;
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
@@ -837,6 +842,105 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return this.dependencyResolverService.processComponentDependencies(components, this.name);
 	}
 
+	public async resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderFlowResolvedInputs> {
+		const pageModule = await this.pageModuleLoaderService.resolvePageModule({
+			file: routeOptions.file,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
+		const { Page, integrationSpecificProps } = pageModule;
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const Layout = Page.config?.layout;
+		const { props, metadata } = await this.pageModuleLoaderService.resolvePageData({
+			pageModule,
+			routeOptions,
+		});
+
+		return {
+			Page,
+			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps>,
+			Layout,
+			props,
+			metadata,
+			integrationSpecificProps,
+		};
+	}
+
+	public async resolveRouteAssets(input: {
+		routeOptions: RouteRendererOptions;
+		components: (EcoComponent | Partial<EcoComponent>)[];
+	}): Promise<{ resolvedDependencies: ProcessedAsset[]; pageBrowserGraph?: { assets: ProcessedAsset[] } }> {
+		return {
+			resolvedDependencies: await this.resolveDependencies(input.components),
+			pageBrowserGraph: await this.buildPageBrowserGraph(input.routeOptions.file),
+		};
+	}
+
+	public async resolveRoutePageComponentRender(input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		props: Record<string, unknown>;
+		routeOptions: RouteRendererOptions;
+	}): Promise<ComponentRenderResult | undefined> {
+		if (!this.shouldRenderPageComponent({ Page: input.Page, Layout: input.Layout, options: input.routeOptions })) {
+			return undefined;
+		}
+
+		return this.renderComponentWithForeignChildren({
+			component: input.Page,
+			props: {
+				...input.props,
+				params: input.routeOptions.params || {},
+				query: input.routeOptions.query || {},
+			},
+			integrationContext: {
+				componentInstanceId: 'eco-page-root',
+			},
+		});
+	}
+
+	public async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+		return this.render(renderOptions);
+	}
+
+	public getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
+		const componentRootAttributes =
+			renderOptions.componentRender?.canAttachAttributes &&
+			renderOptions.componentRender.rootAttributes &&
+			Object.keys(renderOptions.componentRender.rootAttributes).length > 0
+				? (renderOptions.componentRender.rootAttributes as Record<string, string>)
+				: undefined;
+		const documentAttributes = this.getDocumentAttributes(renderOptions);
+
+		return {
+			hasStructuralChanges:
+				(componentRootAttributes && Object.keys(componentRootAttributes).length > 0) ||
+				(documentAttributes && Object.keys(documentAttributes).length > 0)
+					? true
+					: false,
+			finalizeHtml: (html) => {
+				let renderedHtml = html;
+
+				if (componentRootAttributes) {
+					renderedHtml = this.htmlTransformer.applyAttributesToFirstBodyElement(
+						renderedHtml,
+						componentRootAttributes,
+					);
+				}
+
+				if (documentAttributes) {
+					renderedHtml = this.htmlTransformer.applyAttributesToHtmlElement(renderedHtml, documentAttributes);
+				}
+
+				return renderedHtml;
+			},
+		};
+	}
+
+	public async transformRouteResponse(response: Response): Promise<RouteRendererBody> {
+		const transformedResponse = await this.htmlTransformer.transform(response);
+		return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
+	}
+
 	/**
 	 * Prepares the render options for the integration renderer.
 	 * It imports the page file, collects dependencies, and prepares the render options.
@@ -845,51 +949,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The prepared render options.
 	 */
 	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>> {
-		return this.routeRenderFlow.prepareRenderOptions(options, this.name, this.createRouteRenderFlowCallbacks());
-	}
-
-	protected createRouteRenderFlowCallbacks(): RouteRenderFlowCallbacks<C> {
-		return {
-			resolvePageModule: (file) =>
-				this.pageModuleLoaderService.resolvePageModule({
-					file,
-					importPageFileFn: (targetFile) => this.importPageFile(targetFile),
-				}),
-			getHtmlTemplate: () => this.getHtmlTemplate(),
-			resolvePageData: (pageModule, routeOptions) =>
-				this.pageModuleLoaderService.resolvePageData({
-					pageModule,
-					routeOptions,
-				}),
-			resolveDependencies: (components) => this.resolveDependencies(components),
-			buildPageBrowserGraph: (file) => this.buildPageBrowserGraph(file),
-			shouldRenderPageComponent: (input) => this.shouldRenderPageComponent(input),
-			renderPageComponent: ({ component, props }) =>
-				this.renderComponentWithForeignChildren({
-					component,
-					props,
-					integrationContext: {
-						componentInstanceId: 'eco-page-root',
-					},
-				}),
-			render: (renderOptions) => this.render(renderOptions),
-			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
-			applyAttributesToHtmlElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
-			applyAttributesToFirstBodyElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
-			transformResponse: async (response) => {
-				const transformedResponse = await this.htmlTransformer.transform(response);
-				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
-			},
-			onPreparedRenderOptions: (preparedOptions) => {
-				invariant(
-					preparedOptions.pagePackage !== undefined,
-					'Expected render preparation to produce a page package',
-				);
-				this.htmlTransformer.setPagePackage(preparedOptions.pagePackage);
-			},
-		};
+		const renderOptions = await this.routeRenderFlow.prepareRenderOptions(options, this);
+		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
+		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
+		return renderOptions;
 	}
 
 	/**
@@ -926,7 +989,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		return this.routeRenderFlow.execute(options, this.name, this.createRouteRenderFlowCallbacks());
+		const renderOptions = await this.prepareRenderOptions(options);
+		return this.routeRenderFlow.executePrepared(renderOptions, this);
 	}
 
 	/**

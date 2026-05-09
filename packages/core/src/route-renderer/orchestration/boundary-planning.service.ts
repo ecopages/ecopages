@@ -1,4 +1,3 @@
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	BoundaryPlan,
 	BoundaryPlanNode,
@@ -13,6 +12,7 @@ type BoundaryPlanBuildInput = {
 	HtmlTemplate: EcoComponent;
 	Layout?: EcoComponent;
 	Page: EcoComponent;
+	validationErrors?: BoundaryValidationError[];
 };
 
 type BoundaryPlanBuildEntry = {
@@ -23,23 +23,19 @@ type BoundaryPlanBuildEntry = {
 /**
  * Builds a declared ownership plan from the component dependency graph.
  *
- * The plan is intentionally conservative: it reflects declared component
- * dependencies available during render preparation and records diagnostics for
- * foreign ownership edges that cannot be validated against registered
- * integrations or stable component metadata.
+	 * The plan reflects the declared component dependency graph for one route after
+	 * route-root ownership validation has already run. It records ownership shape,
+	 * foreign-edge counts, and any validation errors supplied by an earlier
+	 * validation pass.
  */
 export class BoundaryPlanningService {
-	private readonly appConfig: EcoPagesAppConfig;
-	private nextSyntheticId = 0;
-
-	constructor(appConfig: EcoPagesAppConfig) {
-		this.appConfig = appConfig;
-	}
-
+	/**
+	 * Builds the structural ownership plan for one route render.
+	 */
 	buildPlan(input: BoundaryPlanBuildInput): BoundaryPlan {
-		this.nextSyntheticId = 0;
+		let nextSyntheticId = 0;
 
-		const validationErrors: BoundaryValidationError[] = [];
+		const validationErrors = input.validationErrors ?? [];
 		const rendererNames = new Set<string>([input.currentIntegrationName]);
 		let foreignEdgeCount = 0;
 
@@ -53,31 +49,12 @@ export class BoundaryPlanningService {
 				component.config?.integration ?? component.config?.__eco?.integration ?? parentIntegrationName;
 			const componentMeta = component.config?.__eco;
 			const isForeignToParent = integrationName !== parentIntegrationName;
-			const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(this.nextSyntheticId += 1)}`;
+			const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(nextSyntheticId += 1)}`;
 
 			rendererNames.add(integrationName);
 
 			if (isForeignToParent) {
 				foreignEdgeCount += 1;
-
-				if (!componentMeta) {
-					validationErrors.push({
-						code: 'MISSING_COMPONENT_METADATA',
-						message: `[ecopages] Foreign boundary "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
-						componentId,
-						integrationName,
-					});
-				}
-
-				if (!this.isRegisteredIntegration(integrationName, input.currentIntegrationName)) {
-					validationErrors.push({
-						code: 'UNKNOWN_INTEGRATION_OWNER',
-						message: `[ecopages] Foreign boundary "${componentId}" references unknown integration owner "${integrationName}". Declared dependencies must include all possible foreign children and those integrations must be registered.`,
-						componentId,
-						componentFile: componentMeta?.file,
-						integrationName,
-					});
-				}
 			}
 
 			const nextLineage = new Set(lineage);
@@ -134,13 +111,5 @@ export class BoundaryPlanningService {
 			hasValidationErrors: validationErrors.length > 0,
 			validationErrors,
 		};
-	}
-
-	private isRegisteredIntegration(integrationName: string, currentIntegrationName: string): boolean {
-		if (integrationName === currentIntegrationName) {
-			return true;
-		}
-
-		return this.appConfig.integrations.some((integration) => integration.name === integrationName);
 	}
 }

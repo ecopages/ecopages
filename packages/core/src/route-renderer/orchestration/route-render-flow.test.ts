@@ -1,19 +1,27 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getComponentRenderContext } from './component-render-context.ts';
+import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
-import { RenderExecutionService } from './render-execution.service.ts';
+import { RouteRenderFlow } from './route-render-flow.ts';
 
-describe('RenderExecutionService', () => {
+describe('RouteRenderFlow', () => {
+	const appConfig = {
+		cache: { defaultStrategy: 'static' },
+		defaultMetadata: { title: 'Default title', description: 'Default description' },
+		integrations: [],
+	} as any;
+	const assetProcessingService = {
+		processDependencies: async () => [],
+	} as any;
+
 	it('captures streamed render bodies before final HTML handling', async () => {
-		const service = new RenderExecutionService();
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
 
-		const result = await service.captureHtmlRender(
+		const result = await flow.captureHtmlRender(
 			async () =>
 				new ReadableStream({
 					start(controller) {
@@ -28,24 +36,27 @@ describe('RenderExecutionService', () => {
 	});
 
 	it('preserves streamed bodies when no boundary resolution or attribute stamping is required', async () => {
-		const service = new RenderExecutionService();
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
+ 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
+		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
+		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
 
-		const result = await service.execute(
+		const result = await flow.execute(
 			{
 				file: '/app/pages/index.tsx',
 				params: {},
 				query: {},
 			} as unknown as RouteRendererOptions,
+			'ghtml',
 			{
-				prepareRenderOptions: async () =>
-					({
-						HtmlTemplate,
-						Page,
-						cacheStrategy: { revalidate: 60 },
-					}) as unknown as IntegrationRendererRenderOptions<unknown>,
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => true,
+				renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
 				render: async () =>
 					new ReadableStream({
 						start(controller) {
@@ -66,27 +77,31 @@ describe('RenderExecutionService', () => {
 	});
 
 	it('applies root and document attributes to fully resolved route HTML', async () => {
-		const service = new RenderExecutionService();
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
+		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
 
-		const result = await service.execute(
+		const result = await flow.execute(
 			{
 				file: '/app/pages/index.tsx',
 				params: {},
 				query: {},
 			} as unknown as RouteRendererOptions,
+			'ghtml',
 			{
-				prepareRenderOptions: async () =>
-					({
-						HtmlTemplate,
-						Page,
-						cacheStrategy: { revalidate: 60 },
-						componentRender: {
-							canAttachAttributes: true,
-							rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
-						},
-					}) as unknown as IntegrationRendererRenderOptions<unknown>,
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
+				resolveDependencies: async () => [],
+				buildRouteRenderAssets: async () => [],
+				shouldRenderPageComponent: () => true,
+				renderPageComponent: async () => ({
+					html: '<main>Page</main>',
+					canAttachAttributes: true,
+					integrationName: 'ghtml',
+					rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
+				}),
 				render: async () => '<html><body><main>Resolved</main></body></html>',
 				getDocumentAttributes: () => ({ 'data-eco-document-owner': 'react-router' }),
 				applyAttributesToHtmlElement: (html, attributes) =>
@@ -103,24 +118,26 @@ describe('RenderExecutionService', () => {
 	});
 
 	it('throws when route HTML contains escaped unresolved boundary artifacts', async () => {
-		const service = new RenderExecutionService();
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
 		await expect(
-			service.execute(
+			flow.execute(
 				{
 					file: '/app/pages/index.tsx',
 					params: {},
 					query: {},
 				} as unknown as RouteRendererOptions,
+				'ghtml',
 				{
-					prepareRenderOptions: async () =>
-						({
-							HtmlTemplate,
-							Page,
-							cacheStrategy: 'dynamic',
-						}) as unknown as IntegrationRendererRenderOptions<unknown>,
+					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
+					resolveDependencies: async () => [],
+					buildRouteRenderAssets: async () => [],
+					shouldRenderPageComponent: () => true,
+					renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
 					render: async () =>
 						'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
 					getDocumentAttributes: () => undefined,
@@ -132,57 +149,27 @@ describe('RenderExecutionService', () => {
 		).rejects.toThrow('Full-route unresolved-boundary fallback has been removed');
 	});
 
-	it('renders routes with no active component render context', async () => {
-		const service = new RenderExecutionService();
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		const result = await service.execute(
-			{
-				file: '/app/pages/index.tsx',
-				params: {},
-				query: {},
-			} as unknown as RouteRendererOptions,
-			{
-				prepareRenderOptions: async () =>
-					({
-						HtmlTemplate,
-						Page,
-						cacheStrategy: 'dynamic',
-					}) as unknown as IntegrationRendererRenderOptions<unknown>,
-				render: async () => {
-					expect(getComponentRenderContext()).toBeUndefined();
-					return '<html><body><main>Plain render</main></body></html>';
-				},
-				getDocumentAttributes: () => undefined,
-				applyAttributesToHtmlElement: (html) => html,
-				applyAttributesToFirstBodyElement: (html) => html,
-				transformResponse: async (response) => await response.text(),
-			},
-		);
-
-		expect(result.body).toContain('<main>Plain render</main>');
-	});
-
 	it('throws when route HTML returns unresolved boundary artifact HTML', async () => {
-		const service = new RenderExecutionService();
+		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
 		await expect(
-			service.execute(
+			flow.execute(
 				{
 					file: '/app/pages/index.tsx',
 					params: {},
 					query: {},
 				} as unknown as RouteRendererOptions,
+				'ghtml',
 				{
-					prepareRenderOptions: async () =>
-						({
-							HtmlTemplate,
-							Page,
-							cacheStrategy: 'dynamic',
-						}) as unknown as IntegrationRendererRenderOptions<unknown>,
+					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
+					resolveDependencies: async () => [],
+					buildRouteRenderAssets: async () => [],
+					shouldRenderPageComponent: () => true,
+					renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
 					render: async () =>
 						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
 					getDocumentAttributes: () => undefined,

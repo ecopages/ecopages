@@ -3,9 +3,9 @@ import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderResult,
+	DependencyAttributes,
 	EcoComponent,
 	EcoComponentConfig,
-	DependencyAttributes,
 	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
@@ -13,10 +13,12 @@ import type {
 	GetStaticProps,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
-	PageProps,
 	PageMetadataProps,
+	PageProps,
 	ResolvedLazyTrigger,
+	RouteRendererBody,
 	RouteRendererOptions,
+	RouteRenderResult,
 } from '../../types/public-types.ts';
 import {
 	type AssetProcessingService,
@@ -26,6 +28,8 @@ import {
 } from '../../services/assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
+import { inspectBoundaryArtifactHtml } from './render-output.utils.ts';
+import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
 import { BoundaryPlanningService } from './boundary-planning.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
@@ -35,33 +39,6 @@ type ResolvedPageModule = {
 	getMetadata?: GetMetadata;
 	integrationSpecificProps: Record<string, unknown>;
 };
-
-export interface RenderPreparationCallbacks {
-	resolvePageModule(file: string): Promise<ResolvedPageModule>;
-	getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>>;
-	resolvePageData(
-		pageModule: {
-			getStaticProps?: GetStaticProps<Record<string, unknown>>;
-			getMetadata?: GetMetadata;
-		},
-		routeOptions: RouteRendererOptions,
-	): Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
-	resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]>;
-	buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined;
-	shouldRenderPageComponent(input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		options: RouteRendererOptions;
-	}): boolean;
-	renderPageComponent(input: {
-		component: EcoComponent;
-		props: Record<string, unknown>;
-	}): Promise<ComponentRenderResult>;
-}
-
-export interface RenderPreparationServiceDependencies {
-	boundaryPlanningService?: BoundaryPlanningService;
-}
 
 function createPageLocalsProxy(filePath: string): Record<string, never> {
 	const errorMessage = `[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${filePath}. If you meant to use locals here, set cache: 'dynamic' and provide locals from route middleware/handlers.`;
@@ -94,66 +71,157 @@ function createPageLocalsProxy(filePath: string): Record<string, never> {
 	);
 }
 
-/**
- * Prepares the normalized render inputs consumed by `IntegrationRenderer.execute()`.
- *
- * This service owns the orchestration that happens before the main HTML render:
- * page module resolution, data loading, dependency aggregation, page-root
- * component artifact capture, lazy trigger bootstrap generation, and request
- * locals policy.
- */
-export class RenderPreparationService {
-	private appConfig: EcoPagesAppConfig;
-	private assetProcessingService: AssetProcessingService;
-	private readonly boundaryPlanningService: BoundaryPlanningService;
-
+export interface RouteRenderFlowCallbacks<C> {
 	/**
-	 * Creates the render-preparation orchestrator for one app instance.
-	 *
-	 * @remarks
-	 * The service is app-scoped because it depends on finalized config defaults and
-	 * the app-owned asset-processing pipeline while remaining renderer-agnostic.
+	 * Loads the owning page module and normalizes integration-facing exports.
 	 */
+	resolvePageModule(file: string): Promise<ResolvedPageModule>;
+	/**
+	 * Returns the active document shell component for the render.
+	 */
+	getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>>;
+	/**
+	 * Resolves page props and metadata for the current route inputs.
+	 */
+	resolvePageData(
+		pageModule: {
+			getStaticProps?: GetStaticProps<Record<string, unknown>>;
+			getMetadata?: GetMetadata;
+		},
+		routeOptions: RouteRendererOptions,
+	): Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
+	/**
+	 * Resolves declared component dependencies into processed assets.
+	 */
+	resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]>;
+	/**
+	 * Builds route-owned assets such as the page browser entry for the current file.
+	 */
+	buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined;
+	/**
+	 * Controls whether the page root should be rendered through the component contract during preparation.
+	 */
+	shouldRenderPageComponent(input: {
+		Page: EcoComponent;
+		Layout?: EcoComponent;
+		options: RouteRendererOptions;
+	}): boolean;
+	/**
+	 * Renders the page root through the component boundary contract.
+	 */
+	renderPageComponent(input: {
+		component: EcoComponent;
+		props: Record<string, unknown>;
+	}): Promise<ComponentRenderResult>;
+	/**
+	 * Executes the integration-specific route render.
+	 */
+	render(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+	/**
+	 * Returns document-level attributes that should be stamped onto the final html element.
+	 */
+	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
+	/**
+	 * Applies attributes to the final html element.
+	 */
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
+	/**
+	 * Applies attributes to the first rendered body/root element.
+	 */
+	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
+	/**
+	 * Runs final HTML transformation and returns the body value exposed to callers.
+	 */
+	transformResponse(response: Response): Promise<RouteRendererBody>;
+	/**
+	 * Observes the prepared route render options before execution continues.
+	 */
+	onPreparedRenderOptions?(renderOptions: IntegrationRendererRenderOptions<C>): void;
+}
+
+/**
+ * Captured route-render output in both replayable body and string HTML forms.
+ */
+export interface CapturedHtmlRenderResult {
+	body: RouteRendererBody;
+	html: string;
+}
+
+/**
+ * Final HTML stamping inputs applied after route rendering completes.
+ */
+export interface FinalizeHtmlRenderOptions {
+	html: string;
+	componentRootAttributes?: Record<string, string>;
+	documentAttributes?: Record<string, string>;
+}
+
+/**
+ * Optional app-scoped collaborators used by the route render flow.
+ */
+export interface RouteRenderFlowDependencies {
+	boundaryPlanningService?: BoundaryPlanningService;
+	boundaryOwnershipValidationService?: BoundaryOwnershipValidationService;
+}
+
+/**
+ * Owns one route render from normalized module loading through final HTML output.
+ *
+ * This flow keeps route rendering as one app-scoped orchestration unit while
+ * still delegating integration-specific behavior through callbacks. It owns
+ * route-root validation, dependency aggregation, page package creation, and the
+ * final HTML/body handling that happens after the integration render returns.
+ */
+export class RouteRenderFlow {
+	private readonly appConfig: EcoPagesAppConfig;
+	private readonly assetProcessingService: AssetProcessingService;
+	private readonly boundaryPlanningService: BoundaryPlanningService;
+	private readonly boundaryOwnershipValidationService: BoundaryOwnershipValidationService;
+
 	constructor(
 		appConfig: EcoPagesAppConfig,
 		assetProcessingService: AssetProcessingService,
-		dependencies: RenderPreparationServiceDependencies = {},
+		dependencies: RouteRenderFlowDependencies = {},
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
-		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService(appConfig);
+		this.boundaryPlanningService = dependencies.boundaryPlanningService ?? new BoundaryPlanningService();
+		this.boundaryOwnershipValidationService =
+			dependencies.boundaryOwnershipValidationService ?? new BoundaryOwnershipValidationService(appConfig);
 	}
 
 	/**
-	 * Builds the final render options object used by the integration-specific
-	 * renderer.
+	 * Builds normalized route render options before the integration render runs.
 	 *
-	 * The returned object contains normalized page data, processed dependency
-	 * state, component render artifacts, and the locals contract expected by the
-	 * rest of the pipeline.
-	 *
-	 * @typeParam C Integration render output element type.
-	 * @param routeOptions Route-level render inputs.
-	 * @param currentIntegrationName Active integration name for this preparation pass.
-	 * @param callbacks Renderer-specific hooks used during preparation.
-	 * @returns Normalized render options.
+	 * This preparation step validates route-root ownership, resolves page data,
+	 * collects processed assets, captures optional page-root render metadata, and
+	 * produces the page package consumed by downstream HTML transformation.
 	 */
-	async prepare<C = EcoPagesElement>(
+	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
 		currentIntegrationName: string,
-		callbacks: RenderPreparationCallbacks,
+		callbacks: RouteRenderFlowCallbacks<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const pageModule = await callbacks.resolvePageModule(routeOptions.file);
 		const { Page, integrationSpecificProps } = pageModule;
 		const HtmlTemplate = await callbacks.getHtmlTemplate();
-		const { props, metadata } = await callbacks.resolvePageData(pageModule, routeOptions);
 		const Layout = Page.config?.layout;
+		const validationErrors = this.boundaryOwnershipValidationService.validate({
+			currentIntegrationName,
+			roots: [
+				{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
+				...(Layout ? [{ component: Layout as EcoComponent, source: 'layout' as const }] : []),
+				{ component: Page as EcoComponent, source: 'page' },
+			],
+		});
+		const { props, metadata } = await callbacks.resolvePageData(pageModule, routeOptions);
 		const boundaryPlan = this.boundaryPlanningService.buildPlan({
 			routeFile: routeOptions.file,
 			currentIntegrationName,
-			HtmlTemplate,
+			HtmlTemplate: HtmlTemplate as EcoComponent,
 			Layout,
 			Page: Page as EcoComponent,
+			validationErrors,
 		});
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
@@ -193,13 +261,11 @@ export class RenderPreparationService {
 
 		const dedupedDependencies = dedupeProcessedAssets(allDependencies);
 		const pagePackage = createPagePackage(dedupedDependencies);
-
 		const pageProps = {
 			...props,
 			params: routeOptions.params || {},
 			query: routeOptions.query || {},
 		};
-
 		const cacheStrategy = (Page as EcoPageComponent<any>).cache;
 		const defaultCacheStrategy = this.appConfig.cache?.defaultStrategy ?? 'static';
 		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
@@ -229,6 +295,8 @@ export class RenderPreparationService {
 			boundaryPlan,
 		};
 
+		callbacks.onPreparedRenderOptions?.(preparedOptions);
+
 		return {
 			...integrationSpecificProps,
 			...preparedOptions,
@@ -236,15 +304,150 @@ export class RenderPreparationService {
 	}
 
 	/**
-	 * Collects resolved lazy trigger metadata from the component tree.
-	 *
-	 * Traversal is depth-first and deduplicated by component identity so shared
-	 * component dependencies do not emit duplicate trigger sets.
-	 *
-	 * @param components Root component set.
-	 * @param seen Internal visited set for shared graphs.
-	 * @returns All resolved lazy triggers reachable from the root set.
+	 * Captures one route render body as HTML while preserving a replayable body value.
 	 */
+	async captureHtmlRender(render: () => Promise<RouteRendererBody>): Promise<CapturedHtmlRenderResult> {
+		const renderedBody = await render();
+		const capturedRender = await this.captureRenderedBody(renderedBody);
+
+		return {
+			body: capturedRender.body,
+			html: capturedRender.html,
+		};
+	}
+
+	/**
+	 * Executes the full route-render flow and returns the final body plus cache strategy.
+	 */
+	async execute<C = unknown>(
+		options: RouteRendererOptions,
+		currentIntegrationName: string,
+		callbacks: RouteRenderFlowCallbacks<C>,
+	): Promise<RouteRenderResult> {
+		const renderOptions = await this.prepareRenderOptions(options, currentIntegrationName, callbacks);
+		const shouldApplyComponentRootAttributes =
+			renderOptions.componentRender?.canAttachAttributes &&
+			renderOptions.componentRender.rootAttributes &&
+			Object.keys(renderOptions.componentRender.rootAttributes).length > 0;
+
+		const renderExecution = await this.captureHtmlRender(async () => callbacks.render(renderOptions));
+		const boundaryArtifacts = inspectBoundaryArtifactHtml(renderExecution.html);
+		const documentAttributes = callbacks.getDocumentAttributes(renderOptions);
+		const hasBoundaryMarkerHtml = boundaryArtifacts.hasUnresolvedBoundaryArtifacts;
+
+		if (hasBoundaryMarkerHtml) {
+			throw new Error(
+				'[ecopages] Route render returned unresolved boundary artifact HTML. Full-route unresolved-boundary fallback has been removed; resolve mixed boundaries inside renderComponentBoundary().',
+			);
+		}
+
+		const canReuseCapturedBody =
+			!hasBoundaryMarkerHtml &&
+			!shouldApplyComponentRootAttributes &&
+			!(documentAttributes && Object.keys(documentAttributes).length > 0);
+
+		if (canReuseCapturedBody) {
+			const body = await callbacks.transformResponse(
+				new Response(renderExecution.body as BodyInit, {
+					headers: {
+						'Content-Type': 'text/html',
+					},
+				}),
+			);
+
+			return {
+				body,
+				cacheStrategy: renderOptions.cacheStrategy,
+			};
+		}
+
+		const finalization = await this.finalizeHtmlRender(
+			{
+				html: boundaryArtifacts.normalizedHtml,
+				componentRootAttributes: shouldApplyComponentRootAttributes
+					? (renderOptions.componentRender?.rootAttributes as Record<string, string>)
+					: undefined,
+				documentAttributes,
+			},
+			{
+				applyAttributesToHtmlElement: callbacks.applyAttributesToHtmlElement,
+				applyAttributesToFirstBodyElement: callbacks.applyAttributesToFirstBodyElement,
+			},
+		);
+
+		const body = await callbacks.transformResponse(
+			new Response(finalization, {
+				headers: {
+					'Content-Type': 'text/html',
+				},
+			}),
+		);
+
+		return {
+			body,
+			cacheStrategy: renderOptions.cacheStrategy,
+		};
+	}
+
+	/**
+	 * Applies final root and document attributes after the route HTML is fully resolved.
+	 */
+	async finalizeHtmlRender(
+		options: FinalizeHtmlRenderOptions,
+		callbacks: Pick<
+			RouteRenderFlowCallbacks<unknown>,
+			'applyAttributesToHtmlElement' | 'applyAttributesToFirstBodyElement'
+		>,
+	): Promise<string> {
+		return this.applyFinalHtmlAttributes(options.html, options, callbacks);
+	}
+
+	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {
+		const response = new Response(body as BodyInit);
+
+		if (typeof body === 'string') {
+			return {
+				body,
+				html: await response.text(),
+			};
+		}
+
+		if (!response.body) {
+			return {
+				body,
+				html: await response.text(),
+			};
+		}
+
+		const [capturedBody, replayBody] = response.body.tee();
+
+		return {
+			body: replayBody,
+			html: await new Response(capturedBody).text(),
+		};
+	}
+
+	private applyFinalHtmlAttributes(
+		html: string,
+		options: FinalizeHtmlRenderOptions,
+		callbacks: Pick<
+			RouteRenderFlowCallbacks<unknown>,
+			'applyAttributesToHtmlElement' | 'applyAttributesToFirstBodyElement'
+		>,
+	): string {
+		let renderedHtml = html;
+
+		if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
+			renderedHtml = callbacks.applyAttributesToFirstBodyElement(renderedHtml, options.componentRootAttributes);
+		}
+
+		if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
+			renderedHtml = callbacks.applyAttributesToHtmlElement(renderedHtml, options.documentAttributes);
+		}
+
+		return renderedHtml;
+	}
+
 	private collectResolvedTriggers(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		seen = new Set<object>(),
@@ -272,13 +475,6 @@ export class RenderPreparationService {
 		return triggers;
 	}
 
-	/**
-	 * Collects global integration dependencies used by nested components belonging
-	 * to integrations other than the current renderer.
-	 *
-	 * @param components Root component set.
-	 * @returns Processed integration dependencies contributed by nested integrations.
-	 */
 	private collectUsedIntegrationDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		currentIntegrationName: string,
@@ -304,13 +500,6 @@ export class RenderPreparationService {
 		return dependencies;
 	}
 
-	/**
-	 * Discovers integration names referenced by the component dependency graph.
-	 *
-	 * @param components Root component set.
-	 * @param seen Internal visited set for shared graphs.
-	 * @returns Set of integration names found in the graph.
-	 */
 	private collectIntegrationNames(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		seen = new Set<object>(),
@@ -345,19 +534,11 @@ export class RenderPreparationService {
 		return integrationNames;
 	}
 
-	/**
-	 * Renders the page root through the component-level render contract so any
-	 * integration-specific assets and root attributes are available before the main
-	 * document render.
-	 *
-	 * @param input Page root render inputs.
-	 * @returns Structured component render result.
-	 */
 	private async renderPageRoot(input: {
 		Page: EcoComponent;
 		props: Record<string, unknown>;
 		routeOptions: RouteRendererOptions;
-		callbacks: RenderPreparationCallbacks;
+		callbacks: RouteRenderFlowCallbacks<unknown>;
 	}): Promise<{ componentRender: ComponentRenderResult }> {
 		return {
 			componentRender: await input.callbacks.renderPageComponent({
@@ -371,12 +552,6 @@ export class RenderPreparationService {
 		};
 	}
 
-	/**
-	 * Builds the runtime assets needed to bootstrap global lazy trigger execution.
-	 *
-	 * @param triggers Fully resolved lazy trigger definitions.
-	 * @returns Processed assets that should be merged into the final dependency set.
-	 */
 	private async buildGlobalInjectorAssets(
 		triggers: ResolvedLazyTrigger[],
 		currentIntegrationName: string,

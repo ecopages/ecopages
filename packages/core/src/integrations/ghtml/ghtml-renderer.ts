@@ -36,16 +36,6 @@ export class GhtmlRenderer extends IntegrationRenderer<EcoPagesElement> {
 		);
 	}
 
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
-		return this.createQueuedForeignSubtreeResolutionRuntime({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-		});
-	}
-
 	async render({
 		params,
 		query,

@@ -57,7 +57,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 
 		let renderedChildren = typeof children === 'string' ? children : await renderLitValueToString(children);
-		renderedChildren = await this.resolveQueuedForeignSubtreeTokens(
+		renderedChildren = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
 			renderedChildren,
 			queuedResolutionsByToken,
 			resolveToken,
@@ -70,10 +70,16 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		html: string,
 		runtimeContext: LitForeignSubtreeResolutionContext | undefined,
 	): Promise<{ html: string; assets: ComponentRenderResult['assets'] }> {
-		const queuedForeignSubtreeResolution = await this.resolveRendererOwnedQueuedForeignSubtreeHtml({
+		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
 			html,
 			runtimeContext,
 			queueLabel: 'Lit',
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 				const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
 					children,
@@ -158,16 +164,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				...(queuedForeignSubtreeResolution.assets ?? []),
 			]),
 		};
-	}
-
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
-		return this.createQueuedForeignSubtreeResolutionRuntime<LitForeignSubtreeResolutionContext>({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-		});
 	}
 
 	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({

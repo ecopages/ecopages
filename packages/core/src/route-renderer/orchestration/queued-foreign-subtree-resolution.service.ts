@@ -43,7 +43,7 @@ type QueuedForeignSubtreeChildRenderResult = {
 };
 
 /**
- * Shared queue orchestration for renderer-owned foreign-child runtimes that emit
+ * Lower-level queue orchestration for renderer-owned foreign-child runtimes that emit
  * temporary transport tokens during one render pass.
  *
  * The service keeps three responsibilities in one place:
@@ -52,8 +52,9 @@ type QueuedForeignSubtreeChildRenderResult = {
  * - resolving queued tokens back through the owning renderer before final HTML
  *   leaves the current renderer
  *
- * Renderers still own framework-specific child rendering. This service only
- * handles queue bookkeeping, recursion, cycle detection, and asset merging.
+ * The deeper Foreign Subtree execution module composes this queue helper with
+ * renderer-cache delegation and active render-context execution. This service
+ * stays focused on queue bookkeeping, recursion, cycle detection, and asset merging.
  */
 export class QueuedForeignSubtreeResolutionService {
 	/**

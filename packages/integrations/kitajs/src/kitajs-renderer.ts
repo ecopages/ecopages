@@ -42,16 +42,6 @@ export class KitaRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.renderStringComponentWithQueuedForeignSubtrees(input, input.component);
 	}
 
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
-		return this.createQueuedForeignSubtreeResolutionRuntime({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-		});
-	}
-
 	async render({
 		params,
 		query,

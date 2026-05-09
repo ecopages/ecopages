@@ -388,7 +388,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		);
 		html = this.restoreRuntimeChildHtml(html, runtimeContext);
 
-		html = await this.resolveQueuedForeignSubtreeTokens(html, queuedResolutionsByToken, resolveToken);
+		html = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
+			html,
+			queuedResolutionsByToken,
+			resolveToken,
+		);
 
 		return html;
 	}
@@ -405,10 +409,16 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<{ assets: NonNullable<ComponentRenderResult['assets']>; html: string }> {
-		return this.resolveRendererOwnedQueuedForeignSubtreeHtml({
+		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
 			html,
 			runtimeContext,
 			queueLabel: 'React',
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			renderQueuedChildren: async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => {
 				const renderedHtml = await this.renderQueuedChildrenToHtml(
 					children,
@@ -584,7 +594,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}) {
-		return this.createQueuedForeignSubtreeResolutionRuntime<ReactForeignSubtreeResolutionContext>({
+		return this.createQueuedForeignSubtreeExecutionRuntime<ReactForeignSubtreeResolutionContext>({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 			createRuntimeContext: (integrationContext, rendererCache) => ({

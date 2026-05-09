@@ -23,6 +23,19 @@ export type PageRouteRenderer = Pick<IntegrationRenderer, 'execute' | 'loadPageM
  */
 export type ExplicitViewRenderer = Pick<IntegrationRenderer, 'renderToResponse'>;
 
+export interface PageRendererResolver {
+	getPageRenderer(filePath: string): PageRouteRenderer;
+}
+
+export interface ExplicitViewRendererResolver {
+	getExplicitViewRenderer(integrationName: string): ExplicitViewRenderer | null;
+}
+
+/**
+ * Combined renderer-factory contract used by static generation.
+ */
+export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitViewRendererResolver;
+
 /**
  * Selects and caches integration renderers for route files and explicit views.
  *

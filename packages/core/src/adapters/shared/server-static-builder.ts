@@ -5,9 +5,9 @@ import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler, StaticRoute } from '../../types/public-types.ts';
-import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
+import type { StaticGenerationRendererResolver } from '../../route-renderer/route-renderer.ts';
 
 export interface StaticBuildOptions {
 	preview?: boolean;
@@ -129,7 +129,7 @@ export class ServerStaticBuilder {
 		options: StaticBuildOptions | undefined,
 		dependencies: {
 			router: RouteRegistry;
-			routeRendererFactory: RouteRendererFactory;
+			routeRendererFactory: StaticGenerationRendererResolver;
 			staticRoutes?: StaticRoute[];
 		},
 	): Promise<void> {

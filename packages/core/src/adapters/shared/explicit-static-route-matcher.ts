@@ -1,7 +1,7 @@
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
-import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import type { ExplicitViewRendererResolver } from '../../route-renderer/route-renderer.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	missingIntegration: (routePath: string) =>
@@ -17,7 +17,7 @@ function getViewIntegrationName(view: {
 
 export interface ExplicitStaticRouteMatcherOptions {
 	appConfig: EcoPagesAppConfig;
-	routeRendererFactory: RouteRendererFactory;
+	routeRendererFactory: ExplicitViewRendererResolver;
 	staticRoutes: StaticRoute[];
 }
 
@@ -26,9 +26,12 @@ export interface ExplicitRouteMatch {
 	params: Record<string, string>;
 }
 
+/**
+ * Matches and renders explicit static routes declared through `app.static()`.
+ */
 export class ExplicitStaticRouteMatcher {
 	private readonly appConfig: EcoPagesAppConfig;
-	private readonly routeRendererFactory: RouteRendererFactory;
+	private readonly routeRendererFactory: ExplicitViewRendererResolver;
 	private readonly staticRoutes: StaticRoute[];
 
 	constructor({ appConfig, routeRendererFactory, staticRoutes }: ExplicitStaticRouteMatcherOptions) {

@@ -37,7 +37,6 @@ const routeRendererFactory = new RouteRendererFactory({
 });
 
 const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-	appConfig,
 	options: {
 		watchMode: false,
 	},

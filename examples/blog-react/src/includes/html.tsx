@@ -1,5 +1,4 @@
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { Head } from '@/includes/head';
 import { EcoPropsScript } from '@ecopages/react-router';

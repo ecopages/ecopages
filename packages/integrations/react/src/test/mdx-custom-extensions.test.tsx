@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';

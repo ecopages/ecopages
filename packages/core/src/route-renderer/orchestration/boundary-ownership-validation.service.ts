@@ -1,9 +1,5 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type {
-	BoundaryPlanNodeSource,
-	BoundaryValidationError,
-	EcoComponent,
-} from '../../types/public-types.ts';
+import type { BoundaryPlanNodeSource, BoundaryValidationError, EcoComponent } from '../../types/public-types.ts';
 
 type BoundaryOwnershipValidationInput = {
 	currentIntegrationName: string;

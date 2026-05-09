@@ -1,9 +1,8 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoComponent, EcoPageComponent, StaticRoute } from '../types/public-types.ts';
-import type { RouteRenderer } from '../route-renderer/route-renderer.ts';
-import type { RenderToResponseContext } from '../route-renderer/orchestration/integration-renderer.ts';
+import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
+import type { ExplicitViewRenderer, PageRouteRenderer } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
@@ -13,19 +12,11 @@ type StaticGenerationRouteSource = {
 };
 
 type StaticPageRouteRendererFactory = {
-	createRenderer(filePath: string): Pick<RouteRenderer, 'createRoute' | 'loadPageModule'>;
-};
-
-type ExplicitStaticViewRenderer = {
-	renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response>;
+	getPageRenderer(filePath: string): PageRouteRenderer;
 };
 
 type ExplicitStaticRouteRendererFactory = {
-	getRendererByIntegration(integrationName: string): ExplicitStaticViewRenderer | null;
+	getExplicitViewRenderer(integrationName: string): ExplicitViewRenderer | null;
 };
 
 type StaticGenerationRendererFactory = StaticPageRouteRendererFactory & ExplicitStaticRouteRendererFactory;
@@ -86,7 +77,7 @@ export class StaticSiteGenerator {
 		filePath: string,
 		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
-		const module = (await routeRendererFactory.createRenderer(filePath).loadPageModule(filePath, {
+		const module = (await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath, {
 			cacheScope: 'static-page-probe',
 		})) as {
 			default?: EcoPageComponent<any>;
@@ -202,8 +193,8 @@ export class StaticSiteGenerator {
 			return null;
 		}
 
-		const renderer = routeRendererFactory.createRenderer(filePath);
-		const result = await renderer.createRoute({
+		const renderer = routeRendererFactory.getPageRenderer(filePath);
+		const result = await renderer.execute({
 			file: filePath,
 			params: params as Record<string, string>,
 		});
@@ -346,7 +337,7 @@ export class StaticSiteGenerator {
 		routePath: string,
 		view: EcoPageComponent<any>,
 		routeRendererFactory: ExplicitStaticRouteRendererFactory,
-	): Promise<{ renderer: ExplicitStaticViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
+	): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
 		return {
 			renderer: this.getExplicitStaticRenderer(routePath, view, routeRendererFactory),
 			routeEntries: await this.listExplicitStaticRouteEntries(routePath, view),
@@ -356,7 +347,7 @@ export class StaticSiteGenerator {
 	private async createExplicitStaticContents(
 		view: EcoPageComponent<any>,
 		params: Record<string, string | string[]>,
-		renderer: ExplicitStaticViewRenderer,
+		renderer: ExplicitViewRenderer,
 	): Promise<string> {
 		const props = view.staticProps
 			? (
@@ -382,7 +373,7 @@ export class StaticSiteGenerator {
 			throw new Error(STATIC_SITE_GENERATOR_ERRORS.missingIntegration(routePath));
 		}
 
-		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
+		const renderer = routeRendererFactory.getExplicitViewRenderer(integrationName);
 		if (!renderer) {
 			throw new Error(STATIC_SITE_GENERATOR_ERRORS.noRendererForIntegration(integrationName));
 		}

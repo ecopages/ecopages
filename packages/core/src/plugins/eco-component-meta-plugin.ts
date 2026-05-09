@@ -26,7 +26,6 @@
  * @module eco-component-meta-plugin
  */
 
-import path from 'node:path';
 import { parseSync } from 'oxc-parser';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';

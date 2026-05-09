@@ -181,9 +181,9 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			const RendererFactory = {
-				createRenderer: vi.fn(() => ({
+				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					createRoute: vi.fn(async () => ({ body: '<html>Static</html>' })),
+					execute: vi.fn(async () => ({ body: '<html>Static</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -199,9 +199,9 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			const RendererFactory = {
-				createRenderer: vi.fn(() => ({
+				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					createRoute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
+					execute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -226,9 +226,9 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			const RendererFactory = {
-				createRenderer: vi.fn(() => ({
+				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					createRoute: vi.fn(async () => ({ body: '<html>Home</html>' })),
+					execute: vi.fn(async () => ({ body: '<html>Home</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -245,9 +245,9 @@ describe('StaticSiteGenerator', () => {
 
 			const bufferContent = Buffer.from('<html>Buffer Content</html>');
 			const RendererFactory = {
-				createRenderer: vi.fn(() => ({
+				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					createRoute: vi.fn(async () => ({ body: bufferContent })),
+					execute: vi.fn(async () => ({ body: bufferContent })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -262,24 +262,24 @@ describe('StaticSiteGenerator', () => {
 				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
 			});
 
-			const createRoute = vi.fn(async () => ({ body: '<html>Dashboard</html>' }));
+			const execute = vi.fn(async () => ({ body: '<html>Dashboard</html>' }));
 			const loadPageModule = vi.fn(async () => ({
 				default: Object.assign(() => null, { cache: 'dynamic' }),
 			}));
 			const RendererFactory = {
-				createRenderer: vi.fn(() => ({
-					createRoute,
+				getPageRenderer: vi.fn(() => ({
+					execute,
 					loadPageModule,
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
 
-			expect(RendererFactory.createRenderer).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
+			expect(RendererFactory.getPageRenderer).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
 			expect(loadPageModule).toHaveBeenCalledWith('/src/pages/dashboard.tsx', {
 				cacheScope: 'static-page-probe',
 			});
-			expect(createRoute).not.toHaveBeenCalled();
+			expect(execute).not.toHaveBeenCalled();
 			expect(writeMock).not.toHaveBeenCalled();
 			expect(appLogger.warn).toHaveBeenCalledWith(
 				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
@@ -314,8 +314,8 @@ describe('StaticSiteGenerator', () => {
 				} satisfies StaticGenerationRunnerInput['router'],
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
-					createRenderer: vi.fn(),
-					getRendererByIntegration: vi.fn(),
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
 					{
@@ -346,8 +346,8 @@ describe('StaticSiteGenerator', () => {
 				} satisfies StaticGenerationRunnerInput['router'],
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
-					createRenderer: vi.fn(),
-					getRendererByIntegration: vi.fn(() => ({
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
 						renderToResponse,
 					})),
 				} satisfies StaticGenerationRendererFactory,
@@ -385,8 +385,8 @@ describe('StaticSiteGenerator', () => {
 				} satisfies StaticGenerationRunnerInput['router'],
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
-					createRenderer: vi.fn(),
-					getRendererByIntegration: vi.fn(() => ({
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
 						renderToResponse: vi.fn(),
 					})),
 				} satisfies StaticGenerationRendererFactory,

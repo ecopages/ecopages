@@ -1151,8 +1151,10 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  * response helpers, but final document rendering stays owned by the page route
  * execution path.
  */
-export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any>
-	extends Omit<ApiHandlerContext<TRequest, TServer>, 'render' | 'renderPartial'> {}
+export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
+	ApiHandlerContext<TRequest, TServer>,
+	'render' | 'renderPartial'
+> {}
 
 /**
  * Next function for middleware chain.

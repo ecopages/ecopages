@@ -17,7 +17,10 @@ type LightDomGlobalKey = (typeof lightDomGlobalKeys)[number];
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 	public async testResolvePageModule(file: string) {
-		return this.resolvePageModule(file);
+		return this.pageModuleLoaderService.resolvePageModule({
+			file,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
 	}
 }
 

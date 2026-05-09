@@ -16,13 +16,33 @@ import type {
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { BoundaryOwnershipValidationService } from './boundary-ownership-validation.service.ts';
-import { RouteRenderFlow } from './route-render-flow.ts';
+import { type RouteRenderFlowCallbacks, RouteRenderFlow } from './route-render-flow.ts';
 
 declare module '../../types/public-types.ts' {
 	interface RequestLocals {
 		user?: string;
 		guarded?: boolean;
 	}
+}
+
+function createFlowCallbacks<C>(
+	callbacks: Omit<
+		RouteRenderFlowCallbacks<C>,
+		| 'render'
+		| 'getDocumentAttributes'
+		| 'applyAttributesToHtmlElement'
+		| 'applyAttributesToFirstBodyElement'
+		| 'transformResponse'
+	>,
+): RouteRenderFlowCallbacks<C> {
+	return {
+		...callbacks,
+		render: async () => '',
+		getDocumentAttributes: () => undefined,
+		applyAttributesToHtmlElement: (html) => html,
+		applyAttributesToFirstBodyElement: (html) => html,
+		transformResponse: async (response) => await response.text(),
+	};
 }
 
 describe('RouteRenderFlow prepareRenderOptions', () => {
@@ -80,27 +100,31 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			query: { preview: '1' },
 			locals: { user: 'andee' },
 		} as unknown as RouteRendererOptions;
-		const result = await flow.prepareRenderOptions(routeOptions, 'ghtml', {
-			resolvePageModule: async () => ({
-				Page,
-				integrationSpecificProps: { layoutMode: 'full' },
+		const result = await flow.prepareRenderOptions(
+			routeOptions,
+			'ghtml',
+			createFlowCallbacks({
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: { layoutMode: 'full' },
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: { title: 'Hello' },
+					metadata: { title: 'Hello', description: 'Hello description' },
+				}),
+				resolveDependencies: async () => [resolvedDependency],
+				buildRouteRenderAssets: async () => [pageDependency],
+				shouldRenderPageComponent: () => true,
+				renderPageComponent: async () => ({
+					html: '<main>Page</main>',
+					canAttachAttributes: true,
+					rootTag: 'main',
+					integrationName: 'ghtml',
+					assets: [componentAsset],
+				}),
 			}),
-			getHtmlTemplate: async () => HtmlTemplate,
-			resolvePageData: async () => ({
-				props: { title: 'Hello' },
-				metadata: { title: 'Hello', description: 'Hello description' },
-			}),
-			resolveDependencies: async () => [resolvedDependency],
-			buildRouteRenderAssets: async () => [pageDependency],
-			shouldRenderPageComponent: () => true,
-			renderPageComponent: async () => ({
-				html: '<main>Page</main>',
-				canAttachAttributes: true,
-				rootTag: 'main',
-				integrationName: 'ghtml',
-				assets: [componentAsset],
-			}),
-		});
+		);
 
 		expect(result.locals).toEqual({ user: 'andee' });
 		expect(result.pageLocals).toEqual({ user: 'andee' });
@@ -133,7 +157,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -152,7 +176,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 					rootTag: 'span',
 					integrationName: 'ghtml',
 				}),
-			},
+			}),
 		);
 
 		expect(result.componentRender).toEqual(
@@ -199,7 +223,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -213,7 +237,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-			},
+			}),
 		);
 
 		expect(processDependencies).toHaveBeenCalledOnce();
@@ -251,7 +275,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				locals: { hidden: true },
 			} as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -265,7 +289,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent,
-			},
+			}),
 		);
 
 		expect(result.locals).toBeUndefined();
@@ -318,7 +342,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -332,7 +356,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-			},
+			}),
 		);
 
 		expect(processDependencies).toHaveBeenCalledOnce();
@@ -392,7 +416,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -406,7 +430,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-			},
+			}),
 		);
 
 		expect(result.pagePackage).toEqual(
@@ -452,7 +476,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			flow.prepareRenderOptions(
 				{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 				'ghtml',
-				{
+				createFlowCallbacks({
 					resolvePageModule: async () => ({
 						Page,
 						integrationSpecificProps: {},
@@ -466,7 +490,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 					buildRouteRenderAssets: async () => [],
 					shouldRenderPageComponent: () => false,
 					renderPageComponent: vi.fn(),
-				},
+				}),
 			),
 		).resolves.toEqual(
 			expect.objectContaining({
@@ -477,7 +501,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -491,7 +515,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-			},
+			}),
 		);
 
 		expect(result.pagePackage).toEqual(
@@ -544,7 +568,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		const result = await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			'ghtml',
-			{
+			createFlowCallbacks({
 				resolvePageModule: async () => ({
 					Page,
 					integrationSpecificProps: {},
@@ -558,7 +582,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
-			},
+			}),
 		);
 
 		expect(injectedBoundaryPlanningService.buildPlan).toHaveBeenCalledWith({

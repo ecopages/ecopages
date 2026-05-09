@@ -188,7 +188,7 @@ describe('ReactHmrStrategy', () => {
 			}) as any,
 		);
 
-		const existsSpy = vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
+		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
 			return targetPath === '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
 		});
 		const globSpy = vi

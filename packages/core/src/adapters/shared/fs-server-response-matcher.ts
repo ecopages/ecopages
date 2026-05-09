@@ -110,7 +110,7 @@ export class FileSystemResponseMatcher {
 				filePath: executionPlan.pageFilePath,
 			});
 
-			const routeRenderer = this.routeRendererFactory.createRenderer(executionPlan.pageFilePath);
+			const routeRenderer = this.routeRendererFactory.getPageRenderer(executionPlan.pageFilePath);
 			const middlewareContext = this.fileRouteMiddlewarePipeline.createContext({
 				request: executionPlan.request,
 				params: match.params as Record<string, string>,
@@ -118,7 +118,7 @@ export class FileSystemResponseMatcher {
 			});
 
 			const renderFn = async (): Promise<RenderResult> => {
-				const result = await routeRenderer.createRoute({
+				const result = await routeRenderer.execute({
 					file: executionPlan.pageFilePath,
 					params: match.params,
 					query: match.query,
@@ -201,7 +201,7 @@ export class FileSystemResponseMatcher {
 	 * @returns Imported page module.
 	 */
 	private async importPageModule(filePath: string): Promise<unknown> {
-		const routeRenderer = this.routeRendererFactory.createRenderer(filePath);
+		const routeRenderer = this.routeRendererFactory.getPageRenderer(filePath);
 		return routeRenderer.loadPageModule(filePath, {
 			cacheScope: 'request-metadata',
 		});

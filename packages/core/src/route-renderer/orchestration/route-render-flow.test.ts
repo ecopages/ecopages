@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
-	IntegrationRendererRenderOptions,
+	HtmlTemplateProps,
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
@@ -38,7 +38,7 @@ describe('RouteRenderFlow', () => {
 	it('preserves streamed bodies when no boundary resolution or attribute stamping is required', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
- 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
 
@@ -56,7 +56,11 @@ describe('RouteRenderFlow', () => {
 				resolveDependencies: async () => [],
 				buildRouteRenderAssets: async () => [],
 				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
+				renderPageComponent: async () => ({
+					html: '<main>Page</main>',
+					canAttachAttributes: true,
+					integrationName: 'ghtml',
+				}),
 				render: async () =>
 					new ReadableStream({
 						start(controller) {
@@ -78,7 +82,7 @@ describe('RouteRenderFlow', () => {
 
 	it('applies root and document attributes to fully resolved route HTML', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
 
@@ -119,7 +123,7 @@ describe('RouteRenderFlow', () => {
 
 	it('throws when route HTML contains escaped unresolved boundary artifacts', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
 		await expect(
@@ -137,7 +141,11 @@ describe('RouteRenderFlow', () => {
 					resolveDependencies: async () => [],
 					buildRouteRenderAssets: async () => [],
 					shouldRenderPageComponent: () => true,
-					renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
+					renderPageComponent: async () => ({
+						html: '<main>Page</main>',
+						canAttachAttributes: true,
+						integrationName: 'ghtml',
+					}),
 					render: async () =>
 						'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
 					getDocumentAttributes: () => undefined,
@@ -151,7 +159,7 @@ describe('RouteRenderFlow', () => {
 
 	it('throws when route HTML returns unresolved boundary artifact HTML', async () => {
 		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<Record<string, unknown>>;
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
 		await expect(
@@ -169,7 +177,11 @@ describe('RouteRenderFlow', () => {
 					resolveDependencies: async () => [],
 					buildRouteRenderAssets: async () => [],
 					shouldRenderPageComponent: () => true,
-					renderPageComponent: async () => ({ html: '<main>Page</main>', canAttachAttributes: true, integrationName: 'ghtml' }),
+					renderPageComponent: async () => ({
+						html: '<main>Page</main>',
+						canAttachAttributes: true,
+						integrationName: 'ghtml',
+					}),
 					render: async () =>
 						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
 					getDocumentAttributes: () => undefined,

@@ -113,7 +113,7 @@ export class ExplicitStaticRouteMatcher {
 				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.missingIntegration(route.path));
 			}
 
-			const renderer = this.routeRendererFactory.getRendererByIntegration(integrationName);
+			const renderer = this.routeRendererFactory.getExplicitViewRenderer(integrationName);
 			if (!renderer) {
 				throw new Error(EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS.noRendererForIntegration(integrationName));
 			}

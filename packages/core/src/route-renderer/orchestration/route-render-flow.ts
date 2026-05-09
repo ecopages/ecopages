@@ -8,7 +8,6 @@ import type {
 	EcoComponentConfig,
 	EcoPageComponent,
 	EcoPageFile,
-	EcoPagesElement,
 	GetMetadata,
 	GetStaticProps,
 	HtmlTemplateProps,

@@ -283,7 +283,7 @@ export class ConfigBuilder {
 	 * @param integrations - An array of integration plugins
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
-	setIntegrations(integrations: IntegrationPlugin<unknown>[]): this {
+	setIntegrations(integrations: IntegrationPlugin[]): this {
 		this.config.integrations = integrations;
 		return this;
 	}

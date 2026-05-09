@@ -173,7 +173,6 @@ export abstract class SharedServerAdapter<
 	private createSharedResponseHandlerDependencies(staticRoutes: StaticRoute[]): SharedResponseHandlerDependencies {
 		const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 			appConfig: this.appConfig,
-			routeRendererFactory: this.routeRendererFactory,
 			options: {
 				watchMode: !!this.options?.watch,
 			},

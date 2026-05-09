@@ -2,25 +2,17 @@ import { STATUS_MESSAGE } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../types/internal-types.ts';
 import type { RouteRendererBody } from '../../types/public-types.ts';
-import type { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { fileSystem } from '@ecopages/file-system';
 
+/**
+ * Builds HTTP responses for static files and shared file-system fallbacks.
+ */
 export class FileSystemServerResponseFactory {
 	private appConfig: EcoPagesAppConfig;
-	private routeRendererFactory: RouteRendererFactory;
 	private options: FileSystemServerOptions;
 
-	constructor({
-		appConfig,
-		routeRendererFactory,
-		options,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		routeRendererFactory: RouteRendererFactory;
-		options: FileSystemServerOptions;
-	}) {
+	constructor({ appConfig, options }: { appConfig: EcoPagesAppConfig; options: FileSystemServerOptions }) {
 		this.appConfig = appConfig;
-		this.routeRendererFactory = routeRendererFactory;
 		this.options = options;
 	}
 
@@ -51,26 +43,11 @@ export class FileSystemServerResponseFactory {
 		});
 	}
 
-	async createCustomNotFoundResponse() {
-		const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
-
-		try {
-			fileSystem.verifyFileExists(error404TemplatePath);
-		} catch {
-			appLogger.debug(
-				'Custom 404 template not found, falling back to default 404 response',
-				error404TemplatePath,
-			);
-			return this.createDefaultNotFoundResponse();
-		}
-
-		const routeRenderer = this.routeRendererFactory.getPageRenderer(error404TemplatePath);
-
-		const result = await routeRenderer.execute({
-			file: error404TemplatePath,
-		});
-
-		return await this.createResponseWithBody(result.body, {
+	/**
+	 * Wraps already-rendered HTML in a 404 response envelope.
+	 */
+	async createHtmlNotFoundResponse(body: RouteRendererBody) {
+		return await this.createResponseWithBody(body, {
 			status: 404,
 			statusText: STATUS_MESSAGE[404],
 			headers: {
@@ -79,7 +56,10 @@ export class FileSystemServerResponseFactory {
 		});
 	}
 
-	async createFileResponse(filePath: string, contentType: string) {
+	/**
+	 * Reads a static file response, returning `null` when the file is missing.
+	 */
+	async createFileResponse(filePath: string, contentType: string): Promise<Response | null> {
 		try {
 			let file: Buffer;
 			const contentEncodingHeader: HeadersInit = {};
@@ -112,7 +92,7 @@ export class FileSystemServerResponseFactory {
 			} else {
 				appLogger.error('Error reading file', filePath, err);
 			}
-			return this.createCustomNotFoundResponse();
+			return null;
 		}
 	}
 }

@@ -64,8 +64,6 @@ function runPlaywright(args) {
 
 		child.on('error', reject);
 		child.on('exit', (code, signal) => {
-			cleanupE2eTempDir();
-
 			if (signal) {
 				reject(new Error(`Playwright exited with signal ${signal}`));
 				return;
@@ -77,7 +75,7 @@ function runPlaywright(args) {
 }
 
 export function cleanupE2eTempDir() {
-	rmSync(e2eTempDir, { recursive: true, force: true });
+	rmSync(e2eTempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 }
 
 async function main() {

@@ -36,7 +36,8 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 
 	test.describe.configure({ mode: 'serial' });
 
-	test.beforeAll(async (_workerArgs, testInfo) => {
+	// oxlint-disable-next-line no-empty-pattern
+	test.beforeAll(async ({}, testInfo) => {
 		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
 		originalSeoInclude = fs.readFileSync(seoIncludeFile, 'utf-8');
 	});

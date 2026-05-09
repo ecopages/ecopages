@@ -35,10 +35,10 @@ import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
 import {
 	type RouteHtmlFinalization,
-	RouteRenderFlow,
-	type RouteRenderFlowAdapter,
-	type RouteRenderFlowResolvedInputs,
-} from './route-render-flow.ts';
+	RouteRenderOrchestrator,
+	type RouteRenderOrchestratorAdapter,
+	type RouteRenderOrchestratorResolvedInputs,
+} from './route-render-orchestrator.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
@@ -79,7 +79,7 @@ export interface RenderToResponseContext {
  * It handles the import of page files, collection of dependencies, and preparation of render options.
  * The class is designed to be extended by specific integration renderers.
  */
-export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteRenderFlowAdapter<C> {
+export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	abstract name: string;
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
@@ -91,7 +91,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
-	protected routeRenderFlow: RouteRenderFlow;
+	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected readonly queuedForeignSubtreeResolutionService = new QueuedForeignSubtreeResolutionService();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
@@ -674,7 +674,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
-		this.routeRenderFlow = new RouteRenderFlow(appConfig, assetProcessingService, {
+		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 		});
 	}
@@ -842,7 +842,29 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		return this.dependencyResolverService.processComponentDependencies(components, this.name);
 	}
 
-	public async resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderFlowResolvedInputs> {
+	/**
+	 * Builds the internal route-render adapter consumed by `RouteRenderOrchestrator`.
+	 *
+	 * The route orchestrator needs a narrow orchestration contract, but those hooks should
+	 * not become public API on the renderer base class. Keeping the adapter object
+	 * local to the execution path lets the orchestrator depend on one explicit seam while
+	 * subclasses continue to override protected renderer behavior directly.
+	 */
+	protected createRouteRenderOrchestratorAdapter(): RouteRenderOrchestratorAdapter<C> {
+		return {
+			name: this.name,
+			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
+			resolveRouteAssets: (input) => this.resolveRouteAssets(input),
+			resolveRoutePageComponentRender: (input) => this.resolveRoutePageComponentRender(input),
+			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
+			getRouteHtmlFinalization: (renderOptions) => this.getRouteHtmlFinalization(renderOptions),
+			transformRouteResponse: (response) => this.transformRouteResponse(response),
+		};
+	}
+
+	protected async resolveRouteRenderInputs(
+		routeOptions: RouteRendererOptions,
+	): Promise<RouteRenderOrchestratorResolvedInputs> {
 		const pageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
@@ -865,7 +887,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		};
 	}
 
-	public async resolveRouteAssets(input: {
+	protected async resolveRouteAssets(input: {
 		routeOptions: RouteRendererOptions;
 		components: (EcoComponent | Partial<EcoComponent>)[];
 	}): Promise<{ resolvedDependencies: ProcessedAsset[]; pageBrowserGraph?: { assets: ProcessedAsset[] } }> {
@@ -875,7 +897,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		};
 	}
 
-	public async resolveRoutePageComponentRender(input: {
+	protected async resolveRoutePageComponentRender(input: {
 		Page: EcoComponent;
 		Layout?: EcoComponent;
 		props: Record<string, unknown>;
@@ -898,11 +920,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		});
 	}
 
-	public async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+	protected async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		return this.render(renderOptions);
 	}
 
-	public getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
+	protected getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
 		const componentRootAttributes =
 			renderOptions.componentRender?.canAttachAttributes &&
 			renderOptions.componentRender.rootAttributes &&
@@ -910,13 +932,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 				? (renderOptions.componentRender.rootAttributes as Record<string, string>)
 				: undefined;
 		const documentAttributes = this.getDocumentAttributes(renderOptions);
+		const hasStructuralFinalization =
+			(componentRootAttributes && Object.keys(componentRootAttributes).length > 0) ||
+			(documentAttributes && Object.keys(documentAttributes).length > 0);
+
+		if (!hasStructuralFinalization) {
+			return {};
+		}
 
 		return {
-			hasStructuralChanges:
-				(componentRootAttributes && Object.keys(componentRootAttributes).length > 0) ||
-				(documentAttributes && Object.keys(documentAttributes).length > 0)
-					? true
-					: false,
 			finalizeHtml: (html) => {
 				let renderedHtml = html;
 
@@ -936,7 +960,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 		};
 	}
 
-	public async transformRouteResponse(response: Response): Promise<RouteRendererBody> {
+	protected async transformRouteResponse(response: Response): Promise<RouteRendererBody> {
 		const transformedResponse = await this.htmlTransformer.transform(response);
 		return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 	}
@@ -948,8 +972,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 	 * @param options - The route renderer options.
 	 * @returns The prepared render options.
 	 */
-	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>> {
-		const renderOptions = await this.routeRenderFlow.prepareRenderOptions(options, this);
+	protected async prepareRenderOptions(
+		options: RouteRendererOptions,
+		adapter = this.createRouteRenderOrchestratorAdapter(),
+	): Promise<IntegrationRendererRenderOptions<C>> {
+		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, adapter);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
 		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
 		return renderOptions;
@@ -989,8 +1016,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> implements RouteR
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		const renderOptions = await this.prepareRenderOptions(options);
-		return this.routeRenderFlow.executePrepared(renderOptions, this);
+		const adapter = this.createRouteRenderOrchestratorAdapter();
+		const renderOptions = await this.prepareRenderOptions(options, adapter);
+		return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
 	}
 
 	/**

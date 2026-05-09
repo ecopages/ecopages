@@ -6,7 +6,11 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
-import { type RouteHtmlFinalization, type RouteRenderFlowAdapter, RouteRenderFlow } from './route-render-flow.ts';
+import {
+	type RouteHtmlFinalization,
+	type RouteRenderOrchestratorAdapter,
+	RouteRenderOrchestrator,
+} from './route-render-orchestrator.ts';
 
 function createFlowAdapter(input: {
 	resolvePageModule: (file: string) => Promise<{
@@ -39,7 +43,7 @@ function createFlowAdapter(input: {
 	renderRouteBody: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
 	transformRouteResponse: (response: Response) => Promise<RouteRendererBody>;
-}): RouteRenderFlowAdapter<unknown> {
+}): RouteRenderOrchestratorAdapter<unknown> {
 	return {
 		name: 'test-renderer',
 		resolveRouteRenderInputs: async (routeOptions) => {
@@ -80,17 +84,12 @@ function createFlowAdapter(input: {
 			return await input.renderPageComponent(renderInput);
 		},
 		renderRouteBody: input.renderRouteBody,
-		getRouteHtmlFinalization:
-			input.getRouteHtmlFinalization ??
-			(() => ({
-				hasStructuralChanges: false,
-				finalizeHtml: (html) => html,
-			})),
+		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),
 		transformRouteResponse: input.transformRouteResponse,
 	};
 }
 
-describe('RouteRenderFlow', () => {
+describe('RouteRenderOrchestrator', () => {
 	const appConfig = {
 		cache: { defaultStrategy: 'static' },
 		defaultMetadata: { title: 'Default title', description: 'Default description' },
@@ -101,7 +100,7 @@ describe('RouteRenderFlow', () => {
 	} as any;
 
 	it('captures streamed render bodies before final HTML handling', async () => {
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
 
 		const result = await flow.captureHtmlRender(
@@ -119,7 +118,7 @@ describe('RouteRenderFlow', () => {
 	});
 
 	it('preserves streamed bodies when no foreign-subtree resolution or attribute stamping is required', async () => {
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -160,7 +159,7 @@ describe('RouteRenderFlow', () => {
 	});
 
 	it('applies root and document attributes to fully resolved route HTML', async () => {
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
@@ -186,7 +185,6 @@ describe('RouteRenderFlow', () => {
 				}),
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
 				getRouteHtmlFinalization: () => ({
-					hasStructuralChanges: true,
 					finalizeHtml: (html) =>
 						html
 							.replace('<html', '<html data-eco-document-owner="react-router"')
@@ -202,7 +200,7 @@ describe('RouteRenderFlow', () => {
 	});
 
 	it('throws when route HTML contains escaped unresolved eco-marker artifacts', async () => {
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
@@ -234,7 +232,7 @@ describe('RouteRenderFlow', () => {
 	});
 
 	it('throws when route HTML returns unresolved eco-marker artifact HTML', async () => {
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 

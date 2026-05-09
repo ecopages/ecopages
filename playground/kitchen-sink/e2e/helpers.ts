@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { getPrimaryLinkTestId, getRouteLinkTestId } from '../src/data/primary-links';
 
 type CounterExpectations = {
@@ -16,10 +16,19 @@ const RETRIABLE_NAVIGATION_ERROR_FRAGMENTS = [
 	'Target page, context or browser has been closed',
 ];
 
+const RETRIABLE_REQUEST_ERROR_FRAGMENTS = ['ECONNRESET', 'ECONNREFUSED', 'socket hang up', 'fetch failed'];
+
 function isRetriableNavigationError(error: unknown): error is Error {
 	return (
 		error instanceof Error &&
 		RETRIABLE_NAVIGATION_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
+	);
+}
+
+function isRetriableRequestError(error: unknown): error is Error {
+	return (
+		error instanceof Error &&
+		RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
 	);
 }
 
@@ -122,6 +131,36 @@ export function trackRuntimeErrors(page: Page) {
 			expect(combinedErrors).not.toMatch(/Hydration failed/i);
 		},
 	};
+}
+
+export async function requestGetAndWait(request: APIRequestContext, href: string, timeout = 10000) {
+	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
+
+	await expect
+		.poll(
+			async () => {
+				try {
+					lastResponse = await request.get(href);
+					return lastResponse.ok() ? lastResponse.status() : 0;
+				} catch (error) {
+					if (!isRetriableRequestError(error)) {
+						throw error;
+					}
+
+					lastResponse = undefined;
+					return 0;
+				}
+			},
+			{
+				intervals: [100, 200, 350, 500],
+				timeout,
+			},
+		)
+		.toBe(200);
+
+	expect(lastResponse?.ok(), `${href} should respond with a successful status after retrying transient request failures`).toBe(true);
+
+	return lastResponse!;
 }
 
 async function clickCounter(button: Locator) {

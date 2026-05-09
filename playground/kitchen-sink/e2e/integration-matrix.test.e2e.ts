@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { assertAllCountersInteractivity, clickHrefAndWait, gotoAndWait, trackRuntimeErrors } from './helpers';
+import {
+	assertAllCountersInteractivity,
+	clickHrefAndWait,
+	gotoAndWait,
+	requestGetAndWait,
+	trackRuntimeErrors,
+} from './helpers';
 import {
 	integrationMatrixEntryRoutes,
 	integrationMatrixHostPages,
@@ -67,7 +73,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	test('lit entry keeps the shared host shell stack inside the document before hydration', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		const response = await page.request.get('/integration-matrix/lit-entry');
+		const response = await requestGetAndWait(page.request, '/integration-matrix/lit-entry');
 		const html = await response.text();
 		const bodyStart = html.indexOf('<body');
 		const bodyEnd = html.indexOf('</body>');
@@ -88,7 +94,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	test('ecopages-jsx entry includes the radiant host markup before hydration', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		const response = await page.request.get('/integration-matrix/ecopages-jsx-entry');
+		const response = await requestGetAndWait(page.request, '/integration-matrix/ecopages-jsx-entry');
 		const html = await response.text();
 
 		expect(html).toContain('ecopages-jsx-entry-radiant');
@@ -102,7 +108,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	test('ecopages-jsx entry does not prepend a stray numeric child inside ecopages-jsx shells', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		const response = await page.request.get('/integration-matrix/ecopages-jsx-entry');
+		const response = await requestGetAndWait(page.request, '/integration-matrix/ecopages-jsx-entry');
 		const html = await response.text();
 
 		expect(html).not.toMatch(
@@ -120,7 +126,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	}) => {
 		const runtime = trackRuntimeErrors(page);
 
-		const response = await page.request.get('/integration-matrix/ecopages-jsx-entry');
+		const response = await requestGetAndWait(page.request, '/integration-matrix/ecopages-jsx-entry');
 		const html = await response.text();
 		const shellHtml = html.match(
 			/<section class="integration-shell integration-shell--ecopages-jsx" data-ecopages--jsx-shell="integration-matrix-counter-shell-ecopages-jsx">[^]*?<\/section>/,
@@ -201,7 +207,7 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 		}) => {
 			const runtime = trackRuntimeErrors(page);
 
-			const response = await page.request.get(href);
+			const response = await requestGetAndWait(page.request, href);
 			const html = await response.text();
 			const litShellHtml = html.match(
 				/<section class="integration-shell integration-shell--lit" data-lit-shell="integration-matrix-counter-shell-lit">[^]*?<\/section>/,

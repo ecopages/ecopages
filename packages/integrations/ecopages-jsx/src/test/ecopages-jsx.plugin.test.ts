@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { test, vi } from 'vitest';
@@ -7,7 +7,7 @@ import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 
 type PluginTestInternals = {
-	appConfig: { absolutePaths: { srcDir: string } };
+	appConfig: { rootDir?: string; absolutePaths: { srcDir: string } };
 	assetProcessingService: {
 		processDependencies: (dependencies: unknown[], key: string) => Promise<unknown[]>;
 	};
@@ -95,6 +95,7 @@ test('EcopagesJsxPlugin only processes scripts that declare custom elements', as
 		];
 
 		pluginInternals.appConfig = {
+			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
 			},
@@ -140,6 +141,7 @@ test('EcopagesJsxPlugin processes scripts that register custom elements with fun
 		const pluginInternals = plugin as unknown as PluginTestInternals;
 
 		pluginInternals.appConfig = {
+			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
 			},
@@ -167,7 +169,7 @@ test('EcopagesJsxPlugin processes scripts that register custom elements with fun
 	}
 });
 
-test('EcopagesJsxPlugin registers intrinsic custom element scripts as module entrypoints', async () => {
+test('EcopagesJsxPlugin prepends the Radiant hydrator to intrinsic custom element browser entries', async () => {
 	const plugin = ecopagesJsxPlugin({ radiant: true });
 	const pluginInternals = plugin as unknown as PluginTestInternals;
 	const processDependencies = vi.fn(async (dependencies: unknown[], _key: string) =>
@@ -185,21 +187,20 @@ test('EcopagesJsxPlugin registers intrinsic custom element scripts as module ent
 	pluginInternals.assetProcessingService = {
 		processDependencies,
 	};
+	pluginInternals.appConfig = {
+		rootDir: tmpdir(),
+		absolutePaths: {
+			srcDir: '/tmp',
+		},
+	};
 
 	await pluginInternals.resolveCustomElementAsset('/tmp/theme-toggle.script.ts');
 
 	assert.equal(processDependencies.mock.calls.length, 1);
-	assert.deepEqual(processDependencies.mock.calls[0]?.[0], [
-		{
-			kind: 'script',
-			source: 'file',
-			filepath: '/tmp/theme-toggle.script.ts',
-			position: 'head',
-			attributes: {
-				type: 'module',
-				defer: '',
-			},
-		},
-	]);
+	const dependency = processDependencies.mock.calls[0]?.[0]?.[0] as { filepath: string; source: string };
+	assert.equal(dependency.source, 'file');
+	const wrapperSource = await readFile(dependency.filepath, 'utf8');
+	assert.match(wrapperSource, /import '@ecopages\/radiant\/client\/install-hydrator';/);
+	assert.match(wrapperSource, /import "\/tmp\/theme-toggle\.script\.ts";/);
 	assert.equal(processDependencies.mock.calls[0]?.[1], 'ecopages-jsx:custom-elements:/tmp/theme-toggle.script.ts');
 });

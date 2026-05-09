@@ -20,11 +20,21 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
-import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-specifier-map.ts';
+import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import { createUseSyncExternalStoreShimPlugin } from './utils/use-sync-external-store-shim-plugin.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
+
+export interface ReactHmrStrategyOptions {
+	context: DefaultHmrContext;
+	pageMetadataCache: ReactHmrPageMetadataCache;
+	runtimeAliasMap: ReadonlyMap<string, string>;
+	mdxCompilerOptions?: CompileOptions;
+	ownedTemplateExtensions?: string[];
+	allTemplateExtensions?: string[];
+	explicitGraphEnabled?: boolean;
+}
 
 /**
  * Strategy for handling React component HMR updates.
@@ -55,13 +65,16 @@ const appLogger = new Logger('[ReactHmrStrategy]');
  * ```typescript
  * const context = {
  *   getWatchedFiles: () => watchedFilesMap,
- *   getSpecifierMap: () => specifierMap,
  *   getDistDir: () => '/path/to/dist/_hmr',
  *   getPlugins: () => [],
  *   getSrcDir: () => '/path/to/src',
  *   getLayoutsDir: () => '/path/to/src/layouts'
  * };
- * const strategy = new ReactHmrStrategy(context);
+ * const strategy = new ReactHmrStrategy({
+ *   context,
+ *   pageMetadataCache,
+ *   runtimeAliasMap
+ * });
  * ```
  */
 export class ReactHmrStrategy extends HmrStrategy {
@@ -79,35 +92,24 @@ export class ReactHmrStrategy extends HmrStrategy {
 	/**
 	 * Creates a new React HMR strategy instance.
 	 *
-	 * @param context - The HMR context providing access to watched files, plugins, build directories,
-	 *                  and the layouts directory for detecting layout file changes that require full
-	 *                  page reloads instead of module-level HMR updates.
-	 * @param pageMetadataCache - React-only cache of declared browser modules discovered during
-	 *                            server rendering. This avoids re-importing unchanged page modules
-	 *                            during save-time Fast Refresh rebuilds.
-	 * @param mdxCompilerOptions - Optional MDX compiler options for processing .mdx files
-	 * @param explicitGraphEnabled - Enables explicit graph mode for React HMR bundling.
-	 * In explicit mode, HMR builds omit AST server-only stripping plugins in React paths.
+	 * @param options - React HMR runtime services and behavior flags.
 	 */
 	private context: DefaultHmrContext;
 	private pageMetadataCache: ReactHmrPageMetadataCache;
 	private explicitGraphEnabled: boolean;
+	private readonly runtimeAliasMap: ReadonlyMap<string, string>;
 
-	constructor(
-		context: DefaultHmrContext,
-		pageMetadataCache: ReactHmrPageMetadataCache,
-		mdxCompilerOptions?: CompileOptions,
-		ownedTemplateExtensions: string[] = ['.tsx'],
-		allTemplateExtensions: string[] = ['.tsx'],
-		explicitGraphEnabled = false,
-	) {
+	constructor(options: ReactHmrStrategyOptions) {
 		super();
-		this.context = context;
-		this.pageMetadataCache = pageMetadataCache;
-		this.explicitGraphEnabled = explicitGraphEnabled;
-		this.mdxCompilerOptions = mdxCompilerOptions;
-		this.ownedTemplateExtensions = new Set(ownedTemplateExtensions);
-		this.allTemplateExtensions = [...allTemplateExtensions].sort((a, b) => b.length - a.length);
+		this.context = options.context;
+		this.pageMetadataCache = options.pageMetadataCache;
+		this.runtimeAliasMap = options.runtimeAliasMap;
+		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
+		this.mdxCompilerOptions = options.mdxCompilerOptions;
+		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
+		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
+			(a, b) => b.length - a.length,
+		);
 	}
 
 	/**
@@ -117,10 +119,9 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * (including `node:*`) from breaking the browser bundle.
 	 */
 	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
-		const runtimeSpecifierMap = this.context.getSpecifierMap();
-		const allowSpecifiers = getReactClientGraphAllowSpecifiers(runtimeSpecifierMap.keys());
+		const allowSpecifiers = getReactClientGraphAllowSpecifiers(this.runtimeAliasMap.keys());
 
-		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(runtimeSpecifierMap, {
+		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.runtimeAliasMap, {
 			name: 'react-hmr-runtime-specifier-alias',
 		});
 
@@ -400,7 +401,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		try {
 			let code = await fileSystem.readFile(tempPath);
 
-			code = rewriteRuntimeSpecifierAliases(code, this.context.getSpecifierMap());
+			code = rewriteRuntimeSpecifierAliases(code, this.runtimeAliasMap);
 			code = injectHmrHandler(code);
 
 			await fileSystem.writeAsync(finalPath, code);

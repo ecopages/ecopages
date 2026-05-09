@@ -6,7 +6,7 @@
 
 import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 
-const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
+const PRESERVE_SELECTORS = ['meta[charset]', '[data-eco-persist]'];
 const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 
 type PendingRerunScript = {
@@ -67,9 +67,14 @@ function isRerunScript(el: Element): el is HTMLScriptElement {
 	return el.tagName === 'SCRIPT' && el.hasAttribute('data-eco-rerun');
 }
 
+function isReactRouterPageBootstrapScriptId(scriptId: string | null): boolean {
+	return !!scriptId && scriptId.startsWith('ecopages-react-') && !scriptId.startsWith('ecopages-react-island-');
+}
+
 function isHydrationScript(el: HTMLScriptElement): boolean {
 	const src = el.getAttribute('src');
-	return !!src && isReactRouterPageBootstrapAssetSrc(src);
+	const scriptId = el.getAttribute('data-eco-script-id');
+	return isReactRouterPageBootstrapScriptId(scriptId) || (!!src && isReactRouterPageBootstrapAssetSrc(src));
 }
 
 /**
@@ -98,7 +103,6 @@ function getHeadElementKey(el: Element): string | null {
 		}
 
 		case 'script': {
-			if (el.getAttribute('type') === 'importmap') return 'importmap';
 			const scriptId = el.getAttribute('data-eco-script-id') || el.getAttribute('id');
 			if (scriptId) return `script-id:${scriptId}`;
 			const src = el.getAttribute(RERUN_SRC_ATTR) || (el as HTMLScriptElement).src;

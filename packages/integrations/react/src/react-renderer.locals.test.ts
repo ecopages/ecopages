@@ -6,8 +6,8 @@ import type { ReactNode } from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 
 class TestReactRenderer extends ReactRenderer {
-	override async buildRouteRenderAssets(_pagePath: string) {
-		return [];
+	override async buildPageBrowserGraph(_pagePath: string) {
+		return { assets: [] };
 	}
 
 	protected override async getHtmlTemplate() {

@@ -92,8 +92,10 @@ export class ReactHydrationAssetService {
 		pagePath: string,
 		componentName: string,
 		importPath: string,
+		pageModuleUrlExpression: string,
 		bundleOptions: Record<string, unknown>,
 		isDevelopment: boolean,
+		useBrowserRuntimeImports: boolean,
 		isMdx: boolean,
 	): AssetDefinition[] {
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
@@ -102,9 +104,12 @@ export class ReactHydrationAssetService {
 				position: 'head',
 				content: createHydrationScript({
 					importPath: isDevelopment ? importPath : pagePath,
-					reactImportPath: isDevelopment ? runtimeImports.react : 'react',
-					reactDomClientImportPath: isDevelopment ? runtimeImports.reactDomClient : 'react-dom/client',
-					routerImportPath: isDevelopment ? runtimeImports.router : this.config.routerAdapter?.importMapKey,
+					pageModuleUrlExpression,
+					reactImportPath: useBrowserRuntimeImports ? runtimeImports.react : 'react',
+					reactDomClientImportPath: useBrowserRuntimeImports ? runtimeImports.reactDomClient : 'react-dom/client',
+					routerImportPath: useBrowserRuntimeImports
+						? runtimeImports.router
+						: this.config.routerAdapter?.bundle.importPath,
 					isDevelopment,
 					isMdx,
 					router: this.config.routerAdapter,
@@ -199,14 +204,14 @@ export class ReactHydrationAssetService {
 	}
 
 	/**
-	 * Builds all client-side route assets for a page.
+	 * Builds the Page Browser Graph assets for a React page.
 	 *
 	 * @param pagePath - Absolute file path of the page
 	 * @param isMdx - Whether the page is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
 	 * @returns Processed assets for the route
 	 */
-	async buildRouteRenderAssets(
+	async buildPageBrowserGraphAssets(
 		pagePath: string,
 		isMdx: boolean,
 		declaredModules: string[],
@@ -214,22 +219,28 @@ export class ReactHydrationAssetService {
 		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const isDevelopment = hmrManager?.isEnabled() ?? false;
+		const isHostedDevelopment = !isDevelopment && process.env.NODE_ENV !== 'production';
+		const useBrowserRuntimeImports = isDevelopment || isHostedDevelopment;
 		if (isDevelopment) {
 			this.config.hmrPageMetadataCache?.setDeclaredModules(pagePath, declaredModules);
 		}
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
+		const pageModuleUrlExpression = 'import.meta.url';
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
 			isMdx,
 			declaredModules,
+			{ includeRuntime: !useBrowserRuntimeImports },
 		);
 		const dependencies = this.createPageDependencies(
 			pagePath,
 			componentName,
 			importPath,
+			pageModuleUrlExpression,
 			bundleOptions,
 			isDevelopment,
+			useBrowserRuntimeImports,
 			isMdx,
 		);
 

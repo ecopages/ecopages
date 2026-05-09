@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import {
-	buildReactRuntimeSpecifierMap,
+	buildReactRuntimeAliasMap,
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 	REACT_RUNTIME_SPECIFIERS,
-} from './react-runtime-specifier-map.ts';
+} from './react-runtime-alias-map.ts';
 
 const reactRouterAdapter: ReactRouterAdapter = {
 	name: 'react-router',
-	importMapKey: 'react-router',
 	bundle: {
 		outputName: 'router',
 		importPath: '/router.ts',
@@ -22,10 +21,10 @@ const reactRouterAdapter: ReactRouterAdapter = {
 	getRouterProps: (page, props) => `{ page: ${page}, pageProps: ${props} }`,
 };
 
-describe('buildReactRuntimeSpecifierMap', () => {
-	it('builds the canonical React runtime specifier map', () => {
+describe('buildReactRuntimeAliasMap', () => {
+	it('builds the canonical React runtime alias map', () => {
 		expect(
-			buildReactRuntimeSpecifierMap({
+			buildReactRuntimeAliasMap({
 				react: '/assets/vendors/react.js',
 				reactDomClient: '/assets/vendors/react-dom.js',
 				reactJsxRuntime: '/assets/vendors/react.js',
@@ -41,22 +40,17 @@ describe('buildReactRuntimeSpecifierMap', () => {
 		});
 	});
 
-	it('includes the router specifier when a router adapter is configured', () => {
+	it('keeps the runtime alias map scoped to React runtime modules', () => {
 		expect(
-			buildReactRuntimeSpecifierMap(
-				{
-					react: '/assets/vendors/react.js',
-					reactDomClient: '/assets/vendors/react-dom.js',
-					reactJsxRuntime: '/assets/vendors/react.js',
-					reactJsxDevRuntime: '/assets/vendors/react.js',
-					reactDom: '/assets/vendors/react-dom.js',
-					router: '/assets/vendors/router.js',
-				},
-				reactRouterAdapter,
-			),
-		).toMatchObject({
-			'react-router': '/assets/vendors/router.js',
-		});
+			buildReactRuntimeAliasMap({
+				react: '/assets/vendors/react.js',
+				reactDomClient: '/assets/vendors/react-dom.js',
+				reactJsxRuntime: '/assets/vendors/react.js',
+				reactJsxDevRuntime: '/assets/vendors/react.js',
+				reactDom: '/assets/vendors/react-dom.js',
+				router: '/assets/vendors/router.js',
+			}),
+		).not.toHaveProperty('/router.ts');
 	});
 
 	it('exposes the canonical runtime external specifiers', () => {
@@ -73,7 +67,7 @@ describe('buildReactRuntimeSpecifierMap', () => {
 			'react/jsx-runtime',
 			'react/jsx-dev-runtime',
 			'react-dom/client',
-			'react-router',
+			'/router.ts',
 			'virtual:runtime-a',
 			'virtual:runtime-b',
 		]);

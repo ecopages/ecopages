@@ -124,8 +124,8 @@ const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['
 /**
  * Matches explicit page-module markers written by hydration scripts.
  */
-const PAGE_MODULE_MARKER_REGEX = /module\s*:\s*['"]([^'"]+)['"]/;
-const PAGE_MODULE_IDENTIFIER_REGEX = /module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
+const PAGE_MODULE_MARKER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
+const PAGE_MODULE_IDENTIFIER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
 
 /**
  * Extracts import path from hydration script code using regex.

@@ -7,10 +7,9 @@ describe('ReactBundleService', () => {
 			rootDir: '/app',
 			routerAdapter: {
 				name: 'eco-router',
-				importMapKey: '@ecopages/react-router',
 				bundle: {
 					outputName: 'react-router-esm',
-					importPath: '@ecopages/react-router/browser.ts',
+					importPath: '@ecopages/react-router/browser',
 					externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
 				},
 				components: {
@@ -23,9 +22,18 @@ describe('ReactBundleService', () => {
 
 		const options = await service.createBundleOptions('ecopages-react-page', false, []);
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
+		const runtimeImports = service.getRuntimeImports();
 
 		expect(pluginNames).not.toContain('react-renderer-eco-core-browser-shim');
 		expect(pluginNames).toContain('ecopages-client-graph-boundary');
+		expect(options.external).toEqual(
+			expect.arrayContaining([
+				...Object.values(runtimeImports),
+				'react',
+				'react-dom',
+				'react-dom/client',
+			]),
+		);
 	});
 
 	it('can bundle runtime specifiers directly into page-owned entries', async () => {
@@ -33,10 +41,9 @@ describe('ReactBundleService', () => {
 			rootDir: '/app',
 			routerAdapter: {
 				name: 'eco-router',
-				importMapKey: '@ecopages/react-router',
 				bundle: {
 					outputName: 'react-router-esm',
-					importPath: '@ecopages/react-router/browser.ts',
+					importPath: '@ecopages/react-router/browser',
 					externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
 				},
 				components: {

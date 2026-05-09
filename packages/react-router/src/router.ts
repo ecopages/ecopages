@@ -9,6 +9,7 @@
 
 import {
 	useEffect,
+	useEffectEvent,
 	useState,
 	useCallback,
 	useMemo,
@@ -36,7 +37,12 @@ import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
 import type { EcoInjectedMeta } from '@ecopages/core';
-import { getEcoNavigationRuntime, type EcoNavigationTransaction } from '@ecopages/core/router/navigation-coordinator';
+import {
+	getEcoNavigationRuntime,
+	type EcoNavigationRequest,
+	type EcoNavigationTransaction,
+	type EcoReloadRequest,
+} from '@ecopages/core/router/navigation-coordinator';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -219,38 +225,44 @@ function useNavigationCoordinator(
 	isNavigatingRef: RefObject<boolean>,
 	runtimeActiveRef: RefObject<boolean>,
 ) {
-	useEffect(() => {
-		if (typeof window === 'undefined') return;
+	const handleCoordinatorNavigate = useEffectEvent(async (request: EcoNavigationRequest) => {
+		await navigate(request.href, {
+			isPopState: request.direction === 'back',
+			pushHistory: request.direction === 'forward',
+			skipViewTransition: request.source === 'browser-router',
+		});
+		return true;
+	});
 
+	const handleCoordinatorReload = useEffectEvent(async (request?: EcoReloadRequest) => {
+		if (activeNavigationRef.current || isNavigatingRef.current) {
+			return;
+		}
+
+		if (request?.clearCache) {
+			clearLayoutCache();
+		}
+
+		const currentUrl = window.location.pathname + window.location.search;
+		await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
+	});
+
+	const handleCleanupBeforeHandoff = useEffectEvent(async () => {
+		runtimeActiveRef.current = false;
+		window.__ECO_PAGES__?.react?.cleanupPageRoot?.();
+	});
+
+	useEffect(() => {
 		const navigationRuntime = getEcoNavigationRuntime(window);
 		let unregisterRuntime: (() => void) | null = null;
 		const unregister = navigationRuntime.register({
 			owner: 'react-router',
-			navigate: async (request) => {
-				await navigate(request.href, {
-					isPopState: request.direction === 'back',
-					pushHistory: request.direction === 'forward',
-					skipViewTransition: request.source === 'browser-router',
-				});
-				return true;
-			},
-			reloadCurrentPage: async (request) => {
-				if (activeNavigationRef.current || isNavigatingRef.current) {
-					return;
-				}
-
-				if (request?.clearCache) {
-					clearLayoutCache();
-				}
-
-				const currentUrl = window.location.pathname + window.location.search;
-				await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
-			},
+			navigate: handleCoordinatorNavigate,
+			reloadCurrentPage: handleCoordinatorReload,
 			cleanupBeforeHandoff: async () => {
-				runtimeActiveRef.current = false;
 				unregisterRuntime?.();
 				unregisterRuntime = null;
-				window.__ECO_PAGES__?.react?.cleanupPageRoot?.();
+				await handleCleanupBeforeHandoff();
 			},
 		});
 		unregisterRuntime = unregister;
@@ -262,7 +274,7 @@ function useNavigationCoordinator(
 			unregisterRuntime?.();
 			unregisterRuntime = null;
 		};
-	}, [activeNavigationRef, isNavigatingRef, navigate, runtimeActiveRef]);
+	}, [runtimeActiveRef]);
 }
 
 /**
@@ -311,6 +323,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const pendingHoverNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
+	const committedPathRef = useRef<string>(
+		typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
+	);
 	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
 
 	useEffect(() => {
@@ -322,10 +337,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [page, pageProps]);
 
 	useEffect(() => {
+		committedPathRef.current = window.location.pathname + window.location.search;
 		applyViewTransitionNames();
-	}, [currentPage]);
 
-	useEffect(() => {
 		const pendingRender = pendingRenderRef.current;
 		if (
 			pendingRender &&
@@ -335,19 +349,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			pendingRender.resolve();
 			pendingRenderRef.current = null;
 		}
-	}, [currentPage]);
-
-	useEffect(() => {
-		return () => {
-			activeNavigationRef.current?.cancel();
-			pendingRenderRef.current?.resolve();
-			pendingRenderRef.current = null;
-			queuedNavigationHrefRef.current = null;
-		};
-	}, []);
-
-	useEffect(() => {
-		if (typeof window === 'undefined') return;
 
 		const url = new URL(window.location.href);
 		const previousUrl = new URL(previousUrlRef.current);
@@ -360,6 +361,15 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			previousUrlRef.current = url.href;
 		}
 	}, [currentPage, options.scrollBehavior, options.smoothScroll]);
+
+	useEffect(() => {
+		return () => {
+			activeNavigationRef.current?.cancel();
+			pendingRenderRef.current?.resolve();
+			pendingRenderRef.current = null;
+			queuedNavigationHrefRef.current = null;
+		};
+	}, []);
 
 	const navigate = useCallback(
 		async (
@@ -389,6 +399,16 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					props,
 				};
 			};
+			const preparePendingRender = (nextPage: RouterPageState) => {
+				pendingRenderRef.current?.resolve();
+				const renderDfd = createDeferred<void>();
+				pendingRenderRef.current = {
+					navigationId,
+					page: nextPage,
+					resolve: renderDfd.resolve,
+				};
+				return renderDfd.promise;
+			};
 			let navigationCommitPromise: Promise<void> | null = null;
 
 			try {
@@ -412,6 +432,17 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					const { Component, props, doc, finalPath, moduleUrl } = result;
 					const nextPage = { Component, props, refreshPersistedLayout: Boolean(moduleUrlOverride) };
 					const { cleanup: cleanupHead, flushRerunScripts } = await morphHead(doc);
+					const finalizeCommittedNavigation = () => {
+						committedPathRef.current = finalPath;
+						flushRerunScripts();
+						cleanupHead();
+						applyViewTransitionNames();
+						restoreScrollPositions(finalPath, isPopState);
+					};
+					const commitNextPage = () => {
+						commitPageData(moduleUrl, props);
+						setCurrentPage(nextPage);
+					};
 
 					if (isStale()) {
 						cleanupHead();
@@ -429,13 +460,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					}
 
 					if (!skipViewTransition && options.viewTransitions && document.startViewTransition) {
-						pendingRenderRef.current?.resolve();
-						const renderDfd = createDeferred<void>();
-						pendingRenderRef.current = {
-							navigationId,
-							page: nextPage,
-							resolve: renderDfd.resolve,
-						};
+						const renderPromise = preparePendingRender(nextPage);
 
 						navigationCommitPromise = new Promise<void>((resolve) => {
 							document.startViewTransition(async () => {
@@ -449,17 +474,13 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 										return;
 									}
 									startTransition(() => {
-										commitPageData(moduleUrl, props);
-										setCurrentPage(nextPage);
+										commitNextPage();
 									});
-									await renderDfd.promise;
+									await renderPromise;
 									if (isStale()) {
 										return;
 									}
-									flushRerunScripts();
-									cleanupHead();
-									applyViewTransitionNames();
-									restoreScrollPositions(finalPath, isPopState);
+									finalizeCommittedNavigation();
 								} finally {
 									resolve();
 								}
@@ -467,24 +488,14 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						});
 						await navigationCommitPromise;
 					} else {
-						pendingRenderRef.current?.resolve();
-						const renderDfd = createDeferred<void>();
-						pendingRenderRef.current = {
-							navigationId,
-							page: nextPage,
-							resolve: renderDfd.resolve,
-						};
-						commitPageData(moduleUrl, props);
-						setCurrentPage(nextPage);
-						await renderDfd.promise;
+						const renderPromise = preparePendingRender(nextPage);
+						commitNextPage();
+						await renderPromise;
 						if (isStale()) {
 							cleanupHead();
 							return;
 						}
-						flushRerunScripts();
-						cleanupHead();
-						applyViewTransitionNames();
-						restoreScrollPositions(finalPath, isPopState);
+						finalizeCommittedNavigation();
 					}
 				} else {
 					if (isStale()) return;
@@ -510,15 +521,16 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			} finally {
 				const shouldReplayQueuedNavigation = activeNavigationRef.current?.id === navigationId;
 				const queuedNavigationHref = shouldReplayQueuedNavigation ? queuedNavigationHrefRef.current : null;
+				const queuedNavigationPath = queuedNavigationHref
+					? new URL(queuedNavigationHref, window.location.origin).pathname +
+						new URL(queuedNavigationHref, window.location.origin).search
+					: null;
 				navigation.complete();
 				if (activeNavigationRef.current?.id === navigationId) {
 					activeNavigationRef.current = null;
 				}
 
-				if (
-					queuedNavigationHref &&
-					queuedNavigationHref !== window.location.pathname + window.location.search
-				) {
+				if (queuedNavigationHref && queuedNavigationPath !== committedPathRef.current) {
 					queuedNavigationHrefRef.current = null;
 
 					if (runtimeActiveRef.current) {
@@ -545,159 +557,177 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		[options.viewTransitions],
 	);
 
-	useEffect(() => {
-		const getLinkFromEvent = (event: MouseEvent | PointerEvent) =>
-			getAnchorFromNavigationEvent(event, options.linkSelector);
+	const getLinkFromEvent = useEffectEvent((event: MouseEvent | PointerEvent) =>
+		getAnchorFromNavigationEvent(event, options.linkSelector),
+	);
 
-		const getRecoveredPointerHref = () => {
-			const href = recoverPendingNavigationHref(
-				pendingPointerNavigationRef.current,
-				!!activeNavigationRef.current || isNavigatingRef.current,
-				performance.now(),
-			);
+	const getRecoveredPointerHref = useEffectEvent(() => {
+		const href = recoverPendingNavigationHref(
+			pendingPointerNavigationRef.current,
+			!!activeNavigationRef.current || isNavigatingRef.current,
+			performance.now(),
+		);
 
-			if (!href) {
-				pendingPointerNavigationRef.current = null;
-			}
+		if (!href) {
+			pendingPointerNavigationRef.current = null;
+		}
 
-			return href;
+		return href;
+	});
+
+	const getRecoveredHoverHref = useEffectEvent(() => {
+		const href = recoverPendingNavigationHref(
+			pendingHoverNavigationRef.current,
+			!!activeNavigationRef.current || isNavigatingRef.current,
+			performance.now(),
+		);
+
+		if (!href) {
+			pendingHoverNavigationRef.current = null;
+		}
+
+		return href;
+	});
+
+	const handleHoverIntent = useEffectEvent((event: MouseEvent | PointerEvent) => {
+		if (!runtimeActiveRef.current) {
+			return;
+		}
+
+		const link = getLinkFromEvent(event);
+		if (!link) {
+			return;
+		}
+
+		const decision = getInterceptDecision(event, link, options);
+		if (!decision.shouldIntercept) {
+			return;
+		}
+
+		pendingHoverNavigationRef.current = {
+			href: link.getAttribute('href')!,
+			timestamp: performance.now(),
 		};
+		queuedNavigationHrefRef.current = link.getAttribute('href')!;
+	});
 
-		const getRecoveredHoverHref = () => {
-			const href = recoverPendingNavigationHref(
-				pendingHoverNavigationRef.current,
-				!!activeNavigationRef.current || isNavigatingRef.current,
-				performance.now(),
-			);
+	const handlePointerDown = useEffectEvent((event: PointerEvent) => {
+		if (!runtimeActiveRef.current) {
+			pendingPointerNavigationRef.current = null;
+			return;
+		}
 
-			if (!href) {
-				pendingHoverNavigationRef.current = null;
-			}
+		const link = getLinkFromEvent(event);
+		if (!link) {
+			pendingPointerNavigationRef.current = null;
+			return;
+		}
 
-			return href;
-		};
+		const decision = getInterceptDecision(event as unknown as MouseEvent, link, options);
+		pendingPointerNavigationRef.current = decision.shouldIntercept
+			? {
+					href: link.getAttribute('href')!,
+					timestamp: performance.now(),
+			  }
+			: null;
 
-		const handleHoverIntent = (event: MouseEvent | PointerEvent) => {
-			if (!runtimeActiveRef.current) {
-				return;
-			}
-
-			const link = getLinkFromEvent(event);
-			if (!link) {
-				return;
-			}
-
-			const decision = getInterceptDecision(event, link, options);
-			if (!decision.shouldIntercept) {
-				return;
-			}
-
-			pendingHoverNavigationRef.current = {
-				href: link.getAttribute('href')!,
-				timestamp: performance.now(),
-			};
+		if (decision.shouldIntercept && (activeNavigationRef.current || isNavigatingRef.current)) {
 			queuedNavigationHrefRef.current = link.getAttribute('href')!;
-		};
+		}
+	});
 
-		const handlePointerDown = (event: PointerEvent) => {
-			if (!runtimeActiveRef.current) {
-				pendingPointerNavigationRef.current = null;
-				return;
-			}
-
-			const link = getLinkFromEvent(event);
-			if (!link) {
-				pendingPointerNavigationRef.current = null;
-				return;
-			}
-
-			const decision = getInterceptDecision(event as unknown as MouseEvent, link, options);
-			pendingPointerNavigationRef.current = decision.shouldIntercept
-				? {
-						href: link.getAttribute('href')!,
-						timestamp: performance.now(),
-					}
-				: null;
-
-			if (decision.shouldIntercept && (activeNavigationRef.current || isNavigatingRef.current)) {
-				queuedNavigationHrefRef.current = link.getAttribute('href')!;
-			}
-		};
-
-		const handleClick = (event: MouseEvent) => {
-			if (!runtimeActiveRef.current) {
-				pendingPointerNavigationRef.current = null;
-				pendingHoverNavigationRef.current = null;
-				return;
-			}
-
-			const link = getLinkFromEvent(event);
-			if (!link) {
-				const recoveredHref = getRecoveredPointerHref() ?? getRecoveredHoverHref();
-				pendingPointerNavigationRef.current = null;
-				pendingHoverNavigationRef.current = null;
-				if (!recoveredHref) {
-					return;
-				}
-
-				event.preventDefault();
-				queuedNavigationHrefRef.current = null;
-				const recoveredUrl = new URL(recoveredHref, window.location.origin);
-				navigate(recoveredUrl.pathname + recoveredUrl.search, { pushHistory: true });
-				return;
-			}
-			if (!shouldInterceptClick(event, link, options)) {
-				if (options.debug) {
-					const decision = getInterceptDecision(event, link, options);
-					if (!decision.shouldIntercept) {
-						console.debug('[EcoRouter] Not intercepting link click:', decision.reason, link.href);
-					}
-				}
-				pendingPointerNavigationRef.current = null;
-				pendingHoverNavigationRef.current = null;
-				return;
-			}
-
+	const handleClick = useEffectEvent((event: MouseEvent) => {
+		if (!runtimeActiveRef.current) {
 			pendingPointerNavigationRef.current = null;
 			pendingHoverNavigationRef.current = null;
-			event.preventDefault();
-			queuedNavigationHrefRef.current = null;
-			const href = link.getAttribute('href')!;
-			const url = new URL(href, window.location.origin);
+			return;
+		}
 
-			if (options.debug) {
-				console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
-			}
-
-			navigate(url.pathname + url.search, { pushHistory: true });
-		};
-
-		const handlePopState = () => {
-			if (!runtimeActiveRef.current) {
+		const link = getLinkFromEvent(event);
+		if (!link) {
+			const recoveredHref = getRecoveredPointerHref() ?? getRecoveredHoverHref();
+			pendingPointerNavigationRef.current = null;
+			pendingHoverNavigationRef.current = null;
+			if (!recoveredHref) {
 				return;
 			}
 
-			navigate(window.location.pathname + window.location.search, { isPopState: true });
+			event.preventDefault();
+			queuedNavigationHrefRef.current = null;
+			const recoveredUrl = new URL(recoveredHref, window.location.origin);
+			navigate(recoveredUrl.pathname + recoveredUrl.search, { pushHistory: true });
+			return;
+		}
+
+		if (!shouldInterceptClick(event, link, options)) {
+			if (options.debug) {
+				const decision = getInterceptDecision(event, link, options);
+				if (!decision.shouldIntercept) {
+					console.debug('[EcoRouter] Not intercepting link click:', decision.reason, link.href);
+				}
+			}
+			pendingPointerNavigationRef.current = null;
+			pendingHoverNavigationRef.current = null;
+			return;
+		}
+
+		pendingPointerNavigationRef.current = null;
+		pendingHoverNavigationRef.current = null;
+		event.preventDefault();
+		queuedNavigationHrefRef.current = null;
+		const href = link.getAttribute('href')!;
+		const url = new URL(href, window.location.origin);
+
+		if (options.debug) {
+			console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
+		}
+
+		navigate(url.pathname + url.search, { pushHistory: true });
+	});
+
+	const handlePopState = useEffectEvent(() => {
+		if (!runtimeActiveRef.current) {
+			return;
+		}
+
+		navigate(window.location.pathname + window.location.search, { isPopState: true });
+	});
+
+	useEffect(() => {
+		const onHoverIntent = (event: Event) => {
+			handleHoverIntent(event as MouseEvent | PointerEvent);
 		};
 
-		document.addEventListener('mouseover', handleHoverIntent, true);
-		document.addEventListener('pointerover', handleHoverIntent, true);
-		document.addEventListener('mousemove', handleHoverIntent, true);
-		document.addEventListener('pointermove', handleHoverIntent, true);
-		document.addEventListener('pointerdown', handlePointerDown, true);
-		document.addEventListener('click', handleClick, true);
-		window.addEventListener('popstate', handlePopState);
+		const onPointerDown = (event: Event) => {
+			handlePointerDown(event as PointerEvent);
+		};
+
+		const onClick = (event: Event) => {
+			handleClick(event as MouseEvent);
+		};
+
+		const onPopState = () => {
+			handlePopState();
+		};
+
+		document.addEventListener('mouseover', onHoverIntent, true);
+		document.addEventListener('pointerover', onHoverIntent, true);
+		document.addEventListener('mousemove', onHoverIntent, true);
+		document.addEventListener('pointermove', onHoverIntent, true);
+		document.addEventListener('pointerdown', onPointerDown, true);
+		document.addEventListener('click', onClick, true);
+		window.addEventListener('popstate', onPopState);
 
 		return () => {
-			document.removeEventListener('mouseover', handleHoverIntent, true);
-			document.removeEventListener('pointerover', handleHoverIntent, true);
-			document.removeEventListener('mousemove', handleHoverIntent, true);
-			document.removeEventListener('pointermove', handleHoverIntent, true);
-			document.removeEventListener('pointerdown', handlePointerDown, true);
-			document.removeEventListener('click', handleClick, true);
-			window.removeEventListener('popstate', handlePopState);
+			document.removeEventListener('mouseover', onHoverIntent, true);
+			document.removeEventListener('pointerover', onHoverIntent, true);
+			document.removeEventListener('mousemove', onHoverIntent, true);
+			document.removeEventListener('pointermove', onHoverIntent, true);
+			document.removeEventListener('pointerdown', onPointerDown, true);
+			document.removeEventListener('click', onClick, true);
+			window.removeEventListener('popstate', onPopState);
 		};
-	}, [navigate, options, runtimeActiveRef]);
+	}, []);
 
 	useNavigationCoordinator(navigate, activeNavigationRef, isNavigatingRef, runtimeActiveRef);
 

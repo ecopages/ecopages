@@ -9,10 +9,10 @@
 
 import { createClientGraphBoundaryPlugin } from '../utils/client-graph-boundary-plugin.ts';
 import {
-	buildReactRuntimeSpecifierMap,
+	buildReactRuntimeAliasMap,
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
-} from '../utils/react-runtime-specifier-map.ts';
+} from '../utils/react-runtime-alias-map.ts';
 import { createUseSyncExternalStoreShimPlugin } from '../utils/use-sync-external-store-shim-plugin.ts';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-jsx-override-plugin';
@@ -78,6 +78,7 @@ export class ReactBundleService {
 		declaredModules: string[],
 		bundleOptions: ReactClientBundleOptions = {},
 	): Promise<Record<string, unknown>> {
+		const runtimeImports = this.getRuntimeImports();
 		const options: Record<string, unknown> = {
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
@@ -89,7 +90,10 @@ export class ReactBundleService {
 		};
 
 		if (!bundleOptions.includeRuntime) {
-			options.external = getReactRuntimeExternalSpecifiers();
+			options.external = [
+				...getReactRuntimeExternalSpecifiers(),
+				...Object.values(runtimeImports).filter((specifier): specifier is string => Boolean(specifier)),
+			];
 		}
 
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
@@ -109,11 +113,7 @@ export class ReactBundleService {
 		});
 		const runtimePlugins = bundleOptions.includeRuntime
 			? []
-			: [
-					this.createRuntimeAliasPlugin(
-						buildReactRuntimeSpecifierMap(this.getRuntimeImports(), this.config.routerAdapter),
-					),
-				];
+			: [this.createRuntimeAliasPlugin(buildReactRuntimeAliasMap(runtimeImports))];
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
@@ -141,7 +141,7 @@ export class ReactBundleService {
 	 * Creates the esbuild plugin that rewrites bare React specifiers
 	 * to their runtime asset URLs.
 	 */
-	createRuntimeAliasPlugin(runtimeSpecifierMap: Record<string, string>) {
-		return createRuntimeSpecifierAliasPlugin(runtimeSpecifierMap, { name: 'react-runtime-import-alias' });
+	createRuntimeAliasPlugin(runtimeAliasMap: Record<string, string>) {
+		return createRuntimeSpecifierAliasPlugin(runtimeAliasMap, { name: 'react-runtime-import-alias' });
 	}
 }

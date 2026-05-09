@@ -326,6 +326,31 @@ describe('extractComponentUrl', () => {
 		fetchSpy.mockRestore();
 	});
 
+	it('should ignore unrelated Vite noModule fragments when resolving the page module marker', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/ecopages-react-123.js" type="module"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response(
+				'var attrs={module:noModule,nomodule:"noModule"};var u=import.meta.url;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:u,props:{}};',
+				{
+					status: 200,
+				},
+			),
+		);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe('http://localhost:63315/assets/ecopages-react-123.js');
+
+		fetchSpy.mockRestore();
+	});
+
 	it('should ignore island hydration assets when extracting a page module URL', async () => {
 		const html = `
 			<html>

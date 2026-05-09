@@ -29,7 +29,6 @@ describe('ReactRuntimeBundleService', () => {
 			rootDir: fixtureAppRoot,
 			routerAdapter: {
 				name: 'react-router',
-				importMapKey: 'react-router',
 				bundle: {
 					outputName: 'react-router-esm',
 					importPath: '/router.ts',

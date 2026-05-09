@@ -17,6 +17,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Moved foreign-boundary ownership validation out of boundary-plan construction so route root graphs are validated before dependency and data preparation.
 - Moved page-package classification into the asset-processing module so render orchestration no longer carries a dedicated packaging service wrapper.
 - Split file-route page middleware onto its own context contract so page middleware no longer exposes handler-only `ctx.render()` helpers and the pipeline stops carrying fake render traps.
+- Narrowed route-renderer consumers onto explicit resolver contracts and moved filesystem custom 404 rendering back under the filesystem matcher.
 
 - Added the `@ecopages/core/dev/host-runtime` seam so host integrations such as the Vite plugin use one explicit development bridge instead of importing host-module-loader and invalidation internals directly.
 - Moved extension-facing merge and assertion helpers behind the integration and processor plugin entrypoints so MDX and image processing no longer depend on raw `utils/deep-merge` or `utils/invariant` package paths.

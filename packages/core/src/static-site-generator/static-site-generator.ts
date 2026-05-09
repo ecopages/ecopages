@@ -2,7 +2,12 @@ import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
-import type { ExplicitViewRenderer, PageRouteRenderer } from '../route-renderer/route-renderer.ts';
+import type {
+	ExplicitViewRenderer,
+	ExplicitViewRendererResolver,
+	PageRendererResolver,
+	StaticGenerationRendererResolver,
+} from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { PathUtils } from '../utils/path-utils.module.ts';
@@ -11,15 +16,11 @@ type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
 };
 
-type StaticPageRouteRendererFactory = {
-	getPageRenderer(filePath: string): PageRouteRenderer;
-};
+type StaticPageRouteRendererFactory = PageRendererResolver;
 
-type ExplicitStaticRouteRendererFactory = {
-	getExplicitViewRenderer(integrationName: string): ExplicitViewRenderer | null;
-};
+type ExplicitStaticRouteRendererFactory = ExplicitViewRendererResolver;
 
-type StaticGenerationRendererFactory = StaticPageRouteRendererFactory & ExplicitStaticRouteRendererFactory;
+type StaticGenerationRendererFactory = StaticGenerationRendererResolver;
 
 type ExplicitStaticRouteEntry = {
 	pathname: string;

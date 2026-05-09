@@ -11,7 +11,6 @@ import type { DevGraphService } from '../services/runtime-state/dev-graph.servic
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { SourceModuleLoader } from '../services/module-loading/module-loading-types.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { RuntimeSpecifierRegistry } from '../services/runtime-state/runtime-specifier-registry.service.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 
@@ -157,7 +156,6 @@ export type EcoPagesAppConfig = {
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		hostModuleLoader?: SourceModuleLoader;
 		rendererModuleContext?: unknown;
-		runtimeSpecifierRegistry?: RuntimeSpecifierRegistry;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 	};

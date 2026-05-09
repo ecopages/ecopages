@@ -95,11 +95,10 @@ describe('IntegrationPlugin', () => {
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
-	it('should register runtime specifier maps through the base HMR setup', () => {
-		const registerSpecifierMap = vi.fn();
+	it('should register HMR strategies through the base HMR setup', () => {
+		const registerStrategy = vi.fn();
 		const hmrManager = {
-			registerSpecifierMap,
-			registerStrategy: vi.fn(),
+			registerStrategy,
 			registerEntrypoint: vi.fn(),
 			registerScriptEntrypoint: vi.fn(),
 			setPlugins: vi.fn(),
@@ -108,26 +107,22 @@ describe('IntegrationPlugin', () => {
 			broadcast: vi.fn(),
 			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
-			getSpecifierMap: vi.fn(() => new Map()),
 			getDistDir: vi.fn(() => ''),
 			getPlugins: vi.fn(() => []),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),
 		} satisfies IHmrManager;
 
-		const pluginWithRuntimeSpecifiers = new (class extends TestIntegrationPlugin {
-			override getRuntimeSpecifierMap(): Record<string, string> {
-				return {
-					'test-runtime': '/assets/vendors/test-runtime.js',
-				};
+		const strategy = { matches: vi.fn(() => false), process: vi.fn(), priority: 10, type: 'integration' } as any;
+		const pluginWithStrategy = new (class extends TestIntegrationPlugin {
+			override getHmrStrategy() {
+				return strategy;
 			}
 		})(config);
 
-		pluginWithRuntimeSpecifiers.setHmrManager(hmrManager);
+		pluginWithStrategy.setHmrManager(hmrManager);
 
-		expect(registerSpecifierMap).toHaveBeenCalledWith({
-			'test-runtime': '/assets/vendors/test-runtime.js',
-		});
+		expect(registerStrategy).toHaveBeenCalledWith(strategy);
 	});
 
 	it('should stamp the plugin integration name onto initialized renderers', () => {

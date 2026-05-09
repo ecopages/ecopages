@@ -47,7 +47,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		this.compilerOptions = mdxConfig?.compilerOptions ?? {};
 	}
 
-	override async buildRouteRenderAssets(pagePath: string): Promise<ProcessedAsset[]> {
+	override async buildPageBrowserGraph(pagePath: string): Promise<{ assets: ProcessedAsset[] }> {
 		const { default: pageComponent } = await this.importPageFile(pagePath);
 		const config = pageComponent.config;
 		const components: Partial<EcoComponent>[] = [];
@@ -71,7 +71,9 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			});
 		}
 
-		return await this.resolveDependencies(components);
+		return {
+			assets: await this.resolveDependencies(components),
+		};
 	}
 
 	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(

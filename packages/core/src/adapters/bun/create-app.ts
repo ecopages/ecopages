@@ -10,6 +10,7 @@
 
 import type { Server } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
+import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { getBunRuntime } from '../../utils/runtime.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
@@ -46,6 +47,41 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 > {
 	serverAdapter: BunServerAdapterResult | undefined;
 	private server: Server<WebSocketData> | null = null;
+
+	private async startStaticPreviewServer(port: number, hostname: string): Promise<void> {
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		for (let attempt = 0; attempt < 20; attempt += 1) {
+			try {
+				const previewServer = StaticContentServer.createServer({
+					appConfig: this.appConfig,
+					options: { port },
+				});
+
+				if (previewServer.server?.port) {
+					appLogger.info(`Preview running at http://${hostname}:${previewServer.server.port}`);
+					return;
+				}
+
+				break;
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				const errorCode =
+					typeof error === 'object' && error !== null && 'code' in error
+						? String((error as { code?: unknown }).code)
+						: undefined;
+				const isPortReleaseRace = errorCode === 'EADDRINUSE' || errorMessage.includes('EADDRINUSE');
+
+				if (!isPortReleaseRace || attempt === 19) {
+					throw error;
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+		}
+
+		appLogger.error('Failed to start preview server');
+	}
 
 	public async fetch(request: Request): Promise<Response> {
 		if (!this.serverAdapter) {
@@ -137,13 +173,22 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
+		const configuredHostname = String(serverOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
+		const configuredPort = Number(serverOptions.port ?? DEFAULT_ECOPAGES_PORT);
+		const runtimeServerOptions =
+			(preview || build) && requiresFetchRuntime
+				? {
+						...serverOptions,
+						port: 0,
+					}
+				: serverOptions;
 
 		const bun = getBunRuntime();
 		if (!bun) {
 			throw new Error('Bun runtime is required for the Bun adapter');
 		}
 
-		const bunServer = bun.serve(serverOptions as Bun.Serve.Options<WebSocketData>);
+		const bunServer = bun.serve(runtimeServerOptions as Bun.Serve.Options<WebSocketData>);
 		this.server = bunServer as Server<WebSocketData>;
 
 		await this.serverAdapter.completeInitialization(this.server).catch((error: Error) => {
@@ -157,8 +202,15 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview });
+			await this.serverAdapter.buildStatic({ preview: false });
 			this.server.stop(true);
+
+			if (preview) {
+				const previewHostname = configuredHostname;
+				const previewPort = configuredPort;
+				await this.startStaticPreviewServer(previewPort, previewHostname);
+			}
+
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (build) {

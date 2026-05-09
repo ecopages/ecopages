@@ -14,6 +14,8 @@ All notable changes to `@ecopages/core` are documented here.
 ### Refactoring
 
 - Introduced a single `RouteRenderFlow` owner for route render preparation and execution, removing the separate execution service seam while keeping boundary planning shared.
+- Renamed renderer-owned page browser asset preparation onto an explicit `buildPageBrowserGraph()` seam so route orchestration no longer treats emitted browser dependencies as a flat route-asset append.
+- Removed the generic HMR runtime-specifier registry and plugin registration seam so core no longer carries import-map-era runtime state that integrations no longer use.
 - Moved foreign-boundary ownership validation out of boundary-plan construction so route root graphs are validated before dependency and data preparation.
 - Moved page-package classification into the asset-processing module so render orchestration no longer carries a dedicated packaging service wrapper.
 - Split file-route page middleware onto its own context contract so page middleware no longer exposes handler-only `ctx.render()` helpers and the pipeline stops carrying fake render traps.
@@ -40,6 +42,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed Bun preview builds to start the static preview server only after static generation releases the live build server port, preventing preview mode from double-binding the configured port.
 - Fixed router-owned HMR current-page reloads to clear persisted layout caches so active shared layouts pick up updated implementations during development.
 - Fixed router-owned HMR layout refreshes to reuse the active HMR page entry instead of stale static bootstrap assets during persisted-layout reloads.
 - Fixed fetch-mode static generation to normalize absolute routes onto the active build runtime origin, restoring preview prerendering for routes discovered from absolute router entries.

@@ -26,11 +26,6 @@ export interface JsHmrContext {
 	 */
 	getWatchedFiles(): Map<string, string>;
 
-	/**
-	 * Map of bare specifiers to vendor URLs for import resolution.
-	 */
-	getSpecifierMap(): Map<string, string>;
-
 	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 
 	/**
@@ -101,7 +96,6 @@ export interface JsHmrContext {
  * ```typescript
  * const context = {
  *   getWatchedFiles: () => watchedFilesMap,
- *   getSpecifierMap: () => specifierMap,
  *   getDistDir: () => '/path/to/dist/_hmr',
  *   getPlugins: () => [],
  *   getSrcDir: () => '/path/to/src'

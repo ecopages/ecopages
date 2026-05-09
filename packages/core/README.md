@@ -31,14 +31,14 @@ flowchart TD
 	B --> D[App build manifest]
 	B --> E[Build executor]
 	B --> F[Dev graph service]
-	B --> G[Runtime specifier registry]
-	B --> H[Host module loader boundary]
-	H --> I[PageModuleImportService]
+	B --> G[Host module loader boundary]
+	G --> H[PageModuleImportService]
+	E --> H
 	E --> I
-	E --> J[BrowserBundleService]
-	I --> K[Runtime app adapter]
-	K --> L[Bun adapter or Node adapter]
-	D --> J
+	E --> I[BrowserBundleService]
+	H --> J[Runtime app adapter]
+	J --> K[Bun adapter or Node adapter]
+	D --> I
 ```
 
 ### Development Invalidation And HMR Flow

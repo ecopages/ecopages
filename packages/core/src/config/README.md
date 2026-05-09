@@ -12,7 +12,7 @@ It is responsible for:
 
 - validating integration, processor, and loader registration
 - resolving semantic paths such as `html` and `404` templates
-- selecting explicit build ownership and creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, runtime specifier registry, and remaining compatibility-only runtime state
+- selecting explicit build ownership and creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, and remaining compatibility-only runtime state
 - enforcing runtime capability requirements before startup
 - carrying host-injected runtime dependencies only through abstract slots such as host module loaders, never through bundler-specific core defaults
 

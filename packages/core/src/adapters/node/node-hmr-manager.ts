@@ -19,7 +19,6 @@ import {
 	setAppEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { getAppRuntimeSpecifierRegistry } from '../../services/runtime-state/runtime-specifier-registry.service.ts';
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
@@ -59,7 +58,6 @@ export class NodeHmrManager implements IHmrManager {
 	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
 	private readonly browserBundleService: BrowserBundleService;
 	private readonly entrypointDependencyGraph: EntrypointDependencyGraph;
-	private readonly runtimeSpecifierRegistry: ReturnType<typeof getAppRuntimeSpecifierRegistry>;
 	private readonly serverModuleTranspiler: ServerModuleTranspiler;
 
 	constructor({ appConfig, bridge }: NodeHmrManagerParams) {
@@ -81,7 +79,6 @@ export class NodeHmrManager implements IHmrManager {
 				? existingEntrypointDependencyGraph
 				: new InMemoryEntrypointDependencyGraph();
 		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
-		this.runtimeSpecifierRegistry = getAppRuntimeSpecifierRegistry(this.appConfig);
 		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
 		this.cleanDistDir();
 		this.initializeStrategies();
@@ -123,7 +120,6 @@ export class NodeHmrManager implements IHmrManager {
 	private initializeStrategies(): void {
 		const jsContext = {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
@@ -152,19 +148,6 @@ export class NodeHmrManager implements IHmrManager {
 
 	public isEnabled(): boolean {
 		return this.enabled;
-	}
-
-	/**
-	 * Registers runtime bare-specifier mappings exposed by integrations.
-	 *
-	 * @remarks
-	 * These mappings are consumed by framework-owned HMR strategies such as the
-	 * React integration strategy when they rewrite browser bundles. The registry
-	 * stays generic so the same mappings can support broader import-map-style
-	 * runtime features later without moving integration semantics into core.
-	 */
-	public registerSpecifierMap(map: Record<string, string>): void {
-		this.runtimeSpecifierRegistry.register(map);
 	}
 
 	public async buildRuntime(): Promise<void> {
@@ -239,10 +222,6 @@ export class NodeHmrManager implements IHmrManager {
 		return this.watchedFiles;
 	}
 
-	public getSpecifierMap(): Map<string, string> {
-		return this.runtimeSpecifierRegistry.getAll();
-	}
-
 	public getDistDir(): string {
 		return this.distDir;
 	}
@@ -254,7 +233,6 @@ export class NodeHmrManager implements IHmrManager {
 	public getDefaultContext(): DefaultHmrContext {
 		return {
 			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.runtimeSpecifierRegistry.getAll(),
 			getDistDir: () => this.distDir,
 			getPlugins: () => this.plugins,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
@@ -361,8 +339,8 @@ export class NodeHmrManager implements IHmrManager {
 	 * @remarks
 	 * The manager intentionally does not remove emitted `_hmr` files from disk
 	 * because multiple app processes may share the same dist directory during test
-	 * runs. It does clear in-memory indexes so old entrypoints, dependencies, and
-	 * specifier maps cannot leak across a reused manager instance.
+	 * runs. It does clear in-memory indexes so old entrypoints and dependencies
+	 * cannot leak across a reused manager instance.
 	 */
 	public stop() {
 		this.entrypointRegistrations.clear();
@@ -371,7 +349,6 @@ export class NodeHmrManager implements IHmrManager {
 		}
 		this.watchers.clear();
 		this.watchedFiles.clear();
-		this.runtimeSpecifierRegistry.clear();
 		this.entrypointDependencyGraph.reset();
 		this.plugins = [];
 	}

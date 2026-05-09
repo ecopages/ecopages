@@ -11,6 +11,7 @@ import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.ts';
 import { installSharedRuntimeBuildExecutor } from '../shared/runtime-bootstrap.ts';
+import { StaticContentServer } from '../../dev/sc-server.ts';
 
 import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
 import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder.ts';
@@ -352,11 +353,36 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			});
 		}
 
-		await this.staticBuilder.build(options, {
-			router: this.router,
-			routeRendererFactory: this.routeRendererFactory,
-			staticRoutes: this.staticRoutes,
+		const buildRuntimeOrigin = this.serverInstance
+			? `http://${this.serverInstance.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serverInstance.port || DEFAULT_ECOPAGES_PORT}`
+			: undefined;
+
+		await this.staticBuilder.build(
+			{ ...options, preview: false, baseUrl: buildRuntimeOrigin },
+			{
+				router: this.router,
+				routeRendererFactory: this.routeRendererFactory,
+				staticRoutes: this.staticRoutes,
+			},
+		);
+
+		if (!options?.preview) {
+			return;
+		}
+
+		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
+		const previewPort = Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT);
+		const previewServer = StaticContentServer.createServer({
+			appConfig: this.appConfig,
+			options: { port: previewPort },
 		});
+
+		if (previewServer.server?.port) {
+			appLogger.info(`Preview running at http://${previewHostname}:${previewServer.server.port}`);
+			return;
+		}
+
+		appLogger.error('Failed to start preview server');
 	}
 
 	/**

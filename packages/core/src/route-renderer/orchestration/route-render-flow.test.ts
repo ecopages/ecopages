@@ -54,7 +54,7 @@ describe('RouteRenderFlow', () => {
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
-				buildRouteRenderAssets: async () => [],
+				buildPageBrowserGraph: async () => undefined,
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: '<main>Page</main>',
@@ -98,7 +98,7 @@ describe('RouteRenderFlow', () => {
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
-				buildRouteRenderAssets: async () => [],
+				buildPageBrowserGraph: async () => undefined,
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: '<main>Page</main>',
@@ -139,7 +139,7 @@ describe('RouteRenderFlow', () => {
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
-					buildRouteRenderAssets: async () => [],
+					buildPageBrowserGraph: async () => undefined,
 					shouldRenderPageComponent: () => true,
 					renderPageComponent: async () => ({
 						html: '<main>Page</main>',
@@ -175,7 +175,7 @@ describe('RouteRenderFlow', () => {
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
-					buildRouteRenderAssets: async () => [],
+					buildPageBrowserGraph: async () => undefined,
 					shouldRenderPageComponent: () => true,
 					renderPageComponent: async () => ({
 						html: '<main>Page</main>',

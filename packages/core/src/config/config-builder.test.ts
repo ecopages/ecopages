@@ -67,7 +67,6 @@ describe('EcoConfigBuilder', () => {
 		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();
 		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
-		expect(config.runtime?.runtimeSpecifierRegistry).toBeDefined();
 	});
 
 	test('should allow explicit Vite-host build ownership during config build', async () => {

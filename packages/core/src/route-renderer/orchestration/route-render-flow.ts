@@ -12,6 +12,7 @@ import type {
 	GetStaticProps,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageBrowserGraphResult,
 	PageMetadataProps,
 	PageProps,
 	ResolvedLazyTrigger,
@@ -94,9 +95,9 @@ export interface RouteRenderFlowCallbacks<C> {
 	 */
 	resolveDependencies(components: (EcoComponent | Partial<EcoComponent>)[]): Promise<ProcessedAsset[]>;
 	/**
-	 * Builds route-owned assets such as the page browser entry for the current file.
+	 * Builds the Page Browser Graph for the current file.
 	 */
-	buildRouteRenderAssets(file: string): Promise<ProcessedAsset[]> | undefined;
+	buildPageBrowserGraph(file: string): Promise<PageBrowserGraphResult | undefined>;
 	/**
 	 * Controls whether the page root should be rendered through the component contract during preparation.
 	 */
@@ -229,8 +230,12 @@ export class RouteRenderFlow {
 			componentsToResolve,
 			currentIntegrationName,
 		);
-		const pageDeps = (await callbacks.buildRouteRenderAssets(routeOptions.file)) || [];
-		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies, ...pageDeps];
+		const pageBrowserGraph = await callbacks.buildPageBrowserGraph(routeOptions.file);
+		const allDependencies = [
+			...resolvedDependencies,
+			...usedIntegrationDependencies,
+			...(pageBrowserGraph?.assets ?? []),
+		];
 
 		let componentRender: ComponentRenderResult | undefined;
 		if (callbacks.shouldRenderPageComponent({ Page, Layout, options: routeOptions })) {

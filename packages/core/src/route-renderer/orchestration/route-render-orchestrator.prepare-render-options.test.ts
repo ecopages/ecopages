@@ -17,7 +17,7 @@ import type {
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
-import { type RouteRenderFlowAdapter, RouteRenderFlow } from './route-render-flow.ts';
+import { type RouteRenderOrchestratorAdapter, RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 
 declare module '../../types/public-types.ts' {
 	interface RequestLocals {
@@ -54,7 +54,7 @@ function createFlowAdapter<C>(input: {
 		props: Record<string, unknown>;
 		routeOptions: RouteRendererOptions;
 	}) => Promise<any>;
-}): RouteRenderFlowAdapter<C> {
+}): RouteRenderOrchestratorAdapter<C> {
 	return {
 		name: 'ghtml',
 		resolveRouteRenderInputs: async (routeOptions) => {
@@ -95,15 +95,12 @@ function createFlowAdapter<C>(input: {
 			return await input.renderPageComponent(renderInput);
 		},
 		renderRouteBody: async () => '',
-		getRouteHtmlFinalization: () => ({
-			hasStructuralChanges: false,
-			finalizeHtml: (html) => html,
-		}),
+		getRouteHtmlFinalization: () => ({}),
 		transformRouteResponse: async (response) => await response.text(),
 	};
 }
 
-describe('RouteRenderFlow prepareRenderOptions', () => {
+describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	it('should prepare dynamic render options and merge renderer-owned assets', async () => {
 		const integrationDependency = {
 			kind: 'script',
@@ -138,7 +135,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				},
 			],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
@@ -203,7 +200,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const DeferredChild = eco.component<{}, string>({
 			integration: 'react',
@@ -264,7 +261,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.config = {
@@ -317,7 +314,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		const renderPageComponent = vi.fn();
@@ -377,7 +374,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
@@ -450,7 +447,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
@@ -511,7 +508,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 				},
 			],
 		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService);
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
@@ -608,7 +605,7 @@ describe('RouteRenderFlow prepareRenderOptions', () => {
 		const injectedOwnershipValidationService = {
 			validate: vi.fn(() => []),
 		} as unknown as OwnershipValidationService;
-		const flow = new RouteRenderFlow(appConfig, assetProcessingService, {
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipPlanningService: injectedOwnershipPlanningService,
 			ownershipValidationService: injectedOwnershipValidationService,
 		});

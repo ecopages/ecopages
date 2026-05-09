@@ -31,7 +31,7 @@ import { OwnershipValidationService } from './ownership-validation.service.ts';
 import { OwnershipPlanningService } from './ownership-planning.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
-export type RouteRenderFlowResolvedInputs = {
+export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps>;
 	Layout?: EcoComponent;
@@ -40,14 +40,19 @@ export type RouteRenderFlowResolvedInputs = {
 	integrationSpecificProps: Record<string, unknown>;
 };
 
-export type RouteRenderFlowResolvedAssets = {
+export type RouteRenderOrchestratorResolvedAssets = {
 	resolvedDependencies: ProcessedAsset[];
 	pageBrowserGraph?: PageBrowserGraphResult;
 };
 
+/**
+ * Structural HTML work applied after the route body has been fully resolved.
+ *
+ * The shared route flow only needs to know whether a post-render HTML step
+ * exists. When `finalizeHtml` is absent, the captured body can be reused as-is.
+ */
 export type RouteHtmlFinalization = {
-	hasStructuralChanges: boolean;
-	finalizeHtml(html: string): string;
+	finalizeHtml?(html: string): string;
 };
 
 function createPageLocalsProxy(filePath: string): Record<string, never> {
@@ -81,7 +86,7 @@ function createPageLocalsProxy(filePath: string): Record<string, never> {
 	);
 }
 
-export interface RouteRenderFlowAdapter<C> {
+export interface RouteRenderOrchestratorAdapter<C> {
 	/**
 	 * Name of the owning Integration for the current route render.
 	 */
@@ -89,14 +94,14 @@ export interface RouteRenderFlowAdapter<C> {
 	/**
 	 * Loads the Integration-owned route inputs needed for one Page render.
 	 */
-	resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderFlowResolvedInputs>;
+	resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderOrchestratorResolvedInputs>;
 	/**
 	 * Resolves route-owned assets needed before Integration rendering starts.
 	 */
 	resolveRouteAssets(input: {
 		routeOptions: RouteRendererOptions;
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<RouteRenderFlowResolvedAssets>;
+	}): Promise<RouteRenderOrchestratorResolvedAssets>;
 	/**
 	 * Resolves the optional page-root render through the foreign-child-aware component contract.
 	 */
@@ -129,18 +134,9 @@ export interface CapturedHtmlRenderResult {
 }
 
 /**
- * Final HTML stamping inputs applied after route rendering completes.
+ * Optional app-scoped collaborators used by the route render orchestrator.
  */
-export interface FinalizeHtmlRenderOptions {
-	html: string;
-	componentRootAttributes?: Record<string, string>;
-	documentAttributes?: Record<string, string>;
-}
-
-/**
- * Optional app-scoped collaborators used by the route render flow.
- */
-export interface RouteRenderFlowDependencies {
+export interface RouteRenderOrchestratorDependencies {
 	ownershipPlanningService?: OwnershipPlanningService;
 	ownershipValidationService?: OwnershipValidationService;
 }
@@ -148,12 +144,12 @@ export interface RouteRenderFlowDependencies {
 /**
  * Owns one route render from normalized module loading through final HTML output.
  *
- * This flow keeps route rendering as one app-scoped orchestration unit while
- * still delegating integration-specific behavior through callbacks. It owns
+ * This orchestrator keeps route rendering as one app-scoped unit while still
+ * delegating integration-specific behavior through the adapter seam. It owns
  * route-root validation, dependency aggregation, page package creation, and the
  * final HTML/body handling that happens after the integration render returns.
  */
-export class RouteRenderFlow {
+export class RouteRenderOrchestrator {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
 	private readonly ownershipPlanningService: OwnershipPlanningService;
@@ -162,7 +158,7 @@ export class RouteRenderFlow {
 	constructor(
 		appConfig: EcoPagesAppConfig,
 		assetProcessingService: AssetProcessingService,
-		dependencies: RouteRenderFlowDependencies = {},
+		dependencies: RouteRenderOrchestratorDependencies = {},
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
@@ -180,7 +176,7 @@ export class RouteRenderFlow {
 	 */
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
-		adapter: RouteRenderFlowAdapter<C>,
+		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
 		const { Page, HtmlTemplate, Layout, props, metadata, integrationSpecificProps } = resolvedInputs;
@@ -213,12 +209,11 @@ export class RouteRenderFlow {
 			...(pageBrowserGraph?.assets ?? []),
 		];
 
-		const componentRender = await this.renderPageRoot({
+		const componentRender = await adapter.resolveRoutePageComponentRender({
 			Page: Page as EcoComponent,
 			Layout,
 			props,
 			routeOptions,
-			adapter,
 		});
 
 		if (componentRender?.assets?.length) {
@@ -296,7 +291,7 @@ export class RouteRenderFlow {
 	 */
 	async execute<C = unknown>(
 		options: RouteRendererOptions,
-		adapter: RouteRenderFlowAdapter<C>,
+		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<RouteRenderResult> {
 		const renderOptions = await this.prepareRenderOptions(options, adapter);
 		return this.executePrepared(renderOptions, adapter);
@@ -307,7 +302,7 @@ export class RouteRenderFlow {
 	 */
 	async executePrepared<C = unknown>(
 		renderOptions: IntegrationRendererRenderOptions<C>,
-		adapter: RouteRenderFlowAdapter<C>,
+		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<RouteRenderResult> {
 		const renderExecution = await this.captureHtmlRender(async () => adapter.renderRouteBody(renderOptions));
 		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
@@ -320,7 +315,7 @@ export class RouteRenderFlow {
 			);
 		}
 
-		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && !htmlFinalization.hasStructuralChanges;
+		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && htmlFinalization.finalizeHtml === undefined;
 
 		if (canReuseCapturedBody) {
 			const body = await adapter.transformRouteResponse(
@@ -337,10 +332,9 @@ export class RouteRenderFlow {
 			};
 		}
 
-		const finalization = await this.finalizeHtmlRender(
-			unresolvedArtifactInspection.normalizedHtml,
-			htmlFinalization,
-		);
+		const finalization = htmlFinalization.finalizeHtml
+			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
+			: unresolvedArtifactInspection.normalizedHtml;
 
 		const body = await adapter.transformRouteResponse(
 			new Response(finalization, {
@@ -354,13 +348,6 @@ export class RouteRenderFlow {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
 		};
-	}
-
-	/**
-	 * Applies final root and document attributes after the route HTML is fully resolved.
-	 */
-	async finalizeHtmlRender(html: string, htmlFinalization: RouteHtmlFinalization): Promise<string> {
-		return this.applyFinalHtmlAttributes(html, htmlFinalization);
 	}
 
 	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {
@@ -386,10 +373,6 @@ export class RouteRenderFlow {
 			body: replayBody,
 			html: await new Response(capturedBody).text(),
 		};
-	}
-
-	private applyFinalHtmlAttributes(html: string, htmlFinalization: RouteHtmlFinalization): string {
-		return htmlFinalization.finalizeHtml(html);
 	}
 
 	private collectResolvedTriggers(
@@ -476,21 +459,6 @@ export class RouteRenderFlow {
 		}
 
 		return integrationNames;
-	}
-
-	private async renderPageRoot(input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-		adapter: RouteRenderFlowAdapter<unknown>;
-	}): Promise<ComponentRenderResult | undefined> {
-		return await input.adapter.resolveRoutePageComponentRender({
-			Page: input.Page,
-			Layout: input.Layout,
-			props: input.props,
-			routeOptions: input.routeOptions,
-		});
 	}
 
 	private async buildGlobalInjectorAssets(

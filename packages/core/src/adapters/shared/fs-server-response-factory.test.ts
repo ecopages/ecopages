@@ -23,7 +23,6 @@ describe('FileSystemServerResponseFactory', () => {
 		}
 
 		responseFactory = new FileSystemServerResponseFactory({
-			appConfig,
 			options: {
 				watchMode: false,
 			},
@@ -50,7 +49,6 @@ describe('FileSystemServerResponseFactory', () => {
 	describe('shouldEnableGzip', () => {
 		it('should return false in watch mode', () => {
 			const responseFactoryWatch = new FileSystemServerResponseFactory({
-				appConfig,
 				options: {
 					watchMode: true,
 				},

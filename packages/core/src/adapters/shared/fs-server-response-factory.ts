@@ -1,6 +1,6 @@
 import { STATUS_MESSAGE } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig, FileSystemServerOptions } from '../../types/internal-types.ts';
+import type { FileSystemServerOptions } from '../../types/internal-types.ts';
 import type { RouteRendererBody } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -8,11 +8,9 @@ import { fileSystem } from '@ecopages/file-system';
  * Builds HTTP responses for static files and shared file-system fallbacks.
  */
 export class FileSystemServerResponseFactory {
-	private appConfig: EcoPagesAppConfig;
 	private options: FileSystemServerOptions;
 
-	constructor({ appConfig, options }: { appConfig: EcoPagesAppConfig; options: FileSystemServerOptions }) {
-		this.appConfig = appConfig;
+	constructor({ options }: { options: FileSystemServerOptions }) {
 		this.options = options;
 	}
 

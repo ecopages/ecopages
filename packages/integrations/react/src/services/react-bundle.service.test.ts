@@ -27,12 +27,7 @@ describe('ReactBundleService', () => {
 		expect(pluginNames).not.toContain('react-renderer-eco-core-browser-shim');
 		expect(pluginNames).toContain('ecopages-client-graph-boundary');
 		expect(options.external).toEqual(
-			expect.arrayContaining([
-				...Object.values(runtimeImports),
-				'react',
-				'react-dom',
-				'react-dom/client',
-			]),
+			expect.arrayContaining([...Object.values(runtimeImports), 'react', 'react-dom', 'react-dom/client']),
 		);
 	});
 

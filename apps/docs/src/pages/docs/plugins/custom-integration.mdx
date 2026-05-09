@@ -126,7 +126,7 @@ class CustomIntegration extends IntegrationPlugin {
 			extensions: ['.custom'],
 			integrationDependencies: [
 				AssetFactory.createFileScript({
-					importPath: './runtime.js',
+					filepath: './runtime.js',
 					position: 'head',
 				}),
 				AssetFactory.createFileStylesheet({
@@ -153,19 +153,13 @@ override async setup(): Promise<void> {
 
 Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugins` are intentionally excluded from server bundles and static page-module generation.
 
-## Cross-Integration Boundaries
+## Cross-Integration Ownership
 
-Override `shouldDeferComponentBoundary()` when a renderer must own its subtree even when another integration encounters it first.
+Cross-integration ownership belongs in the renderer. When a renderer must keep control of its subtree even after another integration encounters it, implement renderer-owned foreign-child handling in the `IntegrationRenderer` subclass.
 
-```typescript
-import type { ComponentBoundaryPolicyInput } from '@ecopages/core/plugins/integration-plugin';
+Use `createForeignChildRuntime()` for custom interception logic, or delegate to `createQueuedForeignSubtreeResolutionRuntime()` when the renderer should queue foreign subtrees and resolve them after the local shell render completes.
 
-override shouldDeferComponentBoundary(input: ComponentBoundaryPolicyInput): boolean {
-	return input.targetIntegration === this.name && input.currentIntegration !== this.name;
-}
-```
-
-This is the current pattern for integrations such as Lit, where the target renderer needs to re-enter later during marker-graph resolution to produce the correct SSR output.
+Integrations such as Lit use this pattern because the owning renderer needs to re-enter during foreign-subtree resolution to produce the correct SSR output.
 
 ## Hot Module Replacement (HMR)
 
@@ -217,8 +211,21 @@ class CustomHmrStrategy extends HmrStrategy {
 Override `getHmrStrategy()` to return your custom strategy:
 
 ```typescript
+import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
+
 class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
+
+	override get browserBuildPlugins() {
+		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
+			{
+				'custom-pkg': '/assets/vendors/custom-pkg-esm.js',
+			},
+			{ name: 'custom-runtime-alias' },
+		);
+
+		return runtimeAliasPlugin ? [runtimeAliasPlugin] : [];
+	}
 
 	override getHmrStrategy() {
 		if (!this.hmrManager) {
@@ -227,17 +234,10 @@ class CustomIntegration extends IntegrationPlugin {
 
 		return new CustomHmrStrategy(this.hmrManager.getDefaultContext());
 	}
-
-	// You can also declare browser runtime bare-specifier mappings.
-	override getRuntimeSpecifierMap() {
-		return {
-			'custom-pkg': '/assets/vendors/custom-pkg-esm.js',
-		};
-	}
 }
 ```
 
-If `getRuntimeSpecifierMap()` is overridden, Ecopages registers those mappings automatically when the integration is attached to the active HMR manager. Today they are used by the development runtime and browser bundle aliasing path, but the registry is intentionally generic enough to support broader import-map-style behavior later. Override `setHmrManager()` only when behavior beyond the shared registration and strategy setup path is required.
+Use `browserBuildPlugins` when the integration needs browser-only transforms or stable bare-specifier aliases in browser bundles. Override `setHmrManager()` only when behavior beyond the shared strategy registration path is required.
 
 ## Setup and Teardown
 
@@ -289,9 +289,9 @@ const config = await new ConfigBuilder()
 1. Keep the constructor declarative. Build-facing work goes in `prepareBuildContributions()`. Runtime side effects go in `setup()`.
 2. Keep the renderer focused on framework semantics. Core already owns route orchestration, dependency assembly, and marker-graph resolution.
 3. Declare the smallest valid `runtimeCapability`. Overstating requirements makes the integration unusable on compatible runtimes.
-4. Use `browserBuildPlugins` for browser-only transforms and `getRuntimeSpecifierMap()` for stable bare imports used by browser bundles.
+4. Use `browserBuildPlugins` for browser-only transforms and runtime specifier aliasing in browser bundles.
 5. Fall back to full reload when a hot update is not safe. Correctness matters more than partial HMR.
-6. Document any required boundary deferral rules. Cross-integration rendering is the first place future readers will get lost.
+6. Document any required foreign-child ownership rules. Cross-integration rendering is the first place future readers will get lost.
 
 ## Example: Complete Integration
 

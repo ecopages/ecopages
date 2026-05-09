@@ -5,8 +5,10 @@ Integration plugin for [KitaJS](https://kitajs.org/html/) HTML in Ecopages. Use 
 ## Installation
 
 ```bash
-bun add @ecopages/kitajs
+bun add @ecopages/kitajs @kitajs/html @kitajs/ts-html-plugin
 ```
+
+`@kitajs/html` and `@kitajs/ts-html-plugin` are required peer dependencies for this package.
 
 ## Usage
 
@@ -28,11 +30,11 @@ export default config;
 
 - `.kita.tsx` route files.
 - Page, layout, and document shells rendered by `@kitajs/html`.
-- HTML-first outer shells that host nested component boundaries from other integrations.
+- HTML-first outer shells that host nested foreign subtrees from other integrations.
 
 ## Mixed Rendering
 
-Kita works well as the outer renderer in mixed apps. When a Kita-owned page encounters a nested boundary from another integration, Ecopages resolves that boundary with its owning renderer and inserts the resulting HTML back into the Kita shell.
+Kita works well as the outer renderer in mixed apps. When a Kita-owned page encounters a nested foreign child from another integration, Ecopages resolves that foreign subtree with its owning renderer and inserts the resulting HTML back into the Kita shell.
 
 Important:
 

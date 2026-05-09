@@ -5,10 +5,10 @@ Integration plugin for [@ecopages/jsx](https://www.npmjs.com/package/@ecopages/j
 ## Installation
 
 ```bash
-bun add @ecopages/ecopages-jsx @ecopages/radiant
+bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
 ```
 
-`@ecopages/radiant` is a required peer dependency for this package.
+`@ecopages/jsx` and `@ecopages/radiant` are required peer dependencies for this package.
 
 ## Usage
 
@@ -86,7 +86,7 @@ export default config;
 
 ## Mixed Rendering
 
-Ecopages JSX can own the outer page shell or just the nested boundary. When another integration reaches a JSX-owned boundary, Ecopages hands that boundary back to the JSX renderer so it can serialize the correct output before the outer renderer resumes.
+Ecopages JSX can own the outer page shell or just a nested foreign subtree. When another integration reaches a JSX-owned foreign child, Ecopages hands that foreign subtree back to the JSX renderer so it can serialize the correct output before the outer renderer resumes.
 
 Important:
 

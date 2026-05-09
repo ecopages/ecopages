@@ -33,7 +33,7 @@ This is where app-owned build/runtime state becomes stable.
 
 Build-facing contributions are collected before the app starts handling requests.
 
-The current ordering is stable:
+The ordering is:
 
 1. processors run `prepareBuildContributions()` first
 2. processor `plugins` are collected into runtime plugin contributions
@@ -47,12 +47,12 @@ This ordering is core-owned because processors often provide generic asset capab
 
 Runtime-only setup happens after the build manifest has already been sealed.
 
-The current ordering is:
+The ordering is:
 
 1. processors run `setup()` first
 2. processor runtime plugins are exposed to the active runtime startup path
 3. integrations receive app config, runtime origin, and HMR manager context
-4. integrations register runtime specifier maps and HMR strategies through the shared integration setup path
+4. integrations register HMR strategies through the shared integration setup path
 5. integrations run `setup()`
 
 At this point Ecopages has enough live runtime context to resolve integration dependencies, initialize renderers, and register development behavior.
@@ -86,5 +86,5 @@ This keeps generic invalidation policy out of individual integrations.
 Use this rule when deciding where new behavior belongs:
 
 1. put it in core when it affects orchestration, lifecycle ordering, server loading, browser bundling coordination, or invalidation policy
-2. put it in an integration when it affects rendering semantics, hydration behavior, framework-specific HMR, or cross-integration boundary behavior
+2. put it in an integration when it affects rendering semantics, hydration behavior, framework-specific HMR, or cross-integration ownership behavior
 3. put it in a processor when it affects asset transformation, emitted assets, asset-specific caching, or watch behavior for owned files

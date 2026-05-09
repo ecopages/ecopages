@@ -5,8 +5,10 @@ Integration plugin for [Lit](https://lit.dev/) in Ecopages. Use it when Lit shou
 ## Installation
 
 ```bash
-bun add @ecopages/lit
+bun add @ecopages/lit lit @lit-labs/ssr @lit-labs/ssr-client
 ```
+
+`lit`, `@lit-labs/ssr`, and `@lit-labs/ssr-client` are required peer dependencies for this package.
 
 ## Usage
 
@@ -49,7 +51,7 @@ This setup lets Kita own the page shell while Lit owns the nested Lit component 
 
 ## Mixed Rendering
 
-When a non-Lit render pass enters a Lit-owned component boundary, Ecopages hands that boundary to the Lit renderer. That keeps Lit SSR in charge of custom elements, declarative shadow DOM, and Lit-managed child content.
+When a non-Lit render pass reaches a Lit-owned foreign child, Ecopages hands that foreign subtree to the Lit renderer. That keeps Lit SSR in charge of custom elements, declarative shadow DOM, and Lit-managed child content.
 
 Important:
 

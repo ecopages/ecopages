@@ -5,7 +5,8 @@ First-class integration for [React 19](https://react.dev/) in Ecopages. This plu
 ## Installation
 
 ```bash
-bun add @ecopages/react
+bun add @ecopages/react react react-dom
+bun add -d @types/react @types/react-dom
 ```
 
 ## Usage
@@ -26,15 +27,15 @@ export default config;
 
 ## Component-Level Islands
 
-By default, Ecopages React acts in island mode:
+For component-level islands, Ecopages React uses this contract:
 
 - SSR output preserves the authored DOM structure (no unnecessary wrapper elements).
 - A stable `data-eco-component-id` attribute is attached to the component SSR root.
-- The client bootstrap mounts the component via `createRoot()` strictly within that root boundary.
+- The island runtime replaces the SSR host with a dedicated client-owned container and mounts it with `createRoot()`. Full-page hydration paths use `hydrateRoot()`.
 
 > [!TIP]
 > **Full React SPA Routing:**
-> If you are building full React pages and want client-side navigation (SPA), use [@ecopages/react-router](../react-router/README.md) and pass it to the react plugin: `reactPlugin({ router: ecoRouter() })`.
+> If you are building full React pages and want client-side navigation (SPA), use [@ecopages/react-router](../../react-router/README.md) and pass it to the react plugin: `reactPlugin({ router: ecoRouter() })`.
 
 ## MDX Support
 
@@ -65,15 +66,15 @@ export default config;
 The React integration can participate in mixed-renderer apps in three ways:
 
 - React can own the page or view directly.
-- React can render nested component boundaries inside pages owned by another integration.
+- React can render nested foreign subtrees inside pages owned by another integration.
 - React can render through non-React page, layout, or document shells when those shell components return strings.
 
-When a non-React render pass enters a React-owned boundary, Ecopages hands that boundary back to the React renderer. When React renders through a non-React shell, that shell must serialize to HTML so React can insert the result into the final response without escaping it.
+When a non-React render pass reaches a React-owned foreign child, Ecopages hands that foreign subtree back to the React renderer. When React renders through a non-React shell, that shell must serialize to HTML so React can insert the result into the final response without escaping it.
 
 Important:
 
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
-- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not infer every foreign boundary from rendered HTML alone.
+- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not infer every foreign subtree from rendered HTML alone.
 - React still keeps its own child transport and hydration rules for React-owned subtrees.
 
 ## Server and Client Graph Contract
@@ -115,7 +116,7 @@ The client bundle keeps:
 - The page component render path.
 - Client-safe component dependencies reachable from render.
 - Layout wiring needed for hydration.
-- Router runtime state needed by [@ecopages/react-router](../react-router/README.md) when SPA mode is enabled.
+- Router runtime state needed by [@ecopages/react-router](../../react-router/README.md) when SPA mode is enabled.
 
 The client bundle removes or excludes:
 
@@ -130,7 +131,7 @@ Important:
 
 ### AST Pipeline Order
 
-The browser-bound transform in [packages/integrations/react/src/utils/client-graph-boundary-plugin.ts](packages/integrations/react/src/utils/client-graph-boundary-plugin.ts) follows this order:
+The browser-bound transform in [src/utils/client-graph-boundary-plugin.ts](src/utils/client-graph-boundary-plugin.ts) follows this order:
 
 1. Parse the module and build a reachability view of the client render graph.
 2. Remove imports that are not allowed or not reachable from the client graph.
@@ -165,7 +166,7 @@ The fix is to strip server-only `eco.page(...)` options after import pruning, wh
 
 The browser must not receive arbitrary request-scoped data.
 
-The React renderer in [packages/integrations/react/src/react-renderer.ts](packages/integrations/react/src/react-renderer.ts) serializes only the top-level `locals` keys explicitly declared by `Page.requires`. If a page does not declare `requires`, no `locals` are serialized for hydration.
+The React renderer in [src/react-renderer.ts](src/react-renderer.ts) serializes only the top-level `locals` keys explicitly declared by `Page.requires`. If a page does not declare `requires`, no `locals` are serialized for hydration.
 
 Example:
 
@@ -190,8 +191,8 @@ Hydration must rebuild the same tree the server rendered.
 
 That applies to both:
 
-- non-router hydration scripts in [packages/integrations/react/src/utils/hydration-scripts.ts](packages/integrations/react/src/utils/hydration-scripts.ts)
-- router-backed hydration in [packages/react-router/src/router.ts](packages/react-router/src/router.ts)
+- non-router hydration scripts in [src/utils/hydration-scripts.ts](src/utils/hydration-scripts.ts)
+- router-backed hydration in [../../react-router/src/router.ts](../../react-router/src/router.ts)
 
 If the page render receives `locals` on the server and the layout also depends on those values, the client must pass the same serialized `locals` into the layout during hydration. Otherwise React will detect a mismatch.
 
@@ -199,9 +200,9 @@ If the page render receives `locals` on the server and the layout also depends o
 
 The main regression coverage lives in:
 
-- [packages/integrations/react/src/utils/client-graph-boundary-plugin.test.ts](packages/integrations/react/src/utils/client-graph-boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
-- [packages/integrations/react/src/react-renderer.locals.test.ts](packages/integrations/react/src/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
-- [packages/integrations/react/src/utils/hydration-scripts.test.ts](packages/integrations/react/src/utils/hydration-scripts.test.ts): verifies non-router hydration passes serialized `locals` into layouts.
-- [packages/react-router/test/hmr-reload.test.browser.ts](packages/react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
+- [src/utils/client-graph-boundary-plugin.test.ts](src/utils/client-graph-boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
+- [src/react-renderer.locals.test.ts](src/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
+- [src/utils/hydration-scripts.test.ts](src/utils/hydration-scripts.test.ts): verifies non-router hydration passes serialized `locals` into layouts.
+- [../../react-router/test/hmr-reload.test.browser.ts](../../react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 
 If you change the AST transform or hydration flow, update the corresponding tests in the same change.

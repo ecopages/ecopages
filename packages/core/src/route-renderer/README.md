@@ -6,151 +6,113 @@ This folder contains the core rendering orchestration for Ecopages.
 
 The route renderer layer is responsible for:
 
-- Selecting the correct integration renderer for a route.
-- Loading page modules and resolving static data/metadata.
-- Resolving and processing component dependencies.
-- Applying full orchestration.
-- Emitting final HTML body output plus metadata/cache strategy.
+- selecting the correct integration renderer for a route
+- loading page modules and resolving static data or metadata
+- resolving component dependencies and page browser assets
+- coordinating mixed-integration rendering
+- emitting final HTML plus cache strategy
 
-## Main Components
+## Core Concepts
+
+The architecture is organized around three distinct concepts:
+
+- `ownership`: preparation-time metadata that describes which integration owns each declared component edge
+- `foreign child`: a component encountered during render whose owning integration differs from the current integration
+- `foreign subtree`: the resolved HTML, assets, and root-attachment metadata returned by the owning renderer for that foreign child
+
+These concepts intentionally live in different places:
+
+- `ownership-planning.service.ts` builds `ownershipPlan`
+- `ownership-validation.service.ts` validates declared foreign ownership up front
+- `component-render-context.ts` intercepts foreign children during active component render
+- `queued-foreign-subtree-resolution.service.ts` resolves queued foreign subtrees for renderers that cannot hand them off inline
+- `integration-renderer.ts` owns renderer-to-renderer delegation and shared shell composition
+- `route-render-flow.ts` owns route preparation, final response capture, and unresolved artifact enforcement
+
+## Main Files
 
 ### `route-renderer.ts`
 
-- `RouteRendererFactory` chooses integration renderers based on route file extension.
-- `RouteRenderer` delegates route execution to the selected integration renderer.
+- `RouteRendererFactory` chooses integration renderers from route files
+- `RouteRenderer` delegates execution to the selected renderer
 
 ### `orchestration/`
 
-Framework-owned orchestration services and renderer base class:
-
-- `integration-renderer.ts`: abstract base class that coordinates end-to-end route rendering.
-- `render-preparation.service.ts`: page module/data/dependency preparation before render.
-- `render-execution.service.ts`: render capture, unresolved boundary artifact enforcement, and finalization.
-- `route-shell-composer.service.ts`: shared page/view/layout/html-template shell composition used by multiple integrations.
-- `queued-boundary-runtime.service.ts`: shared queued foreign-boundary runtime used directly by renderer-owned helpers, including string-first renderers.
-
-It also provides:
-
-- `renderToResponse()` contract for explicit-route rendering.
-- `renderComponent()` contract for component-level orchestration and artifact reporting.
-- deferred boundary resolution for nested cross-integration component boundaries.
-
-### Boundary Tokens
-
-Renderer-owned runtimes may emit internal boundary tokens while they resolve foreign descendants before returning final HTML. If literal `<eco-marker ...></eco-marker>` markup survives to route finalization, it is treated as an unresolved boundary artifact rather than a normal transport mechanism.
+- `route-render-flow.ts`: one route render from page-module loading through final HTML output
+- `integration-renderer.ts`: abstract base class for route rendering, explicit view rendering, and foreign-child delegation
+- `ownership-planning.service.ts`: declared ownership graph construction
+- `ownership-validation.service.ts`: up-front ownership validation for route roots and declared descendants
+- `component-render-context.ts`: active render context used by `eco.component()` to intercept foreign children
+- `queued-foreign-subtree-resolution.service.ts`: queue resolution for renderers that need token-based foreign-subtree handoff
+- `render-output.utils.ts`: unresolved artifact normalization and marker inspection
 
 ### `page-loading/`
 
-Service for loading page modules and deriving page data:
+- `page-module-loader.ts`: imports page modules and normalizes page exports
+- `dependency-resolver.ts`: resolves component dependencies and browser-facing assets
 
-- `importPageFile()` runtime-aware loading.
-- `resolvePageModule()` normalizes exports and statics.
-- `resolvePageData()` resolves static props then metadata.
+## Render Flow
 
-Builds processed assets from component dependency declarations:
+The route-render contract is:
 
-- Scripts/styles/components/modules.
-- Lazy dependency grouping and trigger derivation.
-- Default global injector behavior with optional legacy scripts-injector compatibility.
-
-## Rendering Behavior
-
-Default behavior:
-
-- renderer-owned component-boundary orchestration + component render artifacts.
-- global lazy trigger map + global injector bootstrap.
-
-## Mixed Renderer Mental Model
-
-The current mixed-renderer contract has four phases:
-
-1. `render-preparation.service.ts` builds the route inputs and a conservative `boundaryPlan` from declared component dependencies.
-2. The selected integration renderer owns page, layout, document-shell, and explicit-view composition for that route.
-3. `route-shell-composer.service.ts` applies the shared page/view/layout/html-template composition flow while calling back into the owning renderer for each boundary render.
-4. Renderer-owned boundary runtimes resolve foreign nested components through the owning renderer and exchange a compatibility `renderBoundary()` payload with explicit attachment-policy semantics.
-5. `render-execution.service.ts` finalizes the response and fails if unresolved boundary artifact HTML survives the renderer-owned resolution pass.
+1. `RouteRendererFactory` selects the owning integration renderer.
+2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderFlow`.
+3. `RouteRenderFlow.prepareRenderOptions()` loads the page module, validates ownership, builds `ownershipPlan`, resolves page data, resolves dependencies, and builds the page browser graph.
+4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
+5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
+6. `RouteRenderFlow.execute()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps root or document attributes when needed, and runs the HTML transformer.
 
 Important:
 
-- Renderer-owned deferral is intentional. Ecopages does not run a route-level fallback resolver after render completion.
-- Boundary ownership is planned from declared component dependency metadata, not inferred purely from rendered HTML.
-- Same-integration children do not have to pass through one universal string-only transport. Each renderer keeps its own child transport rules for same-integration trees.
+- route-level fallback resolution is gone; unresolved artifacts are now a hard failure
+- ownership is declared from component metadata, not inferred from final HTML
+- same-integration children stay renderer-local and do not need to pass through a universal transport
 
 ## Declared Foreign Child Contract
 
-Mixed-integration component configs must declare every possible foreign child in `config.dependencies.components`. The planning pass uses those declarations to describe ownership transitions and surface invalid or unknown foreign owners before render execution.
+Mixed-integration component configs must declare every possible foreign child in `config.dependencies.components`.
 
-Current behavior:
+That declaration is used for two things:
 
-- Missing or unknown ownership is recorded on the route `boundaryPlan` as validation errors.
-- Renderer-owned runtime discovery still resolves actual foreign descendants during render.
-- If unresolved boundary artifact HTML reaches route finalization, Ecopages throws instead of attempting a route-level recovery pass.
+- `OwnershipValidationService` surfaces missing metadata or unknown integrations before render execution
+- `OwnershipPlanningService` records the expected ownership shape in `ownershipPlan`
 
-Global injector lifecycle notes:
+At runtime, renderers still discover actual foreign children through the active component render context.
 
-- The bootstrap remains active across client-side navigations.
-- On `eco:after-swap`, it prunes stale `ecopages/global-injector-map` scripts and calls `refresh()` so newly swapped `data-eco-trigger` elements can bind their lazy rules.
-- It must not call injector `cleanup()` on every swap, because that permanently disables future refresh work for the current runtime instance.
+## Foreign Subtree Contract
 
-## Boundary Payload Contract
-
-The compatibility boundary API is `renderBoundary()`. Today it wraps the existing `renderComponentBoundary()` behavior and returns a narrower payload:
+`renderForeignSubtree()` is the compatibility contract for renderer-to-renderer handoff. It returns:
 
 - `html`
 - `assets`
 - `rootTag`
-- `integrationName`
 - optional `rootAttributes`
 - `attachmentPolicy`
-
-`renderComponent()` still returns `ComponentRenderResult` internally, including `canAttachAttributes`, because renderer-local implementations have not been collapsed into one universal boundary primitive.
-
-Base orchestration uses the compatibility payload to:
-
-- keep queued foreign-boundary resolution renderer-owned
-- apply root attributes only when `attachmentPolicy.kind === 'first-element'`
-- preserve asset bubbling through the normal dependency pipeline
-
-The lower-level `ComponentRenderResult` currently includes:
-
-- `html`
-- `canAttachAttributes`
-- `rootTag`
 - `integrationName`
-- optional `rootAttributes`
-- optional `assets`
 
-When rendered output still contains unresolved boundary artifact HTML:
+`renderComponentWithForeignChildren()` is the higher-level renderer entrypoint. It is responsible for:
 
-- route execution now fails fast instead of attempting any route-level unresolved-boundary fallback.
-- renderer-owned boundary runtimes are responsible for resolving foreign nested components before final route HTML is returned.
+- reusing the execution-scoped owning-renderer cache
+- deciding whether the current component can stay local
+- creating a foreign-child runtime when nested foreign ownership must be resolved
+- normalizing unresolved artifact HTML before the render leaves the renderer
 
-This enables island-style hydration assets (for example React/Lit/Kita integration outputs) to be emitted through the normal dependency injection pipeline.
+## Queue Model
 
-## React Island Boundary Notes
+Not every integration needs queue-based handoff.
 
-- React component-level islands are emitted without synthetic wrapper elements.
-- The React integration attaches `data-eco-component-id` on the component's own SSR root element when a single root is available.
-- Island client bootstrap mounts with `createRoot()` into that root boundary.
-- The emitted hydration bootstrap also listens for `eco:after-swap` so islands hydrate correctly when their SSR markup appears after client-side navigation.
-- React hydration bootstraps are emitted with `data-eco-rerun` and stable `data-eco-script-id` metadata so head-script reconciliation can safely re-execute them when needed.
-- This keeps authored DOM shape stable for global layout/style selectors while preserving per-island runtime isolation.
+- If a renderer can resolve a foreign child inline, it returns resolved output immediately.
+- If it cannot, it may emit internal foreign-subtree tokens and resolve them before returning final HTML.
+- The queue service is only for renderer-owned transport inside one render pass. It is not a general route-level fallback mechanism.
 
-## Output Pipeline (High-Level)
+## React Island Notes
 
-1. Factory selects integration renderer.
-2. Integration renderer prepares render options.
-3. Dependencies are resolved and processed.
-4. Orchestration assets/artifacts are merged.
-5. Integration renderer generates HTML body.
-6. HTML transformer injects head/body dependencies.
-7. Route result returns body + metadata + cache strategy.
+- React islands are emitted without synthetic wrapper elements.
+- The React integration attaches `data-eco-component-id` to the SSR root when a single root exists.
+- The island bootstrap mounts with `createRoot()` into that SSR root.
+- Hydration bootstraps listen for `eco:after-swap` so islands hydrate after client-side navigation.
 
-## Current Limits And Near-Term Work
+## Current Limits
 
-If you are reading this file to understand today's contract, you can stop at the output pipeline above. The items below describe areas still evolving rather than required behavior.
-
-- Deep multi-level mixed-integration trees now rely on renderer-owned boundary runtimes rather than a shared post-render graph resolver.
-- Each renderer still decides how to hand off foreign boundaries, so specialized runtimes remain appropriate where child serialization or hydration contracts differ.
-- `boundaryPlan` is currently preparation-time metadata and diagnostics. It does not yet drive a full route-composer execution model.
-- A narrow `RouteShellComposer` now owns shared shell composition, but a broader route composer that absorbs boundary ownership or execution flow is still deferred.
+- `ownershipPlan` is still diagnostic and preparatory metadata; it does not yet drive a full route-composer execution model.
+- Different integrations still own different foreign-child runtime strategies, which is intentional where child transport or hydration behavior differs.

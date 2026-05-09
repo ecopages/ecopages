@@ -88,6 +88,14 @@ _Avoid_: Request context, server context
 Metadata declarations of what a component needs to render correctly: stylesheets, scripts, and nested components. Dependencies are not JavaScript imports — they tell the framework what to inject into the page.
 _Avoid_: Requirements, imports
 
+**Foreign Child**:
+A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
+_Avoid_: Boundary, cross-integration child
+
+**Foreign Subtree**:
+The rendered result of a Foreign Child and any of its descendants that must be resolved by the owning Integration before control returns to the current Integration.
+_Avoid_: Boundary payload, deferred boundary
+
 **Page Browser Graph**:
 The browser-reachable module graph derived from one Page and its lazy browser entries. It determines which browser code, chunks, and shared runtime code are emitted for that Page.
 _Avoid_: Client bundle, app bundle, vendor graph
@@ -111,6 +119,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
 - **Dependencies** on a Component are separate from JavaScript imports; both may be needed
+- When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
 
@@ -132,7 +141,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 > **Domain expert:** "List it in **Dependencies**. If a **Component** has its own CSS file, declare it there. That's metadata telling the framework 'inject this stylesheet.' Don't mix it up with JavaScript imports — you need both: import the component AND declare it in dependencies if it has dedicated styles."
 >
 > **Dev:** "Can I use Redux or context in a page?"
-> **Domain expert:** "Only in **Dynamic Pages**, because those render on every request. **Static Pages** are pre-rendered, so there's no server to hold state. If you need per-user state, use **Dynamic Page** with **Locals** — inject user data from middleware."
+> **Domain expert:** "Yes. Client-side state such as Redux or React context can be used in any page. Choose a **Dynamic Page** only when the rendered HTML depends on request-specific server data. If you need per-user data in the browser, expose a client-safe shape through **Locals** and declare the required keys."
 
 ## Flagged ambiguities
 

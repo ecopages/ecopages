@@ -85,17 +85,17 @@ export default eco.page({
 });
 ```
 
-## Boundaries and Islands
+## Foreign Children and Islands
 
-The right mental model here is renderer-owned boundaries, not blanket client hydration for every JSX component.
+The right mental model here is renderer-owned foreign children, not blanket client hydration for every JSX component.
 
 - Plain Ecopages JSX components render to HTML on the server.
-- A boundary is a subtree that Ecopages can hand back to the JSX renderer during mixed rendering.
-- A boundary only behaves like an island when that subtree also brings browser behavior, such as a Radiant custom element or component-scoped browser assets.
+- A foreign child is a subtree that Ecopages can hand back to the JSX renderer during mixed rendering.
+- A foreign child only behaves like an island when that subtree also brings browser behavior, such as a Radiant custom element or component-scoped browser assets.
 
 For Ecopages JSX, Radiant custom-element hosts are the clearest island-like case: Ecopages renders the host HTML on the server, then the explicit Radiant hydrator upgrades that host in place on the client. Without that hydrator, the host falls back to a fresh client render instead of in-place hydration.
 
-Important: boundary ownership is broader than hydration. Ecopages uses the same boundary contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
+Important: foreign-child ownership is broader than hydration. Ecopages uses the same foreign-subtree contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
 
 ## Route Extensions
 
@@ -156,11 +156,11 @@ Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only whe
 
 ## Mixed Rendering
 
-Ecopages JSX can own the full route or only a nested boundary. When another integration reaches a JSX-owned boundary, Ecopages hands that boundary back to the JSX renderer before the outer renderer resumes.
+Ecopages JSX can own the full route or only a nested foreign subtree. When another integration reaches a JSX-owned foreign child, Ecopages hands that foreign subtree back to the JSX renderer before the outer renderer resumes.
 
 Important:
 
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Mixed-renderer ownership is validated from declared dependencies during render preparation.
 - Raw markup preservation and asset collection stay inside the JSX renderer.
-- Nested boundary assets bubble back through the owning JSX render pass, so the boundary keeps both its HTML and its browser requirements together.
+- Nested foreign-subtree assets bubble back through the owning JSX render pass, so the foreign subtree keeps both its HTML and its browser requirements together.

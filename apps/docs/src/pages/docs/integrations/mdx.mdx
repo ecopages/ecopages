@@ -146,11 +146,11 @@ Standalone MDX works well alongside other integrations when MDX itself should st
 <Banner type="alert">
   <Banner.Title>Mixed Rendering</Banner.Title>
 	<p>
-    When an MDX route crosses into another registered integration, Ecopages resolves that nested boundary through the owning renderer before final route HTML is returned.
+    When an MDX route crosses into another registered integration, Ecopages resolves that nested foreign subtree through the owning renderer before final route HTML is returned.
 	</p>
 </Banner>
 
-For example, you can keep MDX on the standalone runtime while still registering Lit for nested component boundaries:
+For example, you can keep MDX on the standalone runtime while still registering Lit for nested foreign subtrees:
 
 ```typescript
 import { litPlugin } from '@ecopages/lit';

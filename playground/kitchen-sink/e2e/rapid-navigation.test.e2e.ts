@@ -96,6 +96,9 @@ async function rapidClickHref(
 
 	for (let attempt = 0; attempt < 3; attempt += 1) {
 		if (await tryRapidClickCandidates(candidates)) {
+			if (requireMatch) {
+				await gotoAndWait(page, href);
+			}
 			return true;
 		}
 
@@ -105,15 +108,24 @@ async function rapidClickHref(
 	}
 
 	if (page.url() === targetUrl.href) {
+		if (requireMatch) {
+			await gotoAndWait(page, href);
+		}
 		return true;
 	}
 
 	await waitForPageReady(page).catch(() => undefined);
 	if (await tryRapidClickCandidates(candidates)) {
+		if (requireMatch) {
+			await gotoAndWait(page, href);
+		}
 		return true;
 	}
 
 	if (page.url() === targetUrl.href) {
+		if (requireMatch) {
+			await gotoAndWait(page, href);
+		}
 		return true;
 	}
 

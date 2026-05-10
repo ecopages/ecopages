@@ -198,21 +198,36 @@ async function waitForNextPaint(target: Locator) {
 
 async function waitForLitCounterReady(counter: Locator) {
 	await expect(counter).toHaveCount(1);
-	await counter.evaluate(async (element) => {
-		const litElement = element as HTMLElement & {
-			updateComplete?: Promise<unknown>;
-			shadowRoot: ShadowRoot | null;
-		};
+	await expect
+		.poll(
+			() =>
+				counter.evaluate(async (element) => {
+					const litElement = element as HTMLElement & {
+						updateComplete?: Promise<unknown>;
+						shadowRoot: ShadowRoot | null;
+					};
+					const LitCounter = customElements.get('lit-counter');
 
-		await customElements.whenDefined('lit-counter');
-		await litElement.updateComplete;
+					if (!LitCounter || !(litElement instanceof LitCounter)) {
+						return false;
+					}
 
-		if (!litElement.shadowRoot?.querySelector('[data-lit-value]')) {
-			await new Promise<void>((resolve) => {
-				requestAnimationFrame(() => resolve());
-			});
-		}
-	});
+					await litElement.updateComplete;
+
+					if (!litElement.shadowRoot?.querySelector('[data-lit-value]')) {
+						await new Promise<void>((resolve) => {
+							requestAnimationFrame(() => resolve());
+						});
+					}
+
+					return Boolean(litElement.shadowRoot?.querySelector('[data-lit-value]'));
+				}),
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 5000,
+			},
+		)
+		.toBe(true);
 }
 
 export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {

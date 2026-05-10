@@ -72,6 +72,13 @@ function isBundleableFileScriptAsset(dependency: AssetDefinition): dependency is
 	return dependency.kind === 'script' && dependency.source === 'file';
 }
 
+type PageDependencyPackagingPlan = {
+	bundledStylesheet?: AssetDefinition;
+	bundledScript?: AssetDefinition;
+	bundleableStyleFilepaths: Set<string>;
+	bundleableScriptFilepaths: Set<string>;
+};
+
 /**
  * Returns whether the current integration should collapse eligible page assets into
  * page-owned bundle entries.
@@ -80,20 +87,10 @@ export function shouldBundlePageDependencies(integrationName: string): boolean {
 	return integrationName === 'react' || integrationName === 'ecopages-jsx';
 }
 
-/**
- * Rewrites eligible flat dependency declarations into page-owned stylesheet and script bundles.
- *
- * Only assets with the default attribute shape and without explicit packaging roles are
- * collapsed so integration-specific or lazy behavior keeps its existing ownership model.
- */
-export function createUnifiedPageDependencies(
+function createPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	integrationName: string,
-): AssetDefinition[] {
-	if (!shouldBundlePageDependencies(integrationName)) {
-		return dependencies;
-	}
-
+): PageDependencyPackagingPlan | undefined {
 	const shouldBundleDependencies = process.env.NODE_ENV === 'production';
 
 	const bundleableStyles = dependencies
@@ -153,12 +150,8 @@ export function createUnifiedPageDependencies(
 				})
 			: undefined;
 
-	const bundleableStyleFilepaths = new Set(bundleableStyles.map((dependency) => dependency.filepath));
 	const pageScriptImports = [...new Set(bundleableScripts.map((dependency) => dependency.filepath))];
-	const bundleableScriptFilepaths = new Set(pageScriptImports);
-
 	const shouldBundlePageScript = pageScriptImports.length > 0 && bundleableScripts.length > 1;
-
 	const bundledScript = shouldBundlePageScript
 		? AssetFactory.createContentScript({
 				name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
@@ -171,35 +164,47 @@ export function createUnifiedPageDependencies(
 		: undefined;
 
 	if (!bundledStylesheet && !bundledScript) {
-		return dependencies;
+		return undefined;
 	}
 
+	return {
+		bundledStylesheet,
+		bundledScript,
+		bundleableStyleFilepaths: new Set(bundleableStyles.map((dependency) => dependency.filepath)),
+		bundleableScriptFilepaths: new Set(pageScriptImports),
+	};
+}
+
+function applyPageDependencyPackagingPlan(
+	dependencies: AssetDefinition[],
+	plan: PageDependencyPackagingPlan,
+): AssetDefinition[] {
 	const unifiedDependencies: AssetDefinition[] = [];
 	let insertedStylesheet = false;
 	let insertedScript = false;
 
 	for (const dependency of dependencies) {
 		if (
-			bundledStylesheet &&
+			plan.bundledStylesheet &&
 			dependency.kind === 'stylesheet' &&
 			dependency.source === 'file' &&
-			bundleableStyleFilepaths.has(dependency.filepath)
+			plan.bundleableStyleFilepaths.has(dependency.filepath)
 		) {
 			if (!insertedStylesheet) {
-				unifiedDependencies.push(bundledStylesheet);
+				unifiedDependencies.push(plan.bundledStylesheet);
 				insertedStylesheet = true;
 			}
 			continue;
 		}
 
 		if (
-			bundledScript &&
+			plan.bundledScript &&
 			dependency.kind === 'script' &&
 			dependency.source === 'file' &&
-			bundleableScriptFilepaths.has(dependency.filepath)
+			plan.bundleableScriptFilepaths.has(dependency.filepath)
 		) {
 			if (!insertedScript) {
-				unifiedDependencies.push(bundledScript);
+				unifiedDependencies.push(plan.bundledScript);
 				insertedScript = true;
 			}
 			continue;
@@ -208,13 +213,32 @@ export function createUnifiedPageDependencies(
 		unifiedDependencies.push(dependency);
 	}
 
-	if (bundledScript && !insertedScript) {
-		unifiedDependencies.push(bundledScript);
+	if (plan.bundledScript && !insertedScript) {
+		unifiedDependencies.push(plan.bundledScript);
 	}
 
-	if (bundledStylesheet && !insertedStylesheet) {
-		unifiedDependencies.push(bundledStylesheet);
+	if (plan.bundledStylesheet && !insertedStylesheet) {
+		unifiedDependencies.push(plan.bundledStylesheet);
 	}
 
 	return unifiedDependencies;
+}
+
+/**
+ * Rewrites eligible flat dependency declarations into page-owned stylesheet and script bundles.
+ *
+ * Only assets with the default attribute shape and without explicit packaging roles are
+ * collapsed so integration-specific or lazy behavior keeps its existing ownership model.
+ */
+export function packagePageDependencies(dependencies: AssetDefinition[], integrationName: string): AssetDefinition[] {
+	if (!shouldBundlePageDependencies(integrationName)) {
+		return dependencies;
+	}
+
+	const plan = createPageDependencyPackagingPlan(dependencies, integrationName);
+	if (!plan) {
+		return dependencies;
+	}
+
+	return applyPageDependencyPackagingPlan(dependencies, plan);
 }

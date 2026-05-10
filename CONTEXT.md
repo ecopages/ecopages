@@ -57,7 +57,7 @@ A route automatically discovered by scanning the pages directory. Files follow c
 _Avoid_: Automatic route, file-based route
 
 **Explicit Route**:
-A route registered programmatically via the app configuration (e.g., `app.static(path, loader)`), bypassing filesystem discovery.
+A route registered programmatically via the app API (e.g., `app.static(path, loader)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.
 _Avoid_: Programmatic route, registered route
 
 **Route Registry**:
@@ -126,7 +126,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 ## Example dialogue
 
 > **Dev:** "How do I make a blog page that renders its posts at build time?"
-> **Domain expert:** "Create a **Page** with `cache: 'static'` (the default). Use `staticProps` to fetch the post list at **Build-Time Rendering**, and return it as props. That's a **Static Page** — its HTML is generated once and served to everyone."
+> **Domain expert:** "Create a **Page** with `cache: 'static'` (the default). Define `staticProps` on the page to fetch the post list at **Build-Time Rendering**, and return it as props. That's a **Static Page** — its HTML is generated once and served to everyone."
 >
 > **Dev:** "What if I want a search page that shows different results based on the query?"
 > **Domain expert:** "That needs **Dynamic Page** — set `cache: 'dynamic'`. The **Page** receives **Query** params from the URL string, so you can render different content per search. HTML is generated on every request via **Request-Time Rendering**."
@@ -148,4 +148,3 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - "static" historically refers to "no server needed," but in ecopages it means "cached forever at build time." A **Static Page** may run on a server during **Request-Time Rendering** of other pages; it just uses pre-computed HTML. Resolved: use "Static Page" (cache strategy) not "static site" (deployment model) to avoid confusion.
 - "rendering" can mean the act of converting a Component to HTML, or the runtime service that does it. Resolved: "rendering" is the act; "renderer" or "rendering service" is the service.
 - Component, Layout, Page, Html all have the same underlying type shape. Resolved: they are four distinct **component roles**, not four different types. The role determines what semantic contract the component fulfills (e.g., a Layout receives `children` and context; a Component does not).
-- "FSRouter" describes the current implementation name, but the deeper concept is the **Route Registry**. Resolved: use "Route Registry" for the architecture and treat "FSRouter" as legacy implementation terminology.

@@ -5,7 +5,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 
 export const Head = eco.component<PageHeadProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['../styles/fonts.css', '../styles/tailwind.css'],
+		stylesheets: ['../styles/tailwind.css'],
 	},
 
 	render: ({ metadata, children }) => {

@@ -145,6 +145,7 @@ export function createUnifiedPageDependencies(
 					position: 'head',
 					attributes: { rel: 'stylesheet' },
 					packageRole: 'page-style',
+					bundledSourceFilepaths: bundleableStyles.map((dependency) => dependency.filepath),
 				})
 			: undefined;
 
@@ -161,6 +162,7 @@ export function createUnifiedPageDependencies(
 				position: 'head',
 				attributes: { type: 'module', defer: '' },
 				packageRole: 'page-script',
+				bundledSourceFilepaths: pageScriptImports,
 			})
 		: undefined;
 

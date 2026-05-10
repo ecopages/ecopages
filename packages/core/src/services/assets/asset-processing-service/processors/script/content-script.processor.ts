@@ -62,6 +62,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
 					groupedBundle: dep.groupedBundle,
+					bundledSourceFilepaths: dep.bundledSourceFilepaths,
 				};
 			});
 		} finally {
@@ -87,6 +88,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 
 			this.writeCacheFile(filename, unbundledProcessedAsset);
@@ -120,6 +122,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
 				groupedBundle: dep.groupedBundle,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 
 			fileSystem.remove(tempFileName);

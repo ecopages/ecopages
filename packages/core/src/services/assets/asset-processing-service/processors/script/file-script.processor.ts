@@ -39,6 +39,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			const outputFilepath = this.resolveHmrOutputFilepath(dep.filepath);
 			return {
 				filepath: outputFilepath ?? dep.filepath,
+				sourceFilepath: dep.filepath,
 				srcUrl: outputUrl,
 				kind: 'script',
 				position: dep.position,
@@ -46,6 +47,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				inline: false,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 		}
 
@@ -72,6 +74,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 				return {
 					filepath,
+					sourceFilepath: dep.filepath,
 					content,
 					kind: 'script',
 					position: dep.position,
@@ -79,6 +82,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 					inline: dep.inline,
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
+					bundledSourceFilepaths: dep.bundledSourceFilepaths,
 				};
 			}
 
@@ -97,6 +101,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 			return {
 				filepath: bundledFilePath,
+				sourceFilepath: dep.filepath,
 				content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
 				kind: 'script',
 				position: dep.position,
@@ -104,6 +109,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 		});
 	}

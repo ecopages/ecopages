@@ -483,12 +483,14 @@ describe('DependencyResolverService', () => {
 					source: 'content',
 					packageRole: 'page-style',
 					content: '.first { color: red; }\n.second { color: blue; }',
+					bundledSourceFilepaths: [stylesheetA, stylesheetB],
 				}),
 				expect.objectContaining({
 					kind: 'script',
 					source: 'content',
 					packageRole: 'page-script',
 					content: `import ${JSON.stringify(scriptA)};\nimport ${JSON.stringify(scriptB)};`,
+					bundledSourceFilepaths: [scriptA, scriptB],
 				}),
 			]);
 		} finally {

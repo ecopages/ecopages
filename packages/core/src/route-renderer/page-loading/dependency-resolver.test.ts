@@ -428,6 +428,8 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should collapse bundleable page stylesheets and scripts into page-owned assets', async () => {
+		const previousNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'production';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-bundle-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const stylesheetA = join(tempDir, 'first.css');
@@ -490,6 +492,81 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 		} finally {
+			process.env.NODE_ENV = previousNodeEnv;
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should keep bundleable page stylesheets as file assets during development', async () => {
+		const previousNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
+		const componentFile = join(tempDir, 'component.tsx');
+		const stylesheetA = join(tempDir, 'first.css');
+		const stylesheetB = join(tempDir, 'second.css');
+		const scriptA = join(tempDir, 'first.ts');
+		const scriptB = join(tempDir, 'second.ts');
+
+		writeFileSync(componentFile, 'export const Component = () => null;', 'utf-8');
+		writeFileSync(stylesheetA, '.first { color: red; }', 'utf-8');
+		writeFileSync(stylesheetB, '.second { color: blue; }', 'utf-8');
+		writeFileSync(scriptA, 'export const first = true;', 'utf-8');
+		writeFileSync(scriptB, 'export const second = true;', 'utf-8');
+
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+
+		const bundleAppConfig = {
+			...appConfig,
+			rootDir: tempDir,
+			absolutePaths: {
+				srcDir: tempDir,
+				distDir: join(tempDir, '.eco/public'),
+			},
+		} as EcoPagesAppConfig;
+
+		const service = new DependencyResolverService(bundleAppConfig, assetProcessingService);
+		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'page-style-dev',
+				integration: 'react',
+				file: componentFile,
+			},
+			dependencies: {
+				stylesheets: ['./first.css', './second.css'],
+				scripts: ['./first.ts', './second.ts'],
+			},
+		};
+
+		try {
+			await service.processComponentDependencies([component], 'react');
+
+			expect(capturedDeps).toEqual([
+				expect.objectContaining({
+					kind: 'stylesheet',
+					source: 'file',
+					filepath: stylesheetA,
+				}),
+				expect.objectContaining({
+					kind: 'stylesheet',
+					source: 'file',
+					filepath: stylesheetB,
+				}),
+				expect.objectContaining({
+					kind: 'script',
+					source: 'content',
+					packageRole: 'page-script',
+					content: `import ${JSON.stringify(scriptA)};\nimport ${JSON.stringify(scriptB)};`,
+				}),
+			]);
+		} finally {
+			process.env.NODE_ENV = previousNodeEnv;
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});

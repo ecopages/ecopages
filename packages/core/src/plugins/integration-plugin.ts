@@ -20,6 +20,14 @@ export type {
 	EcoBuildPluginBuilder,
 } from '../build/build-types.ts';
 
+/**
+ * Type-erased integration plugin stored in app-level registries.
+ *
+ * Ecopages keeps one heterogeneous integration list, while each plugin and
+ * renderer still owns its framework-specific render payload type internally.
+ */
+export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
+
 export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
 	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',

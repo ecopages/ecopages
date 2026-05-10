@@ -3,11 +3,11 @@ import type {
 	IntegrationRenderer,
 	RenderToResponseContext,
 } from '../../route-renderer/orchestration/integration-renderer.ts';
-import type { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
+import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import { invariant } from '../../utils/invariant.ts';
 
 export interface CreateRenderContextOptions {
-	integrations: IntegrationPlugin[];
+	integrations: AnyIntegrationPlugin[];
 	rendererModules?: unknown;
 }
 
@@ -54,7 +54,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 
 		return integration.initializeRenderer({
 			rendererModules: options.rendererModules,
-		});
+		}) as IntegrationRenderer;
 	};
 
 	const renderContext: RenderContext = {

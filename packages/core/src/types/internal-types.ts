@@ -1,7 +1,7 @@
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { AppBuildManifest } from '../build/build-manifest.ts';
 import type { BuildAdapter, BuildExecutor, BuildOwnership } from '../build/build-adapter.ts';
-import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { PageMetadataProps } from './public-types.ts';
@@ -103,7 +103,7 @@ export type EcoPagesAppConfig = {
 	 */
 	defaultMetadata: PageMetadataProps;
 	/** Integrations plugins */
-	integrations: IntegrationPlugin[];
+	integrations: AnyIntegrationPlugin[];
 	/** Integrations dependencies */
 	integrationsDependencies: IntegrationDependencyConfig[];
 	/** Derived Paths */

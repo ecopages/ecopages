@@ -94,8 +94,14 @@ export function createUnifiedPageDependencies(
 		return dependencies;
 	}
 
+	const shouldBundleStylesheets = process.env.NODE_ENV === 'production';
+
 	const bundleableStyles = dependencies
 		.filter((dependency) => {
+			if (!shouldBundleStylesheets) {
+				return false;
+			}
+
 			if (dependency.kind !== 'stylesheet' || dependency.inline || dependency.position === 'body') {
 				return false;
 			}

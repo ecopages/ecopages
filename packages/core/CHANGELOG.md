@@ -44,6 +44,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed integration registry typing so `ConfigBuilder.setIntegrations()` accepts heterogeneous framework plugins without rejecting valid JSX or React integrations at type-check time.
 - Fixed page-owned dependency packaging so final Html output suppresses bundled source stylesheet assets that were reintroduced later during shell-time asset merging.
 - Fixed development page dependency packaging so script Dependencies stay source-backed for HMR instead of being collapsed into one page-owned script bundle.
 - Fixed Bun preview builds to start the static preview server only after static generation releases the live build server port, preventing preview mode from double-binding the configured port.

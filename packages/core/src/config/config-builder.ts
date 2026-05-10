@@ -26,7 +26,7 @@ import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
-import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
@@ -279,7 +279,7 @@ export class ConfigBuilder {
 	 * @param integrations - An array of integration plugins
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
-	setIntegrations(integrations: IntegrationPlugin[]): this {
+	setIntegrations(integrations: AnyIntegrationPlugin[]): this {
 		this.config.integrations = integrations;
 		return this;
 	}

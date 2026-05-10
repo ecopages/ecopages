@@ -10,7 +10,7 @@ function resetDom(): void {
 
 function createCodeTabs(): RadiantCodeTabs {
 	const element = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
-	element.name = 'test-code-tabs';
+	element.name = 'image-processor-install';
 	element.label = 'Code examples';
 	element.copyLabel = 'Copy code';
 	element.tabs = [
@@ -98,7 +98,6 @@ describe('RadiantCodeTabs', () => {
 
 	it('derives tab and panel ids from the provided name and tab ids', async () => {
 		const codeTabs = createCodeTabs();
-		codeTabs.name = 'image-processor-install';
 		document.body.appendChild(codeTabs);
 
 		await vi.waitFor(() => {
@@ -113,5 +112,22 @@ describe('RadiantCodeTabs', () => {
 		expect(panel?.id).toBe('radiant-code-tabs-image-processor-install-panel-js');
 		expect(activeTab?.getAttribute('aria-controls')).toBe(panel?.id ?? null);
 		expect(panel?.getAttribute('aria-labelledby')).toBe(activeTab?.id ?? null);
+	});
+
+	it('renders nothing after the caller clears tabs', async () => {
+		const codeTabs = createCodeTabs();
+		document.body.appendChild(codeTabs);
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('[role="tab"]')?.textContent).toBe('JavaScript');
+		});
+
+		codeTabs.tabs = [];
+
+		await vi.waitFor(() => {
+			expect(codeTabs.querySelector('[role="tab"]')).toBeNull();
+		});
+
+		expect(codeTabs.querySelector('.code-tabs__code')).toBeNull();
 	});
 });

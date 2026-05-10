@@ -1,17 +1,23 @@
 radiant-code-tabs {
-	@apply block w-full;
+	@apply block w-full min-w-0 max-w-full my-8;
+}
+
+.home-code-tabs {
+	@apply mt-8 block max-w-100;
 }
 
 .code-tabs {
-	@apply flex h-full my-8 w-full flex-col items-stretch justify-between overflow-hidden rounded-sm border border-border bg-background-accent font-mono text-sm text-on-background shadow-xs;
+	@apply flex h-full w-full min-w-0 max-w-full flex-col items-stretch justify-between overflow-hidden rounded-sm border border-border bg-background-accent font-mono text-sm text-on-background shadow-xs;
 
 	&__list {
-		@apply flex items-center gap-1 border-b border-border/50 bg-background-accent/50 px-2 pt-2;
+		@apply flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-border/50 bg-background-accent/50 px-2 pt-2;
 	}
 
 	&__tab {
-		@apply border-b-2 border-transparent px-3 py-1.5 text-xs opacity-60 transition-colors;
+		@apply inline-flex shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-center text-xs opacity-60 transition-colors;
 		@apply hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
+		block-size: var(--code-tabs-tab-height, auto);
+		inline-size: var(--code-tabs-tab-width, auto);
 
 		&[aria-selected='true'] {
 			@apply border-primary font-medium text-primary opacity-100;
@@ -23,16 +29,35 @@ radiant-code-tabs {
 	}
 
 	&__body {
-		@apply flex min-h-12 items-center justify-between gap-3 px-4 py-3;
+		@apply relative min-h-12 min-w-0 px-4 py-3;
+		min-block-size: var(--code-tabs-panel-height, auto);
+		min-inline-size: var(--code-tabs-panel-width, auto);
+
+		&:has([data-rehype-pretty-code-figure]) {
+			@apply p-0;
+		}
 	}
 
 	&__code {
-		@apply min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[13px];
+		@apply block min-w-0 overflow-x-auto whitespace-nowrap text-[13px];
+
+		[data-rehype-pretty-code-figure] {
+			@apply rounded-none;
+			& > pre {
+				@apply rounded-none;
+			}
+		}
 	}
 
 	&__copy {
-		@apply inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background transition-colors;
+		@apply pointer-events-none absolute top-1.5 right-1.5 inline-flex h-8 shrink-0 translate-y-1 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background opacity-0 transition-all;
 		@apply hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
+
+		.code-tabs__body:hover &,
+		.code-tabs__body:focus-within &,
+		&[data-copied='true'] {
+			@apply pointer-events-auto translate-y-0 opacity-100;
+		}
 
 		&[data-copied='true'] {
 			@apply text-primary;
@@ -54,5 +79,15 @@ radiant-code-tabs {
 
 	&__status {
 		@apply sr-only;
+	}
+
+	&__measure {
+		@apply pointer-events-none absolute invisible;
+		left: 0;
+		top: 0;
+	}
+
+	&__measure-panel {
+		@apply block w-max;
 	}
 }

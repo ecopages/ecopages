@@ -8,6 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const tempRootDir = path.join(repoRoot, '.e2e-tmp');
 const keepWorkspace = process.env.ECOPAGES_KEEP_E2E_TMP === 'true';
+const wrapperManagesWorkspaceCleanup = process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES === 'true';
 const excludedTopLevelEntries = new Set(['.eco', '.e2e', 'dist', 'node_modules']);
 
 function parseArgs(argv) {
@@ -160,7 +161,7 @@ let cleanedUp = false;
 let childExited = false;
 
 function cleanupWorkspace() {
-	if (cleanedUp || keepWorkspace) {
+	if (cleanedUp || keepWorkspace || wrapperManagesWorkspaceCleanup) {
 		return;
 	}
 

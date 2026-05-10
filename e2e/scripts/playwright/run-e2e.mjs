@@ -57,6 +57,7 @@ function runPlaywright(args) {
 			cwd: process.cwd(),
 			env: {
 				...process.env,
+				ECOPAGES_MANAGE_ISOLATED_WORKSPACES: 'true',
 				...(selectedProjects.length > 0 ? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') } : {}),
 			},
 			stdio: 'inherit',

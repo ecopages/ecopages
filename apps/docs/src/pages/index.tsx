@@ -1,8 +1,9 @@
 import { eco } from '@ecopages/core';
 import { DocsLayout } from '@/layouts/docs-layout';
 import Introduction from '@/pages/docs/getting-started/introduction.mdx';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export default eco.page({
+export default eco.page<{}, JsxRenderable>({
 	dependencies: {
 		components: [DocsLayout],
 	},
@@ -16,7 +17,7 @@ export default eco.page({
 
 	render: () => {
 		return (
-			<DocsLayout class="main-content">
+			<DocsLayout>
 				<Introduction />
 			</DocsLayout>
 		);

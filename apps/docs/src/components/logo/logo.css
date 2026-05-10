@@ -7,19 +7,3 @@
 		@apply text-on-background/80;
 	}
 }
-
-.logo__theme {
-	display: none;
-}
-
-.logo__theme--light {
-	display: inline-flex;
-}
-
-[data-theme='dark'] .logo__theme--light {
-	display: none;
-}
-
-[data-theme='dark'] .logo__theme--dark {
-	display: inline-flex;
-}

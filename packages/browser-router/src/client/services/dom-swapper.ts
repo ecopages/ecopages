@@ -348,8 +348,17 @@ export class DomSwapper {
 		toEl: Element,
 		deferred: Array<{ from: Element; to: Element }>,
 	): false {
-		deferred.push({ from: fromEl, to: toEl });
+		deferred.push({ from: fromEl, to: toEl.cloneNode(true) as Element });
 		return false;
+	}
+
+	private materializeCustomElement(element: Element): Element {
+		const materializedElement = document.createElement(element.localName);
+		for (const attr of element.attributes) {
+			materializedElement.setAttribute(attr.name, attr.value);
+		}
+		materializedElement.innerHTML = element.innerHTML;
+		return materializedElement;
 	}
 
 	/**
@@ -363,11 +372,7 @@ export class DomSwapper {
 	private flushDeferredCustomElementReplacements(deferred: Array<{ from: Element; to: Element }>): void {
 		for (const { from, to } of deferred) {
 			if (!from.isConnected) continue;
-			const newEl = document.createElement(to.tagName);
-			for (const attr of to.attributes) {
-				newEl.setAttribute(attr.name, attr.value);
-			}
-			newEl.innerHTML = to.innerHTML;
+			const newEl = this.materializeCustomElement(to);
 			from.replaceWith(newEl);
 		}
 	}
@@ -384,6 +389,13 @@ export class DomSwapper {
 
 		morphdom(document.body, newDocument.body, {
 			getNodeKey: (node) => getBodyMorphKey(node, persistAttr),
+			onBeforeNodeAdded: (node) => {
+				if (node instanceof Element && this.isLightDomCustomElement(node)) {
+					return this.materializeCustomElement(node);
+				}
+
+				return node;
+			},
 			onBeforeElUpdated: (fromEl, toEl) => {
 				if (isPersisted(fromEl, persistAttr)) {
 					return false;

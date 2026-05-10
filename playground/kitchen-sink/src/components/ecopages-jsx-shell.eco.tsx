@@ -2,7 +2,6 @@
 import { eco } from '@ecopages/core';
 import type { EcoChildren } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
-import { renderToString } from '@ecopages/jsx/server';
 
 type EcopagesJsxShellProps = {
 	id: string;
@@ -15,9 +14,9 @@ export const EcopagesJsxShell = eco.component<EcopagesJsxShellProps, JsxRenderab
 		const renderedChildren =
 			children === undefined
 				? undefined
-				: createMarkupNodeLike(
-						typeof children === 'string' ? children : renderToString(children as JsxRenderable),
-					);
+				: typeof children === 'string'
+					? createMarkupNodeLike(children)
+					: (children as JsxRenderable);
 
 		return (
 			<section class="integration-shell integration-shell--ecopages-jsx" data-ecopages--jsx-shell={id}>

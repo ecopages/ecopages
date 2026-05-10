@@ -6,6 +6,7 @@ import type {
 	ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
 
 type MdxPluginList = NonNullable<CompileOptions['remarkPlugins']>;
 
@@ -46,11 +47,8 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 	/**
 	 * Whether to enable the Radiant SSR contract for JSX apps.
 	 *
-	 * When enabled, Ecopages JSX:
-	 * - imports `@ecopages/radiant/server/render-component` before Radiant SSR
-	 * - prepends `@ecopages/radiant/client/install-hydrator` to generated
-	 *   intrinsic custom-element browser entries so hydrated hosts can attach
-	 *   before the custom element module connects
+	 * When enabled, Ecopages JSX installs the Radiant server SSR runtime so
+	 * intrinsic custom elements can render specialized host markup during SSR.
 	 *
 	 * Set to `false` when pages do not use Radiant web components.
 	 * @default true
@@ -61,9 +59,8 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 };
 
 export type EcopagesJsxRendererConfig = {
-	intrinsicCustomElementAssets?: Map<string, readonly ProcessedAsset[]>;
-	intrinsicCustomElementScriptFiles?: Map<string, string>;
 	mdxExtensions?: string[];
+	radiantSsrPolicy?: EcopagesJsxRadiantSsrPolicy;
 	radiantSsrEnabled?: boolean;
 };
 

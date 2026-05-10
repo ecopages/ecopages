@@ -62,6 +62,15 @@ Set `radiant: false` when your JSX pages do not need Radiant SSR or the Radiant 
 
 The plugin bootstrap is intentionally explicit rather than depending on custom-element modules to install the Radiant hydrator opportunistically.
 
+For server-side custom-element examples, prefer explicit SSR modes over the older boolean-only contract.
+
+```ts
+new MyElement().renderHostToString({ mode: 'plain' });
+new MyElement().renderHostToString({ mode: 'hydrate' });
+```
+
+The legacy `hydrate: true` option remains compatible, but `mode` is the current SSR contract. Registered intrinsic tags that contain a dash are SSR candidates, and framework-specific host rendering should be adapted through the server custom-element render hook instead of hardcoding framework branches into JSX page code.
+
 ## MDX Support
 
 Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.

@@ -12,7 +12,9 @@ import {
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import type { JsxRenderable } from '@ecopages/jsx';
+import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
+import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
+import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const Config = await new ConfigBuilder()
@@ -38,6 +40,10 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 		</html>
 	);
 };
+
+const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
+const INTRINSIC_TEST_TAG = 'ecopages-jsx-intrinsic-contract';
+const RADIANT_ARRAY_TEST_TAG = 'ecopages-jsx-radiant-array-contract';
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -283,6 +289,225 @@ describe('EcopagesJsxRenderer', () => {
 				}),
 			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
+		});
+
+		it('propagates renderer SSR scope across nested JSX renders', async () => {
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const NestedScopeProbe = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => {
+					const state = getActiveSsrScopeValue<{ collectedAssetFrames: unknown[] }>(
+						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
+					);
+
+					return (
+						<span
+							data-nested-scope={String(Boolean(state))}
+							data-nested-frame-depth={state?.collectedAssetFrames.length ?? -1}
+						/>
+					);
+				},
+			});
+
+			const OuterScopeProbe = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => {
+					const state = getActiveSsrScopeValue<{ collectedAssetFrames: unknown[] }>(
+						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
+					);
+					const nestedHtml = renderToString(<NestedScopeProbe />);
+
+					return (
+						<section
+							data-outer-scope={String(Boolean(state))}
+							data-outer-frame-depth={state?.collectedAssetFrames.length ?? -1}
+						>
+							{createMarkupNodeLike(nestedHtml)}
+						</section>
+					);
+				},
+			});
+
+			const result = await renderer.renderComponent({
+				component: OuterScopeProbe,
+				props: {},
+			});
+
+			expect(result.html).toContain('data-outer-scope="true"');
+			expect(result.html).toContain('data-outer-frame-depth="1"');
+			expect(result.html).toContain('data-nested-scope="true"');
+			expect(result.html).toContain('data-nested-frame-depth="1"');
+		});
+
+		it('preserves SSR scope across nested async scope helpers', async () => {
+			const outerScopeKey = Symbol('outer-async-scope');
+			const innerScopeKey = Symbol('inner-async-scope');
+
+			const result = await withActiveSsrScopeValue(outerScopeKey, 'outer', async () => {
+				await Promise.resolve();
+
+				const nestedResult = await withActiveSsrScopeValue(innerScopeKey, 'inner', async () => {
+					await Promise.resolve();
+
+					return {
+						outer: getActiveSsrScopeValue<string>(outerScopeKey),
+						inner: getActiveSsrScopeValue<string>(innerScopeKey),
+					};
+				});
+
+				return {
+					outer: getActiveSsrScopeValue<string>(outerScopeKey),
+					inner: getActiveSsrScopeValue<string>(innerScopeKey),
+					nestedResult,
+				};
+			});
+
+			expect(result).toEqual({
+				outer: 'outer',
+				inner: undefined,
+				nestedResult: {
+					outer: 'outer',
+					inner: 'inner',
+				},
+			});
+		});
+
+		it('uses the custom-element SSR hook path for registered intrinsic elements and preserves specialized rendering through wrappers', async () => {
+			installLightDomShim();
+
+			if (!customElements.get(INTRINSIC_TEST_TAG)) {
+				class IntrinsicContractElement extends HTMLElement {
+					declare count?: number;
+
+					renderHostToString(options: { hydrate?: boolean; mode?: 'hydrate' | 'plain' }) {
+						const mode = options.mode ?? (options.hydrate ? 'hydrate' : 'plain');
+						return `<${INTRINSIC_TEST_TAG} data-count="${String(this.count ?? '')}" data-ssr-mode="${mode}"><span data-testid="intrinsic-contract">${String(this.count ?? '')}</span></${INTRINSIC_TEST_TAG}>`;
+					}
+				}
+
+				customElements.define(INTRINSIC_TEST_TAG, IntrinsicContractElement);
+			}
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				jsxConfig: {
+					radiantSsrEnabled: true,
+				},
+			});
+
+			const WrappedIntrinsic = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => <ecopages-jsx-intrinsic-contract count={2} />,
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => (
+					<section>
+						<WrappedIntrinsic />
+					</section>
+				),
+			});
+
+			const result = await renderer.renderComponent({
+				component: Page,
+				props: {},
+			});
+
+			expect(result.html).toContain('data-ssr-mode="plain"');
+			expect(result.html).toContain('data-count="2"');
+			expect(result.html).toContain('data-testid="intrinsic-contract"');
+			expect(result.assets).toEqual([]);
+		});
+
+		it('server-renders Radiant custom elements with array props without requiring wrapper attribute serialization', async () => {
+			installLightDomShim();
+			const [{ RadiantElement }, { customElement }, { prop }] = await Promise.all([
+				import('@ecopages/radiant/core/radiant-element'),
+				import('@ecopages/radiant/decorators/custom-element'),
+				import('@ecopages/radiant/decorators/prop'),
+			]);
+
+			if (!customElements.get(RADIANT_ARRAY_TEST_TAG)) {
+				@customElement(RADIANT_ARRAY_TEST_TAG)
+				class RadiantArrayContractElement extends RadiantElement {
+					@prop({ type: Array }) items: Array<{ id: string }> = [];
+
+					override render() {
+						return (
+							<div data-testid="radiant-array-contract" data-items-count={String(this.items.length)} />
+						);
+					}
+				}
+				void RadiantArrayContractElement;
+			}
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				jsxConfig: {
+					radiantSsrEnabled: true,
+				},
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				render: () => (
+					<section>
+						<ecopages-jsx-radiant-array-contract prop:items={[{ id: 'bun' }]} />
+					</section>
+				),
+			});
+
+			const result = await renderer.renderComponent({
+				component: Page,
+				props: {},
+			});
+
+			expect(result.html).toContain('data-testid="radiant-array-contract"');
+			expect(result.html).toContain('data-items-count="1"');
+			expect(result.html).toContain('items="[{&quot;id&quot;:&quot;bun&quot;}]"');
+		});
+
+		it('does not require an active renderer SSR scope when the intrinsic custom-element hook is consulted late', () => {
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				jsxConfig: {},
+			});
+
+			const collectedAssets: Array<{ kind: string; srcUrl: string; position: string }> = [];
+			const hook = (
+				renderer as unknown as {
+					createIntrinsicCustomElementRenderHook(
+						target: typeof collectedAssets,
+					): ({ tagName }: { tagName: string }) => undefined;
+				}
+			).createIntrinsicCustomElementRenderHook(collectedAssets);
+
+			expect(() => hook({ tagName: INTRINSIC_TEST_TAG })).not.toThrow();
+			expect(collectedAssets).toEqual([]);
 		});
 	});
 

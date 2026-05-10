@@ -3,7 +3,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { EcoComponent } from '@ecopages/core';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import { test } from 'vitest';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
@@ -107,8 +106,8 @@ async function writeRadiantFixture(options: {
 		[
 			"import { TopLevelRadiantCounter } from './counter.script.mjs';",
 			'',
-			'export function renderCounterHost() {',
-			"\treturn new TopLevelRadiantCounter().renderHostToString({ mode: 'hydrate' });",
+			'export function renderCounterSetupState() {',
+			"\treturn customElements.get('top-level-radiant-counter') === TopLevelRadiantCounter ? 'radiant-module-ready' : 'missing';",
 			'}',
 		].join('\n'),
 	);
@@ -116,16 +115,16 @@ async function writeRadiantFixture(options: {
 	await writeFile(
 		options.pagePath,
 		[
-			"import { renderCounterHost } from './counter-component.mjs';",
+			"import { renderCounterSetupState } from './counter-component.mjs';",
 			'',
 			'export default function Page() {',
-			'\treturn renderCounterHost();',
+			'\treturn renderCounterSetupState();',
 			'}',
 		].join('\n'),
 	);
 }
 
-test('EcopagesJsxRenderer installs the Radiant SSR runtime before resolving JSX page modules', async () => {
+test('EcopagesJsxRenderer installs the Radiant light-dom environment before resolving JSX page modules', async () => {
 	const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-renderer-'));
 	const pagePath = path.join(tempDir, 'page.mjs');
 	const componentPath = path.join(tempDir, 'counter-component.mjs');
@@ -156,9 +155,9 @@ test('EcopagesJsxRenderer installs the Radiant SSR runtime before resolving JSX 
 			const html = await (pageModule.Page as () => string | Promise<string>)();
 
 			assert.equal(typeof pageModule.Page, 'function');
-			assert.match(html, /<top-level-radiant-counter/);
-			assert.match(html, /data-hydration/);
+			assert.equal(html, 'radiant-module-ready');
 			assert.equal(typeof globalThis.HTMLElement, 'function');
+			assert.equal(typeof globalThis.customElements?.get('top-level-radiant-counter'), 'function');
 		});
 	} finally {
 		await rm(tempDir, { recursive: true, force: true });
@@ -189,46 +188,4 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 	assert.equal(rendererA.isMdxFile('/tmp/page.guide.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
-});
-
-test('EcopagesJsxRenderer treats dependency-declared scripts as intrinsic script ownership', async () => {
-	const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-renderer-owned-scripts-'));
-	const componentPath = path.join(tempDir, 'theme-toggle.tsx');
-	const scriptPath = path.join(tempDir, 'theme-toggle.script.ts');
-
-	try {
-		await writeFile(componentPath, 'export const ThemeToggle = () => null;\n');
-		await writeFile(scriptPath, 'export const themeToggle = true;\n');
-
-		const renderer = new TestEcopagesJsxRenderer({
-			appConfig: createAppConfig(tempDir),
-			assetProcessingService: {} as never,
-			resolvedIntegrationDependencies: [],
-			jsxConfig: {
-				radiantSsrEnabled: false,
-			},
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const component = {
-			config: {
-				__eco: {
-					file: componentPath,
-				},
-				dependencies: {
-					scripts: [{ src: './theme-toggle.script.ts', lazy: { 'on:interaction': 'click' } }],
-				},
-			},
-		} as unknown as EcoComponent;
-
-		const ownedScripts = (
-			renderer as unknown as {
-				collectImportedIntrinsicScriptFiles: (components: Array<EcoComponent | undefined>) => Set<string>;
-			}
-		).collectImportedIntrinsicScriptFiles([component]);
-
-		assert.equal(ownedScripts.has(scriptPath), true);
-	} finally {
-		await rm(tempDir, { recursive: true, force: true });
-	}
 });

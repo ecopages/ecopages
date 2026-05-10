@@ -94,11 +94,11 @@ export function createUnifiedPageDependencies(
 		return dependencies;
 	}
 
-	const shouldBundleStylesheets = process.env.NODE_ENV === 'production';
+	const shouldBundleDependencies = process.env.NODE_ENV === 'production';
 
 	const bundleableStyles = dependencies
 		.filter((dependency) => {
-			if (!shouldBundleStylesheets) {
+			if (!shouldBundleDependencies) {
 				return false;
 			}
 
@@ -124,6 +124,10 @@ export function createUnifiedPageDependencies(
 
 	const bundleableScripts = dependencies
 		.filter((dependency) => {
+			if (!shouldBundleDependencies) {
+				return false;
+			}
+
 			return (
 				dependency.kind === 'script' &&
 				dependency.source === 'file' &&

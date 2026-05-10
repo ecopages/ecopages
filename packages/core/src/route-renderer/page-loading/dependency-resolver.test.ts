@@ -214,21 +214,27 @@ describe('DependencyResolverService', () => {
 		try {
 			await service.processComponentDependencies([component], 'ecopages-jsx');
 
+			const fileScripts = capturedDeps.filter(
+				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'file' }> =>
+					dep.kind === 'script' && dep.source === 'file',
+			);
 			const contentScripts = capturedDeps.filter(
 				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'content' }> =>
 					dep.kind === 'script' && dep.source === 'content',
 			);
 
-			expect(contentScripts).toHaveLength(2);
-
-			const pageScript = contentScripts.find((dep) => dep.packageRole === 'page-script');
-			const lazyEntry = contentScripts.find((dep) => dep.excludeFromHtml === true);
-
-			expect(pageScript).toEqual(
+			expect(fileScripts).toEqual([
 				expect.objectContaining({
-					content: `import ${JSON.stringify(widgetScript)};\nimport ${JSON.stringify(siblingScript)};`,
+					filepath: widgetScript,
 				}),
-			);
+				expect.objectContaining({
+					filepath: siblingScript,
+				}),
+			]);
+
+			expect(contentScripts).toHaveLength(1);
+
+			const lazyEntry = contentScripts.find((dep) => dep.excludeFromHtml === true);
 
 			expect(lazyEntry).toEqual(
 				expect.objectContaining({
@@ -240,7 +246,6 @@ describe('DependencyResolverService', () => {
 				}),
 			);
 
-			expect(pageScript?.groupedBundle).toBeUndefined();
 			expect(lazyEntry?.groupedBundle).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
@@ -499,7 +504,7 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
-	it('should keep bundleable page stylesheets as file assets during development', async () => {
+	it('should keep bundleable page stylesheets and scripts as file assets during development', async () => {
 		const previousNodeEnv = process.env.NODE_ENV;
 		process.env.NODE_ENV = 'development';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
@@ -562,9 +567,13 @@ describe('DependencyResolverService', () => {
 				}),
 				expect.objectContaining({
 					kind: 'script',
-					source: 'content',
-					packageRole: 'page-script',
-					content: `import ${JSON.stringify(scriptA)};\nimport ${JSON.stringify(scriptB)};`,
+					source: 'file',
+					filepath: scriptA,
+				}),
+				expect.objectContaining({
+					kind: 'script',
+					source: 'file',
+					filepath: scriptB,
 				}),
 			]);
 		} finally {

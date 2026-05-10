@@ -107,6 +107,12 @@ function renderLightDomCounter(attributes = 'count="0"'): string {
 	].join('');
 }
 
+function renderLightDomCounterPage(counters: Array<{ id: string; count: number }>): string {
+	return counters
+		.map(({ id, count }) => renderLightDomCounter(`data-counter-id="${id}" count="${String(count)}"`))
+		.join('');
+}
+
 describe('DomSwapper DOM behavior', () => {
 	it('preserves multiple top-level body elements when replacing the body', () => {
 		resetDocument();
@@ -163,6 +169,43 @@ describe('DomSwapper DOM behavior', () => {
 		expect(incrementButton).not.toBeNull();
 		incrementButton?.click();
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('1');
+	});
+
+	it('preserves incoming light-DOM custom element markup across repeated navigations', () => {
+		resetDocument();
+		registerLightDomCounter();
+		const swapper = new DomSwapper('data-eco-persist');
+		document.body.innerHTML = `<main>${renderLightDomCounterPage([
+			{ id: 'introduction-init', count: 5 },
+			{ id: 'introduction-next-steps', count: 7 },
+		])}</main>`;
+
+		const installationDocument = parseDocument(
+			`<html><body><main>${renderLightDomCounterPage([{ id: 'installation', count: 3 }])}</main></body></html>`,
+		);
+		swapper.morphBody(installationDocument);
+
+		const introductionDocument = parseDocument(
+			`<html><body><main>${renderLightDomCounterPage([
+				{ id: 'introduction-init', count: 5 },
+				{ id: 'introduction-next-steps', count: 7 },
+			])}</main></body></html>`,
+		);
+		swapper.morphBody(introductionDocument);
+
+		const counters = Array.from(document.querySelectorAll<HTMLElement>('test-light-dom-counter'));
+		expect(counters).toHaveLength(2);
+		expect(counters.map((counter) => counter.getAttribute('data-counter-id'))).toEqual([
+			'introduction-init',
+			'introduction-next-steps',
+		]);
+		expect(counters.map((counter) => counter.getAttribute('count'))).toEqual(['5', '7']);
+		expect(counters.map((counter) => counter.querySelector('[data-ref="count"]')?.textContent)).toEqual(['5', '7']);
+
+		const incrementButton = counters[0]?.querySelector<HTMLButtonElement>('[data-ref="increment"]');
+		expect(incrementButton).not.toBeNull();
+		incrementButton?.click();
+		expect(counters[0]?.querySelector('[data-ref="count"]')?.textContent).toBe('6');
 	});
 
 	it('preserves persisted light-DOM custom elements when replacing the body', () => {

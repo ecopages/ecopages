@@ -6,7 +6,7 @@ import { rapidhash } from '../../utils/hash.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
-import { createUnifiedPageDependencies } from './page-dependency-bundling.ts';
+import { packagePageDependencies } from './page-dependency-bundling.ts';
 
 export const DEPENDENCY_ERRORS = {
 	INVALID_STYLESHEET_ENTRY: 'Invalid stylesheet dependency entry: expected src or content',
@@ -98,13 +98,13 @@ export class DependencyResolverService {
 			},
 		});
 
-		const unifiedDependencies = createUnifiedPageDependencies(dependencies, integrationName);
-		const hasLazyDependencies = unifiedDependencies.some(
+		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
+		const hasLazyDependencies = packagedDependencies.some(
 			(dep) => dep.kind === 'script' && dep.excludeFromHtml === true,
 		);
 
 		const processedDependencies = await this.assetProcessingService.processDependencies(
-			unifiedDependencies,
+			packagedDependencies,
 			integrationName,
 		);
 		const lazyKeyToOutputUrl = new Map<string, string>();

@@ -53,7 +53,7 @@ Rendering that happens when a request arrives at the server. The output depends 
 _Avoid_: Server-side rendering (use "dynamic page" for the cached variant), runtime rendering
 
 **Filesystem Route**:
-A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/:slug`).
+A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`).
 _Avoid_: Automatic route, file-based route
 
 **Explicit Route**:
@@ -108,7 +108,8 @@ _Avoid_: SSR flag, hydration mode, server toggle
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
 - Each **Page** declares one optional **Layout**
-- Pages are discovered as either **Filesystem Routes** or registered as **Explicit Routes**
+- Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
+- **Explicit Routes** may also register non-page handlers such as `app.get()` endpoints
 - **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions
 - A **Route Registry** owns the canonical set of **Filesystem Routes** for one application and supports reload during development
 - Each **Filesystem Route** is stored as one **Template Route**; dynamic routes may also produce **Static Path Expansions** for build-time rendering

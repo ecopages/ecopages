@@ -71,6 +71,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Documentation
 
 - Added architecture and API documentation for config, plugins, services, adapters, HMR, routing, and rendering.
+- Documented that Html-owned dependency assets stay shared while page, layout, and component dependency assets are packaged per route.
 
 ### Tests
 

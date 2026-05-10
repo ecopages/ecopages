@@ -178,6 +178,12 @@ export const MyButton = eco.component({
 });
 ```
 
+Dependency ownership affects final asset packaging:
+
+- Stylesheets and scripts declared from `eco.html()` stay Html-owned and can be emitted as shared app-wide assets.
+- Stylesheets and scripts declared from Pages, Layouts, or Components are resolved into page-owned assets for the rendered route.
+- This split is intentional. Shared Html assets can be cached across routes, while page-owned assets can change without invalidating the global shell.
+
 ### 5. API Handlers
 
 Add server-side routes using `defineApiHandler`. Register them on your `app` instance before starting:

@@ -1,12 +1,30 @@
 import type { PagePackageResult } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from './assets.types.ts';
 
+function getSuppressedSourceFilepaths(assets: ProcessedAsset[]): Set<string> {
+	const suppressed = new Set<string>();
+
+	for (const asset of assets) {
+		if (
+			(asset.packageRole === 'page-style' || asset.packageRole === 'page-script') &&
+			Array.isArray(asset.bundledSourceFilepaths)
+		) {
+			for (const filepath of asset.bundledSourceFilepaths) {
+				suppressed.add(filepath);
+			}
+		}
+	}
+
+	return suppressed;
+}
+
 export function createPagePackage(assets: ProcessedAsset[]): PagePackageResult {
 	const inlineAssets: ProcessedAsset[] = [];
 	const separateAssets: ProcessedAsset[] = [];
 	const dynamicChunks: ProcessedAsset[] = [];
 	let pageScript: ProcessedAsset | undefined;
 	let pageStylesheet: ProcessedAsset | undefined;
+	const suppressedSourceFilepaths = getSuppressedSourceFilepaths(assets);
 
 	for (const asset of assets) {
 		if (asset.inline) {
@@ -49,7 +67,7 @@ export function createPagePackage(assets: ProcessedAsset[]): PagePackageResult {
 
 	return {
 		assets,
-		htmlAssets: assets.filter(shouldIncludeInHtml),
+		htmlAssets: assets.filter((asset) => shouldIncludeInHtml(asset, suppressedSourceFilepaths)),
 		pageScript,
 		pageStylesheet,
 		inlineAssets,
@@ -58,12 +76,16 @@ export function createPagePackage(assets: ProcessedAsset[]): PagePackageResult {
 	};
 }
 
-function shouldIncludeInHtml(asset: ProcessedAsset): boolean {
+function shouldIncludeInHtml(asset: ProcessedAsset, suppressedSourceFilepaths: Set<string>): boolean {
 	if (asset.excludeFromHtml) {
 		return false;
 	}
 
 	if (asset.packageRole === 'runtime') {
+		return false;
+	}
+
+	if (asset.sourceFilepath && suppressedSourceFilepaths.has(asset.sourceFilepath)) {
 		return false;
 	}
 

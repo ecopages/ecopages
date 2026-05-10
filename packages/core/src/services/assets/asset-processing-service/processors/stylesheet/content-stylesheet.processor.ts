@@ -65,6 +65,7 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 				attributes: dep.attributes,
 				inline: dep.inline,
 				packageRole: dep.packageRole,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 		});
 	}

@@ -16,6 +16,7 @@ export interface BaseAsset {
 	attributes?: Record<string, string>;
 	position?: AssetPosition;
 	packageRole?: AssetPackageRole;
+	bundledSourceFilepaths?: string[];
 }
 
 export interface ScriptAsset extends BaseAsset {
@@ -105,6 +106,7 @@ export interface JsonScriptAsset extends ScriptAsset {
 
 export type ProcessedAsset = {
 	filepath?: string;
+	sourceFilepath?: string;
 	srcUrl?: string;
 	content?: string;
 	kind: AssetKind;
@@ -114,6 +116,7 @@ export type ProcessedAsset = {
 	excludeFromHtml?: boolean;
 	packageRole?: AssetPackageRole;
 	groupedBundle?: GroupedScriptBundle;
+	bundledSourceFilepaths?: string[];
 };
 
 export type AssetDefinition =

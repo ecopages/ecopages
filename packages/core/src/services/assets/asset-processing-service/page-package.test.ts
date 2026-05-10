@@ -65,4 +65,36 @@ describe('createPagePackage', () => {
 		expect(result.htmlAssets).toEqual([hydrationBootstrap]);
 		expect(result.separateAssets).toEqual([hydrationBootstrap]);
 	});
+
+	it('suppresses bundled source stylesheet assets from final html assets', () => {
+		const pageStylesheet = {
+			kind: 'stylesheet',
+			srcUrl: '/assets/page.css',
+			position: 'head',
+			packageRole: 'page-style',
+			bundledSourceFilepaths: ['/app/src/styles/tailwind.css', '/app/src/styles/fonts.css'],
+		} as ProcessedAsset;
+		const bundledTailwind = {
+			kind: 'stylesheet',
+			srcUrl: '/assets/styles/tailwind.css',
+			position: 'head',
+			sourceFilepath: '/app/src/styles/tailwind.css',
+		} as ProcessedAsset;
+		const bundledFonts = {
+			kind: 'stylesheet',
+			srcUrl: '/assets/styles/fonts.css',
+			position: 'head',
+			sourceFilepath: '/app/src/styles/fonts.css',
+		} as ProcessedAsset;
+		const pageScript = {
+			kind: 'script',
+			srcUrl: '/assets/page.js',
+			position: 'head',
+		} as ProcessedAsset;
+
+		const result = createPagePackage([pageStylesheet, bundledTailwind, bundledFonts, pageScript]);
+
+		expect(result.pageStylesheet).toBe(pageStylesheet);
+		expect(result.htmlAssets).toEqual([pageStylesheet, pageScript]);
+	});
 });

@@ -10,7 +10,7 @@ import {
 } from '@ecopages/radiant';
 import { controller } from '@ecopages/radiant/decorators/controller';
 import { installRadiantHydrator, uninstallRadiantHydrator } from '@ecopages/radiant/client/hydrator';
-import '@ecopages/radiant/server/render-component';
+import { renderComponentToString } from '@ecopages/radiant/server/render-component';
 import { renderControllerToString } from '@ecopages/radiant/server/render-controller';
 
 let nextTagId = 0;
@@ -42,9 +42,11 @@ function defineCounterComponent(tagName: string) {
 	return TestCounter;
 }
 
-function createSsrHost(tagName: string): { host: HTMLElement; markup: string; ssrButton: TestButton } {
+async function createSsrHost(tagName: string): Promise<{ host: HTMLElement; markup: string; ssrButton: TestButton }> {
 	const Counter = defineCounterComponent(tagName);
-	const markup = new Counter().renderHostToString({ mode: 'hydrate' });
+	const markup = await renderComponentToString(Counter, {
+		renderOptions: { mode: 'hydrate' },
+	});
 	const template = document.createElement('template');
 	template.innerHTML = markup;
 
@@ -103,7 +105,7 @@ describe('RadiantElement hydration contract', () => {
 	});
 
 	it('hydrates SSR RadiantElement hosts in place when the hydrator is installed before first connect', async () => {
-		const { host, markup, ssrButton } = createSsrHost(createTagName());
+		const { host, markup, ssrButton } = await createSsrHost(createTagName());
 
 		expect(markup).toContain('data-hydration');
 
@@ -119,7 +121,7 @@ describe('RadiantElement hydration contract', () => {
 	});
 
 	it('falls back to a fresh client render when the explicit Radiant hydrator is missing', async () => {
-		const { host, markup, ssrButton } = createSsrHost(createTagName());
+		const { host, markup, ssrButton } = await createSsrHost(createTagName());
 
 		expect(markup).toContain('data-hydration');
 

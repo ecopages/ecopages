@@ -7,7 +7,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
-import { remarkEscapeInlineCodeHtml } from '@/plugins/remark-escape-inline-code-html';
+import { remarkEscapeInlineCodeHtml } from './src/plugins/remark-escape-inline-code-html';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)

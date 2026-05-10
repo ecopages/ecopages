@@ -1,104 +1,25 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import path from 'node:path';
-import type { CompileOptions } from '@mdx-js/mdx';
 import {
 	IntegrationPlugin,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
-import { rapidhash } from '@ecopages/core/hash';
-import { AssetFactory, type ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { VFile } from 'vfile';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
+import {
+	appendMdxExtensions,
+	createMdxLoaderPlugin,
+	registerBunMdxPlugin,
+	resolveMdxCompilerOptions,
+	type ResolvedMdxCompileOptions,
+} from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
-import type {
-	EcopagesJsxMdxCompileOptions,
-	EcopagesJsxMdxOptions,
-	EcopagesJsxPluginOptions,
-	EcopagesJsxRendererConfig,
-} from './ecopages-jsx.types.ts';
+import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
-	EcopagesJsxMdxCompileOptions,
 	EcopagesJsxMdxOptions,
 	EcopagesJsxPluginOptions,
 	EcopagesJsxRendererConfig,
 } from './ecopages-jsx.types.ts';
-
-type ResolvedMdxCompileOptions = EcopagesJsxMdxCompileOptions & Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
-
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
-	const merged = lists.flatMap((list) => (list ? [...list] : []));
-	return merged.length > 0 ? merged : undefined;
-};
-
-const createMdxExtensionFilter = (extensions: string[], options?: { allowQueryString?: boolean }): RegExp => {
-	const escaped = extensions.map(escapeRegex);
-	const suffix = options?.allowQueryString ? '(\\?.*)?$' : '$';
-	return new RegExp(`(${escaped.join('|')})${suffix}`);
-};
-
-const appendMdxExtensions = (target: string[], mdxExtensions: string[]): void => {
-	for (const ext of mdxExtensions) {
-		if (!target.includes(ext)) {
-			target.push(ext);
-		}
-	}
-};
-
-/**
- * Resolves MDX compiler options for the JSX integration.
- *
- * The integration always controls the JSX runtime fields so route compilation
- * stays aligned with the shared `@ecopages/jsx` server and client runtime.
- */
-const resolveMdxCompilerOptions = (mdxOptions: EcopagesJsxMdxOptions): ResolvedMdxCompileOptions => {
-	const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = mdxOptions;
-	const resolved: ResolvedMdxCompileOptions = {
-		format: 'detect',
-		outputFormat: 'program',
-		...compilerOptions,
-		jsxImportSource: '@ecopages/jsx',
-		jsxRuntime: 'automatic',
-		development: process.env.NODE_ENV === 'development',
-	};
-
-	const mergedRemark = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
-	const mergedRehype = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
-	const mergedRecma = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
-
-	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
-	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
-	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
-
-	return resolved;
-};
-
-const createMdxLoaderPlugin = (compilerOptions: ResolvedMdxCompileOptions, extensions: string[]): EcoBuildPlugin => {
-	const filter = createMdxExtensionFilter(extensions, { allowQueryString: true });
-
-	return {
-		name: 'ecopages-jsx-mdx-loader',
-		setup(build) {
-			build.onLoad({ filter }, async (args) => {
-				const { compile } = await import('@mdx-js/mdx');
-				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
-				const source = await readFile(filePath, 'utf-8');
-				const compiled = await compile(new VFile({ value: source, path: filePath }), compilerOptions);
-
-				return {
-					contents: String(compiled.value),
-					loader: 'js',
-					resolveDir: path.dirname(filePath),
-				};
-			});
-		},
-	};
-};
 
 type ResolvedJsxPluginConfig = Omit<IntegrationPluginConfig, 'name' | 'extensions' | 'jsxImportSource'> & {
 	extensions: string[];
@@ -142,8 +63,6 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 
-	private customElementAssets = new Map<string, readonly ProcessedAsset[]>();
-	private customElementScriptFiles = new Map<string, string>();
 	private includeRadiant: boolean;
 	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
@@ -155,22 +74,17 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		return [this.mdxLoaderPlugin].filter((plugin): plugin is EcoBuildPlugin => plugin !== undefined);
 	}
 
-	/**
-	 * Creates the renderer instance and attaches the discovered intrinsic custom
-	 * element assets before the renderer handles any requests.
-	 */
+	/** Creates the renderer instance with the resolved JSX integration runtime options. */
 	override initializeRenderer(options?: { rendererModules?: unknown }): EcopagesJsxRenderer {
-		const rendererConfig: EcopagesJsxRendererConfig = {
-			intrinsicCustomElementAssets: this.customElementAssets,
-			intrinsicCustomElementScriptFiles: this.customElementScriptFiles,
-			mdxExtensions: this.mdxExtensions,
-			radiantSsrEnabled: this.includeRadiant,
-		};
-		const renderer = new this.renderer({
-			...this.createRendererOptions(options),
-			jsxConfig: rendererConfig,
-		});
-		return this.attachRendererRuntimeServices(renderer);
+		return this.attachRendererRuntimeServices(
+			new this.renderer({
+				...this.createRendererOptions(options),
+				jsxConfig: {
+					mdxExtensions: this.mdxExtensions,
+					radiantSsrEnabled: this.includeRadiant,
+				},
+			}),
+		);
 	}
 
 	constructor(options?: EcopagesJsxPluginOptions) {
@@ -196,8 +110,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	}
 
 	/**
-	 * Registers MDX tooling, discovers intrinsic custom-element assets, and then
-	 * completes the base integration setup.
+	 * Registers MDX tooling and completes the base integration setup.
 	 */
 	override async setup(): Promise<void> {
 		this.ensureMdxLoaderPlugin();
@@ -206,7 +119,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			await this.registerMdxBunPlugin();
 		}
 
-		await this.buildCustomElementRegistry();
 		await super.setup();
 	}
 
@@ -229,134 +141,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return;
 		}
 
-		const compilerOptions = this.mdxCompilerOptions;
-		const filter = createMdxExtensionFilter(this.mdxExtensions);
-
-		Bun.plugin({
-			name: 'ecopages-jsx-mdx',
-			setup(build) {
-				build.onLoad({ filter }, async (args) => {
-					const { compile } = await import('@mdx-js/mdx');
-					const source = await readFile(args.path, 'utf-8');
-					const compiled = await compile(new VFile({ value: source, path: args.path }), compilerOptions);
-
-					return { contents: String(compiled.value), loader: 'js' as const };
-				});
-			},
-		});
-	}
-
-	/**
-	 * Scans `src/` for custom-element entry scripts and pre-resolves their assets.
-	 *
-	 * The renderer's server-side custom-element hook relies on this registry to
-	 * attach browser scripts without per-render file-system lookups.
-	 */
-	private async buildCustomElementRegistry(): Promise<void> {
-		if (!this.appConfig || !this.assetProcessingService) {
-			return;
-		}
-
-		this.customElementAssets.clear();
-		this.customElementScriptFiles.clear();
-		const scriptFiles = await this.collectScriptEntries(this.appConfig.absolutePaths.srcDir);
-
-		for (const scriptFile of scriptFiles) {
-			const tagNames = await this.extractCustomElementTagNames(scriptFile);
-			if (tagNames.length === 0) {
-				continue;
-			}
-
-			const asset = await this.resolveCustomElementAsset(scriptFile);
-			if (!asset) {
-				continue;
-			}
-
-			for (const tagName of tagNames) {
-				this.customElementAssets.set(tagName, [asset]);
-				this.customElementScriptFiles.set(tagName, scriptFile);
-			}
-		}
-	}
-
-	private async collectScriptEntries(directory: string): Promise<string[]> {
-		const entries = await readdir(directory, { withFileTypes: true });
-		const scripts: string[] = [];
-
-		for (const entry of entries) {
-			const entryPath = path.join(directory, entry.name);
-
-			if (entry.isDirectory()) {
-				scripts.push(...(await this.collectScriptEntries(entryPath)));
-				continue;
-			}
-
-			if (/\.script\.(?:ts|tsx)$/.test(entry.name)) {
-				scripts.push(entryPath);
-			}
-		}
-
-		return scripts;
-	}
-
-	private async resolveCustomElementAsset(scriptFile: string): Promise<ProcessedAsset | undefined> {
-		if (!this.assetProcessingService) {
-			return undefined;
-		}
-
-		const browserEntryFile = this.ensureIntrinsicScriptBrowserEntry(scriptFile);
-		const [asset] = await this.assetProcessingService.processDependencies(
-			[
-				AssetFactory.createFileScript({
-					filepath: browserEntryFile,
-					name: `ecopages-jsx-intrinsic-${rapidhash(scriptFile).toString(16)}`,
-					position: 'head',
-					attributes: {
-						type: 'module',
-						defer: '',
-					},
-				}),
-			],
-			`${this.name}:custom-elements:${scriptFile}`,
-		);
-
-		return asset;
-	}
-
-	private ensureIntrinsicScriptBrowserEntry(scriptFile: string): string {
-		const rootDir = this.appConfig?.rootDir ?? process.cwd();
-		const entriesDir = path.join(rootDir, 'node_modules', '.cache', 'ecopages-jsx-browser-entries');
-		const entryFile = path.join(entriesDir, `${rapidhash(scriptFile).toString(16)}.mjs`);
-		const statements = [
-			...(this.includeRadiant ? [`import '@ecopages/radiant/client/install-hydrator';`] : []),
-			`import ${JSON.stringify(scriptFile)};`,
-		];
-
-		mkdirSync(entriesDir, { recursive: true });
-		writeFileSync(entryFile, `${statements.join('\n')}\n`, 'utf8');
-
-		return entryFile;
-	}
-
-	private async extractCustomElementTagNames(scriptFile: string): Promise<string[]> {
-		const source = await readFile(scriptFile, 'utf8');
-		const tagNames = new Set<string>();
-
-		for (const match of source.matchAll(/@customElement\(\s*['"]([^'"]+)['"]/g)) {
-			const tagName = match[1];
-			if (tagName) {
-				tagNames.add(tagName);
-			}
-		}
-
-		for (const match of source.matchAll(/customElement\(\s*['"]([^'"]+)['"]\s*\)\s*\(/g)) {
-			const tagName = match[1];
-			if (tagName) {
-				tagNames.add(tagName);
-			}
-		}
-
-		return [...tagNames];
+		await registerBunMdxPlugin(this.mdxCompilerOptions, this.mdxExtensions);
 	}
 }
 

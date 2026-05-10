@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
 import { PathUtils } from '../utils/path-utils.module.ts';
 import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
@@ -12,7 +12,7 @@ import type { IntegrationRenderer } from './orchestration/integration-renderer.t
  * loading. Returning this narrowed shape avoids a dedicated wrapper class while
  * still keeping callers off the full integration renderer surface.
  */
-export type PageRouteRenderer = Pick<IntegrationRenderer, 'execute' | 'loadPageModule'>;
+export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'>;
 
 /**
  * Narrow explicit-view render contract exposed to static route handling.
@@ -21,7 +21,7 @@ export type PageRouteRenderer = Pick<IntegrationRenderer, 'execute' | 'loadPageM
  * Explicit static routes only need `renderToResponse()`, so the factory can
  * hide the broader integration renderer surface there as well.
  */
-export type ExplicitViewRenderer = Pick<IntegrationRenderer, 'renderToResponse'>;
+export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderToResponse'>;
 
 export interface PageRendererResolver {
 	getPageRenderer(filePath: string): PageRouteRenderer;
@@ -48,7 +48,7 @@ export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
 	private rendererModules?: unknown;
-	private rendererCache = new Map<string, IntegrationRenderer>();
+	private rendererCache = new Map<string, IntegrationRenderer<unknown>>();
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
@@ -100,9 +100,9 @@ export class RouteRendererFactory {
 	/**
 	 * Resolves the integration plugin that owns a given route file.
 	 */
-	getIntegrationPlugin(filePath: string): IntegrationPlugin {
+	getIntegrationPlugin(filePath: string): AnyIntegrationPlugin {
 		const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
-		const isIntegrationPlugin = (plugin: IntegrationPlugin): boolean => {
+		const isIntegrationPlugin = (plugin: AnyIntegrationPlugin): boolean => {
 			return plugin.extensions.some((extension) => templateExtension === extension);
 		};
 		const integrationPlugin = this.appConfig.integrations.find(isIntegrationPlugin);
@@ -110,14 +110,14 @@ export class RouteRendererFactory {
 			!!integrationPlugin,
 			`No integration plugin found for template extension: ${templateExtension}, file: ${filePath}`,
 		);
-		return integrationPlugin as IntegrationPlugin;
+		return integrationPlugin;
 	}
 
 	/**
 	 * Returns the cached renderer engine for the file's owning integration,
 	 * creating it on first use.
 	 */
-	private getRouteRendererEngine(filePath: string): IntegrationRenderer {
+	private getRouteRendererEngine(filePath: string): IntegrationRenderer<unknown> {
 		const integrationPlugin = this.getIntegrationPlugin(filePath);
 		const cached = this.rendererCache.get(integrationPlugin.name);
 		if (cached) {

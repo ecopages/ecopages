@@ -1,7 +1,14 @@
 import type { EcoComponent } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
-import { componentExample, componentExampleCode, configExample, configExampleCode, pageExample, pageExampleCode } from '@/data/homepage-examples';
+import {
+	componentExample,
+	componentExampleCode,
+	configExample,
+	configExampleCode,
+	pageExample,
+	pageExampleCode,
+} from '@/data/homepage-examples';
 import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 
 const HomeCard = ({
@@ -100,7 +107,7 @@ const HomePage: EcoComponent = () => {
 									id: 'eco-component',
 									label: 'eco.component.tsx',
 									code: (
-										<figure data-rehype-pretty-code-figure class='home-code-block'>
+										<figure data-rehype-pretty-code-figure class="home-code-block">
 											{unsafeHtml(componentExample)}
 										</figure>
 									),

@@ -1,7 +1,7 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
-	--font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
 	--font-heading: 'Karla', ui-sans-serif, system-ui, sans-serif;
 	--font-mono: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
@@ -75,7 +75,9 @@
 	--color-on-primary: var(--color-glacier-white-50);
 	--color-secondary: var(--color-scarlet-500);
 	--color-on-secondary: var(--color-glacier-white-50);
-	--color-border: var(--color-glacier-white-300);
+	--color-secondary-container: var(--color-scarlet-100);
+	--color-on-secondary-container: var(--color-scarlet-900);
+	--color-border: color-mix(in oklab, var(--color-on-background) 15%, transparent);
 	--color-link: var(--color-navy-blue-700);
 	--color-background-code: var(--color-glacier-white-100);
 	--color-on-background-code: var(--color-laser-lemon-800);
@@ -89,11 +91,12 @@
 	--color-muted: var(--color-glacier-white-800);
 	--color-primary-container: var(--color-night-sky-800);
 	--color-on-primary-container: var(--color-night-sky-50);
-	--color-primary: var(--color-night-sky-500);
+	--color-primary: var(--color-night-sky-400);
 	--color-on-primary: var(--color-glacier-white-950);
 	--color-secondary: var(--color-scarlet-500);
 	--color-on-secondary: var(--color-glacier-white-950);
-	--color-border: var(--color-glacier-white-800);
+	--color-secondary-container: var(--color-scarlet-800);
+	--color-on-secondary-container: var(--color-scarlet-100);
 	--color-link: var(--color-navy-blue-400);
 	--color-background-code: var(--color-glacier-white-900);
 	--color-on-background-code: var(--color-laser-lemon-300);

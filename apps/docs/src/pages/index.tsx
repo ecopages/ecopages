@@ -1,7 +1,7 @@
 import type { EcoComponent } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
-import { componentExample, componentExampleCode, configExample, configExampleCode, pageExample, pageExampleCode } from '@/components/homepage-examples';
+import { componentExample, componentExampleCode, configExample, configExampleCode, pageExample, pageExampleCode } from '@/data/homepage-examples';
 import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 
 const HomeCard = ({

@@ -3,9 +3,9 @@ import { exists, mkdir, readdir } from 'node:fs/promises';
 
 const ROOT_DIR = join(import.meta.dir, '..');
 const SRC_DOCS_DIR = join(ROOT_DIR, 'src/pages/docs');
-const ECO_DIR = join(ROOT_DIR, '.eco');
-const OUTPUT_CONTENT_DIR = join(ECO_DIR, 'llms-content');
-const OUTPUT_LLMS_FILE = join(ECO_DIR, 'llms.txt');
+const PUBLIC_DIR = join(ROOT_DIR, 'src/public');
+const OUTPUT_CONTENT_DIR = join(PUBLIC_DIR, 'llms-content');
+const OUTPUT_LLMS_FILE = join(PUBLIC_DIR, 'llms.txt');
 
 async function ensureDir(path: string) {
 	if (!(await exists(path))) {
@@ -67,7 +67,7 @@ function groupBySection(
 }
 
 async function main() {
-	await ensureDir(ECO_DIR);
+	await ensureDir(PUBLIC_DIR);
 	await ensureDir(OUTPUT_CONTENT_DIR);
 
 	const files = await scanDocs(SRC_DOCS_DIR);

@@ -322,7 +322,7 @@ export class RadiantCodeTabs extends RadiantElement {
 				</div>
 				<div class="code-tabs__panel" role="tabpanel" id={panelId} aria-labelledby={tabId}>
 					<div class="code-tabs__body">
-						<span class="code-tabs__code">{activeTab.code}</span>
+						<div class="code-tabs__code">{activeTab.code}</div>
 						<button
 							type="button"
 							class="code-tabs__copy"
@@ -342,7 +342,7 @@ export class RadiantCodeTabs extends RadiantElement {
 						return (
 							<div class="code-tabs__measure-panel" key={`measure-${tab.id}`}>
 								<div class="code-tabs__body">
-									<span class="code-tabs__code">{tab.code}</span>
+									<div class="code-tabs__code">{tab.code}</div>
 								</div>
 							</div>
 						);

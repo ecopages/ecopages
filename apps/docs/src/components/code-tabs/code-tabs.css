@@ -29,28 +29,37 @@ radiant-code-tabs {
 	}
 
 	&__body {
-		@apply relative min-h-12 min-w-0 px-4 py-3;
+		@apply relative w-full min-h-12 min-w-0 px-4 py-3;
 		min-block-size: var(--code-tabs-panel-height, auto);
-		min-inline-size: var(--code-tabs-panel-width, auto);
+		min-inline-size: 0;
 
 		&:has([data-rehype-pretty-code-figure]) {
-			@apply p-0;
+			@apply flex flex-col p-0;
+			height: var(--code-tabs-panel-height, auto);
 		}
 	}
 
 	&__code {
-		@apply block min-w-0 overflow-x-auto whitespace-nowrap text-[13px];
+		@apply block w-full max-w-full min-w-0 text-[13px];
+
+		&:has([data-rehype-pretty-code-figure]) {
+			@apply flex flex-col flex-1 min-h-0 overflow-y-hidden;
+		}
 
 		[data-rehype-pretty-code-figure] {
-			@apply rounded-none;
+			@apply flex flex-col flex-1 min-h-0 w-full max-w-full min-w-0 overflow-y-hidden rounded-none;
 			& > pre {
-				@apply rounded-none;
+				@apply flex-1 min-h-0 w-full max-w-full min-w-0 overflow-x-auto whitespace-pre rounded-none;
+
+				.line:empty::after {
+					content: '\00a0';
+				}
 			}
 		}
 	}
 
 	&__copy {
-		@apply pointer-events-none absolute top-1.5 right-1.5 inline-flex h-8 shrink-0 translate-y-1 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background opacity-0 transition-all;
+		@apply pointer-events-none absolute top-1.5 right-1.5 z-10 inline-flex h-8 shrink-0 translate-y-1 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background opacity-0 transition-all;
 		@apply hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
 
 		.code-tabs__body:hover &,

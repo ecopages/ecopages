@@ -5,7 +5,7 @@ const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${pa
 export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 	return (
 		<>
-			<title safe>{title}</title>
+			<title>{title}</title>
 			<link
 				rel="icon"
 				type="image/svg+xml"
@@ -22,12 +22,12 @@ export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 			<link rel="manifest" href="/favicon/site.webmanifest" />
 			<link rel="robots" href="/robots.txt" />
 			<meta name="description" content={description} />
-			{keywords?.length ? ((<meta name="keywords" content={keywords.join(',')} />) as 'safe') : null}
+			{keywords?.length ? <meta name="keywords" content={keywords.join(',')} /> : null}
 			<meta property="og:title" content={title} />
 			<meta property="og:description" content={description} />
 			<meta name="twitter:title" content={title} />
 			<meta name="twitter:description" content={description} />
-			{url ? ((<link rel="canonical" href={withBaseUrl(url)} />) as 'safe') : null}
+			{url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
 		</>
 	);
 }

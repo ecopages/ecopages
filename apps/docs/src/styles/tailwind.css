@@ -5,6 +5,34 @@
 @import './components/button.css';
 @import './vendor/shiki.css';
 
+html {
+	scrollbar-gutter: stable;
+}
+
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklab, var(--color-on-background) 30%, transparent) var(--color-background-accent);
+}
+
+*::-webkit-scrollbar {
+	width: 0.75rem;
+	height: 0.75rem;
+}
+
+*::-webkit-scrollbar-track {
+	background: var(--color-background-accent);
+}
+
+*::-webkit-scrollbar-thumb {
+	background: color-mix(in oklab, var(--color-on-background) 30%, transparent);
+	border: 0.1875rem solid var(--color-background-accent);
+	border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: color-mix(in oklab, var(--color-on-background) 42%, transparent);
+}
+
 body {
 	@apply text-on-background min-h-svh w-screen overflow-x-hidden font-sans relative z-0;
 }

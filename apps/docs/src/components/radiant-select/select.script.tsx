@@ -2,15 +2,21 @@ import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
 import {
-	createControlInstanceId,
+	createFieldIds,
+	ensureFieldId,
+	type RadiantFieldProps,
 	type RadiantSelectOption,
 	type RadiantValueChangeEvent,
-} from './radiant-controls.shared';
+} from '../radiant-field/field.shared';
+
+export type RadiantSelectProps = RadiantFieldProps & {
+	name?: string;
+	options?: RadiantSelectOption[];
+	value?: string;
+};
 
 @customElement('radiant-select')
 export class RadiantSelect extends RadiantElement {
-	private readonly instanceId = createControlInstanceId('radiant-select');
-
 	@prop({ type: String }) label: string = '';
 	@prop({ type: String }) override ariaLabel: string = '';
 	@prop({ type: String }) description: string = '';
@@ -34,18 +40,19 @@ export class RadiantSelect extends RadiantElement {
 	};
 
 	override render() {
-		const controlId = this.id ? `${this.id}-input` : `${this.instanceId}-input`;
-		const labelId = this.id ? `${this.id}-label` : `${this.instanceId}-label`;
-		const descriptionId = this.id ? `${this.id}-description` : `${this.instanceId}-description`;
+		const baseId = ensureFieldId(this, 'radiant-select');
+		const { controlId, labelId, descriptionId } = createFieldIds(baseId);
 		const hasDescription = Boolean(this.description);
+
 		return (
-			<div class="radiant-control">
-				<label class="radiant-control__label" id={labelId} for={controlId}>
+			<>
+				<label data-slot="label" class="radiant-select__label" id={labelId} for={controlId}>
 					{this.label}
 				</label>
 				<select
 					id={controlId}
-					class="radiant-control__input radiant-control__select"
+					data-slot="control"
+					class="radiant-select__control"
 					name={this.name}
 					aria-label={this.ariaLabel || undefined}
 					aria-labelledby={this.ariaLabel ? undefined : labelId}
@@ -53,17 +60,17 @@ export class RadiantSelect extends RadiantElement {
 					on:change={this.handleChange}
 				>
 					{this.controlOptions.map((option) => (
-						<option key={option.id} value={option.id} selected={option.id === this.value}>
+						<option key={option.id} value={option.id} selected={option.id === this.value} disabled={option.disabled}>
 							{option.label}
 						</option>
 					))}
 				</select>
 				{hasDescription ? (
-					<div class="radiant-control__description" id={descriptionId}>
+					<div data-slot="description" class="radiant-select__description" id={descriptionId}>
 						{this.description}
 					</div>
 				) : null}
-			</div>
+			</>
 		);
 	}
 }

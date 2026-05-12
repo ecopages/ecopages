@@ -1,12 +1,23 @@
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
-import { createControlInstanceId, type RadiantOption, type RadiantValueChangeEvent } from './radiant-controls.shared';
+import {
+	createFieldIds,
+	ensureFieldId,
+	type RadiantFieldProps,
+	type RadiantOption,
+	type RadiantValueChangeEvent,
+} from '../radiant-field/field.shared';
 
-@customElement('radiant-toggle-selector')
-export class RadiantToggleSelector extends RadiantElement {
-	private readonly instanceId = createControlInstanceId('radiant-toggle-selector');
+export type RadiantToggleGroupProps = RadiantFieldProps & {
+	name?: string;
+	options?: RadiantOption[];
+	value?: string;
+	disabled?: boolean;
+};
 
+@customElement('radiant-toggle-group')
+export class RadiantToggleGroup extends RadiantElement {
 	@prop({ type: String }) label: string = '';
 	@prop({ type: String }) override ariaLabel: string = '';
 	@prop({ type: String }) description: string = '';
@@ -31,23 +42,26 @@ export class RadiantToggleSelector extends RadiantElement {
 	};
 
 	override render() {
-		const radioGroupName = this.name ? `${this.name}-${this.instanceId}` : `${this.instanceId}-group`;
-		const descriptionId = this.id ? `${this.id}-description` : `${this.instanceId}-description`;
+		const baseId = ensureFieldId(this, 'radiant-toggle-group');
+		const radioGroupName = this.name ? `${this.name}-${baseId}` : `${baseId}-group`;
+		const { descriptionId } = createFieldIds(baseId);
 		const hasDescription = Boolean(this.description);
 
 		return (
 			<fieldset
-				class="radiant-control radiant-choice-group"
+				data-slot="group"
+				class="radiant-toggle-group__group"
 				disabled={this.disabled ? 'true' : undefined}
 				aria-label={this.ariaLabel || undefined}
 				aria-describedby={hasDescription ? descriptionId : undefined}
 			>
-				<legend class="radiant-control__legend">{this.label}</legend>
-				<div class="radiant-control__body">
-					<div class="radiant-choice-group__options">
+				<legend data-slot="label" class="radiant-toggle-group__label">{this.label}</legend>
+				<div data-slot="body" class="radiant-toggle-group__body">
+					<div data-slot="options" class="radiant-toggle-group__options">
 						{this.controlOptions.map((option) => (
-							<label key={option.id} class="radiant-choice">
+							<label key={option.id} data-slot="option" class="radiant-toggle-group__option">
 								<input
+									data-slot="option-input"
 									type="radio"
 									name={radioGroupName}
 									value={option.id}
@@ -55,12 +69,12 @@ export class RadiantToggleSelector extends RadiantElement {
 									disabled={this.disabled ? 'true' : undefined}
 									on:change={this.handleChange}
 								/>
-								<span class="radiant-choice__label">{option.label}</span>
+								<span data-slot="option-label" class="radiant-toggle-group__option-label">{option.label}</span>
 							</label>
 						))}
 					</div>
 					{hasDescription ? (
-						<div class="radiant-control__description" id={descriptionId}>
+						<div data-slot="description" class="radiant-toggle-group__description" id={descriptionId}>
 							{this.description}
 						</div>
 					) : null}

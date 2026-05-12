@@ -1,0 +1,29 @@
+:root {
+	--radiant-field-gap: 0.25rem;
+	--radiant-field-label-size: 0.8rem;
+	--radiant-field-label-weight: 700;
+	--radiant-field-label-tracking: 0.08em;
+	--radiant-field-label-color: color-mix(in srgb, var(--color-on-background) 68%, transparent);
+	--radiant-field-description-size: 0.95rem;
+	--radiant-field-description-weight: 500;
+	--radiant-field-description-line-height: 1.5;
+	--radiant-field-description-color: color-mix(in srgb, var(--color-on-background) 70%, transparent);
+	--radiant-field-control-min-height: 2.75rem;
+	--radiant-field-control-radius: 0.5rem;
+	--radiant-field-control-border-color: color-mix(in srgb, var(--color-on-background) 12%, transparent);
+	--radiant-field-control-surface: color-mix(in srgb, var(--color-background) 92%, var(--color-on-background) 8%);
+	--radiant-field-focus-ring: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
+	--radiant-field-focus-border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
+	--radiant-field-transition:
+		border-color 160ms ease,
+		background-color 160ms ease,
+		color 160ms ease,
+		box-shadow 160ms ease,
+		transform 160ms ease;
+	--radiant-choice-surface: color-mix(in srgb, var(--color-on-background) 4%, transparent);
+	--radiant-choice-text: color-mix(in srgb, var(--color-on-background) 78%, transparent);
+	--radiant-choice-active-surface: color-mix(in srgb, var(--color-primary) 14%, var(--color-background));
+	--radiant-choice-active-border: color-mix(in srgb, var(--color-primary) 44%, transparent);
+	--radiant-choice-active-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent);
+	--radiant-choice-hover-border: color-mix(in srgb, var(--color-primary) 22%, transparent);
+}

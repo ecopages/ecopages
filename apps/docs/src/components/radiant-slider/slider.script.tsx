@@ -1,12 +1,23 @@
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
-import { createControlInstanceId, type RadiantNumberChangeEvent } from './radiant-controls.shared';
+import {
+	createFieldIds,
+	ensureFieldId,
+	type RadiantFieldProps,
+	type RadiantNumberChangeEvent,
+} from '../radiant-field/field.shared';
+
+export type RadiantSliderProps = RadiantFieldProps & {
+	min?: number;
+	max?: number;
+	step?: number;
+	value?: number;
+	unit?: string;
+};
 
 @customElement('radiant-slider')
 export class RadiantSlider extends RadiantElement {
-	private readonly instanceId = createControlInstanceId('radiant-slider');
-
 	@prop({ type: String }) label: string = '';
 	@prop({ type: String }) override ariaLabel: string = '';
 	@prop({ type: String }) description: string = '';
@@ -28,25 +39,26 @@ export class RadiantSlider extends RadiantElement {
 	};
 
 	override render() {
-		const controlId = this.id ? `${this.id}-input` : `${this.instanceId}-input`;
-		const labelId = this.id ? `${this.id}-label` : `${this.instanceId}-label`;
-		const descriptionId = this.id ? `${this.id}-description` : `${this.instanceId}-description`;
+		const baseId = ensureFieldId(this, 'radiant-slider');
+		const { controlId, labelId, descriptionId } = createFieldIds(baseId);
 		const hasDescription = Boolean(this.description);
 		const suffix = this.unit;
+
 		return (
-			<div class="radiant-control">
-				<label class="radiant-control__label" id={labelId} for={controlId}>
+			<>
+				<label data-slot="label" class="radiant-slider__label" id={labelId} for={controlId}>
 					{this.label}
 				</label>
-				<div class="radiant-control__header">
-					<output class="radiant-control__value">
+				<div data-slot="header" class="radiant-slider__header">
+					<output data-slot="value" class="radiant-slider__value">
 						{this.value.toFixed(2)}
 						{suffix}
 					</output>
 				</div>
 				<input
 					id={controlId}
-					class="radiant-control__range"
+					data-slot="control"
+					class="radiant-slider__control"
 					type="range"
 					min={String(this.min)}
 					max={String(this.max)}
@@ -59,11 +71,11 @@ export class RadiantSlider extends RadiantElement {
 					on:input={this.handleInput}
 				/>
 				{hasDescription ? (
-					<div class="radiant-control__description" id={descriptionId}>
+					<div data-slot="description" class="radiant-slider__description" id={descriptionId}>
 						{this.description}
 					</div>
 				) : null}
-			</div>
+			</>
 		);
 	}
 }

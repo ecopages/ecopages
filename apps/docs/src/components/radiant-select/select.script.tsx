@@ -1,6 +1,7 @@
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import {
 	createFieldIds,
 	ensureFieldId,
@@ -60,7 +61,12 @@ export class RadiantSelect extends RadiantElement {
 					on:change={this.handleChange}
 				>
 					{this.controlOptions.map((option) => (
-						<option key={option.id} value={option.id} selected={option.id === this.value} disabled={option.disabled}>
+						<option
+							key={option.id}
+							value={option.id}
+							selected={option.id === this.value}
+							disabled={option.disabled}
+						>
 							{option.label}
 						</option>
 					))}
@@ -72,5 +78,11 @@ export class RadiantSelect extends RadiantElement {
 				) : null}
 			</>
 		);
+	}
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'radiant-select': JsxCustomElementAttributes<RadiantSelect, RadiantSelectProps>;
 	}
 }

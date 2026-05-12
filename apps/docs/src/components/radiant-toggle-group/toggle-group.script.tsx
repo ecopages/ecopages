@@ -1,6 +1,7 @@
 import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import {
 	createFieldIds,
 	ensureFieldId,
@@ -55,7 +56,9 @@ export class RadiantToggleGroup extends RadiantElement {
 				aria-label={this.ariaLabel || undefined}
 				aria-describedby={hasDescription ? descriptionId : undefined}
 			>
-				<legend data-slot="label" class="radiant-toggle-group__label">{this.label}</legend>
+				<legend data-slot="label" class="radiant-toggle-group__label">
+					{this.label}
+				</legend>
 				<div data-slot="body" class="radiant-toggle-group__body">
 					<div data-slot="options" class="radiant-toggle-group__options">
 						{this.controlOptions.map((option) => (
@@ -69,7 +72,9 @@ export class RadiantToggleGroup extends RadiantElement {
 									disabled={this.disabled ? 'true' : undefined}
 									on:change={this.handleChange}
 								/>
-								<span data-slot="option-label" class="radiant-toggle-group__option-label">{option.label}</span>
+								<span data-slot="option-label" class="radiant-toggle-group__option-label">
+									{option.label}
+								</span>
 							</label>
 						))}
 					</div>
@@ -81,5 +86,11 @@ export class RadiantToggleGroup extends RadiantElement {
 				</div>
 			</fieldset>
 		);
+	}
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'radiant-toggle-group': JsxCustomElementAttributes<RadiantToggleGroup, RadiantToggleGroupProps>;
 	}
 }

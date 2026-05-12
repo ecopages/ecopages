@@ -5,6 +5,8 @@ import type { JsxRenderable } from '@ecopages/jsx';
 export type BaseLayoutProps = {
 	children: JsxRenderable;
 	class?: string;
+	showDocsLink?: boolean;
+	showBurger?: boolean;
 };
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
@@ -14,12 +16,21 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 		components: [Header],
 	},
 
-	render: ({ children, class: className }) => {
+	render: ({ children, class: className, showDocsLink = true, showBurger = false }) => {
 		return (
 			<body>
 				<Header
+					showBurger={showBurger}
 					navigation={{
 						items: [
+							...(showDocsLink
+								? [
+										{
+											label: 'Docs',
+											href: '/docs/getting-started/introduction',
+										},
+									]
+								: []),
 							{
 								label: (
 									<svg

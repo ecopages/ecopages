@@ -14,9 +14,6 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 	return (
 		<nav class="navigation">
 			<ul>
-				<li>
-					<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel data-eco-persist="theme-toggle" />
-				</li>
 				{items.map(({ label, href, target = '_self' }) => (
 					<li>
 						<a href={href} target={target}>
@@ -24,6 +21,9 @@ export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
 						</a>
 					</li>
 				))}
+				<li>
+					<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel data-eco-persist="theme-toggle" />
+				</li>
 			</ul>
 		</nav>
 	);

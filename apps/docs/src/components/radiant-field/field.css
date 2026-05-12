@@ -15,10 +15,7 @@
 	--radiant-field-focus-ring: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
 	--radiant-field-focus-border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
 	--radiant-field-transition:
-		border-color 160ms ease,
-		background-color 160ms ease,
-		color 160ms ease,
-		box-shadow 160ms ease,
+		border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease,
 		transform 160ms ease;
 	--radiant-choice-surface: color-mix(in srgb, var(--color-on-background) 4%, transparent);
 	--radiant-choice-text: color-mix(in srgb, var(--color-on-background) 78%, transparent);

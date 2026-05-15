@@ -68,6 +68,22 @@ export interface RenderToResponseContext {
 	headers?: HeadersInit;
 }
 
+type MarkupNodeLike = {
+	nodeType: number;
+	outerHTML: string;
+};
+
+function isMarkupNodeLike(value: unknown): value is MarkupNodeLike {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'nodeType' in value &&
+		typeof value.nodeType === 'number' &&
+		'outerHTML' in value &&
+		typeof value.outerHTML === 'string'
+	);
+}
+
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
@@ -505,7 +521,25 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
 	): Promise<ComponentRenderResult> {
-		const props = input.children === undefined ? input.props : { ...input.props, children: input.children };
+		const serializedChildren =
+			input.children === undefined
+				? undefined
+				: typeof input.children === 'string'
+					? input.children
+					: isMarkupNodeLike(input.children)
+						? input.children.outerHTML
+						: undefined;
+
+		if (input.children !== undefined && serializedChildren === undefined) {
+			const componentFile = input.component.config?.__eco?.file ?? 'unknown component';
+			const childTag = Object.prototype.toString.call(input.children);
+
+			throw new TypeError(
+				`[ecopages] ${this.name} renderer expected serialized children for ${componentFile}, received ${childTag}.`,
+			);
+		}
+
+		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
 		const content = await component(props);
 		const html = String(content);
 		const assets =

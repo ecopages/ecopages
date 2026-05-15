@@ -128,8 +128,11 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 
 		const response = await requestGetAndWait(page.request, '/integration-matrix/ecopages-jsx-entry');
 		const html = await response.text();
+		/**
+		 * Regex is loose to avoid being brittle to unrelated template changes, but verifies that the correct shell section is targeted and that the counter group is inside the shell body and not rendered as a sibling to the shell with a hydration marker.
+		 */
 		const shellHtml = html.match(
-			/<section class="integration-shell integration-shell--ecopages-jsx" data-ecopages--jsx-shell="integration-matrix-counter-shell-ecopages-jsx">[^]*?<\/section>/,
+			/<section[^>]*data-ecopages--jsx-shell="integration-matrix-counter-shell-ecopages-jsx"[^]*?<\/section>/,
 		)?.[0];
 
 		expect(shellHtml).toBeDefined();

@@ -185,6 +185,12 @@ export class NodeHmrManager implements IHmrManager {
 	}
 
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
+		if (!fileSystem.exists(filePath)) {
+			appLogger.debug(`[NodeHmrManager] Skipping missing file change: ${filePath}`);
+			this.clearFailedEntrypointRegistration(filePath);
+			return;
+		}
+
 		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
 		const strategy = sorted.find((s) => {
 			try {

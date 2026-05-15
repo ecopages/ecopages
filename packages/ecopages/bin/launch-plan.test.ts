@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe('launch-plan', () => {
-	function writeExperimentalRuntimeConfig(tempDir) {
+	function writeExperimentalRuntimeConfig(tempDir: string) {
 		fs.writeFileSync(
 			path.join(tempDir, 'eco.config.ts'),
 			[
@@ -85,13 +85,8 @@ describe('launch-plan', () => {
 		]);
 	});
 
-	it('buildNodeArgs imports eco.config.ts when present', () => {
-		expect(buildNodeArgs(['--dev'], {}, 'app.ts', true)).toEqual([
-			'--import',
-			'./eco.config.ts',
-			'app.ts',
-			'--dev',
-		]);
+	it('buildNodeArgs runs the entry file directly', () => {
+		expect(buildNodeArgs(['--dev'], {}, 'app.ts', true)).toEqual(['app.ts', '--dev']);
 	});
 
 	it('resolveTsxCliPath resolves the packaged tsx cli entry', () => {
@@ -113,13 +108,7 @@ describe('launch-plan', () => {
 				executionStrategy: 'direct-runtime',
 				command: process.execPath,
 			});
-			expect(plan.commandArgs).toEqual([
-				require.resolve('tsx/cli'),
-				'--import',
-				'./eco.config.ts',
-				'app.ts',
-				'--dev',
-			]);
+			expect(plan.commandArgs).toEqual([require.resolve('tsx/cli'), 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

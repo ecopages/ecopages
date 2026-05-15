@@ -126,10 +126,9 @@ export class JsHmrStrategy extends HmrStrategy {
 		const watchedFiles = this.context.getWatchedFiles();
 		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(filePath);
 		const isInSrc = filePath.startsWith(this.context.getSrcDir());
-		const isRouteTemplate =
-			filePath.startsWith(this.context.getPagesDir()) || filePath.startsWith(this.context.getLayoutsDir());
-		const isIntegrationTemplate =
-			isRouteTemplate && this.context.getTemplateExtensions().some((extension) => filePath.endsWith(extension));
+		const isIntegrationTemplate = this.context
+			.getTemplateExtensions()
+			.some((extension) => filePath.endsWith(extension));
 
 		if (watchedFiles.size === 0) {
 			return false;

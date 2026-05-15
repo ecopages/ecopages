@@ -321,4 +321,115 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 			}),
 		).rejects.toThrow('contains a cycle or unresolved dependency links');
 	});
+
+	it('passes structured queued children through to the owning renderer', async () => {
+		const service = new QueuedForeignSubtreeResolutionService();
+		const foreignSubtree = createComponent('foreign-subtree', 'deferred');
+		const structuredChildren = { kind: 'structured-child' };
+		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
+			rendererCache: new Map<string, unknown>(),
+			componentInstanceScope: 'host',
+			nextForeignSubtreeId: 1,
+			queuedResolutions: [
+				{
+					token: '__TEST_QUEUE__host__1__',
+					component: foreignSubtree,
+					props: { children: structuredChildren },
+					componentInstanceId: 'host_n_1',
+				},
+			],
+		};
+
+		const resolveForeignSubtree = vi.fn(
+			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => ({
+				html: `<section>${JSON.stringify(input.children)}</section>`,
+				assets: [],
+				attachmentPolicy: { kind: 'first-element' },
+				rootTag: 'section',
+				integrationName: 'deferred',
+			}),
+		);
+
+		const result = await service.resolveQueuedHtml({
+			html: '<article>__TEST_QUEUE__host__1__</article>',
+			runtimeContext,
+			queueLabel: 'Test',
+			renderQueuedChildren: async (children) => ({
+				assets: [],
+				children,
+			}),
+			resolveForeignSubtree,
+			applyAttributesToFirstElement,
+			dedupeProcessedAssets: dedupeAssets,
+		});
+
+		expect(result.html).toBe('<article><section>{"kind":"structured-child"}</section></article>');
+		expect(resolveForeignSubtree).toHaveBeenCalledWith(
+			expect.objectContaining({
+				children: structuredChildren,
+			}),
+			expect.any(Map),
+		);
+	});
+
+	it('resolves queued tokens appended while another token is resolving', async () => {
+		const service = new QueuedForeignSubtreeResolutionService();
+		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
+		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
+		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
+			rendererCache: new Map<string, unknown>(),
+			componentInstanceScope: 'host',
+			nextForeignSubtreeId: 1,
+			queuedResolutions: [
+				{
+					token: '__TEST_QUEUE__host__1__',
+					component: parentForeignSubtree,
+					props: {},
+					componentInstanceId: 'host_n_1',
+				},
+			],
+		};
+
+		const resolveForeignSubtree = vi.fn(
+			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => {
+				if (input.component === parentForeignSubtree) {
+					runtimeContext.queuedResolutions.push({
+						token: '__TEST_QUEUE__host__2__',
+						component: childForeignSubtree,
+						props: {},
+						componentInstanceId: 'host_n_2',
+					});
+
+					return {
+						html: '<section>__TEST_QUEUE__host__2__</section>',
+						assets: [],
+						attachmentPolicy: { kind: 'first-element' },
+						rootTag: 'section',
+						integrationName: 'deferred',
+					};
+				}
+
+				return {
+					html: '<strong>child</strong>',
+					assets: [],
+					attachmentPolicy: { kind: 'first-element' },
+					rootTag: 'strong',
+					integrationName: 'deferred',
+				};
+			},
+		);
+
+		const result = await service.resolveQueuedHtml({
+			html: '<article>__TEST_QUEUE__host__1__</article>',
+			runtimeContext,
+			queueLabel: 'Test',
+			renderQueuedChildren: async () => ({ assets: [], html: undefined }),
+			resolveForeignSubtree,
+			applyAttributesToFirstElement,
+			dedupeProcessedAssets: dedupeAssets,
+		});
+
+		expect(result.html).toBe('<article><section><strong>child</strong></section></article>');
+		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
+	});
 });

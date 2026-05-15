@@ -17,6 +17,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { someInConfigTree } from '../utils/component-config-traversal.ts';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
+import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts';
 
 /**
  * Configuration for the ReactPageModuleService.
@@ -64,7 +65,6 @@ export class ReactPageModuleService {
 		filePath: string,
 		options?: { bypassCache?: boolean; cacheScope?: string },
 	): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
-		const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 		const mdxPlugin = createReactMdxLoaderPlugin(
 			this.config.mdxCompilerOptions ?? {
 				jsxImportSource: 'react',

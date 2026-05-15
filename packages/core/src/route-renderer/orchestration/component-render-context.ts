@@ -8,7 +8,14 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
  * renderer-owned value immediately, which can be final HTML or a renderer-local
  * transport token for later queue resolution.
  */
-export type ForeignChildInterceptionResult = { kind: 'inline' } | { kind: 'resolved'; value: unknown };
+export type ForeignChildInterceptionResult =
+	| { kind: 'inline'; props?: Record<string, unknown> }
+	| { kind: 'resolved'; value: unknown };
+
+export type ForeignChildRenderInterception =
+	| { kind: 'inline'; props?: Record<string, unknown> }
+	| { kind: 'resolved'; value: unknown }
+	| undefined;
 
 /**
  * Foreign-child metadata passed into the active renderer-owned runtime.
@@ -98,12 +105,14 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		this.context = context;
 	}
 
-	private applyForeignChildInterceptionResult(result: ForeignChildInterceptionResult): unknown | undefined {
+	private applyForeignChildInterceptionResult(
+		result: ForeignChildInterceptionResult,
+	): ForeignChildRenderInterception {
 		if (result.kind === 'resolved') {
-			return result.value;
+			return result;
 		}
 
-		return undefined;
+		return result.props ? result : undefined;
 	}
 
 	/**
@@ -111,7 +120,9 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	 *
 	 * The runtime may choose inline rendering or immediate resolved output.
 	 */
-	interceptForeignChild(input: ForeignChildRenderInput): Promise<unknown | undefined> | unknown | undefined {
+	interceptForeignChild(
+		input: ForeignChildRenderInput,
+	): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception {
 		const foreignChildRuntimeInput = {
 			currentIntegration: this.context.currentIntegration,
 			targetIntegration: input.targetIntegration,
@@ -145,7 +156,9 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 export type ComponentRenderContext = {
 	currentIntegration: string;
 	foreignChildRuntime?: ForeignChildRuntime;
-	interceptForeignChild(input: ForeignChildRenderInput): Promise<unknown | undefined> | unknown | undefined;
+	interceptForeignChild(
+		input: ForeignChildRenderInput,
+	): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception;
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T;
 };
 
@@ -263,7 +276,7 @@ const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
  */
 export function interceptForeignChild(
 	input: ForeignChildRenderInput,
-): Promise<unknown | undefined> | unknown | undefined {
+): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception {
 	return getComponentRenderContext()?.interceptForeignChild(input);
 }
 

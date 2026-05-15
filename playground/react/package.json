@@ -14,18 +14,18 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "0.3.0-alpha.16",
+		"@ecopages/radiant": "0.3.0-alpha.21",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
-		"@types/react": "^19",
-		"@types/react-dom": "^19",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
 		"ecopages": "workspace:*",
 		"tailwindcss": "^3.4.19"
 	},
 	"dependencies": {
-		"@tanstack/react-table": "^8.20.6",
-		"react-aria-components": "^1.6.0",
-		"react": "^19",
-		"react-dom": "^19"
+		"@tanstack/react-table": "^8.21.3",
+		"react": "^19.2.6",
+		"react-aria-components": "^1.17.0",
+		"react-dom": "^19.2.6"
 	}
 }

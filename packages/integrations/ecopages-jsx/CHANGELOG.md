@@ -8,6 +8,9 @@
 
 ### Bug Fixes
 
+- Switched Ecopages JSX SSR to hydrate mode when calling `@ecopages/jsx/server` so Radiant hosts emit the hydration markers expected by the current JSX runtime.
+- Preserve normalized child HTML when Ecopages JSX keeps delegated children inline inside mixed-integration server renders.
+- Fixed Radiant SSR runtime resolution to import the server bridge from the published `@ecopages/radiant/server` package layout instead of a non-existent `dist/server` path.
 - Moved Ecopages JSX intrinsic custom-element asset bookkeeping into the active JSX SSR render scope and reinstalls the Radiant light-DOM shim whenever SSR runtime setup reruns so nested renders stay aligned with the current server render contract.
 - Fixed intrinsic custom-element SSR asset hooks to fall back cleanly when they run after the active JSX render frame has already unwound, avoiding spurious server warnings during docs renders.
 - Fixed lazy Ecopages JSX custom-element dependencies to stay as standalone assets instead of being folded into page-owned bundles, restoring trigger-driven loading for docs components like `theme-toggle`.

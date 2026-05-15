@@ -32,17 +32,19 @@ export function shouldInjectHmrHtmlResponse(watch: boolean, hmrManager?: Pick<IH
  */
 export async function injectHmrRuntimeIntoHtmlResponse(response: Response): Promise<Response> {
 	const html = await response.text();
+	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'no-store, must-revalidate');
+	headers.delete('Content-Length');
+
 	if (html.includes(HMR_RUNTIME_IMPORT)) {
 		return new Response(html, {
 			status: response.status,
 			statusText: response.statusText,
-			headers: response.headers,
+			headers,
 		});
 	}
 
 	const updatedHtml = html.replace(/<\/html>/i, `${HMR_RUNTIME_SCRIPT}</html>`);
-	const headers = new Headers(response.headers);
-	headers.delete('Content-Length');
 
 	return new Response(updatedHtml, {
 		status: response.status,

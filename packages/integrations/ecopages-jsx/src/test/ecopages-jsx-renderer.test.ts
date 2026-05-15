@@ -164,6 +164,21 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 	}
 });
 
+test('Radiant SSR server bridge resolves relative to the published light-dom shim entry', async () => {
+	const radiantLightDomShimEntryUrl = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
+	const radiantElementSsrRuntimeModuleUrl = new URL('./radiant-element-ssr-bridge.js', radiantLightDomShimEntryUrl)
+		.href;
+
+	const [radiantElementSsrRuntimeModule, lightDomShimModule] = await Promise.all([
+		import(radiantElementSsrRuntimeModuleUrl),
+		import(radiantLightDomShimEntryUrl),
+	]);
+
+	assert.equal(typeof radiantElementSsrRuntimeModule.resolveRadiantElementRenderBridge, 'function');
+	assert.equal(typeof radiantElementSsrRuntimeModule.withServerRadiantElementSsrRuntime, 'function');
+	assert.equal(typeof lightDomShimModule.installLightDomShim, 'function');
+});
+
 test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 	const rendererA = new TestEcopagesJsxRenderer({
 		appConfig: createAppConfig(tmpdir()),

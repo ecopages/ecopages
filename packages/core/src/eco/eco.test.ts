@@ -250,6 +250,39 @@ describe('eco namespace', () => {
 			expect(execution.value).toBe('<aside>Resolved in owning renderer</aside>');
 		});
 
+		test('should render inline with runtime-normalized props', async () => {
+			const KitaShell = eco.component<{ children?: string }>({
+				integration: 'kitajs',
+				__eco: {
+					id: 'kitajs-shell-inline-props',
+					file: '/app/components/kitajs-shell-inline-props.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<section>${children ?? ''}</section>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'ecopages-jsx',
+					foreignChildRuntime: {
+						interceptForeignChild: async ({ targetIntegration, props }) =>
+							targetIntegration === 'kitajs'
+								? {
+										kind: 'inline',
+										props: {
+											...props,
+											children: '<span data-serialized="true">Leaf</span>',
+										},
+									}
+								: { kind: 'inline' },
+					},
+				},
+				async () => KitaShell({ children: { nodeType: 1, outerHTML: '<span>Leaf</span>' } as never }),
+			);
+
+			expect(execution.value).toBe('<section><span data-serialized="true">Leaf</span></section>');
+		});
+
 		test('should share render context across duplicated module instances', async () => {
 			const duplicateModule = (await import(
 				'../route-renderer/orchestration/component-render-context.ts?duplicate-instance' as string

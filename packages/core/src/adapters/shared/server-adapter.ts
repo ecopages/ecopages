@@ -221,9 +221,18 @@ export abstract class SharedServerAdapter<
 	}
 
 	protected getRenderContext(): RenderContext {
+		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
 			rendererModules: this.appConfig.runtime?.rendererModuleContext,
+			importServerModule: async <T = unknown>(filePath: string) =>
+				await serverModuleTranspiler.importModule<T>({
+					filePath,
+					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
+					externalPackages: true,
+					bypassCache: this.options?.watch === true,
+				}),
 		});
 	}
 

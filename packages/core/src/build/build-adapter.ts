@@ -71,6 +71,14 @@ export interface BuildOptions {
 	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
+	jsx?: {
+		development?: boolean;
+		factory?: string;
+		fragment?: string;
+		importSource?: string;
+		runtime?: 'classic' | 'automatic';
+		sideEffects?: boolean;
+	};
 	plugins?: EcoBuildPlugin[];
 	[key: string]: unknown;
 }
@@ -680,6 +688,8 @@ export class BunBuildAdapter implements BuildAdapter {
 		try {
 			const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 			const outdir = path.resolve(options.outdir ?? 'dist/assets');
+			const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
+			const tsconfigExists = fs.existsSync(tsconfigPath);
 			const plugins = this.getPluginsForBuild(options.plugins);
 			const result = await bun.build({
 				entrypoints: options.entrypoints,
@@ -694,6 +704,8 @@ export class BunBuildAdapter implements BuildAdapter {
 				splitting: !!options.splitting,
 				minify: !!options.minify,
 				packages: options.target !== 'browser' && options.externalPackages !== false ? 'external' : undefined,
+				tsconfig: tsconfigExists ? tsconfigPath : undefined,
+				jsx: options.jsx,
 				plugins: plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : undefined,
 			});
 

@@ -1,5 +1,3 @@
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createMarkupNodeLike } from '@ecopages/jsx';
 import { isServerRenderHydrationActive } from '@ecopages/jsx/server';
 
@@ -65,6 +63,19 @@ export class EcopagesJsxRadiantSsrPolicy {
 		return runtimeModules.withServerRadiantElementSsrRuntime(render);
 	}
 
+	withPreparedRuntime<T>(render: () => T): T {
+		if (!this.enabled) {
+			return render();
+		}
+
+		const runtimeModules = EcopagesJsxRadiantSsrPolicy.runtimeModules;
+		if (!runtimeModules) {
+			return render();
+		}
+
+		return runtimeModules.withServerRadiantElementSsrRuntime(render);
+	}
+
 	/**
 	 * Converts one Radiant custom-element instance into trusted SSR markup.
 	 *
@@ -87,12 +98,10 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 	private async ensureRuntimeInstalled(): Promise<void> {
 		if (!EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise) {
-			const radiantLightDomShimEntry = fileURLToPath(
-				import.meta.resolve('@ecopages/radiant/server/light-dom-shim'),
-			);
-			const radiantPackageRoot = path.dirname(path.dirname(path.dirname(radiantLightDomShimEntry)));
-			const radiantElementSsrRuntimeModuleUrl = pathToFileURL(
-				path.join(radiantPackageRoot, 'dist/server/radiant-element-ssr-bridge.js'),
+			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
+			const radiantElementSsrRuntimeModuleUrl = new URL(
+				'./radiant-element-ssr-bridge.js',
+				radiantLightDomShimEntry,
 			).href;
 
 			EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = Promise.all([
@@ -105,7 +114,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 						| undefined;
 					withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
 				}>,
-				import('@ecopages/radiant/server/light-dom-shim'),
+				import(radiantLightDomShimEntry),
 			]).then(([radiantElementSsrRuntimeModule, lightDomShimModule]) => {
 				const modules = {
 					installLightDomShim: lightDomShimModule.installLightDomShim,

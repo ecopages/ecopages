@@ -187,6 +187,50 @@ test('BunBuildAdapter bundles entrypoints by default to keep transitive app impo
 	}
 });
 
+test('BunBuildAdapter forwards the app tsconfig path to Bun builds', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+	const buildCalls: Array<Record<string, unknown>> = [];
+
+	try {
+		const root = createTempRoot('ecopages-bun-tsconfig');
+		fs.writeFileSync(path.join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: {} }), 'utf8');
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async (options: Record<string, unknown>) => {
+				buildCalls.push(options);
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: '/tmp/out/entry.js' }],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [path.join(root, 'src', 'entry.ts')],
+			root,
+			outdir: '/tmp/out',
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+		});
+
+		assert.equal(result.success, true);
+		assert.equal(buildCalls[0]?.tsconfig, path.join(root, 'tsconfig.json'));
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+	}
+});
+
 test('BunBuildAdapter normalizes hashed naming patterns to concrete emitted output files', async () => {
 	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
 

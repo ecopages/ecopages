@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const tempRootDir = path.join(repoRoot, '.e2e-tmp');
+const ecopagesCliEntrypoint = path.join(repoRoot, 'packages', 'ecopages', 'bin', 'cli.js');
 const keepWorkspace = process.env.ECOPAGES_KEEP_E2E_TMP === 'true';
 const wrapperManagesWorkspaceCleanup = process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES === 'true';
 const excludedTopLevelEntries = new Set(['.eco', '.e2e', 'dist', 'node_modules']);
@@ -137,11 +138,13 @@ function buildCommand(options) {
 		return `${viteRunner} dev --port ${options.port} --logLevel silent`;
 	}
 
+	const ecopagesCli = `node "${ecopagesCliEntrypoint}"`;
+
 	if (options.mode === 'preview') {
-		return `pnpm exec ecopages build --runtime ${options.runtime} && pnpm exec ecopages preview --runtime ${options.runtime} --port ${options.port}`;
+		return `${ecopagesCli} build --runtime ${options.runtime} && ${ecopagesCli} preview --runtime ${options.runtime} --port ${options.port}`;
 	}
 
-	return `pnpm exec ecopages dev --runtime ${options.runtime} --port ${options.port}`;
+	return `${ecopagesCli} dev --runtime ${options.runtime} --port ${options.port}`;
 }
 
 function buildEnv(options) {

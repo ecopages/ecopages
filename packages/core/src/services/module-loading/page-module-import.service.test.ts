@@ -101,8 +101,9 @@ describe('PageModuleImportService', () => {
 						sourcemap: 'none',
 						splitting: true,
 						minify: false,
-						naming: 'page-hash123.js',
+						naming: 'page-hash123.[ext]',
 						externalPackages: true,
+						jsx: undefined,
 						plugins: undefined,
 					},
 					buildExecutor: undefined,
@@ -148,7 +149,7 @@ describe('PageModuleImportService', () => {
 			});
 
 			assert.equal(fakeDependencies.calls.buildModule.length, 1);
-			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.js');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.splitting, true);
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
 		} finally {
@@ -384,7 +385,7 @@ describe('PageModuleImportService', () => {
 					outputs: [
 						{
 							path:
-								options.naming === 'page-hash123-request-metadata.js'
+								options.naming === 'page-hash123-request-metadata.[ext]'
 									? requestCompiledOutput
 									: renderCompiledOutput,
 						},
@@ -412,15 +413,68 @@ describe('PageModuleImportService', () => {
 			assert.equal(renderModule.scope, 'render');
 			assert.deepEqual(
 				fakeDependencies.calls.buildModule.map((call) => call.options.naming),
-				['page-hash123-request-metadata.js', 'page-hash123-render.js'],
+				['page-hash123-request-metadata.[ext]', 'page-hash123-render.[ext]'],
 			);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
-	it('should reload the same node module path after development graph invalidation', async () => {
-		process.env.NODE_ENV = 'development';
+	it('should isolate cached builds when JSX or plugin inputs differ', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-jsx-cache-'));
+		const reactCompiledOutput = join(tempDir, 'page-hash123-react.js');
+		const kitaCompiledOutput = join(tempDir, 'page-hash123-kita.js');
+		writeFileSync(reactCompiledOutput, 'export const runtime = "react"; export default { ok: true };', 'utf8');
+		writeFileSync(kitaCompiledOutput, 'export const runtime = "kita"; export default { ok: true };', 'utf8');
+
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			async buildModule(options, buildExecutor) {
+				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+				return createBuildResult({
+					outputs: [
+						{
+							path: options.jsx?.importSource === 'react' ? reactCompiledOutput : kitaCompiledOutput,
+						},
+					],
+				});
+			},
+		});
+
+		try {
+			const reactModule = await service.importModule<{ runtime: string }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: join(tempDir, 'react'),
+				jsx: {
+					importSource: 'react',
+					runtime: 'automatic',
+				},
+				plugins: [{ name: 'react-owner', setup() {} }],
+			});
+
+			const kitaModule = await service.importModule<{ runtime: string }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: join(tempDir, 'kita'),
+				jsx: {
+					importSource: '@kitajs/html',
+					runtime: 'automatic',
+				},
+				plugins: [{ name: 'kita-owner', setup() {} }],
+			});
+
+			assert.equal(reactModule.runtime, 'react');
+			assert.equal(kitaModule.runtime, 'kita');
+			assert.equal(fakeDependencies.calls.buildModule.length, 2);
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.jsx?.importSource, 'react');
+			assert.equal(fakeDependencies.calls.buildModule[1]?.options.jsx?.importSource, '@kitajs/html');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should reload the same node module path after development graph invalidation without relying on NODE_ENV', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-'));
 		const compiledOutput = join(tempDir, 'page-hash123.js');
 		writeFileSync(compiledOutput, 'export const version = 1; export default { ok: true };', 'utf8');
@@ -485,7 +539,7 @@ describe('PageModuleImportService', () => {
 		assert.equal(fakeDependencies.calls.buildModule.length, 0);
 	});
 
-	it('should use direct source imports for Bun development builds', async () => {
+	it('should keep Bun page imports on the build path when a transpile target is configured', async () => {
 		process.env.NODE_ENV = 'development';
 		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
 
@@ -499,6 +553,52 @@ describe('PageModuleImportService', () => {
 			// import will fail for the fake path, but we only care about the code path
 		}
 
-		assert.equal(fakeDependencies.calls.buildModule.length, 0);
+		assert.equal(fakeDependencies.calls.buildModule.length, 1);
+	});
+
+	it('should roll Bun build output paths forward after development graph invalidation', async () => {
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bun-invalidate-'));
+
+		service = new PageModuleImportService({
+			...fakeDependencies.dependencies,
+			async buildModule(options, buildExecutor) {
+				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+				const naming = options.naming ?? 'page-hash123.[ext]';
+				const compiledOutput = join(tempDir, naming.replace('[ext]', 'js'));
+				const version = naming.includes('-v1.') ? 2 : 1;
+				writeFileSync(
+					compiledOutput,
+					`export const version = ${version}; export default { ok: true };`,
+					'utf8',
+				);
+				return createBuildResult({ outputs: [{ path: compiledOutput }] });
+			},
+		});
+
+		try {
+			const first = await service.importModule<{ version: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			service.invalidateDevelopmentGraph();
+
+			const second = await service.importModule<{ version: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			assert.equal(first.version, 1);
+			assert.equal(second.version, 2);
+			assert.deepEqual(
+				fakeDependencies.calls.buildModule.map((call) => call.options.naming),
+				['page-hash123.[ext]', 'page-hash123-v1.[ext]'],
+			);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

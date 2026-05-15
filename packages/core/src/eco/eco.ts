@@ -30,6 +30,7 @@ import type {
 } from './eco.types.ts';
 import {
 	finalizeComponentRender,
+	getComponentRenderContext,
 	interceptForeignChild,
 } from '../route-renderer/orchestration/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/render-output.utils.ts';
@@ -52,7 +53,8 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	const integrationName = options.integration ?? options.__eco?.integration;
 	const comp: EcoComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
-		const renderInline = () => finalizeComponentRender(comp, options.render(props)) as E;
+		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
+		const activeRenderContext = getComponentRenderContext();
 		const foreignChildRender = interceptForeignChild({
 			component: comp,
 			props: componentProps,
@@ -60,13 +62,32 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		});
 
 		if (isThenable<unknown | undefined>(foreignChildRender)) {
-			return foreignChildRender.then((resolvedForeignChildRender) =>
-				resolvedForeignChildRender !== undefined ? (resolvedForeignChildRender as E) : renderInline(),
-			) as E;
+			return foreignChildRender.then((resolvedForeignChildRender) => {
+				if (resolvedForeignChildRender?.kind === 'resolved') {
+					return resolvedForeignChildRender.value as E;
+				}
+
+				return renderInline((resolvedForeignChildRender?.props ?? props) as P);
+			}) as E;
 		}
 
-		if (foreignChildRender !== undefined) {
-			return foreignChildRender as E;
+		if (foreignChildRender?.kind === 'resolved') {
+			return foreignChildRender.value as E;
+		}
+
+		if (foreignChildRender?.kind === 'inline') {
+			return renderInline((foreignChildRender.props ?? props) as P);
+		}
+
+		if (
+			activeRenderContext &&
+			activeRenderContext.foreignChildRuntime &&
+			integrationName &&
+			integrationName !== activeRenderContext.currentIntegration
+		) {
+			throw new Error(
+				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.__eco?.file ?? 'unknown component'}.`,
+			);
 		}
 
 		return renderInline();

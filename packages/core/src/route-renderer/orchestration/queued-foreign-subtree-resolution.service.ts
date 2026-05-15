@@ -40,6 +40,7 @@ type QueuedForeignSubtreeIntegrationContext = BaseIntegrationContext & Record<st
 type QueuedForeignSubtreeChildRenderResult = {
 	assets: ProcessedAsset[];
 	html?: string;
+	children?: unknown;
 };
 
 /**
@@ -96,7 +97,10 @@ export class QueuedForeignSubtreeResolutionService {
 
 		const interceptForeignChild = (input: QueuedForeignChildDecisionInput) => {
 			if (!options.shouldQueueForeignChild(input)) {
-				return { kind: 'inline' as const };
+				return {
+					kind: 'inline' as const,
+					props: { ...input.props },
+				};
 			}
 
 			runtimeContext.nextForeignSubtreeId += 1;
@@ -152,14 +156,22 @@ export class QueuedForeignSubtreeResolutionService {
 		}
 
 		const runtimeContext = options.runtimeContext;
-		const queuedResolutionsByToken = new Map(
-			runtimeContext.queuedResolutions.map((resolution) => [resolution.token, resolution]),
-		);
+		const queuedResolutionsByToken = new Map<string, QueuedForeignSubtreeResolution>();
 		const resolvedHtmlByToken = new Map<string, string>();
 		const resolvingTokens = new Set<string>();
 		const collectedAssets: ProcessedAsset[] = [];
 
+		const syncQueuedResolutions = () => {
+			for (const resolution of runtimeContext.queuedResolutions) {
+				if (!queuedResolutionsByToken.has(resolution.token)) {
+					queuedResolutionsByToken.set(resolution.token, resolution);
+				}
+			}
+		};
+
 		const resolveToken = async (token: string): Promise<string> => {
+			syncQueuedResolutions();
+
 			const cachedHtml = resolvedHtmlByToken.get(token);
 			if (cachedHtml) {
 				return cachedHtml;
@@ -185,6 +197,7 @@ export class QueuedForeignSubtreeResolutionService {
 					queuedResolutionsByToken,
 					resolveToken,
 				);
+				syncQueuedResolutions();
 
 				if (renderedChildren.assets.length > 0) {
 					collectedAssets.push(...renderedChildren.assets);
@@ -194,7 +207,7 @@ export class QueuedForeignSubtreeResolutionService {
 					{
 						component: resolution.component,
 						props: { ...resolution.props },
-						children: renderedChildren.html,
+						children: renderedChildren.html ?? renderedChildren.children,
 						integrationContext: {
 							rendererCache: runtimeContext.rendererCache,
 							componentInstanceId: resolution.componentInstanceId,
@@ -231,7 +244,10 @@ export class QueuedForeignSubtreeResolutionService {
 
 		let resolvedHtml = options.html;
 
-		for (const resolution of runtimeContext.queuedResolutions) {
+		for (let index = 0; index < runtimeContext.queuedResolutions.length; index += 1) {
+			syncQueuedResolutions();
+
+			const resolution = runtimeContext.queuedResolutions[index];
 			if (!resolvedHtml.includes(resolution.token)) {
 				continue;
 			}

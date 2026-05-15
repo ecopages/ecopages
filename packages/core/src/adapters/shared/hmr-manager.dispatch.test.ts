@@ -92,6 +92,8 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const cssFile = path.join(rootDir, 'src', 'styles', 'main.css');
+		fs.mkdirSync(path.dirname(cssFile), { recursive: true });
+		fs.writeFileSync(cssFile, 'body {}\n', 'utf8');
 		await manager.handleFileChange(cssFile);
 
 		assert.equal(spy.broadcasts.length, 1);
@@ -108,6 +110,8 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const htmlFile = path.join(rootDir, 'src', 'pages', 'index.html');
+		fs.mkdirSync(path.dirname(htmlFile), { recursive: true });
+		fs.writeFileSync(htmlFile, '<div>Hello</div>\n', 'utf8');
 		await manager.handleFileChange(htmlFile);
 
 		assert.equal(spy.broadcasts.length, 1);
@@ -125,6 +129,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const tsFile = path.join(srcDir, 'component.ts');
+		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
 		await manager.handleFileChange(tsFile);
 
 		assert.equal(spy.broadcasts.length, 1);
@@ -140,6 +145,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const cssFile = path.join(rootDir, 'src', 'main.css');
+		fs.writeFileSync(cssFile, 'body {}\n', 'utf8');
 		await manager.handleFileChange(cssFile, { broadcast: false });
 
 		assert.equal(spy.broadcasts.length, 0);
@@ -154,6 +160,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'component.jsx');
+		fs.writeFileSync(customFile, 'export default null;\n', 'utf8');
 		const integrationEvent: ClientBridgeEvent = {
 			type: 'update',
 			path: '/assets/_hmr/component.js',
@@ -181,6 +188,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'silent.ts');
+		fs.writeFileSync(customFile, 'export const silent = true;\n', 'utf8');
 		manager.registerStrategy(
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (f) => f === customFile, { type: 'none' }),
 		);
@@ -199,6 +207,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'multi.ts');
+		fs.writeFileSync(customFile, 'export const multi = true;\n', 'utf8');
 		const events: ClientBridgeEvent[] = [
 			{ type: 'update', path: '/assets/_hmr/a.js', timestamp: 1 },
 			{ type: 'update', path: '/assets/_hmr/b.js', timestamp: 2 },

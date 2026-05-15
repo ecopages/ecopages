@@ -84,6 +84,7 @@ describe('ServerRouteHandler', () => {
 			const text = await response.text();
 
 			expect(text).toContain("import '/_hmr_runtime.js'");
+			expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
 		});
 	});
 

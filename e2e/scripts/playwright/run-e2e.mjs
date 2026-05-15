@@ -10,6 +10,31 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const playwrightCliPath = require.resolve('@playwright/test/cli');
 const e2eTempDir = path.join(repoRoot, '.e2e-tmp');
+const defaultProjectBatches = [
+	['core-e2e', 'core-postcss-e2e', 'browser-router-e2e'],
+	['docs-e2e'],
+	[
+		'react-router-e2e',
+		'react-router-persist-layouts-e2e',
+		'react-router-persist-layouts-dev-e2e',
+		'cache-e2e',
+		'react-playground-e2e',
+	],
+	[
+		'kitchen-sink-bun-e2e',
+		'kitchen-sink-bun-hmr-e2e',
+		'kitchen-sink-bun-preview-e2e',
+		'kitchen-sink-node-e2e',
+		'kitchen-sink-node-hmr-e2e',
+		'kitchen-sink-node-preview-e2e',
+	],
+	[
+		'kitchen-sink-vite-node-e2e',
+		'kitchen-sink-vite-node-hmr-e2e',
+		'kitchen-sink-vite-bun-e2e',
+		'kitchen-sink-vite-bun-hmr-e2e',
+	],
+];
 
 const interactivePassThroughFlags = new Set(['--debug', '--ui']);
 
@@ -48,11 +73,14 @@ export function getSelectedProjects(args) {
 	return selectedProjects;
 }
 
-function runPlaywright(args) {
+export function buildProjectArgs(projects) {
+	return projects.flatMap((project) => ['--project', project]);
+}
+
+function runPlaywright(args, selectedProjects = getSelectedProjects(args)) {
 	cleanupE2eTempDir();
 
 	return new Promise((resolve, reject) => {
-		const selectedProjects = getSelectedProjects(args);
 		const child = spawn(process.execPath, [playwrightCliPath, 'test', ...args], {
 			cwd: process.cwd(),
 			env: {
@@ -75,19 +103,34 @@ function runPlaywright(args) {
 	});
 }
 
+async function runPlaywrightInDefaultBatches(args) {
+	for (const batchProjects of defaultProjectBatches) {
+		const exitCode = await runPlaywright([...args, ...buildProjectArgs(batchProjects)], batchProjects);
+		if (exitCode !== 0) {
+			return exitCode;
+		}
+	}
+
+	return 0;
+}
+
 export function cleanupE2eTempDir() {
 	rmSync(e2eTempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 }
 
 async function main() {
 	const forwardedArgs = process.argv.slice(2);
+	const selectedProjects = getSelectedProjects(forwardedArgs);
 
 	if (hasInteractivePassThroughFlags(forwardedArgs)) {
-		process.exitCode = await runPlaywright(forwardedArgs);
+		process.exitCode = await runPlaywright(forwardedArgs, selectedProjects);
 		return;
 	}
 
-	process.exitCode = await runPlaywright(forwardedArgs);
+	process.exitCode =
+		selectedProjects.length > 0
+			? await runPlaywright(forwardedArgs, selectedProjects)
+			: await runPlaywrightInDefaultBatches(forwardedArgs);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

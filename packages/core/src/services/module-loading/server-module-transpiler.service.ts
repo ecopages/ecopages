@@ -1,10 +1,10 @@
 import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { AppModuleLoader } from './app-module-loader.service.ts';
-import { PageModuleImportService, type PageModuleImportOptions } from './page-module-import.service.ts';
+import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
-export type ServerModuleTranspilerOptions = Omit<PageModuleImportOptions, 'rootDir' | 'buildExecutor'>;
+export type ServerModuleTranspilerOptions = Omit<PageModuleBuildImportOptions, 'rootDir' | 'buildExecutor'>;
 
 export type ServerModuleImportDependency = Pick<AppModuleLoader, 'importModule' | 'invalidateDevelopmentGraph'>;
 

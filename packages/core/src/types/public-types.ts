@@ -151,7 +151,7 @@ export interface DefaultHmrContext {
 	/**
 	 * Server-side module loader owned by the active app/runtime.
 	 */
-	importServerModule<T = unknown>(filePath: string): Promise<T>;
+	importServerModule<T = unknown>(filePath: string | URL): Promise<T>;
 }
 
 /**
@@ -940,6 +940,30 @@ export interface ResponseOptions {
  */
 export interface RenderContext {
 	/**
+	 * Import a server-executed module through the active Ecopages module loader.
+	 *
+	 * This applies the runtime's cache-busting and source-transpilation rules so
+	 * request-time lazy imports participate in development invalidation.
+	 *
+	 * @param filePath - Absolute filesystem path or file URL for the server module
+	 */
+	importServerModule<T = unknown>(filePath: string | URL): Promise<T>;
+
+	/**
+	 * Import a server module through the active Ecopages module loader and render
+	 * its default-exported eco.page view.
+	 *
+	 * @param filePath - Absolute filesystem path or file URL for the server module
+	 * @param props - Props to pass to the default-exported view
+	 * @param options - Optional status code and headers
+	 */
+	renderServerModule<P = Record<string, unknown>>(
+		filePath: string | URL,
+		props?: P,
+		options?: RenderOptions,
+	): Promise<Response>;
+
+	/**
 	 * Render an eco.page view with full layout and includes.
 	 * @param view - The eco.page component to render
 	 * @param props - Props to pass to the view
@@ -1148,7 +1172,7 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  */
 export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
 	ApiHandlerContext<TRequest, TServer>,
-	'render' | 'renderPartial'
+	'render' | 'renderPartial' | 'importServerModule' | 'renderServerModule'
 > {}
 
 /**

@@ -19,6 +19,7 @@ import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
+import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
@@ -212,7 +213,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			return;
 		}
 
-		const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
 		this.mdxLoaderPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
 	}
 

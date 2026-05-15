@@ -6,21 +6,38 @@ import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
 
-export interface PageModuleImportOptions {
+interface PageModuleImportBaseOptions {
 	filePath: string;
-	rootDir: string;
-	outdir: string;
 	bypassCache?: boolean;
 	cacheScope?: string;
-	buildExecutor?: BuildExecutor;
 	invalidationVersion?: number;
+}
+
+/**
+ * Options for imports that must pass through the Ecopages build pipeline.
+ *
+ * @remarks
+ * Callers should use build mode for framework-owned page modules and any other
+ * source that relies on Ecopages build resolution before runtime execution.
+ */
+export interface PageModuleBuildImportOptions extends PageModuleImportBaseOptions {
+	rootDir: string;
+	outdir: string;
+	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
+	jsx?: {
+		development?: boolean;
+		factory?: string;
+		fragment?: string;
+		importSource?: string;
+		runtime?: 'classic' | 'automatic';
+		sideEffects?: boolean;
+	};
 	plugins?: EcoBuildPlugin[];
 	transpileErrorMessage?: (details: string) => string;
 	noOutputMessage?: (filePath: string) => string;
 }
-
 /**
  * Minimal runtime dependencies required to load page modules.
  *
@@ -37,12 +54,13 @@ export interface PageModuleImportDependencies {
 }
 
 /**
- * Loads source page modules in a runtime-agnostic way.
+ * Loads page-like modules through the Ecopages build pipeline.
  *
- * This service centralizes the Bun-vs-Node import strategy used by route
- * scanning, page data loading, and request-time page inspection. In Bun it can
- * import source files directly; in Node it transpiles the file into a dedicated
- * output directory first and then imports the generated module.
+ * This service centralizes the shared build-first import strategy used by route
+ * scanning, page data loading, and request-time page inspection. In Node
+ * development it can still delegate compatible source imports to the active
+ * host loader, but the public contract remains one transpile-targeted module
+ * loading path.
  *
  * Keeping this logic in one place prevents subtle drift in cache-busting,
  * transpilation settings, and error semantics across the different callers.
@@ -94,9 +112,10 @@ export class PageModuleImportService {
 	 * @param options Runtime-specific import settings.
 	 * @returns The loaded module.
 	 */
-	async importModule<T = unknown>(options: PageModuleImportOptions): Promise<T> {
-		const { filePath, rootDir, externalPackages, splitting } = options;
+	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
+		const { filePath } = options;
 		const invalidationVersion = options.invalidationVersion ?? this.developmentInvalidationVersion;
+		const { externalPackages, splitting } = options;
 
 		const fileHash = this.dependencies.hashFile(filePath);
 		const hostModuleLoader =
@@ -124,10 +143,12 @@ export class PageModuleImportService {
 		const cacheKey = [
 			runtime,
 			filePath,
-			rootDir,
+			options.rootDir,
 			splitting ?? 'default',
 			externalPackages ?? 'default',
 			options.cacheScope ?? 'default',
+			createJsxCacheKey(options.jsx),
+			createPluginCacheKey(options.plugins),
 			fileHash,
 			invalidationVersion,
 		].join('::');
@@ -153,31 +174,26 @@ export class PageModuleImportService {
 	}
 
 	private async loadModule<T = unknown>(
-		options: PageModuleImportOptions & {
+		options: PageModuleBuildImportOptions & {
 			fileHash: string;
 		},
 	): Promise<T> {
+		const { filePath, invalidationVersion = this.developmentInvalidationVersion, cacheScope, fileHash } = options;
+
 		const {
-			filePath,
 			rootDir,
 			outdir,
-			invalidationVersion = this.developmentInvalidationVersion,
 			splitting,
 			externalPackages,
-			cacheScope,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
-			fileHash,
 		} = options;
-		const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion, cacheScope);
-
-		if (typeof Bun !== 'undefined') {
-			return (await import(/* @vite-ignore */ sourceModuleUrl.href)) as T;
-		}
 
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const cacheScopeSuffix = cacheScope ? `-${sanitizeCacheScope(cacheScope)}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}.js`;
+		const invalidationSuffix = shouldVersionBuildOutputPath(invalidationVersion) ? `-v${invalidationVersion}` : '';
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.js`;
+		const outputNamingTemplate = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.[ext]`;
 
 		const buildResult = await this.dependencies.buildModule(
 			{
@@ -189,8 +205,9 @@ export class PageModuleImportService {
 				sourcemap: 'none',
 				splitting: splitting ?? true,
 				minify: false,
-				naming: outputFileName,
+				naming: outputNamingTemplate,
 				externalPackages: true,
+				jsx: options.jsx,
 				plugins: options.plugins,
 				...(externalPackages !== undefined ? { externalPackages } : {}),
 			},
@@ -213,7 +230,7 @@ export class PageModuleImportService {
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 
-		if (process.env.NODE_ENV === 'development' || cacheScope) {
+		if (shouldAddRuntimeUpdateQuery(invalidationVersion, cacheScope)) {
 			compiledOutputUrl.searchParams.set(
 				'update',
 				[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
@@ -234,7 +251,7 @@ function createRuntimeModuleUrl(
 ): URL {
 	const moduleUrl = pathToFileURL(filePath);
 
-	if (process.env.NODE_ENV === 'development' || cacheScope) {
+	if (shouldAddRuntimeUpdateQuery(invalidationVersion, cacheScope)) {
 		moduleUrl.searchParams.set(
 			'update',
 			[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
@@ -246,6 +263,37 @@ function createRuntimeModuleUrl(
 	return moduleUrl;
 }
 
+function shouldAddRuntimeUpdateQuery(invalidationVersion: number, cacheScope?: string): boolean {
+	return process.env.NODE_ENV === 'development' || invalidationVersion > 0 || !!cacheScope;
+}
+
+function shouldVersionBuildOutputPath(invalidationVersion: number): boolean {
+	return typeof Bun !== 'undefined' && invalidationVersion > 0;
+}
+
 function sanitizeCacheScope(cacheScope: string): string {
 	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
+}
+
+function createJsxCacheKey(jsx: PageModuleBuildImportOptions['jsx']): string {
+	if (!jsx) {
+		return 'jsx:default';
+	}
+
+	return JSON.stringify({
+		development: jsx.development ?? false,
+		factory: jsx.factory ?? null,
+		fragment: jsx.fragment ?? null,
+		importSource: jsx.importSource ?? null,
+		runtime: jsx.runtime ?? null,
+		sideEffects: jsx.sideEffects ?? null,
+	});
+}
+
+function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
+	if (!plugins || plugins.length === 0) {
+		return 'plugins:default';
+	}
+
+	return `plugins:${plugins.map((plugin) => plugin.name).join(',')}`;
 }

@@ -15,27 +15,27 @@
 		"reset": "bun run scripts/reset.ts"
 	},
 	"devDependencies": {
-		"ecopages": "workspace:*",
 		"@ecopages/core": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
-		"@ecopages/image-processor": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "0.3.0-alpha.16",
-		"@faker-js/faker": "^10.2.0",
+		"@ecopages/radiant": "0.3.0-alpha.21",
+		"@faker-js/faker": "^10.4.0",
 		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/postcss": "latest",
-		"drizzle-kit": "^0.31.8",
+		"drizzle-kit": "^0.31.10",
+		"ecopages": "workspace:*",
 		"tailwindcss": "latest"
 	},
 	"dependencies": {
 		"@mdx-js/mdx": "^3.1.1",
 		"@tiptap/core": "latest",
-		"@tiptap/extension-image": "^3.17.1",
+		"@tiptap/extension-image": "^3.23.4",
 		"@tiptap/pm": "latest",
 		"@tiptap/starter-kit": "latest",
 		"better-auth": "latest",
-		"drizzle-orm": "^0.45.1",
+		"drizzle-orm": "^0.45.2",
 		"tiptap-markdown": "latest",
 		"zod": "latest"
 	}

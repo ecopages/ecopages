@@ -10,6 +10,10 @@ import {
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/integration-renderer';
+import type {
+	ForeignChildInterceptionInput,
+	ForeignChildRuntime,
+} from '@ecopages/core/route-renderer/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
@@ -143,8 +147,10 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	protected override createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
+	}): ForeignChildRuntime {
 		const runtime = super.createForeignChildRuntime(options);
+		const interceptForeignChild = runtime.interceptForeignChild;
+		const interceptForeignChildSync = runtime.interceptForeignChildSync;
 		const wrapInput = (input: ForeignChildInterceptionInput): ForeignChildInterceptionInput => ({
 			...input,
 			props:
@@ -154,11 +160,11 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 
 		return {
-			interceptForeignChild: runtime.interceptForeignChild
-				? (input) => runtime.interceptForeignChild(wrapInput(input))
+			interceptForeignChild: interceptForeignChild
+				? (input: ForeignChildInterceptionInput) => interceptForeignChild(wrapInput(input))
 				: undefined,
-			interceptForeignChildSync: runtime.interceptForeignChildSync
-				? (input) => runtime.interceptForeignChildSync(wrapInput(input))
+			interceptForeignChildSync: interceptForeignChildSync
+				? (input: ForeignChildInterceptionInput) => interceptForeignChildSync(wrapInput(input))
 				: undefined,
 		};
 	}

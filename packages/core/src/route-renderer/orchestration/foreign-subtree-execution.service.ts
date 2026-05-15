@@ -79,13 +79,28 @@ export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignS
 		runtimeContext: TContext,
 		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
 		resolveToken: (token: string) => Promise<string>,
-	): Promise<{ assets: ProcessedAsset[]; html?: string }>;
+	): Promise<{ assets: ProcessedAsset[]; children?: unknown; html?: string }>;
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
 	): ForeignSubtreeExecutionOwningRenderer;
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
+}
+
+type MarkupNodeLike = {
+	nodeType: number;
+	outerHTML?: string;
+};
+
+function isMarkupNodeLike(value: unknown): value is MarkupNodeLike {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'nodeType' in value &&
+		typeof value.nodeType === 'number' &&
+		(!('outerHTML' in value) || typeof value.outerHTML === 'string')
+	);
 }
 
 /**
@@ -101,6 +116,24 @@ export class ForeignSubtreeExecutionService {
 
 	constructor(queuedForeignSubtreeResolutionService = new QueuedForeignSubtreeResolutionService()) {
 		this.queuedForeignSubtreeResolutionService = queuedForeignSubtreeResolutionService;
+	}
+
+	private requiresForeignChildRuntime(input: ComponentRenderInput): boolean {
+		const children = input.children ?? input.props.children;
+
+		if (children === undefined || children === null) {
+			return false;
+		}
+
+		if (typeof children === 'string') {
+			return false;
+		}
+
+		if (typeof children !== 'object') {
+			return false;
+		}
+
+		return !isMarkupNodeLike(children);
 	}
 
 	/**
@@ -119,7 +152,10 @@ export class ForeignSubtreeExecutionService {
 	createFailFastRuntime(rendererName: string): ForeignChildRuntime {
 		const interceptForeignChild = (input: ForeignSubtreeExecutionDecisionInput) => {
 			if (!this.shouldDelegateForeignChild(input)) {
-				return { kind: 'inline' as const };
+				return {
+					kind: 'inline' as const,
+					props: 'props' in input && input.props ? { ...input.props } : undefined,
+				};
 			}
 
 			throw new Error(
@@ -171,8 +207,12 @@ export class ForeignSubtreeExecutionService {
 					return { assets: [], html: undefined };
 				}
 
+				if (typeof children !== 'string' && !isMarkupNodeLike(children)) {
+					return { assets: [], children };
+				}
+
 				const html = await this.resolveQueuedTokens(
-					typeof children === 'string' ? children : String(children ?? ''),
+					typeof children === 'string' ? children : (children.outerHTML ?? String(children ?? '')),
 					queuedResolutionsByToken,
 					resolveToken,
 				);
@@ -223,7 +263,9 @@ export class ForeignSubtreeExecutionService {
 			return delegatedForeignChildRender;
 		}
 
-		const hasForeignChildren = options.hasForeignChildDescendants(options.input.component);
+		const hasForeignChildren =
+			options.hasForeignChildDescendants(options.input.component) ||
+			this.requiresForeignChildRuntime(options.input);
 		const activeRenderContext = getComponentRenderContext();
 
 		if (!hasForeignChildren) {
@@ -360,7 +402,13 @@ export class ForeignSubtreeExecutionService {
 			return undefined;
 		}
 
-		return await options.run(owningRenderer, this.withRendererCache(options.input, options.rendererCache));
+		const delegatedInputWithCache = this.withRendererCache(options.input, options.rendererCache);
+		const delegatedChildren = delegatedInputWithCache.children ?? delegatedInputWithCache.props.children;
+
+		return await options.run(owningRenderer, {
+			...delegatedInputWithCache,
+			children: delegatedChildren,
+		});
 	}
 
 	async resolveQueuedTokens(

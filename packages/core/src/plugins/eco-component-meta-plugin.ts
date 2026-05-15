@@ -86,12 +86,25 @@ function hasValidLoaderExtension(ext: string): boolean {
  * // Returns: [['.kita.tsx', 'kitajs'], ['.tsx', 'react']]
  * ```
  */
-function buildExtensionToIntegrationMap(integrations: EcoPagesAppConfig['integrations']): [string, string][] {
-	const mapping: [string, string][] = [];
+type IntegrationOwnership = {
+	name: string;
+	jsxImportSource?: string;
+};
+
+function buildExtensionToIntegrationMap(
+	integrations: EcoPagesAppConfig['integrations'],
+): [string, IntegrationOwnership][] {
+	const mapping: [string, IntegrationOwnership][] = [];
 
 	for (const integration of integrations) {
 		for (const ext of integration.extensions) {
-			mapping.push([ext, integration.name]);
+			mapping.push([
+				ext,
+				{
+					name: integration.name,
+					jsxImportSource: integration.jsxImportSource,
+				},
+			]);
 		}
 	}
 
@@ -110,13 +123,24 @@ function buildExtensionToIntegrationMap(integrations: EcoPagesAppConfig['integra
  * @param extensionToIntegration - Pre-built extension mapping from buildExtensionToIntegrationMap
  * @returns The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml')
  */
-function detectIntegration(filePath: string, extensionToIntegration: [string, string][]): string {
+function detectIntegration(
+	filePath: string,
+	extensionToIntegration: [string, IntegrationOwnership][],
+): IntegrationOwnership {
 	for (const [ext, integration] of extensionToIntegration) {
 		if (filePath.endsWith(ext)) {
 			return integration;
 		}
 	}
-	return 'ghtml';
+	return { name: 'ghtml' };
+}
+
+function prependJsxImportSource(code: string, jsxImportSource: string | undefined): string {
+	if (!jsxImportSource || code.includes('@jsxImportSource')) {
+		return code;
+	}
+
+	return `/** @jsxImportSource ${jsxImportSource} */\n${code}`;
 }
 
 /**
@@ -177,7 +201,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		transform(code, id) {
 			const integration = detectIntegration(id, extensionToIntegration);
 			return {
-				code: injectEcoMeta(code, id, integration),
+				code: prependJsxImportSource(injectEcoMeta(code, id, integration.name), integration.jsxImportSource),
 			};
 		},
 	};

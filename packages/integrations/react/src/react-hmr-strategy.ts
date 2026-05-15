@@ -20,6 +20,7 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
+import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import { createUseSyncExternalStoreShimPlugin } from './utils/use-sync-external-store-shim-plugin.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
@@ -149,11 +150,15 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
+		const templateExtension = this.resolveTemplateExtension(filePath);
+		if (templateExtension && templateExtension !== '.tsx') {
+			return this.ownedTemplateExtensions.has(templateExtension);
+		}
+
 		if (!this.isRouteTemplate(filePath)) {
 			return true;
 		}
 
-		const templateExtension = this.resolveTemplateExtension(filePath);
 		if (!templateExtension) {
 			return false;
 		}
@@ -316,7 +321,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {
-				const { createReactMdxLoaderPlugin } = await import('./utils/react-mdx-loader-plugin.ts');
 				const mdxPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
 				plugins.unshift(mdxPlugin);
 			}

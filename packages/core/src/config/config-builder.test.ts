@@ -375,19 +375,19 @@ describe('EcoConfigBuilder', () => {
 		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_EXTENSIONS);
 	});
 
-	test('should warn when both kitajs and react are enabled', async () => {
+	test('should only log mixed JSX engine guidance at debug level when both kitajs and react are enabled', async () => {
 		const integrations: IntegrationPlugin[] = [
 			createMockIntegration('kitajs', ['.kita.tsx']),
 			createMockIntegration('react', ['.tsx']),
 		];
-		const warnSpy = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const debugSpy = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
 
 		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
 		).resolves.toBeDefined();
 
-		expect(warnSpy).toHaveBeenCalledWith(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
-		warnSpy.mockRestore();
+		expect(debugSpy).toHaveBeenCalledWith(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		debugSpy.mockRestore();
 	});
 
 	test('should add additionalWatchPaths', async () => {

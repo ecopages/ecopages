@@ -38,7 +38,6 @@ const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
 const tsSourceExtensions = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const supportedManifestFields = ['main', 'module'] as const;
 const runtimeExportConditionPriority = ['default', 'import', 'browser', 'node', 'deno', 'bun', 'worker'] as const;
-
 function readJsonFile<T>(filePath: string): T {
 	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
 }
@@ -131,6 +130,13 @@ function shouldSkipDirectory(name: string): boolean {
 	);
 }
 
+/**
+ * Collects the package-relative entry points that define the publishable surface.
+ *
+ * The build only walks files reachable from manifest-declared roots instead of the
+ * entire package directory, which keeps test helpers and local tooling out of `dist`
+ * unless they are explicitly exported.
+ */
 function collectPackageRoots(packageDir: string, manifest: PackageManifest): string[] {
 	const roots = new Set<string>();
 
@@ -155,6 +161,14 @@ function collectPackageRoots(packageDir: string, manifest: PackageManifest): str
 		.filter((entry) => existsSync(entry));
 }
 
+/**
+ * Scans the manifest roots and partitions files by how the build pipeline should
+ * handle them.
+ *
+ * Code files are transpiled, declaration files are emitted or copied with rewritten
+ * specifiers, and everything else is treated as a static asset. Test-like paths are
+ * excluded even if they sit under an exported directory.
+ */
 function scanPackageFiles(
 	packageDir: string,
 	roots: string[],
@@ -217,6 +231,13 @@ function getLoader(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' {
 	return 'js';
 }
 
+/**
+ * Rewrites relative import specifiers so emitted files point at runtime extensions
+ * instead of source extensions.
+ *
+ * The build emits `.js`, `.mjs`, and `.cjs` files, so leaving `.ts`-style specifiers
+ * behind would make the published package fail at runtime.
+ */
 function rewriteRelativeSpecifiers(content: string): string {
 	return content.replace(
 		/(["'])((?:\.{1,2}\/)[^"'\n\r]+?)\.(cts|mts|tsx|ts|jsx)(\1)/g,
@@ -259,6 +280,13 @@ function rewriteManifestTypesPath(value: string): string {
 	return value;
 }
 
+/**
+ * Removes unsupported export conditions and rewrites manifest paths to the emitted
+ * runtime or declaration files.
+ *
+ * In particular, CommonJS `require` targets are dropped because this build emits an
+ * ESM-only runtime surface for npm packages.
+ */
 function rewriteExportMap(value: unknown): unknown {
 	if (typeof value === 'string') {
 		return rewriteManifestRuntimePath(value);
@@ -320,6 +348,14 @@ function findRuntimeExportPath(value: unknown): string | undefined {
 	return undefined;
 }
 
+/**
+ * Normalizes export entries into a shape that always carries a runtime target and,
+ * when possible, a declaration target.
+ *
+ * String exports are promoted into `{ types, default }` objects, conditional exports
+ * are rewritten recursively, and missing `types` metadata is inferred from the first
+ * runtime path that would be selected by consumers.
+ */
 function normalizeExportTarget(value: unknown): unknown {
 	if (typeof value === 'string') {
 		const runtimePath = rewriteManifestRuntimePath(value);
@@ -402,6 +438,10 @@ function createTsExtensionExportAliases(exportsField: unknown): Record<string, u
 	return aliases;
 }
 
+/**
+ * Verifies that a manifest path points at an emitted file inside `dist` and that its
+ * extension matches the expected runtime or declaration category.
+ */
 function ensureManifestPathExists(distDir: string, value: string, label: string, expectTypes: boolean): void {
 	if (!value.startsWith('./')) {
 		throw new Error(`Invalid ${label} path "${value}". Expected a relative dist path starting with "./".`);
@@ -423,6 +463,13 @@ function ensureManifestPathExists(distDir: string, value: string, label: string,
 	}
 }
 
+/**
+ * Recursively validates a single export entry and reports whether it exposes runtime
+ * code, declaration files, or both.
+ *
+ * The caller uses this to enforce the invariant that every published runtime entry has
+ * accompanying type metadata.
+ */
 function inspectConditionalExportEntry(
 	entry: unknown,
 	distDir: string,
@@ -459,6 +506,12 @@ function inspectConditionalExportEntry(
 	return { hasRuntime, hasTypes };
 }
 
+/**
+ * Validates the final `dist/package.json` against the files that were actually emitted.
+ *
+ * This is the last safety check before writing the manifest, and it is intentionally
+ * strict so packaging mistakes fail during the build instead of after publishing.
+ */
 function validateDistManifest(distManifest: PackageManifest, distDir: string): void {
 	for (const field of supportedManifestFields) {
 		if (typeof distManifest[field] === 'string') {
@@ -555,6 +608,13 @@ const formatHost: ts.FormatDiagnosticsHost = {
 	getNewLine: () => '\n',
 };
 
+/**
+ * Emits `.d.ts` files for TypeScript sources and rewrites their relative specifiers to
+ * match the runtime filenames produced by the JavaScript build.
+ *
+ * Package-local tsconfig settings are merged with the shared npm publishing config so
+ * published declaration output stays consistent across packages.
+ */
 function emitDeclarations(packageDir: string, codeFiles: string[], declarationFiles: string[], distDir: string): void {
 	const packageTsconfigPath = path.join(packageDir, 'tsconfig.json');
 	const packageConfig = existsSync(packageTsconfigPath)
@@ -618,6 +678,14 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 	rewriteDeclarationsInDir(distDir);
 }
 
+/**
+ * Transpiles source files one-by-one with esbuild and writes the emitted runtime files
+ * into `dist` using publishable extensions.
+ *
+ * This intentionally does not bundle modules. The published package preserves its file
+ * structure, and relative imports are rewritten afterward so the emitted graph remains
+ * internally consistent.
+ */
 async function buildJavaScript(packageDir: string, codeFiles: string[], distDir: string): Promise<void> {
 	const packageTsconfigPath = path.join(packageDir, 'tsconfig.json');
 	const tsconfigRaw = existsSync(packageTsconfigPath)
@@ -654,6 +722,10 @@ async function buildJavaScript(packageDir: string, codeFiles: string[], distDir:
 	}
 }
 
+/**
+ * Produces the publishable manifest for `dist` by rewriting source paths, normalizing
+ * export metadata, and removing development-only fields.
+ */
 function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
 	const rewrittenExports = normalizeExportTarget(rewriteExportMap(manifest.exports));
 	const distManifest: PackageManifest = {
@@ -697,7 +769,7 @@ function createDistManifest(manifest: PackageManifest, version: string): Package
 }
 
 function copyMetadataFiles(packageDir: string, distDir: string): void {
-	for (const fileName of ['README.md', 'CHANGELOG.md', 'LICENSE']) {
+	for (const fileName of ['README.md', 'LICENSE']) {
 		const sourcePath = path.join(packageDir, fileName);
 		if (!existsSync(sourcePath)) {
 			continue;
@@ -716,6 +788,13 @@ function matchesRequestedPackage(packageDir: string, manifest: PackageManifest, 
 	return filters.has(manifest.name) || filters.has(relativeDir) || filters.has(path.basename(packageDir));
 }
 
+/**
+ * Builds a single publishable package directory into its `dist` folder.
+ *
+ * The pipeline is deliberately staged: emit runtime files, emit declarations, copy
+ * untouched assets, then validate and write the final manifest. Keeping those steps
+ * separate makes packaging failures easier to diagnose without changing publish output.
+ */
 async function buildPackage(packageDir: string, version: string): Promise<void> {
 	const packageJsonPath = path.join(packageDir, 'package.json');
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
@@ -746,6 +825,10 @@ async function buildPackage(packageDir: string, version: string): Promise<void> 
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
 }
 
+/**
+ * Builds every publishable package, or a filtered subset when positional arguments are
+ * provided as package names or package directory names.
+ */
 async function main(): Promise<void> {
 	const { positionals } = parseArgs({
 		allowPositionals: true,

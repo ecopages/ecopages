@@ -1,4 +1,5 @@
 /** @jsxImportSource @ecopages/jsx */
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
@@ -12,10 +13,36 @@ import {
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
+import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import type { ForeignChildInterceptionInput } from '../../../../core/src/route-renderer/orchestration/component-render-context';
+import { kitajsPlugin } from '../../../kitajs/src/kitajs.plugin';
+import { litPlugin } from '../../../lit/src/lit.plugin';
+import { reactPlugin } from '../../../react/src/react.plugin';
+import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
+import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
+import { IntegrationCounterGroup as KitchenSinkIntegrationCounterGroup } from '../../../../../playground/kitchen-sink/src/components/integration-counter-group.kita';
+import { KitaShell as KitchenSinkKitaShell } from '../../../../../playground/kitchen-sink/src/components/kita-shell.kita';
+import { LitShell as KitchenSinkLitShell } from '../../../../../playground/kitchen-sink/src/components/lit-shell.lit';
+import { ReactShell as KitchenSinkReactShell } from '../../../../../playground/kitchen-sink/src/components/react-shell.react';
+import { EcopagesJsxShell as KitchenSinkEcopagesJsxShell } from '../../../../../playground/kitchen-sink/src/components/ecopages-jsx-shell.eco';
+
+const KITCHEN_SINK_ROOT = fileURLToPath(new URL('../../../../../playground/kitchen-sink', import.meta.url));
+
+type StringChildProps = {
+	children?: JsxRenderable;
+};
+
+type IntrinsicContractElement = HTMLElement & { count?: number };
+type RadiantArrayContractElement = HTMLElement & { items: Array<{ id: string }> };
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'ecopages-jsx-intrinsic-contract': JsxCustomElementAttributes<IntrinsicContractElement, { count?: number }>;
+		'ecopages-jsx-radiant-array-contract': JsxCustomElementAttributes<RadiantArrayContractElement>;
+	}
+}
 
 const Config = await new ConfigBuilder()
 	.setRobotsTxt({
@@ -40,10 +67,17 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 		</html>
 	);
 };
-
 const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
 const INTRINSIC_TEST_TAG = 'ecopages-jsx-intrinsic-contract';
 const RADIANT_ARRAY_TEST_TAG = 'ecopages-jsx-radiant-array-contract';
+
+function serializeStringChild(children: JsxRenderable | undefined): string {
+	if (children === undefined) {
+		return '';
+	}
+
+	return typeof children === 'string' ? children : renderToString(children);
+}
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
@@ -52,6 +86,13 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 
 	protected override async resolveDependencies(): Promise<[]> {
 		return [];
+	}
+
+	public createTestForeignChildRuntime(input: ComponentRenderInput) {
+		return this.createForeignChildRuntime({
+			renderInput: input,
+			rendererCache: new Map<string, IntegrationRenderer<any>>(),
+		});
 	}
 }
 
@@ -88,6 +129,53 @@ class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
 			name: 'deferred',
 			extensions: ['.deferred.tsx'],
 		});
+	}
+}
+
+class StringChildContractRenderer extends IntegrationRenderer<EcoPagesElement> {
+	name = 'string-child-contract';
+	async render(): Promise<string> {
+		return '';
+	}
+
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		return await this.renderStringComponentWithQueuedForeignSubtrees(input, async (props) => {
+			if (props.children !== undefined && typeof props.children !== 'string') {
+				throw new TypeError(
+					this.name === 'kitajs'
+						? 'Objects are not valid as a KitaJSX child'
+						: `Expected serialized children in ${this.name} renderer.`,
+				);
+			}
+
+			const component = input.component as (props: Record<string, unknown>) => string | Promise<string>;
+			return await component(props);
+		});
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		_view: EcoComponent<P>,
+		_props: P,
+		_ctx: RenderToResponseContext,
+	) {
+		return new Response('');
+	}
+}
+
+class StringChildContractPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer: typeof StringChildContractRenderer;
+
+	constructor(name: string, extension: string) {
+		class NamedStringChildContractRenderer extends StringChildContractRenderer {
+			override name = name;
+		}
+
+		super({
+			name,
+			extensions: [extension],
+		});
+
+		this.renderer = NamedStringChildContractRenderer;
 	}
 }
 
@@ -154,14 +242,15 @@ describe('EcopagesJsxRenderer', () => {
 				props: {},
 			});
 
-			expect(result).toEqual<ForeignSubtreeRenderPayload>({
-				html: '<section data-jsx-foreign-subtree="true">ready</section>',
+			expect(result).toMatchObject<Partial<ForeignSubtreeRenderPayload>>({
 				assets: [],
 				rootTag: 'section',
 				rootAttributes: undefined,
 				attachmentPolicy: { kind: 'first-element' },
 				integrationName: 'ecopages-jsx',
 			});
+			expect(result.html).toContain('data-jsx-foreign-subtree="true"');
+			expect(result.html).toContain('>ready</section>');
 		});
 
 		it('resolves foreign boundaries inside the JSX renderer and bubbles nested assets', async () => {
@@ -289,6 +378,604 @@ describe('EcopagesJsxRenderer', () => {
 				}),
 			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
+		});
+
+		it('serializes nested foreign children before delegating a string-first foreign shell', async () => {
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([kitajsPlugin, litPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+			litPlugin.setConfig(config);
+			litPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const LitLeaf = eco.component<{}, string>({
+				integration: 'lit',
+				render: () => '<span data-foreign-leaf="true">Leaf</span>',
+			});
+
+			const KitaShell = eco.component<StringChildProps, string>({
+				integration: 'kitajs',
+				dependencies: {
+					components: [LitLeaf],
+				},
+				render: ({ children }) =>
+					`<section data-kitajs-shell="true">${serializeStringChild(children)}</section>`,
+			});
+
+			const Page = eco.component({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [KitaShell, LitLeaf],
+				},
+				render: () => (
+					<KitaShell>
+						<LitLeaf />
+					</KitaShell>
+				),
+			});
+
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'host',
+				},
+			});
+
+			expect(result.html).toContain(
+				'<section data-kitajs-shell="true"><span data-foreign-leaf="true">Leaf</span></section>',
+			);
+			expect(result.html).not.toContain('[object Object]');
+		});
+
+		it('resolves nested foreign descendants inside a direct foreign component rendered by an Ecopages JSX page', async () => {
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([kitajsPlugin, litPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+			litPlugin.setConfig(config);
+			litPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const LitLeaf = eco.component<{}, string>({
+				integration: 'lit',
+				render: () => '<span data-foreign-leaf="true">Leaf</span>',
+			});
+
+			const KitaGroup = eco.component<{}, string>({
+				integration: 'kitajs',
+				dependencies: {
+					components: [LitLeaf],
+				},
+				render: () => `<section data-kitajs-group="true">${serializeStringChild(LitLeaf({}))}</section>`,
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [KitaGroup, LitLeaf],
+				},
+				render: () => (
+					<main>
+						<KitaGroup />
+					</main>
+				),
+			});
+
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'direct-foreign-group-host',
+				},
+			});
+
+			expect(result.html).toContain(
+				'<main><section data-kitajs-group="true"><span data-foreign-leaf="true">Leaf</span></section></main>',
+			);
+			expect(result.html).not.toContain('[object Object]');
+		});
+
+		it('renders the real kitchen-sink mixed shell stack without leaking foreign renderer objects', async () => {
+			const jsx = ecopagesJsxPlugin();
+			const kitajs = kitajsPlugin();
+			const lit = litPlugin();
+			const react = reactPlugin({
+				extensions: ['.react.tsx'],
+			});
+			const config = await new ConfigBuilder()
+				.setRootDir(KITCHEN_SINK_ROOT)
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([jsx, kitajs, lit, react])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			jsx.setConfig(config);
+			jsx.setRuntimeOrigin('http://localhost:3000');
+			kitajs.setConfig(config);
+			kitajs.setRuntimeOrigin('http://localhost:3000');
+			lit.setConfig(config);
+			lit.setRuntimeOrigin('http://localhost:3000');
+			react.setConfig(config);
+			react.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const RealKitaShell = KitchenSinkKitaShell as unknown as (props: {
+				id: string;
+				children?: JsxRenderable;
+			}) => JsxRenderable;
+			const RealLitShell = KitchenSinkLitShell as unknown as (props: {
+				id: string;
+				children?: JsxRenderable;
+			}) => JsxRenderable;
+			const RealReactShell = KitchenSinkReactShell as unknown as (props: {
+				id: string;
+				children?: JsxRenderable;
+			}) => JsxRenderable;
+			const RealCounterGroup = KitchenSinkIntegrationCounterGroup as unknown as (props: {
+				testId: string;
+				radiantId: string;
+			}) => JsxRenderable;
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [
+						KitchenSinkIntegrationCounterGroup,
+						KitchenSinkKitaShell,
+						KitchenSinkLitShell,
+						KitchenSinkReactShell,
+						KitchenSinkEcopagesJsxShell,
+					],
+				},
+				render: () => (
+					<div>
+						<KitchenSinkEcopagesJsxShell id="host-shell">
+							<RealKitaShell id="kita-shell">
+								<RealLitShell id="lit-shell">
+									<RealReactShell id="react-shell">Leaf</RealReactShell>
+								</RealLitShell>
+							</RealKitaShell>
+						</KitchenSinkEcopagesJsxShell>
+						<RealCounterGroup testId="kitchen-sink-counters" radiantId="kitchen-sink-radiant" />
+					</div>
+				),
+			});
+
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'kitchen-sink-host',
+				},
+			});
+
+			expect(result.html).toContain('integration-shell__body');
+			expect(result.html).toContain('kitchen-sink-counters');
+			expect(result.html).not.toContain('[object Object]');
+		});
+
+		it('preserves normalized props when the delegated child stays inline', async () => {
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([kitajsPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const KitaShell = eco.component<StringChildProps, string>({
+				integration: 'kitajs',
+				render: ({ children }) =>
+					`<section data-kitajs-shell="true">${serializeStringChild(children)}</section>`,
+			});
+
+			const runtime = renderer.createTestForeignChildRuntime({
+				component: KitaShell,
+				props: {},
+				integrationContext: {
+					rendererCache: new Map<string, IntegrationRenderer<any>>(),
+				},
+			});
+
+			const result = await runtime.interceptForeignChild?.({
+				currentIntegration: 'kitajs',
+				targetIntegration: 'kitajs',
+				component: KitaShell,
+				props: {
+					children: createMarkupNodeLike('<span data-inline-child="true">Leaf</span>'),
+				},
+			} satisfies ForeignChildInterceptionInput);
+
+			expect(result).toEqual({
+				kind: 'inline',
+				props: {
+					children: '<span data-inline-child="true">Leaf</span>',
+				},
+			});
+		});
+
+		it('serializes queued foreign child props before storing them in the Ecopages JSX runtime context', async () => {
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([kitajsPlugin, litPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+			litPlugin.setConfig(config);
+			litPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const LitLeaf = eco.component<{}, string>({
+				integration: 'lit',
+				render: () => '<span data-foreign-leaf="true">Leaf</span>',
+			});
+
+			const KitaShell = eco.component<StringChildProps, string>({
+				integration: 'kitajs',
+				dependencies: {
+					components: [LitLeaf],
+				},
+				render: ({ children }) =>
+					`<section data-kitajs-shell="true">${serializeStringChild(children)}</section>`,
+			});
+
+			const renderInput: ComponentRenderInput = {
+				component: KitaShell,
+				props: {},
+				integrationContext: {
+					rendererCache: new Map<string, IntegrationRenderer<any>>(),
+				},
+			};
+
+			const runtime = renderer.createTestForeignChildRuntime(renderInput);
+			const result = runtime.interceptForeignChildSync?.({
+				currentIntegration: 'ecopages-jsx',
+				targetIntegration: 'kitajs',
+				component: KitaShell,
+				props: {
+					children: <LitLeaf />,
+				},
+			} satisfies ForeignChildInterceptionInput);
+
+			expect(result).toEqual({
+				kind: 'resolved',
+				value: '__ecopages-jsx_foreign_subtree__root__1__',
+			});
+
+			const runtimeContext = (
+				renderInput.integrationContext as Record<
+					string,
+					{ queuedResolutions: Array<{ props: Record<string, unknown> }> }
+				>
+			)['__ecopages-jsx_foreign_subtree_runtime__'];
+
+			expect(runtimeContext?.queuedResolutions[0]?.props.children).toBe(
+				'<span data-foreign-leaf="true">Leaf</span>',
+			);
+		});
+
+		it('supports generated Ecopages JSX shells that serialize non-string children with renderToString', async () => {
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
+			const reactPlugin = new StringChildContractPlugin('react', '.react.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([kitajsPlugin, litPlugin, reactPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+			litPlugin.setConfig(config);
+			litPlugin.setRuntimeOrigin('http://localhost:3000');
+			reactPlugin.setConfig(config);
+			reactPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const ReactLeaf = eco.component<StringChildProps, string>({
+				integration: 'react',
+				render: ({ children }) => `<span data-react-leaf="true">${serializeStringChild(children)}</span>`,
+			});
+
+			const LitShell = eco.component<StringChildProps, string>({
+				integration: 'lit',
+				dependencies: {
+					components: [ReactLeaf],
+				},
+				render: ({ children }) => `<div data-lit-shell="true">${serializeStringChild(children)}</div>`,
+			});
+
+			const KitaShell = eco.component<StringChildProps, string>({
+				integration: 'kitajs',
+				dependencies: {
+					components: [LitShell, ReactLeaf],
+				},
+				render: ({ children }) =>
+					`<section data-kitajs-shell="true">${serializeStringChild(children)}</section>`,
+			});
+
+			const GeneratedShell = eco.component<{ children?: JsxRenderable | string }, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [KitaShell, LitShell, ReactLeaf],
+				},
+				render: ({ children }) => {
+					const renderedChildren =
+						children === undefined
+							? undefined
+							: createMarkupNodeLike(typeof children === 'string' ? children : renderToString(children));
+
+					return <div data-generated-shell>{renderedChildren}</div>;
+				},
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [GeneratedShell, KitaShell, LitShell, ReactLeaf],
+				},
+				render: () => (
+					<GeneratedShell>
+						<KitaShell>
+							<LitShell>
+								<ReactLeaf>Leaf</ReactLeaf>
+							</LitShell>
+						</KitaShell>
+					</GeneratedShell>
+				),
+			});
+
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'generated-shell-host',
+				},
+			});
+
+			expect(result.html).toContain('data-generated-shell="true"');
+			expect(result.html).toContain('<section data-kitajs-shell="true">');
+			expect(result.html).toContain('<div data-lit-shell="true">');
+			expect(result.html).toContain('<span data-react-leaf="true">Leaf</span>');
+		});
+
+		it('supports generated Ecopages JSX shells when a delegated Kita subtree re-enters Ecopages JSX', async () => {
+			const jsxPlugin = ecopagesJsxPlugin();
+			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
+			const config = await new ConfigBuilder()
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
+					},
+				})
+				.setIntegrations([jsxPlugin, kitajsPlugin])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			jsxPlugin.setConfig(config);
+			jsxPlugin.setRuntimeOrigin('http://localhost:3000');
+			kitajsPlugin.setConfig(config);
+			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const EcopagesJsxLeaf = eco.component<{}, JsxRenderable>({
+				__eco: {
+					id: 'generated-bounce-leaf',
+					file: '/app/components/generated-bounce-leaf.eco.tsx',
+					integration: 'ecopages-jsx',
+				},
+				integration: 'ecopages-jsx',
+				render: () => <strong data-ecopages-jsx-leaf>Leaf</strong>,
+			});
+
+			const KitaGroup = eco.component<{}, string>({
+				__eco: {
+					id: 'generated-bounce-kita-group',
+					file: '/app/components/generated-bounce-group.kita.tsx',
+					integration: 'kitajs',
+				},
+				integration: 'kitajs',
+				dependencies: {
+					components: [EcopagesJsxLeaf],
+				},
+				render: () => `<section data-kitajs-group="true">${renderToString(EcopagesJsxLeaf({}))}</section>`,
+			});
+
+			const KitaShell = eco.component<StringChildProps, string>({
+				__eco: {
+					id: 'generated-bounce-kita-shell',
+					file: '/app/components/generated-bounce-shell.kita.tsx',
+					integration: 'kitajs',
+				},
+				integration: 'kitajs',
+				dependencies: {
+					components: [KitaGroup],
+				},
+				render: ({ children }) => `<div data-kitajs-shell="true">${serializeStringChild(children)}</div>`,
+			});
+
+			const GeneratedShell = eco.component<{ children?: JsxRenderable | string }, JsxRenderable>({
+				__eco: {
+					id: 'generated-bounce-shell',
+					file: '/app/components/generated-bounce-shell.eco.tsx',
+					integration: 'ecopages-jsx',
+				},
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [KitaShell, KitaGroup, EcopagesJsxLeaf],
+				},
+				render: ({ children }) => {
+					const renderedChildren =
+						children === undefined
+							? undefined
+							: createMarkupNodeLike(typeof children === 'string' ? children : renderToString(children));
+
+					return <div data-generated-bounce-shell>{renderedChildren}</div>;
+				},
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				__eco: {
+					id: 'generated-bounce-page',
+					file: '/app/pages/generated-bounce-page.eco.tsx',
+					integration: 'ecopages-jsx',
+				},
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [GeneratedShell, KitaShell, KitaGroup, EcopagesJsxLeaf],
+				},
+				render: () => (
+					<GeneratedShell>
+						<KitaShell>
+							<KitaGroup />
+						</KitaShell>
+					</GeneratedShell>
+				),
+			});
+
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'generated-bounce-host',
+				},
+			});
+
+			expect(result.html).toContain('data-generated-bounce-shell="true"');
+			expect(result.html).toContain('<div data-kitajs-shell="true">');
+			expect(result.html).toContain('<section data-kitajs-group="true">');
+			expect(result.html).toContain('<strong');
+			expect(result.html).toContain('data-ecopages-jsx-leaf="true"');
+			expect(result.html).toContain('>Leaf</strong>');
 		});
 
 		it('propagates renderer SSR scope across nested JSX renders', async () => {
@@ -427,7 +1114,7 @@ describe('EcopagesJsxRenderer', () => {
 				props: {},
 			});
 
-			expect(result.html).toContain('data-ssr-mode="plain"');
+			expect(result.html).toContain('data-ssr-mode="hydrate"');
 			expect(result.html).toContain('data-count="2"');
 			expect(result.html).toContain('data-testid="intrinsic-contract"');
 			expect(result.assets).toEqual([]);
@@ -640,9 +1327,9 @@ describe('EcopagesJsxRenderer', () => {
 			const body = await response.text();
 
 			expect(body).toContain('<!DOCTYPE html>');
-			expect(body).toContain(
-				'<main data-document-root="true"><div data-layout-root="true"><section data-view-root="true">Ready</section></div></main>',
-			);
+			expect(body).toContain('data-document-root="true"');
+			expect(body).toContain('data-layout-root="true"');
+			expect(body).toContain('data-view-root="true">Ready</section>');
 			expect(body).not.toContain('&lt;section');
 		});
 	});

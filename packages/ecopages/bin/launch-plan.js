@@ -52,12 +52,8 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
-export function buildNodeArgs(args, options, entryFile, hasConfig) {
+export function buildNodeArgs(args, options, entryFile, _hasConfig) {
 	const nodeArgs = [];
-
-	if (hasConfig) {
-		nodeArgs.push('--import', './eco.config.ts');
-	}
 
 	nodeArgs.push(entryFile, ...args);
 

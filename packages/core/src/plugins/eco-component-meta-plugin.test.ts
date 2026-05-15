@@ -22,10 +22,12 @@ describe('eco-component-meta-plugin', () => {
 			{
 				name: 'kitajs',
 				extensions: ['.kita.tsx'],
+				jsxImportSource: '@kitajs/html',
 			},
 			{
 				name: 'react',
 				extensions: ['.tsx'],
+				jsxImportSource: 'react',
 			},
 			{
 				name: 'ghtml',
@@ -220,6 +222,19 @@ export const Head = eco.component<PageHeadProps<string>>({
 
 		expect(result).toBeDefined();
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/includes/head.kita.tsx', 'kitajs'));
+		expect(result.contents.startsWith('/** @jsxImportSource @kitajs/html */\n')).toBe(true);
+	});
+
+	it('should not duplicate an existing jsx import source pragma', async () => {
+		const content = `/** @jsxImportSource @kitajs/html */
+import { eco } from '@ecopages/core';
+
+export const Head = eco.component({ render: () => <head /> });`;
+
+		const result = await runPluginOnContent(content, '/path/to/includes/head.kita.tsx');
+
+		expect(result).toBeDefined();
+		expect(result.contents.match(/@jsxImportSource @kitajs\/html/g)).toHaveLength(1);
 	});
 
 	it('should handle eco.page with complex generic types', async () => {

@@ -499,7 +499,7 @@ export class ConfigBuilder {
 		const hasKitaJs = uniqueName.has('kitajs');
 		const hasReact = uniqueName.has('react');
 		if (hasKitaJs && hasReact) {
-			appLogger.warn(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+			appLogger.debug(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
 		}
 
 		const integrationsExtensions = integrations.flatMap((integration) => integration.extensions);

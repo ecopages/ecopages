@@ -10,6 +10,8 @@ export interface ForeignJsxOverrideOptions {
 	hostJsxImportSource: string;
 	/** Extensions claimed by other JSX integrations that may appear in the host graph. */
 	foreignExtensions: string[];
+	/** More specific owned suffixes that must not be claimed by this override. */
+	excludeExtensions?: string[];
 	/** Optional plugin name override for debug output. */
 	name?: string;
 }
@@ -34,6 +36,9 @@ export interface ForeignJsxOverrideOptions {
  */
 export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOptions): EcoBuildPlugin {
 	const extensions = options.foreignExtensions.filter((ext) => ext.endsWith('.tsx') || ext.endsWith('.jsx'));
+	const excludedExtensions = (options.excludeExtensions ?? []).filter(
+		(ext) => ext.endsWith('.tsx') || ext.endsWith('.jsx'),
+	);
 
 	if (extensions.length === 0) {
 		return {
@@ -49,6 +54,10 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 		name: options.name ?? 'foreign-jsx-override',
 		setup(build) {
 			build.onLoad({ filter }, (args) => {
+				if (excludedExtensions.some((extension) => args.path.endsWith(extension))) {
+					return undefined;
+				}
+
 				const source = readFileSync(args.path, 'utf-8');
 				const loader = args.path.endsWith('.jsx') ? 'jsx' : 'tsx';
 

@@ -132,6 +132,87 @@ test('resolveNodeBootstrapDependency resolves workspace package dependencies fro
 	}
 });
 
+test('resolveNodeBootstrapDependency resolves external @ecopages subpaths to concrete files', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	const appProjectDir = path.join(rootDir, 'apps', 'docs');
+	fs.mkdirSync(appProjectDir, { recursive: true });
+	fs.writeFileSync(path.join(appProjectDir, 'package.json'), '{}', 'utf8');
+	const jsxPackageDir = path.join(rootDir, 'node_modules', '@ecopages', 'jsx');
+	fs.mkdirSync(jsxPackageDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(jsxPackageDir, 'package.json'),
+		JSON.stringify({
+			name: '@ecopages/jsx',
+			type: 'module',
+			exports: {
+				'.': {
+					import: './index.js',
+				},
+				'./jsx-runtime': {
+					import: './jsx-runtime.js',
+				},
+			},
+		}),
+		'utf8',
+	);
+	fs.writeFileSync(path.join(jsxPackageDir, 'index.js'), 'export const jsx = true;\n', 'utf8');
+	fs.writeFileSync(path.join(jsxPackageDir, 'jsx-runtime.js'), 'export const runtime = true;\n', 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: '@ecopages/jsx/jsx-runtime', importer: path.join(appProjectDir, 'entry.js') },
+			{ projectDir: appProjectDir, runtimeNodeModulesDir },
+		);
+
+		assert.equal(
+			result?.path ? fs.realpathSync(result.path) : result?.path,
+			fs.realpathSync(path.join(jsxPackageDir, 'jsx-runtime.js')),
+		);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolveNodeBootstrapDependency externalizes import-only @ecopages packages from the app package boundary', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	const appProjectDir = path.join(rootDir, 'apps', 'docs');
+	fs.mkdirSync(appProjectDir, { recursive: true });
+	fs.writeFileSync(path.join(appProjectDir, 'package.json'), '{}', 'utf8');
+	const jsxPackageDir = path.join(appProjectDir, 'node_modules', '@ecopages', 'jsx');
+	fs.mkdirSync(jsxPackageDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(jsxPackageDir, 'package.json'),
+		JSON.stringify({
+			name: '@ecopages/jsx',
+			type: 'module',
+			exports: {
+				'.': {
+					import: './index.js',
+				},
+			},
+		}),
+		'utf8',
+	);
+	fs.writeFileSync(path.join(jsxPackageDir, 'index.js'), 'export const jsx = true;\n', 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: '@ecopages/jsx', importer: path.join(appProjectDir, 'src', 'entry.tsx') },
+			{ projectDir: appProjectDir, runtimeNodeModulesDir },
+		);
+
+		assert.equal(
+			result?.path ? fs.realpathSync(result.path) : result?.path,
+			fs.realpathSync(path.join(jsxPackageDir, 'index.js')),
+		);
+		assert.equal(fs.existsSync(path.join(runtimeNodeModulesDir, '@ecopages', 'jsx')), false);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveNodeBootstrapDependency resolves nested third-party dependencies from the importer package context', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');

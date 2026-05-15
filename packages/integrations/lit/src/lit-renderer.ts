@@ -51,12 +51,16 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		children: unknown,
 		queuedResolutionsByToken: Map<string, LitForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
-	): Promise<string | undefined> {
+	): Promise<string | unknown | undefined> {
 		if (children === undefined) {
 			return undefined;
 		}
 
-		let renderedChildren = typeof children === 'string' ? children : await renderLitValueToString(children);
+		if (typeof children !== 'string') {
+			return children;
+		}
+
+		let renderedChildren = children;
 		renderedChildren = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
 			renderedChildren,
 			queuedResolutionsByToken,
@@ -86,6 +90,13 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 					queuedResolutionsByToken,
 					resolveToken,
 				);
+
+				if (typeof renderedChildren !== 'string') {
+					return {
+						assets: [],
+						children: renderedChildren,
+					};
+				}
 
 				return {
 					assets: [],

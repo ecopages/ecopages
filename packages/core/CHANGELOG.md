@@ -6,10 +6,28 @@ All notable changes to `@ecopages/core` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Bug Fixes
+
+- Added request-context server-module imports so explicit route handlers can lazy-load fresh server views through Ecopages invalidation instead of reusing stale nested dynamic imports.
+- Fixed Node development HTML responses from explicit handlers to inject the HMR runtime so app-owned routes can receive browser reload events.
+- Fixed development HTML responses that receive the HMR runtime to disable browser document caching so reloads do not reuse stale explicit-route HTML.
+- Fixed request-time `ctx.importServerModule()` in development to bypass the shared module import cache so immediate reloads do not reuse stale lazy server modules.
+- Removed workspace package source aliasing from Bun and Node app-module resolution so `@ecopages/*` imports no longer bypass the installed package graph during server builds.
+- Fixed Node bootstrap package resolution for import-only ESM dependencies so static generation can load installed `@ecopages/jsx` and `@ecopages/radiant` packages from the app boundary.
+- Fixed Node HMR to drop deleted watched entrypoints instead of repeatedly rebuilding removed workspace files during development.
+- Preserve foreign-child runtime normalized props on inline renders so mixed-integration children stay serialized during server rendering.
+- Downgraded the mixed Kitajs and React JSX-engine guidance to debug logging so correctly pragma-annotated apps no longer emit a false-positive startup warning.
+- Fixed Bun app-module metadata transforms to inject each integration's owning JSX import source so mixed Ecopages JSX and Kita server builds do not require per-file pragmas.
+- Fixed queued foreign-subtree child handoff so owning renderers receive rendered child HTML during mixed Ecopages JSX and string-renderer server passes.
+- Fixed Bun app-module server builds to run metadata loaders before JSX ownership overrides so foreign-owned layouts and HTML shells keep their integration metadata during preview and static rendering.
+- Fixed page-module import caching to include JSX ownership and plugin inputs so preview and static generation do not reuse server modules compiled for the wrong integration runtime.
+
 ### Features
 
 - Added app-owned runtime and build ownership around `createApp()`, host module loading, the browser-safe `eco` export, `eco.html()`, `eco.layout()`, and the published `EcoPagesAppConfig` surface.
 - Added boundary-plan metadata and a compatibility `renderBoundary()` payload contract for mixed-renderer orchestration.
+- Added `ctx.renderServerModule()` so explicit handlers can import and render a default-exported server view in one step.
+- Added `URL` support for `ctx.importServerModule()` and `ctx.renderServerModule()` so explicit handlers can point at local server views without manual `fileURLToPath()` plumbing.
 
 ### Refactoring
 
@@ -44,6 +62,12 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed mixed Ecopages JSX to string-renderer component handoff so delegated foreign children are serialized before Kita or other string-first shells receive them during preview and static rendering.
+- Fixed Bun page-module loading to keep framework-owned page imports on the transpilation path whenever a runtime build root and output directory are configured.
+- Fixed Bun development server-module invalidation to add runtime cache-busting even when Bun dev runs without `NODE_ENV=development`, so shared include changes reload fresh document-shell modules.
+- Fixed Bun development include invalidation so shared `@/includes/...` helpers are folded into rebuilt server modules after graph bumps, keeping document-shell reloads fresh without bundling unrelated mixed-renderer boundaries.
+- Fixed Bun development document-shell reloads to roll rebuilt server-module filenames forward after invalidation, so shared include-only changes do not reuse stale cached module paths.
+- Fixed Bun server-module transpilation naming so page imports that also emit CSS assets no longer fail with output-path collisions during static builds and preview startup.
 - Fixed integration registry typing so `ConfigBuilder.setIntegrations()` accepts heterogeneous framework plugins without rejecting valid JSX or React integrations at type-check time.
 - Fixed page-owned dependency packaging so final Html output suppresses bundled source stylesheet assets that were reintroduced later during shell-time asset merging.
 - Fixed development page dependency packaging so script Dependencies stay source-backed for HMR instead of being collapsed into one page-owned script bundle.

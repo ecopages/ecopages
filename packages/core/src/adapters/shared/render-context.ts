@@ -1,4 +1,11 @@
-import type { EcoComponent, RenderContext, RenderOptions, ResponseOptions } from '../../types/public-types.ts';
+import { fileURLToPath } from 'node:url';
+import type {
+	EcoComponent,
+	EcoPageComponent,
+	RenderContext,
+	RenderOptions,
+	ResponseOptions,
+} from '../../types/public-types.ts';
 import type {
 	IntegrationRenderer,
 	RenderToResponseContext,
@@ -9,6 +16,11 @@ import { invariant } from '../../utils/invariant.ts';
 export interface CreateRenderContextOptions {
 	integrations: AnyIntegrationPlugin[];
 	rendererModules?: unknown;
+	importServerModule?: (filePath: string) => Promise<unknown>;
+}
+
+function resolveServerModulePath(filePath: string | URL): string {
+	return filePath instanceof URL ? fileURLToPath(filePath) : filePath;
 }
 
 /**
@@ -58,6 +70,32 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 	};
 
 	const renderContext: RenderContext = {
+		importServerModule: async <T = unknown>(filePath: string | URL) => {
+			invariant(!!options.importServerModule, 'Server module importing is not available in this render context.');
+			return (await options.importServerModule(resolveServerModulePath(filePath))) as T;
+		},
+
+		async renderServerModule<P = Record<string, unknown>>(
+			this: { locals?: Record<string, unknown> } | undefined,
+			filePath: string | URL,
+			props?: P,
+			renderOptions?: RenderOptions,
+		): Promise<Response> {
+			const module = await renderContext.importServerModule<{ default: EcoPageComponent<P> }>(filePath);
+			const view = module.default as EcoComponent<P>;
+			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
+
+			const renderer = getRendererForView(view);
+			const ctx: RenderToResponseContext = {
+				partial: false,
+				status: renderOptions?.status,
+				headers: renderOptions?.headers,
+			};
+
+			return await renderer.renderToResponse(view, mergedProps, ctx);
+		},
+
 		async render<P>(
 			this: { locals?: Record<string, unknown> } | undefined,
 			view: EcoComponent<P>,

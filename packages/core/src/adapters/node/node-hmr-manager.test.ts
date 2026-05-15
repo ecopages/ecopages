@@ -254,6 +254,49 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 	errorSpy.mockRestore();
 });
 
+test('NodeHmrManager ignores deleted watched entrypoints and clears stale registration state', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-missing-file');
+	const srcDir = path.join(rootDir, 'src');
+	const pagesDir = path.join(srcDir, 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+
+	const entrypointPath = path.join(pagesDir, 'deleted-page.tsx');
+	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
+
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const manager = new NodeHmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+		} as any,
+	});
+
+	const outputUrl = '/assets/_hmr/pages/deleted-page.js';
+	manager.getWatchedFiles().set(entrypointPath, outputUrl);
+	const clearDependencies = vi.spyOn(
+		(
+			manager as unknown as {
+				entrypointDependencyGraph: { clearEntrypointDependencies: (entrypoint: string) => void };
+			}
+		).entrypointDependencyGraph,
+		'clearEntrypointDependencies',
+	);
+	const strategyMatches = vi.spyOn(
+		(manager as unknown as { strategies: Array<{ matches: (filePath: string) => boolean }> }).strategies[0]!,
+		'matches',
+	);
+
+	fs.rmSync(entrypointPath);
+
+	await assert.doesNotReject(() => manager.handleFileChange(entrypointPath));
+	assert.equal(manager.getWatchedFiles().has(entrypointPath), false);
+	assert.deepEqual(clearDependencies.mock.calls, [[entrypointPath]]);
+	assert.equal(strategyMatches.mock.calls.length, 0);
+
+	manager.stop();
+});
+
 test('NodeHmrManager stop clears retained registration state', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-stop-cleanup');
 	const srcDir = path.join(rootDir, 'src');

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { cleanupE2eTempDir, getSelectedProjects, hasInteractivePassThroughFlags } from './run-e2e.mjs';
+import {
+	buildProjectArgs,
+	cleanupE2eTempDir,
+	getSelectedProjects,
+	hasInteractivePassThroughFlags,
+} from './run-e2e.mjs';
 
 describe('run-e2e wrapper planning', () => {
 	it('keeps list-mode selections inside wrapper planning', () => {
@@ -16,5 +21,14 @@ describe('run-e2e wrapper planning', () => {
 
 	it('cleans the shared e2e temp directory without throwing', () => {
 		expect(() => cleanupE2eTempDir()).not.toThrow();
+	});
+
+	it('builds repeated playwright --project flags for a batch', () => {
+		expect(buildProjectArgs(['cache-e2e', 'docs-e2e'])).toEqual([
+			'--project',
+			'cache-e2e',
+			'--project',
+			'docs-e2e',
+		]);
 	});
 });

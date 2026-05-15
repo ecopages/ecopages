@@ -19,6 +19,7 @@ import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-j
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
+import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts';
 
 /**
  * Configuration for the ReactBundleService.
@@ -116,7 +117,6 @@ export class ReactBundleService {
 			: [this.createRuntimeAliasPlugin(buildReactRuntimeAliasMap(runtimeImports))];
 
 		if (isMdx && this.config.mdxCompilerOptions) {
-			const { createReactMdxLoaderPlugin } = await import('../utils/react-mdx-loader-plugin.ts');
 			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
 			options.plugins = [
 				foreignJsxOverridePlugin,

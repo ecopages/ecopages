@@ -17,13 +17,13 @@ export const app = await createApp({
 });
 
 app.get('/explicit/team', async (ctx) => {
-	const { default: ExplicitTeamView } = await import('./src/views/explicit-team-view.kita');
-	return ctx.render(ExplicitTeamView, {});
+	return await ctx.renderServerModule(new URL('./src/views/explicit-team-view.kita.tsx', import.meta.url));
 })
 	.get('/latest', async (ctx) => {
-		const { default: LatestReleaseView } = await import('./src/views/latest-release-view.kita');
 		const latestRelease = releaseNotes[releaseNotes.length - 1]!;
-		return ctx.render(LatestReleaseView, { release: latestRelease });
+		return await ctx.renderServerModule(new URL('./src/views/latest-release-view.kita.tsx', import.meta.url), {
+			release: latestRelease,
+		});
 	})
 	.add(api.ping)
 	.add(api.echo)

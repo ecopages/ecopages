@@ -50,6 +50,36 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	private readonly renderSession: EcopagesJsxRenderSession;
 	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;
 
+	private normalizeForeignChildProps(props: Record<string, unknown>): Record<string, unknown> {
+		if (!('children' in props)) {
+			return props;
+		}
+
+		const children = props.children;
+		if (children === undefined || typeof children === 'string') {
+			return props;
+		}
+
+		if (
+			typeof children === 'object' &&
+			children !== null &&
+			'nodeType' in children &&
+			typeof (children as { nodeType: unknown }).nodeType === 'number' &&
+			'outerHTML' in children &&
+			typeof (children as { outerHTML: unknown }).outerHTML === 'string'
+		) {
+			return {
+				...props,
+				children: (children as { outerHTML: string }).outerHTML,
+			};
+		}
+
+		return {
+			...props,
+			children: renderToString(children as JsxRenderable),
+		};
+	}
+
 	/**
 	 * Re-renders queued JSX children inside the owning renderer so nested custom
 	 * elements and queued foreign subtrees contribute assets to the same frame.
@@ -110,6 +140,29 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 	}
 
+	protected override createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}) {
+		const runtime = super.createForeignChildRuntime(options);
+		const wrapInput = (input: ForeignChildInterceptionInput): ForeignChildInterceptionInput => ({
+			...input,
+			props:
+				input.targetIntegration && input.targetIntegration !== this.name
+					? this.normalizeForeignChildProps(input.props)
+					: input.props,
+		});
+
+		return {
+			interceptForeignChild: runtime.interceptForeignChild
+				? (input) => runtime.interceptForeignChild(wrapInput(input))
+				: undefined,
+			interceptForeignChildSync: runtime.interceptForeignChildSync
+				? (input) => runtime.interceptForeignChildSync(wrapInput(input))
+				: undefined,
+		};
+	}
+
 	constructor({
 		appConfig,
 		assetProcessingService,
@@ -149,6 +202,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
+		await this.radiantSsrPolicy.prepareRuntime();
+
 		return await this.renderSession.withActiveScope(async () => {
 			try {
 				return await this.renderPageWithDocumentShell({
@@ -179,6 +234,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		await this.radiantSsrPolicy.prepareRuntime();
+
 		return await this.renderSession.withActiveScope(async () => {
 			const assetFrame = this.renderSession.beginCollectedAssetFrame();
 
@@ -238,6 +295,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
+		await this.radiantSsrPolicy.prepareRuntime();
+
 		return await this.renderSession.withActiveScope(async () => {
 			try {
 				if (typeof view !== 'function') {
@@ -259,7 +318,9 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
 		const collectedAssets: ProcessedAsset[] = [];
-		const html = await this.withCustomElementRenderHook(collectedAssets, () => renderToString(value));
+		const html = await this.withCustomElementRenderHook(collectedAssets, () =>
+			renderToString(value, { mode: 'hydrate' }),
+		);
 		const dedupedAssets = this.renderSession.recordCollectedAssets(collectedAssets);
 
 		return {

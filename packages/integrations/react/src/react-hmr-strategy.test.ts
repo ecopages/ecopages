@@ -95,7 +95,9 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches('/tmp/src/layouts/base-layout.lit.tsx')).toBe(false);
 		expect(strategy.matches('/tmp/src/pages/react-lab.tsx')).toBe(true);
 		expect(strategy.matches('/tmp/src/pages/react-lab.react.tsx')).toBe(true);
-		expect(strategy.matches('/tmp/src/components/widget.kita.tsx')).toBe(true);
+		expect(strategy.matches('/tmp/src/components/widget.tsx')).toBe(true);
+		expect(strategy.matches('/tmp/src/components/widget.kita.tsx')).toBe(false);
+		expect(strategy.matches('/tmp/src/views/explicit-team-view.kita.tsx')).toBe(false);
 	});
 
 	it('ignores watched script entrypoints that React does not own', () => {

@@ -44,16 +44,25 @@ function resolveAliasedBarrelTarget(resolvedPath: string): string {
 	return target ?? resolvedPath;
 }
 
+export function resolveAppSourceAliasPath(srcDir: string, specifier: string): string | undefined {
+	if (!specifier.startsWith('@/')) {
+		return undefined;
+	}
+
+	const candidate = path.join(srcDir, specifier.slice(2));
+	const resolved = findResolvablePath(candidate);
+	return resolved ? resolveAliasedBarrelTarget(resolved) : undefined;
+}
+
 export function createAliasResolverPlugin(srcDir: string): EcoBuildPlugin {
 	return {
 		name: 'ecopages-alias-resolver',
 		setup(build) {
 			build.onResolve({ filter: /^@\// }, (args) => {
-				const candidate = path.join(srcDir, args.path.slice(2));
-				const resolved = findResolvablePath(candidate);
+				const resolved = resolveAppSourceAliasPath(srcDir, args.path);
 
 				if (resolved) {
-					return { path: resolveAliasedBarrelTarget(resolved) };
+					return { path: resolved };
 				}
 
 				return {};

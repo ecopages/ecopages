@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
+import { WebSocketServer } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
+import { NodeHmrManager } from './node-hmr-manager.ts';
 import type { ApiHandler, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
-import type { NodeHmrManager } from './node-hmr-manager.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -19,6 +20,11 @@ import {
 
 import { NodeStaticContentServer } from './static-content-server.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
+import {
+	injectHmrRuntimeIntoHtmlResponse,
+	isHtmlResponse,
+	shouldInjectHmrHtmlResponse,
+} from '../shared/hmr-html-response.ts';
 
 /**
  * Sentinel error thrown when the client closes the connection before the
@@ -85,6 +91,22 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private previewServer: NodeStaticContentServer | null = null;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
+
+	private shouldInjectHmrScript(): boolean {
+		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined);
+	}
+
+	private isHtmlResponse(response: Response): boolean {
+		return isHtmlResponse(response);
+	}
+
+	private async maybeInjectHmrScript(response: Response): Promise<Response> {
+		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+			return injectHmrRuntimeIntoHtmlResponse(response);
+		}
+
+		return response;
+	}
 
 	constructor(options: NodeServerAdapterParams) {
 		super(options);
@@ -395,12 +417,14 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		}
 
 		try {
-			return await this.handleSharedRequest(request, {
+			const response = await this.handleSharedRequest(request, {
 				apiHandlers: this.apiHandlers,
 				errorHandler: this.errorHandler,
 				serverInstance: this.serverInstance,
 				hmrManager: this.hmrManager,
 			});
+
+			return await this.maybeInjectHmrScript(response);
 		} catch (error) {
 			if (error instanceof ClientAbortError) {
 				/**
@@ -435,8 +459,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.serverInstance = server;
 
 		if (this.options?.watch) {
-			const { NodeHmrManager } = await import('./node-hmr-manager.ts');
-			const { WebSocketServer } = await import('ws');
 			const wss = new WebSocketServer({ noServer: true });
 			this.bridge = new NodeClientBridge();
 			this.hmrManager = new NodeHmrManager({ appConfig: this.appConfig, bridge: this.bridge });

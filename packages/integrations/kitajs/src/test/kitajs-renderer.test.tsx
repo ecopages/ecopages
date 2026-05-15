@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
+import { jsx as kitajsx, jsxs as kitajsxs } from '@kitajs/html/jsx-runtime';
 import {
 	eco,
 	type ForeignSubtreeRenderPayload,
@@ -13,6 +14,11 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { KitaRenderer } from '../kitajs-renderer.ts';
+
+type MarkupNodeLike = {
+	nodeType: number;
+	outerHTML: string;
+};
 
 const Config = await new ConfigBuilder()
 	.setRobotsTxt({
@@ -64,6 +70,45 @@ class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
 		super({
 			name: 'deferred',
 			extensions: ['.deferred.tsx'],
+		});
+	}
+}
+
+class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
+	name = 'ecopages-jsx';
+
+	async render(): Promise<string> {
+		return '';
+	}
+
+	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const component = input.component as (props: Record<string, unknown>) => MarkupNodeLike;
+		const rendered = component(input.props);
+
+		return {
+			html: rendered.outerHTML,
+			canAttachAttributes: true,
+			rootTag: 'strong',
+			integrationName: this.name,
+		};
+	}
+
+	async renderToResponse<P = Record<string, unknown>>(
+		_view: EcoComponent<P>,
+		_props: P,
+		_ctx: RenderToResponseContext,
+	) {
+		return new Response('');
+	}
+}
+
+class EcopagesJsxForeignPlugin extends IntegrationPlugin<MarkupNodeLike> {
+	renderer = EcopagesJsxForeignRenderer;
+
+	constructor() {
+		super({
+			name: 'ecopages-jsx',
+			extensions: ['.eco.tsx'],
 		});
 	}
 }
@@ -466,5 +511,89 @@ describe('KitaRenderer', () => {
 		expect(body).toContain('<section>Explicit page</section>');
 		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 		expect(body).not.toContain('<eco-marker');
+	});
+
+	it('renders an Ecopages JSX child through the real Kita JSX runtime', async () => {
+		const jsxPlugin = new EcopagesJsxForeignPlugin();
+		const kitaPlugin = new (class extends IntegrationPlugin<EcoPagesElement> {
+			renderer = KitaRenderer;
+
+			constructor() {
+				super({
+					name: 'kitajs',
+					extensions: ['.kita.tsx'],
+					jsxImportSource: '@kitajs/html',
+				});
+			}
+		})();
+
+		const config = await new ConfigBuilder()
+			.setRobotsTxt({
+				preferences: {
+					'*': [],
+				},
+			})
+			.setIntegrations([jsxPlugin, kitaPlugin])
+			.setDefaultMetadata({
+				title: 'Ecopages',
+				description: 'Ecopages',
+			})
+			.setBaseUrl('http://localhost:3000')
+			.build();
+
+		jsxPlugin.setConfig(config);
+		jsxPlugin.setRuntimeOrigin('http://localhost:3000');
+		kitaPlugin.setConfig(config);
+		kitaPlugin.setRuntimeOrigin('http://localhost:3000');
+
+		const testRenderer = new TestKitaRenderer({
+			appConfig: config,
+			assetProcessingService: {
+				processDependencies: vi.fn(async () => []),
+			} as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+
+		const EcopagesJsxLeaf = eco.component<{}, MarkupNodeLike>({
+			__eco: {
+				id: 'kitajs-foreign-ecopages-jsx-leaf',
+				file: '/app/components/kitajs-foreign-ecopages-jsx-leaf.eco.tsx',
+				integration: 'ecopages-jsx',
+			},
+			integration: 'ecopages-jsx',
+			render: () => ({
+				nodeType: 1,
+				outerHTML: '<strong data-ecopages-jsx-leaf="true">Leaf</strong>',
+			}),
+		});
+
+		const KitaHost = eco.component<{}, EcoPagesElement>({
+			__eco: {
+				id: 'kitajs-foreign-ecopages-jsx-host',
+				file: '/app/components/kitajs-foreign-ecopages-jsx-host.kita.tsx',
+				integration: 'kitajs',
+			},
+			integration: 'kitajs',
+			dependencies: {
+				components: [EcopagesJsxLeaf],
+			},
+			render: () =>
+				kitajsxs('div', {
+					'data-testid': 'kitajs-foreign-host',
+					children: [kitajsx('span', { children: 'before' }), kitajsx(EcopagesJsxLeaf, {})],
+				}) as unknown as EcoPagesElement,
+		});
+
+		const result = await testRenderer.renderComponentWithForeignChildren({
+			component: KitaHost,
+			props: {},
+			integrationContext: {
+				componentInstanceId: 'kitajs-foreign-ecopages-jsx-host',
+			},
+		});
+
+		expect(result.html).toContain('data-testid="kitajs-foreign-host"');
+		expect(result.html).toContain('<strong data-ecopages-jsx-leaf="true">Leaf</strong>');
 	});
 });

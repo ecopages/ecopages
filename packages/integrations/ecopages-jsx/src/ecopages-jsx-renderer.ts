@@ -200,100 +200,98 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		file: string,
 		options?: RouteModuleLoadOptions,
 	): Promise<EcopagesJsxMdxPageModule> {
-		await this.radiantSsrPolicy.prepareRuntime();
+		return await this.withPreparedRadiantRuntime(async () => {
+			const module = (await super.importPageFile(file, options)) as EcopagesJsxMdxPageModule;
 
-		const module = (await super.importPageFile(file, options)) as EcopagesJsxMdxPageModule;
-
-		return this.isMdxFile(file) ? normalizeMdxPageModule(file, module) : module;
+			return this.isMdxFile(file) ? normalizeMdxPageModule(file, module) : module;
+		});
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
-		await this.radiantSsrPolicy.prepareRuntime();
-
-		return await this.renderSession.withActiveScope(async () => {
-			try {
-				return await this.renderPageWithDocumentShell({
-					page: {
-						component: options.Page,
-						props: {
-							...options.pageProps,
-							locals: options.pageLocals,
+		return await this.withPreparedRadiantRuntime(() =>
+			this.renderSession.withActiveScope(async () => {
+				try {
+					return await this.renderPageWithDocumentShell({
+						page: {
+							component: options.Page,
+							props: {
+								...options.pageProps,
+								locals: options.pageLocals,
+							},
 						},
-					},
-					layout: options.Layout
-						? {
-								component: options.Layout,
-								props: {
-									...options.pageProps,
-									locals: options.locals,
-								},
-							}
-						: undefined,
-					htmlTemplate: options.HtmlTemplate,
-					metadata: options.metadata,
-					pageProps: options.pageProps ?? {},
-				});
-			} catch (error) {
-				throw this.createRenderError('Error rendering page', error);
-			}
-		});
+						layout: options.Layout
+							? {
+									component: options.Layout,
+									props: {
+										...options.pageProps,
+										locals: options.locals,
+									},
+								}
+							: undefined,
+						htmlTemplate: options.HtmlTemplate,
+						metadata: options.metadata,
+						pageProps: options.pageProps ?? {},
+					});
+				} catch (error) {
+					throw this.createRenderError('Error rendering page', error);
+				}
+			}),
+		);
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		await this.radiantSsrPolicy.prepareRuntime();
+		return await this.withPreparedRadiantRuntime(() =>
+			this.renderSession.withActiveScope(async () => {
+				const assetFrame = this.renderSession.beginCollectedAssetFrame();
 
-		return await this.renderSession.withActiveScope(async () => {
-			const assetFrame = this.renderSession.beginCollectedAssetFrame();
+				try {
+					if (typeof input.component !== 'function') {
+						throw new TypeError('JSX renderer expected a callable component.');
+					}
+					const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
 
-			try {
-				if (typeof input.component !== 'function') {
-					throw new TypeError('JSX renderer expected a callable component.');
+					const componentProps =
+						input.children === undefined
+							? input.props
+							: {
+									...input.props,
+									children:
+										typeof input.children === 'string'
+											? createMarkupNodeLike(input.children)
+											: input.children,
+								};
+					const content = await this.withCustomElementRenderHook(() => component(componentProps));
+					const rendered = await this.renderJsx(content);
+					const queuedForeignSubtreeResolution = await this.resolveOwnedForeignSubtreeHtml(
+						rendered.html,
+						this.getQueuedForeignSubtreeResolutionContext<EcopagesJsxForeignSubtreeResolutionContext>(
+							input,
+						),
+					);
+					const componentAssets =
+						input.component.config?.dependencies &&
+						typeof this.assetProcessingService?.processDependencies === 'function'
+							? await this.processComponentDependencies([input.component])
+							: [];
+					const assets = this.htmlTransformer.dedupeProcessedAssets([
+						...this.renderSession.endCollectedAssetFrame(assetFrame),
+						...queuedForeignSubtreeResolution.assets,
+						...componentAssets,
+					]);
+
+					return {
+						html: queuedForeignSubtreeResolution.html,
+						canAttachAttributes: true,
+						rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
+						integrationName: this.name,
+						assets,
+					};
+				} catch (error) {
+					this.renderSession.endCollectedAssetFrame(assetFrame);
+					throw this.createRenderError('Error rendering component', error);
 				}
-				const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
-
-				const componentProps =
-					input.children === undefined
-						? input.props
-						: {
-								...input.props,
-								children:
-									typeof input.children === 'string'
-										? createMarkupNodeLike(input.children)
-										: input.children,
-							};
-				const componentAssetsFromRender: ProcessedAsset[] = [];
-				const content = await this.withCustomElementRenderHook(componentAssetsFromRender, () =>
-					component(componentProps),
-				);
-				this.renderSession.recordCollectedAssets(componentAssetsFromRender);
-				const rendered = await this.renderJsx(content);
-				const queuedForeignSubtreeResolution = await this.resolveOwnedForeignSubtreeHtml(
-					rendered.html,
-					this.getQueuedForeignSubtreeResolutionContext<EcopagesJsxForeignSubtreeResolutionContext>(input),
-				);
-				const componentAssets =
-					input.component.config?.dependencies &&
-					typeof this.assetProcessingService?.processDependencies === 'function'
-						? await this.processComponentDependencies([input.component])
-						: [];
-				const assets = this.htmlTransformer.dedupeProcessedAssets([
-					...this.renderSession.endCollectedAssetFrame(assetFrame),
-					...queuedForeignSubtreeResolution.assets,
-					...componentAssets,
-				]);
-
-				return {
-					html: queuedForeignSubtreeResolution.html,
-					canAttachAttributes: true,
-					rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
-					integrationName: this.name,
-					assets,
-				};
-			} catch (error) {
-				this.renderSession.endCollectedAssetFrame(assetFrame);
-				throw this.createRenderError('Error rendering component', error);
-			}
-		});
+			}),
+		);
 	}
 
 	override async renderToResponse<P = any>(
@@ -301,31 +299,31 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
-		await this.radiantSsrPolicy.prepareRuntime();
+		return await this.withPreparedRadiantRuntime(() =>
+			this.renderSession.withActiveScope(async () => {
+				try {
+					if (typeof view !== 'function') {
+						throw new TypeError('JSX renderer expected a callable view component.');
+					}
+					const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
 
-		return await this.renderSession.withActiveScope(async () => {
-			try {
-				if (typeof view !== 'function') {
-					throw new TypeError('JSX renderer expected a callable view component.');
+					return await this.renderViewWithDocumentShell({
+						view: viewComponent,
+						props: props as Record<string, unknown>,
+						ctx,
+						layout: viewComponent.config?.layout,
+					});
+				} catch (error) {
+					throw this.createRenderError('Error rendering view', error);
 				}
-				const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
-
-				return await this.renderViewWithDocumentShell({
-					view: viewComponent,
-					props: props as Record<string, unknown>,
-					ctx,
-					layout: viewComponent.config?.layout,
-				});
-			} catch (error) {
-				throw this.createRenderError('Error rendering view', error);
-			}
-		});
+			}),
+		);
 	}
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
 		const collectedAssets: ProcessedAsset[] = [];
 		const html = await this.renderSession.withHydrationBindingScope(() =>
-			this.withCustomElementRenderHook(collectedAssets, () => renderToString(value, { mode: 'hydrate' })),
+			this.withCustomElementRenderHook(() => renderToString(value, { mode: 'hydrate' })),
 		);
 		const dedupedAssets = this.renderSession.recordCollectedAssets(collectedAssets);
 
@@ -335,15 +333,18 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		};
 	}
 
-	private async withCustomElementRenderHook<T>(target: ProcessedAsset[], render: () => T): Promise<T> {
-		await this.radiantSsrPolicy.prepareRuntime();
-
+	private async withCustomElementRenderHook<T>(render: () => T): Promise<T> {
 		return await this.radiantSsrPolicy.withRuntime(() =>
-			withServerCustomElementRenderHook(this.createIntrinsicCustomElementRenderHook(target), render),
+			withServerCustomElementRenderHook(this.createIntrinsicCustomElementRenderHook(), render),
 		);
 	}
 
-	private createIntrinsicCustomElementRenderHook(_target: ProcessedAsset[]) {
+	private async withPreparedRadiantRuntime<T>(render: () => Promise<T>): Promise<T> {
+		await this.radiantSsrPolicy.prepareRuntime();
+		return await render();
+	}
+
+	private createIntrinsicCustomElementRenderHook() {
 		return ({ instance }: { instance?: unknown; tagName: string }) => {
 			return instance ? this.radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined;
 		};

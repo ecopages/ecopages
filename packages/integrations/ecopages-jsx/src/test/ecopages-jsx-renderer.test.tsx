@@ -1187,11 +1187,9 @@ describe('EcopagesJsxRenderer', () => {
 			const collectedAssets: Array<{ kind: string; srcUrl: string; position: string }> = [];
 			const hook = (
 				renderer as unknown as {
-					createIntrinsicCustomElementRenderHook(
-						target: typeof collectedAssets,
-					): ({ tagName }: { tagName: string }) => undefined;
+					createIntrinsicCustomElementRenderHook(): ({ tagName }: { tagName: string }) => undefined;
 				}
-			).createIntrinsicCustomElementRenderHook(collectedAssets);
+			).createIntrinsicCustomElementRenderHook();
 
 			expect(() => hook({ tagName: INTRINSIC_TEST_TAG })).not.toThrow();
 			expect(collectedAssets).toEqual([]);

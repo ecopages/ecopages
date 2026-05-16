@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
+import { assertRadiantCounterInteractivity, gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
 
 async function requestUntilOk(request: APIRequestContext, href: string) {
 	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
@@ -60,6 +60,51 @@ async function gotoAndWaitForHeading(page: Page, href: string, heading: string) 
 }
 
 test.describe('Kitchen Sink Preview Regressions', () => {
+	test('keeps Ecopages JSX shell nodes marker-free while Radiant hosts stay interactive', async ({ request, page }) => {
+		const response = await requestUntilOk(request, '/integration-matrix/ecopages-jsx-entry');
+		const html = await response.text();
+
+		expect(html).not.toMatch(/<html[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<head[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<body[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<meta[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<link[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<header[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<main[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<a[^>]*data-radiant-jsx-bind-/);
+		expect(html).toContain('id="ecopages-jsx-entry-radiant"');
+		expect(html).toContain('data-radiant-counter');
+
+		const runtime = trackRuntimeErrors(page);
+		await gotoAndWait(page, '/integration-matrix/ecopages-jsx-entry');
+
+		const counter = page.locator('radiant-counter#ecopages-jsx-entry-radiant');
+		await assertRadiantCounterInteractivity(counter, '0');
+
+		await expect
+			.poll(
+				() =>
+					counter.evaluate((host) => {
+						const elements = [host, ...Array.from(host.querySelectorAll('*'))];
+						let markerCount = 0;
+
+						for (const element of elements) {
+							for (const attribute of Array.from(element.attributes)) {
+								if (attribute.name.startsWith('data-radiant-jsx-bind-')) {
+									markerCount += 1;
+								}
+							}
+						}
+
+						return markerCount;
+					}),
+				{ timeout: 10000, intervals: [100, 200, 350, 500] },
+			)
+			.toBe(0);
+
+		runtime.assertClean();
+	});
+
 	test('serves preview CSS with the expected selectors', async ({ request, page }) => {
 		const tailwindResponse = await request.get('/assets/styles/tailwind.css');
 		expect(tailwindResponse.ok()).toBe(true);

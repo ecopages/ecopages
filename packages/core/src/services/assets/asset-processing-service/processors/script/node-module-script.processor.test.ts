@@ -146,6 +146,29 @@ describe('NodeModuleScriptProcessor', () => {
 			expect(result).toBeDefined();
 			expect(callCount).toBeGreaterThanOrEqual(3);
 		});
+
+		test('should probe file extensions for installed package subpaths', async () => {
+			existsMock = vi.fn((candidatePath: string) =>
+				candidatePath === '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js'
+			);
+			fileSystem.exists = existsMock;
+
+			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
+
+			const dep: NodeModuleScriptAsset = {
+				kind: 'script',
+				source: 'node-module',
+				importPath: '@ecopages/radiant/client/install-hydrator',
+				inline: true,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result).toBeDefined();
+			expect(existsMock).toHaveBeenCalledWith(
+				'/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
+			);
+		});
 	});
 
 	describe('process - custom name', () => {
@@ -222,6 +245,25 @@ describe('NodeModuleScriptProcessor', () => {
 			expect(result.inline).toBe(true);
 			expect(result.content).toBeDefined();
 			expect(result.content!.length).toBeGreaterThan(0);
+		});
+
+		test('should resolve exported package subpaths when adapter resolution falls back', async () => {
+			const config = createMockConfig();
+			config.rootDir = '/Users/andeeplus/github/ecopages/apps/docs';
+			const processor = new NodeModuleScriptProcessor({ appConfig: config });
+			fileSystem.readFileAsBuffer = vi.fn().mockReturnValue(Buffer.from('hydrator bootstrap'));
+
+			const dep: NodeModuleScriptAsset = {
+				kind: 'script',
+				source: 'node-module',
+				importPath: '@ecopages/radiant/client/install-hydrator',
+				inline: true,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(result.inline).toBe(true);
+			expect(result.content).toBe('hydrator bootstrap');
 		});
 	});
 });

@@ -42,6 +42,10 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 const RouteHtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 	return (
 		<html>
+			<head>
+				<meta name="description" content="hydration scope regression" />
+				<link rel="canonical" href="https://example.test/docs" />
+			</head>
 			<body>
 				<main data-document-root on:click={() => undefined}>
 					{children}
@@ -52,7 +56,7 @@ const RouteHtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 };
 
 describe('EcopagesJsxRenderer hydration scope', () => {
-	it('shares one page-level hydrate namespace across page shell slices without leaking it into intrinsic Radiant hosts', async () => {
+	it('renders the page shell in plain mode while intrinsic Radiant hosts keep local hydrate markers', async () => {
 		const hydrationScopeTestTag = 'ecopages-jsx-hydration-scope-probe';
 		const customElementRegistry =
 			(
@@ -181,6 +185,7 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			integration: 'ecopages-jsx',
 			render: ({ children }) => (
 				<section data-layout-root on:click={() => undefined}>
+					<a href="/docs/getting-started/introduction">Docs</a>
 					{children}
 					<ecopages-jsx-hydration-scope-probe count={2} />
 				</section>
@@ -233,10 +238,20 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 		);
 		const uniquePageLevelIndexes = Array.from(new Set(pageLevelIndexes)).sort((left, right) => left - right);
 
-		expect(uniquePageLevelIndexes.length).toBeGreaterThan(1);
-		expect(uniquePageLevelIndexes).toEqual(
-			Array.from({ length: uniquePageLevelIndexes.length }, (_value, index) => index),
-		);
+		expect(html).toContain('<html>');
+		expect(html).toContain('<head>');
+		expect(html).toContain('<body>');
+		expect(html).not.toMatch(/<html[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<head[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<body[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<meta[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<link[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<main[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<section[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<article[^>]*data-radiant-jsx-bind-/);
+		expect(html).not.toMatch(/<a[^>]*data-radiant-jsx-bind-/);
+		expect(uniquePageLevelIndexes).toEqual([]);
+		expect(uniqueCustomElementIndexes.length).toBeGreaterThan(1);
 		expect(uniqueCustomElementIndexes).toEqual(
 			Array.from({ length: uniqueCustomElementIndexes.length }, (_value, index) => index),
 		);

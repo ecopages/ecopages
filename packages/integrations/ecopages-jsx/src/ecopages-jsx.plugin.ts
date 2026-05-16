@@ -3,6 +3,7 @@ import {
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
+import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import {
@@ -20,6 +21,8 @@ export type {
 	EcopagesJsxPluginOptions,
 	EcopagesJsxRendererConfig,
 } from './ecopages-jsx.types.ts';
+
+const RADIANT_HYDRATOR_SCRIPT_ID = 'ecopages-jsx-radiant-hydrator';
 
 type ResolvedJsxPluginConfig = Omit<IntegrationPluginConfig, 'name' | 'extensions' | 'jsxImportSource'> & {
 	extensions: string[];
@@ -102,6 +105,23 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		this.mdxEnabled = mdxEnabled;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
+
+		if (this.includeRadiant) {
+			this.integrationDependencies.unshift(...this.getDependencies());
+		}
+	}
+
+	private getDependencies(): AssetDefinition[] {
+		return [
+			AssetFactory.createNodeModuleScript({
+				position: 'head',
+				importPath: '@ecopages/radiant/client/install-hydrator',
+				bundle: false,
+				attributes: {
+					'data-eco-script-id': RADIANT_HYDRATOR_SCRIPT_ID,
+				},
+			}),
+		];
 	}
 
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */

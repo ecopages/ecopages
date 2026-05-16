@@ -16,6 +16,11 @@ import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/cor
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { EcopagesJsxShell as KitchenSinkEcopagesJsxShell } from '@ecopages/testing/kitchen-sink/ecopages-jsx-shell';
+import { KitaShell as KitchenSinkKitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
+import { LitShell as KitchenSinkLitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
+import { ReactShell as KitchenSinkReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 import type { ForeignChildInterceptionInput } from '../../../../core/src/route-renderer/orchestration/component-render-context';
 import { kitajsPlugin } from '../../../kitajs/src/kitajs.plugin';
 import { litPlugin } from '../../../lit/src/lit.plugin';
@@ -23,10 +28,6 @@ import { reactPlugin } from '../../../react/src/react.plugin';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
 import { IntegrationCounterGroup as KitchenSinkIntegrationCounterGroup } from '../../../../../playground/kitchen-sink/src/components/integration-counter-group.kita';
-import { KitaShell as KitchenSinkKitaShell } from '../../../../../playground/kitchen-sink/src/components/kita-shell.kita';
-import { LitShell as KitchenSinkLitShell } from '../../../../../playground/kitchen-sink/src/components/lit-shell.lit';
-import { ReactShell as KitchenSinkReactShell } from '../../../../../playground/kitchen-sink/src/components/react-shell.react';
-import { EcopagesJsxShell as KitchenSinkEcopagesJsxShell } from '../../../../../playground/kitchen-sink/src/components/ecopages-jsx-shell.eco';
 
 const KITCHEN_SINK_ROOT = fileURLToPath(new URL('../../../../../playground/kitchen-sink', import.meta.url));
 
@@ -44,19 +45,7 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const Config = await new ConfigBuilder()
-	.setRobotsTxt({
-		preferences: {
-			'*': [],
-		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
-		title: 'Ecopages',
-		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await createTestAppConfig();
 
 const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 	return (
@@ -92,42 +81,6 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 		return this.createForeignChildRuntime({
 			renderInput: input,
 			rendererCache: new Map<string, IntegrationRenderer<any>>(),
-		});
-	}
-}
-
-class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'deferred';
-
-	async render(): Promise<string> {
-		return '';
-	}
-
-	override async renderComponent() {
-		return {
-			html: '<button data-testid="deferred-widget">Deferred widget</button>',
-			canAttachAttributes: true,
-			rootTag: 'button',
-			integrationName: this.name,
-		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
-	}
-}
-
-class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer = DeferredRenderer;
-
-	constructor() {
-		super({
-			name: 'deferred',
-			extensions: ['.deferred.tsx'],
 		});
 	}
 }
@@ -276,54 +229,12 @@ describe('EcopagesJsxRenderer', () => {
 				}),
 			);
 
-			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
-				name = 'deferred';
-
-				async render(): Promise<string> {
-					return '';
-				}
-
-				override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-					return deferredRenderComponent(input);
-				}
-
-				async renderToResponse<P = Record<string, unknown>>(
-					_view: EcoComponent<P>,
-					_props: P,
-					_ctx: RenderToResponseContext,
-				) {
-					return new Response('');
-				}
-			}
-
-			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredForeignSubtreeRenderer;
-
-				constructor() {
-					super({
-						name: 'deferred',
-						extensions: ['.deferred.tsx'],
-					});
-				}
-			}
-
-			const deferredPlugin = new DeferredForeignSubtreePlugin();
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				renderComponent: deferredRenderComponent,
+			});
+			const config = await createTestAppConfig({
+				integrations: [deferredPlugin],
+			});
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -1198,23 +1109,10 @@ describe('EcopagesJsxRenderer', () => {
 
 	describe('renderToResponse', () => {
 		it('renders full route pages through renderer-owned explicit foreign-subtree renders', async () => {
-			const deferredPlugin = new DeferredPlugin();
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+			const deferredPlugin = createDeferredIntegrationPlugin();
+			const config = await createTestAppConfig({
+				integrations: [deferredPlugin],
+			});
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,

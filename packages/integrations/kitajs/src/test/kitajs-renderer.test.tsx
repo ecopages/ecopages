@@ -10,9 +10,9 @@ import {
 	type EcoPagesElement,
 	type HtmlTemplateProps,
 } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 type MarkupNodeLike = {
@@ -20,59 +20,11 @@ type MarkupNodeLike = {
 	outerHTML: string;
 };
 
-const Config = await new ConfigBuilder()
-	.setRobotsTxt({
-		preferences: {
-			'*': [],
-		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
-		title: 'Ecopages',
-		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await createTestAppConfig();
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
-
-class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'deferred';
-
-	async render(): Promise<string> {
-		return '';
-	}
-
-	override async renderComponent() {
-		return {
-			html: '<button data-testid="deferred-widget">Deferred widget</button>',
-			canAttachAttributes: true,
-			rootTag: 'button',
-			integrationName: this.name,
-		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
-	}
-}
-
-class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer = DeferredRenderer;
-
-	constructor() {
-		super({
-			name: 'deferred',
-			extensions: ['.deferred.tsx'],
-		});
-	}
-}
 
 class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 	name = 'ecopages-jsx';
@@ -242,51 +194,12 @@ describe('KitaRenderer', () => {
 			}),
 		);
 
-		class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
-			name = 'deferred';
-
-			async render(): Promise<string> {
-				return '';
-			}
-
-			override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-				return deferredRenderComponent(input);
-			}
-
-			async renderToResponse<P = Record<string, unknown>>(
-				_view: EcoComponent<P>,
-				_props: P,
-				_ctx: RenderToResponseContext,
-			) {
-				return new Response('');
-			}
-		}
-
-		class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
-			renderer = DeferredForeignSubtreeRenderer;
-
-			constructor() {
-				super({
-					name: 'deferred',
-					extensions: ['.deferred.tsx'],
-				});
-			}
-		}
-
-		const deferredPlugin = new DeferredForeignSubtreePlugin();
-		const config = await new ConfigBuilder()
-			.setRobotsTxt({
-				preferences: {
-					'*': [],
-				},
-			})
-			.setIntegrations([deferredPlugin])
-			.setDefaultMetadata({
-				title: 'Ecopages',
-				description: 'Ecopages',
-			})
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const deferredPlugin = createDeferredIntegrationPlugin({
+			renderComponent: deferredRenderComponent,
+		});
+		const config = await createTestAppConfig({
+			integrations: [deferredPlugin],
+		});
 
 		deferredPlugin.setConfig(config);
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -381,20 +294,10 @@ describe('KitaRenderer', () => {
 	});
 
 	it('should resolve deferred cross-integration layout components in render', async () => {
-		const deferredPlugin = new DeferredPlugin();
-		const config = await new ConfigBuilder()
-			.setRobotsTxt({
-				preferences: {
-					'*': [],
-				},
-			})
-			.setIntegrations([deferredPlugin])
-			.setDefaultMetadata({
-				title: 'Ecopages',
-				description: 'Ecopages',
-			})
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const deferredPlugin = createDeferredIntegrationPlugin();
+		const config = await createTestAppConfig({
+			integrations: [deferredPlugin],
+		});
 
 		deferredPlugin.setConfig(config);
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -450,20 +353,10 @@ describe('KitaRenderer', () => {
 	});
 
 	it('should resolve deferred cross-integration layout components in renderToResponse', async () => {
-		const deferredPlugin = new DeferredPlugin();
-		const config = await new ConfigBuilder()
-			.setRobotsTxt({
-				preferences: {
-					'*': [],
-				},
-			})
-			.setIntegrations([deferredPlugin])
-			.setDefaultMetadata({
-				title: 'Ecopages',
-				description: 'Ecopages',
-			})
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const deferredPlugin = createDeferredIntegrationPlugin();
+		const config = await createTestAppConfig({
+			integrations: [deferredPlugin],
+		});
 
 		deferredPlugin.setConfig(config);
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -527,24 +420,9 @@ describe('KitaRenderer', () => {
 			}
 		})();
 
-		const config = await new ConfigBuilder()
-			.setRobotsTxt({
-				preferences: {
-					'*': [],
-				},
-			})
-			.setIntegrations([jsxPlugin, kitaPlugin])
-			.setDefaultMetadata({
-				title: 'Ecopages',
-				description: 'Ecopages',
-			})
-			.setBaseUrl('http://localhost:3000')
-			.build();
-
-		jsxPlugin.setConfig(config);
-		jsxPlugin.setRuntimeOrigin('http://localhost:3000');
-		kitaPlugin.setConfig(config);
-		kitaPlugin.setRuntimeOrigin('http://localhost:3000');
+		const config = await createTestAppConfig({
+			integrations: [jsxPlugin, kitaPlugin],
+		});
 
 		const testRenderer = new TestKitaRenderer({
 			appConfig: config,

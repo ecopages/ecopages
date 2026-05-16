@@ -1,7 +1,6 @@
 import { createMarkupNodeLike } from '@ecopages/jsx';
 import {
 	createServerHydrationBindingState,
-	isServerRenderHydrationActive,
 	withServerHydrationBindingState,
 } from '@ecopages/jsx/server';
 
@@ -83,7 +82,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 		return createMarkupNodeLike(
 			withServerHydrationBindingState(createServerHydrationBindingState(), () =>
 				renderBridge.renderHostToString({
-					mode: isServerRenderHydrationActive() ? 'hydrate' : 'plain',
+					mode: 'hydrate',
 				}),
 			),
 		);

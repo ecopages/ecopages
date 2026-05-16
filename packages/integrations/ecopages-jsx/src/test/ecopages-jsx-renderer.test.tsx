@@ -978,7 +978,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 		});
 
-		it('uses the custom-element SSR hook path for registered intrinsic elements and preserves specialized rendering through wrappers', async () => {
+		it('uses the custom-element SSR hook path for registered intrinsic elements and preserves specialized rendering through wrappers during plain component renders', async () => {
 			installLightDomShim();
 
 			if (!customElements.get(INTRINSIC_TEST_TAG)) {
@@ -1025,7 +1025,7 @@ describe('EcopagesJsxRenderer', () => {
 				props: {},
 			});
 
-			expect(result.html).toContain('data-ssr-mode="hydrate"');
+			expect(result.html).toContain('data-ssr-mode="plain"');
 			expect(result.html).toContain('data-count="2"');
 			expect(result.html).toContain('data-testid="intrinsic-contract"');
 			expect(result.assets).toEqual([]);

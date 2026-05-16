@@ -8,6 +8,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed node-module asset fallback resolution to honor package-export subpaths during host-owned builds, restoring assets like `@ecopages/radiant/client/install-hydrator` when adapter resolution is unavailable.
 - Added request-context server-module imports so explicit route handlers can lazy-load fresh server views through Ecopages invalidation instead of reusing stale nested dynamic imports.
 - Fixed Node development HTML responses from explicit handlers to inject the HMR runtime so app-owned routes can receive browser reload events.
 - Fixed development HTML responses that receive the HMR runtime to disable browser document caching so reloads do not reuse stale explicit-route HTML.

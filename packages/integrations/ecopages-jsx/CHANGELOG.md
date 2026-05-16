@@ -9,6 +9,8 @@
 
 ### Bug Fixes
 
+- Render Ecopages JSX page shells in plain SSR mode and keep hydrate markers scoped to intrinsic Radiant hosts that actually hydrate on the client.
+- Restored the explicit Radiant client hydrator bootstrap head script so Ecopages JSX hydration can reconnect SSR marker bindings after the shared runtime bundle removal.
 - Switched Ecopages JSX SSR to hydrate mode when calling `@ecopages/jsx/server` so Radiant hosts emit the hydration markers expected by the current JSX runtime.
 - Preserve normalized child HTML when Ecopages JSX keeps delegated children inline inside mixed-integration server renders.
 - Fixed Radiant SSR runtime resolution to import the server bridge from the published `@ecopages/radiant/server` package layout instead of a non-existent `dist/server` path.
@@ -36,5 +38,7 @@
 - Extracted JSX renderer SSR asset-frame scope handling into a dedicated render-session module.
 
 ### Tests
+
+- Added a kitchen-sink preview e2e regression that asserts Ecopages JSX shell tags stay marker-free while nested Radiant hosts still hydrate and remove their local markers.
 
 - Added renderer-level coverage for the foreign-subtree payload compatibility contract.

@@ -23,6 +23,23 @@ type ControllerHost = HTMLElement & {
 	count?: number;
 };
 
+function getHydrationMarkerAttributes(root: ParentNode): string[] {
+	const elements = [root, ...Array.from(root.querySelectorAll('*'))].filter(
+		(node): node is Element => node instanceof Element,
+	);
+	const names: string[] = [];
+
+	for (const element of elements) {
+		for (const attributeName of element.getAttributeNames()) {
+			if (attributeName.startsWith('data-radiant-jsx-bind-')) {
+				names.push(attributeName);
+			}
+		}
+	}
+
+	return names;
+}
+
 function createTagName(): string {
 	nextTagId += 1;
 	return `ecopages-jsx-radiant-counter-${nextTagId}`;
@@ -118,6 +135,7 @@ describe('RadiantElement hydration contract', () => {
 		expect(hydratedButton).toBe(ssrButton);
 		expect(hydratedButton?.ssrMarker).toBe('kept');
 		expect(hydratedButton?.textContent).toBe('1');
+		expect(getHydrationMarkerAttributes(document.body)).toEqual([]);
 	});
 
 	it('falls back to a fresh client render when the explicit Radiant hydrator is missing', async () => {

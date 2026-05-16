@@ -5,12 +5,9 @@ import {
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
-	type EcoPagesElement,
 	type HtmlTemplateProps,
 } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
@@ -18,19 +15,7 @@ import { LitRenderer } from '../lit-renderer.ts';
 
 let customElementIndex = 0;
 
-const Config = await new ConfigBuilder()
-	.setRobotsTxt({
-		preferences: {
-			'*': [],
-		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
-		title: 'Ecopages',
-		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await createTestAppConfig();
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
@@ -84,42 +69,6 @@ const renderer = new LitRenderer({
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
-
-class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'deferred';
-
-	async render(): Promise<string> {
-		return '';
-	}
-
-	override async renderComponent() {
-		return {
-			html: '<button data-testid="deferred-widget">Deferred widget</button>',
-			canAttachAttributes: true,
-			rootTag: 'button',
-			integrationName: this.name,
-		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
-	}
-}
-
-class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer = DeferredRenderer;
-
-	constructor() {
-		super({
-			name: 'deferred',
-			extensions: ['.deferred.ts'],
-		});
-	}
-}
 
 describe('LitRenderer', () => {
 	describe('renderComponent', () => {
@@ -414,52 +363,14 @@ describe('LitRenderer', () => {
 				}),
 			);
 
-			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
-				name = 'deferred';
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				extensions: ['.deferred.ts'],
+				renderComponent: deferredRenderComponent,
+			});
 
-				async render(): Promise<string> {
-					return '';
-				}
-
-				override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-					return deferredRenderComponent(input);
-				}
-
-				async renderToResponse<P = Record<string, unknown>>(
-					_view: EcoComponent<P>,
-					_props: P,
-					_ctx: RenderToResponseContext,
-				) {
-					return new Response('');
-				}
-			}
-
-			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredForeignSubtreeRenderer;
-
-				constructor() {
-					super({
-						name: 'deferred',
-						extensions: ['.deferred.ts'],
-					});
-				}
-			}
-
-			const deferredPlugin = new DeferredForeignSubtreePlugin();
-
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+			const config = await createTestAppConfig({
+				integrations: [deferredPlugin],
+			});
 
 			deferredPlugin.setConfig(config);
 			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -814,20 +725,12 @@ describe('LitRenderer', () => {
 		});
 
 		it('should resolve deferred cross-integration layout components without leaving markers behind', async () => {
-			const deferredPlugin = new DeferredPlugin();
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				extensions: ['.deferred.ts'],
+			});
+			const config = await createTestAppConfig({
+				integrations: [deferredPlugin],
+			});
 
 			deferredPlugin.setConfig(config);
 			deferredPlugin.setRuntimeOrigin('http://localhost:3000');

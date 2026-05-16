@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
 import {
 	eco,
 	type ForeignSubtreeRenderPayload,
@@ -8,17 +7,12 @@ import {
 	type ComponentRenderResult,
 	type EcoComponent,
 	type EcoPageFile,
-	type EcoPagesElement,
 	type HtmlTemplateProps,
 } from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-	type RouteModuleLoadOptions,
-} from '@ecopages/core/route-renderer/integration-renderer';
+import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/integration-renderer';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../react-renderer';
 import { getReactIslandComponentKey } from '../services/react-hydration-asset.service.ts';
@@ -41,20 +35,9 @@ const mockRouterAdapter = {
 
 const testDir = path.join(__dirname, 'fixture/.eco');
 
-const Config = await new ConfigBuilder()
-	.setDistDir(testDir)
-	.setRobotsTxt({
-		preferences: {
-			'*': [],
-		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
-		title: 'Ecopages',
-		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await createTestAppConfig({
+	distDir: testDir,
+});
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ headContent, children }) => (
 	<html lang="en">
@@ -149,42 +132,6 @@ const createRenderer = (reactConfig?: ReactRendererConfig) => {
 		reactConfig,
 	});
 };
-
-class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
-	name = 'deferred';
-
-	async render(): Promise<string> {
-		return '';
-	}
-
-	override async renderComponent() {
-		return {
-			html: '<button data-testid="deferred-widget">Deferred widget</button>',
-			canAttachAttributes: true,
-			rootTag: 'button',
-			integrationName: this.name,
-		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
-	}
-}
-
-class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer = DeferredRenderer;
-
-	constructor() {
-		super({
-			name: 'deferred',
-			extensions: ['.deferred.tsx'],
-		});
-	}
-}
 
 class ImportTestReactRenderer extends ReactRenderer {
 	public async importForTest(file: string) {
@@ -394,55 +341,13 @@ describe('ReactRenderer', () => {
 				}),
 			);
 
-			class DeferredForeignSubtreeRenderer extends IntegrationRenderer<EcoPagesElement> {
-				name = 'deferred';
-
-				async render(): Promise<string> {
-					return '';
-				}
-
-				override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-					return deferredRenderComponent(input);
-				}
-
-				async renderToResponse<P = Record<string, unknown>>(
-					_view: EcoComponent<P>,
-					_props: P,
-					_ctx: RenderToResponseContext,
-				) {
-					return new Response('');
-				}
-			}
-
-			class DeferredForeignSubtreePlugin extends IntegrationPlugin<EcoPagesElement> {
-				renderer = DeferredForeignSubtreeRenderer;
-
-				constructor() {
-					super({
-						name: 'deferred',
-						extensions: ['.deferred.tsx'],
-					});
-				}
-			}
-
-			const deferredPlugin = new DeferredForeignSubtreePlugin();
-			const config = await new ConfigBuilder()
-				.setDistDir(testDir)
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				renderComponent: deferredRenderComponent,
+			});
+			const config = await createTestAppConfig({
+				distDir: testDir,
+				integrations: [deferredPlugin],
+			});
 
 			const testRenderer = new TestReactRenderer({
 				appConfig: config,
@@ -753,24 +658,11 @@ describe('ReactRenderer', () => {
 	});
 
 	it('should resolve deferred cross-integration layout components in render', async () => {
-		const deferredPlugin = new DeferredPlugin();
-		const config = await new ConfigBuilder()
-			.setDistDir(testDir)
-			.setRobotsTxt({
-				preferences: {
-					'*': [],
-				},
-			})
-			.setIntegrations([deferredPlugin])
-			.setDefaultMetadata({
-				title: 'Ecopages',
-				description: 'Ecopages',
-			})
-			.setBaseUrl('http://localhost:3000')
-			.build();
-
-		deferredPlugin.setConfig(config);
-		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+		const deferredPlugin = createDeferredIntegrationPlugin();
+		const config = await createTestAppConfig({
+			distDir: testDir,
+			integrations: [deferredPlugin],
+		});
 
 		const testRenderer = new TestReactRenderer({
 			appConfig: config,
@@ -864,24 +756,11 @@ describe('ReactRenderer', () => {
 		});
 
 		it('should resolve deferred foreign boundaries in partial views through explicit component rendering', async () => {
-			const deferredPlugin = new DeferredPlugin();
-			const config = await new ConfigBuilder()
-				.setDistDir(testDir)
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+			const deferredPlugin = createDeferredIntegrationPlugin();
+			const config = await createTestAppConfig({
+				distDir: testDir,
+				integrations: [deferredPlugin],
+			});
 
 			const testRenderer = new ReactRenderer({
 				appConfig: config,
@@ -968,24 +847,11 @@ describe('ReactRenderer', () => {
 		});
 
 		it('should render full views through explicit component boundaries for non-react layouts', async () => {
-			const deferredPlugin = new DeferredPlugin();
-			const config = await new ConfigBuilder()
-				.setDistDir(testDir)
-				.setRobotsTxt({
-					preferences: {
-						'*': [],
-					},
-				})
-				.setIntegrations([deferredPlugin])
-				.setDefaultMetadata({
-					title: 'Ecopages',
-					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+			const deferredPlugin = createDeferredIntegrationPlugin();
+			const config = await createTestAppConfig({
+				distDir: testDir,
+				integrations: [deferredPlugin],
+			});
 
 			const testRenderer = new TestReactRenderer({
 				appConfig: config,

@@ -1,5 +1,9 @@
 import { createMarkupNodeLike } from '@ecopages/jsx';
-import { isServerRenderHydrationActive } from '@ecopages/jsx/server';
+import {
+	createServerHydrationBindingState,
+	isServerRenderHydrationActive,
+	withServerHydrationBindingState,
+} from '@ecopages/jsx/server';
 
 type RadiantServerRuntimeModules = {
 	installLightDomShim: () => void;
@@ -90,9 +94,11 @@ export class EcopagesJsxRadiantSsrPolicy {
 		}
 
 		return createMarkupNodeLike(
-			renderBridge.renderHostToString({
-				mode: isServerRenderHydrationActive() ? 'hydrate' : 'plain',
-			}),
+			withServerHydrationBindingState(createServerHydrationBindingState(), () =>
+				renderBridge.renderHostToString({
+					mode: isServerRenderHydrationActive() ? 'hydrate' : 'plain',
+				}),
+			),
 		);
 	}
 

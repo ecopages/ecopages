@@ -505,10 +505,10 @@ export interface LayoutProps<T = EcoPagesElement> extends Partial<RequestPageCon
 /**
  * Represents the props for the HTML template of a page.
  */
-export interface HtmlTemplateProps extends PageHeadProps {
-	children: EcoPagesElement;
+export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T> {
+	children: T;
 	language?: string;
-	headContent?: EcoPagesElement;
+	headContent?: T;
 	pageProps: Record<string, unknown>;
 }
 

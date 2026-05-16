@@ -1,5 +1,5 @@
-// @ts-nocheck: This demo intentionally mixes JSX engines on one page, which TypeScript cannot model accurately.
 import { eco } from '@ecopages/core';
+import { EcoEmbed } from '@ecopages/kitajs/eco-embed';
 import { KitaCounter } from '@/components/kita-counter.kita';
 import { LitCounter } from '@/components/lit-counter.lit';
 import { ReactCounter } from '@/components/react-counter.react';
@@ -21,39 +21,45 @@ export default eco.page({
 			<main>
 				<h1>Kitchen Sink</h1>
 
-				<KitaShell id="kita-root">
-					<LitShell id="kita-lit-child">
-						<ReactShell id="kita-react-child">kita-root-child</ReactShell>
-					</LitShell>
-				</KitaShell>
+				<EcoEmbed component={KitaShell} props={{ id: 'kita-root' }}>
+					<EcoEmbed component={LitShell} props={{ id: 'kita-lit-child' }}>
+						<EcoEmbed component={ReactShell} props={{ id: 'kita-react-child' }}>
+							kita-root-child
+						</EcoEmbed>
+					</EcoEmbed>
+				</EcoEmbed>
 
-				<LitShell id="lit-root">
-					<KitaShell id="lit-kita-child">
+				<EcoEmbed component={LitShell} props={{ id: 'lit-root' }}>
+					<EcoEmbed component={KitaShell} props={{ id: 'lit-kita-child' }}>
 						<span data-cross-child="lit-root">lit-root-child</span>
-					</KitaShell>
-				</LitShell>
+					</EcoEmbed>
+				</EcoEmbed>
 
-				<ReactShell id="react-root">react-root-child</ReactShell>
+				<EcoEmbed component={ReactShell} props={{ id: 'react-root' }}>
+					react-root-child
+				</EcoEmbed>
 
 				<section>
 					<h2>Deep React Graph</h2>
-					<ReactShell id="react-deep-root">
-						<ReactShell id="react-deep-middle">
-							<ReactShell id="react-deep-leaf">react-deep-child</ReactShell>
-						</ReactShell>
-					</ReactShell>
+					<EcoEmbed component={ReactShell} props={{ id: 'react-deep-root' }}>
+						<EcoEmbed component={ReactShell} props={{ id: 'react-deep-middle' }}>
+							<EcoEmbed component={ReactShell} props={{ id: 'react-deep-leaf' }}>
+								react-deep-child
+							</EcoEmbed>
+						</EcoEmbed>
+					</EcoEmbed>
 				</section>
 
 				<section>
 					<h2>Counters</h2>
 					<KitaCounter />
-					<LitCounter />
-					<ReactCounter />
+					<EcoEmbed component={LitCounter} props={{}} />
+					<EcoEmbed component={ReactCounter} props={{}} />
 				</section>
 
 				<section>
 					<h2>MDX</h2>
-					<ReactMdxBlock />
+					<EcoEmbed component={ReactMdxBlock} props={{}} />
 				</section>
 			</main>
 		);

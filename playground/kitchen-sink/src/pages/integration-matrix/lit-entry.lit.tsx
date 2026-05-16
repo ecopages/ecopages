@@ -1,6 +1,6 @@
-// @ts-nocheck: This demo intentionally mixes JSX engines on one page, which TypeScript cannot model accurately.
 import { eco } from '@ecopages/core';
-import { html } from 'lit';
+import type { EcoPagesElement } from '@ecopages/core';
+import { html } from 'lit/static-html.js';
 import {
 	integrationMatrixHostShellIds,
 	integrationMatrixHostShellLeafText,
@@ -14,19 +14,7 @@ import { KitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
 import { LitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
 import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
-const shellComponents = {
-	kita: KitaShell,
-	lit: LitShell,
-	react: ReactShell,
-	'ecopages-jsx': EcopagesJsxShell,
-};
-
-const renderShell = (shell: keyof typeof shellComponents, id: string, children: unknown) => {
-	const Shell = shellComponents[shell];
-	return Shell({ id, children });
-};
-
-export default eco.page({
+export default eco.page<{}, EcoPagesElement>({
 	integration: 'lit',
 	dependencies: {
 		components: [BaseLayout, IntegrationCounterGroup, KitaShell, LitShell, EcopagesJsxShell, ReactShell],
@@ -52,18 +40,18 @@ export default eco.page({
 
 			<section class="card space-y-4" data-testid=${integrationMatrixTestIds.hostShellStack}>
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Shared host shell stack</p>
-				${renderShell(
-					'lit',
-					integrationMatrixHostShellIds.lit,
-					renderShell(
-						'kita',
-						integrationMatrixHostShellIds.kita,
-						renderShell(
-							'react',
-							integrationMatrixHostShellIds.react,
-							renderShell(
-								'ecopages-jsx',
-								integrationMatrixHostShellIds['ecopages-jsx'],
+				${eco.embed(
+					LitShell,
+					{ id: integrationMatrixHostShellIds.lit },
+					eco.embed(
+						KitaShell,
+						{ id: integrationMatrixHostShellIds.kita },
+						eco.embed(
+							ReactShell,
+							{ id: integrationMatrixHostShellIds.react },
+							eco.embed(
+								EcopagesJsxShell,
+								{ id: integrationMatrixHostShellIds['ecopages-jsx'] },
 								integrationMatrixHostShellLeafText,
 							),
 						),
@@ -83,13 +71,18 @@ export default eco.page({
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Every counter inside every shell</p>
 				<div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
 					${integrationMatrixShellCounterCases.map((item) =>
-						renderShell(
-							item.shell,
-							item.shellId,
+						eco.embed(
+							{
+								kita: KitaShell,
+								lit: LitShell,
+								react: ReactShell,
+								'ecopages-jsx': EcopagesJsxShell,
+							}[item.shell],
+							{ id: item.shellId },
 							IntegrationCounterGroup({ testId: item.testId, radiantId: item.radiantId }),
 						),
 					)}
 				</div>
 			</section>
-		</div>` as unknown,
+		</div>` as unknown as EcoPagesElement,
 });

@@ -168,14 +168,6 @@ export class RadiantToc extends RadiantElement {
 
 			const isAtBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 10;
 
-			if (isAtBottom) {
-				this.pendingScrollTargetId = null;
-				const lastId = headings[headings.length - 1]?.id;
-				if (lastId) {
-					this.setActiveHeading(lastId);
-				}
-				return;
-			}
 
 			if (this.pendingScrollTargetId) {
 				const pendingHeading = this.findHeadingById(this.pendingScrollTargetId);
@@ -187,6 +179,14 @@ export class RadiantToc extends RadiantElement {
 				} else {
 					this.pendingScrollTargetId = null;
 				}
+			}
+
+			if (isAtBottom) {
+				const lastId = headings[headings.length - 1]?.id;
+				if (lastId) {
+					this.setActiveHeading(lastId);
+				}
+				return;
 			}
 
 			let activeId: string | null = null;

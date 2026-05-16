@@ -1,0 +1,30 @@
+{
+	"name": "@ecopages/testing",
+	"type": "module",
+	"private": true,
+	"exports": {
+		".": "./src/index.ts",
+		"./kitchen-sink/ecopages-jsx-shell": "./src/kitchen-sink/ecopages-jsx-shell.eco.tsx",
+		"./kitchen-sink/kita-shell": "./src/kitchen-sink/kita-shell.kita.tsx",
+		"./kitchen-sink/lit-shell": "./src/kitchen-sink/lit-shell.lit.tsx",
+		"./kitchen-sink/react-shell": "./src/kitchen-sink/react-shell.react.tsx"
+	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@ecopages/core": "workspace:*",
+		"@kitajs/html": "^4.2.13",
+		"lit": "^3.3.3",
+		"react": "^19.2.6"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.14"
+	},
+	"peerDependencies": {
+		"@ecopages/jsx": "0.3.0-alpha.24"
+	}
+}

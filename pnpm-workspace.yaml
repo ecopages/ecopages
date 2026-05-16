@@ -1,6 +1,7 @@
 packages:
     - npm/*
     - packages/*
+    - packages/__internals/*
     - packages/core/__fixtures__/app
     - packages/integrations/*
     - packages/loaders/*

@@ -47,6 +47,7 @@
 		"vfile": "^6.0.3"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/testing": "workspace:*"
 	}
 }

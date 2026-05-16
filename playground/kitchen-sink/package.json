@@ -35,6 +35,7 @@
 		"@ecopages/radiant": "0.3.0-alpha.24",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
+		"@ecopages/testing": "workspace:*",
 		"@ecopages/scripts-injector": "^0.1.5",
 		"@ecopages/vite-plugin": "workspace:*",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",

@@ -34,7 +34,7 @@
 		"postcss-nested": "^7.0.2"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "0.2.0-alpha.34",
+		"@ecopages/core": "workspace:*",
 		"@tailwindcss/postcss": ">=4",
 		"tailwindcss": ">=3"
 	},

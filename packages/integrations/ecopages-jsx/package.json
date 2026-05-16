@@ -46,7 +46,7 @@
 		"vfile": "^6.0.3"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "0.2.0-alpha.34",
+		"@ecopages/core": "workspace:*",
 		"@ecopages/jsx": "0.3.0-alpha.24",
 		"@ecopages/radiant": "0.3.0-alpha.24"
 	}

@@ -1,48 +1,48 @@
 {
-	"name": "ecopages",
-	"version": "0.2.0-alpha.35",
-	"description": "CLI utilities for Ecopages",
-	"type": "module",
-	"license": "MIT",
-	"author": "Ecopages Team",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/ecopages/ecopages.git",
-		"directory": "packages/ecopages"
-	},
-	"homepage": "https://github.com/ecopages/ecopages#readme",
-	"bugs": {
-		"url": "https://github.com/ecopages/ecopages/issues"
-	},
-	"keywords": [
-		"ecopages",
-		"bun",
-		"web-framework",
-		"ssr",
-		"static-site-generator",
-		"react",
-		"kitajs",
-		"lit",
-		"mdx"
-	],
-	"bin": {
-		"ecopages": "bin/cli.js"
-	},
-	"files": [
-		"bin/",
-		"css/",
-		"dist/",
-		"README.md"
-	],
-	"dependencies": {
-		"@ecopages/core": "workspace:*",
-		"@ecopages/logger": "^0.2.3",
-		"citty": "^0.1.6",
-		"giget": "^2.0.0",
-		"tsx": "^4.22.0"
-	},
-	"peerDependencies": {
-		"bun-types": "*",
-		"typescript": "^5"
-	}
+  "name": "ecopages",
+  "version": "0.2.0-alpha.37",
+  "description": "CLI utilities for Ecopages",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ecopages Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ecopages/ecopages.git",
+    "directory": "packages/ecopages"
+  },
+  "homepage": "https://github.com/ecopages/ecopages#readme",
+  "bugs": {
+    "url": "https://github.com/ecopages/ecopages/issues"
+  },
+  "keywords": [
+    "ecopages",
+    "bun",
+    "web-framework",
+    "ssr",
+    "static-site-generator",
+    "react",
+    "kitajs",
+    "lit",
+    "mdx"
+  ],
+  "bin": {
+    "ecopages": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "css/",
+    "dist/",
+    "README.md"
+  ],
+  "dependencies": {
+    "@ecopages/core": "workspace:*",
+    "@ecopages/logger": "^0.2.3",
+    "citty": "^0.1.6",
+    "giget": "^2.0.0",
+    "tsx": "^4.22.0"
+  },
+  "peerDependencies": {
+    "bun-types": "*",
+    "typescript": "^5"
+  }
 }

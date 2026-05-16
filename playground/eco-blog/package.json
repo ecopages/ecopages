@@ -20,11 +20,11 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "0.3.0-alpha.22",
+		"@ecopages/radiant": "0.3.0-alpha.24",
 		"@faker-js/faker": "^10.4.0",
 		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/postcss": "latest",
-		"drizzle-kit": "^0.31.10",
+		"drizzle-kit": "^1.0.0-rc.2",
 		"ecopages": "workspace:*",
 		"tailwindcss": "latest"
 	},

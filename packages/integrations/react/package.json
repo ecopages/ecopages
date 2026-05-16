@@ -19,6 +19,10 @@
 			"default": "./src/react.plugin.ts",
 			"types": "./src/react.plugin.ts"
 		},
+		"./eco-embed": {
+			"default": "./src/eco-embed.tsx",
+			"types": "./src/eco-embed.tsx"
+		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
 		},

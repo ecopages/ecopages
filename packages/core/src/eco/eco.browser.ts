@@ -29,6 +29,20 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
 	return createComponentFactory(options);
 }
 
+type CallableEcoComponent<P = Record<string, unknown>, R = unknown> = (props: P, ...args: any[]) => R;
+
+function embed<P, R>(component: CallableEcoComponent<P, R>, props: P): R;
+function embed<P extends Record<string, unknown>, R>(component: CallableEcoComponent<P, R>, props: P, children: unknown): R;
+
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children?: unknown,
+): R {
+	const nextProps = (children === undefined ? props : { ...props, children }) as P;
+	return component(nextProps);
+}
+
 function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E> {
 	return createComponentFactory(options) as EcoHtmlComponent<E>;
 }
@@ -109,6 +123,7 @@ function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
 
 export const eco: Eco = {
 	component,
+	embed,
 	html,
 	layout,
 	page,

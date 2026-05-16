@@ -23,6 +23,62 @@ import type {
 } from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
 
+/**
+ * Extracts the props type from one eco component.
+ */
+export type PropsOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<infer P, any> ? P : never;
+
+/**
+ * Extracts the render result type from one eco component.
+ */
+export type ResultOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<any, infer R> ? R : never;
+
+/**
+ * Narrows an eco component to its callable function signature.
+ *
+ * This is useful for helper modules such as `EcoEmbed` that invoke a component
+ * directly and need to exclude the non-callable metadata shape from the public
+ * type surface.
+ */
+export type CallableComponentOf<TComponent extends EcoComponent> = Extract<
+	TComponent,
+	(props: any, ...args: any[]) => any
+>;
+
+/**
+ * Extracts the declared `children` type from one eco component when present.
+ */
+export type ChildrenOf<TComponent extends EcoComponent> = PropsOf<TComponent> extends { children?: infer T }
+	? T
+	: PropsOf<TComponent> extends { children: infer T }
+		? T
+		: never;
+
+/**
+ * Extracts the props accepted by `eco.embed()` before optional `children`
+ * injection.
+ *
+ * When the target component already declares `children`, callers pass the rest
+ * of the props bag here and provide `children` as the third `eco.embed()`
+ * argument or the `EcoEmbed` wrapper children slot.
+ */
+export type EmbedPropsOf<TComponent extends EcoComponent> = 'children' extends keyof PropsOf<TComponent>
+	? Omit<PropsOf<TComponent>, 'children'>
+	: PropsOf<TComponent>;
+
+/**
+ * Props accepted by integration-owned `EcoEmbed` adapters.
+ *
+ * The `component` field is narrowed to the callable portion of the target eco
+ * component so JSX wrappers can invoke `eco.embed()` without repeating local
+ * callable-component extraction logic.
+ */
+export type EcoEmbedProps<TComponent extends EcoComponent> = {
+	component: CallableComponentOf<TComponent>;
+	props: EmbedPropsOf<TComponent>;
+	children?: unknown;
+};
+
 type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {
 	[P in K]-?: Exclude<RequestLocals[P], null | undefined>;
 };
@@ -177,6 +233,24 @@ export interface Eco {
 	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
 	 */
 	component: <P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>) => EcoComponent<P, E>;
+
+	/**
+	 * Render a component explicitly, with an optional `children` argument.
+	 *
+	 * This is useful when authoring crosses integration boundaries and inline JSX
+	 * would otherwise force one file to model multiple JSX namespaces.
+	 */
+	embed: {
+		<TComponent extends EcoComponent>(
+			component: CallableComponentOf<TComponent>,
+			props: PropsOf<TComponent>,
+		): ResultOf<TComponent>;
+		<TComponent extends EcoComponent>(
+			component: CallableComponentOf<TComponent>,
+			props: EmbedPropsOf<TComponent>,
+			children: ChildrenOf<TComponent> | unknown,
+		): ResultOf<TComponent>;
+	};
 
 	/**
 	 * Create a document shell component for the HTML wrapper.

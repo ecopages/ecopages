@@ -301,6 +301,97 @@ describe('eco namespace', () => {
 
 			expect(execution.value).toBe('shared-context');
 		});
+
+		test('should embed children through a third argument without manual prop merging', () => {
+			const Shell = eco.component<{ id: string; children?: string }>({
+				render: ({ id, children }) => `<section data-shell="${id}">${children ?? ''}</section>`,
+			});
+
+			const result = eco.embed(Shell, { id: 'kita' }, '<span>Leaf</span>');
+
+			expect(result).toBe('<section data-shell="kita"><span>Leaf</span></section>');
+		});
+
+		test('should accept foreign child values without constraining the authoring surface to the target children type', () => {
+			const Shell = eco.component<{ id: string; children?: string }>({
+				render: ({ id, children }) => `<section data-shell="${id}">${children ?? ''}</section>`,
+			});
+
+			const result = eco.embed(Shell, { id: 'kita' }, { foreign: true });
+
+			expect(result).toBe('<section data-shell="kita">[object Object]</section>');
+		});
+
+		test('should let the foreign-child runtime replace embedded output when the target integration is delegated', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				__eco: {
+					id: 'react-button-embedded-runtime',
+					file: '/app/components/react-button-embedded-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					foreignChildRuntime: createResolvedForeignChildRuntime(
+						['react'],
+						'<aside>Resolved in owning renderer</aside>',
+					),
+				},
+				async () => eco.embed(ReactButton, { label: 'Click' }),
+			);
+
+			expect(execution.value).toBe('<aside>Resolved in owning renderer</aside>');
+		});
+
+		test('should render embedded component output inline when the foreign-child runtime does not delegate the target integration', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				__eco: {
+					id: 'react-button-embedded-inline-runtime',
+					file: '/app/components/react-button-embedded-inline-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					foreignChildRuntime: createResolvedForeignChildRuntime(['kitajs'], '<aside>Resolved elsewhere</aside>'),
+				},
+				async () => eco.embed(ReactButton, { label: 'Click' }),
+			);
+
+			expect(execution.value).toBe('<button type="button">Click</button>');
+		});
+
+		test('should surface an eco.embed-specific error when the active integration misses foreign-child handoff', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				__eco: {
+					id: 'react-button-missing-runtime-handoff',
+					file: '/app/components/react-button-missing-runtime-handoff.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			await expect(
+				runWithComponentRenderContext(
+					{
+						currentIntegration: 'lit',
+						foreignChildRuntime: {},
+					},
+					async () => eco.embed(ReactButton, { label: 'Click' }),
+				),
+			).rejects.toThrowError(
+				'[ecopages] eco.embed() could not hand off the Foreign Child from lit to react for /app/components/react-button-missing-runtime-handoff.react.tsx.',
+			);
+		});
 	});
 
 	describe('eco.html()', () => {

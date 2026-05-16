@@ -32,7 +32,11 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
 type CallableEcoComponent<P = Record<string, unknown>, R = unknown> = (props: P, ...args: any[]) => R;
 
 function embed<P, R>(component: CallableEcoComponent<P, R>, props: P): R;
-function embed<P extends Record<string, unknown>, R>(component: CallableEcoComponent<P, R>, props: P, children: unknown): R;
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children: unknown,
+): R;
 
 function embed<P extends Record<string, unknown>, R>(
 	component: CallableEcoComponent<P, R>,

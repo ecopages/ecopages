@@ -48,11 +48,12 @@ export type CallableComponentOf<TComponent extends EcoComponent> = Extract<
 /**
  * Extracts the declared `children` type from one eco component when present.
  */
-export type ChildrenOf<TComponent extends EcoComponent> = PropsOf<TComponent> extends { children?: infer T }
-	? T
-	: PropsOf<TComponent> extends { children: infer T }
+export type ChildrenOf<TComponent extends EcoComponent> =
+	PropsOf<TComponent> extends { children?: infer T }
 		? T
-		: never;
+		: PropsOf<TComponent> extends { children: infer T }
+			? T
+			: never;
 
 /**
  * Extracts the props accepted by `eco.embed()` before optional `children`

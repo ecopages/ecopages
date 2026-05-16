@@ -9,9 +9,11 @@ import { KitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
 import { LitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
 import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
-const html = (litStaticHtml as unknown as {
-	html: (strings: TemplateStringsArray, ...values: unknown[]) => EcoPagesElement;
-}).html;
+const html = (
+	litStaticHtml as unknown as {
+		html: (strings: TemplateStringsArray, ...values: unknown[]) => EcoPagesElement;
+	}
+).html;
 
 export default eco.page<{}, EcoPagesElement>({
 	integration: 'lit',
@@ -38,9 +40,7 @@ export default eco.page<{}, EcoPagesElement>({
 
 			<section>
 				<h2>Counters</h2>
-				${eco.embed(KitaCounter, {})}
-				${eco.embed(LitCounter, {})}
-				${eco.embed(ReactCounter, {})}
+				${eco.embed(KitaCounter, {})} ${eco.embed(LitCounter, {})} ${eco.embed(ReactCounter, {})}
 			</section>
 
 			<section>

@@ -24,9 +24,7 @@ export type CreateTestAppConfigOptions = {
 export type CreateDeferredIntegrationPluginOptions = {
 	extensions?: string[];
 	name?: string;
-	renderComponent?: (
-		input: ComponentRenderInput,
-	) => Promise<ComponentRenderResult> | ComponentRenderResult;
+	renderComponent?: (input: ComponentRenderInput) => Promise<ComponentRenderResult> | ComponentRenderResult;
 };
 
 export async function createTestAppConfig(options: CreateTestAppConfigOptions = {}) {

@@ -361,7 +361,10 @@ describe('eco namespace', () => {
 			const execution = await runWithComponentRenderContext(
 				{
 					currentIntegration: 'lit',
-					foreignChildRuntime: createResolvedForeignChildRuntime(['kitajs'], '<aside>Resolved elsewhere</aside>'),
+					foreignChildRuntime: createResolvedForeignChildRuntime(
+						['kitajs'],
+						'<aside>Resolved elsewhere</aside>',
+					),
 				},
 				async () => eco.embed(ReactButton, { label: 'Click' }),
 			);

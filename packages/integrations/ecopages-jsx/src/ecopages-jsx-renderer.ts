@@ -324,8 +324,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
 		const collectedAssets: ProcessedAsset[] = [];
-		const html = await this.withCustomElementRenderHook(collectedAssets, () =>
-			renderToString(value, { mode: 'hydrate' }),
+		const html = await this.renderSession.withHydrationBindingScope(() =>
+			this.withCustomElementRenderHook(collectedAssets, () => renderToString(value, { mode: 'hydrate' })),
 		);
 		const dedupedAssets = this.renderSession.recordCollectedAssets(collectedAssets);
 

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/vite-plugin",
-	"version": "0.2.0-alpha.34",
+	"version": "0.2.0-alpha.35",
 	"description": "Vite plugin for Ecopages apps",
 	"private": true,
 	"keywords": [

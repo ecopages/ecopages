@@ -1,9 +1,16 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { getActiveSsrScopeValue, withActiveSsrScopeValue } from '@ecopages/jsx/server';
+import {
+	createServerHydrationBindingState,
+	getActiveSsrScopeValue,
+	type ServerHydrationBindingState,
+	withActiveSsrScopeValue,
+	withServerHydrationBindingState,
+} from '@ecopages/jsx/server';
 
 type EcopagesJsxSsrRenderState = {
 	collectedAssetFrames: ProcessedAsset[][];
+	hydrationBindingState: ServerHydrationBindingState;
 };
 
 export const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
@@ -49,11 +56,22 @@ export class EcopagesJsxRenderSession {
 
 		const state: EcopagesJsxSsrRenderState = {
 			collectedAssetFrames: [],
+			hydrationBindingState: createServerHydrationBindingState(),
 		};
 
 		return renderStateStorage.run(state, () =>
 			withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, state, render),
 		);
+	}
+
+	/**
+	 * Runs work with the current page-level hydrate binding namespace attached to JSX SSR.
+	 *
+	 * This lets page, layout, and document renders participate in one client-owned
+	 * hydration root even though Ecopages composes them through multiple sibling render calls.
+	 */
+	withHydrationBindingScope<T>(render: () => T): T {
+		return withServerHydrationBindingState(this.getState().hydrationBindingState, render);
 	}
 
 	beginCollectedAssetFrame(): ProcessedAsset[] {

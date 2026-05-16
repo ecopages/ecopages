@@ -14,7 +14,7 @@
 		"@ecopages/kitajs": "workspace:*",
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "0.3.0-alpha.21",
+		"@ecopages/radiant": "0.3.0-alpha.22",
 		"@faker-js/faker": "^10.4.0",
 		"@kitajs/html": "^4.2.13",
 		"@tailwindcss/postcss": "^4.3.0",

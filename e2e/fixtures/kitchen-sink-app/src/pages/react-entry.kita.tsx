@@ -1,5 +1,5 @@
-// @ts-nocheck: This demo intentionally mixes JSX engines on one page, which TypeScript cannot model accurately.
 import { eco } from '@ecopages/core';
+import { EcoEmbed } from '@ecopages/kitajs/eco-embed';
 import { KitaCounter } from '@/components/kita-counter.kita';
 import { LitCounter } from '@/components/lit-counter.lit';
 import { ReactCounter } from '@/components/react-counter.react';
@@ -19,23 +19,25 @@ export default eco.page({
 	render: () => (
 		<main>
 			<h1>React Entry</h1>
-			<ReactShell id="react-entry-root">react-entry-child</ReactShell>
-			<KitaShell id="react-entry-kita-child">
-				<LitShell id="react-entry-lit-child">
+			<EcoEmbed component={ReactShell} props={{ id: 'react-entry-root' }}>
+				react-entry-child
+			</EcoEmbed>
+			<EcoEmbed component={KitaShell} props={{ id: 'react-entry-kita-child' }}>
+				<EcoEmbed component={LitShell} props={{ id: 'react-entry-lit-child' }}>
 					<span data-cross-child="react-entry">react-entry-nested-child</span>
-				</LitShell>
-			</KitaShell>
+				</EcoEmbed>
+			</EcoEmbed>
 
 			<section>
 				<h2>MDX</h2>
-				<ReactMdxBlock />
+				<EcoEmbed component={ReactMdxBlock} props={{}} />
 			</section>
 
 			<section>
 				<h2>Counters</h2>
 				<KitaCounter />
-				<LitCounter />
-				<ReactCounter />
+				<EcoEmbed component={LitCounter} props={{}} />
+				<EcoEmbed component={ReactCounter} props={{}} />
 			</section>
 		</main>
 	),

@@ -1,7 +1,7 @@
-// @ts-nocheck: This demo intentionally mixes JSX engines on one page, which TypeScript cannot model accurately.
 /** @jsxImportSource @ecopages/jsx */
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { EcoEmbed } from '@ecopages/ecopages-jsx/eco-embed';
 import {
 	integrationMatrixHostShellIds,
 	integrationMatrixHostShellLeafText,
@@ -15,12 +15,8 @@ import { KitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
 import { LitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
 import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
-const shellComponents = {
-	kita: KitaShell,
-	lit: LitShell,
-	react: ReactShell,
-	'ecopages-jsx': EcopagesJsxShell,
-};
+const renderCounterGroup = (testId: string, radiantId: string) =>
+	IntegrationCounterGroup({ testId, radiantId }) as unknown as JsxRenderable;
 
 export default eco.page<{}, JsxRenderable>({
 	integration: 'ecopages-jsx',
@@ -49,35 +45,37 @@ export default eco.page<{}, JsxRenderable>({
 
 			<section class="card space-y-4" data-testid={integrationMatrixTestIds.hostShellStack}>
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Shared host shell stack</p>
-				<EcopagesJsxShell id={integrationMatrixHostShellIds['ecopages-jsx']}>
-					<KitaShell id={integrationMatrixHostShellIds.kita}>
-						<LitShell id={integrationMatrixHostShellIds.lit}>
-							<ReactShell id={integrationMatrixHostShellIds.react}>
+				<EcoEmbed component={EcopagesJsxShell} props={{ id: integrationMatrixHostShellIds['ecopages-jsx'] }}>
+					<EcoEmbed component={KitaShell} props={{ id: integrationMatrixHostShellIds.kita }}>
+						<EcoEmbed component={LitShell} props={{ id: integrationMatrixHostShellIds.lit }}>
+							<EcoEmbed component={ReactShell} props={{ id: integrationMatrixHostShellIds.react }}>
 								{integrationMatrixHostShellLeafText}
-							</ReactShell>
-						</LitShell>
-					</KitaShell>
-				</EcopagesJsxShell>
+							</EcoEmbed>
+						</EcoEmbed>
+					</EcoEmbed>
+				</EcoEmbed>
 			</section>
 
 			<section class="card space-y-4">
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Counters</p>
-				<IntegrationCounterGroup
-					testId={integrationMatrixTestIds.ecopagesJsxCounters}
-					radiantId="ecopages-jsx-entry-radiant"
-				/>
+				{renderCounterGroup(integrationMatrixTestIds.ecopagesJsxCounters, 'ecopages-jsx-entry-radiant')}
 			</section>
 
 			<section class="card space-y-4" data-testid={integrationMatrixTestIds.shellCounters}>
 				<p class="text-xs uppercase tracking-[0.24em] text-muted">Every counter inside every shell</p>
 				<div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
 					{integrationMatrixShellCounterCases.map((item) => {
-						const Shell = shellComponents[item.shell];
+						const component = {
+							kita: KitaShell,
+							lit: LitShell,
+							react: ReactShell,
+							'ecopages-jsx': EcopagesJsxShell,
+						}[item.shell];
 
 						return (
-							<Shell id={item.shellId}>
-								<IntegrationCounterGroup testId={item.testId} radiantId={item.radiantId} />
-							</Shell>
+							<EcoEmbed component={component} props={{ id: item.shellId }}>
+								{renderCounterGroup(item.testId, item.radiantId)}
+							</EcoEmbed>
 						);
 					})}
 				</div>

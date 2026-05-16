@@ -1,9 +1,9 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
 import { ReactCounter } from '@/components/react-counter.react';
-import { ReactShell } from '@/components/react-shell.react';
 import { getRouteLinkTestId } from '@/data/primary-links';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 import type { ReactNode } from 'react';
 
 export default eco.page<{}, ReactNode>({

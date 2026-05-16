@@ -1,11 +1,12 @@
+// @ts-nocheck: This demo intentionally mixes JSX engines on one page, which TypeScript cannot model accurately.
 import { eco } from '@ecopages/core';
 import { KitaCounter } from '@/components/kita-counter.kita';
-import { KitaShell } from '@/components/kita-shell.kita';
 import { LitCounter } from '@/components/lit-counter.lit';
-import { LitShell } from '@/components/lit-shell.lit';
 import { ReactCounter } from '@/components/react-counter.react';
 import { ReactMdxBlock } from '@/components/react-mdx-block.react';
-import { ReactShell } from '@/components/react-shell.react';
+import { KitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
+import { LitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
+import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
 export default eco.page({
 	dependencies: {

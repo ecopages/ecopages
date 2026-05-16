@@ -9,10 +9,10 @@ import {
 } from '@/data/integration-matrix';
 import { BaseLayout } from '@/layouts/base-layout';
 import { IntegrationCounterGroup } from '@/components/integration-counter-group.kita';
-import { KitaShell } from '@/components/kita-shell.kita';
-import { LitShell } from '@/components/lit-shell.lit';
-import { EcopagesJsxShell } from '@/components/ecopages-jsx-shell.eco';
-import { ReactShell } from '@/components/react-shell.react';
+import { EcopagesJsxShell } from '@ecopages/testing/kitchen-sink/ecopages-jsx-shell';
+import { KitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
+import { LitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
+import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 
 const shellComponents = {
 	kita: KitaShell,

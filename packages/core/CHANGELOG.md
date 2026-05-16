@@ -25,6 +25,8 @@ All notable changes to `@ecopages/core` are documented here.
 ### Features
 
 - Added app-owned runtime and build ownership around `createApp()`, host module loading, the browser-safe `eco` export, `eco.html()`, `eco.layout()`, and the published `EcoPagesAppConfig` surface.
+- Added experimental `eco.embed()` as an explicit mixed-integration authoring helper that renders components with optional `children` outside inline JSX.
+- Exported shared `eco.embed()` helper generics through `@ecopages/core` and clarified `eco.embed()` missing handoff errors for mixed-integration rendering.
 - Added boundary-plan metadata and a compatibility `renderBoundary()` payload contract for mixed-renderer orchestration.
 - Added `ctx.renderServerModule()` so explicit handlers can import and render a default-exported server view in one step.
 - Added `URL` support for `ctx.importServerModule()` and `ctx.renderServerModule()` so explicit handlers can point at local server views without manual `fileURLToPath()` plumbing.

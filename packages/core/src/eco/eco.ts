@@ -112,6 +112,43 @@ function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>)
 	return createComponentFactory(options);
 }
 
+type CallableEcoComponent<P = Record<string, unknown>, R = unknown> = (props: P, ...args: any[]) => R;
+
+function isMissingForeignChildInterceptionError(error: unknown): error is Error {
+	return error instanceof Error && error.message.startsWith('[ecopages] Missing foreign-child interception from ');
+}
+
+function embed<P, R>(component: CallableEcoComponent<P, R>, props: P): R;
+function embed<P extends Record<string, unknown>, R>(component: CallableEcoComponent<P, R>, props: P, children: unknown): R;
+
+/**
+ * Renders a component explicitly and optionally injects `children` into the
+ * props bag before invocation.
+ */
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children?: unknown,
+): R {
+	const activeRenderContext = getComponentRenderContext();
+	const ecoComponent = component as unknown as EcoComponent<P, R>;
+	const targetIntegration = ecoComponent.config?.integration ?? ecoComponent.config?.__eco?.integration;
+	const componentFile = ecoComponent.config?.__eco?.file ?? 'unknown component';
+	const nextProps = (children === undefined ? props : { ...props, children }) as P;
+
+	try {
+		return component(nextProps);
+	} catch (error) {
+		if (!isMissingForeignChildInterceptionError(error)) {
+			throw error;
+		}
+
+		throw new Error(
+			`[ecopages] eco.embed() could not hand off the Foreign Child from ${activeRenderContext?.currentIntegration ?? 'unknown integration'} to ${targetIntegration ?? 'unknown integration'} for ${componentFile}. The active Integration renderer exposed a foreign-child runtime, but it did not intercept this cross-integration render. Ensure mixed-integration Page, Layout, Html, or Component renders install foreign-child handoff before calling eco.embed().`,
+		);
+	}
+}
+
 /**
  * Creates a document shell component.
  *
@@ -217,6 +254,7 @@ function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
  */
 export const eco: Eco = {
 	component,
+	embed,
 	html,
 	layout,
 	page,

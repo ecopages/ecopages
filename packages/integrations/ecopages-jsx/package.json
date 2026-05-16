@@ -24,7 +24,11 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
+		"@kitajs/html": "^4.2.13",
 		"@ecopages/core": "workspace:*",
+		"@ecopages/testing": "workspace:*",
+		"lit": "^3.3.3",
+		"react": "^19.2.6",
 		"remark-gfm": "^4.0.1"
 	},
 	"dependencies": {

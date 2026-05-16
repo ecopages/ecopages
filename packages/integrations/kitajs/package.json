@@ -24,7 +24,8 @@
 		"release:jsr": "bunx jsr publish"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/testing": "workspace:*"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "0.2.0-alpha.34",

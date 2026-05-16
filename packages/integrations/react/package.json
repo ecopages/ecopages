@@ -57,6 +57,7 @@
 		"react-dom": "^19"
 	},
 	"devDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/testing": "workspace:*"
 	}
 }

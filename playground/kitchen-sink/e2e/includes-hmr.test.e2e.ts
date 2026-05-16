@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { ConsoleMessage, Frame, Page } from 'playwright';
 import { gotoAndWait, trackRuntimeErrors } from './helpers';
 
 const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
@@ -94,7 +95,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 		const initialTitle = await page.title();
 		const reloaded = waitsForViteReload
 			? page.waitForEvent('framenavigated', {
-					predicate: (frame) => frame === page.mainFrame(),
+					predicate: (frame: Frame) => frame === page.mainFrame(),
 					timeout: 10000,
 				})
 			: undefined;
@@ -119,7 +120,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 
 		const reloaded = waitsForViteReload
 			? page.waitForEvent('framenavigated', {
-					predicate: (frame) => frame === page.mainFrame(),
+					predicate: (frame: Frame) => frame === page.mainFrame(),
 					timeout: 10000,
 				})
 			: undefined;

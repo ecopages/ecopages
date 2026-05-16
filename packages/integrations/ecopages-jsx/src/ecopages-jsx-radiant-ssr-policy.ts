@@ -67,19 +67,6 @@ export class EcopagesJsxRadiantSsrPolicy {
 		return runtimeModules.withServerRadiantElementSsrRuntime(render);
 	}
 
-	withPreparedRuntime<T>(render: () => T): T {
-		if (!this.enabled) {
-			return render();
-		}
-
-		const runtimeModules = EcopagesJsxRadiantSsrPolicy.runtimeModules;
-		if (!runtimeModules) {
-			return render();
-		}
-
-		return runtimeModules.withServerRadiantElementSsrRuntime(render);
-	}
-
 	/**
 	 * Converts one Radiant custom-element instance into trusted SSR markup.
 	 *

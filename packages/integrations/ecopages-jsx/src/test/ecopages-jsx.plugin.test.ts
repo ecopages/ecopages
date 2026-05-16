@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { compile } from '@mdx-js/mdx';
 import { test } from 'vitest';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import remarkGfm from 'remark-gfm';
+import { VFile, type Compatible as VFileCompatible } from 'vfile';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
+import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 
 function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 	let capturedFilter: RegExp | undefined;
@@ -57,4 +61,21 @@ test('EcopagesJsxPlugin supports direct construction with MDX public options', (
 
 	assert.deepEqual(plugin.extensions, ['.eco.tsx', '.guide.mdx']);
 	assert.deepEqual((plugin as any).mdxExtensions, ['.guide.mdx']);
+});
+
+test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {
+	const compilerOptions = resolveMdxCompilerOptions({
+		enabled: true,
+		remarkPlugins: [remarkGfm],
+	});
+
+	const compiled = await compile(
+		new VFile({
+			path: '/virtual/docs/example.mdx',
+			value: ['# Example', '', '```ts', 'const value = 1', '```', ''].join('\n'),
+		}) as VFileCompatible,
+		compilerOptions,
+	);
+
+	assert.match(String(compiled.value), /@ecopages\/jsx\/jsx-runtime/);
 });

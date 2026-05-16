@@ -128,4 +128,38 @@ describe('RadiantToc', () => {
 		expect(window.location.hash).toBe('#installation');
 		expect(scrollIntoViewSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
 	});
+
+	it('keeps the clicked heading active when the page starts at the bottom', async () => {
+		const user = userEvent.setup();
+		const { headings } = createDocsContent();
+		setHeadingTop(headings[0], -720);
+		setHeadingTop(headings[1], -640);
+		setHeadingTop(headings[2], -560);
+		setHeadingTop(headings[3], -480);
+		Object.defineProperty(window, 'scrollY', { configurable: true, value: 1600, writable: true });
+		const scrollIntoViewSpy = vi.fn();
+		Object.defineProperty(headings[3], 'scrollIntoView', {
+			configurable: true,
+			value: scrollIntoViewSpy,
+		});
+
+		const toc = document.createElement('radiant-toc') as RadiantToc;
+		document.body.appendChild(toc);
+
+		await vi.waitFor(() => {
+			expect(toc.querySelector('a.toc-active')?.getAttribute('data-toc-link')).toBe('installation');
+		});
+
+		const introductionLink = toc.querySelector<HTMLAnchorElement>('a[data-toc-link="introduction"]');
+		expect(introductionLink).not.toBeNull();
+
+		await user.click(introductionLink!);
+		window.dispatchEvent(new Event('scroll'));
+
+		await vi.waitFor(() => {
+			expect(toc.querySelector('a.toc-active')?.getAttribute('data-toc-link')).toBe('introduction');
+		});
+		expect(window.location.hash).toBe('#introduction');
+		expect(scrollIntoViewSpy).not.toHaveBeenCalled();
+	});
 });

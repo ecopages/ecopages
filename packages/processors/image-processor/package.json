@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/image-processor",
-	"version": "0.2.0-alpha.38",
+	"version": "0.2.0-alpha.39",
 	"description": "Image processor, transform and optimize images for web",
 	"keywords": [
 		"image",

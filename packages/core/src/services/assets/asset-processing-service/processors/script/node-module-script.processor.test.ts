@@ -148,8 +148,9 @@ describe('NodeModuleScriptProcessor', () => {
 		});
 
 		test('should probe file extensions for installed package subpaths', async () => {
-			existsMock = vi.fn((candidatePath: string) =>
-				candidatePath === '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js'
+			existsMock = vi.fn(
+				(candidatePath: string) =>
+					candidatePath === '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
 			);
 			fileSystem.exists = existsMock;
 

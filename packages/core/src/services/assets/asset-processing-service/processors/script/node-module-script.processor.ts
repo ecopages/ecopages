@@ -94,7 +94,9 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 	 */
 	private resolveModulePathFallback(importPath: string, rootDir: string, maxDepth = 5): string {
 		try {
-			return fileURLToPath(import.meta.resolve(importPath, pathToFileURL(path.join(rootDir, 'package.json')).href));
+			return fileURLToPath(
+				import.meta.resolve(importPath, pathToFileURL(path.join(rootDir, 'package.json')).href),
+			);
 		} catch {}
 
 		let currentDir = rootDir;

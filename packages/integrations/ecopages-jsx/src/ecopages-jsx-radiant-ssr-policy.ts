@@ -1,8 +1,5 @@
 import { createMarkupNodeLike } from '@ecopages/jsx';
-import {
-	createServerHydrationBindingState,
-	withServerHydrationBindingState,
-} from '@ecopages/jsx/server';
+import { createServerHydrationBindingState, withServerHydrationBindingState } from '@ecopages/jsx/server';
 
 type RadiantServerRuntimeModules = {
 	installLightDomShim: () => void;

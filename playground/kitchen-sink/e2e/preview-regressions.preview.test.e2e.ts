@@ -60,7 +60,10 @@ async function gotoAndWaitForHeading(page: Page, href: string, heading: string) 
 }
 
 test.describe('Kitchen Sink Preview Regressions', () => {
-	test('keeps Ecopages JSX shell nodes marker-free while Radiant hosts stay interactive', async ({ request, page }) => {
+	test('keeps Ecopages JSX shell nodes marker-free while Radiant hosts stay interactive', async ({
+		request,
+		page,
+	}) => {
 		const response = await requestUntilOk(request, '/integration-matrix/ecopages-jsx-entry');
 		const html = await response.text();
 

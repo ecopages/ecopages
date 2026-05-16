@@ -1,11 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import {
-	eco,
-	type EcoComponent,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
+import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { renderToString } from '@ecopages/jsx/server';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
@@ -59,12 +55,14 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 	it('shares one page-level hydrate namespace across page shell slices without leaking it into intrinsic Radiant hosts', async () => {
 		const hydrationScopeTestTag = 'ecopages-jsx-hydration-scope-probe';
 		const customElementRegistry =
-			(globalThis as typeof globalThis & {
-				customElements?: {
-					define: (name: string, constructor: CustomElementConstructor) => void;
-					get: (name: string) => CustomElementConstructor | undefined;
-				};
-			}).customElements ??
+			(
+				globalThis as typeof globalThis & {
+					customElements?: {
+						define: (name: string, constructor: CustomElementConstructor) => void;
+						get: (name: string) => CustomElementConstructor | undefined;
+					};
+				}
+			).customElements ??
 			(() => {
 				const registry = new Map<string, CustomElementConstructor>();
 
@@ -87,12 +85,12 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 		const TestElementBase =
 			typeof HTMLElement === 'undefined'
 				? class {
-					private readonly attributes = new Map<string, string>();
+						private readonly attributes = new Map<string, string>();
 
-					setAttribute(name: string, value: string): void {
-						this.attributes.set(name, value);
+						setAttribute(name: string, value: string): void {
+							this.attributes.set(name, value);
+						}
 					}
-				}
 				: HTMLElement;
 		const runtimeModules = {
 			installLightDomShim: () => undefined,
@@ -106,12 +104,16 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 					return {
 						renderHost: () => ({
 							nodeType: 1 as const,
-							outerHTML: (instance as { renderHostToString: (options?: unknown) => string }).renderHostToString({
+							outerHTML: (
+								instance as { renderHostToString: (options?: unknown) => string }
+							).renderHostToString({
 								mode: 'hydrate',
 							}),
 						}),
 						renderHostToString: (options?: unknown) =>
-							(instance as { renderHostToString: (options?: unknown) => string }).renderHostToString(options),
+							(instance as { renderHostToString: (options?: unknown) => string }).renderHostToString(
+								options,
+							),
 					};
 				}
 
@@ -188,7 +190,11 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 		const Page = eco.page<{ label: string }, JsxRenderable>({
 			integration: 'ecopages-jsx',
 			layout: Layout,
-			render: ({ label }) => <article data-view-root on:click={() => undefined}>{label}</article>,
+			render: ({ label }) => (
+				<article data-view-root on:click={() => undefined}>
+					{label}
+				</article>
+			),
 		});
 
 		const body = await renderer.render({
@@ -222,7 +228,9 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 		const pageLevelIndexes = Array.from(pageHtml.matchAll(/data-radiant-jsx-bind-(\d+)/g), (match) =>
 			Number(match[1]),
 		);
-		const uniqueCustomElementIndexes = Array.from(new Set(customElementIndexes)).sort((left, right) => left - right);
+		const uniqueCustomElementIndexes = Array.from(new Set(customElementIndexes)).sort(
+			(left, right) => left - right,
+		);
 		const uniquePageLevelIndexes = Array.from(new Set(pageLevelIndexes)).sort((left, right) => left - right);
 
 		expect(uniquePageLevelIndexes.length).toBeGreaterThan(1);

@@ -168,7 +168,6 @@ export class RadiantToc extends RadiantElement {
 
 			const isAtBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 10;
 
-
 			if (this.pendingScrollTargetId) {
 				const pendingHeading = this.findHeadingById(this.pendingScrollTargetId);
 				if (!pendingHeading) {

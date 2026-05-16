@@ -21,6 +21,7 @@ All notable changes to `@ecopages/react` are documented here.
 ### Features
 
 - Added built-in React MDX support and reachability-based hydration analysis for React page bundles.
+- Added the `@ecopages/react/eco-embed` helper for React-owned mixed-integration authoring on top of `eco.embed()`.
 
 ### Refactoring
 

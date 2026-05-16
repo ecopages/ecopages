@@ -14,6 +14,16 @@
 	"files": [
 		"src"
 	],
+	"exports": {
+		".": {
+			"default": "./src/ecopages-jsx.plugin.ts",
+			"types": "./src/ecopages-jsx.plugin.ts"
+		},
+		"./eco-embed": {
+			"default": "./src/eco-embed.tsx",
+			"types": "./src/eco-embed.tsx"
+		}
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ecopages/ecopages.git",

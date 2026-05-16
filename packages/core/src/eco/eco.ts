@@ -119,7 +119,11 @@ function isMissingForeignChildInterceptionError(error: unknown): error is Error 
 }
 
 function embed<P, R>(component: CallableEcoComponent<P, R>, props: P): R;
-function embed<P extends Record<string, unknown>, R>(component: CallableEcoComponent<P, R>, props: P, children: unknown): R;
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children: unknown,
+): R;
 
 /**
  * Renders a component explicitly and optionally injects `children` into the

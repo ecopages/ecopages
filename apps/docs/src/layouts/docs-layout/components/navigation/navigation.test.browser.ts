@@ -88,4 +88,21 @@ describe('RadiantNavigation', () => {
 		window.dispatchEvent(new CustomEvent(BurgerEvents.CLOSE_MENU));
 		expect(navigation.classList.contains('hidden')).toBe(true);
 	});
+
+	it('updates the active link after browser history navigation', async () => {
+		window.history.replaceState({}, '', '/docs/start');
+		const navigation = createNavigation(['/docs/start', '/docs/current', '/docs/next']);
+
+		await vi.waitFor(() => {
+			expect(navigation.querySelector('[href="/docs/start"]')?.classList.contains('active')).toBe(true);
+		});
+
+		window.history.replaceState({}, '', '/docs/current');
+		window.dispatchEvent(new PopStateEvent('popstate'));
+
+		await vi.waitFor(() => {
+			expect(navigation.querySelector('[href="/docs/current"]')?.classList.contains('active')).toBe(true);
+		});
+		expect(navigation.querySelector('[href="/docs/start"]')?.classList.contains('active')).toBe(false);
+	});
 });

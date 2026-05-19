@@ -27,9 +27,5 @@
 	"dependencies": {
 		"react": "^19",
 		"react-dom": "^19"
-	},
-	"overrides": {
-		"react": "^19",
-		"react-dom": "^19"
 	}
 }

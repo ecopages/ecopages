@@ -2,9 +2,17 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it, vi } from 'vitest';
 import type { NodeServerAdapterParams, NodeServerAdapterResult } from './server-adapter.ts';
 import { NodeEcopagesApp } from './create-app.ts';
+import { NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeRuntimeHost } from './runtime-host.ts';
 
 class TestNodeEcopagesApp extends NodeEcopagesApp {
 	public capturedParams: NodeServerAdapterParams | undefined;
+
+	constructor(options: ConstructorParameters<typeof NodeEcopagesApp>[0]) {
+		super(options, {
+			runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+		});
+	}
 
 	protected override async createServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
 		this.capturedParams = params;
@@ -49,5 +57,20 @@ describe('node embedded app bootstrap', () => {
 			port: 3000,
 			hostname: 'localhost',
 		});
+	});
+
+	it('preserves the configured hostname in the reported runtime origin', () => {
+		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const server = {
+			address: () => ({ address: '::1', port: 3000, family: 'IPv6' }),
+		} as any;
+
+		assert.equal(
+			runtimeHost.getOrigin(server, {
+				hostname: 'localhost',
+				port: 3000,
+			}),
+			'http://localhost:3000',
+		);
 	});
 });

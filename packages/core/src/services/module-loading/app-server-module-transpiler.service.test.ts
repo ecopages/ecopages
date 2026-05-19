@@ -389,8 +389,11 @@ describe('app server module transpiler runtime state', () => {
 			const pluginNames = ((calls[0] as { plugins?: Array<{ name: string }> }).plugins ?? []).map(
 				(plugin) => plugin.name,
 			);
-			assert.equal(pluginNames[0], 'eco-component-meta-plugin');
-			assert.ok(pluginNames.find((name) => name.startsWith('ecopages-bun-jsx-ownership-')));
+			const loaderIndex = pluginNames.indexOf('eco-component-meta-plugin');
+			const jsxIndex = pluginNames.findIndex((name) => name.startsWith('ecopages-bun-jsx-ownership-'));
+			assert.ok(loaderIndex >= 0, 'should include app loader plugin');
+			assert.ok(jsxIndex >= 0, 'should include JSX ownership plugin');
+			assert.ok(loaderIndex < jsxIndex, 'app loader should run before JSX ownership overrides');
 		} finally {
 			moduleLoader.pageModuleImportService.importModule = originalImportModule;
 			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
@@ -481,6 +484,54 @@ describe('app server module transpiler runtime state', () => {
 			assert.match(String(rendered), /data-kita-child/);
 		} finally {
 			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('preserves top-level await through the Node app-module loader path', async () => {
+		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-node-app-module-tla-'));
+		const pagesDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(pagesDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'test-app', type: 'module' }),
+			'utf8',
+		);
+		const pageFilePath = path.join(pagesDir, 'index.ts');
+		fs.writeFileSync(
+			pageFilePath,
+			['export const value = await Promise.resolve(42);', 'export default { ok: value === 42 };'].join('\n'),
+			'utf8',
+		);
+
+		const appConfig = {
+			rootDir,
+			absolutePaths: {
+				srcDir: path.join(rootDir, 'src'),
+				componentsDir: path.join(rootDir, 'src', 'components'),
+				includesDir: path.join(rootDir, 'src', 'includes'),
+				layoutsDir: path.join(rootDir, 'src', 'layouts'),
+				pagesDir,
+			},
+			integrations: [],
+			templatesExt: ['.ts'],
+			runtime: {},
+		} as any;
+
+		try {
+			const imported = await getAppModuleLoader(appConfig).importModule<{
+				default: { ok: boolean };
+				value: number;
+			}>({
+				filePath: pageFilePath,
+				rootDir,
+				outdir: path.join(rootDir, '.eco', '.server-modules'),
+				buildExecutor: new EsbuildBuildAdapter(),
+			});
+
+			assert.deepEqual(imported.default, { ok: true });
+			assert.equal(imported.value, 42);
+		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
 	});

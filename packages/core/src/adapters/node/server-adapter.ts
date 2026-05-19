@@ -1,42 +1,32 @@
-import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
+import { createServer, type Server as NodeHttpServer } from 'node:http';
+import path from 'node:path';
 import { WebSocketServer } from 'ws';
+import { fileSystem } from '@ecopages/file-system';
+import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
 import type { ApiHandler, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
-import {
-	bindSharedRuntimeHmrManager,
-	initializeSharedRuntimePlugins,
-	installSharedRuntimeBuildExecutor,
-	prepareSharedRuntimePublicDir,
-	startSharedProjectWatching,
-} from '../shared/runtime-bootstrap.ts';
-
-import { NodeStaticContentServer } from './static-content-server.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import {
 	injectHmrRuntimeIntoHtmlResponse,
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
-
-/**
- * Sentinel error thrown when the client closes the connection before the
- * request body is fully consumed (killed tab, ECONNRESET, cancelled upload).
- * Caught by `handleRequest` to return 499 instead of 500.
- */
-class ClientAbortError extends Error {
-	constructor() {
-		super('Client closed the request');
-		this.name = 'ClientAbortError';
-	}
-}
+import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeStaticPreviewHost } from './static-preview-host.ts';
+import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
+import { DefaultNodeServerDevRuntimeFactory, type NodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -55,6 +45,9 @@ export interface NodeServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
+	previewHost?: StaticPreviewHost;
+	requestBridge?: NodeHttpRequestBridge;
+	devRuntimeFactory?: NodeServerDevRuntimeFactory;
 }
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
@@ -88,9 +81,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private apiHandlers: ApiHandler[];
 	private staticRoutes: StaticRoute[];
 	private errorHandler?: ErrorHandler;
-	private previewServer: NodeStaticContentServer | null = null;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
+	private readonly previewHost: StaticPreviewHost;
+	private readonly requestBridge: NodeHttpRequestBridge;
+	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
 
 	private shouldInjectHmrScript(): boolean {
 		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined);
@@ -113,6 +108,9 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
+		this.previewHost = options.previewHost!;
+		this.requestBridge = options.requestBridge!;
+		this.devRuntimeFactory = options.devRuntimeFactory!;
 	}
 
 	/**
@@ -129,12 +127,12 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
-		installSharedRuntimeBuildExecutor(this.appConfig, {
+		installAppRuntimeBuildExecutor(this.appConfig, {
 			development: this.options?.watch === true,
 		});
 
-		prepareSharedRuntimePublicDir(this.appConfig);
-		await initializeSharedRuntimePlugins({
+		this.prepareRuntimePublicDir();
+		await setupAppRuntimePlugins({
 			appConfig: this.appConfig,
 			runtimeOrigin: this.runtimeOrigin,
 			hmrManager: this.hmrManager ?? undefined,
@@ -151,6 +149,16 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			apiHandlers: this.apiHandlers,
 		});
 		this.initialized = true;
+	}
+
+	private prepareRuntimePublicDir(): void {
+		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
+
+		if (fileSystem.exists(srcPublicDir)) {
+			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+		}
+
+		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
 	public getServerOptions(): NodeServeAdapterServerOptions {
@@ -184,149 +192,31 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			return;
 		}
 
-		if (this.previewServer) {
-			await this.previewServer.stop();
-		}
-
-		this.previewServer = new NodeStaticContentServer({
+		await this.previewHost.start({
 			appConfig: this.appConfig,
-			options: {
-				hostname: this.serveOptions.hostname,
-				port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
-			},
+			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
+			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
 		});
 
-		await this.previewServer.start();
 		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
 		const previewPort = this.serveOptions.port || DEFAULT_ECOPAGES_PORT;
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
-	/**
-	 * Converts a Node.js `IncomingMessage` into a Web API `Request`.
-	 *
-	 * Multi-value headers (e.g. `set-cookie`) are appended individually so no
-	 * value is silently dropped.
-	 *
-	 * For methods that carry a body (`POST`, `PUT`, `PATCH`, …), the raw
-	 * `IncomingMessage` stream is wrapped in a `ReadableStream` rather than
-	 * cast directly to `BodyInit`. See the inline doc block inside the `if`
-	 * branch for the rationale (client-abort handling).
-	 *
-	 * `duplex: 'half'` is required by the `fetch` spec when a streaming body is
-	 * provided — without it Node.js 18+ throws a `TypeError`.
-	 */
-	private createWebRequest(req: IncomingMessage): Request {
-		const url = new URL(req.url ?? '/', this.runtimeOrigin);
-		const headers = new Headers();
-
-		for (const [key, value] of Object.entries(req.headers)) {
-			if (Array.isArray(value)) {
-				for (const item of value) {
-					headers.append(key, item);
-				}
-				continue;
-			}
-
-			if (value !== undefined) {
-				headers.set(key, value);
-			}
-		}
-
-		const method = (req.method ?? 'GET').toUpperCase();
-		const requestInit: RequestInit & { duplex?: 'half' } = {
-			method,
-			headers,
-		};
-
-		if (method !== 'GET' && method !== 'HEAD') {
-			/**
-			 * Wrap the IncomingMessage in a ReadableStream so we can intercept
-			 * mid-stream client aborts (killed tab, network drop, cancelled upload).
-			 *
-			 * Without this, Node.js emits 'aborted'/'error' on the raw stream *after*
-			 * the Request body is already being consumed, causing the error to bubble
-			 * up as a generic 500 Internal Server Error with noise in the logs.
-			 *
-			 * The ReadableStream controller.error() triggers a stream-level rejection
-			 * which propagates as a ClientAbortError. The `handleRequest` catch block
-			 * detects it and returns 499 (Client Closed Request) silently instead.
-			 */
-			const body = new ReadableStream({
-				start(controller) {
-					req.on('data', (chunk: Buffer) => controller.enqueue(chunk));
-					req.once('end', () => controller.close());
-					req.once('aborted', () => {
-						controller.error(new ClientAbortError());
-					});
-					req.once('error', (err) => {
-						const isClientAbort = (err as NodeJS.ErrnoException).code === 'ECONNRESET';
-						controller.error(isClientAbort ? new ClientAbortError() : err);
-					});
-				},
-				cancel() {
-					/**
-					 * Client cancelled the stream mid-transfer (e.g. back button, fetch abort).
-					 * Destroy the underlying socket so Node.js releases the file descriptor
-					 * immediately rather than waiting for TCP keepalive to time out.
-					 */
-					req.destroy();
-				},
-			});
-
-			requestInit.body = body;
-			requestInit.duplex = 'half';
-		}
-
-		return new Request(url, requestInit);
-	}
-
-	/**
-	 * Writes a Web `Response` back to a Node.js `ServerResponse`.
-	 *
-	 * The entire body is buffered via `arrayBuffer()` before writing. This is
-	 * intentional for the current use-case (SSR pages and API routes), where
-	 * responses are typically small and fully materialised. Streaming responses
-	 * are not yet supported.
-	 */
-	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
-		res.statusCode = response.status;
-
-		response.headers.forEach((value, key) => {
-			res.setHeader(key, value);
-		});
-
-		if (!response.body) {
-			res.end();
-			return;
-		}
-
-		const body = Buffer.from(await response.arrayBuffer());
-		res.end(body);
-	}
-
-	/**
-	 * Starts an ephemeral HTTP server used *only* during a static site generation
-	 * run.
-	 *
-	 * Static generation works by having the `StaticSiteGenerator` issue real HTTP
-	 * requests to a live server for each route, capturing the rendered HTML. This
-	 * approach reuses the normal request pipeline (middleware, caching, API
-	 * handlers) without any special-casing for the build path.
-	 *
-	 * The server is torn down immediately after generation completes via
-	 * `stopBuildRuntimeServer`, so it never overlaps with the actual dev/prod server.
-	 */
 	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
 		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
 		const port = 0;
 
 		const server = createServer(async (req, res) => {
 			try {
-				const webRequest = this.createWebRequest(req);
+				const webRequest = this.requestBridge.createWebRequest(req, this.runtimeOrigin);
 				const response = await this.handleRequest(webRequest);
-				await this.sendNodeResponse(res, response);
+				await this.requestBridge.sendNodeResponse(res, response);
 			} catch (error) {
+				if (error instanceof NodeClientAbortError) {
+					return;
+				}
+
 				appLogger.error('Node static build runtime request failed', error as Error);
 				res.statusCode = 500;
 				res.end('Internal Server Error');
@@ -426,7 +316,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			return await this.maybeInjectHmrScript(response);
 		} catch (error) {
-			if (error instanceof ClientAbortError) {
+			if (error instanceof NodeClientAbortError) {
 				/**
 				 * The client disconnected before the response was sent (killed tab,
 				 * network drop, or programmatic abort). This is a normal browser behaviour,
@@ -459,9 +349,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.serverInstance = server;
 
 		if (this.options?.watch) {
-			const wss = new WebSocketServer({ noServer: true });
-			this.bridge = new NodeClientBridge();
-			this.hmrManager = new NodeHmrManager({ appConfig: this.appConfig, bridge: this.bridge });
+			const devRuntime = this.devRuntimeFactory.create({ appConfig: this.appConfig });
+			const wss = devRuntime.websocketServer;
+			this.bridge = devRuntime.bridge;
+			this.hmrManager = devRuntime.hmrManager;
 			this.hmrManager.setEnabled(true);
 
 			await this.hmrManager.buildRuntime();
@@ -479,12 +370,17 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				}
 			});
 
-			bindSharedRuntimeHmrManager(this.appConfig, this.hmrManager);
+			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
+			this.hmrManager.setPlugins(browserBuildPlugins);
+
+			for (const integration of this.appConfig.integrations) {
+				integration.setHmrManager(this.hmrManager);
+			}
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 
-			await startSharedProjectWatching({
-				appConfig: this.appConfig,
+			const watcher = new ProjectWatcher({
+				config: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
 					staticRoutes: this.staticRoutes,
 					hmrManager: this.hmrManager,
@@ -492,6 +388,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
 			});
+
+			await watcher.createWatcherSubscription();
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {
@@ -511,13 +409,17 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
  * changes the effective host or port.
  */
 export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
-	const runtimeOrigin =
-		params.runtimeOrigin ??
-		`http://${params.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${params.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
+	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
+	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
+	const requestBridge = params.requestBridge ?? new NodeHttpRequestBridge();
+	const devRuntimeFactory = params.devRuntimeFactory ?? new DefaultNodeServerDevRuntimeFactory();
 
 	const adapter = new NodeServerAdapter({
 		...params,
 		runtimeOrigin,
+		previewHost,
+		requestBridge,
+		devRuntimeFactory,
 	});
 
 	return adapter.createAdapter();

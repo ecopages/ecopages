@@ -1,27 +1,12 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
-import { getAppBuildExecutor } from '../../build/build-adapter.ts';
-import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { fileSystem } from '@ecopages/file-system';
-import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
-import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
-import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridge } from './client-bridge.ts';
-import type { ClientBridgeEvent } from '../../types/public-types.ts';
-import { HmrEntrypointRegistrar } from '../shared/hmr-entrypoint-registrar.ts';
-import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
-import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import {
-	getAppEntrypointDependencyGraph,
-	NoopEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
+	InMemoryEntrypointDependencyGraph,
+	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
-import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
+import { SharedHmrManager } from '../shared/shared-hmr-manager.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 type BunSocketHandler = WebSocketHandler<unknown>;
@@ -31,10 +16,6 @@ export interface HmrManagerParams {
 	bridge: ClientBridge;
 }
 
-type HandleFileChangeOptions = {
-	broadcast?: boolean;
-};
-
 /**
  * Bun development HMR manager.
  *
@@ -43,136 +24,55 @@ type HandleFileChangeOptions = {
  * strict integration-owned registrations, while generic script assets use their
  * own explicit registration path.
  */
-export class HmrManager implements IHmrManager {
-	private static readonly entrypointRegistrationTimeoutMs = 4000;
-	public readonly appConfig: EcoPagesAppConfig;
-	private readonly bridge: ClientBridge;
-	/** Keep track of watchers */
-	private watchers = new Map<string, fs.FSWatcher>();
-	/** entrypoint -> output path */
-	private watchedFiles = new Map<string, string>();
-	private entrypointRegistrations = new Map<string, Promise<string>>();
-	private distDir: string;
-	private plugins: EcoBuildPlugin[] = [];
-	private enabled = true;
-	private strategies: HmrStrategy[] = [];
-	private readonly entrypointRegistrar: HmrEntrypointRegistrar;
-	private readonly browserBundleService: BrowserBundleService;
-	private readonly entrypointDependencyGraph: ReturnType<typeof getAppEntrypointDependencyGraph>;
-	private readonly serverModuleTranspiler: ServerModuleTranspiler;
+export class HmrManager extends SharedHmrManager {
 	private wsHandler!: {
 		open: (ws: BunSocket) => void;
 		close: (ws: BunSocket) => void;
 	};
 
-	constructor({ appConfig, bridge }: HmrManagerParams) {
-		this.appConfig = appConfig;
-		this.bridge = bridge;
-		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
-		this.entrypointRegistrar = new HmrEntrypointRegistrar({
-			srcDir: this.appConfig.absolutePaths.srcDir,
-			distDir: this.distDir,
-			entrypointRegistrations: this.entrypointRegistrations,
-			watchedFiles: this.watchedFiles,
-			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
-			registrationTimeoutMs: HmrManager.entrypointRegistrationTimeoutMs,
-		});
-		this.browserBundleService = new BrowserBundleService(appConfig);
-		const existingEntrypointDependencyGraph = getAppEntrypointDependencyGraph(appConfig);
-		this.entrypointDependencyGraph =
-			existingEntrypointDependencyGraph instanceof NoopEntrypointDependencyGraph
-				? existingEntrypointDependencyGraph
-				: new NoopEntrypointDependencyGraph();
-		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
-		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
-		this.cleanDistDir();
-		this.initializeStrategies();
-	}
-
 	/**
-	 * Ensures the HMR output directory exists.
-	 *
-	 * This must not remove the directory because multiple app processes
-	 * can share the same dist path during e2e runs.
-	 */
-	private cleanDistDir(): void {
-		fileSystem.ensureDir(this.distDir);
-	}
-
-	/**
-	 * Returns whether the generic JS strategy may rebuild an entrypoint.
+	 * Creates the Bun HMR manager around the shared HMR orchestration pipeline.
 	 *
 	 * @remarks
-	 * Integration-owned page entrypoints are excluded so a shared dependency
-	 * invalidation cannot replace framework-owned browser output with a generic JS
-	 * rebuild.
+	 * Bun delegates route watching, rebuild dispatch, and runtime bundle
+	 * generation to `SharedHmrManager`. The Bun subclass only supplies the
+	 * transport-specific dependency graph policy and websocket hook surface.
 	 */
-	private shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
-		return !this.strategies.some((strategy) => {
-			if (strategy.type !== HmrStrategyType.INTEGRATION || strategy.priority <= HmrStrategyType.SCRIPT) {
-				return false;
-			}
-
-			try {
-				return strategy.matches(entrypointPath);
-			} catch (error) {
-				appLogger.error(error);
-				return false;
-			}
-		});
+	constructor({ appConfig, bridge }: HmrManagerParams) {
+		super({ appConfig, bridge });
 	}
 
 	/**
-	 * Initializes core HMR strategies.
-	 * Strategies are evaluated in priority order (highest first).
+	 * Reuses the shared in-memory dependency graph when possible and otherwise
+	 * creates the Bun-compatible default graph implementation.
 	 */
-	private initializeStrategies(): void {
-		const jsContext = {
-			getWatchedFiles: () => this.watchedFiles,
-			getDistDir: () => this.distDir,
-			getPlugins: () => this.plugins,
-			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
-			getTemplateExtensions: () => this.appConfig.templatesExt,
-			getBrowserBundleService: () => this.browserBundleService,
-			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
-			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
-		};
-
-		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
+	protected createEntrypointDependencyGraph(existingEntrypointDependencyGraph: EntrypointDependencyGraph) {
+		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
+			? existingEntrypointDependencyGraph
+			: new InMemoryEntrypointDependencyGraph();
 	}
 
 	/**
-	 * Registers a custom HMR strategy.
-	 * Used by integrations to provide framework-specific HMR handling.
-	 * @param strategy - The HMR strategy to register
+	 * Returns the Bun websocket hooks that attach and detach live HMR subscribers.
+	 *
+	 * @remarks
+	 * `SharedHmrManager` stores the bridge behind the transport-agnostic
+	 * `IClientBridge` contract because most HMR coordination only needs broadcast
+	 * behavior. Bun connection lifecycle wiring is the point where that abstraction
+	 * intentionally narrows back to the concrete Bun bridge so websocket instances
+	 * can be tracked directly.
 	 */
-	public registerStrategy(strategy: HmrStrategy): void {
-		this.strategies.push(strategy);
-	}
-
-	public setPlugins(plugins: EcoBuildPlugin[]): void {
-		this.plugins = [...plugins];
-	}
-
-	public setEnabled(enabled: boolean): void {
-		this.enabled = enabled;
-	}
-
-	public isEnabled(): boolean {
-		return this.enabled;
-	}
-
 	public getWebSocketHandler(): BunSocketHandler {
+		const bridge = this.bridge as ClientBridge;
+
 		const open = (ws: BunSocket) => {
-			this.bridge.subscribe(ws);
-			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${this.bridge.subscriberCount}`);
+			bridge.subscribe(ws);
+			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${bridge.subscriberCount}`);
 		};
 
 		const close = (ws: BunSocket) => {
-			this.bridge.unsubscribe(ws);
-			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${this.bridge.subscriberCount}`);
+			bridge.unsubscribe(ws);
+			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${bridge.subscriberCount}`);
 		};
 
 		this.wsHandler = { open, close };
@@ -184,200 +84,5 @@ export class HmrManager implements IHmrManager {
 				appLogger.debug('[HMR] Received message from client:', message);
 			},
 		};
-	}
-
-	/**
-	 * Builds the client-side HMR runtime script.
-	 */
-	public async buildRuntime(): Promise<void> {
-		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
-
-		const result = await this.browserBundleService.bundle({
-			profile: 'hmr-runtime',
-			entrypoints: [runtimeSource],
-			outdir: this.distDir,
-			naming: '_hmr_runtime.js',
-			minify: false,
-			plugins: this.plugins,
-		});
-
-		if (!result.success) {
-			appLogger.error('[HMR] Failed to build runtime script:', result.logs);
-		}
-	}
-
-	public getRuntimePath(): string {
-		return path.join(this.distDir, '_hmr_runtime.js');
-	}
-
-	public broadcast(event: ClientBridgeEvent) {
-		appLogger.debug(
-			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.bridge.subscriberCount}`,
-		);
-		this.bridge.broadcast(event);
-	}
-
-	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
-		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
-		const strategy = sorted.find((s) => {
-			try {
-				return s.matches(filePath);
-			} catch (err) {
-				appLogger.error(err);
-				return false;
-			}
-		});
-
-		if (!strategy) {
-			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			return;
-		}
-
-		appLogger.debug(`[HmrManager] Selected strategy: ${strategy.constructor.name}`);
-
-		const action = await strategy.process(filePath);
-		const shouldBroadcast = options.broadcast ?? true;
-
-		if (shouldBroadcast && action.type === 'broadcast') {
-			if (action.events) {
-				for (const event of action.events) {
-					this.broadcast(event);
-				}
-			}
-		}
-	}
-
-	public getOutputUrl(entrypointPath: string): string | undefined {
-		return this.watchedFiles.get(entrypointPath);
-	}
-
-	public getWatchedFiles(): Map<string, string> {
-		return this.watchedFiles;
-	}
-
-	public getDistDir(): string {
-		return this.distDir;
-	}
-
-	public getPlugins(): EcoBuildPlugin[] {
-		return this.plugins;
-	}
-
-	public getDefaultContext(): DefaultHmrContext {
-		return {
-			getWatchedFiles: () => this.watchedFiles,
-			getDistDir: () => this.distDir,
-			getPlugins: () => this.plugins,
-			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
-			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
-			getBrowserBundleService: () => this.browserBundleService,
-			importServerModule: async <T>(filePath: string) =>
-				await this.serverModuleTranspiler.importModule<T>({
-					filePath,
-					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
-					externalPackages: true,
-				}),
-		};
-	}
-
-	private clearFailedEntrypointRegistration(entrypointPath: string): void {
-		this.watchedFiles.delete(entrypointPath);
-	}
-
-	/**
-	 * Registers one integration-owned page entrypoint.
-	 *
-	 * @remarks
-	 * Concurrent callers share one in-flight registration. The registration is
-	 * cleared from the dedupe map when it settles so later callers cannot inherit a
-	 * stale promise.
-	 */
-	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
-			emit: async (normalizedEntrypoint) => await this.emitStrictEntrypoint(normalizedEntrypoint),
-			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
-				new Error(
-					`[HMR] Integration failed to emit entrypoint ${normalizedEntrypoint} to ${outputPath}. Page entrypoints must be produced by their owning integration.`,
-				),
-		});
-	}
-
-	/**
-	 * Registers one generic script entrypoint.
-	 *
-	 * @remarks
-	 * This explicit path keeps the page-entrypoint contract strict while still
-	 * allowing generic script assets to use the fallback build path.
-	 */
-	public async registerScriptEntrypoint(entrypointPath: string): Promise<string> {
-		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
-			emit: async (normalizedEntrypoint, outputPath) =>
-				await this.emitScriptEntrypoint(normalizedEntrypoint, outputPath),
-			getMissingOutputError: (normalizedEntrypoint) =>
-				new Error(`[HMR] Failed to register script entrypoint: ${normalizedEntrypoint}`),
-		});
-	}
-
-	/**
-	 * Performs strict integration-owned registration for one normalized path.
-	 *
-	 * @remarks
-	 * The manager reserves the output URL, removes any stale emitted file, runs
-	 * strategy processing without broadcasting, and then verifies that the owning
-	 * integration emitted the expected file.
-	 */
-	private async emitStrictEntrypoint(entrypointPath: string): Promise<void> {
-		await this.handleFileChange(entrypointPath, { broadcast: false });
-	}
-
-	/**
-	 * Performs registration for a generic script asset.
-	 *
-	 * @remarks
-	 * This path performs a targeted browser bundle for the requested script
-	 * entrypoint only. The resulting dependency graph is retained so later file
-	 * changes can invalidate just the affected script entrypoints.
-	 */
-	private async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
-		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
-		const buildResult = await this.browserBundleService.bundle({
-			profile: 'hmr-entrypoint',
-			entrypoints: [entrypointPath],
-			outdir: this.distDir,
-			naming,
-			minify: false,
-			plugins: this.plugins,
-		});
-
-		if (!buildResult.success) {
-			appLogger.error(`[HMR] Generic script entrypoint build failed for ${entrypointPath}:`, buildResult.logs);
-			return;
-		}
-
-		const entrypointDependencies = buildResult.dependencyGraph?.entrypoints?.[entrypointPath];
-		if (entrypointDependencies) {
-			this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, entrypointDependencies);
-		}
-	}
-
-	/**
-	 * Stops active watchers and releases retained registration state.
-	 *
-	 * @remarks
-	 * Emitted `_hmr` files remain on disk because parallel app processes may share
-	 * the same dist directory. The in-memory indexes are cleared so stale
-	 * entrypoints cannot leak through a reused manager object.
-	 */
-	public stop() {
-		this.entrypointRegistrations.clear();
-		for (const watcher of this.watchers.values()) {
-			watcher.close();
-		}
-		this.watchers.clear();
-		this.watchedFiles.clear();
-		this.entrypointDependencyGraph.reset();
-		this.plugins = [];
 	}
 }

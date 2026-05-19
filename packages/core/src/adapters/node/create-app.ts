@@ -1,16 +1,29 @@
-import { createServer, type IncomingMessage, type Server as NodeServerInstance, type ServerResponse } from 'node:http';
-import { Readable } from 'node:stream';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
+import { resolveRuntimeBinding } from '../shared/runtime-app-bootstrap.ts';
+import type { RuntimeHost } from '../shared/runtime-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
+import { NodeHttpRequestBridge } from './http-request-bridge.ts';
+import type { NodeServerInstance } from './server-adapter.ts';
+import { NodeRuntimeHost } from './runtime-host.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
+	private readonly runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
+
+	constructor(
+		options: EcopagesAppOptions,
+		dependencies: {
+			runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
+		},
+	) {
+		super(options);
+		this.runtimeHost = dependencies.runtimeHost;
+	}
 
 	protected createServerAdapter(
 		params: Parameters<typeof createNodeServerAdapter>[0],
@@ -25,33 +38,15 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 
 		const activeServer = this.server;
 		this.server = null;
-
-		await new Promise<void>((resolve, reject) => {
-			activeServer.close((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-
-				resolve();
-			});
-
-			if (force) {
-				activeServer.closeAllConnections();
-			}
-		});
+		await this.runtimeHost.stop(activeServer, { force });
 	}
 
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
-		const { dev } = this.cliArgs;
-		const { port: cliPort, hostname: cliHostname } = this.cliArgs;
-
-		const envPort = process.env.ECOPAGES_PORT;
-		const envHostname = process.env.ECOPAGES_HOSTNAME;
-
-		const preferredPort = cliPort ?? (envPort ? Number(envPort) : undefined) ?? DEFAULT_ECOPAGES_PORT;
-		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
-		this.runtimeOrigin = `http://${preferredHostname}:${preferredPort}`;
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
+		});
+		this.runtimeOrigin = binding.runtimeOrigin;
 
 		return this.createServerAdapter({
 			runtimeOrigin: this.runtimeOrigin,
@@ -59,12 +54,8 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes as StaticRoute[],
 			errorHandler: this.errorHandler,
-			options: { watch: dev },
-			serveOptions: {
-				port: preferredPort,
-				hostname: preferredHostname,
-				...this.serverOptions,
-			},
+			options: { watch: binding.watch },
+			serveOptions: binding.serveOptions,
 		});
 	}
 
@@ -92,77 +83,17 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		}
 
 		const serveOptions = this.serverAdapter.getServerOptions();
-		const hostname = String(serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
-		const port = Number(serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
-		this.runtimeOrigin = `http://${hostname}:${port}`;
-
-		this.server = createServer(async (req, res) => {
-			try {
-				const webRequest = this.createWebRequest(req);
-				const response = await this.serverAdapter!.handleRequest(webRequest);
-				await this.sendNodeResponse(res, response);
-			} catch (error) {
-				appLogger.error('Node server adapter request failed', error as Error);
-				res.statusCode = 500;
-				res.end('Internal Server Error');
-			}
+		this.server = await this.runtimeHost.start({
+			serveOptions,
+			handleRequest: async (request) => await this.serverAdapter!.handleRequest(request),
+			onError: async () => {},
 		});
-
-		await new Promise<void>((resolve) => {
-			this.server!.listen(port, hostname, () => resolve());
-		});
+		this.runtimeOrigin = this.runtimeHost.getOrigin(this.server, serveOptions);
 
 		await this.serverAdapter.completeInitialization(this.server);
 		appLogger.info(`Node server running at ${this.runtimeOrigin}`);
 
 		return this.server;
-	}
-
-	private createWebRequest(req: IncomingMessage): Request {
-		const url = new URL(req.url ?? '/', this.runtimeOrigin);
-		const headers = new Headers();
-
-		for (const [key, value] of Object.entries(req.headers)) {
-			if (Array.isArray(value)) {
-				for (const item of value) {
-					headers.append(key, item);
-				}
-				continue;
-			}
-
-			if (value !== undefined) {
-				headers.set(key, value);
-			}
-		}
-
-		const method = (req.method ?? 'GET').toUpperCase();
-		const requestInit: RequestInit & { duplex?: 'half' } = {
-			method,
-			headers,
-		};
-
-		if (method !== 'GET' && method !== 'HEAD') {
-			requestInit.body = Readable.toWeb(req) as unknown as BodyInit;
-			requestInit.duplex = 'half';
-		}
-
-		return new Request(url, requestInit);
-	}
-
-	private async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
-		res.statusCode = response.status;
-
-		response.headers.forEach((value, key) => {
-			res.setHeader(key, value);
-		});
-
-		if (!response.body) {
-			res.end();
-			return;
-		}
-
-		const body = Buffer.from(await response.arrayBuffer());
-		res.end(body);
 	}
 
 	public async fetch(request: Request): Promise<Response> {
@@ -175,7 +106,9 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 }
 
 export async function createNodeApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {
-	return new NodeEcopagesApp(options);
+	return new NodeEcopagesApp(options, {
+		runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+	});
 }
 
 export async function createApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {

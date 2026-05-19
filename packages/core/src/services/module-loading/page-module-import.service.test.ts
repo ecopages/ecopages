@@ -76,7 +76,7 @@ describe('PageModuleImportService', () => {
 
 	it('should import the transpiled output in node runtimes', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-'));
-		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export const value = 42; export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -114,6 +114,32 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
+	it('should await top-level await in transpiled ESM output', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-tla-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(
+			compiledOutput,
+			['export const value = await Promise.resolve(42);', 'export default { ok: value === 42 };'].join('\n'),
+			'utf8',
+		);
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+
+		try {
+			const result = await service.importModule<{ default: { ok: boolean }; value: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			assert.deepEqual(result.default, { ok: true });
+			assert.equal(result.value, 42);
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.format, 'esm');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should throw the provided transpile error when the build fails', async () => {
 		fakeDependencies.setNextBuildResult(
 			createBuildResult({
@@ -137,7 +163,7 @@ describe('PageModuleImportService', () => {
 	it('should keep a stable node module path in development for unchanged files', async () => {
 		process.env.NODE_ENV = 'development';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-'));
-		const compiledOutput = join(tempDir, 'page-hash123.js');
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
@@ -152,6 +178,28 @@ describe('PageModuleImportService', () => {
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.splitting, true);
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('emits self-describing ESM runtime output names for node imports', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-esm-ext-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+
+		try {
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.target, 'es2022');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.format, 'esm');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

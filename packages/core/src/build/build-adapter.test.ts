@@ -669,6 +669,7 @@ test('collectConfiguredAppBuildManifestContributions gathers processor and integ
 
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
+	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
@@ -690,6 +691,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 
 	await setupAppRuntimePlugins({
 		appConfig: {
+			loaders: new Map([['loader-plugin', loaderPlugin]]),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
 		} as any,
@@ -705,7 +707,11 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		'integration-hmr',
 		'integration-setup',
 	]);
-	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
+	assert.deepEqual(observedRuntimePlugins, [
+		'loader-plugin',
+		'processor-runtime-plugin',
+		'integration-runtime-plugin',
+	]);
 });
 
 test('EsbuildBuildAdapter supports module virtual modules', async () => {
@@ -746,7 +752,7 @@ test('EsbuildBuildAdapter supports module virtual modules', async () => {
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
@@ -800,7 +806,7 @@ test('EsbuildBuildAdapter applies build plugin CSS transforms to imported CSS st
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
@@ -853,7 +859,7 @@ test('EsbuildBuildAdapter resolves tsconfig path aliases', async () => {
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
@@ -898,7 +904,7 @@ test('EsbuildBuildAdapter compiles decorated classes without legacy mode', async
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 	} finally {
 		cleanupTempRoots();
@@ -941,7 +947,7 @@ test('EsbuildBuildAdapter compiles decorated accessor fields', async () => {
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 	} finally {
 		cleanupTempRoots();
@@ -1036,7 +1042,7 @@ test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS m
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
@@ -1198,7 +1204,7 @@ test('EsbuildBuildAdapter honors first-match plugin precedence within one build'
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 
 		const outputSource = fs.readFileSync(outputPath, 'utf-8');
@@ -1235,7 +1241,7 @@ test('EsbuildBuildAdapter resolves templated naming patterns to concrete output 
 
 		assert.equal(result.success, true);
 
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
+		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
 		assert.ok(outputPath);
 		assert.equal(fs.existsSync(path.join(outDir, '[name].[ext]')), false);
 	} finally {

@@ -78,7 +78,8 @@ export class ReactPageModuleService {
 		const fileHash = fileSystem.hash(filePath);
 		const cacheScopeSuffix = options?.cacheScope ? `-${sanitizeCacheScope(options.cacheScope)}` : '';
 		const cacheBuster = options?.bypassCache || process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.js`;
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.mjs`;
+		const outputNamingTemplate = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.[ext]`;
 
 		const buildResult = await build(
 			{
@@ -91,7 +92,7 @@ export class ReactPageModuleService {
 				splitting: false,
 				minify: false,
 				treeshaking: false,
-				naming: outputFileName,
+				naming: outputNamingTemplate,
 				plugins: [mdxPlugin],
 			},
 			this.config.buildExecutor,
@@ -105,7 +106,7 @@ export class ReactPageModuleService {
 		const preferredOutputPath = path.join(outdir, outputFileName);
 		const compiledOutput =
 			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
 
 		if (!compiledOutput) {
 			throw new Error(`No compiled MDX output generated for page: ${filePath}`);

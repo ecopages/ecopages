@@ -94,6 +94,53 @@ function setupDevServerMiddleware(
 }
 
 describe('ecopagesDevServer', () => {
+	it('registers a host module loader that preserves awaited host modules', async () => {
+		const api = createApi();
+		const plugin = ecopagesDevServer(api);
+		let registeredLoader: ((id: string) => Promise<unknown>) | undefined;
+
+		const server = {
+			async ssrLoadModule(id: string) {
+				if (id === '@ecopages/core/dev/host-runtime') {
+					return {
+						createDevelopmentHostRuntime() {
+							return {
+								registerHostModuleLoader(loader: (id: string) => Promise<unknown>) {
+									registeredLoader = loader;
+								},
+							};
+						},
+					};
+				}
+
+				if (id === '/virtual:tla-module') {
+					return {
+						default: { ok: true },
+						value: 42,
+					};
+				}
+
+				return {
+					app: {
+						fetch: async () => new Response('ok'),
+					},
+				};
+			},
+			middlewares: {
+				use() {},
+			},
+		};
+
+		(plugin.configureServer as Function)(server as never)?.();
+		await Promise.resolve();
+
+		expect(registeredLoader).toBeTypeOf('function');
+		await expect(registeredLoader?.('/virtual:tla-module')).resolves.toEqual({
+			default: { ok: true },
+			value: 42,
+		});
+	});
+
 	it('removes stale body-derived headers after HTML rewriting', async () => {
 		const harness = setupDevServerMiddleware(
 			new Response('<!DOCTYPE html><html><head></head><body></body></html>', {

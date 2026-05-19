@@ -146,11 +146,6 @@ export class JsHmrStrategy extends HmrStrategy {
 			return true;
 		}
 
-		const entrypointDependencyGraph = this.context.getEntrypointDependencyGraph();
-		if (entrypointDependencyGraph.supportsSelectiveInvalidation()) {
-			return entrypointDependencyGraph.getDependencyEntrypoints(filePath).size > 0;
-		}
-
 		return true;
 	}
 

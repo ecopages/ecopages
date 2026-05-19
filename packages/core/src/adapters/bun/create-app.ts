@@ -10,13 +10,16 @@
 
 import type { Server } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
-import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { getBunRuntime } from '../../utils/runtime.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
+import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
+import type { RuntimeHost } from '../shared/runtime-host.ts';
+import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
+import { BunStaticPreviewHost } from './static-preview-host.ts';
+import { BunRuntimeHost } from './runtime-host.ts';
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
@@ -47,40 +50,19 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 > {
 	serverAdapter: BunServerAdapterResult | undefined;
 	private server: Server<WebSocketData> | null = null;
+	private readonly runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
+	private readonly previewHost: StaticPreviewHost;
 
-	private async startStaticPreviewServer(port: number, hostname: string): Promise<void> {
-		await new Promise((resolve) => setTimeout(resolve, 100));
-
-		for (let attempt = 0; attempt < 20; attempt += 1) {
-			try {
-				const previewServer = StaticContentServer.createServer({
-					appConfig: this.appConfig,
-					options: { port },
-				});
-
-				if (previewServer.server?.port) {
-					appLogger.info(`Preview running at http://${hostname}:${previewServer.server.port}`);
-					return;
-				}
-
-				break;
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				const errorCode =
-					typeof error === 'object' && error !== null && 'code' in error
-						? String((error as { code?: unknown }).code)
-						: undefined;
-				const isPortReleaseRace = errorCode === 'EADDRINUSE' || errorMessage.includes('EADDRINUSE');
-
-				if (!isPortReleaseRace || attempt === 19) {
-					throw error;
-				}
-
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
-		}
-
-		appLogger.error('Failed to start preview server');
+	constructor(
+		options: EcopagesAppOptions,
+		dependencies: {
+			runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
+			previewHost: StaticPreviewHost;
+		},
+	) {
+		super(options);
+		this.runtimeHost = dependencies.runtimeHost;
+		this.previewHost = dependencies.previewHost;
 	}
 
 	public async fetch(request: Request): Promise<Response> {
@@ -108,38 +90,30 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 	 * Initialize the Bun server adapter
 	 */
 	protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
-		const { dev } = this.cliArgs;
-		const { port: cliPort, hostname: cliHostname } = this.cliArgs;
-
-		const envPort = process.env.ECOPAGES_PORT ? process.env.ECOPAGES_PORT : undefined;
-		const envHostname = process.env.ECOPAGES_HOSTNAME;
-
-		const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
-		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
+		});
 
 		appLogger.debug('initializeServerAdapter', {
-			dev,
-			cliPort,
-			cliHostname,
-			envPort,
-			envHostname,
-			preferredPort,
-			preferredHostname,
-			composedUrl: `http://${preferredHostname}:${preferredPort}`,
+			dev: this.cliArgs.dev,
+			cliPort: this.cliArgs.port,
+			cliHostname: this.cliArgs.hostname,
+			envPort: process.env.ECOPAGES_PORT,
+			envHostname: process.env.ECOPAGES_HOSTNAME,
+			preferredPort: binding.preferredPort,
+			preferredHostname: binding.preferredHostname,
+			composedUrl: binding.runtimeOrigin,
 		});
 
 		return await createBunServerAdapter({
-			runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
+			runtimeOrigin: binding.runtimeOrigin,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
 			errorHandler: this.errorHandler,
-			options: { watch: dev },
-			serveOptions: {
-				port: preferredPort,
-				hostname: preferredHostname,
-				...this.serverOptions,
-			},
+			options: { watch: binding.watch },
+			serveOptions: binding.serveOptions,
 		});
 	}
 
@@ -154,12 +128,12 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		}
 
 		const { dev, preview, build } = this.cliArgs;
-		const requiresFetchRuntime = this.appConfig.integrations.some(
-			(integration) => integration.staticBuildStep === 'fetch',
-		);
-		const canBuildWithoutRuntimeServer = (build || preview) && !requiresFetchRuntime;
+		const staticRuntimeMode = resolveStaticRuntimeMode({
+			appConfig: this.appConfig,
+			cliArgs: this.cliArgs,
+		});
 
-		if (canBuildWithoutRuntimeServer) {
+		if (staticRuntimeMode.canBuildWithoutRuntimeServer) {
 			appLogger.debugTime('Building static pages');
 			await this.serverAdapter.buildStatic({ preview });
 			appLogger.debugTimeEnd('Building static pages');
@@ -176,20 +150,17 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		const configuredHostname = String(serverOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
 		const configuredPort = Number(serverOptions.port ?? DEFAULT_ECOPAGES_PORT);
 		const runtimeServerOptions =
-			(preview || build) && requiresFetchRuntime
+			(preview || build) && staticRuntimeMode.requiresFetchRuntime
 				? {
 						...serverOptions,
 						port: 0,
 					}
 				: serverOptions;
-
-		const bun = getBunRuntime();
-		if (!bun) {
-			throw new Error('Bun runtime is required for the Bun adapter');
-		}
-
-		const bunServer = bun.serve(runtimeServerOptions as Bun.Serve.Options<WebSocketData>);
-		this.server = bunServer as Server<WebSocketData>;
+		this.server = await this.runtimeHost.start({
+			serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
+			handleRequest: async () => new Response(null, { status: 500 }),
+			onError: async () => {},
+		});
 
 		await this.serverAdapter.completeInitialization(this.server).catch((error: Error) => {
 			appLogger.error(`Failed to complete initialization: ${error}`);
@@ -198,17 +169,25 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		if (!this.server) {
 			throw new Error('Server failed to start');
 		}
-		appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
+		appLogger.info(
+			`Server running at ${this.runtimeHost.getOrigin(this.server, runtimeServerOptions as Bun.Serve.Options<WebSocketData>)}`,
+		);
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
 			await this.serverAdapter.buildStatic({ preview: false });
-			this.server.stop(true);
+			await this.runtimeHost.stop(this.server, { force: true });
 
 			if (preview) {
-				const previewHostname = configuredHostname;
-				const previewPort = configuredPort;
-				await this.startStaticPreviewServer(previewPort, previewHostname);
+				const previewPort = await this.previewHost.start({
+					appConfig: this.appConfig,
+					hostname: configuredHostname,
+					port: configuredPort,
+				});
+
+				if (previewPort) {
+					appLogger.info(`Preview running at http://${configuredHostname}:${previewPort}`);
+				}
 			}
 
 			appLogger.debugTimeEnd('Building static pages');
@@ -228,5 +207,8 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 export async function createApp<WebSocketData = undefined>(
 	options: EcopagesAppOptions,
 ): Promise<BunEcopagesApp<WebSocketData>> {
-	return new BunEcopagesApp(options);
+	return new BunEcopagesApp(options, {
+		runtimeHost: new BunRuntimeHost<WebSocketData>(),
+		previewHost: new BunStaticPreviewHost(),
+	});
 }

@@ -8,32 +8,35 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
-- Fixed node-module asset fallback resolution to honor package-export subpaths during host-owned builds, restoring assets like `@ecopages/radiant/client/install-hydrator` when adapter resolution is unavailable.
-- Added request-context server-module imports so explicit route handlers can lazy-load fresh server views through Ecopages invalidation instead of reusing stale nested dynamic imports.
-- Fixed Node development HTML responses from explicit handlers to inject the HMR runtime so app-owned routes can receive browser reload events.
-- Fixed development HTML responses that receive the HMR runtime to disable browser document caching so reloads do not reuse stale explicit-route HTML.
-- Fixed request-time `ctx.importServerModule()` in development to bypass the shared module import cache so immediate reloads do not reuse stale lazy server modules.
-- Removed workspace package source aliasing from Bun and Node app-module resolution so `@ecopages/*` imports no longer bypass the installed package graph during server builds.
-- Fixed Node bootstrap package resolution for import-only ESM dependencies so static generation can load installed `@ecopages/jsx` and `@ecopages/radiant` packages from the app boundary.
-- Fixed Node HMR to drop deleted watched entrypoints instead of repeatedly rebuilding removed workspace files during development.
+- Suppressed Node response-stream client disconnects during runtime serving so navigation-driven aborts no longer log `ERR_STREAM_UNABLE_TO_PIPE` as server failures in tests and development.
+- Preserved Node preview-host state through async shutdown failures and coalesced overlapping preview `stop()` calls onto one in-flight shutdown.
+- Streamed Node adapter Web `Response` bodies directly into `ServerResponse` so large payloads and streaming responses no longer buffer through `arrayBuffer()` first.
+- Fixed Bun adapter runtime and HMR type contracts so Bun-specific collaborators type-check cleanly during core package builds.
+- Restored the Bun server adapter static-generation import path so preview and E2E startup no longer fail with `StaticSiteGenerator is not defined` during runtime initialization.
+- Preserved configured Node hostnames in reported runtime origins while still normalizing bare IPv6 literals, so localhost binds no longer log as resolved socket addresses like `[::1]`.
+- Fixed Node-target server-module ESM outputs to emit `.mjs` runtime artifacts so top-level `await` and other ESM semantics do not depend on app-level `"type": "module"`.
 - Preserve foreign-child runtime normalized props on inline renders so mixed-integration children stay serialized during server rendering.
-- Downgraded the mixed Kitajs and React JSX-engine guidance to debug logging so correctly pragma-annotated apps no longer emit a false-positive startup warning.
-- Fixed Bun app-module metadata transforms to inject each integration's owning JSX import source so mixed Ecopages JSX and Kita server builds do not require per-file pragmas.
-- Fixed queued foreign-subtree child handoff so owning renderers receive rendered child HTML during mixed Ecopages JSX and string-renderer server passes.
+- Fixed Bun component render contexts to keep async foreign-child interception active during Lit and Ecopages JSX renderer passes in preview and static builds.
 - Fixed Bun app-module server builds to run metadata loaders before JSX ownership overrides so foreign-owned layouts and HTML shells keep their integration metadata during preview and static rendering.
 - Fixed page-module import caching to include JSX ownership and plugin inputs so preview and static generation do not reuse server modules compiled for the wrong integration runtime.
 
 ### Features
 
 - Added app-owned runtime and build ownership around `createApp()`, host module loading, the browser-safe `eco` export, `eco.html()`, `eco.layout()`, and the published `EcoPagesAppConfig` surface.
-- Added experimental `eco.embed()` as an explicit mixed-integration authoring helper that renders components with optional `children` outside inline JSX.
-- Exported shared `eco.embed()` helper generics through `@ecopages/core` and clarified `eco.embed()` missing handoff errors for mixed-integration rendering.
 - Added boundary-plan metadata and a compatibility `renderBoundary()` payload contract for mixed-renderer orchestration.
-- Added `ctx.renderServerModule()` so explicit handlers can import and render a default-exported server view in one step.
-- Added `URL` support for `ctx.importServerModule()` and `ctx.renderServerModule()` so explicit handlers can point at local server views without manual `fileURLToPath()` plumbing.
 
 ### Refactoring
 
+- Routed Bun runtime loader registration through the shared runtime plugin bootstrap so loaders and runtime plugins now follow one startup registration path.
+- Removed the Bun `ServerLifecycle` and shared runtime-bootstrap forwarding seams so Bun and Node adapters own their runtime startup directly against the shared build, plugin, and watcher helpers.
+- Moved shared HMR registration, strategy dispatch, runtime bundling, and entrypoint bookkeeping behind one shared manager module so Bun and Node now differ only at the runtime-specific transport hooks.
+- Moved runtime binding resolution and static build runtime decisions behind shared app-startup primitives so Bun and Node app modules no longer duplicate host and preview/build setup policy.
+- Extracted shared runtime-origin resolution for server adapters and introduced a small runtime host contract so Bun and Node app startup now call the same transport lifecycle shape.
+- Moved preview server lifecycle behind shared preview-host contracts and extracted Node's HTTP request/response bridge into a reusable module so `create-app` no longer owns runtime transport details.
+- Moved runtime hosts, preview hosts, and the Node request bridge to constructor-injected collaborators with factory-edge defaults so app and server adapters no longer construct services inline.
+- Moved Bun and Node server-adapter collaborator assembly behind runtime-specific dependency bundles, including an injected Node dev-runtime factory for websocket, bridge, and HMR setup.
+- Removed the dead Bun route-handler factory seam and the remaining Bun static-builder callback so server adapters now consume only runtime collaborators instead of construction hooks.
+- Collapsed one-shot server-adapter dependency wrapper helpers back into the factory edge, keeping only the injected Node dev-runtime factory seam that still carries real runtime behavior.
 - Renamed route-renderer ownership and foreign-child contracts across core so ownership planning, foreign-subtree payloads, and queued foreign-subtree resolution now use the simplified terminology.
 - Introduced a single `RouteRenderFlow` owner for route render preparation and execution, removing the separate execution service seam while keeping boundary planning shared.
 - Narrowed route-render orchestration onto an explicit `RouteRenderFlowAdapter` seam and one structural Html finalization plan, reducing callback-bag plumbing between `RouteRenderFlow` and `IntegrationRenderer`.

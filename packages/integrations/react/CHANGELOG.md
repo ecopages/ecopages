@@ -8,6 +8,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Fixed React MDX page-module loading under Node-style ESM builds so compiled MDX routes resolve emitted `.mjs` outputs instead of assuming `.js` runtime artifacts.
 - Fixed React MDX loader initialization under the Node `tsx` runtime by resolving the internal loader helper through static imports instead of lazy module imports.
 - Fixed React HMR ownership matching so non-React compound template files like explicit `.kita.tsx` server views no longer emit stale React module updates instead of full route reloads.
 - Fixed router-managed React HMR page entries to reload the active route with a cleared persisted-layout cache so shared layout edits apply while the current page stays mounted.

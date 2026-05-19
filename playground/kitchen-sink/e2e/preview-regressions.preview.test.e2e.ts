@@ -1,5 +1,11 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { assertRadiantCounterInteractivity, gotoAndWait, incrementCounter, trackRuntimeErrors } from './helpers';
+import {
+	assertAllCountersInteractivity,
+	assertRadiantCounterInteractivity,
+	gotoAndWait,
+	incrementCounter,
+	trackRuntimeErrors,
+} from './helpers';
 
 async function requestUntilOk(request: APIRequestContext, href: string) {
 	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
@@ -140,7 +146,7 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 
 		const runtime = trackRuntimeErrors(page);
 		await gotoAndWait(page, '/integration-matrix/lit-entry');
-		await expect(page.locator('lit-counter [data-lit-value]').first()).toHaveText('0');
+		await assertAllCountersInteractivity(page.getByTestId('integration-matrix-lit-counters'));
 		runtime.assertClean();
 	});
 

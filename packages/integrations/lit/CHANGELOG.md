@@ -8,6 +8,7 @@ All notable changes to `@ecopages/lit` are documented here.
 
 ### Bug Fixes
 
+- Wrapped the inline Lit hydrate-support bootstrap in its own scope so preview pages do not leak minified helper globals like `x` and `i` across other scripts.
 - Fixed Lit document-shell composition, declarative shadow DOM SSR, nested child serialization, lazy preload handling, explicit render paths, and mixed-renderer foreign-subtree resolution.
 - Fixed Lit foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
 

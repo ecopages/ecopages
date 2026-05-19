@@ -20,6 +20,11 @@ export class RadiantNavigation extends RadiantElement {
 		this.highlightActiveLink();
 	}
 
+	@onEvent({ window: true, type: 'popstate' })
+	onPopState(): void {
+		this.highlightActiveLink();
+	}
+
 	highlightActiveLink(options?: { scrollToActiveLink?: boolean }): void {
 		const links = this.querySelectorAll<HTMLAnchorElement>('[data-nav-link]');
 		const currentPath = window.location.pathname;

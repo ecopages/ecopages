@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
+import { NodeClientAbortError } from './http-request-bridge.ts';
 
 class TestNodeServerAdapter extends NodeServerAdapter {
+	public handleSharedRequestImpl?: () => Promise<Response>;
+
 	public setInitializedForTest(): void {
 		(this as unknown as { initialized: boolean }).initialized = true;
 	}
@@ -13,6 +16,10 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 	}
 
 	public override async handleSharedRequest(): Promise<Response> {
+		if (this.handleSharedRequestImpl) {
+			return await this.handleSharedRequestImpl();
+		}
+
 		return new Response('<html><body><h1>Explicit route</h1></body></html>', {
 			headers: { 'Content-Type': 'text/html' },
 		});
@@ -61,5 +68,17 @@ describe('NodeServerAdapter', () => {
 		const html = await response.text();
 
 		expect(html).not.toContain("import '/_hmr_runtime.js'");
+	});
+
+	it('returns 499 for normalized client aborts', async () => {
+		const adapter = createAdapter({ options: { watch: false } });
+		adapter.setInitializedForTest();
+		adapter.handleSharedRequestImpl = async () => {
+			throw new NodeClientAbortError();
+		};
+
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/upload'));
+
+		expect(response.status).toBe(499);
 	});
 });

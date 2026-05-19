@@ -419,7 +419,17 @@ export class BunBuildAdapter implements BuildAdapter {
 			return '.toml';
 		}
 
-		return options.format === 'cjs' || options.format === 'esm' ? '.js' : '.js';
+		if (options.target !== 'browser') {
+			if (options.format === 'cjs') {
+				return '.cjs';
+			}
+
+			if (options.format === 'esm') {
+				return '.mjs';
+			}
+		}
+
+		return '.js';
 	}
 
 	private resolveConcreteOutputPath(outputPath: string): string | undefined {
@@ -940,6 +950,10 @@ export async function setupAppRuntimePlugins(options: {
 	hmrManager?: IHmrManager;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
+	for (const loader of options.appConfig.loaders.values()) {
+		options.onRuntimePlugin?.(loader);
+	}
+
 	for (const processor of options.appConfig.processors.values()) {
 		await processor.setup();
 

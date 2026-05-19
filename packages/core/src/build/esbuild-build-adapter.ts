@@ -68,6 +68,22 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 	readonly ownership = 'bun-native' as const;
 	readonly [ESBUILD_ADAPTER_BRAND] = true;
 
+	private getJavaScriptOutExtension(options: BuildOptions): string | undefined {
+		if (options.target === 'browser') {
+			return undefined;
+		}
+
+		if (options.format === 'cjs') {
+			return '.cjs';
+		}
+
+		if (options.format === 'esm') {
+			return '.mjs';
+		}
+
+		return undefined;
+	}
+
 	private collectWorkspaceNodePaths(scanRoot: string, maxDepth = 3): string[] {
 		const normalizedRoot = path.resolve(scanRoot);
 		const cached = workspaceNodePathsCache.get(normalizedRoot);
@@ -489,6 +505,9 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 				? { packages: 'external' as const }
 				: {}),
 			target: transpileTarget,
+			...(this.getJavaScriptOutExtension(options)
+				? { outExtension: { '.js': this.getJavaScriptOutExtension(options)! } }
+				: {}),
 			metafile: true,
 			write: true,
 			plugins: esbuildPlugins,

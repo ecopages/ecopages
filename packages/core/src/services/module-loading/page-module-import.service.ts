@@ -192,7 +192,7 @@ export class PageModuleImportService {
 		const fileBaseName = path.basename(filePath, path.extname(filePath));
 		const cacheScopeSuffix = cacheScope ? `-${sanitizeCacheScope(cacheScope)}` : '';
 		const invalidationSuffix = shouldVersionBuildOutputPath(invalidationVersion) ? `-v${invalidationVersion}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.js`;
+		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.mjs`;
 		const outputNamingTemplate = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.[ext]`;
 
 		const buildResult = await this.dependencies.buildModule(
@@ -222,7 +222,7 @@ export class PageModuleImportService {
 		const preferredOutputPath = path.join(outdir, outputFileName);
 		const compiledOutput =
 			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => output.path.endsWith('.js'))?.path;
+			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
 
 		if (!compiledOutput) {
 			throw new Error(noOutputMessage(filePath));

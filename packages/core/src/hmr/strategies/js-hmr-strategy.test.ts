@@ -59,7 +59,7 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(path.join(SRC_DIR, 'app.ts'))).toBe(false);
 		});
 
-		it('returns false for unrelated .ts files when dependency graph support is available', () => {
+		it('returns true for unrelated .ts files when watched entrypoints exist', () => {
 			const devGraphService = new InMemoryDevGraphService();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),
@@ -67,7 +67,7 @@ describe('JsHmrStrategy', () => {
 			});
 			const strategy = new JsHmrStrategy(context);
 
-			expect(strategy.matches(path.join(SRC_DIR, 'component.ts'))).toBe(false);
+			expect(strategy.matches(path.join(SRC_DIR, 'component.ts'))).toBe(true);
 		});
 
 		it('returns true for dependency-connected .tsx files in src directory', () => {

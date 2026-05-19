@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, it } from 'vitest';
 import {
 	AbstractApplicationAdapter,
@@ -131,7 +134,8 @@ describe('application adapter runtime bootstrap', () => {
 			hostname: undefined,
 			reactFastRefresh: undefined,
 		});
-		assert.equal(adapter.getAppModuleLoader()?.owner, 'bun');
+		assert.ok(adapter.getAppModuleLoader());
+		assert.equal(adapter.getHostModuleLoader(), undefined);
 	});
 
 	it('auto-detects the host module loader in embedded mode from registry', async () => {
@@ -168,5 +172,47 @@ describe('application adapter runtime bootstrap', () => {
 			{ id: importedId },
 		);
 		assert.match(importedId ?? '', /application-adapter\.test\.ts\?update=/);
+	});
+
+	it('preserves top-level await through the embedded host module loader path', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-host-loader-tla-'));
+		const moduleFilePath = path.join(tempDir, 'entry.mjs');
+		fs.writeFileSync(
+			moduleFilePath,
+			['export const value = await Promise.resolve(42);', 'export default { ok: value === 42 };'].join('\n'),
+			'utf8',
+		);
+
+		setHostModuleLoader(async (id) => {
+			const moduleUrl = new URL(id);
+			moduleUrl.search = '';
+			return await import(moduleUrl.href);
+		});
+
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+			runtime: {
+				embedded: true,
+			},
+		});
+
+		try {
+			const imported = await adapter.getAppModuleLoader()?.importModule<{
+				default: { ok: boolean };
+				value: number;
+			}>({
+				filePath: moduleFilePath,
+				rootDir: tempDir,
+				outdir: path.join(tempDir, '.eco', '.server-modules'),
+			});
+
+			assert.deepEqual(imported?.default, { ok: true });
+			assert.equal(imported?.value, 42);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

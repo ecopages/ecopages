@@ -1,5 +1,7 @@
 import type { Server, WebSocketHandler } from 'bun';
+import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
@@ -7,22 +9,25 @@ import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 
 import { fileSystem } from '@ecopages/file-system';
+import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ApiResponseBuilder } from '../shared/api-response.ts';
-import { installSharedRuntimeBuildExecutor } from '../shared/runtime-bootstrap.ts';
-import { StaticContentServer } from '../../dev/sc-server.ts';
+import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
 
-import { ServerRouteHandler, type ServerRouteHandlerParams } from '../shared/server-route-handler.ts';
-import { ServerStaticBuilder, type ServerStaticBuilderParams } from '../shared/server-static-builder.ts';
+import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import {
 	injectHmrRuntimeIntoHtmlResponse,
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { HmrManager } from './hmr-manager.ts';
-import { ServerLifecycle } from './server-lifecycle.ts';
+import { BunStaticPreviewHost } from './static-preview-host.ts';
 
 type BunServerInstance = Server<unknown>;
 type BunNativeServeOptions = Bun.Serve.Options<unknown>;
@@ -40,6 +45,15 @@ export type BunServeOptions = Omit<BunNativeServeOptions, 'fetch'> & {
 	websocket?: WebSocketHandler<unknown>;
 };
 
+/**
+ * Construction parameters for the Bun server adapter.
+ *
+ * @remarks
+ * Callers normally provide only the app-facing fields such as routes, handlers,
+ * and `serveOptions`. The transport collaborators remain optional here because
+ * `createBunServerAdapter()` fills in Bun-specific defaults before the concrete
+ * adapter instance is created.
+ */
 export interface BunServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
@@ -50,11 +64,9 @@ export interface BunServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
-	lifecycle?: ServerLifecycle;
-	staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
-	routeHandlerFactory?: (params: ServerRouteHandlerParams) => ServerRouteHandler;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
+	previewHost?: StaticPreviewHost;
 }
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
@@ -64,6 +76,16 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	handleRequest: (request: Request) => Promise<Response>;
 }
 
+/**
+ * Bun transport adapter that wires shared Ecopages request handling onto a live
+ * `Bun.serve()` runtime.
+ *
+ * @remarks
+ * The adapter owns Bun-specific concerns that do not exist in the shared server
+ * abstraction: websocket-backed HMR transport, runtime plugin registration, and
+ * preview-host startup for static builds. Routing, rendering, and response
+ * composition still delegate to the shared server adapter base.
+ */
 export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams, BunServerAdapterResult> {
 	declare appConfig: EcoPagesAppConfig;
 	declare options: BunServerAdapterParams['options'];
@@ -74,18 +96,21 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	protected errorHandler?: ErrorHandler;
 
 	private bridge!: ClientBridge;
-	private lifecycle!: ServerLifecycle;
 	public hmrManager!: HmrManager;
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: BunServerInstance | null;
+	private readonly previewHost: StaticPreviewHost;
 
-	private readonly lifecycleFactory?: ServerLifecycle;
-	private readonly staticBuilderFactory?: (params: ServerStaticBuilderParams) => ServerStaticBuilder;
-	private readonly routeHandlerFactory?: (params: ServerRouteHandlerParams) => ServerRouteHandler;
-	private readonly hmrManagerFactory?: HmrManager;
-	private readonly bridgeFactory?: ClientBridge;
-
+	/**
+	 * Creates a Bun server adapter with already-resolved runtime collaborators.
+	 *
+	 * @remarks
+	 * The public params interface keeps `hmrManager`, `bridge`, and `previewHost`
+	 * optional so factory callers can omit them. By the time the concrete adapter
+	 * is constructed, those collaborators are mandatory because the adapter cannot
+	 * initialize Bun HMR or preview flows without them.
+	 */
 	constructor({
 		appConfig,
 		runtimeOrigin,
@@ -94,33 +119,38 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		staticRoutes,
 		errorHandler,
 		options,
-		lifecycle,
-		staticBuilderFactory,
-		routeHandlerFactory,
 		hmrManager,
 		bridge,
-	}: BunServerAdapterParams) {
+		previewHost,
+	}: BunServerAdapterParams & {
+		hmrManager: HmrManager;
+		bridge: ClientBridge;
+		previewHost: StaticPreviewHost;
+	}) {
 		super({ appConfig, runtimeOrigin, serveOptions, options });
 		this.apiHandlers = apiHandlers || [];
 		this.staticRoutes = staticRoutes || [];
 		this.errorHandler = errorHandler;
-		this.lifecycleFactory = lifecycle;
-		this.staticBuilderFactory = staticBuilderFactory;
-		this.routeHandlerFactory = routeHandlerFactory;
-		this.hmrManagerFactory = hmrManager;
-		this.bridgeFactory = bridge;
+		this.bridge = bridge;
+		this.hmrManager = hmrManager;
+		this.previewHost = previewHost;
 	}
 
 	/**
-	 * Determines if HMR script should be injected.
-	 * Only injects in watch mode when HMR manager is enabled.
+	 * Returns whether adapter-level HTML responses still need HMR runtime injection.
+	 *
+	 * @remarks
+	 * Filesystem-routed pages are wrapped later in the shared route layer. This
+	 * adapter-level check exists for explicit API handlers that return HTML and
+	 * would otherwise bypass the route wrapper entirely.
 	 */
 	private shouldInjectHmrScript(): boolean {
 		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager);
 	}
 
 	/**
-	 * Checks if a response contains HTML content.
+	 * Delegates the HTML-response test to the shared response helper used by both
+	 * adapters.
 	 */
 	private isHtmlResponse(response: Response): boolean {
 		return isHtmlResponse(response);
@@ -138,26 +168,16 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}
 
 	/**
-	 * Initializes the server adapter's core components.
-	 * Delegates to ServerLifecycle for setup.
+	 * Initializes the server adapter's core runtime components.
 	 */
 	public async initialize(): Promise<void> {
-		installSharedRuntimeBuildExecutor(this.appConfig, {
+		installAppRuntimeBuildExecutor(this.appConfig, {
 			development: this.options?.watch === true,
 		});
 
-		this.bridge = this.bridgeFactory ?? new ClientBridge();
-		this.hmrManager = this.hmrManagerFactory ?? new HmrManager({ appConfig: this.appConfig, bridge: this.bridge });
-		this.lifecycle =
-			this.lifecycleFactory ??
-			new ServerLifecycle({
-				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
-				hmrManager: this.hmrManager,
-				bridge: this.bridge,
-			});
-
-		this.staticSiteGenerator = await this.lifecycle.initialize();
+		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		await this.hmrManager.buildRuntime();
+		this.prepareRuntimePublicDir();
 
 		const staticBuilderOptions = {
 			appConfig: this.appConfig,
@@ -166,15 +186,62 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			apiHandlers: this.apiHandlers,
 		};
 
-		this.staticBuilder = this.staticBuilderFactory
-			? this.staticBuilderFactory(staticBuilderOptions)
-			: new ServerStaticBuilder(staticBuilderOptions);
+		this.staticBuilder = new ServerStaticBuilder(staticBuilderOptions);
 
-		await this.lifecycle.initializePlugins({ watch: this.options?.watch });
+		await this.initializeRuntimePlugins({ watch: this.options?.watch });
 	}
 
 	/**
-	 * Refreshes the router routes during watch mode.
+	 * Copies the source `public` directory into the runtime output and ensures the
+	 * HMR assets directory exists before any runtime bundles are emitted.
+	 */
+	private prepareRuntimePublicDir(): void {
+		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
+
+		if (fileSystem.exists(srcPublicDir)) {
+			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+		}
+
+		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
+	}
+
+	/**
+	 * Registers runtime plugins and propagates the final HMR manager into each
+	 * integration.
+	 *
+	 * @remarks
+	 * This is where Bun's runtime-plugin registration path meets the integration
+	 * lifecycle. A failure here leaves the runtime partially bootstrapped, so the
+	 * method logs the underlying error and rethrows instead of trying to limp on.
+	 */
+	private async initializeRuntimePlugins(options?: { watch?: boolean }): Promise<void> {
+		try {
+			this.hmrManager.setEnabled(Boolean(options?.watch));
+
+			await setupAppRuntimePlugins({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+				hmrManager: this.hmrManager,
+				onRuntimePlugin: (plugin) => {
+					Bun.plugin(plugin as any);
+				},
+			});
+
+			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
+			this.hmrManager.setPlugins(browserBuildPlugins);
+
+			for (const integration of this.appConfig.integrations) {
+				integration.setHmrManager(this.hmrManager);
+			}
+		} catch (error) {
+			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Rebuilds the shared routing state and hot-reloads the live Bun server when a
+	 * watched route file changes.
 	 */
 	private async refreshRouterRoutes(): Promise<void> {
 		if (!this.serverInstance || typeof this.serverInstance.reload !== 'function') {
@@ -198,16 +265,23 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}
 
 	private async watch(): Promise<void> {
-		await this.lifecycle.startWatching({
+		const watcher = new ProjectWatcher({
+			config: this.appConfig,
 			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
+			hmrManager: this.hmrManager,
+			bridge: this.bridge,
 		});
+
+		await watcher.createWatcherSubscription();
 	}
 
 	/**
-	 * Retrieves the current server options, optionally enabling HMR.
-	 * If HMR is enabled, modifies fetch to handle WebSocket upgrades and serve HMR runtime.
-	 * Ensures original fetch logic is preserved and called for non-HMR requests.
-	 * @param options.enableHmr Whether to enable Hot Module Replacement
+	 * Builds the `Bun.serve()` options for the current adapter state.
+	 *
+	 * @remarks
+	 * The HMR-enabled variant wraps the base fetch handler so one Bun server can
+	 * serve normal requests, accept HMR websocket upgrades, and expose the HMR
+	 * runtime asset without splitting responsibility across separate listeners.
 	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
 		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
@@ -283,8 +357,12 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}
 
 	/**
-	 * Creates complete server configuration with request handling.
-	 * @returns Server options ready for Bun.serve()
+	 * Composes the base Bun server settings that all runtime modes build from.
+	 *
+	 * @remarks
+	 * This method centralizes the Bun-specific error boundary. It preserves the
+	 * shared route pipeline while still allowing adapter-level custom error-handler
+	 * execution and `HttpError` passthrough.
 	 */
 	private buildServerSettings(): BunServeOptions {
 		const serverOptions = { ...this.serveOptions } as BunServeAdapterServerOptions;
@@ -372,17 +450,16 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
 		const previewPort = Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT);
-		const previewServer = StaticContentServer.createServer({
+		const activePreviewPort = await this.previewHost.start({
 			appConfig: this.appConfig,
-			options: { port: previewPort },
+			hostname: String(previewHostname),
+			port: previewPort,
 		});
 
-		if (previewServer.server?.port) {
-			appLogger.info(`Preview running at http://${previewHostname}:${previewServer.server.port}`);
+		if (activePreviewPort) {
+			appLogger.info(`Preview running at http://${previewHostname}:${activePreviewPort}`);
 			return;
 		}
-
-		appLogger.error('Failed to start preview server');
 	}
 
 	/**
@@ -406,7 +483,12 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}
 
 	/**
-	 * Performs complete server setup including routing, watchers, and HMR.
+	 * Performs the one-time post-bind initialization path for Bun servers.
+	 *
+	 * @remarks
+	 * This is intentionally split from `initialize()` because shared route handling
+	 * and file watching need the live server instance to exist before Bun can
+	 * reload updated route handlers in place.
 	 */
 	private async _performInitialization(server: BunServerInstance | null): Promise<void> {
 		this.serverInstance = server;
@@ -494,32 +576,27 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 }
 
 /**
- * Factory function to create a Bun server adapter
+ * Creates the Bun server adapter and fills in the runtime-specific collaborators
+ * that Bun callers usually leave implicit.
+ *
+ * @remarks
+ * This is the canonical entry point for Bun server-adapter construction. It
+ * guarantees that the concrete adapter receives a Bun websocket bridge, HMR
+ * manager, and preview host even though those dependencies are optional on the
+ * public params type.
  */
 export async function createBunServerAdapter(params: BunServerAdapterParams): Promise<BunServerAdapterResult> {
-	const runtimeOrigin =
-		params.runtimeOrigin ??
-		`http://${params.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${params.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
-
+	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
 	const bridge = params.bridge ?? new ClientBridge();
 	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });
-	const lifecycle =
-		params.lifecycle ??
-		new ServerLifecycle({
-			appConfig: params.appConfig,
-			runtimeOrigin,
-			hmrManager,
-			bridge,
-		});
+	const previewHost = params.previewHost ?? new BunStaticPreviewHost();
 
 	const adapter = new BunServerAdapter({
 		...params,
 		runtimeOrigin,
 		bridge,
 		hmrManager,
-		lifecycle,
-		staticBuilderFactory: params.staticBuilderFactory ?? ((opts) => new ServerStaticBuilder(opts)),
-		routeHandlerFactory: params.routeHandlerFactory ?? ((p) => new ServerRouteHandler(p)),
+		previewHost,
 	});
 
 	return adapter.createAdapter();

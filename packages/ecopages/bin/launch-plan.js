@@ -52,18 +52,6 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
-export function buildNodeArgs(args, options, entryFile, _hasConfig) {
-	const nodeArgs = [];
-
-	nodeArgs.push(entryFile, ...args);
-
-	if (options.reactFastRefresh) {
-		nodeArgs.push('--react-fast-refresh');
-	}
-
-	return nodeArgs;
-}
-
 export function resolveTsxCliPath() {
 	try {
 		return require.resolve('tsx/cli');
@@ -75,19 +63,18 @@ export function resolveTsxCliPath() {
 }
 
 export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
-	const hasConfig = existsSync('eco.config.ts');
 	const envOverrides = buildEnvOverrides(options);
 	const runtime = detectRuntime(options);
 	const env = { ...process.env, ...envOverrides };
 
 	if (runtime === 'node') {
 		const tsxCliPath = resolveTsxCliPath();
+		const nodeArgs = [entryFile, ...args];
 
 		return {
 			runtime,
-			executionStrategy: 'direct-runtime',
 			command: process.execPath,
-			commandArgs: [tsxCliPath, ...buildNodeArgs(args, options, entryFile, hasConfig)],
+			commandArgs: [tsxCliPath, ...nodeArgs],
 			envOverrides,
 			env,
 		};
@@ -95,14 +82,9 @@ export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts')
 
 	return {
 		runtime,
-		executionStrategy: 'direct-runtime',
 		command: 'bun',
-		commandArgs: buildBunArgs(args, options, entryFile, hasConfig),
+		commandArgs: buildBunArgs(args, options, entryFile, existsSync('eco.config.ts')),
 		envOverrides,
 		env,
 	};
-}
-
-export function launchPlanRequiresExistingEntryFile(launchPlan) {
-	return launchPlan.executionStrategy !== 'config-only-bootstrap';
 }

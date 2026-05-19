@@ -2,7 +2,7 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It prefers Bun when available, falls back to Node otherwise, and automatically detects your `eco.config.ts`.
+It provides scaffolding and development commands to streamline your workflow. It prefers Bun when available, falls back to Node otherwise, and applies runtime-specific launch behavior for each engine.
 
 ## Quick Start
 

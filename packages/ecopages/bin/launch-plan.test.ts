@@ -3,15 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-	buildEnvOverrides,
-	buildBunArgs,
-	buildNodeArgs,
-	createLaunchPlan,
-	detectRuntime,
-	launchPlanRequiresExistingEntryFile,
-	resolveTsxCliPath,
-} from './launch-plan.js';
+import { buildEnvOverrides, buildBunArgs, createLaunchPlan, detectRuntime, resolveTsxCliPath } from './launch-plan.js';
 
 const require = createRequire(import.meta.url);
 
@@ -85,10 +77,6 @@ describe('launch-plan', () => {
 		]);
 	});
 
-	it('buildNodeArgs runs the entry file directly', () => {
-		expect(buildNodeArgs(['--dev'], {}, 'app.ts', true)).toEqual(['app.ts', '--dev']);
-	});
-
 	it('resolveTsxCliPath resolves the packaged tsx cli entry', () => {
 		expect(resolveTsxCliPath()).toBe(require.resolve('tsx/cli'));
 	});
@@ -99,15 +87,32 @@ describe('launch-plan', () => {
 			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-			writeExperimentalRuntimeConfig(tempDir);
 
 			const plan = await createLaunchPlan(['--dev'], { runtime: 'node', nodeEnv: 'development' }, 'app.ts');
 
 			expect(plan).toMatchObject({
 				runtime: 'node',
-				executionStrategy: 'direct-runtime',
 				command: process.execPath,
 			});
+			expect(plan.commandArgs).toEqual([require.resolve('tsx/cli'), 'app.ts', '--dev']);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('createLaunchPlan keeps react fast refresh Bun-only', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		try {
+			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+			process.chdir(tempDir);
+			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+
+			const plan = await createLaunchPlan(
+				['--dev'],
+				{ runtime: 'node', nodeEnv: 'development', reactFastRefresh: true },
+				'app.ts',
+			);
+
 			expect(plan.commandArgs).toEqual([require.resolve('tsx/cli'), 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
@@ -125,7 +130,6 @@ describe('launch-plan', () => {
 
 			expect(plan).toMatchObject({
 				runtime: 'bun',
-				executionStrategy: 'direct-runtime',
 				command: 'bun',
 			});
 			expect(plan.commandArgs).toEqual(['run', '--preload', './eco.config.ts', 'app.ts', '--preview']);
@@ -134,7 +138,7 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('launchPlanRequiresExistingEntryFile requires a concrete entry on every runtime path', async () => {
+	it('createLaunchPlan always targets a concrete entry file', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.chdir(tempDir);
@@ -142,7 +146,7 @@ describe('launch-plan', () => {
 			writeExperimentalRuntimeConfig(tempDir);
 
 			const bunPlan = await createLaunchPlan(['--dev'], { nodeEnv: 'development' }, 'app.ts');
-			expect(launchPlanRequiresExistingEntryFile(bunPlan)).toBe(true);
+			expect(bunPlan.commandArgs).toContain('app.ts');
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { runCommand } from 'citty';
-import { mainCommand } from './cli.js';
+import { runCli } from './cli.js';
 import * as giget from 'giget';
 import * as fs from 'node:fs';
 import * as launchPlan from './launch-plan.js';
@@ -20,7 +19,6 @@ vi.mock('node:fs', async (importOriginal) => {
 
 vi.mock('./launch-plan.js', () => ({
 	createLaunchPlan: vi.fn(),
-	launchPlanRequiresExistingEntryFile: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -42,8 +40,7 @@ describe('CLI Commands', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 
-		// Default mocks
-		vi.mocked(fs.existsSync).mockReturnValue(false); // pretend no existing dir
+		vi.mocked(fs.existsSync).mockImplementation((filePath) => filePath === 'app.ts' || filePath === 'server.ts');
 		vi.mocked(launchPlan.createLaunchPlan).mockResolvedValue({
 			runtime: 'node',
 			command: 'node',
@@ -51,11 +48,10 @@ describe('CLI Commands', () => {
 			envOverrides: {},
 			env: {},
 		} as any);
-		vi.mocked(launchPlan.launchPlanRequiresExistingEntryFile).mockReturnValue(false);
 	});
 
 	it('runs init command with default template and repo', async () => {
-		await runCommand(mainCommand, { rawArgs: ['init', 'my-new-project'] });
+		await runCli(['init', 'my-new-project']);
 		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/examples/starter-jsx', {
 			dir: 'my-new-project',
 			force: true,
@@ -63,9 +59,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs init command with custom template and repo', async () => {
-		await runCommand(mainCommand, {
-			rawArgs: ['init', 'my-dir', '--template', 'starter-lit', '--repo', 'custom/repo'],
-		});
+		await runCli(['init', 'my-dir', '--template', 'starter-lit', '--repo', 'custom/repo']);
 		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:custom/repo/examples/starter-lit', {
 			dir: 'my-dir',
 			force: true,
@@ -73,7 +67,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs dev command and passes defaults to launch plan', async () => {
-		await runCommand(mainCommand, { rawArgs: ['dev'] });
+		await runCli(['dev']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({ nodeEnv: 'development' }),
@@ -82,7 +76,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs dev:hot command', async () => {
-		await runCommand(mainCommand, { rawArgs: ['dev:hot'] });
+		await runCli(['dev:hot']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({ hot: true, nodeEnv: 'development' }),
@@ -91,7 +85,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs dev:watch command', async () => {
-		await runCommand(mainCommand, { rawArgs: ['dev:watch'] });
+		await runCli(['dev:watch']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({ watch: true, nodeEnv: 'development' }),
@@ -100,7 +94,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs build command with custom entry file', async () => {
-		await runCommand(mainCommand, { rawArgs: ['build', 'server.ts'] });
+		await runCli(['build', 'server.ts']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--build'],
 			expect.objectContaining({ nodeEnv: 'production' }),
@@ -108,8 +102,21 @@ describe('CLI Commands', () => {
 		);
 	});
 
+	it('passes shared build options like base url and hostname correctly', async () => {
+		await runCli(['build', '--base-url', '/docs/', '--hostname', '127.0.0.1']);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
+			['--build'],
+			expect.objectContaining({
+				nodeEnv: 'production',
+				baseUrl: '/docs/',
+				hostname: '127.0.0.1',
+			}),
+			'app.ts',
+		);
+	});
+
 	it('passes shared server options like port and hostname correctly', async () => {
-		await runCommand(mainCommand, { rawArgs: ['start', '-p', '4000', '--hostname', '0.0.0.0'] });
+		await runCli(['start', '-p', '4000', '--hostname', '0.0.0.0']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			[],
 			expect.objectContaining({
@@ -122,13 +129,26 @@ describe('CLI Commands', () => {
 	});
 
 	it('allows overriding base url and debug options', async () => {
-		await runCommand(mainCommand, { rawArgs: ['preview', '--base-url', '/my-app/', '-d'] });
+		await runCli(['preview', '--base-url', '/my-app/', '-d']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--preview'],
 			expect.objectContaining({
 				nodeEnv: 'production',
-				'base-url': '/my-app/',
+				baseUrl: '/my-app/',
 				debug: true,
+			}),
+			'app.ts',
+		);
+	});
+
+	it('normalizes react fast refresh to the launch-plan option shape', async () => {
+		await runCli(['dev', '--react-fast-refresh', '--runtime', 'bun']);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
+			['--dev'],
+			expect.objectContaining({
+				nodeEnv: 'development',
+				reactFastRefresh: true,
+				runtime: 'bun',
 			}),
 			'app.ts',
 		);

@@ -369,9 +369,6 @@ importers:
             bun-types:
                 specifier: '*'
                 version: 1.3.14
-            citty:
-                specifier: ^0.1.6
-                version: 0.1.6
             giget:
                 specifier: ^2.0.0
                 version: 2.0.0

@@ -37,7 +37,6 @@
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
-		"citty": "^0.1.6",
 		"giget": "^2.0.0",
 		"tsx": "^4.22.0"
 	},

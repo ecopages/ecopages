@@ -49,7 +49,7 @@ export class LitPlugin extends IntegrationPlugin {
 			 */
 			AssetFactory.createInlineContentScript({
 				position: 'head',
-				content: litElementHydrateScript,
+				content: `(() => {${litElementHydrateScript}})();`,
 				bundle: false,
 				attributes: {
 					'data-eco-script-id': 'lit-hydrate-support',

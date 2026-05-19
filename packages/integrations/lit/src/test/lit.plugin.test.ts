@@ -7,10 +7,20 @@ describe('LitPlugin', () => {
 		const [dependency] = plugin.getDependencies();
 
 		expect(dependency).toMatchObject({
+			kind: 'script',
+			source: 'content',
+			inline: true,
 			attributes: {
 				'data-eco-script-id': 'lit-hydrate-support',
 			},
 		});
 		expect(dependency.attributes?.['data-eco-rerun']).toBeUndefined();
+
+		if (dependency.kind !== 'script' || dependency.source !== 'content') {
+			throw new Error('Expected Lit hydrate dependency to be an inline content script');
+		}
+
+		expect(dependency.content).toContain('(() => {');
+		expect(dependency.content).toContain('globalThis.litElementHydrateSupport');
 	});
 });

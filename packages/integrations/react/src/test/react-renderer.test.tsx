@@ -8,8 +8,10 @@ import {
 	type EcoComponent,
 	type EcoPageFile,
 	type HtmlTemplateProps,
+	type PageBrowserGraphResult,
 } from '@ecopages/core';
 import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/integration-renderer';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
@@ -61,9 +63,14 @@ type TestReactRuntimeModules = {
 	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToReadableStream' | 'renderToString'>;
 };
 
+const createAssetProcessingServiceMock = () => ({
+	getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	processDependencies: vi.fn(async () => []),
+});
+
 const renderer = new ReactRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
+	assetProcessingService: createAssetProcessingServiceMock() as any,
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
@@ -74,7 +81,7 @@ class TestReactRenderer extends ReactRenderer {
 	shouldHydratePageOverride?: boolean;
 	isMdxFileOverride?: boolean;
 	declaredModulesOverride?: string[];
-	pageBrowserGraphOverride?: Awaited<ReturnType<ReactRenderer['buildPageBrowserGraph']>>;
+	pageBrowserGraphOverride?: PageBrowserGraphResult;
 	reactRuntimeModulesOverride?: TestReactRuntimeModules;
 
 	constructor(options: ConstructorParameters<typeof ReactRenderer>[0]) {
@@ -85,8 +92,8 @@ class TestReactRenderer extends ReactRenderer {
 		const originalCollectPageDeclaredModules = this.pageModuleService.collectPageDeclaredModules.bind(
 			this.pageModuleService,
 		);
-		const originalBuildPageBrowserGraphAssets = this.hydrationAssetService.buildPageBrowserGraphAssets.bind(
-			this.hydrationAssetService,
+		const originalProcessDependencies = this.assetProcessingService.processDependencies.bind(
+			this.assetProcessingService,
 		);
 
 		this.pageModuleService.shouldHydratePage = ((pageModule) =>
@@ -97,13 +104,13 @@ class TestReactRenderer extends ReactRenderer {
 		this.pageModuleService.collectPageDeclaredModules = ((pageModule) =>
 			this.declaredModulesOverride ??
 			originalCollectPageDeclaredModules(pageModule)) as typeof this.pageModuleService.collectPageDeclaredModules;
-		this.hydrationAssetService.buildPageBrowserGraphAssets = (async (pagePath, isMdx, declaredModules) =>
-			this.pageBrowserGraphOverride?.assets ??
-			originalBuildPageBrowserGraphAssets(
-				pagePath,
-				isMdx,
-				declaredModules,
-			)) as typeof this.hydrationAssetService.buildPageBrowserGraphAssets;
+		this.assetProcessingService.processDependencies = vi.fn(
+			async (...args) =>
+				(this.pageBrowserGraphOverride
+					? [...this.pageBrowserGraphOverride.entryAssets, ...this.pageBrowserGraphOverride.chunkAssets]
+					: undefined) ??
+				originalProcessDependencies(...(args as Parameters<typeof originalProcessDependencies>)),
+		) as typeof this.assetProcessingService.processDependencies;
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {
@@ -121,12 +128,20 @@ class TestReactRenderer extends ReactRenderer {
 
 		return await super.importPageFile(file);
 	}
+
+	public async testPrepareRenderOptions(filePath: string) {
+		return await this.prepareRenderOptions({ file: filePath, params: {}, query: {} });
+	}
+
+	public getCurrentPagePackageForTest() {
+		return this.htmlTransformer.getPagePackage();
+	}
 }
 
 const createRenderer = (reactConfig?: ReactRendererConfig) => {
 	return new TestReactRenderer({
 		appConfig: Config,
-		assetProcessingService: {} as any,
+		assetProcessingService: createAssetProcessingServiceMock() as any,
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 		reactConfig,
@@ -140,10 +155,7 @@ class ImportTestReactRenderer extends ReactRenderer {
 }
 
 const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
-	const assetProcessingService = {
-		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-		processDependencies: vi.fn(async () => []),
-	};
+	const assetProcessingService = createAssetProcessingServiceMock();
 
 	const testRenderer = new TestReactRenderer({
 		appConfig: Config,
@@ -540,14 +552,18 @@ describe('ReactRenderer', () => {
 		testRenderer.shouldHydratePageOverride = true;
 		testRenderer.isMdxFileOverride = false;
 		testRenderer.declaredModulesOverride = [];
-		testRenderer.pageBrowserGraphOverride = { assets: hydrationAssets };
+		testRenderer.pageBrowserGraphOverride = { entryAssets: hydrationAssets, chunkAssets: [] };
 
 		try {
 			process.env.NODE_ENV = 'development';
 
-			await expect(testRenderer.buildPageBrowserGraph(pageFilePath)).resolves.toEqual({
-				assets: hydrationAssets,
-			});
+			await expect(testRenderer.testPrepareRenderOptions(pageFilePath)).resolves.toEqual(
+				expect.objectContaining({
+					pagePackage: expect.objectContaining({
+						assets: expect.arrayContaining(hydrationAssets),
+					}),
+				}),
+			);
 		} finally {
 			process.env.NODE_ENV = originalNodeEnv;
 		}
@@ -555,25 +571,19 @@ describe('ReactRenderer', () => {
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
 		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
-		const body = await testRenderer.render({
+		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		testRenderer.importedPageFileOverride = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+
+		const result = await testRenderer.execute({
+			file: pageFilePath,
 			params: {},
 			query: {},
-			props: { routeFiles: ['a.tsx'] },
-			resolvedDependencies: [],
-			file: pageFilePath,
-			metadata: {
-				title: 'Test Page',
-				description: 'Test Description',
-			},
-			dependencies: {
-				scripts: [],
-				stylesheets: [],
-			},
-			Page,
-			HtmlTemplate: NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps, JSX.Element>,
 		});
 
-		const text = await new Response(body as BodyInit).text();
+		const text = await new Response(result.body as BodyInit).text();
 		expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
@@ -666,7 +676,7 @@ describe('ReactRenderer', () => {
 
 		const testRenderer = new TestReactRenderer({
 			appConfig: config,
-			assetProcessingService: {} as any,
+			assetProcessingService: createAssetProcessingServiceMock() as any,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
@@ -743,6 +753,68 @@ describe('ReactRenderer', () => {
 			expect(body).toContain(`<html lang="en" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`);
 		});
 
+		it('should emit canonical page data for router-backed views inside non-react html templates', async () => {
+			const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
+			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+
+			const response = await testRenderer.renderToResponse(MockView, { title: 'Hello React' }, {});
+			const body = await response.text();
+
+			expect(body).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
+			expect(body).toContain('<h1>Hello React</h1>');
+		});
+
+		it('should emit hydration assets for full view rendering through the shared page browser graph path', async () => {
+			const testRenderer = createRenderer();
+			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			MockView.config = {
+				__eco: {
+					id: 'mock-view',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			testRenderer.importedPageFileOverride = {
+				default: Page,
+				config: {},
+			} as EcoPageFile;
+			testRenderer.shouldHydratePageOverride = true;
+			testRenderer.isMdxFileOverride = false;
+			testRenderer.declaredModulesOverride = [];
+			testRenderer.pageBrowserGraphOverride = {
+				entryAssets: [
+					{
+						kind: 'script',
+						srcUrl: '/assets/react-hydration.js',
+						position: 'body',
+						attributes: { type: 'module' },
+					},
+				] as ProcessedAsset[],
+				chunkAssets: [
+					{
+						kind: 'script',
+						srcUrl: '/assets/react-hydration.chunk.js',
+						position: 'body',
+						packageRole: 'dynamic-chunk',
+					},
+				] as ProcessedAsset[],
+			};
+
+			const response = await testRenderer.renderToResponse(MockView, { title: 'Hello React' }, {});
+			const body = await response.text();
+			const pagePackage = testRenderer.getCurrentPagePackageForTest();
+
+			expect(body).toContain('/assets/react-hydration.js');
+			expect(body).not.toContain('/assets/react-hydration.chunk.js');
+			expect(pagePackage?.pageBrowserGraph).toEqual(testRenderer.pageBrowserGraphOverride);
+		});
+
 		it('should render a partial view without full HTML wrapper', async () => {
 			const testRenderer = createRenderer();
 			const MockView = ((props: { content: string }) => <div>{props.content}</div>) as unknown as EcoComponent<{
@@ -764,7 +836,7 @@ describe('ReactRenderer', () => {
 
 			const testRenderer = new ReactRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createAssetProcessingServiceMock() as any,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -855,7 +927,7 @@ describe('ReactRenderer', () => {
 
 			const testRenderer = new TestReactRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createAssetProcessingServiceMock() as any,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -907,7 +979,7 @@ describe('ReactRenderer', () => {
 		it('uses the integration-specific importer only for MDX files and normalizes config onto the page component', async () => {
 			const testRenderer = new ImportTestReactRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createAssetProcessingServiceMock() as any,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});

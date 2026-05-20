@@ -1,5 +1,6 @@
 import type { PagePackageResult } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from './assets.types.ts';
+import type { PageBrowserGraphResult } from '../../../types/public-types.ts';
 
 function getSuppressedSourceFilepaths(assets: ProcessedAsset[]): Set<string> {
 	const suppressed = new Set<string>();
@@ -18,15 +19,23 @@ function getSuppressedSourceFilepaths(assets: ProcessedAsset[]): Set<string> {
 	return suppressed;
 }
 
-export function createPagePackage(assets: ProcessedAsset[]): PagePackageResult {
+export function createPagePackage(
+	assets: ProcessedAsset[],
+	options: { pageBrowserGraph?: PageBrowserGraphResult } = {},
+): PagePackageResult {
+	const allAssets = [
+		...assets,
+		...(options.pageBrowserGraph?.entryAssets ?? []),
+		...(options.pageBrowserGraph?.chunkAssets ?? []),
+	];
 	const inlineAssets: ProcessedAsset[] = [];
 	const separateAssets: ProcessedAsset[] = [];
 	const dynamicChunks: ProcessedAsset[] = [];
 	let pageScript: ProcessedAsset | undefined;
 	let pageStylesheet: ProcessedAsset | undefined;
-	const suppressedSourceFilepaths = getSuppressedSourceFilepaths(assets);
+	const suppressedSourceFilepaths = getSuppressedSourceFilepaths(allAssets);
 
-	for (const asset of assets) {
+	for (const asset of allAssets) {
 		if (asset.inline) {
 			inlineAssets.push(asset);
 			continue;
@@ -66,8 +75,9 @@ export function createPagePackage(assets: ProcessedAsset[]): PagePackageResult {
 	}
 
 	return {
-		assets,
-		htmlAssets: assets.filter((asset) => shouldIncludeInHtml(asset, suppressedSourceFilepaths)),
+		assets: allAssets,
+		pageBrowserGraph: options.pageBrowserGraph,
+		htmlAssets: allAssets.filter((asset) => shouldIncludeInHtml(asset, suppressedSourceFilepaths)),
 		pageScript,
 		pageStylesheet,
 		inlineAssets,

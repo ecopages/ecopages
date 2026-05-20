@@ -17,6 +17,9 @@ import type {
 	BaseIntegrationContext,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageBrowserGraphContribution,
+	PageBrowserGraphContributionContext,
+	PageBrowserGraphResult,
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -28,6 +31,7 @@ import {
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
@@ -46,6 +50,7 @@ import {
 	type ForeignSubtreeExecutionOwningRenderer,
 } from './foreign-subtree-execution.service.ts';
 import { type QueuedForeignSubtreeResolutionContext } from './queued-foreign-subtree-resolution.service.ts';
+import { buildProcessedAssetDedupeKey } from './processed-asset-dedupe.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -67,6 +72,14 @@ export interface RenderToResponseContext {
 	status?: number;
 	headers?: HeadersInit;
 }
+
+export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
+	renderOptions?: IntegrationRendererRenderOptions<C>;
+	partial?: boolean;
+};
+
+export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
+export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 
 type MarkupNodeLike = {
 	nodeType: number;
@@ -279,6 +292,57 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		);
 		this.htmlTransformer.setPagePackage(createPagePackage(resolvedDependencies));
 		return resolvedDependencies;
+	}
+
+	protected async resolvePageBrowserGraphForFile(filePath: string): Promise<PageBrowserGraphResult | undefined> {
+		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
+			routeFile: filePath,
+			integrationName: this.name,
+			collectContribution: async () => {
+				const pageModule = await this.importPageFile(filePath);
+				return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
+			},
+		});
+	}
+
+	protected mergePageBrowserGraphIntoPagePackage(
+		pageBrowserGraph?: PageBrowserGraphResult,
+	): PageBrowserGraphResult | undefined {
+		if (!pageBrowserGraph) {
+			return undefined;
+		}
+
+		const currentPagePackage = this.htmlTransformer.getPagePackage();
+		const mergedPageBrowserGraph = currentPagePackage?.pageBrowserGraph
+			? {
+					entryAssets: this.htmlTransformer.dedupeProcessedAssets([
+						...currentPagePackage.pageBrowserGraph.entryAssets,
+						...pageBrowserGraph.entryAssets,
+					]),
+					chunkAssets: this.htmlTransformer.dedupeProcessedAssets([
+						...currentPagePackage.pageBrowserGraph.chunkAssets,
+						...pageBrowserGraph.chunkAssets,
+					]),
+				}
+			: pageBrowserGraph;
+		const pageBrowserGraphAssetKeys = new Set(
+			[...mergedPageBrowserGraph.entryAssets, ...mergedPageBrowserGraph.chunkAssets].map((asset) =>
+				buildProcessedAssetDedupeKey(asset),
+			),
+		);
+		const baseAssets = currentPagePackage
+			? currentPagePackage.assets.filter(
+					(asset) => !pageBrowserGraphAssetKeys.has(buildProcessedAssetDedupeKey(asset)),
+				)
+			: this.htmlTransformer.getProcessedDependencies();
+
+		this.htmlTransformer.setPagePackage(
+			createPagePackage(this.htmlTransformer.dedupeProcessedAssets(baseAssets), {
+				pageBrowserGraph: mergedPageBrowserGraph,
+			}),
+		);
+
+		return mergedPageBrowserGraph;
 	}
 
 	/**
@@ -830,11 +894,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return {
 			name: this.name,
 			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
-			resolveRouteAssets: (input) => this.resolveRouteAssets(input),
+			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
+			collectPageBrowserGraphContribution: async (routeFile) => {
+				const pageModule = await this.importPageFile(routeFile);
+				return await this.collectPageBrowserGraphContribution({ file: routeFile, pageModule });
+			},
 			resolveRoutePageComponentRender: (input) => this.resolveRoutePageComponentRender(input),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
 			getRouteHtmlFinalization: (renderOptions) => this.getRouteHtmlFinalization(renderOptions),
-			transformRouteResponse: (response) => this.transformRouteResponse(response),
+			transformRouteResponse: (response, htmlContributions) =>
+				this.transformRouteResponse(response, htmlContributions),
 		};
 	}
 
@@ -863,13 +932,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	protected async resolveRouteAssets(input: {
-		routeOptions: RouteRendererOptions;
+	protected async resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<{ resolvedDependencies: ProcessedAsset[]; pageBrowserGraph?: { assets: ProcessedAsset[] } }> {
+	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
 			resolvedDependencies: await this.resolveDependencies(input.components),
-			pageBrowserGraph: await this.buildPageBrowserGraph(input.routeOptions.file),
 		};
 	}
 
@@ -908,15 +975,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				? (renderOptions.componentRender.rootAttributes as Record<string, string>)
 				: undefined;
 		const documentAttributes = this.getDocumentAttributes(renderOptions);
+		const htmlContributions = this.getHtmlDocumentContributions({ renderOptions, partial: false });
 		const hasStructuralFinalization =
 			(componentRootAttributes && Object.keys(componentRootAttributes).length > 0) ||
 			(documentAttributes && Object.keys(documentAttributes).length > 0);
 
-		if (!hasStructuralFinalization) {
+		if (!hasStructuralFinalization && (!htmlContributions || htmlContributions.length === 0)) {
 			return {};
 		}
 
 		return {
+			htmlContributions,
 			finalizeHtml: (html) => {
 				let renderedHtml = html;
 
@@ -936,8 +1005,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	protected async transformRouteResponse(response: Response): Promise<RouteRendererBody> {
-		const transformedResponse = await this.htmlTransformer.transform(response);
+	protected async transformRouteResponse(
+		response: Response,
+		htmlContributions?: HtmlDocumentContribution[],
+	): Promise<RouteRendererBody> {
+		const transformedResponse = await this.htmlTransformer.transform(response, htmlContributions);
 		return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 	}
 
@@ -1010,6 +1082,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		componentRootAttributes?: Record<string, string>;
 		documentAttributes?: Record<string, string>;
 		transformHtml?: boolean;
+		htmlContributions?: HtmlDocumentContribution[];
 	}): Promise<string> {
 		const rendererBootstrapDependencies = this.getRendererBootstrapDependencies(options.partial);
 		this.appendProcessedDependencies(rendererBootstrapDependencies);
@@ -1029,10 +1102,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return html;
 		}
 
+		const htmlContributions =
+			options.htmlContributions ??
+			this.getHtmlDocumentContributions({
+				partial: options.partial,
+			});
+
 		const transformedResponse = await this.htmlTransformer.transform(
 			new Response(html, {
 				headers: { 'Content-Type': 'text/html' },
 			}),
+			htmlContributions,
 		);
 
 		return await transformedResponse.text();
@@ -1047,6 +1127,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected getDocumentAttributes(
 		_renderOptions: IntegrationRendererRenderOptions<C>,
 	): Record<string, string> | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Returns declarative HTML fragments that core should inject into the final document.
+	 *
+	 * @remarks
+	 * Integrations may contribute document markup here, but core retains ownership
+	 * of the final HTML rewrite pipeline and placement semantics. This is the
+	 * supported document-markup extension point for integrations instead of custom
+	 * response finalization logic.
+	 */
+	protected getHtmlDocumentContributions(
+		_options: HtmlDocumentContributionContext<C>,
+	): HtmlDocumentContribution[] | undefined {
 		return undefined;
 	}
 
@@ -1239,13 +1334,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Builds the Page Browser Graph owned by this integration for one Page.
-	 * This method can be optionally overridden by the specific integration renderer.
+	 * Collects declarative Page Browser Graph contributions for one Page.
 	 *
-	 * @param file - The file path to build assets for.
-	 * @returns The structured Page Browser Graph or undefined.
+	 * @remarks
+	 * Integrations may describe page-scoped browser requirements here, while core
+	 * retains ownership of dependency processing and final graph assembly. This is
+	 * the supported page-browser extension point for integrations.
+	 *
+	 * @param context - The route file path and already imported page module.
+	 * @returns Declarative dependencies or pre-resolved assets for the Page.
 	 */
-	protected async buildPageBrowserGraph(_file: string): Promise<{ assets: ProcessedAsset[] } | undefined> {
+	protected async collectPageBrowserGraphContribution(
+		_context: PageBrowserGraphContributionContext,
+	): Promise<PageBrowserGraphContribution | undefined> {
 		return undefined;
 	}
 

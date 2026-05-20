@@ -15,8 +15,12 @@ import type {
 	RouteRendererBody,
 } from '@ecopages/core';
 import { assertIntegrationInvariant } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import {
+	IntegrationRenderer,
+	type PageBrowserGraphContribution,
+	type PageBrowserGraphContributionContext,
+	type RenderToResponseContext,
+} from '@ecopages/core/route-renderer/integration-renderer';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { rapidhash } from '@ecopages/core/hash';
@@ -47,8 +51,11 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 		this.compilerOptions = mdxConfig?.compilerOptions ?? {};
 	}
 
-	override async buildPageBrowserGraph(pagePath: string): Promise<{ assets: ProcessedAsset[] }> {
-		const { default: pageComponent } = await this.importPageFile(pagePath);
+	protected override async collectPageBrowserGraphContribution(
+		context: PageBrowserGraphContributionContext,
+	): Promise<PageBrowserGraphContribution> {
+		const { file: pagePath, pageModule } = context;
+		const { default: pageComponent } = pageModule;
 		const config = pageComponent.config;
 		const components: Partial<EcoComponent>[] = [];
 
@@ -71,9 +78,7 @@ export class MDXRenderer extends IntegrationRenderer<EcoPagesElement> {
 			});
 		}
 
-		return {
-			assets: await this.resolveDependencies(components),
-		};
+		return { assets: await this.resolveDependencies(components) };
 	}
 
 	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(

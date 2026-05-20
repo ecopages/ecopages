@@ -6,7 +6,17 @@ import {
 	type HtmlRewriterMode,
 	type HtmlRewriterProvider,
 } from './html-rewriter-provider.service.ts';
-import { dedupeProcessedAssets } from '../../route-renderer/orchestration/processed-asset-dedupe.ts';
+import {
+	buildProcessedAssetDedupeKey,
+	dedupeProcessedAssets,
+} from '../../route-renderer/orchestration/processed-asset-dedupe.ts';
+
+export type HtmlDocumentContributionPlacement = 'head-prepend' | 'head-append' | 'body-prepend' | 'body-append';
+
+export type HtmlDocumentContribution = {
+	placement: HtmlDocumentContributionPlacement;
+	html: string;
+};
 
 export interface HtmlTransformerServiceOptions {
 	htmlRewriterMode?: HtmlRewriterMode;
@@ -73,6 +83,16 @@ export class HtmlTransformerService {
 			.join('');
 	}
 
+	private applyContributions(
+		element: HtmlRewriterElement,
+		contributions: HtmlDocumentContribution[],
+		placement: 'prepend' | 'append',
+	) {
+		for (const contribution of contributions) {
+			element[placement](contribution.html, { html: true });
+		}
+	}
+
 	/**
 	 * Injects generated markup immediately before the closing HTML tag when it is
 	 * present, or appends/prepends a fallback insertion otherwise.
@@ -97,6 +117,32 @@ export class HtmlTransformerService {
 		return `${html}${content}`;
 	}
 
+	private injectAfterOpeningTag(html: string, tag: 'head' | 'body', content: string): string {
+		if (!content) {
+			return html;
+		}
+
+		const openingTag = new RegExp(`<${tag}\\b[^>]*>`, 'i');
+		const match = html.match(openingTag);
+		if (!match || match.index === undefined) {
+			return tag === 'head'
+				? `${content}${html}`
+				: html.replace(/<body\b[^>]*>/i, (value) => `${value}${content}`);
+		}
+
+		const insertAt = match.index + match[0].length;
+		return `${html.slice(0, insertAt)}${content}${html.slice(insertAt)}`;
+	}
+
+	private groupContributionsByPlacement(contributions: HtmlDocumentContribution[]) {
+		return {
+			headPrepend: contributions.filter((item) => item.placement === 'head-prepend'),
+			headAppend: contributions.filter((item) => item.placement === 'head-append'),
+			bodyPrepend: contributions.filter((item) => item.placement === 'body-prepend'),
+			bodyAppend: contributions.filter((item) => item.placement === 'body-append'),
+		};
+	}
+
 	/**
 	 * Replaces the current processed dependency set used during HTML finalization.
 	 */
@@ -110,7 +156,7 @@ export class HtmlTransformerService {
 	 */
 	setPagePackage(pagePackage: PagePackageResult) {
 		this.pagePackage = pagePackage;
-		this.processedDependencies = pagePackage.htmlAssets;
+		this.processedDependencies = this.resolvePagePackageHtmlDependencies(pagePackage);
 	}
 
 	/**
@@ -209,17 +255,26 @@ export class HtmlTransformerService {
 	 * string-based fallback remains in place for runtimes that cannot provide one
 	 * of those rewriter implementations.
 	 */
-	async transform(res: Response): Promise<Response> {
+	async transform(res: Response, contributions: HtmlDocumentContribution[] = []): Promise<Response> {
 		const { head, body } = this.groupDependenciesByPosition();
+		const { headPrepend, headAppend, bodyPrepend, bodyAppend } = this.groupContributionsByPlacement(contributions);
 		const htmlRewriter = await this.htmlRewriterProvider.createHtmlRewriter();
 
 		if (htmlRewriter) {
 			htmlRewriter
 				.on('head', {
-					element: (element) => this.appendDependencies(element, head),
+					element: (element) => {
+						this.applyContributions(element, headPrepend, 'prepend');
+						this.appendDependencies(element, head);
+						this.applyContributions(element, headAppend, 'append');
+					},
 				})
 				.on('body', {
-					element: (element) => this.appendDependencies(element, body),
+					element: (element) => {
+						this.applyContributions(element, bodyPrepend, 'prepend');
+						this.appendDependencies(element, body);
+						this.applyContributions(element, bodyAppend, 'append');
+					},
 				});
 
 			return htmlRewriter.transform(res);
@@ -228,11 +283,25 @@ export class HtmlTransformerService {
 		const html = await res.text();
 		const headers = new Headers(res.headers);
 
-		const withHeadDependencies = this.injectBeforeClosingTag(html, 'head', this.buildDependencyTags(head));
-		const transformedHtml = this.injectBeforeClosingTag(
+		const withHeadPrependedContent = this.injectAfterOpeningTag(
+			html,
+			'head',
+			headPrepend.map((item) => item.html).join(''),
+		);
+		const withHeadDependencies = this.injectBeforeClosingTag(
+			withHeadPrependedContent,
+			'head',
+			`${this.buildDependencyTags(head)}${headAppend.map((item) => item.html).join('')}`,
+		);
+		const withBodyPrependedContent = this.injectAfterOpeningTag(
 			withHeadDependencies,
 			'body',
-			this.buildDependencyTags(body),
+			bodyPrepend.map((item) => item.html).join(''),
+		);
+		const transformedHtml = this.injectBeforeClosingTag(
+			withBodyPrependedContent,
+			'body',
+			`${this.buildDependencyTags(body)}${bodyAppend.map((item) => item.html).join('')}`,
 		);
 
 		return new Response(transformedHtml, {
@@ -246,7 +315,9 @@ export class HtmlTransformerService {
 	 * Splits processed assets into head and body injection groups.
 	 */
 	private groupDependenciesByPosition() {
-		const dependencies = this.pagePackage?.htmlAssets ?? this.processedDependencies;
+		const dependencies = this.pagePackage
+			? this.resolvePagePackageHtmlDependencies(this.pagePackage)
+			: this.processedDependencies;
 
 		return dependencies.reduce(
 			(acc, dep) => {
@@ -261,6 +332,29 @@ export class HtmlTransformerService {
 			},
 			{ head: [], body: [] } as Record<AssetPosition, ProcessedAsset[]>,
 		);
+	}
+
+	private resolvePagePackageHtmlDependencies(pagePackage: PagePackageResult): ProcessedAsset[] {
+		if (!pagePackage.pageBrowserGraph) {
+			return pagePackage.htmlAssets;
+		}
+
+		const chunkKeys = new Set(
+			pagePackage.pageBrowserGraph.chunkAssets.map((asset) => buildProcessedAssetDedupeKey(asset)),
+		);
+		const graphKeys = new Set(
+			[...pagePackage.pageBrowserGraph.entryAssets, ...pagePackage.pageBrowserGraph.chunkAssets].map((asset) =>
+				buildProcessedAssetDedupeKey(asset),
+			),
+		);
+		const nonGraphHtmlAssets = pagePackage.htmlAssets.filter(
+			(asset) => !graphKeys.has(buildProcessedAssetDedupeKey(asset)),
+		);
+		const entryHtmlAssets = pagePackage.pageBrowserGraph.entryAssets.filter(
+			(asset) => !chunkKeys.has(buildProcessedAssetDedupeKey(asset)),
+		);
+
+		return dedupeProcessedAssets([...nonGraphHtmlAssets, ...entryHtmlAssets]);
 	}
 
 	/**

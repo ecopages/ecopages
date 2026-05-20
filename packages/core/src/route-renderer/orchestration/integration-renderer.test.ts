@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
-import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
+import {
+	IntegrationRenderer,
+	type HtmlDocumentContribution,
+	type RenderToResponseContext,
+} from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './component-render-context.ts';
@@ -13,6 +17,7 @@ import type {
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
 	EcoPageFile,
+	PageBrowserGraphContribution,
 	RouteRendererOptions,
 	EcoComponent,
 	HtmlTemplateProps,
@@ -43,6 +48,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		| null = null;
 	MockComponentRenderResult: ComponentRenderResult | null = null;
 	ImportedFiles: string[] = [];
+	HtmlContributions: HtmlDocumentContribution[] = [];
 
 	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		if (this.RenderBodyFactory) {
@@ -112,10 +118,6 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		_components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
 		return [];
-	}
-
-	protected override async buildPageBrowserGraph(_file: string) {
-		return { assets: [] as ProcessedAsset[] };
 	}
 
 	/**
@@ -202,6 +204,10 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 		return super.createForeignChildRuntime(options);
 	}
+
+	protected override getHtmlDocumentContributions(): HtmlDocumentContribution[] | undefined {
+		return this.HtmlContributions;
+	}
 }
 
 describe('IntegrationRenderer', () => {
@@ -221,6 +227,76 @@ describe('IntegrationRenderer', () => {
 	const AssetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 	} as unknown as AssetProcessingService;
+
+	it('processes declarative page browser graph dependencies through shared route preparation', async () => {
+		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/page.js' }]);
+		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
+			name = 'declarative-renderer';
+			PageModule: EcoPageFile = { default: (() => 'Page') as EcoComponent };
+
+			async render(): Promise<RouteRendererBody> {
+				return '<html><body>Page</body></html>';
+			}
+
+			async renderToResponse(): Promise<Response> {
+				return new Response('<html><body>Page</body></html>');
+			}
+
+			protected override async importPageFile(): Promise<EcoPageFile> {
+				return this.PageModule;
+			}
+
+			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+				return (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+			}
+
+			protected override async collectPageBrowserGraphContribution(): Promise<PageBrowserGraphContribution> {
+				return {
+					dependencies: [
+						{
+							kind: 'script',
+							source: 'content',
+							content: 'console.log("page");',
+							name: 'page',
+							attributes: { type: 'module' },
+						},
+					],
+				};
+			}
+
+			public async testPrepareRenderOptions(options: RouteRendererOptions) {
+				return await super.prepareRenderOptions(options);
+			}
+		})({
+			appConfig: AppConfig,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/test.tsx', params: {}, query: {} });
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				assets: expect.arrayContaining([{ kind: 'script', inline: false, srcUrl: '/page.js' }]),
+				pageBrowserGraph: {
+					entryAssets: [{ kind: 'script', inline: false, srcUrl: '/page.js' }],
+					chunkAssets: [],
+				},
+			}),
+		);
+		expect(processDependencies).toHaveBeenCalledWith(
+			[
+				{
+					kind: 'script',
+					source: 'content',
+					content: 'console.log("page");',
+					name: 'page',
+					attributes: { type: 'module' },
+				},
+			],
+			'declarative-renderer:/app/pages/test.tsx',
+		);
+	});
 
 	it('should extract cache strategy from page component (static property)', async () => {
 		const renderer = new TestIntegrationRenderer({
@@ -382,6 +458,53 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('data-ecopages-runtime="islands"');
 		expect(html).toContain('import "virtual:ecopages/island-client.ts";');
+	});
+
+	it('should inject declarative html contributions during final html transformation', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.HtmlContributions = [
+			{ placement: 'head-prepend', html: '<meta name="integration-slot" content="head">' },
+			{ placement: 'body-append', html: '<script id="integration-tail">window.tail = true;</script>' },
+		];
+
+		const html = await renderer.testFinalizeResolvedHtml({
+			html: '<!DOCTYPE html><html><head><title>Page</title></head><body><main>hello</main></body></html>',
+		});
+
+		expect(html).toContain('<head><meta name="integration-slot" content="head"><title>Page</title>');
+		expect(html).toContain('<script id="integration-tail">window.tail = true;</script></body>');
+	});
+
+	it('should inject declarative html contributions during shared route execution', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.PageModule = {
+			default: (() => 'Hello Route') as EcoPageComponent<any>,
+		};
+		renderer.HtmlTemplate = (() =>
+			'<html><head><title>Route</title></head><body><main>Hello Route</main></body></html>') as EcoComponent<HtmlTemplateProps>;
+		renderer.RenderedBody = '<html><head><title>Route</title></head><body><main>Hello Route</main></body></html>';
+		renderer.HtmlContributions = [
+			{ placement: 'head-prepend', html: '<meta name="route-slot" content="head">' },
+			{ placement: 'body-append', html: '<script id="route-tail">window.routeTail = true;</script>' },
+		];
+
+		const result = await renderer.execute({
+			file: '/app/pages/route.tsx',
+			params: {},
+			query: {},
+		});
+		const html = await new Response(result.body as BodyInit).text();
+
+		expect(html).toContain('<head><meta name="route-slot" content="head"><title>Route</title>');
+		expect(html).toContain('<script id="route-tail">window.routeTail = true;</script></body>');
 	});
 
 	it('should keep layout locals safe and page locals guarded on static pages', async () => {

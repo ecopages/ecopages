@@ -27,6 +27,13 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Refactoring
 
+- Re-exported the renderer contribution contracts through the integration plugin surface so integrations declare page-browser and document HTML hooks from one core boundary.
+- Moved Page Browser Graph assembly into the shared route orchestrator so integrations now declare graph contributions instead of building page-browser assets inside renderer execution.
+- Cached shared Page Browser Graph resolution across repeated route preparation while automatically bypassing that cache when HMR is enabled.
+- Split resolved Page Browser Graph outputs into explicit entry and chunk asset groups while keeping route packaging flattening in the shared orchestrator.
+- Moved Page Browser Graph flattening behind `createPagePackage()` and threaded the structured graph through `PagePackageResult` so route preparation no longer collapses browser graph shape before packaging.
+- Updated HTML finalization to inject Page Browser Graph entry assets from `PagePackageResult` while keeping chunk assets out of the initial document injection path.
+- Preserved structured Page Browser Graph metadata through explicit renderer hydration paths so full-document view rendering reuses the shared graph contract without flattening it back into a plain page package.
 - Routed Bun runtime loader registration through the shared runtime plugin bootstrap so loaders and runtime plugins now follow one startup registration path.
 - Removed the Bun `ServerLifecycle` and shared runtime-bootstrap forwarding seams so Bun and Node adapters own their runtime startup directly against the shared build, plugin, and watcher helpers.
 - Moved shared HMR registration, strategy dispatch, runtime bundling, and entrypoint bookkeeping behind one shared manager module so Bun and Node now differ only at the runtime-specific transport hooks.

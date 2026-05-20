@@ -19,6 +19,11 @@ export type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '../build/build-types.ts';
+export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
+export type {
+	HtmlDocumentContribution,
+	HtmlDocumentContributionContext,
+} from '../route-renderer/orchestration/integration-renderer.ts';
 
 /**
  * Type-erased integration plugin stored in app-level registries.
@@ -109,7 +114,10 @@ type RendererClass<C> = new (options: {
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
  * hooks on this class, while `ConfigBuilder.build()` and app startup decide when
- * those hooks run.
+ * those hooks run. For page-browser and document shaping, integrations should
+ * prefer the contribution contracts re-exported from this module:
+ * `PageBrowserGraphContribution` / `PageBrowserGraphContributionContext` and
+ * `HtmlDocumentContribution` / `HtmlDocumentContributionContext`.
  */
 export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;

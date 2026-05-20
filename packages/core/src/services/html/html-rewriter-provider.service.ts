@@ -1,6 +1,7 @@
 import { appLogger } from '../../global/app-logger.ts';
 
 export type HtmlRewriterElement = {
+	prepend(content: string, options?: { html?: boolean }): void;
 	append(content: string, options?: { html?: boolean }): void;
 };
 

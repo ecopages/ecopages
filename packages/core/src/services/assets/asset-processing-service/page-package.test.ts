@@ -97,4 +97,39 @@ describe('createPagePackage', () => {
 		expect(result.pageStylesheet).toBe(pageStylesheet);
 		expect(result.htmlAssets).toEqual([pageStylesheet, pageScript]);
 	});
+
+	it('preserves structured page browser graph metadata while flattening it into the package assets', () => {
+		const routeAsset = {
+			kind: 'stylesheet',
+			srcUrl: '/assets/route.css',
+			position: 'head',
+		} as ProcessedAsset;
+		const entryAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const chunkAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.chunk.js',
+			position: 'body',
+			packageRole: 'dynamic-chunk',
+		} as ProcessedAsset;
+
+		const result = createPagePackage([routeAsset], {
+			pageBrowserGraph: {
+				entryAssets: [entryAsset],
+				chunkAssets: [chunkAsset],
+			},
+		});
+
+		expect(result.pageBrowserGraph).toEqual({
+			entryAssets: [entryAsset],
+			chunkAssets: [chunkAsset],
+		});
+		expect(result.assets).toEqual([routeAsset, entryAsset, chunkAsset]);
+		expect(result.pageScript).toBe(entryAsset);
+		expect(result.dynamicChunks).toEqual([chunkAsset]);
+	});
 });

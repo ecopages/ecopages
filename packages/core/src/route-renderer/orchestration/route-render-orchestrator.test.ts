@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
 	HtmlTemplateProps,
+	PageBrowserGraphContribution,
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -28,7 +29,7 @@ function createFlowAdapter(input: {
 		routeOptions: RouteRendererOptions,
 	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
 	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<any[]>;
-	buildPageBrowserGraph: (file: string) => Promise<{ assets: any[] } | undefined>;
+	collectPageBrowserGraphContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
 	shouldRenderPageComponent: (input: {
 		Page: EcoComponent;
 		Layout?: EcoComponent;
@@ -66,10 +67,11 @@ function createFlowAdapter(input: {
 				}),
 			};
 		},
-		resolveRouteAssets: async ({ routeOptions, components }) => ({
+		resolveRouteDependencies: async ({ components }) => ({
 			resolvedDependencies: await input.resolveDependencies(components),
-			pageBrowserGraph: await input.buildPageBrowserGraph(routeOptions.file),
 		}),
+		collectPageBrowserGraphContribution: async (routeFile) =>
+			await input.collectPageBrowserGraphContribution(routeFile),
 		resolveRoutePageComponentRender: async (renderInput) => {
 			if (
 				!input.shouldRenderPageComponent({
@@ -135,7 +137,7 @@ describe('RouteRenderOrchestrator', () => {
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => undefined,
+				collectPageBrowserGraphContribution: async () => undefined,
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: '<main>Page</main>',
@@ -175,7 +177,7 @@ describe('RouteRenderOrchestrator', () => {
 				getHtmlTemplate: async () => HtmlTemplate,
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => undefined,
+				collectPageBrowserGraphContribution: async () => undefined,
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: '<main>Page</main>',
@@ -216,7 +218,7 @@ describe('RouteRenderOrchestrator', () => {
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
-					buildPageBrowserGraph: async () => undefined,
+					collectPageBrowserGraphContribution: async () => undefined,
 					shouldRenderPageComponent: () => true,
 					renderPageComponent: async () => ({
 						html: '<main>Page</main>',
@@ -248,7 +250,7 @@ describe('RouteRenderOrchestrator', () => {
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
-					buildPageBrowserGraph: async () => undefined,
+					collectPageBrowserGraphContribution: async () => undefined,
 					shouldRenderPageComponent: () => true,
 					renderPageComponent: async () => ({
 						html: '<main>Page</main>',

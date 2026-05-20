@@ -206,18 +206,18 @@ export class ReactHydrationAssetService {
 	}
 
 	/**
-	 * Builds the Page Browser Graph assets for a React page.
+	 * Creates the Page Browser Graph dependency declarations for a React page.
 	 *
 	 * @param pagePath - Absolute file path of the page
 	 * @param isMdx - Whether the page is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
-	 * @returns Processed assets for the route
+	 * @returns Declarative assets for core-owned processing
 	 */
-	async buildPageBrowserGraphAssets(
+	async createPageBrowserGraphDependencies(
 		pagePath: string,
 		isMdx: boolean,
 		declaredModules: string[],
-	): Promise<ProcessedAsset[]> {
+	): Promise<AssetDefinition[]> {
 		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const isDevelopment = hmrManager?.isEnabled() ?? false;
@@ -245,6 +245,24 @@ export class ReactHydrationAssetService {
 			useBrowserRuntimeImports,
 			isMdx,
 		);
+
+		return dependencies;
+	}
+
+	/**
+	 * Builds the Page Browser Graph assets for a React page.
+	 *
+	 * @remarks
+	 * Kept as a compatibility wrapper while callers migrate to core-owned page
+	 * graph assembly.
+	 */
+	async buildPageBrowserGraphAssets(
+		pagePath: string,
+		isMdx: boolean,
+		declaredModules: string[],
+	): Promise<ProcessedAsset[]> {
+		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
+		const dependencies = await this.createPageBrowserGraphDependencies(pagePath, isMdx, declaredModules);
 
 		if (!this.config.assetProcessingService) {
 			throw new Error('AssetProcessingService is not set');

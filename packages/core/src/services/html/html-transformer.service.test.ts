@@ -33,12 +33,18 @@ class TestHtmlRewriter {
 					}
 
 					const chunks: string[] = [];
+					const prependedChunks: string[] = [];
 					handler.element({
+						prepend: (content: string) => {
+							prependedChunks.push(content);
+						},
 						append: (content: string) => {
 							chunks.push(content);
 						},
 					});
 
+					const openingTag = new RegExp(`<${selector}\\b[^>]*>`, 'i');
+					result = result.replace(openingTag, (value) => `${value}${prependedChunks.join('')}`);
 					const closingTag = `</${selector}>`;
 					result = result.replace(closingTag, `${chunks.join('')}${closingTag}`);
 				}
@@ -240,6 +246,26 @@ describe('HtmlTransformerService', () => {
 		const html = await result.text();
 
 		expect(html).toContain('<link rel="stylesheet" href="/test.css" media="screen">');
+	});
+
+	it('injects html contributions into explicit document slots', async () => {
+		const { transformer } = createTransformer();
+		const response = createMockResponse(
+			'<html><head><title>Base</title></head><body><main>Page</main></body></html>',
+		);
+
+		const result = await transformer.transform(response, [
+			{ placement: 'head-prepend', html: '<meta name="slot" content="head-prepend">' },
+			{ placement: 'head-append', html: '<script>window.headAppend = true;</script>' },
+			{ placement: 'body-prepend', html: '<div id="body-prepend"></div>' },
+			{ placement: 'body-append', html: '<div id="body-append"></div>' },
+		]);
+		const html = await result.text();
+
+		expect(html).toContain('<head><meta name="slot" content="head-prepend"><title>Base</title>');
+		expect(html).toContain('<script>window.headAppend = true;</script></head>');
+		expect(html).toContain('<body><div id="body-prepend"></div><main>Page</main>');
+		expect(html).toContain('<div id="body-append"></div></body>');
 	});
 
 	it('passes the original response through to the html rewriter so stream bodies remain available', async () => {
@@ -472,5 +498,47 @@ describe('HtmlTransformerService', () => {
 
 		expect(html).toContain('<script src="/chosen.js"></script>');
 		expect(html).not.toContain('/ignored.js');
+	});
+
+	it('injects page browser entry assets while keeping chunk assets out of initial html', async () => {
+		const { transformer } = createTransformer();
+		const routeStylesheet = {
+			kind: 'stylesheet',
+			srcUrl: '/route.css',
+			position: 'head',
+		} as ProcessedAsset;
+		const entryScript = {
+			kind: 'script',
+			srcUrl: '/page-entry.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const chunkScript = {
+			kind: 'script',
+			srcUrl: '/page-chunk.js',
+			position: 'body',
+			packageRole: 'dynamic-chunk',
+		} as ProcessedAsset;
+
+		transformer.setPagePackage({
+			assets: [routeStylesheet, entryScript, chunkScript],
+			pageBrowserGraph: {
+				entryAssets: [entryScript],
+				chunkAssets: [chunkScript],
+			},
+			htmlAssets: [routeStylesheet, entryScript, chunkScript],
+			pageScript: entryScript,
+			inlineAssets: [],
+			separateAssets: [],
+			dynamicChunks: [chunkScript],
+		});
+
+		const response = await transformer.transform(new Response('<html><head></head><body></body></html>'));
+		const html = await response.text();
+
+		expect(transformer.getProcessedDependencies()).toEqual([routeStylesheet, entryScript]);
+		expect(html).toContain('<link rel="stylesheet" href="/route.css">');
+		expect(html).toContain('<script src="/page-entry.js"></script>');
+		expect(html).not.toContain('/page-chunk.js');
 	});
 });

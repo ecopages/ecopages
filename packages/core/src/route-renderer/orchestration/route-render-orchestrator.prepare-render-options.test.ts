@@ -6,6 +6,7 @@ import type {
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
+	PageBrowserGraphContribution,
 	PageMetadataProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
@@ -42,7 +43,7 @@ function createFlowAdapter<C>(input: {
 		routeOptions: RouteRendererOptions,
 	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
 	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<ProcessedAsset[]>;
-	buildPageBrowserGraph: (file: string) => Promise<{ assets: ProcessedAsset[] } | undefined>;
+	collectPageBrowserGraphContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
 	shouldRenderPageComponent: (input: {
 		Page: EcoComponent;
 		Layout?: EcoComponent;
@@ -77,10 +78,11 @@ function createFlowAdapter<C>(input: {
 				}),
 			};
 		},
-		resolveRouteAssets: async ({ routeOptions, components }) => ({
+		resolveRouteDependencies: async ({ components }) => ({
 			resolvedDependencies: await input.resolveDependencies(components),
-			pageBrowserGraph: await input.buildPageBrowserGraph(routeOptions.file),
 		}),
+		collectPageBrowserGraphContribution: async (routeFile) =>
+			await input.collectPageBrowserGraphContribution(routeFile),
 		resolveRoutePageComponentRender: async (renderInput) => {
 			if (
 				!input.shouldRenderPageComponent({
@@ -168,7 +170,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Hello', description: 'Hello description' },
 				}),
 				resolveDependencies: async () => [resolvedDependency],
-				buildPageBrowserGraph: async () => ({ assets: [pageDependency] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [pageDependency] }),
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: '<main>Page</main>',
@@ -187,7 +189,16 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(result.componentRender?.assets).toEqual([componentAsset]);
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				assets: [resolvedDependency, integrationDependency, pageDependency, componentAsset],
+				assets: expect.arrayContaining([
+					resolvedDependency,
+					integrationDependency,
+					pageDependency,
+					componentAsset,
+				]),
+				pageBrowserGraph: {
+					entryAssets: [pageDependency],
+					chunkAssets: [],
+				},
 			}),
 		);
 	});
@@ -221,7 +232,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Page', description: 'Page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => true,
 				renderPageComponent: async () => ({
 					html: DeferredChild({}),
@@ -286,7 +297,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Page', description: 'Page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
 			}),
@@ -303,6 +314,196 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 			]),
 			'ghtml',
+		);
+	});
+
+	it('caches page browser graph resolution across repeated route preparation when HMR is disabled', async () => {
+		const pageBrowserAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.js',
+			position: 'head',
+		} as ProcessedAsset;
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [
+					{
+						kind: 'script',
+						source: 'content',
+						content: 'console.log("page")',
+						name: 'page',
+						attributes: { type: 'module' },
+					},
+				],
+			}),
+		);
+		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
+		const assetProcessingService = {
+			processDependencies,
+			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const adapter = createFlowAdapter({
+			resolvePageModule: async () => ({
+				Page,
+				integrationSpecificProps: {},
+			}),
+			getHtmlTemplate: async () => HtmlTemplate,
+			resolvePageData: async () => ({
+				props: {},
+				metadata: { title: 'Page', description: 'Page description' },
+			}),
+			resolveDependencies: async () => [],
+			collectPageBrowserGraphContribution,
+			shouldRenderPageComponent: () => false,
+			renderPageComponent: vi.fn(),
+		});
+
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			adapter,
+		);
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			adapter,
+		);
+
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
+		expect(processDependencies).toHaveBeenCalledOnce();
+	});
+
+	it('bypasses the page browser graph cache when HMR is enabled', async () => {
+		const pageBrowserAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.js',
+			position: 'head',
+		} as ProcessedAsset;
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [
+					{
+						kind: 'script',
+						source: 'content',
+						content: 'console.log("page")',
+						name: 'page',
+						attributes: { type: 'module' },
+					},
+				],
+			}),
+		);
+		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
+		const assetProcessingService = {
+			processDependencies,
+			getHmrManager: vi.fn(() => ({ isEnabled: () => true })),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const adapter = createFlowAdapter({
+			resolvePageModule: async () => ({
+				Page,
+				integrationSpecificProps: {},
+			}),
+			getHtmlTemplate: async () => HtmlTemplate,
+			resolvePageData: async () => ({
+				props: {},
+				metadata: { title: 'Page', description: 'Page description' },
+			}),
+			resolveDependencies: async () => [],
+			collectPageBrowserGraphContribution,
+			shouldRenderPageComponent: () => false,
+			renderPageComponent: vi.fn(),
+		});
+
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			adapter,
+		);
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			adapter,
+		);
+
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(2);
+		expect(processDependencies).toHaveBeenCalledTimes(2);
+	});
+
+	it('threads the structured page browser graph through the returned page package', async () => {
+		const entryAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const chunkAsset = {
+			kind: 'script',
+			srcUrl: '/assets/page.chunk.js',
+			position: 'body',
+			packageRole: 'dynamic-chunk',
+		} as ProcessedAsset;
+		const processDependencies = vi.fn(async () => [entryAsset]);
+		const assetProcessingService = {
+			processDependencies,
+			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		const result = await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({
+					Page,
+					integrationSpecificProps: {},
+				}),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Page', description: 'Page description' },
+				}),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => ({
+					dependencies: [
+						{
+							kind: 'script',
+							source: 'content',
+							content: 'console.log("page")',
+							name: 'page',
+							attributes: { type: 'module' },
+						},
+					],
+					assets: [chunkAsset],
+				}),
+				shouldRenderPageComponent: () => false,
+				renderPageComponent: vi.fn(),
+			}),
+		);
+
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({
+				pageBrowserGraph: {
+					entryAssets: [entryAsset],
+					chunkAssets: [chunkAsset],
+				},
+				dynamicChunks: [chunkAsset],
+				assets: [entryAsset, chunkAsset],
+			}),
 		);
 	});
 
@@ -337,7 +538,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Static page', description: 'Static page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent,
 			}),
@@ -403,7 +604,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Static page', description: 'Static page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
 			}),
@@ -476,7 +677,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Static page', description: 'Static page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
 			}),
@@ -535,7 +736,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 						metadata: { title: '404', description: 'Not found' },
 					}),
 					resolveDependencies: async () => [],
-					buildPageBrowserGraph: async () => ({ assets: [] }),
+					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 					shouldRenderPageComponent: () => false,
 					renderPageComponent: vi.fn(),
 				}),
@@ -559,7 +760,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: '404', description: 'Not found' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
 			}),
@@ -625,7 +826,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					metadata: { title: 'Page', description: 'Page description' },
 				}),
 				resolveDependencies: async () => [],
-				buildPageBrowserGraph: async () => ({ assets: [] }),
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				shouldRenderPageComponent: () => false,
 				renderPageComponent: vi.fn(),
 			}),

@@ -10,6 +10,7 @@ import type {
 	EcoPageFile,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	PageBrowserGraphContribution,
 	PageBrowserGraphResult,
 	PageMetadataProps,
 	PageProps,
@@ -24,6 +25,7 @@ import {
 	createPagePackage,
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
+import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
@@ -40,9 +42,8 @@ export type RouteRenderOrchestratorResolvedInputs = {
 	integrationSpecificProps: Record<string, unknown>;
 };
 
-export type RouteRenderOrchestratorResolvedAssets = {
+export type RouteRenderOrchestratorResolvedDependencies = {
 	resolvedDependencies: ProcessedAsset[];
-	pageBrowserGraph?: PageBrowserGraphResult;
 };
 
 /**
@@ -53,6 +54,7 @@ export type RouteRenderOrchestratorResolvedAssets = {
  */
 export type RouteHtmlFinalization = {
 	finalizeHtml?(html: string): string;
+	htmlContributions?: HtmlDocumentContribution[];
 };
 
 function createPageLocalsProxy(filePath: string): Record<string, never> {
@@ -96,12 +98,15 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	 */
 	resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderOrchestratorResolvedInputs>;
 	/**
-	 * Resolves route-owned assets needed before Integration rendering starts.
+	 * Resolves route-owned dependencies needed before Integration rendering starts.
 	 */
-	resolveRouteAssets(input: {
-		routeOptions: RouteRendererOptions;
+	resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
-	}): Promise<RouteRenderOrchestratorResolvedAssets>;
+	}): Promise<RouteRenderOrchestratorResolvedDependencies>;
+	/**
+	 * Collects declarative Page Browser Graph requirements for one route.
+	 */
+	collectPageBrowserGraphContribution(routeFile: string): Promise<PageBrowserGraphContribution | undefined>;
 	/**
 	 * Resolves the optional page-root render through the foreign-child-aware component contract.
 	 */
@@ -122,7 +127,10 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	/**
 	 * Runs SSR-policy response transformation and returns the body value exposed to callers.
 	 */
-	transformRouteResponse(response: Response): Promise<RouteRendererBody>;
+	transformRouteResponse(
+		response: Response,
+		htmlContributions?: HtmlDocumentContribution[],
+	): Promise<RouteRendererBody>;
 }
 
 /**
@@ -154,6 +162,7 @@ export class RouteRenderOrchestrator {
 	private readonly assetProcessingService: AssetProcessingService;
 	private readonly ownershipPlanningService: OwnershipPlanningService;
 	private readonly ownershipValidationService: OwnershipValidationService;
+	private readonly pageBrowserGraphCache = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -198,16 +207,16 @@ export class RouteRenderOrchestrator {
 		});
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
-		const { resolvedDependencies, pageBrowserGraph } = await adapter.resolveRouteAssets({
-			routeOptions,
+		const { resolvedDependencies } = await adapter.resolveRouteDependencies({
 			components: componentsToResolve,
 		});
+		const pageBrowserGraph = await this.resolvePageBrowserGraph({
+			routeFile: routeOptions.file,
+			integrationName: adapter.name,
+			collectContribution: async () => await adapter.collectPageBrowserGraphContribution(routeOptions.file),
+		});
 		const usedIntegrationDependencies = this.collectUsedIntegrationDependencies(componentsToResolve, adapter.name);
-		const allDependencies = [
-			...resolvedDependencies,
-			...usedIntegrationDependencies,
-			...(pageBrowserGraph?.assets ?? []),
-		];
+		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies];
 
 		const componentRender = await adapter.resolveRoutePageComponentRender({
 			Page: Page as EcoComponent,
@@ -232,7 +241,7 @@ export class RouteRenderOrchestrator {
 		}
 
 		const dedupedDependencies = dedupeProcessedAssets(allDependencies);
-		const pagePackage = createPagePackage(dedupedDependencies);
+		const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
 		const pageProps = {
 			...props,
 			params: routeOptions.params || {},
@@ -271,6 +280,84 @@ export class RouteRenderOrchestrator {
 			...integrationSpecificProps,
 			...preparedOptions,
 		};
+	}
+
+	async resolveDeclaredPageBrowserGraph(input: {
+		routeFile: string;
+		integrationName: string;
+		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+	}): Promise<PageBrowserGraphResult | undefined> {
+		return await this.resolvePageBrowserGraph(input);
+	}
+
+	private async resolvePageBrowserGraph(input: {
+		routeFile: string;
+		integrationName: string;
+		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+	}): Promise<PageBrowserGraphResult | undefined> {
+		if (this.isHmrEnabled()) {
+			return await this.buildPageBrowserGraph(input);
+		}
+
+		const cacheKey = `${input.integrationName}:${input.routeFile}`;
+		const cachedGraph = this.pageBrowserGraphCache.get(cacheKey);
+
+		if (cachedGraph) {
+			return await cachedGraph;
+		}
+
+		const pendingGraph = this.buildPageBrowserGraph(input).catch((error) => {
+			this.pageBrowserGraphCache.delete(cacheKey);
+			throw error;
+		});
+		this.pageBrowserGraphCache.set(cacheKey, pendingGraph);
+
+		return await pendingGraph;
+	}
+
+	private isHmrEnabled(): boolean {
+		return (
+			typeof this.assetProcessingService.getHmrManager === 'function' &&
+			this.assetProcessingService.getHmrManager()?.isEnabled() === true
+		);
+	}
+
+	private async buildPageBrowserGraph(input: {
+		routeFile: string;
+		integrationName: string;
+		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+	}): Promise<PageBrowserGraphResult | undefined> {
+		const contribution = await input.collectContribution();
+
+		if (!contribution) {
+			return undefined;
+		}
+
+		const processedDependencies = contribution.dependencies?.length
+			? await this.assetProcessingService.processDependencies(
+					contribution.dependencies,
+					`${input.integrationName}:${input.routeFile}`,
+				)
+			: [];
+		const resolvedAssets = [...processedDependencies, ...(contribution.assets ?? [])];
+
+		return this.partitionPageBrowserGraphAssets(resolvedAssets);
+	}
+
+	private partitionPageBrowserGraphAssets(assets: ProcessedAsset[]): PageBrowserGraphResult {
+		const entryAssets: ProcessedAsset[] = [];
+		const chunkAssets: ProcessedAsset[] = [];
+
+		for (const asset of assets) {
+			if (asset.packageRole === 'dynamic-chunk') {
+				chunkAssets.push(asset);
+				continue;
+			}
+
+			entryAssets.push(asset);
+		}
+
+		return { entryAssets, chunkAssets };
 	}
 
 	/**
@@ -324,6 +411,7 @@ export class RouteRenderOrchestrator {
 						'Content-Type': 'text/html',
 					},
 				}),
+				htmlFinalization.htmlContributions,
 			);
 
 			return {
@@ -342,6 +430,7 @@ export class RouteRenderOrchestrator {
 					'Content-Type': 'text/html',
 				},
 			}),
+			htmlFinalization.htmlContributions,
 		);
 
 		return {

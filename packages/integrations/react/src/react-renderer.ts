@@ -15,12 +15,15 @@ import type {
 } from '@ecopages/core';
 import {
 	IntegrationRenderer,
+	type HtmlDocumentContribution,
+	type HtmlDocumentContributionContext,
+	type PageBrowserGraphContributionContext,
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { getAppBuildExecutor } from '@ecopages/core/build/build-adapter';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -281,8 +284,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			return;
 		}
 
-		const pageBrowserGraph = await this.buildPageBrowserGraph(filePath);
-		this.appendProcessedDependencies(pageBrowserGraph.assets);
+		const pageBrowserGraph = await this.resolvePageBrowserGraphForFile(filePath);
+		this.mergePageBrowserGraphIntoPagePackage(pageBrowserGraph);
 	}
 
 	/**
@@ -445,22 +448,23 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Builds the extra document props needed when React renders through a non-React HTML shell.
-	 *
-	 * Router-backed React pages still need to publish the canonical page-data script
-	 * even when the outer document shell belongs to another integration.
+	 * Builds shared document html contributions for router-backed React pages rendered
+	 * through a non-React HTML shell.
 	 */
-	private buildNonReactDocumentProps(
+	private buildNonReactDocumentContributions(
 		htmlTemplate: { config?: EcoComponentConfig } | null | undefined,
 		pageProps: SerializableProps,
-	): { headContent: string } | undefined {
+	): HtmlDocumentContribution[] | undefined {
 		if (this.isReactManagedComponent(htmlTemplate) || !this.routerAdapter) {
 			return undefined;
 		}
 
-		return {
-			headContent: this.pagePayloadService.buildRouterPageDataScript(pageProps),
-		};
+		return [
+			{
+				placement: 'head-append',
+				html: this.pagePayloadService.buildRouterPageDataScript(pageProps),
+			},
+		];
 	}
 
 	/**
@@ -647,9 +651,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		} as TPageModule;
 	}
 
-	override async buildPageBrowserGraph(pagePath: string): Promise<{ assets: ProcessedAsset[] }> {
+	protected override async collectPageBrowserGraphContribution(
+		context: PageBrowserGraphContributionContext,
+	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
 		try {
-			const pageModule = await this.importPageFile(pagePath);
+			const { file: pagePath, pageModule } = context;
 			const shouldHydrate = this.explicitGraphEnabled
 				? true
 				: this.pageModuleService.shouldHydratePage(pageModule);
@@ -659,11 +665,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 			const isMdx = this.pageModuleService.isMdxFile(pagePath);
 			const declaredModules = this.pageModuleService.collectPageDeclaredModules(pageModule);
-			const processedAssets = await this.hydrationAssetService.buildPageBrowserGraphAssets(
+			const dependencies = await this.hydrationAssetService.createPageBrowserGraphDependencies(
 				pagePath,
 				isMdx,
 				declaredModules,
 			);
+			const assets: ProcessedAsset[] = [];
 
 			if (isMdx) {
 				const mdxConfigAssets = await this.mdxConfigDependencyService.processMdxConfigDependencies({
@@ -672,10 +679,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					processComponentDependencies: async (components) =>
 						await this.processComponentDependencies(components),
 				});
-				return { assets: [...processedAssets, ...mdxConfigAssets] };
+				assets.push(...mdxConfigAssets);
 			}
 
-			return { assets: processedAssets };
+			return { dependencies, assets };
 		} catch (error) {
 			if (error instanceof BundleError) {
 				console.error('[ecopages] Bundle errors:', error.logs);
@@ -730,11 +737,31 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: allPageProps,
-				documentProps: this.buildNonReactDocumentProps(HtmlTemplate, allPageProps),
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
 		}
+	}
+
+	protected override getHtmlDocumentContributions(
+		options: HtmlDocumentContributionContext<ReactNode>,
+	): HtmlDocumentContribution[] | undefined {
+		if (options.partial || !options.renderOptions) {
+			return undefined;
+		}
+
+		const safeLocals = this.pagePayloadService.getSerializableLocals(
+			options.renderOptions.locals,
+			this.getComponentRequires(options.renderOptions.Page),
+		);
+		const allPageProps = this.pagePayloadService.buildSerializedPageProps({
+			pageProps: options.renderOptions.pageProps,
+			params: options.renderOptions.params,
+			query: options.renderOptions.query,
+			safeLocals,
+		});
+
+		return this.buildNonReactDocumentContributions(options.renderOptions.HtmlTemplate, allPageProps);
 	}
 
 	protected override getDocumentAttributes(): Record<string, string> | undefined {
@@ -795,7 +822,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				props: {
 					metadata,
 					pageProps: normalizedProps,
-					...(this.buildNonReactDocumentProps(HtmlTemplate, normalizedProps) ?? {}),
 				},
 				children: layoutRender?.html ?? viewRender.html,
 			});
@@ -806,6 +832,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				html: `${this.DOC_TYPE}${documentRender.html}`,
 				partial: false,
 				documentAttributes: this.getRouterDocumentAttributes(),
+				htmlContributions: this.buildNonReactDocumentContributions(HtmlTemplate, normalizedProps),
 			});
 
 			return this.createHtmlResponse(transformedHtml, ctx);

@@ -7,7 +7,7 @@ import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { BrowserBundleExecutor } from '../services/assets/browser-bundle.service.ts';
-import type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 
@@ -779,6 +779,10 @@ export interface PagePackageResult {
 	 */
 	assets: ProcessedAsset[];
 	/**
+	 * Optional structured Page Browser Graph carried through route preparation.
+	 */
+	pageBrowserGraph?: PageBrowserGraphResult;
+	/**
 	 * Assets that should still be injected into the final HTML document.
 	 */
 	htmlAssets: ProcessedAsset[];
@@ -807,16 +811,31 @@ export interface PagePackageResult {
 /**
  * Page-scoped browser output planned before final HTML packaging.
  *
- * The initial seam keeps the graph payload intentionally small: integrations
- * return the processed assets that belong to the Page browser graph, while the
- * surrounding route pipeline remains free to evolve toward richer entry/lazy/
- * shared chunk structure later.
+ * This shape keeps page-browser ownership explicit without forcing downstream
+ * HTML packaging to understand how integrations discovered the graph. Entry
+ * assets represent the initial page bootstrap outputs, while chunk assets stay
+ * separate so callers can preserve lazy/shared chunk identity until the point
+ * they intentionally flatten for page packaging.
  */
 export interface PageBrowserGraphResult {
 	/**
-	 * Processed assets owned by the current Page browser graph.
+	 * Processed assets needed for the initial page browser bootstrap.
 	 */
-	assets: ProcessedAsset[];
+	entryAssets: ProcessedAsset[];
+	/**
+	 * Processed browser chunks referenced after the initial page bootstrap.
+	 */
+	chunkAssets: ProcessedAsset[];
+}
+
+export type PageBrowserGraphContributionContext = {
+	file: string;
+	pageModule: EcoPageFile;
+};
+
+export interface PageBrowserGraphContribution {
+	dependencies?: AssetDefinition[];
+	assets?: ProcessedAsset[];
 }
 
 export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';

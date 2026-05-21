@@ -8,6 +8,8 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed Node bootstrap bare-package linking to preserve the installed package root when a resolved entry lives under a nested internal manifest such as `postgres/cjs/package.json`.
+- Fixed Node bootstrap project-source rewriting to support minimal `import.meta.env` compatibility by mapping it to `process.env` alongside the existing file-path aliases.
 - Suppressed Node response-stream client disconnects during runtime serving so navigation-driven aborts no longer log `ERR_STREAM_UNABLE_TO_PIPE` as server failures in tests and development.
 - Preserved Node preview-host state through async shutdown failures and coalesced overlapping preview `stop()` calls onto one in-flight shutdown.
 - Streamed Node adapter Web `Response` bodies directly into `ServerResponse` so large payloads and streaming responses no longer buffer through `arrayBuffer()` first.

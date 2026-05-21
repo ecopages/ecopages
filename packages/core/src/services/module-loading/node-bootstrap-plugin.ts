@@ -67,9 +67,19 @@ function linkPointsToPackage(linkPath: string, packageRoot: string): boolean {
 	}
 }
 
-function ensureRuntimePackageLink(nodeModulesDir: string, specifier: string, resolvedPath: string): void {
+function resolveRuntimePackageRoot(specifier: string, resolvedPath: string, parentPath: string): string {
 	const packageName = getPackageNameFromSpecifier(specifier);
-	const packageRoot = findPackageRoot(resolvedPath);
+	return findInstalledPackageDir(packageName, parentPath) ?? findPackageRoot(resolvedPath);
+}
+
+function ensureRuntimePackageLink(
+	nodeModulesDir: string,
+	specifier: string,
+	resolvedPath: string,
+	parentPath: string,
+): void {
+	const packageName = getPackageNameFromSpecifier(specifier);
+	const packageRoot = resolveRuntimePackageRoot(specifier, resolvedPath, parentPath);
 	const linkPath = path.join(nodeModulesDir, packageName);
 
 	mkdirSync(path.dirname(linkPath), { recursive: true });
@@ -335,7 +345,12 @@ export function resolveNodeBootstrapDependency(
 				const candidatePath = path.join(options.projectDir, 'node_modules', packageName);
 				const candidatePackageJson = path.join(candidatePath, 'package.json');
 				if (existsSync(candidatePackageJson)) {
-					ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, candidatePackageJson);
+					ensureRuntimePackageLink(
+						options.runtimeNodeModulesDir,
+						args.path,
+						candidatePackageJson,
+						resolveParent,
+					);
 					return { path: args.path, external: true };
 				}
 			}
@@ -346,7 +361,7 @@ export function resolveNodeBootstrapDependency(
 		}
 
 		if (resolvedPath.includes(`${path.sep}node_modules${path.sep}`)) {
-			ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath);
+			ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath, resolveParent);
 			return {
 				path: args.path,
 				external: true,
@@ -357,7 +372,7 @@ export function resolveNodeBootstrapDependency(
 	}
 
 	const resolvedPath = resolveSpecifier(args.path, resolveParent);
-	ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath);
+	ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath, resolveParent);
 
 	return {
 		path: args.path,
@@ -393,8 +408,11 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 
 				const originalContents = readFileSync(args.path, 'utf8');
 				const contents = originalContents
+					.replaceAll('import.meta.env', 'process.env')
 					.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
-					.replaceAll('import.meta.filename', JSON.stringify(args.path));
+					.replaceAll('import.meta.filename', JSON.stringify(args.path))
+					.replaceAll('import.meta.dir', JSON.stringify(path.dirname(args.path)))
+					.replaceAll('import.meta.path', JSON.stringify(args.path));
 
 				if (contents === originalContents) {
 					return undefined;

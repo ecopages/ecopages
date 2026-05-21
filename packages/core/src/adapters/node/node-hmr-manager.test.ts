@@ -245,9 +245,11 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 	let runtimeEntrypoint: string | undefined;
 
 	vi.spyOn(
-		(manager as unknown as {
-			browserBundleService: { bundle: (options: { entrypoints: string[] }) => Promise<unknown> };
-		}).browserBundleService,
+		(
+			manager as unknown as {
+				browserBundleService: { bundle: (options: { entrypoints: string[] }) => Promise<unknown> };
+			}
+		).browserBundleService,
 		'bundle',
 	).mockImplementationOnce(async (options: { entrypoints: string[] }) => {
 		runtimeEntrypoint = options.entrypoints[0];

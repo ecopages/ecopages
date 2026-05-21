@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 
+const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
 function getEnvFilePaths(nodeEnv) {
@@ -82,7 +83,7 @@ export function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 		return {
 			runtime,
 			command: process.execPath,
-			commandArgs: ['--import', tsxLoader, entryFile, ...args],
+			commandArgs: ['--import', nodeRequirePreload, '--import', tsxLoader, entryFile, ...args],
 			envOverrides,
 			env,
 		};

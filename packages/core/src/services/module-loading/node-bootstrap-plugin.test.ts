@@ -437,17 +437,11 @@ test('createNodeBootstrapPlugin wires the shared resolution policy into an Eco b
 	}
 });
 
-test('createNodeBootstrapPlugin does not rewrite import.meta for project source files', async () => {
+test('createNodeBootstrapPlugin rewrites import.meta compatibility values for project source files', async () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
-	const bootstrapFile = path.join(rootDir, 'eco.config.ts');
 	const regularFile = path.join(rootDir, 'src', 'page.kita.tsx');
 	fs.mkdirSync(path.dirname(regularFile), { recursive: true });
-	fs.writeFileSync(
-		bootstrapFile,
-		'export default [import.meta.env, import.meta.dir, import.meta.dirname, import.meta.path, import.meta.filename];\n',
-		'utf8',
-	);
 	fs.writeFileSync(
 		regularFile,
 		'export default [import.meta.env, import.meta.dir, import.meta.dirname, import.meta.path, import.meta.filename];\n',
@@ -460,17 +454,21 @@ test('createNodeBootstrapPlugin does not rewrite import.meta for project source 
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
 		});
 
-		let onLoadRegistered = false;
+		let onLoadCallback: ((args: { path: string }) => unknown) | undefined;
 
 		await plugin.setup({
 			onResolve() {},
-			onLoad() {
-				onLoadRegistered = true;
+			onLoad(_options, callback) {
+				onLoadCallback = callback;
 			},
 			module() {},
 		});
 
-		assert.equal(onLoadRegistered, false);
+		assert.ok(onLoadCallback);
+		assert.deepEqual(onLoadCallback?.({ path: regularFile }), {
+			contents: `export default [process.env, ${JSON.stringify(path.dirname(regularFile))}, ${JSON.stringify(path.dirname(regularFile))}, ${JSON.stringify(regularFile)}, ${JSON.stringify(regularFile)}];\n`,
+			loader: 'tsx',
+		});
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

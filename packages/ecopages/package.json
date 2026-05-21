@@ -40,8 +40,8 @@
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
-		"esbuild": "^0.28.0",
-		"giget": "^2.0.0"
+		"giget": "^2.0.0",
+		"tsx": "^4.22.3"
 	},
 	"peerDependencies": {
 		"bun-types": "*",

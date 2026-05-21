@@ -6,6 +6,8 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildEnvOverrides, buildBunArgs, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 
+const tsxLoader = import.meta.resolve('tsx/esm');
+
 const originalUserAgent = process.env.npm_config_user_agent;
 const originalCwd = process.cwd();
 
@@ -115,7 +117,7 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createLaunchPlan builds an app-local Node entry bridge', async () => {
+	it('createLaunchPlan runs Node entries directly', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
@@ -128,9 +130,7 @@ describe('launch-plan', () => {
 				runtime: 'node',
 				command: process.execPath,
 			});
-			const realTempDir = fs.realpathSync(tempDir);
-			expect(plan.commandArgs).toEqual([path.join(realTempDir, '.eco', 'node-entry', 'app-entry.mjs'), '--dev']);
-			expect(fs.existsSync(plan.commandArgs[0])).toBe(true);
+			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -149,8 +149,7 @@ describe('launch-plan', () => {
 				'app.ts',
 			);
 
-			const realTempDir = fs.realpathSync(tempDir);
-			expect(plan.commandArgs).toEqual([path.join(realTempDir, '.eco', 'node-entry', 'app-entry.mjs'), '--dev']);
+			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -175,7 +174,7 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createLaunchPlan always targets a concrete entry file', async () => {
+	it('createLaunchPlan always targets the requested entry file', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.chdir(tempDir);
@@ -183,7 +182,7 @@ describe('launch-plan', () => {
 			writeExperimentalRuntimeConfig(tempDir);
 
 			const plan = await createLaunchPlan(['--dev'], { runtime: 'node', nodeEnv: 'development' }, 'app.ts');
-			expect(path.basename(plan.commandArgs[0])).toBe('app-entry.mjs');
+			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -244,7 +243,7 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('runs top-level await, CJS dependencies, and import.meta values through the real node CLI path', async () => {
+	it('runs top-level await, CJS dependencies, and native import.meta values through the real node CLI path', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
 		const outputPath = path.join(tempDir, 'result.json');
@@ -268,7 +267,7 @@ describe('launch-plan', () => {
 					"import { writeFileSync } from 'node:fs';",
 					"import cjsTool from 'cjs-tool';",
 					'await Promise.resolve();',
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ cjs: cjsTool.value, main: import.meta.main, env: import.meta.env.NODE_ENV, dirname: import.meta.dirname, filename: import.meta.filename, sibling: new URL('./sibling.txt', import.meta.url).href }));`,
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ cjs: cjsTool.value, env: import.meta.env, dirname: import.meta.dirname, filename: import.meta.filename, sibling: new URL('./sibling.txt', import.meta.url).href }));`,
 				].join('\n'),
 				'utf8',
 			);
@@ -296,55 +295,12 @@ describe('launch-plan', () => {
 			const realTempDir = fs.realpathSync(tempDir);
 			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
 				cjs: 'from-cjs',
-				main: true,
-				env: 'production',
+				env: undefined,
 				dirname: realTempDir,
 				filename: path.join(realTempDir, 'app.ts'),
 				sibling: new URL('./sibling.txt', pathToFileURL(path.join(realTempDir, 'app.ts'))).href,
 			});
 			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('builds a node bridge when a dependency imports a native node binary', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		try {
-			process.chdir(tempDir);
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'native-tool'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'native-tool', 'package.json'),
-				'{"type":"module","exports":"./index.js"}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'native-tool', 'index.js'),
-				"import './native.node';\nimport nativeBinding from 'native-binding';\nexport const value = nativeBinding;\n",
-				'utf8',
-			);
-			fs.writeFileSync(path.join(tempDir, 'node_modules', 'native-tool', 'native.node'), '', 'utf8');
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'native-binding'), { recursive: true });
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'native-binding', 'package.json'),
-				'{"main":"binding.node"}',
-				'utf8',
-			);
-			fs.writeFileSync(path.join(tempDir, 'node_modules', 'native-binding', 'binding.node'), '', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				"import { value } from 'native-tool';\nexport const loaded = value;\n",
-				'utf8',
-			);
-
-			const plan = await createLaunchPlan(['--build'], { runtime: 'node', nodeEnv: 'production' }, 'app.ts');
-			const bridgeContents = fs.readFileSync(plan.commandArgs[0], 'utf8');
-
-			expect(bridgeContents).toContain('native-tool');
-			expect(fs.realpathSync(path.join(tempDir, '.eco', 'node-entry', 'node_modules', 'native-tool'))).toBe(
-				fs.realpathSync(path.join(tempDir, 'node_modules', 'native-tool')),
-			);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

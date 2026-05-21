@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { EcoBuildOnResolveArgs, EcoBuildOnResolveResult, EcoBuildPlugin } from '../../build/build-types.ts';
@@ -32,176 +32,6 @@ function getPackageNameFromSpecifier(specifier: string): string {
 	return specifier.split('/')[0] ?? specifier;
 }
 
-function findPackageRoot(resolvedPath: string): string {
-	let currentPath = path.dirname(resolvedPath);
-
-	while (true) {
-		const packageJsonPath = path.join(currentPath, 'package.json');
-		if (existsSync(packageJsonPath)) {
-			return currentPath;
-		}
-
-		const parentPath = path.dirname(currentPath);
-		if (parentPath === currentPath) {
-			throw new Error(`Could not find package root for resolved dependency path: ${resolvedPath}`);
-		}
-
-		currentPath = parentPath;
-	}
-}
-
-function pathEntryExists(filePath: string): boolean {
-	try {
-		lstatSync(filePath);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-function linkPointsToPackage(linkPath: string, packageRoot: string): boolean {
-	try {
-		return realpathSync(linkPath) === realpathSync(packageRoot);
-	} catch {
-		return false;
-	}
-}
-
-function resolveRuntimePackageRoot(specifier: string, resolvedPath: string, parentPath: string): string {
-	const packageName = getPackageNameFromSpecifier(specifier);
-	return findInstalledPackageDir(packageName, parentPath) ?? findPackageRoot(resolvedPath);
-}
-
-function isPackageExportedSubpath(specifier: string, resolvedPath: string, parentPath: string): boolean {
-	const packageName = getPackageNameFromSpecifier(specifier);
-	if (specifier === packageName) {
-		return false;
-	}
-
-	const packageRoot = resolveRuntimePackageRoot(specifier, resolvedPath, parentPath);
-	const manifest = readPackageManifest(packageRoot);
-	if (!manifest?.exports || typeof manifest.exports !== 'object' || Array.isArray(manifest.exports)) {
-		return false;
-	}
-
-	const subpath = `.${specifier.slice(packageName.length)}`;
-	return subpath in (manifest.exports as Record<string, unknown>);
-}
-
-function getNodeExternalSpecifier(specifier: string, resolvedPath: string, parentPath: string): string {
-	const packageName = getPackageNameFromSpecifier(specifier);
-	if (specifier === packageName) {
-		return specifier;
-	}
-
-	if (path.extname(specifier)) {
-		return specifier;
-	}
-
-	if (isPackageExportedSubpath(specifier, resolvedPath, parentPath)) {
-		return specifier;
-	}
-
-	for (const extension of ['.js', '.mjs', '.cjs', '.json']) {
-		const candidateSpecifier = `${specifier}${extension}`;
-		try {
-			const candidateResolvedPath = resolveSpecifier(candidateSpecifier, parentPath);
-			if (existsSync(candidateResolvedPath)) {
-				return candidateSpecifier;
-			}
-		} catch {}
-	}
-
-	for (const candidatePath of [
-		resolvedPath,
-		...['.js', '.mjs', '.cjs', '.json'].map((extension) => `${specifier}${extension}`),
-	]) {
-		const candidateResolvedPath =
-			candidatePath === resolvedPath
-				? resolvedPath
-				: (() => {
-						try {
-							return resolveSpecifier(candidatePath, parentPath);
-						} catch {
-							return undefined;
-						}
-					})();
-
-		if (!candidateResolvedPath) {
-			continue;
-		}
-
-		if (!existsSync(candidateResolvedPath)) {
-			continue;
-		}
-
-		const resolvedExtension = path.extname(candidateResolvedPath);
-		if (!['.js', '.mjs', '.cjs', '.json'].includes(resolvedExtension)) {
-			continue;
-		}
-
-		const packageRoot = resolveRuntimePackageRoot(specifier, candidateResolvedPath, parentPath);
-		const requestedSubpath = specifier.slice(packageName.length + 1);
-		const resolvedSubpath = path.relative(packageRoot, candidateResolvedPath);
-
-		if (resolvedSubpath === `${requestedSubpath}${resolvedExtension}`) {
-			return `${specifier}${resolvedExtension}`;
-		}
-	}
-
-	return specifier;
-}
-
-function ensureRuntimePackageLink(
-	nodeModulesDir: string,
-	specifier: string,
-	resolvedPath: string,
-	parentPath: string,
-): void {
-	const packageName = getPackageNameFromSpecifier(specifier);
-	const packageRoot = resolveRuntimePackageRoot(specifier, resolvedPath, parentPath);
-	const linkPath = path.join(nodeModulesDir, packageName);
-
-	mkdirSync(path.dirname(linkPath), { recursive: true });
-
-	if (pathEntryExists(linkPath)) {
-		if (linkPointsToPackage(linkPath, packageRoot)) {
-			return;
-		}
-
-		removeRuntimePackageLink(linkPath);
-	}
-
-	try {
-		symlinkSync(packageRoot, linkPath, 'dir');
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-			throw error;
-		}
-
-		if (linkPointsToPackage(linkPath, packageRoot)) {
-			return;
-		}
-
-		removeRuntimePackageLink(linkPath);
-		symlinkSync(packageRoot, linkPath, 'dir');
-	}
-}
-
-function removeRuntimePackageLink(linkPath: string): void {
-	try {
-		const stats = lstatSync(linkPath);
-		if (stats.isSymbolicLink()) {
-			unlinkSync(linkPath);
-			return;
-		}
-	} catch {
-		return;
-	}
-
-	rmSync(linkPath, { recursive: true, force: true });
-}
-
 export interface NodeBootstrapResolutionOptions {
 	/**
 	 * App root used as the fallback package boundary when an importer does not
@@ -209,8 +39,8 @@ export interface NodeBootstrapResolutionOptions {
 	 */
 	projectDir: string;
 	/**
-	 * Runtime-local node_modules directory that receives symlinks to resolved
-	 * package roots so transpiled Node imports share one package graph.
+	 * Runtime-local node_modules directory retained for backwards-compatible
+	 * option shape. Third-party packages now resolve through native Node lookup.
 	 */
 	runtimeNodeModulesDir: string;
 }
@@ -358,33 +188,6 @@ function findResolutionParent(importer: string | undefined, projectDir: string):
 	}
 }
 
-function getBootstrapBuildLoaderForPath(filePath: string): 'js' | 'jsx' | 'json' | 'ts' | 'tsx' {
-	switch (path.extname(filePath).toLowerCase()) {
-		case '.ts':
-		case '.mts':
-		case '.cts':
-			return 'ts';
-		case '.tsx':
-			return 'tsx';
-		case '.jsx':
-			return 'jsx';
-		case '.json':
-			return 'json';
-		default:
-			return 'js';
-	}
-}
-
-function shouldRewriteBootstrapSource(filePath: string, projectDir: string): boolean {
-	const normalizedPath = path.resolve(filePath);
-	const normalizedProjectDir = path.resolve(projectDir);
-
-	return (
-		normalizedPath.startsWith(`${normalizedProjectDir}${path.sep}`) &&
-		!normalizedPath.includes(`${path.sep}node_modules${path.sep}`)
-	);
-}
-
 export function resolveNodeBootstrapDependency(
 	args: Pick<EcoBuildOnResolveArgs, 'path' | 'importer'>,
 	options: NodeBootstrapResolutionOptions,
@@ -425,12 +228,6 @@ export function resolveNodeBootstrapDependency(
 				const candidatePath = path.join(options.projectDir, 'node_modules', packageName);
 				const candidatePackageJson = path.join(candidatePath, 'package.json');
 				if (existsSync(candidatePackageJson)) {
-					ensureRuntimePackageLink(
-						options.runtimeNodeModulesDir,
-						args.path,
-						candidatePackageJson,
-						resolveParent,
-					);
 					return { path: args.path, external: true };
 				}
 			}
@@ -441,7 +238,6 @@ export function resolveNodeBootstrapDependency(
 		}
 
 		if (resolvedPath.includes(`${path.sep}node_modules${path.sep}`)) {
-			ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath, resolveParent);
 			return {
 				path: args.path,
 				external: true,
@@ -451,11 +247,8 @@ export function resolveNodeBootstrapDependency(
 		return { path: resolvedPath };
 	}
 
-	const resolvedPath = resolveSpecifier(args.path, resolveParent);
-	ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath, resolveParent);
-
 	return {
-		path: getNodeExternalSpecifier(args.path, resolvedPath, resolveParent),
+		path: args.path,
 		external: true,
 	};
 }
@@ -463,46 +256,15 @@ export function resolveNodeBootstrapDependency(
 /**
  * Creates the Node bootstrap plugin used by app-owned server module loads.
  *
- * The resolver anchors third-party imports to the nearest package boundary for
- * the importing file, then mirrors the resolved package root into the runtime
- * node_modules directory. That keeps transpiled Node execution aligned with the
- * package graph each source file was authored against.
+ * The resolver keeps third-party imports external so native Node package
+ * semantics decide exports, subpaths, and CommonJS interop at runtime.
  */
 export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOptions): EcoBuildPlugin {
-	const projectDir = path.resolve(options.projectDir);
-
 	return {
 		name: 'node-bootstrap-plugin',
 		setup(build) {
 			build.onResolve({ filter: /^bun:/ }, (args) => {
 				throw new Error(getNodeUnsupportedBuiltinError(args.path, args.importer));
-			});
-
-			build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
-				const absolutePath = path.resolve(args.path);
-				const shouldRewriteImportMeta = shouldRewriteBootstrapSource(absolutePath, projectDir);
-
-				if (!shouldRewriteImportMeta) {
-					return undefined;
-				}
-
-				const originalContents = readFileSync(args.path, 'utf8');
-				const contents = originalContents
-					.replaceAll('import.meta.env', 'process.env')
-					.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
-					.replaceAll('import.meta.filename', JSON.stringify(args.path))
-					.replaceAll('import.meta.dir', JSON.stringify(path.dirname(args.path)))
-					.replaceAll('import.meta.path', JSON.stringify(args.path));
-
-				if (contents === originalContents) {
-					return undefined;
-				}
-
-				return {
-					contents,
-					loader: getBootstrapBuildLoaderForPath(args.path),
-					resolveDir: path.dirname(args.path),
-				};
 			});
 
 			build.onResolve({ filter: /^[@A-Za-z0-9][^:]*$/ }, (args) => {
@@ -515,9 +277,7 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 /**
  * Creates the default Node bootstrap plugin for one Ecopages app runtime.
  *
- * This binds the shared resolution policy to the app's internal execution
- * directory so transpiled server modules can externalize packages into one
- * stable runtime node_modules graph.
+ * This binds the shared resolution policy to one Ecopages app runtime.
  */
 export function createAppNodeBootstrapPlugin(
 	appConfig: Pick<EcoPagesAppConfig, 'rootDir' | 'workDir' | 'absolutePaths'>,

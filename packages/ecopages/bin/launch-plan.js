@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
-import { buildNodeEntryBridge } from './node-entry-bridge.js';
+
+const tsxLoader = import.meta.resolve('tsx/esm');
 
 function getEnvFilePaths(nodeEnv) {
 	const envFiles = ['.env', '.env.local'];
@@ -73,17 +74,15 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
-export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
+export function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
 	const { envOverrides, env } = buildLaunchEnv(options);
 	const runtime = detectRuntime(options);
 
 	if (runtime === 'node') {
-		const nodeEntryBridge = await buildNodeEntryBridge(entryFile);
-
 		return {
 			runtime,
 			command: process.execPath,
-			commandArgs: [nodeEntryBridge, ...args],
+			commandArgs: ['--import', tsxLoader, entryFile, ...args],
 			envOverrides,
 			env,
 		};

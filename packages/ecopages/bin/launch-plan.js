@@ -3,6 +3,16 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+function buildNodeEnvFileArgs(nodeEnv) {
+	const envFiles = ['.env', '.env.local'];
+
+	if (nodeEnv) {
+		envFiles.push(`.env.${nodeEnv}`, `.env.${nodeEnv}.local`);
+	}
+
+	return envFiles.filter((envFile) => existsSync(envFile)).map((envFile) => `--env-file=${envFile}`);
+}
+
 export function buildEnvOverrides(options) {
 	const env = {};
 	if (options.port) env.ECOPAGES_PORT = String(options.port);
@@ -74,7 +84,7 @@ export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts')
 		return {
 			runtime,
 			command: process.execPath,
-			commandArgs: [tsxCliPath, ...nodeArgs],
+			commandArgs: [...buildNodeEnvFileArgs(options.nodeEnv), tsxCliPath, ...nodeArgs],
 			envOverrides,
 			env,
 		};

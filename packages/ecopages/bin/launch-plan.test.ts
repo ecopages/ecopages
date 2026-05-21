@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -147,6 +148,61 @@ describe('launch-plan', () => {
 
 			const bunPlan = await createLaunchPlan(['--dev'], { nodeEnv: 'development' }, 'app.ts');
 			expect(bunPlan.commandArgs).toContain('app.ts');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('loads env files for the real node CLI path and lets CLI args override them', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
+		const outputPath = path.join(tempDir, 'result.txt');
+
+		try {
+			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
+			fs.writeFileSync(
+				path.join(tempDir, '.env'),
+				'TEST_ECOPAGES_ENV=loaded-from-dotenv\nECOPAGES_PORT=1111\n',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'app.ts'),
+				[
+					"import { writeFileSync } from 'node:fs';",
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ env: process.env.TEST_ECOPAGES_ENV ?? 'missing', port: process.env.ECOPAGES_PORT ?? 'missing' }));`,
+				].join('\n'),
+				'utf8',
+			);
+
+			const result = await new Promise<{ exitCode: number | null; stdout: string; stderr: string }>((resolve) => {
+				const child = spawn(process.execPath, [cliPath, 'start', 'app.ts', '--runtime', 'node', '-p', '2222'], {
+					cwd: tempDir,
+					env: {
+						...process.env,
+						VITEST: '',
+					},
+					stdio: ['ignore', 'pipe', 'pipe'],
+				});
+				let stdout = '';
+				let stderr = '';
+
+				child.stdout.on('data', (chunk) => {
+					stdout += chunk.toString();
+				});
+				child.stderr.on('data', (chunk) => {
+					stderr += chunk.toString();
+				});
+				child.on('close', (exitCode) => {
+					resolve({ exitCode, stdout, stderr });
+				});
+			});
+
+			expect(result.exitCode).toBe(0);
+			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
+				env: 'loaded-from-dotenv',
+				port: '2222',
+			});
+			expect(result.stderr).toBe('');
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

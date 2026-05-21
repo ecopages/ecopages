@@ -8,6 +8,7 @@ All notable changes to `ecopages` are documented here.
 
 ### Bug Fixes
 
+- Loaded standard `.env` files for Node runtime launches so `ecopages ... --runtime node` sees app-local environment values.
 - Localized the Node CLI `tsx` runtime dependency so `ecopages` no longer requires a globally installed `tsx` binary.
 - Stopped preloading `eco.config.ts` through the Node `tsx` launch path so `ecopages dev --runtime node` keeps the app entry running instead of exiting after config evaluation.
 - Restored shared server/build option parsing for `ecopages build` so documented flags like `--base-url` and `--hostname` still flow through to the launch environment.

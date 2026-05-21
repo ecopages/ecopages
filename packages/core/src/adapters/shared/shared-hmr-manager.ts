@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { getAppBuildExecutor } from '../../build/build-adapter.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../types/internal-types.ts';
@@ -133,7 +134,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async buildRuntime(): Promise<void> {
-		const runtimeSource = path.resolve(import.meta.dirname, '../../hmr/client/hmr-runtime.ts');
+		const runtimeSource = fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime'));
 
 		try {
 			const result = await this.browserBundleService.bundle({

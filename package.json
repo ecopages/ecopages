@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.2.0-alpha.43",
 	"engines": {
-		"node": ">=22.18.0"
+		"node": ">=24.0.0"
 	},
 	"scripts": {
 		"dev:docs": "pnpm --filter @ecopages/docs run dev",

@@ -9,6 +9,7 @@ All notable changes to `ecopages` are documented here.
 ### Bug Fixes
 
 - Replaced the Node runtime `tsx` app-entry launch path with an Ecopages-owned ESM bridge under `.eco/` so Node launches preserve top-level await, app-local package resolution, environment forwarding, and `import.meta` runtime values.
+- Fixed Node runtime deep package imports so extensionless ESM subpaths resolve to concrete `.js` entry files when third-party libraries rely on Bun-style extension inference.
 - Loaded standard `.env` files for Node runtime launches so `ecopages ... --runtime node` sees app-local environment values.
 - Restored shared server/build option parsing for `ecopages build` so documented flags like `--base-url` and `--hostname` still flow through to the launch environment.
 

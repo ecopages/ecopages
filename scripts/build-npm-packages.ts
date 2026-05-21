@@ -25,7 +25,10 @@ type PackageManifest = {
 	scripts?: Record<string, string>;
 	dependencies?: Record<string, string>;
 	peerDependencies?: Record<string, string>;
+	peerDependenciesMeta?: Record<string, unknown>;
 	devDependencies?: Record<string, string>;
+	optionalDependencies?: Record<string, string>;
+	overrides?: Record<string, string>;
 	[key: string]: unknown;
 };
 
@@ -726,13 +729,14 @@ async function buildJavaScript(packageDir: string, codeFiles: string[], distDir:
  * Produces the publishable manifest for `dist` by rewriting source paths, normalizing
  * export metadata, and removing development-only fields.
  */
-function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
+export function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
 	const rewrittenExports = normalizeExportTarget(rewriteExportMap(manifest.exports));
 	const distManifest: PackageManifest = {
 		...manifest,
 		version,
 		dependencies: rewriteWorkspaceRanges(manifest.dependencies, version),
 		peerDependencies: rewriteWorkspaceRanges(manifest.peerDependencies, version),
+		optionalDependencies: rewriteWorkspaceRanges(manifest.optionalDependencies, version),
 		devDependencies: rewriteWorkspaceRanges(manifest.devDependencies, version),
 		exports:
 			rewrittenExports && typeof rewrittenExports === 'object' && !Array.isArray(rewrittenExports)
@@ -854,7 +858,9 @@ async function main(): Promise<void> {
 	}
 }
 
-main().catch((error) => {
-	console.error(error instanceof Error ? error.message : error);
-	process.exitCode = 1;
-});
+if (import.meta.main) {
+	main().catch((error) => {
+		console.error(error instanceof Error ? error.message : error);
+		process.exitCode = 1;
+	});
+}

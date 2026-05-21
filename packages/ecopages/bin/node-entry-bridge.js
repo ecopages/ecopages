@@ -100,6 +100,32 @@ function ensureRuntimePackageLink(nodeModulesDir, specifier, resolvedPath) {
 	symlinkSync(packageRoot, linkPath, 'dir');
 }
 
+function getNodeExternalSpecifier(specifier, resolvedPath) {
+	const packageName = getPackageNameFromSpecifier(specifier);
+	if (specifier === packageName) {
+		return specifier;
+	}
+
+	if (path.extname(specifier)) {
+		return specifier;
+	}
+
+	const resolvedExtension = path.extname(resolvedPath);
+	if (!['.js', '.mjs', '.cjs', '.json'].includes(resolvedExtension)) {
+		return specifier;
+	}
+
+	const packageRoot = findPackageRoot(resolvedPath);
+	const requestedSubpath = specifier.slice(packageName.length + 1);
+	const resolvedSubpath = path.relative(packageRoot, resolvedPath);
+
+	if (resolvedSubpath === `${requestedSubpath}${resolvedExtension}`) {
+		return `${specifier}${resolvedExtension}`;
+	}
+
+	return specifier;
+}
+
 function createNodeEntryBridgePlugin({ rootDir, entryFile, runtimeNodeModulesDir }) {
 	return {
 		name: 'ecopages-node-entry-bridge',
@@ -122,7 +148,7 @@ function createNodeEntryBridgePlugin({ rootDir, entryFile, runtimeNodeModulesDir
 
 					if (!args.path.startsWith('@ecopages/')) {
 						return {
-							path: args.path,
+							path: getNodeExternalSpecifier(args.path, resolvedPath),
 							external: true,
 						};
 					}
@@ -173,6 +199,9 @@ export async function buildNodeEntryBridge(entryFile, options = {}) {
 		platform: 'node',
 		target: 'es2022',
 		sourcemap: 'linked',
+		banner: {
+			js: 'import { createRequire as __ecopagesCreateRequire } from "node:module"; const require = __ecopagesCreateRequire(import.meta.url);',
+		},
 		logLevel: 'silent',
 		plugins: [
 			createNodeEntryBridgePlugin({

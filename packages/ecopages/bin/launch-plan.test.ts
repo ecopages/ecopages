@@ -349,4 +349,121 @@ describe('launch-plan', () => {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('runs CommonJS dependencies that require Node built-ins through the real node CLI path', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
+		const outputPath = path.join(tempDir, 'result.json');
+
+		try {
+			fs.mkdirSync(path.join(tempDir, 'node_modules', 'cjs-builtin-tool'), { recursive: true });
+			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'cjs-builtin-tool', 'package.json'),
+				'{"main":"index.cjs"}',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'cjs-builtin-tool', 'index.cjs'),
+				"const os = require('os');\nmodule.exports = { platform: os.platform() };",
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'app.ts'),
+				[
+					"import { writeFileSync } from 'node:fs';",
+					"import builtinTool from 'cjs-builtin-tool';",
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ platform: builtinTool.platform }));`,
+				].join('\n'),
+				'utf8',
+			);
+
+			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
+				const child = spawn(process.execPath, [cliPath, 'start', 'app.ts', '--runtime', 'node'], {
+					cwd: tempDir,
+					env: {
+						...process.env,
+						VITEST: '',
+					},
+					stdio: ['ignore', 'ignore', 'pipe'],
+				});
+				let stderr = '';
+
+				child.stderr.on('data', (chunk) => {
+					stderr += chunk.toString();
+				});
+				child.on('close', (exitCode) => {
+					resolve({ exitCode, stderr });
+				});
+			});
+
+			expect(result.exitCode).toBe(0);
+			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
+				platform: process.platform,
+			});
+			expect(result.stderr).toBe('');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('runs extensionless deep ESM package imports through the real node CLI path', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
+		const outputPath = path.join(tempDir, 'result.json');
+
+		try {
+			fs.mkdirSync(path.join(tempDir, 'node_modules', 'esm-deep-tool', 'lib'), { recursive: true });
+			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'package.json'),
+				'{"type":"module"}',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'feature.js'),
+				"export { value } from './lib/value.js';\n",
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'lib', 'value.js'),
+				'export const value = 42;\n',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'app.ts'),
+				[
+					"import { writeFileSync } from 'node:fs';",
+					"import { value } from 'esm-deep-tool/feature';",
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ value }));`,
+				].join('\n'),
+				'utf8',
+			);
+
+			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
+				const child = spawn(process.execPath, [cliPath, 'start', 'app.ts', '--runtime', 'node'], {
+					cwd: tempDir,
+					env: {
+						...process.env,
+						VITEST: '',
+					},
+					stdio: ['ignore', 'ignore', 'pipe'],
+				});
+				let stderr = '';
+
+				child.stderr.on('data', (chunk) => {
+					stderr += chunk.toString();
+				});
+				child.on('close', (exitCode) => {
+					resolve({ exitCode, stderr });
+				});
+			});
+
+			expect(result.exitCode).toBe(0);
+			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ value: 42 });
+			expect(result.stderr).toBe('');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

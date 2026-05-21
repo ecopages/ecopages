@@ -3,6 +3,9 @@
 	"version": "0.2.0-alpha.43",
 	"description": "CLI utilities for Ecopages",
 	"type": "module",
+	"engines": {
+		"node": ">=24.0.0"
+	},
 	"license": "MIT",
 	"author": "Ecopages Team",
 	"repository": {
@@ -37,8 +40,8 @@
 	"dependencies": {
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
-		"giget": "^2.0.0",
-		"tsx": "^4.22.0"
+		"esbuild": "^0.28.0",
+		"giget": "^2.0.0"
 	},
 	"peerDependencies": {
 		"bun-types": "*",

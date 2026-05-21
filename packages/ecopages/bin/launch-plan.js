@@ -1,16 +1,15 @@
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { existsSync, readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+import { buildNodeEntryBridge } from './node-entry-bridge.js';
 
-const require = createRequire(import.meta.url);
-
-function buildNodeEnvFileArgs(nodeEnv) {
+function getEnvFilePaths(nodeEnv) {
 	const envFiles = ['.env', '.env.local'];
 
 	if (nodeEnv) {
 		envFiles.push(`.env.${nodeEnv}`, `.env.${nodeEnv}.local`);
 	}
 
-	return envFiles.filter((envFile) => existsSync(envFile)).map((envFile) => `--env-file=${envFile}`);
+	return envFiles.filter((envFile) => existsSync(envFile));
 }
 
 export function buildEnvOverrides(options) {
@@ -21,6 +20,18 @@ export function buildEnvOverrides(options) {
 	if (options.debug) env.ECOPAGES_LOGGER_DEBUG = 'true';
 	if (options.nodeEnv) env.NODE_ENV = options.nodeEnv;
 	return env;
+}
+
+export function buildLaunchEnv(options) {
+	const envOverrides = buildEnvOverrides(options);
+	const envFileValues = getEnvFilePaths(options.nodeEnv).reduce((env, envFile) => {
+		return { ...env, ...parseEnv(readFileSync(envFile, 'utf8')) };
+	}, {});
+
+	return {
+		envOverrides,
+		env: { ...envFileValues, ...process.env, ...envOverrides },
+	};
 }
 
 export function detectRuntime(options = {}) {
@@ -50,7 +61,7 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	bunArgs.push('run');
 
 	if (hasConfig) {
-		bunArgs.push('--preload', './eco.config.ts');
+		bunArgs.push('--preload', `./eco.config.${'ts'}`);
 	}
 
 	bunArgs.push(entryFile, ...args);
@@ -62,29 +73,17 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 	return bunArgs;
 }
 
-export function resolveTsxCliPath() {
-	try {
-		return require.resolve('tsx/cli');
-	} catch {
-		throw new Error(
-			'Unable to resolve the packaged tsx runtime required for Node.js launches. Reinstall ecopages and its dependencies, or use the Bun runtime instead.',
-		);
-	}
-}
-
 export async function createLaunchPlan(args, options = {}, entryFile = 'app.ts') {
-	const envOverrides = buildEnvOverrides(options);
+	const { envOverrides, env } = buildLaunchEnv(options);
 	const runtime = detectRuntime(options);
-	const env = { ...process.env, ...envOverrides };
 
 	if (runtime === 'node') {
-		const tsxCliPath = resolveTsxCliPath();
-		const nodeArgs = [entryFile, ...args];
+		const nodeEntryBridge = await buildNodeEntryBridge(entryFile);
 
 		return {
 			runtime,
 			command: process.execPath,
-			commandArgs: [...buildNodeEnvFileArgs(options.nodeEnv), tsxCliPath, ...nodeArgs],
+			commandArgs: [nodeEntryBridge, ...args],
 			envOverrides,
 			env,
 		};

@@ -35,6 +35,6 @@ The `appConfig` value should come from the Ecopages config builder flow. The plu
 
 ## Runtime Notes
 
-The plugin is separate from the `ecopages` CLI. The CLI still runs the app directly through Bun or `tsx` under Node. Use `@ecopages/vite-plugin` when you want Ecopages to run inside a Vite host setup.
+The plugin is separate from the `ecopages` CLI. The CLI runs the app directly through Bun or through Node with `tsx` under Node. Use `@ecopages/vite-plugin` when you want Ecopages to run inside a Vite host setup.
 
 The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and Vite server environments for server invalidation.

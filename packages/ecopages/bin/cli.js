@@ -194,7 +194,7 @@ function runLaunchPlan(launchPlan) {
 			const hint =
 				launchPlan.runtime === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Reinstall ecopages and its dependencies so the Node entry bridge dependencies are available.';
+					: 'Reinstall Node.js or run with --runtime bun if this app requires Bun.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -209,8 +209,8 @@ function runLaunchPlan(launchPlan) {
 }
 
 /**
- * Launch the entry file via the detected or forced runtime (bun or node).
- * Applies runtime-specific launch behavior for the selected runtime.
+ * Launch the entry file via the detected or forced runtime.
+ * Node uses native Node semantics; Bun uses Bun runtime flags.
  * @param {string[]} args - Arguments to pass to the entry file
  * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run

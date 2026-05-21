@@ -46,7 +46,7 @@ test('resolveNodeBootstrapDependency keeps relative, node, and workspace specifi
 	}
 });
 
-test('resolveNodeBootstrapDependency externalizes third-party packages and links them into runtime node_modules', () => {
+test('resolveNodeBootstrapDependency externalizes third-party packages without runtime node_modules links', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const importerPath = path.join(rootDir, 'packages', 'example', 'src', 'index.ts');
@@ -62,16 +62,13 @@ test('resolveNodeBootstrapDependency externalizes third-party packages and links
 		);
 
 		assert.deepEqual(result, { path: 'fast-glob', external: true });
-		assert.equal(
-			fs.realpathSync(path.join(runtimeNodeModulesDir, 'fast-glob')),
-			fs.realpathSync(path.join(rootDir, 'node_modules', 'fast-glob')),
-		);
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 });
 
-test('resolveNodeBootstrapDependency appends .js for extensionless deep package imports', () => {
+test('resolveNodeBootstrapDependency preserves extensionless deep package imports for Node to resolve', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const importerPath = path.join(rootDir, 'src', 'page.ts');
@@ -94,8 +91,8 @@ test('resolveNodeBootstrapDependency appends .js for extensionless deep package 
 			{ projectDir: rootDir, runtimeNodeModulesDir },
 		);
 
-		assert.deepEqual(result, { path: 'esm-deep-tool/feature.js', external: true });
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'esm-deep-tool')), fs.realpathSync(packageDir));
+		assert.deepEqual(result, { path: 'esm-deep-tool/feature', external: true });
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -130,7 +127,7 @@ test('resolveNodeBootstrapDependency preserves exported package subpaths without
 		);
 
 		assert.deepEqual(result, { path: 'react-like/jsx-runtime', external: true });
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react-like')), fs.realpathSync(packageDir));
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -159,7 +156,7 @@ test('resolveNodeBootstrapDependency keeps explicit deep package extensions unch
 		);
 
 		assert.deepEqual(result, { path: 'three-like/examples/jsm/Loader.js', external: true });
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'three-like')), fs.realpathSync(packageDir));
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -181,10 +178,7 @@ test('resolveNodeBootstrapDependency resolves workspace-source third-party impor
 		);
 
 		assert.deepEqual(result, { path: 'react', external: true });
-		assert.equal(
-			fs.realpathSync(path.join(runtimeNodeModulesDir, 'react')),
-			fs.realpathSync(path.join(rootDir, 'node_modules', 'react')),
-		);
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -217,10 +211,7 @@ test('resolveNodeBootstrapDependency resolves workspace package dependencies fro
 		);
 
 		assert.deepEqual(result, { path: 'oxc-parser', external: true });
-		assert.equal(
-			fs.realpathSync(path.join(runtimeNodeModulesDir, 'oxc-parser')),
-			fs.realpathSync(path.join(frameworkPackageDir, 'node_modules', 'oxc-parser')),
-		);
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -324,13 +315,13 @@ test('resolveNodeBootstrapDependency resolves nested third-party dependencies fr
 		);
 
 		assert.deepEqual(result, { path: 'dep-b', external: true });
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'dep-b')), fs.realpathSync(nestedDependencyDir));
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 });
 
-test('resolveNodeBootstrapDependency links the installed package root when the resolved entry lives under a nested manifest', () => {
+test('resolveNodeBootstrapDependency leaves package roots to Node when the entry lives under a nested manifest', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const importerPath = path.join(rootDir, 'src', 'page.ts');
@@ -348,13 +339,13 @@ test('resolveNodeBootstrapDependency links the installed package root when the r
 		);
 
 		assert.deepEqual(result, { path: 'postgres', external: true });
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'postgres')), fs.realpathSync(packageDir));
+		assert.equal(fs.existsSync(runtimeNodeModulesDir), false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 });
 
-test('resolveNodeBootstrapDependency refreshes runtime links when the resolved package target changes', () => {
+test('resolveNodeBootstrapDependency does not refresh runtime links for third-party packages', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const importerPath = path.join(rootDir, 'src', 'page.tsx');
@@ -381,13 +372,13 @@ test('resolveNodeBootstrapDependency refreshes runtime links when the resolved p
 			),
 			{ path: 'react', external: true },
 		);
-		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react')), fs.realpathSync(secondPackageDir));
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react')), fs.realpathSync(firstPackageDir));
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
 });
 
-test('resolveNodeBootstrapDependency replaces dangling runtime symlinks before linking the resolved package', () => {
+test('resolveNodeBootstrapDependency leaves dangling runtime symlinks untouched for third-party packages', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const importerPath = path.join(rootDir, 'src', 'page.tsx');
@@ -409,7 +400,7 @@ test('resolveNodeBootstrapDependency replaces dangling runtime symlinks before l
 			),
 			{ path: 'react', external: true },
 		);
-		assert.equal(fs.realpathSync(runtimeReactLinkPath), fs.realpathSync(packageDir));
+		assert.equal(fs.lstatSync(runtimeReactLinkPath).isSymbolicLink(), true);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
@@ -446,7 +437,7 @@ test('createNodeBootstrapPlugin wires the shared resolution policy into an Eco b
 	}
 });
 
-test('createNodeBootstrapPlugin rewrites import.meta for all project source files', async () => {
+test('createNodeBootstrapPlugin does not rewrite import.meta for project source files', async () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
 	const bootstrapFile = path.join(rootDir, 'eco.config.ts');
@@ -469,74 +460,17 @@ test('createNodeBootstrapPlugin rewrites import.meta for all project source file
 			runtimeNodeModulesDir: path.join(rootDir, '.eco', 'node_modules'),
 		});
 
-		let onLoadCallback: ((args: { path: string; namespace?: string }) => Promise<unknown> | unknown) | undefined;
+		let onLoadRegistered = false;
 
 		await plugin.setup({
 			onResolve() {},
-			onLoad(_options, callback) {
-				onLoadCallback = callback;
+			onLoad() {
+				onLoadRegistered = true;
 			},
 			module() {},
 		});
 
-		assert.ok(onLoadCallback);
-		const bootstrapResult = await onLoadCallback?.({ path: bootstrapFile });
-		const regularResult = await onLoadCallback?.({ path: regularFile });
-
-		assert.equal(typeof (bootstrapResult as { contents?: string } | undefined)?.contents, 'string');
-		assert.equal(
-			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
-				? String((bootstrapResult as { contents: string }).contents).includes('import.meta')
-				: true,
-			false,
-		);
-		assert.equal(
-			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
-				? String((bootstrapResult as { contents: string }).contents).includes('process.env')
-				: false,
-			true,
-		);
-		assert.equal(
-			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
-				? String((bootstrapResult as { contents: string }).contents).includes(
-						JSON.stringify(path.dirname(bootstrapFile)),
-					)
-				: false,
-			true,
-		);
-		assert.equal(
-			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
-				? String((bootstrapResult as { contents: string }).contents).includes(JSON.stringify(bootstrapFile))
-				: false,
-			true,
-		);
-		assert.equal(typeof (regularResult as { contents?: string } | undefined)?.contents, 'string');
-		assert.equal(
-			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
-				? String((regularResult as { contents: string }).contents).includes('import.meta')
-				: true,
-			false,
-		);
-		assert.equal(
-			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
-				? String((regularResult as { contents: string }).contents).includes('process.env')
-				: false,
-			true,
-		);
-		assert.equal(
-			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
-				? String((regularResult as { contents: string }).contents).includes(
-						JSON.stringify(path.dirname(regularFile)),
-					)
-				: false,
-			true,
-		);
-		assert.equal(
-			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
-				? String((regularResult as { contents: string }).contents).includes(JSON.stringify(regularFile))
-				: false,
-			true,
-		);
+		assert.equal(onLoadRegistered, false);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}

@@ -72,6 +72,66 @@ function resolveRuntimePackageRoot(specifier: string, resolvedPath: string, pare
 	return findInstalledPackageDir(packageName, parentPath) ?? findPackageRoot(resolvedPath);
 }
 
+function getNodeExternalSpecifier(specifier: string, resolvedPath: string, parentPath: string): string {
+	const packageName = getPackageNameFromSpecifier(specifier);
+	if (specifier === packageName) {
+		return specifier;
+	}
+
+	if (path.extname(specifier)) {
+		return specifier;
+	}
+
+	for (const extension of ['.js', '.mjs', '.cjs', '.json']) {
+		const candidateSpecifier = `${specifier}${extension}`;
+		try {
+			const candidateResolvedPath = resolveSpecifier(candidateSpecifier, parentPath);
+			if (existsSync(candidateResolvedPath)) {
+				return candidateSpecifier;
+			}
+		} catch {}
+	}
+
+	for (const candidatePath of [
+		resolvedPath,
+		...['.js', '.mjs', '.cjs', '.json'].map((extension) => `${specifier}${extension}`),
+	]) {
+		const candidateResolvedPath =
+			candidatePath === resolvedPath
+				? resolvedPath
+				: (() => {
+						try {
+							return resolveSpecifier(candidatePath, parentPath);
+						} catch {
+							return undefined;
+						}
+					})();
+
+		if (!candidateResolvedPath) {
+			continue;
+		}
+
+		if (!existsSync(candidateResolvedPath)) {
+			continue;
+		}
+
+		const resolvedExtension = path.extname(candidateResolvedPath);
+		if (!['.js', '.mjs', '.cjs', '.json'].includes(resolvedExtension)) {
+			continue;
+		}
+
+		const packageRoot = resolveRuntimePackageRoot(specifier, candidateResolvedPath, parentPath);
+		const requestedSubpath = specifier.slice(packageName.length + 1);
+		const resolvedSubpath = path.relative(packageRoot, candidateResolvedPath);
+
+		if (resolvedSubpath === `${requestedSubpath}${resolvedExtension}`) {
+			return `${specifier}${resolvedExtension}`;
+		}
+	}
+
+	return specifier;
+}
+
 function ensureRuntimePackageLink(
 	nodeModulesDir: string,
 	specifier: string,
@@ -375,7 +435,7 @@ export function resolveNodeBootstrapDependency(
 	ensureRuntimePackageLink(options.runtimeNodeModulesDir, args.path, resolvedPath, resolveParent);
 
 	return {
-		path: args.path,
+		path: getNodeExternalSpecifier(args.path, resolvedPath, resolveParent),
 		external: true,
 	};
 }

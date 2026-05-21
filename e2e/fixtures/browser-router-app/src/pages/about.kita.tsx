@@ -13,6 +13,12 @@ export default eco.page({
 	render: () => (
 		<div data-testid="about-page">
 			<h1>About</h1>
+			<script
+				type="module"
+				src="/shared-chunk-probe.js"
+				data-eco-rerun="true"
+				data-eco-script-id="shared-chunk-probe"
+			></script>
 			<p>This is the about page.</p>
 			<nav>
 				<a href="/" data-testid="link-home">

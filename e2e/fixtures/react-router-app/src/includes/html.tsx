@@ -13,6 +13,12 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 		<html lang={language}>
 			<Head metadata={metadata}>
 				{headContent}
+				<script
+					type="module"
+					src="/shared-chunk-probe.js"
+					data-eco-rerun="true"
+					data-eco-script-id="shared-chunk-probe"
+				></script>
 				<EcoPropsScript data={pageProps} />
 			</Head>
 			<body>{children}</body>

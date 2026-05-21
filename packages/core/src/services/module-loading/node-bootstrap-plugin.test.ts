@@ -101,6 +101,41 @@ test('resolveNodeBootstrapDependency appends .js for extensionless deep package 
 	}
 });
 
+test('resolveNodeBootstrapDependency preserves exported package subpaths without appending .js', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.ts');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const packageDir = path.join(rootDir, 'node_modules', 'react-like');
+	fs.mkdirSync(packageDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(packageDir, 'package.json'),
+		JSON.stringify({
+			name: 'react-like',
+			type: 'module',
+			exports: {
+				'./jsx-runtime': './jsx-runtime.js',
+			},
+		}),
+		'utf8',
+	);
+	fs.writeFileSync(path.join(packageDir, 'jsx-runtime.js'), 'export const jsx = true;\n', 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: 'react-like/jsx-runtime', importer: importerPath },
+			{ projectDir: rootDir, runtimeNodeModulesDir },
+		);
+
+		assert.deepEqual(result, { path: 'react-like/jsx-runtime', external: true });
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'react-like')), fs.realpathSync(packageDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveNodeBootstrapDependency keeps explicit deep package extensions unchanged', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');

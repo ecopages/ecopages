@@ -466,4 +466,59 @@ describe('launch-plan', () => {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('preserves exported package subpaths through the real node CLI path', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
+		const outputPath = path.join(tempDir, 'result.json');
+
+		try {
+			fs.mkdirSync(path.join(tempDir, 'node_modules', 'react-like'), { recursive: true });
+			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'react-like', 'package.json'),
+				'{"type":"module","exports":{"./jsx-runtime":"./jsx-runtime.js"}}',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'react-like', 'jsx-runtime.js'),
+				'export const jsx = 123;\n',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'app.ts'),
+				[
+					"import { writeFileSync } from 'node:fs';",
+					"import { jsx } from 'react-like/jsx-runtime';",
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ jsx }));`,
+				].join('\n'),
+				'utf8',
+			);
+
+			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
+				const child = spawn(process.execPath, [cliPath, 'start', 'app.ts', '--runtime', 'node'], {
+					cwd: tempDir,
+					env: {
+						...process.env,
+						VITEST: '',
+					},
+					stdio: ['ignore', 'ignore', 'pipe'],
+				});
+				let stderr = '';
+
+				child.stderr.on('data', (chunk) => {
+					stderr += chunk.toString();
+				});
+				child.on('close', (exitCode) => {
+					resolve({ exitCode, stderr });
+				});
+			});
+
+			expect(result.exitCode).toBe(0);
+			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ jsx: 123 });
+			expect(result.stderr).toBe('');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

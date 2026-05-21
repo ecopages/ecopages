@@ -36,7 +36,12 @@ const defaultProjectBatches = [
 	],
 ];
 
-const interactivePassThroughFlags = new Set(['--debug', '--ui']);
+const interactivePassThroughFlags = new Set(['--ui']);
+const batchStripFlags = new Set(['--debug']);
+
+export function stripBatchIncompatibleFlags(args) {
+	return args.filter((arg) => !batchStripFlags.has(arg));
+}
 
 export function hasInteractivePassThroughFlags(args) {
 	for (let index = 0; index < args.length; index += 1) {
@@ -127,10 +132,12 @@ async function main() {
 		return;
 	}
 
+	const batchArgs = stripBatchIncompatibleFlags(forwardedArgs);
+
 	process.exitCode =
 		selectedProjects.length > 0
-			? await runPlaywright(forwardedArgs, selectedProjects)
-			: await runPlaywrightInDefaultBatches(forwardedArgs);
+			? await runPlaywright(batchArgs, selectedProjects)
+			: await runPlaywrightInDefaultBatches(batchArgs);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

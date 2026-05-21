@@ -24,6 +24,8 @@ type PendingHeadScript = {
 	replaceExisting: boolean;
 };
 
+type RerunScriptCallback = () => void;
+
 const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 
 /**
@@ -284,8 +286,9 @@ export class DomSwapper {
 
 		for (const script of this.pendingRerunScripts) {
 			const targetParent = script.parent === 'body' ? document.body : document.head;
+			const registeredRerun = this.getRegisteredRerunScript(script.scriptId);
 			const replacement = document.createElement('script');
-			const shouldBustModuleSrc = this.isExternalModuleRerunScript(script);
+			const shouldBustModuleSrc = this.isExternalModuleRerunScript(script) && !registeredRerun;
 
 			for (const [name, value] of script.attributes) {
 				if (name === 'data-eco-rerun') {
@@ -304,6 +307,15 @@ export class DomSwapper {
 			replacement.textContent = script.textContent;
 
 			const existingScript = this.findExistingRerunScript(targetParent, script);
+
+			if (registeredRerun) {
+				if (!existingScript) {
+					targetParent.appendChild(replacement);
+				}
+
+				registeredRerun();
+				continue;
+			}
 
 			if (existingScript) {
 				existingScript.replaceWith(replacement);
@@ -656,6 +668,21 @@ export class DomSwapper {
 		}
 
 		return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
+	}
+
+	private getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
+		if (!scriptId) {
+			return null;
+		}
+
+		const runtimeWindow = window as Window &
+			typeof globalThis & {
+				__ECO_PAGES__?: {
+					rerunScripts?: Record<string, RerunScriptCallback | undefined>;
+				};
+			};
+
+		return runtimeWindow.__ECO_PAGES__?.rerunScripts?.[scriptId] ?? null;
 	}
 
 	/**

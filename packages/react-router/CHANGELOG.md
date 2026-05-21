@@ -13,6 +13,7 @@ All notable changes to `@ecopages/react-router` are documented here.
 - Fixed current-page reloads to accept HMR module overrides so persisted-layout refreshes import the rebuilt active page entry.
 - Fixed React-to-browser-router handoffs, queued-click replay, and stale-navigation races during mixed-router navigations.
 - Standardized route payload reads, document-owner markers, rerun scripts, and current-page HMR refreshes for persisted React layouts.
+- Fixed stable-id external rerun scripts to reuse registered bootstraps instead of cache-busting shared module chunks on every navigation.
 
 ### Refactoring
 

@@ -141,7 +141,59 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelectorAll('script#__ECO_PAGE_DATA__')).toHaveLength(1);
 	});
 
-	it('re-executes external module rerun scripts with a fresh URL on each navigation', () => {
+	it('reuses registered rerun callbacks for external module scripts with stable ids', () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const rerun = vi.fn();
+		const observedSrcs: string[] = [];
+		const originalAppendChild = document.head.appendChild.bind(document.head);
+		const runtimeWindow = window as Window &
+			typeof globalThis & {
+				__ECO_PAGES__?: {
+					rerunScripts?: Record<string, () => void>;
+				};
+			};
+
+		runtimeWindow.__ECO_PAGES__ = {
+			rerunScripts: {
+				counter: rerun,
+			},
+		};
+
+		document.head.appendChild = ((node: Node) => {
+			if (node instanceof HTMLScriptElement && (node.getAttribute('src') ?? '').includes('/assets/counter.js')) {
+				observedSrcs.push(node.getAttribute('src') ?? '');
+			}
+			return originalAppendChild(node);
+		}) as typeof document.head.appendChild;
+
+		try {
+			const nextHtml = parseDocument(
+				[
+					'<html><head>',
+					'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>',
+					'</head><body><div id="content">Counter Page</div></body></html>',
+				].join(''),
+			);
+
+			swapper.morphHead(nextHtml);
+			swapper.replaceBody(nextHtml);
+			swapper.flushRerunScripts();
+
+			swapper.morphHead(nextHtml);
+			swapper.replaceBody(nextHtml);
+			swapper.flushRerunScripts();
+		} finally {
+			document.head.appendChild = originalAppendChild;
+			delete runtimeWindow.__ECO_PAGES__;
+		}
+
+		expect(rerun).toHaveBeenCalledTimes(2);
+		expect(observedSrcs).toEqual(['/assets/counter.js']);
+		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
+	});
+
+	it('falls back to a fresh URL for external module rerun scripts without stable ids', () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const observedSrcs: string[] = [];
@@ -159,6 +211,46 @@ describe('DomSwapper service behavior', () => {
 				[
 					'<html><head>',
 					'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
+					'</head><body><div id="content">Counter Page</div></body></html>',
+				].join(''),
+			);
+
+			swapper.morphHead(nextHtml);
+			swapper.replaceBody(nextHtml);
+			swapper.flushRerunScripts();
+
+			swapper.morphHead(nextHtml);
+			swapper.replaceBody(nextHtml);
+			swapper.flushRerunScripts();
+		} finally {
+			document.head.appendChild = originalAppendChild;
+		}
+
+		expect(observedSrcs[0]).toContain('__eco_rerun=1');
+		expect(
+			document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.getAttribute('src'),
+		).toContain('__eco_rerun=2');
+		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
+	});
+
+	it('falls back to a fresh URL when a stable-id external module rerun script has no registered callback', () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const observedSrcs: string[] = [];
+		const originalAppendChild = document.head.appendChild.bind(document.head);
+
+		document.head.appendChild = ((node: Node) => {
+			if (node instanceof HTMLScriptElement && (node.getAttribute('src') ?? '').includes('/assets/counter.js')) {
+				observedSrcs.push(node.getAttribute('src') ?? '');
+			}
+			return originalAppendChild(node);
+		}) as typeof document.head.appendChild;
+
+		try {
+			const nextHtml = parseDocument(
+				[
+					'<html><head>',
+					'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>',
 					'</head><body><div id="content">Counter Page</div></body></html>',
 				].join(''),
 			);

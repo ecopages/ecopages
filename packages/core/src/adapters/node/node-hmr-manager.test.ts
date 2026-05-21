@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, test, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
@@ -241,14 +242,22 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 		} as any,
 	});
 	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+	let runtimeEntrypoint: string | undefined;
 
 	vi.spyOn(
-		(manager as unknown as { browserBundleService: { bundle: () => Promise<unknown> } }).browserBundleService,
+		(manager as unknown as {
+			browserBundleService: { bundle: (options: { entrypoints: string[] }) => Promise<unknown> };
+		}).browserBundleService,
 		'bundle',
-	).mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
+	).mockImplementationOnce(async (options: { entrypoints: string[] }) => {
+		runtimeEntrypoint = options.entrypoints[0];
+		throw new Error('Unexpected end of JSON input');
+	});
 
 	await assert.doesNotReject(() => manager.buildRuntime());
 	assert.equal(manager.isEnabled(), false);
+	assert.equal(runtimeEntrypoint, fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')));
+	assert.equal(runtimeEntrypoint?.includes(`${path.sep}.eco${path.sep}hmr${path.sep}client${path.sep}`), false);
 
 	manager.stop();
 	errorSpy.mockRestore();

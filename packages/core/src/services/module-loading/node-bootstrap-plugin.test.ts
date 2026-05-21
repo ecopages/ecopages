@@ -71,6 +71,65 @@ test('resolveNodeBootstrapDependency externalizes third-party packages and links
 	}
 });
 
+test('resolveNodeBootstrapDependency appends .js for extensionless deep package imports', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.ts');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const packageDir = path.join(rootDir, 'node_modules', 'esm-deep-tool');
+	fs.mkdirSync(path.join(packageDir, 'lib'), { recursive: true });
+	fs.writeFileSync(
+		path.join(packageDir, 'package.json'),
+		JSON.stringify({ name: 'esm-deep-tool', type: 'module' }),
+		'utf8',
+	);
+	fs.writeFileSync(path.join(packageDir, 'feature.js'), "export { value } from './lib/value.js';\n", 'utf8');
+	fs.writeFileSync(path.join(packageDir, 'lib', 'value.js'), 'export const value = 42;\n', 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: 'esm-deep-tool/feature', importer: importerPath },
+			{ projectDir: rootDir, runtimeNodeModulesDir },
+		);
+
+		assert.deepEqual(result, { path: 'esm-deep-tool/feature.js', external: true });
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'esm-deep-tool')), fs.realpathSync(packageDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolveNodeBootstrapDependency keeps explicit deep package extensions unchanged', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.ts');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const packageDir = path.join(rootDir, 'node_modules', 'three-like');
+	fs.mkdirSync(path.join(packageDir, 'examples', 'jsm'), { recursive: true });
+	fs.writeFileSync(
+		path.join(packageDir, 'package.json'),
+		JSON.stringify({ name: 'three-like', type: 'module' }),
+		'utf8',
+	);
+	fs.writeFileSync(path.join(packageDir, 'examples', 'jsm', 'Loader.js'), 'export const loader = true;\n', 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: 'three-like/examples/jsm/Loader.js', importer: importerPath },
+			{ projectDir: rootDir, runtimeNodeModulesDir },
+		);
+
+		assert.deepEqual(result, { path: 'three-like/examples/jsm/Loader.js', external: true });
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'three-like')), fs.realpathSync(packageDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveNodeBootstrapDependency resolves workspace-source third-party imports from the app project boundary', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');

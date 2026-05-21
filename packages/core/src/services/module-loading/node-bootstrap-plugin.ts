@@ -72,6 +72,22 @@ function resolveRuntimePackageRoot(specifier: string, resolvedPath: string, pare
 	return findInstalledPackageDir(packageName, parentPath) ?? findPackageRoot(resolvedPath);
 }
 
+function isPackageExportedSubpath(specifier: string, resolvedPath: string, parentPath: string): boolean {
+	const packageName = getPackageNameFromSpecifier(specifier);
+	if (specifier === packageName) {
+		return false;
+	}
+
+	const packageRoot = resolveRuntimePackageRoot(specifier, resolvedPath, parentPath);
+	const manifest = readPackageManifest(packageRoot);
+	if (!manifest?.exports || typeof manifest.exports !== 'object' || Array.isArray(manifest.exports)) {
+		return false;
+	}
+
+	const subpath = `.${specifier.slice(packageName.length)}`;
+	return subpath in (manifest.exports as Record<string, unknown>);
+}
+
 function getNodeExternalSpecifier(specifier: string, resolvedPath: string, parentPath: string): string {
 	const packageName = getPackageNameFromSpecifier(specifier);
 	if (specifier === packageName) {
@@ -79,6 +95,10 @@ function getNodeExternalSpecifier(specifier: string, resolvedPath: string, paren
 	}
 
 	if (path.extname(specifier)) {
+		return specifier;
+	}
+
+	if (isPackageExportedSubpath(specifier, resolvedPath, parentPath)) {
 		return specifier;
 	}
 

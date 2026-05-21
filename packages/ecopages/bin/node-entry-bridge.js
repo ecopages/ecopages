@@ -100,6 +100,31 @@ function ensureRuntimePackageLink(nodeModulesDir, specifier, resolvedPath) {
 	symlinkSync(packageRoot, linkPath, 'dir');
 }
 
+function readPackageManifest(packageDir) {
+	const packageJsonPath = path.join(packageDir, 'package.json');
+	try {
+		return JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+	} catch {
+		return undefined;
+	}
+}
+
+function isPackageExportedSubpath(specifier, resolvedPath) {
+	const packageName = getPackageNameFromSpecifier(specifier);
+	if (specifier === packageName) {
+		return false;
+	}
+
+	const packageRoot = findPackageRoot(resolvedPath);
+	const manifest = readPackageManifest(packageRoot);
+	if (!manifest?.exports || typeof manifest.exports !== 'object' || Array.isArray(manifest.exports)) {
+		return false;
+	}
+
+	const subpath = `.${specifier.slice(packageName.length)}`;
+	return subpath in manifest.exports;
+}
+
 function getNodeExternalSpecifier(specifier, resolvedPath) {
 	const packageName = getPackageNameFromSpecifier(specifier);
 	if (specifier === packageName) {
@@ -107,6 +132,10 @@ function getNodeExternalSpecifier(specifier, resolvedPath) {
 	}
 
 	if (path.extname(specifier)) {
+		return specifier;
+	}
+
+	if (isPackageExportedSubpath(specifier, resolvedPath)) {
 		return specifier;
 	}
 

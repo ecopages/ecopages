@@ -125,6 +125,26 @@ function resolvePackageExportTarget(packageDir: string, target: unknown): string
 	);
 }
 
+function shouldRewriteProjectImportMeta(filePath: string, projectDir: string): boolean {
+	const normalizedFilePath = path.normalize(filePath);
+	const normalizedProjectDir = path.normalize(projectDir);
+
+	return (
+		(normalizedFilePath === normalizedProjectDir ||
+			normalizedFilePath.startsWith(`${normalizedProjectDir}${path.sep}`)) &&
+		!normalizedFilePath.includes(`${path.sep}node_modules${path.sep}`)
+	);
+}
+
+function getLoaderForPath(filePath: string) {
+	const extension = path.extname(filePath).toLowerCase();
+
+	if (extension === '.tsx') return 'tsx';
+	if (extension === '.ts') return 'ts';
+	if (extension === '.jsx') return 'jsx';
+	return 'js';
+}
+
 function resolveInstalledPackageTarget(specifier: string, parentPath: string): string | undefined {
 	const packageName = getPackageNameFromSpecifier(specifier);
 	const packageDir = findInstalledPackageDir(packageName, parentPath);
@@ -265,6 +285,29 @@ export function createNodeBootstrapPlugin(options: NodeBootstrapResolutionOption
 		setup(build) {
 			build.onResolve({ filter: /^bun:/ }, (args) => {
 				throw new Error(getNodeUnsupportedBuiltinError(args.path, args.importer));
+			});
+
+			build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, (args) => {
+				if (!shouldRewriteProjectImportMeta(args.path, options.projectDir)) {
+					return undefined;
+				}
+
+				const originalContents = readFileSync(args.path, 'utf8');
+				const contents = originalContents
+					.replaceAll('import.meta.env', 'process.env')
+					.replaceAll('import.meta.dirname', JSON.stringify(path.dirname(args.path)))
+					.replaceAll('import.meta.filename', JSON.stringify(args.path))
+					.replaceAll('import.meta.dir', JSON.stringify(path.dirname(args.path)))
+					.replaceAll('import.meta.path', JSON.stringify(args.path));
+
+				if (contents === originalContents) {
+					return undefined;
+				}
+
+				return {
+					contents,
+					loader: getLoaderForPath(args.path),
+				};
 			});
 
 			build.onResolve({ filter: /^[@A-Za-z0-9][^:]*$/ }, (args) => {

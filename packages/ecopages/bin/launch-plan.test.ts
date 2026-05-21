@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildEnvOverrides, buildBunArgs, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 
+const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
 const originalUserAgent = process.env.npm_config_user_agent;
@@ -130,7 +131,14 @@ describe('launch-plan', () => {
 				runtime: 'node',
 				command: process.execPath,
 			});
-			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--import',
+				nodeRequirePreload,
+				'--import',
+				tsxLoader,
+				'app.ts',
+				'--dev',
+			]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -149,7 +157,14 @@ describe('launch-plan', () => {
 				'app.ts',
 			);
 
-			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--import',
+				nodeRequirePreload,
+				'--import',
+				tsxLoader,
+				'app.ts',
+				'--dev',
+			]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -182,7 +197,14 @@ describe('launch-plan', () => {
 			writeExperimentalRuntimeConfig(tempDir);
 
 			const plan = await createLaunchPlan(['--dev'], { runtime: 'node', nodeEnv: 'development' }, 'app.ts');
-			expect(plan.commandArgs).toEqual(['--import', tsxLoader, 'app.ts', '--dev']);
+			expect(plan.commandArgs).toEqual([
+				'--import',
+				nodeRequirePreload,
+				'--import',
+				tsxLoader,
+				'app.ts',
+				'--dev',
+			]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -357,6 +379,61 @@ describe('launch-plan', () => {
 			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
 				platform: process.platform,
 			});
+			expect(result.stderr).toBe('');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('provides app-rooted require for Node CLI entries', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
+		const outputPath = path.join(tempDir, 'result.json');
+
+		try {
+			fs.mkdirSync(path.join(tempDir, 'node_modules', 'required-tool'), { recursive: true });
+			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'required-tool', 'package.json'),
+				'{"main":"index.cjs"}',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'node_modules', 'required-tool', 'index.cjs'),
+				'module.exports = { value: "from-require" };',
+				'utf8',
+			);
+			fs.writeFileSync(
+				path.join(tempDir, 'app.ts'),
+				[
+					"import { writeFileSync } from 'node:fs';",
+					"const { value } = require('required-tool');",
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ value }));`,
+				].join('\n'),
+				'utf8',
+			);
+
+			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
+				const child = spawn(process.execPath, [cliPath, 'start', 'app.ts', '--runtime', 'node'], {
+					cwd: tempDir,
+					env: {
+						...process.env,
+						VITEST: '',
+					},
+					stdio: ['ignore', 'ignore', 'pipe'],
+				});
+				let stderr = '';
+
+				child.stderr.on('data', (chunk) => {
+					stderr += chunk.toString();
+				});
+				child.on('close', (exitCode) => {
+					resolve({ exitCode, stderr });
+				});
+			});
+
+			expect(result.exitCode).toBe(0);
+			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ value: 'from-require' });
 			expect(result.stderr).toBe('');
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });

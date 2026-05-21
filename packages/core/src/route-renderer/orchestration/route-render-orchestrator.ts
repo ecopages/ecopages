@@ -554,7 +554,12 @@ export class RouteRenderOrchestrator {
 		triggers: ResolvedLazyTrigger[],
 		currentIntegrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const globalInjectorImportPath = createRequire(import.meta.url).resolve('@ecopages/scripts-injector/global');
+		const appProjectDir = this.appConfig.rootDir ?? this.appConfig.absolutePaths?.projectDir ?? process.cwd();
+		const appPackageRequire = createRequire(path.join(appProjectDir, 'package.json'));
+		const corePackageEntryPath = appPackageRequire.resolve('@ecopages/core');
+		const globalInjectorImportPath = createRequire(corePackageEntryPath).resolve(
+			'@ecopages/scripts-injector/global',
+		);
 
 		const mapScript = AssetFactory.createInlineContentScript({
 			position: 'head',

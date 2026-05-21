@@ -236,6 +236,30 @@ test('resolveNodeBootstrapDependency resolves nested third-party dependencies fr
 	}
 });
 
+test('resolveNodeBootstrapDependency links the installed package root when the resolved entry lives under a nested manifest', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
+	const importerPath = path.join(rootDir, 'src', 'page.ts');
+	fs.mkdirSync(path.dirname(importerPath), { recursive: true });
+	fs.writeFileSync(importerPath, 'export default null;\n', 'utf8');
+	const packageDir = path.join(rootDir, 'node_modules', 'postgres');
+	writePackage(packageDir, { name: 'postgres', main: 'cjs/src/index.js' });
+	fs.writeFileSync(path.join(packageDir, 'cjs', 'package.json'), JSON.stringify({ type: 'commonjs' }), 'utf8');
+
+	try {
+		const runtimeNodeModulesDir = path.join(rootDir, '.eco', 'node_modules');
+		const result = resolveNodeBootstrapDependency(
+			{ path: 'postgres', importer: importerPath },
+			{ projectDir: rootDir, runtimeNodeModulesDir },
+		);
+
+		assert.deepEqual(result, { path: 'postgres', external: true });
+		assert.equal(fs.realpathSync(path.join(runtimeNodeModulesDir, 'postgres')), fs.realpathSync(packageDir));
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveNodeBootstrapDependency refreshes runtime links when the resolved package target changes', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-node-bootstrap-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');
@@ -334,8 +358,16 @@ test('createNodeBootstrapPlugin rewrites import.meta for all project source file
 	const bootstrapFile = path.join(rootDir, 'eco.config.ts');
 	const regularFile = path.join(rootDir, 'src', 'page.kita.tsx');
 	fs.mkdirSync(path.dirname(regularFile), { recursive: true });
-	fs.writeFileSync(bootstrapFile, 'export default import.meta.dirname;\n', 'utf8');
-	fs.writeFileSync(regularFile, 'export default import.meta.dirname;\n', 'utf8');
+	fs.writeFileSync(
+		bootstrapFile,
+		'export default [import.meta.env, import.meta.dir, import.meta.dirname, import.meta.path, import.meta.filename];\n',
+		'utf8',
+	);
+	fs.writeFileSync(
+		regularFile,
+		'export default [import.meta.env, import.meta.dir, import.meta.dirname, import.meta.path, import.meta.filename];\n',
+		'utf8',
+	);
 
 	try {
 		const plugin = createNodeBootstrapPlugin({
@@ -360,18 +392,54 @@ test('createNodeBootstrapPlugin rewrites import.meta for all project source file
 		assert.equal(typeof (bootstrapResult as { contents?: string } | undefined)?.contents, 'string');
 		assert.equal(
 			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
+				? String((bootstrapResult as { contents: string }).contents).includes('import.meta')
+				: true,
+			false,
+		);
+		assert.equal(
+			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
+				? String((bootstrapResult as { contents: string }).contents).includes('process.env')
+				: false,
+			true,
+		);
+		assert.equal(
+			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
 				? String((bootstrapResult as { contents: string }).contents).includes(
 						JSON.stringify(path.dirname(bootstrapFile)),
 					)
 				: false,
 			true,
 		);
+		assert.equal(
+			bootstrapResult && typeof bootstrapResult === 'object' && 'contents' in bootstrapResult
+				? String((bootstrapResult as { contents: string }).contents).includes(JSON.stringify(bootstrapFile))
+				: false,
+			true,
+		);
 		assert.equal(typeof (regularResult as { contents?: string } | undefined)?.contents, 'string');
+		assert.equal(
+			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
+				? String((regularResult as { contents: string }).contents).includes('import.meta')
+				: true,
+			false,
+		);
+		assert.equal(
+			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
+				? String((regularResult as { contents: string }).contents).includes('process.env')
+				: false,
+			true,
+		);
 		assert.equal(
 			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
 				? String((regularResult as { contents: string }).contents).includes(
 						JSON.stringify(path.dirname(regularFile)),
 					)
+				: false,
+			true,
+		);
+		assert.equal(
+			regularResult && typeof regularResult === 'object' && 'contents' in regularResult
+				? String((regularResult as { contents: string }).contents).includes(JSON.stringify(regularFile))
 				: false,
 			true,
 		);

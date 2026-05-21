@@ -25,6 +25,8 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('activeRoot.unmount();');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");');
 		expect(script).toContain('if (window.__ECO_PAGES__.react?.pageRoot) {');
+		expect(script).toContain('const props = getPageData();');
+		expect(script).toContain('window.__ECO_PAGES__.page = {');
 		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('const layoutProps = props?.locals ? { locals: props.locals } : null;');
 		expect(script).toContain('return Layout ? createElement(Layout, layoutProps, pageElement) : pageElement;');
@@ -54,6 +56,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot=()=>{');
 		expect(script).toContain('a.unmount()');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router")');
+		expect(script).toContain('const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};');
 		expect(script).toContain(
 			'if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}',
 		);
@@ -88,6 +91,8 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('const nextPageLayout = NewPage.config?.layout;');
 		expect(script).toContain('clearCache: currentPageLayout !== nextPageLayout');
 		expect(script).toContain('moduleUrl: "/assets/page.js"');
+		expect(script).toContain('const props = getPageData();');
+		expect(script).toContain('window.__ECO_PAGES__.page = {');
 		expect(script).toContain('const nextProps = getPageData();');
 		expect(script).toContain('root.render(createTree(NewPage, nextProps));');
 		expect(script).toContain('console.log("[ecopages] React component updated via router");');
@@ -121,6 +126,7 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('const sr=()=>{');
+		expect(script).toContain('const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};');
 		expect(script).toContain('if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}');
 	});
 
@@ -146,6 +152,7 @@ describe('createHydrationScript', () => {
 describe('createIslandHydrationScript', () => {
 	const baseOptions = {
 		importPath: '/assets/component.js',
+		scriptId: 'ecopages-react-island',
 		reactImportPath: '/assets/react.js',
 		reactDomClientImportPath: '/assets/react-dom-client.js',
 		targetSelector: '[data-eco-component-key="eco-component-1"]',
@@ -165,6 +172,7 @@ describe('createIslandHydrationScript', () => {
 		expect(script).toContain('document.querySelectorAll');
 		expect(script).toContain('target.replaceWith(container)');
 		expect(script).toContain('JSON.parse(atob(target.getAttribute("data-eco-props")');
+		expect(script).toContain('window.__ECO_PAGES__.rerunScripts["ecopages-react-island"] = mount;');
 		expect(script).toContain('document.addEventListener("DOMContentLoaded", mount, { once: true });');
 	});
 
@@ -180,6 +188,7 @@ describe('createIslandHydrationScript', () => {
 		expect(script).toContain('querySelectorAll');
 		expect(script).toContain('replaceWith(ct)');
 		expect(script).toContain('JSON.parse(atob(t.getAttribute("data-eco-props")');
+		expect(script).toContain('window.__ECO_PAGES__.rerunScripts["ecopages-react-island"]=m;');
 		expect(script).toContain('DOMContentLoaded",m,{once:true}');
 	});
 });

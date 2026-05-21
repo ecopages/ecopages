@@ -16,6 +16,8 @@ type PendingRerunScript = {
 	src: string | null;
 };
 
+type RerunScriptCallback = () => void;
+
 export type HeadMorphResult = {
 	cleanup: () => void;
 	flushRerunScripts: () => void;
@@ -249,8 +251,9 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 		},
 		flushRerunScripts: () => {
 			for (const script of pendingRerunScripts) {
+				const registeredRerun = getRegisteredRerunScript(script.scriptId);
 				const replacement = document.createElement('script');
-				const shouldBustModuleSrc = isExternalModuleRerunScript(script);
+				const shouldBustModuleSrc = isExternalModuleRerunScript(script) && !registeredRerun;
 
 				for (const [name, value] of script.attributes) {
 					if (name === 'src' && shouldBustModuleSrc) {
@@ -265,6 +268,15 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 				replacement.textContent = script.textContent;
 
 				const existingScript = findExistingRerunScript(script);
+				if (registeredRerun) {
+					if (!existingScript) {
+						document.head.appendChild(replacement);
+					}
+
+					registeredRerun();
+					continue;
+				}
+
 				if (existingScript) {
 					existingScript.replaceWith(replacement);
 					continue;
@@ -298,6 +310,21 @@ function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
 	}
 
 	return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
+}
+
+function getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
+	if (!scriptId) {
+		return null;
+	}
+
+	const runtimeWindow = window as Window &
+		typeof globalThis & {
+			__ECO_PAGES__?: {
+				rerunScripts?: Record<string, RerunScriptCallback | undefined>;
+			};
+		};
+
+	return runtimeWindow.__ECO_PAGES__?.rerunScripts?.[scriptId] ?? null;
 }
 
 function createRerunScriptUrl(src: string): string {

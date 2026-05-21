@@ -178,6 +178,7 @@ export class ReactHydrationAssetService {
 				position: 'head',
 				content: createIslandHydrationScript({
 					importPath,
+					scriptId: hydrationName,
 					reactImportPath: runtimeImports.react,
 					reactDomClientImportPath: runtimeImports.reactDomClient,
 					targetSelector: `[data-eco-component-key="${componentKey}"]`,

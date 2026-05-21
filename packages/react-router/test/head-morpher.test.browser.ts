@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { morphHead } from '../src/head-morpher.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { morphHead } from '../src/head-morpher';
 
 function createDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -114,5 +114,85 @@ describe('morphHead', () => {
 
 		expect(document.title).toBe('Next route');
 		expect(document.head.querySelector('script[data-eco-script-id="ecopages-react-123"]')).toBeNull();
+	});
+
+	it('reuses registered rerun callbacks for external module rerun scripts with stable ids', async () => {
+		const rerun = vi.fn();
+		const runtimeWindow = window as Window &
+			typeof globalThis & {
+				__ECO_PAGES__?: {
+					rerunScripts?: Record<string, () => void>;
+				};
+			};
+
+		runtimeWindow.__ECO_PAGES__ = {
+			rerunScripts: {
+				counter: rerun,
+			},
+		};
+
+		try {
+			document.head.innerHTML =
+				'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>';
+			const nextDocument = createDocument(
+				[
+					'<html><head>',
+					'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>',
+					'</head><body></body></html>',
+				].join(''),
+			);
+
+			const { cleanup, flushRerunScripts } = await morphHead(nextDocument);
+			flushRerunScripts();
+			cleanup();
+
+			expect(rerun).toHaveBeenCalledTimes(1);
+			expect(
+				document.head
+					.querySelector<HTMLScriptElement>('script[data-eco-script-id="counter"]')
+					?.getAttribute('src'),
+			).toBe('/assets/counter.js');
+		} finally {
+			delete runtimeWindow.__ECO_PAGES__;
+		}
+	});
+
+	it('falls back to a fresh URL for anonymous external module rerun scripts', async () => {
+		document.head.innerHTML = '<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>';
+		const nextDocument = createDocument(
+			[
+				'<html><head>',
+				'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
+				'</head><body></body></html>',
+			].join(''),
+		);
+
+		const { cleanup, flushRerunScripts } = await morphHead(nextDocument);
+		flushRerunScripts();
+		cleanup();
+
+		expect(document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.src).toContain(
+			'__eco_rerun=1',
+		);
+	});
+
+	it('falls back to a fresh URL when a stable-id external module rerun script has no registered callback', async () => {
+		document.head.innerHTML =
+			'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>';
+		const nextDocument = createDocument(
+			[
+				'<html><head>',
+				'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>',
+				'</head><body></body></html>',
+			].join(''),
+		);
+
+		const { cleanup, flushRerunScripts } = await morphHead(nextDocument);
+		flushRerunScripts();
+		cleanup();
+
+		expect(document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.src).toContain(
+			'__eco_rerun=',
+		);
 	});
 });

@@ -17,6 +17,7 @@ All notable changes to `@ecopages/browser-router` are documented here.
 - Fixed skipped View Transition lifecycle aborts leaking as unhandled browser-router test errors.
 - Fixed body morph swaps retaining stale content when pages contain duplicate `id` attributes by limiting morphdom keying to explicitly persisted nodes.
 - Fixed browser-router stylesheet prefetching to warm future page CSS without injecting unused `preload` hints that trigger browser console warnings.
+- Fixed stable-id external rerun scripts to reuse registered bootstraps instead of cache-busting shared module chunks on every navigation.
 
 ### Refactoring
 

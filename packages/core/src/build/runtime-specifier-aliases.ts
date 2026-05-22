@@ -1,7 +1,7 @@
 import type { EcoBuildPlugin } from './build-types.ts';
 import { parseSync } from 'oxc-parser';
 
-const RUNTIME_SPECIFIER_ALIAS_MAP = Symbol('ecopages.runtimeSpecifierAliasMap');
+const RUNTIME_SPECIFIER_ALIAS_MAP = Symbol.for('ecopages.runtimeSpecifierAliasMap');
 
 type RuntimeSpecifierAliasPlugin = EcoBuildPlugin & {
 	[RUNTIME_SPECIFIER_ALIAS_MAP]?: ReadonlyMap<string, string>;

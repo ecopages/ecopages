@@ -88,6 +88,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
+				groupedBundle: dep.groupedBundle,
 				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 

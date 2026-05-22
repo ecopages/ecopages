@@ -437,6 +437,13 @@ export class BunBuildAdapter implements BuildAdapter {
 			return outputPath;
 		}
 
+		for (const extension of ['.js', '.mjs', '.cjs']) {
+			const outputPathWithExtension = `${outputPath}${extension}`;
+			if (fs.existsSync(outputPathWithExtension)) {
+				return outputPathWithExtension;
+			}
+		}
+
 		if (!outputPath.includes('[hash]')) {
 			return outputPath;
 		}

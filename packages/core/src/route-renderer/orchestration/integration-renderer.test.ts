@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { eco } from '../../eco/eco.ts';
+import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
 import {
 	IntegrationRenderer,
 	type HtmlDocumentContribution,
@@ -295,6 +296,48 @@ describe('IntegrationRenderer', () => {
 				},
 			],
 			'declarative-renderer:/app/pages/test.tsx',
+		);
+	});
+
+	it('preserves the page browser graph when appending renderer-owned assets', () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const pageEntryAsset = {
+			kind: 'script',
+			inline: false,
+			srcUrl: '/page.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const rendererAsset = {
+			kind: 'stylesheet',
+			inline: false,
+			srcUrl: '/component.css',
+			position: 'head',
+		} as ProcessedAsset;
+
+		(renderer as any).htmlTransformer.setPagePackage(
+			createPagePackage([], {
+				pageBrowserGraph: {
+					entryAssets: [pageEntryAsset],
+					chunkAssets: [],
+				},
+			}),
+		);
+
+		(renderer as any).appendProcessedDependencies([rendererAsset]);
+
+		expect((renderer as any).htmlTransformer.getPagePackage()).toEqual(
+			expect.objectContaining({
+				pageBrowserGraph: {
+					entryAssets: [pageEntryAsset],
+					chunkAssets: [],
+				},
+				assets: expect.arrayContaining([rendererAsset, pageEntryAsset]),
+			}),
 		);
 	});
 

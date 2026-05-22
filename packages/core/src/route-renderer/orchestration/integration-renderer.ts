@@ -298,9 +298,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
 			routeFile: filePath,
 			integrationName: this.name,
-			collectContribution: async () => {
-				const pageModule = await this.importPageFile(filePath);
-				return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
+			collectContribution: async (routeFile) => {
+				const pageModule = await this.importPageFile(routeFile);
+				return await this.collectPageBrowserGraphContribution({ file: routeFile, pageModule });
 			},
 		});
 	}
@@ -370,8 +370,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			...this.htmlTransformer.getProcessedDependencies(),
 			...nextDependencies,
 		]);
+		const currentPageBrowserGraph = this.htmlTransformer.getPagePackage()?.pageBrowserGraph;
 
-		this.htmlTransformer.setPagePackage(createPagePackage(mergedDependencies));
+		this.htmlTransformer.setPagePackage(
+			createPagePackage(mergedDependencies, {
+				pageBrowserGraph: currentPageBrowserGraph,
+			}),
+		);
 
 		return nextDependencies;
 	}

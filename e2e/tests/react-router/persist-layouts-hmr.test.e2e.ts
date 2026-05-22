@@ -37,6 +37,35 @@ function createRuntimeErrorTracker() {
 	};
 }
 
+type SharedLayoutClientProbeState = {
+	initializedAt: string;
+	initCount: number;
+	lastPathname: string;
+	visitedPathnames: string[];
+};
+
+async function getSharedLayoutClientProbeState(
+	page: import('@playwright/test').Page,
+): Promise<SharedLayoutClientProbeState> {
+	await page.waitForFunction(() => {
+		const runtimeWindow = window as Window &
+			typeof globalThis & {
+				__ECO_E2E_SHARED_LAYOUT_CLIENT_PROBE__?: SharedLayoutClientProbeState;
+			};
+
+		return Boolean(runtimeWindow.__ECO_E2E_SHARED_LAYOUT_CLIENT_PROBE__?.initializedAt);
+	});
+
+	return page.evaluate(() => {
+		const runtimeWindow = window as Window &
+			typeof globalThis & {
+				__ECO_E2E_SHARED_LAYOUT_CLIENT_PROBE__?: SharedLayoutClientProbeState;
+			};
+
+		return runtimeWindow.__ECO_E2E_SHARED_LAYOUT_CLIENT_PROBE__ as SharedLayoutClientProbeState;
+	});
+}
+
 test.describe('React Router Persist Layouts - Dev HMR', () => {
 	let originalDocsPage: string;
 	let originalDocsLayout: string;
@@ -87,6 +116,39 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		expect(response.ok()).toBe(true);
 		const contentType = response.headers()['content-type'] ?? '';
 		expect(contentType).toContain('javascript');
+	});
+
+	test('same-layout navigation does not reinitialize shared React layout client modules', async ({ page }) => {
+		const initLogs: string[] = [];
+
+		page.on('console', (message) => {
+			const text = message.text();
+			if (text.includes('[e2e-react-layout-chunk:init]')) {
+				initLogs.push(text);
+			}
+		});
+
+		await gotoAndWait(page, '/');
+		await expect(page.locator('[data-testid="base-layout"]')).toBeVisible();
+
+		const initialState = await getSharedLayoutClientProbeState(page);
+
+		expect(initialState.initCount).toBe(1);
+		expect(initialState.lastPathname).toBe('/');
+		expect(initialState.visitedPathnames).toEqual(['/']);
+		expect(initLogs).toHaveLength(1);
+
+		await page.click('[data-testid="link-about"]');
+		await page.waitForURL('**/about');
+		await expect(page.locator('[data-testid="about-page"]')).toBeVisible();
+
+		const nextState = await getSharedLayoutClientProbeState(page);
+
+		expect(nextState.initializedAt).toBe(initialState.initializedAt);
+		expect(nextState.initCount).toBe(1);
+		expect(nextState.lastPathname).toBe('/');
+		expect(nextState.visitedPathnames).toEqual(['/']);
+		expect(initLogs).toHaveLength(1);
 	});
 
 	test('HMR updates layout while MDX page is active (persist layouts enabled)', async ({ page }) => {

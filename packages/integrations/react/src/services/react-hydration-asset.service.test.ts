@@ -46,6 +46,56 @@ describe('ReactHydrationAssetService', () => {
 		});
 	});
 
+	it('groups router-managed page entries under a stable shared bundle id', () => {
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			routerAdapter: {
+				name: 'eco-router',
+				bundle: {
+					outputName: 'react-router-esm',
+					importPath: '@ecopages/react-router/browser',
+					externals: [],
+				},
+				components: {
+					router: 'EcoRouter',
+					pageContent: 'PageContent',
+				},
+				getRouterProps: () => '{}',
+			},
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+			} as any,
+			bundleService: {
+				getRuntimeImports: () => ({
+					react: 'react',
+					reactDomClient: 'react-dom/client',
+					router: '/assets/vendors/react-router-esm.js',
+				}),
+			} as any,
+		});
+
+		const dependencies = service.createPageDependencies(
+			'/app/src/pages/dashboard/[project].tsx',
+			'ecopages-react-dashboard',
+			'/assets/pages/dashboard.js',
+			'import.meta.url',
+			{},
+			false,
+			true,
+			false,
+		);
+
+		expect(dependencies[0]).toMatchObject({
+			groupedBundle: {
+				id: 'ecopages-react-router-pages',
+				entryName: 'pages__dashboard___project_',
+			},
+			attributes: {
+				'data-eco-page-bootstrap': 'react-router',
+			},
+		});
+	});
+
 	it('bundles the React runtime into production page browser graph entries', async () => {
 		const originalNodeEnv = process.env.NODE_ENV;
 		process.env.NODE_ENV = 'production';
@@ -76,6 +126,58 @@ describe('ReactHydrationAssetService', () => {
 				[],
 				{
 					includeRuntime: true,
+					splitting: false,
+				},
+			);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
+	});
+
+	it('uses shared runtime imports for router-managed production page browser graph entries', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'production';
+		const createBundleOptions = vi.fn(async () => ({}));
+		const processDependencies = vi.fn(async () => []);
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			routerAdapter: {
+				name: 'eco-router',
+				bundle: {
+					outputName: 'react-router-esm',
+					importPath: '@ecopages/react-router/browser',
+					externals: [],
+				},
+				components: {
+					router: 'EcoRouter',
+					pageContent: 'PageContent',
+				},
+				getRouterProps: () => '{}',
+			},
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+				processDependencies,
+			} as any,
+			bundleService: {
+				createBundleOptions,
+				getRuntimeImports: () => ({
+					react: '/assets/vendors/react.js',
+					reactDomClient: '/assets/vendors/react-dom.js',
+					router: '/assets/vendors/react-router-esm.js',
+				}),
+			} as any,
+		});
+
+		try {
+			await service.buildPageBrowserGraphAssets('/app/src/pages/index.tsx', false, []);
+
+			expect(createBundleOptions).toHaveBeenCalledWith(
+				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+				false,
+				[],
+				{
+					includeRuntime: false,
+					splitting: true,
 				},
 			);
 		} finally {
@@ -109,6 +211,33 @@ describe('ReactHydrationAssetService', () => {
 		expect(importPath).toBe('/assets/_hmr/pages/index.js');
 		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/pages/index.tsx');
 		expect(registerScriptEntrypoint).not.toHaveBeenCalled();
+	});
+
+	it('records the HMR entrypoint as the active page module in development', async () => {
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => ({
+					isEnabled: () => true,
+					registerEntrypoint: async () => '/assets/_hmr/pages/index.js',
+					registerScriptEntrypoint: async () => '/assets/scripts/index.js',
+				}),
+			} as any,
+			bundleService: {
+				createBundleOptions: async () => ({}),
+				getRuntimeImports: () => ({
+					react: 'react',
+					reactDomClient: 'react-dom/client',
+					router: undefined,
+				}),
+			} as any,
+		});
+
+		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
+
+		expect(dependencies[0]).toMatchObject({
+			content: expect.stringContaining('const pageModuleUrl = "/assets/_hmr/pages/index.js";'),
+		});
 	});
 
 	it('reuses the same bundled island asset for different component instances', async () => {

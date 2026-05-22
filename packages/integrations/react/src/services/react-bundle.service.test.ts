@@ -26,9 +26,8 @@ describe('ReactBundleService', () => {
 
 		expect(pluginNames).not.toContain('react-renderer-eco-core-browser-shim');
 		expect(pluginNames).toContain('ecopages-client-graph-boundary');
-		expect(options.external).toEqual(
-			expect.arrayContaining([...Object.values(runtimeImports), 'react', 'react-dom', 'react-dom/client']),
-		);
+		expect(options.external).toEqual(expect.arrayContaining(Object.values(runtimeImports)));
+		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
 	});
 
 	it('can bundle runtime specifiers directly into page-owned entries', async () => {

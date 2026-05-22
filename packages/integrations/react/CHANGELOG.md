@@ -8,6 +8,13 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Grouped router-managed React page entries and HMR rebuilds so persisted layouts and context providers stay on one shared module graph during cross-route navigation.
+- Fixed router-managed React dev page entries to rewrite grouped shared chunk imports to served `/_hmr` asset URLs during initial registration and HMR rebuilds.
+- Kept non-page React HMR entrypoints such as island component entries on the per-entrypoint rebuild path while page-route cohorts use grouped page HMR builds.
+- Rewrite bare React runtime imports to vendor asset URLs for router-managed hosted start builds instead of leaving unresolved `react` specifiers in emitted page assets.
+
+- Fixed router-managed production React hydration to reuse the shared vendor React runtime instead of bundling a second page-local copy.
+- Fixed router-managed production page bundles to emit shared chunks for reused layout/client graphs so heavy modules like Tone are not reinitialized on navigation.
 - Fixed full-document `renderToResponse()` hydration asset resolution to reuse the shared Page Browser Graph path instead of a renderer-local builder seam.
 - Fixed React MDX page-module loading under Node-style ESM builds so compiled MDX routes resolve emitted `.mjs` outputs instead of assuming `.js` runtime artifacts.
 - Fixed React MDX loader initialization under the Node `tsx` runtime by resolving the internal loader helper through static imports instead of lazy module imports.

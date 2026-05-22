@@ -65,3 +65,19 @@ test('createRuntimeSpecifierAliasPlugin exposes alias data for emitted-JS fallba
 		'import { jsxDEV } from "/assets/vendors/react-jsx-dev-runtime.js";\nconst snippet = "import { jsxDEV } from \'react/jsx-dev-runtime\'";',
 	);
 });
+
+test('collectRuntimeSpecifierAliasMap reads alias metadata from the global symbol key', () => {
+	const plugin = {
+		name: 'cross-package-runtime-alias',
+		setup() {},
+		[Symbol.for('ecopages.runtimeSpecifierAliasMap')]: new Map([
+			['react', '/assets/vendors/react.js'],
+			['react-dom/client', '/assets/vendors/react-dom.js'],
+		]),
+	};
+
+	const aliasMap = collectRuntimeSpecifierAliasMap([plugin]);
+
+	assert.equal(aliasMap.get('react'), '/assets/vendors/react.js');
+	assert.equal(aliasMap.get('react-dom/client'), '/assets/vendors/react-dom.js');
+});

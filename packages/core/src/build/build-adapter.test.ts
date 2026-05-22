@@ -503,6 +503,66 @@ test('BunBuildAdapter remaps Bun root-relative outputs back to outbase-relative 
 	}
 });
 
+test('BunBuildAdapter remaps root-relative grouped temp outputs when Bun reports them without the final js extension', async () => {
+	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+
+	try {
+		const root = createTempRoot('ecopages-bun-outbase-root-relative-temp-output');
+		const srcDir = path.join(root, 'src', 'pages', 'docs');
+		const outDir = path.join(root, '.eco', 'assets', '_hmr');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.mkdirSync(outDir, { recursive: true });
+
+		const entryPath = path.join(srcDir, 'getting-started.tsx');
+		fs.writeFileSync(entryPath, 'export const gettingStarted = 1;');
+
+		const bunReportedOutputPath = path.join(outDir, 'src', 'pages', 'docs', 'getting-started.30d2bd3m.tmp');
+		const bunConcreteOutputPath = `${bunReportedOutputPath}.js`;
+		const expectedOutputPath = path.join(outDir, 'pages', 'docs', 'getting-started.30d2bd3m.tmp.js');
+
+		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
+			build: vi.fn(async () => {
+				fs.mkdirSync(path.dirname(bunConcreteOutputPath), { recursive: true });
+				fs.writeFileSync(bunConcreteOutputPath, 'export const gettingStarted = 1;', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: bunReportedOutputPath }],
+				};
+			}),
+			hash: vi.fn(() => 1),
+			resolveSync: vi.fn((importPath: string) => importPath),
+		};
+
+		const freshAdapter = createBunBuildAdapter();
+		const result = await freshAdapter.build({
+			entrypoints: [entryPath],
+			root,
+			outdir: outDir,
+			outbase: path.join(root, 'src'),
+			target: 'browser',
+			format: 'esm',
+			sourcemap: 'none',
+			splitting: true,
+			minify: false,
+			naming: '[dir]/[name].[hash].tmp',
+		});
+
+		assert.equal(result.success, true);
+		assert.deepEqual(result.outputs, [{ path: expectedOutputPath }]);
+		assert.equal(fs.existsSync(expectedOutputPath), true);
+		assert.equal(fs.existsSync(bunConcreteOutputPath), false);
+		assert.equal(fs.readFileSync(expectedOutputPath, 'utf8'), 'export const gettingStarted = 1;');
+	} finally {
+		if (originalBun === undefined) {
+			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+		} else {
+			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
+		}
+		cleanupTempRoots();
+	}
+});
+
 test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},

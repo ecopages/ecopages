@@ -143,18 +143,7 @@ describe('ContentScriptProcessor', () => {
 
 	test('processGrouped should fall back to per-entry processing when bundling is disabled', async () => {
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
-		const processSpy = vi
-			.spyOn(processor, 'process')
-			.mockResolvedValueOnce({
-				kind: 'script',
-				inline: false,
-				filepath: '/tmp/first.js',
-			})
-			.mockResolvedValueOnce({
-				kind: 'script',
-				inline: false,
-				filepath: '/tmp/second.js',
-			});
+		vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
 
 		const results = await processor.processGrouped([
 			{
@@ -162,17 +151,21 @@ describe('ContentScriptProcessor', () => {
 				source: 'content',
 				content: 'console.log("first")',
 				bundle: false,
+				groupedBundle: { id: 'bundle-1', entryName: 'first-entry' },
 			},
 			{
 				kind: 'script',
 				source: 'content',
 				content: 'console.log("second")',
 				bundle: false,
+				groupedBundle: { id: 'bundle-1', entryName: 'second-entry' },
 			},
 		]);
 
-		expect(processSpy).toHaveBeenCalledTimes(2);
-		expect(results).toHaveLength(2);
+		expect(results).toEqual([
+			expect.objectContaining({ groupedBundle: { id: 'bundle-1', entryName: 'first-entry' } }),
+			expect.objectContaining({ groupedBundle: { id: 'bundle-1', entryName: 'second-entry' } }),
+		]);
 	});
 
 	test('processGrouped should remove temporary entries when bundling fails', async () => {

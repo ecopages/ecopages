@@ -41,6 +41,10 @@ export interface ReactClientBundleOptions {
 	 * rewriting them to external runtime specifiers.
 	 */
 	includeRuntime?: boolean;
+	/**
+	 * When set, overrides the build adapter chunk splitting mode for this entry.
+	 */
+	splitting?: boolean;
 }
 
 /**
@@ -85,15 +89,25 @@ export class ReactBundleService {
 			naming: `${componentName}.[ext]`,
 			...(import.meta.env?.NODE_ENV === 'production' && {
 				minify: true,
-				splitting: false,
 				treeshaking: true,
 			}),
+			...(bundleOptions.splitting === undefined ? {} : { splitting: bundleOptions.splitting }),
 		};
 
 		if (!bundleOptions.includeRuntime) {
+			const reactRuntimeSpecifiers = new Set(getReactRuntimeExternalSpecifiers());
 			options.external = [
-				...getReactRuntimeExternalSpecifiers(),
-				...Object.values(runtimeImports).filter((specifier): specifier is string => Boolean(specifier)),
+				...Object.values(runtimeImports).filter(
+					(specifier): specifier is string =>
+						Boolean(specifier) &&
+						!reactRuntimeSpecifiers.has(
+							specifier as typeof getReactRuntimeExternalSpecifiers extends () => infer T
+								? T extends readonly (infer U)[]
+									? U
+									: never
+								: never,
+						),
+				),
 			];
 		}
 

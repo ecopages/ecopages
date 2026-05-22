@@ -302,6 +302,31 @@ describe('extractComponentUrl', () => {
 		fetchSpy.mockRestore();
 	});
 
+	it('should prefer the explicit page bootstrap marker when grouped route assets do not match legacy filenames', async () => {
+		const html = `
+			<html>
+				<body>
+					<script src="/assets/grouped/react-pages-dashboard.js" type="module" data-eco-page-bootstrap="react-router"></script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response(
+				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};',
+				{
+					status: 200,
+				},
+			),
+		);
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe('http://localhost:63315/assets/grouped/react-pages-dashboard.js');
+
+		fetchSpy.mockRestore();
+	});
+
 	it('should resolve aliased import.meta.url markers in generated production route bootstrap scripts', async () => {
 		const html = `
 			<html>

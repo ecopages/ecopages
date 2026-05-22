@@ -146,6 +146,7 @@ const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['
  */
 const PAGE_MODULE_MARKER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
 const PAGE_MODULE_IDENTIFIER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
+const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
 
 /**
  * Extracts import path from hydration script code using regex.
@@ -250,7 +251,9 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		return extractModulePathFromCode(inlineHydrationScript.textContent);
 	}
 
-	const hydrationScript = scripts.find((s) => isReactPageHydrationAssetSrc(s.src ?? ''));
+	const hydrationScript =
+		doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR) ??
+		scripts.find((s) => isReactPageHydrationAssetSrc(s.src ?? ''));
 	if (!hydrationScript?.src) return null;
 
 	try {

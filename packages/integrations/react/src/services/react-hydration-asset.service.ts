@@ -43,6 +43,7 @@ export function getReactIslandComponentKey(componentFile: string, config?: EcoCo
  */
 export class ReactHydrationAssetService {
 	private readonly config: ReactHydrationAssetServiceConfig;
+	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = 'ecopages-react-router-pages';
 
 	constructor(config: ReactHydrationAssetServiceConfig) {
 		this.config = config;
@@ -54,6 +55,14 @@ export class ReactHydrationAssetService {
 
 	private getIslandHydrationName(bundleName: string, componentKey: string): string {
 		return `${bundleName}-hydration-${componentKey}`;
+	}
+
+	private getRouterPageGroupedEntryName(pagePath: string): string {
+		const relativePath = path.relative(this.config.srcDir, pagePath);
+		return relativePath
+			.replace(/\.(tsx?|jsx?|mdx?)$/, '')
+			.replace(/[\\/]+/g, '__')
+			.replace(/\[([^\]]+)\]/g, '_$1_');
 	}
 
 	/**
@@ -99,6 +108,12 @@ export class ReactHydrationAssetService {
 		isMdx: boolean,
 	): AssetDefinition[] {
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
+		const groupedBundle = this.config.routerAdapter
+			? {
+					id: ReactHydrationAssetService.ROUTER_PAGE_GROUPED_BUNDLE_ID,
+					entryName: this.getRouterPageGroupedEntryName(pagePath),
+				}
+			: undefined;
 		return [
 			AssetFactory.createContentScript({
 				position: 'head',
@@ -120,12 +135,14 @@ export class ReactHydrationAssetService {
 				name: componentName,
 				packageRole: 'page-script',
 				bundle: !isDevelopment,
+				groupedBundle,
 				bundleOptions,
 				attributes: {
 					type: 'module',
 					defer: '',
 					'data-eco-rerun': 'true',
 					'data-eco-script-id': componentName,
+					...(this.config.routerAdapter ? { 'data-eco-page-bootstrap': 'react-router' } : {}),
 					'data-eco-persist': 'true',
 				},
 			}),
@@ -223,18 +240,19 @@ export class ReactHydrationAssetService {
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const isDevelopment = hmrManager?.isEnabled() ?? false;
 		const isHostedDevelopment = !isDevelopment && process.env.NODE_ENV !== 'production';
-		const useBrowserRuntimeImports = isDevelopment || isHostedDevelopment;
+		const usesRouterRuntime = Boolean(this.config.routerAdapter);
+		const useBrowserRuntimeImports = isDevelopment || isHostedDevelopment || usesRouterRuntime;
 		if (isDevelopment) {
 			this.config.hmrPageMetadataCache?.setDeclaredModules(pagePath, declaredModules);
 		}
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
-		const pageModuleUrlExpression = 'import.meta.url';
+		const pageModuleUrlExpression = isDevelopment ? JSON.stringify(importPath) : 'import.meta.url';
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
 			isMdx,
 			declaredModules,
-			{ includeRuntime: !useBrowserRuntimeImports },
+			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
 		);
 		const dependencies = this.createPageDependencies(
 			pagePath,

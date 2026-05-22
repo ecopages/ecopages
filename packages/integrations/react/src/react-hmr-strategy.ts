@@ -10,6 +10,7 @@
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { rewriteRuntimeSpecifierAliases } from '@ecopages/core/build/runtime-specifier-aliases';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
@@ -36,6 +37,25 @@ export interface ReactHmrStrategyOptions {
 	allTemplateExtensions?: string[];
 	explicitGraphEnabled?: boolean;
 }
+
+type ImportedReactPageModule = {
+	default?: { config?: Record<string, unknown> };
+	config?: Record<string, unknown>;
+};
+
+/**
+ * Shared HMR build target for one React-owned browser entrypoint.
+ *
+ * @remarks
+ * Grouped HMR rebuilds operate on these normalized pairs so the strategy can
+ * expand one requested page or layout change into the full set of page entries
+ * that should share a browser graph, while still knowing which emitted URLs are
+ * relevant to the current update broadcast.
+ */
+type ReactHmrBuildTarget = {
+	entrypointPath: string;
+	outputUrl: string;
+};
 
 /**
  * Strategy for handling React component HMR updates.
@@ -83,10 +103,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private mdxCompilerOptions?: CompileOptions;
 	private readonly ownedTemplateExtensions: Set<string>;
 	private readonly allTemplateExtensions: string[];
-	private async importNodePageModule(entrypointPath: string): Promise<{
-		default?: { config?: Record<string, unknown> };
-		config?: Record<string, unknown>;
-	}> {
+	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
 	}
 
@@ -221,6 +238,131 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return filePath.startsWith(this.context.getLayoutsDir());
 	}
 
+	private isPageEntrypoint(filePath: string): boolean {
+		return filePath.startsWith(this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
+	}
+
+	private getEntrypointOutput(entrypointPath: string): { outputPath: string; outputUrl: string } {
+		const srcDir = this.context.getSrcDir();
+		const relativePath = path.relative(srcDir, entrypointPath);
+		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
+		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
+		const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
+		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', encodedPathJs).split(path.sep).join('/')}`;
+
+		return { outputPath, outputUrl };
+	}
+
+	private getGroupedTempOutputPattern(entrypointPath: string): { outputDir: string; outputBaseName: string } {
+		const srcDir = this.context.getSrcDir();
+		const relativePath = path.relative(srcDir, entrypointPath);
+		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
+
+		return {
+			outputDir: path.join(this.context.getDistDir(), path.dirname(relativePathJs)),
+			outputBaseName: path.basename(relativePathJs, '.js'),
+		};
+	}
+
+	private async collectReactPageBuildTargets(): Promise<ReactHmrBuildTarget[]> {
+		const pagesDir = this.context.getPagesDir();
+		const scannedFiles = await fileSystem.glob(
+			this.allTemplateExtensions.map((extension) => `**/*${extension}`),
+			{ cwd: pagesDir },
+		);
+		const targets = new Map<string, ReactHmrBuildTarget>();
+
+		for (const file of scannedFiles) {
+			if (file.includes('.ecopages-node.')) {
+				continue;
+			}
+
+			const entrypointPath = path.join(pagesDir, file);
+			if (!this.isPageEntrypoint(entrypointPath)) {
+				continue;
+			}
+
+			this.pageMetadataCache.markOwnedEntrypoint(entrypointPath);
+			targets.set(entrypointPath, {
+				entrypointPath,
+				outputUrl: this.getEntrypointOutput(entrypointPath).outputUrl,
+			});
+		}
+
+		return Array.from(targets.values()).sort((left, right) =>
+			left.entrypointPath.localeCompare(right.entrypointPath),
+		);
+	}
+
+	private getRequestedTargets(
+		changedFilePath: string,
+		changedEntrypointOutput: string | undefined,
+		watchedFiles: Map<string, string>,
+	): ReactHmrBuildTarget[] {
+		const requestedEntries = changedEntrypointOutput
+			? ([[changedFilePath, changedEntrypointOutput]] as Array<[string, string]>)
+			: Array.from(watchedFiles.entries());
+
+		return requestedEntries.map(([entrypointPath, outputUrl]) => ({
+			entrypointPath,
+			outputUrl,
+		}));
+	}
+
+	/**
+	 * Expands one HMR request into the full React page build cohort when needed.
+	 *
+	 * @remarks
+	 * Page and layout changes need one shared rebuild pass so sibling routes keep
+	 * a consistent client module graph. Non-page changes that do not touch a page
+	 * cohort can stay scoped to the originally requested targets.
+	 */
+	private async resolveBuildTargets(
+		requestedTargets: ReactHmrBuildTarget[],
+		changedFilePath: string,
+	): Promise<ReactHmrBuildTarget[]> {
+		const requestedPageTargets = requestedTargets.filter((target) => this.isPageEntrypoint(target.entrypointPath));
+		const shouldGroupPageBuilds = this.isLayoutFile(changedFilePath) || requestedPageTargets.length > 0;
+
+		if (!shouldGroupPageBuilds) {
+			return [];
+		}
+
+		const groupedTargets = new Map(requestedPageTargets.map((target) => [target.entrypointPath, target]));
+		for (const target of await this.collectReactPageBuildTargets()) {
+			groupedTargets.set(target.entrypointPath, target);
+		}
+
+		return Array.from(groupedTargets.values()).sort((left, right) =>
+			left.entrypointPath.localeCompare(right.entrypointPath),
+		);
+	}
+
+	private partitionBuildTargets(
+		requestedTargets: ReactHmrBuildTarget[],
+		groupedPageTargets: ReactHmrBuildTarget[],
+	): {
+		pageTargets: ReactHmrBuildTarget[];
+		nonPageTargets: ReactHmrBuildTarget[];
+	} {
+		if (groupedPageTargets.length === 0) {
+			return {
+				pageTargets: [],
+				nonPageTargets: requestedTargets,
+			};
+		}
+
+		const groupedPageEntrypoints = new Set(groupedPageTargets.map((target) => target.entrypointPath));
+
+		return {
+			pageTargets: groupedPageTargets,
+			nonPageTargets: requestedTargets.filter(
+				(target) =>
+					!groupedPageEntrypoints.has(target.entrypointPath) && !this.isPageEntrypoint(target.entrypointPath),
+			),
+		};
+	}
+
 	/**
 	 * Processes a React file change by rebuilding all React entrypoints.
 	 *
@@ -251,19 +393,38 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
 			return { type: 'none' };
 		}
-		const entrypointsToBuild = changedEntrypointOutput
-			? [[_filePath, changedEntrypointOutput]]
-			: watchedFiles.entries();
+		const requestedTargets = this.getRequestedTargets(_filePath, changedEntrypointOutput, watchedFiles);
+		const groupedPageTargets = await this.resolveBuildTargets(requestedTargets, _filePath);
+		const { pageTargets, nonPageTargets } = this.partitionBuildTargets(requestedTargets, groupedPageTargets);
 
 		const updates: string[] = [];
-		for (const [entrypoint, outputUrl] of entrypointsToBuild) {
-			if (!this.isReactEntrypoint(entrypoint)) {
+		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
+		if (pageTargets.length > 1) {
+			appLogger.debug(`Bundling ${pageTargets.length} React page entrypoints together`);
+			const rebuiltOutputs = await this.bundleReactEntrypoints(pageTargets);
+			for (const outputUrl of rebuiltOutputs) {
+				if (requestedOutputUrls.has(outputUrl)) {
+					updates.push(outputUrl);
+				}
+			}
+		} else {
+			for (const { entrypointPath, outputUrl } of pageTargets) {
+				appLogger.debug(`Bundling ${entrypointPath}`);
+				const success = await this.bundleReactEntrypoint(entrypointPath, outputUrl);
+				if (success && requestedOutputUrls.has(outputUrl)) {
+					updates.push(outputUrl);
+				}
+			}
+		}
+
+		for (const { entrypointPath, outputUrl } of nonPageTargets) {
+			if (!this.isReactEntrypoint(entrypointPath)) {
 				continue;
 			}
 
-			appLogger.debug(`Bundling ${entrypoint}`);
-			const success = await this.bundleReactEntrypoint(entrypoint, outputUrl);
-			if (success) {
+			appLogger.debug(`Bundling ${entrypointPath}`);
+			const success = await this.bundleReactEntrypoint(entrypointPath, outputUrl);
+			if (success && requestedOutputUrls.has(outputUrl)) {
 				updates.push(outputUrl);
 			}
 		}
@@ -306,11 +467,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private async bundleReactEntrypoint(entrypointPath: string, outputUrl: string): Promise<boolean> {
 		try {
 			const isMdx = entrypointPath.endsWith('.mdx');
-			const srcDir = this.context.getSrcDir();
-			const relativePath = path.relative(srcDir, entrypointPath);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
-			const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
-			const outputPath = path.join(this.context.getDistDir(), encodedPathJs);
+			const { outputPath } = this.getEntrypointOutput(entrypointPath);
 			const tempDir = path.dirname(outputPath);
 
 			const declaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
@@ -359,6 +516,83 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 	}
 
+	private async bundleReactEntrypoints(entrypoints: ReactHmrBuildTarget[]): Promise<string[]> {
+		try {
+			const declaredModules = new Set<string>();
+			let shouldEnableMdx = false;
+
+			for (const { entrypointPath } of entrypoints) {
+				const entrypointDeclaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
+					? this.pageMetadataCache.getDeclaredModules(entrypointPath)!
+					: entrypointPath.endsWith('.mdx')
+						? await collectPageDeclaredModules(entrypointPath)
+						: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
+
+				this.pageMetadataCache.setDeclaredModules(entrypointPath, entrypointDeclaredModules);
+				for (const declaredModule of entrypointDeclaredModules) {
+					declaredModules.add(declaredModule);
+				}
+
+				if (entrypointPath.endsWith('.mdx')) {
+					shouldEnableMdx = true;
+				}
+			}
+
+			const plugins = this.getBuildPlugins([...declaredModules]);
+			if (shouldEnableMdx && this.mdxCompilerOptions) {
+				plugins.unshift(createReactMdxLoaderPlugin(this.mdxCompilerOptions));
+			}
+
+			const result = await this.context.getBrowserBundleService().bundle({
+				profile: 'hmr-entrypoint',
+				entrypoints: entrypoints.map(({ entrypointPath }) => entrypointPath),
+				outdir: this.context.getDistDir(),
+				outbase: this.context.getSrcDir(),
+				naming: '[dir]/[name].[hash].tmp',
+				splitting: true,
+				plugins,
+				minify: false,
+			});
+
+			if (!result.success) {
+				appLogger.error(`Failed to build grouped React entrypoints:`, result.logs);
+				return [];
+			}
+
+			const updatedOutputs: string[] = [];
+			for (const { entrypointPath, outputUrl } of entrypoints) {
+				const { outputPath } = this.getEntrypointOutput(entrypointPath);
+				const { outputDir, outputBaseName } = this.getGroupedTempOutputPattern(entrypointPath);
+				const tempOutput = result.outputs.find((output) => {
+					return (
+						path.dirname(output.path) === outputDir &&
+						path.basename(output.path).startsWith(`${outputBaseName}.`) &&
+						path.basename(output.path).includes('.tmp')
+					);
+				})?.path;
+
+				const resolvedTempOutput = tempOutput
+					? await this.resolveTempOutputPath(tempOutput)
+					: await this.resolveTempOutputPath(path.join(outputDir, `${outputBaseName}.[hash].tmp.js`));
+
+				if (!resolvedTempOutput) {
+					appLogger.debug(`Missing grouped temp output for ${outputUrl}`);
+					continue;
+				}
+
+				const processed = await this.processOutput(resolvedTempOutput, outputPath, outputUrl);
+				if (processed) {
+					updatedOutputs.push(outputUrl);
+				}
+			}
+
+			return updatedOutputs;
+		} catch (error) {
+			appLogger.error(`Error bundling grouped React entrypoints:`, error as Error);
+			return [];
+		}
+	}
+
 	private async resolveTempOutputPath(tempPath: string): Promise<string | null> {
 		if (fileSystem.exists(tempPath)) {
 			return tempPath;
@@ -387,6 +621,40 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
 	}
 
+	private rewriteChunkImportUrls(code: string): string {
+		const hmrChunkBaseUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr').split(path.sep).join('/')}`;
+
+		return code.replace(/(['"])(?:\.\.\/)+(chunk-[^'"]+\.js)\1/g, (_match, quote, chunkFile) => {
+			return `${quote}${hmrChunkBaseUrl}/${chunkFile}${quote}`;
+		});
+	}
+
+	private isMissingTempOutputError(error: unknown): boolean {
+		if (error instanceof FileNotFoundError) {
+			return true;
+		}
+
+		if (!(error instanceof Error)) {
+			return false;
+		}
+
+		if (error.message.includes('not found') || error.message.includes('ENOENT')) {
+			return true;
+		}
+
+		const errorCause = error.cause;
+		if (errorCause instanceof FileNotFoundError) {
+			return true;
+		}
+
+		return (
+			typeof errorCause === 'object' &&
+			errorCause !== null &&
+			'code' in errorCause &&
+			errorCause.code === 'ENOENT'
+		);
+	}
+
 	/**
 	 * Processes bundled output and injects the React HMR handler.
 	 * Writes to temp file first, then renames atomically to avoid conflicts.
@@ -406,6 +674,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			let code = await fileSystem.readFile(tempPath);
 
 			code = rewriteRuntimeSpecifierAliases(code, this.runtimeAliasMap);
+			code = this.rewriteChunkImportUrls(code);
 			code = injectHmrHandler(code);
 
 			await fileSystem.writeAsync(finalPath, code);
@@ -414,11 +683,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Processed ${url} with HMR handler`);
 			return true;
 		} catch (error) {
-			if (
-				error instanceof FileNotFoundError ||
-				(error instanceof Error && error.message.includes('not found')) ||
-				(error instanceof Error && 'code' in error && error.code === 'ENOENT')
-			) {
+			if (this.isMissingTempOutputError(error)) {
 				appLogger.debug(`Skipping stale temp output for ${url}: ${tempPath}`);
 				await fileSystem.removeAsync(tempPath).catch(() => {});
 				return false;

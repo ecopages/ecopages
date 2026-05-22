@@ -18,6 +18,7 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
+import type { GroupedScriptBundle } from '../../services/assets/asset-processing-service/assets.types.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
 import { type RouteRenderOrchestratorAdapter, RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 
@@ -100,6 +101,40 @@ function createFlowAdapter<C>(input: {
 		renderRouteBody: async () => '',
 		getRouteHtmlFinalization: () => ({}),
 		transformRouteResponse: async (response) => await response.text(),
+	};
+}
+
+function createProcessedGroupedScriptAsset(groupedBundle: GroupedScriptBundle, srcUrl: string): ProcessedAsset {
+	return {
+		kind: 'script',
+		srcUrl,
+		position: 'head',
+		packageRole: 'page-script',
+		groupedBundle,
+	};
+}
+
+function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extract<
+	AssetDefinition,
+	{ kind: 'script'; source: 'content' }
+> & {
+	groupedBundle: GroupedScriptBundle;
+} {
+	return asset.kind === 'script' && asset.source === 'content' && Boolean(asset.groupedBundle);
+}
+
+function createGroupedPageScriptDependency(
+	content: string,
+	name: string,
+	groupedBundle: GroupedScriptBundle,
+): Extract<AssetDefinition, { kind: 'script'; source: 'content' }> {
+	return {
+		kind: 'script',
+		source: 'content',
+		content,
+		name,
+		packageRole: 'page-script',
+		groupedBundle,
 	};
 }
 
@@ -512,13 +547,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies.map((dependency, index) => ({
-					kind: 'script',
-					srcUrl: `/assets/grouped-${dependency.groupedBundle?.entryName}-${index}.js`,
-					position: 'head',
-					packageRole: 'page-script',
-					groupedBundle: dependency.groupedBundle,
-				})) as ProcessedAsset[];
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency, index) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/grouped-${dependency.groupedBundle.entryName}-${index}.js`,
+						),
+					);
 			}
 
 			return [];
@@ -544,39 +580,30 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const groupedDependencyByRoute = new Map<string, AssetDefinition>([
+		const groupedDependencyByRoute = new Map<
+			string,
+			Extract<AssetDefinition, { kind: 'script'; source: 'content' }>
+		>([
 			[
 				'/app/pages/index.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("index")',
-					name: 'index-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'react-router-pages',
-						entryName: 'index',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("index")', 'index-entry', {
+					id: 'react-router-pages',
+					entryName: 'index',
+				}),
 			],
 			[
 				'/app/pages/dashboard.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("dashboard")',
-					name: 'dashboard-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'react-router-pages',
-						entryName: 'dashboard',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("dashboard")', 'dashboard-entry', {
+					id: 'react-router-pages',
+					entryName: 'dashboard',
+				}),
 			],
 		]);
-		const collectPageBrowserGraphContribution = vi.fn(async (routeFile: string) => ({
-			dependencies: [groupedDependencyByRoute.get(routeFile)!],
-		}));
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [groupedDependencyByRoute.get(routeFile)!],
+			}),
+		);
 		const createReactFlowAdapter = () => ({
 			...createFlowAdapter({
 				resolvePageModule: async () => ({
@@ -621,13 +648,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'broken.tsx']);
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies.map((dependency) => ({
-					kind: 'script',
-					srcUrl: `/assets/${dependency.groupedBundle?.entryName}.js`,
-					position: 'head',
-					packageRole: 'page-script',
-					groupedBundle: dependency.groupedBundle,
-				})) as ProcessedAsset[];
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/${dependency.groupedBundle.entryName}.js`,
+						),
+					);
 			}
 
 			return [];
@@ -653,27 +681,22 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const collectPageBrowserGraphContribution = vi.fn(async (routeFile: string) => {
-			if (routeFile === '/app/pages/broken.tsx') {
-				throw new Error('broken sibling');
-			}
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => {
+				if (routeFile === '/app/pages/broken.tsx') {
+					throw new Error('broken sibling');
+				}
 
-			return {
-				dependencies: [
-					{
-						kind: 'script',
-						source: 'content',
-						content: 'console.log("index")',
-						name: 'index-entry',
-						packageRole: 'page-script',
-						groupedBundle: {
+				return {
+					dependencies: [
+						createGroupedPageScriptDependency('console.log("index")', 'index-entry', {
 							id: 'react-router-pages',
 							entryName: 'index',
-						},
-					},
-				],
-			};
-		});
+						}),
+					],
+				};
+			},
+		);
 		const createReactFlowAdapter = () => ({
 			...createFlowAdapter({
 				resolvePageModule: async () => ({
@@ -713,13 +736,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx', 'broken.tsx']);
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies.map((dependency) => ({
-					kind: 'script',
-					srcUrl: `/assets/${dependency.groupedBundle?.entryName}.js`,
-					position: 'head',
-					packageRole: 'page-script',
-					groupedBundle: dependency.groupedBundle,
-				})) as ProcessedAsset[];
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/${dependency.groupedBundle.entryName}.js`,
+						),
+					);
 			}
 
 			return [];
@@ -745,45 +769,36 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const groupedDependencyByRoute = new Map<string, AssetDefinition>([
+		const groupedDependencyByRoute = new Map<
+			string,
+			Extract<AssetDefinition, { kind: 'script'; source: 'content' }>
+		>([
 			[
 				'/app/pages/index.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("index")',
-					name: 'index-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'react-router-pages',
-						entryName: 'index',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("index")', 'index-entry', {
+					id: 'react-router-pages',
+					entryName: 'index',
+				}),
 			],
 			[
 				'/app/pages/dashboard.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("dashboard")',
-					name: 'dashboard-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'react-router-pages',
-						entryName: 'dashboard',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("dashboard")', 'dashboard-entry', {
+					id: 'react-router-pages',
+					entryName: 'dashboard',
+				}),
 			],
 		]);
-		const collectPageBrowserGraphContribution = vi.fn(async (routeFile: string) => {
-			if (routeFile === '/app/pages/broken.tsx') {
-				throw new Error('broken sibling');
-			}
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => {
+				if (routeFile === '/app/pages/broken.tsx') {
+					throw new Error('broken sibling');
+				}
 
-			return {
-				dependencies: [groupedDependencyByRoute.get(routeFile)!],
-			};
-		});
+				return {
+					dependencies: [groupedDependencyByRoute.get(routeFile)!],
+				};
+			},
+		);
 		const createReactFlowAdapter = () => ({
 			...createFlowAdapter({
 				resolvePageModule: async () => ({
@@ -820,13 +835,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['marketing.tsx', 'docs.tsx']);
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies.map((dependency) => ({
-					kind: 'script',
-					srcUrl: `/assets/${dependency.groupedBundle?.id}-${dependency.groupedBundle?.entryName}.js`,
-					position: 'head',
-					packageRole: 'page-script',
-					groupedBundle: dependency.groupedBundle,
-				})) as ProcessedAsset[];
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/${dependency.groupedBundle.id}-${dependency.groupedBundle.entryName}.js`,
+						),
+					);
 			}
 
 			return [];
@@ -852,39 +868,30 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const groupedDependencyByRoute = new Map<string, AssetDefinition>([
+		const groupedDependencyByRoute = new Map<
+			string,
+			Extract<AssetDefinition, { kind: 'script'; source: 'content' }>
+		>([
 			[
 				'/app/pages/marketing.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("marketing")',
-					name: 'marketing-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'marketing-layout',
-						entryName: 'index',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("marketing")', 'marketing-entry', {
+					id: 'marketing-layout',
+					entryName: 'index',
+				}),
 			],
 			[
 				'/app/pages/docs.tsx',
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("docs")',
-					name: 'docs-entry',
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'docs-layout',
-						entryName: 'index',
-					},
-				},
+				createGroupedPageScriptDependency('console.log("docs")', 'docs-entry', {
+					id: 'docs-layout',
+					entryName: 'index',
+				}),
 			],
 		]);
-		const collectPageBrowserGraphContribution = vi.fn(async (routeFile: string) => ({
-			dependencies: [groupedDependencyByRoute.get(routeFile)!],
-		}));
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [groupedDependencyByRoute.get(routeFile)!],
+			}),
+		);
 		const createReactFlowAdapter = () => ({
 			...createFlowAdapter({
 				resolvePageModule: async () => ({
@@ -933,13 +940,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		let groupedVersion = 1;
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies.map((dependency) => ({
-					kind: 'script',
-					srcUrl: `/assets/${dependency.groupedBundle?.entryName}-v${groupedVersion}.js`,
-					position: 'head',
-					packageRole: 'page-script',
-					groupedBundle: dependency.groupedBundle,
-				})) as ProcessedAsset[];
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/${dependency.groupedBundle.entryName}-v${groupedVersion}.js`,
+						),
+					);
 			}
 
 			return [];
@@ -965,21 +973,20 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const collectPageBrowserGraphContribution = vi.fn(async (routeFile: string) => ({
-			dependencies: [
-				{
-					kind: 'script',
-					source: 'content',
-					content: `console.log("${routeFile}-v${groupedVersion}")`,
-					name: `${routeFile}-entry`,
-					packageRole: 'page-script',
-					groupedBundle: {
-						id: 'react-router-pages',
-						entryName: routeFile.includes('dashboard') ? 'dashboard' : 'index',
-					},
-				},
-			],
-		}));
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [
+					createGroupedPageScriptDependency(
+						`console.log("${routeFile}-v${groupedVersion}")`,
+						`${routeFile}-entry`,
+						{
+							id: 'react-router-pages',
+							entryName: routeFile.includes('dashboard') ? 'dashboard' : 'index',
+						},
+					),
+				],
+			}),
+		);
 		const createReactFlowAdapter = () => ({
 			...createFlowAdapter({
 				resolvePageModule: async () => ({

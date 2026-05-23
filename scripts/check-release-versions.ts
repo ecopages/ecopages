@@ -7,6 +7,10 @@ type PackageManifest = {
 	private?: boolean;
 	version?: string;
 	scripts?: Record<string, string>;
+	dependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
+	optionalDependencies?: Record<string, string>;
+	devDependencies?: Record<string, string>;
 };
 
 type JsrManifest = {
@@ -20,10 +24,25 @@ type VersionMismatch = {
 	actual?: string;
 };
 
+type DependencyField = 'dependencies' | 'peerDependencies' | 'optionalDependencies' | 'devDependencies';
+
+type WorkspaceRangeMismatch = {
+	packageName: string;
+	dependencyName: string;
+	field: DependencyField;
+	actual: string;
+};
+
 const appLogger = new Logger('[Release Version Check]');
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const packagesRoot = path.join(repoRoot, 'packages');
 const rootPackageJsonPath = path.join(repoRoot, 'package.json');
+const dependencyFields: DependencyField[] = [
+	'dependencies',
+	'peerDependencies',
+	'optionalDependencies',
+	'devDependencies',
+];
 
 function readJsonFile<T>(filePath: string): T {
 	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
@@ -64,10 +83,43 @@ function findPublishablePackageDirs(dir: string): string[] {
 	return results;
 }
 
-function collectVersionMismatches(expectedVersion: string): VersionMismatch[] {
+export function collectInternalWorkspaceRangeMismatches(manifests: PackageManifest[]): WorkspaceRangeMismatch[] {
+	const publishablePackageNames = new Set(manifests.map((manifest) => manifest.name));
+	const mismatches: WorkspaceRangeMismatch[] = [];
+
+	for (const manifest of manifests) {
+		for (const field of dependencyFields) {
+			const record = manifest[field];
+			if (!record) {
+				continue;
+			}
+
+			for (const [dependencyName, range] of Object.entries(record)) {
+				if (!publishablePackageNames.has(dependencyName) || range === 'workspace:*') {
+					continue;
+				}
+
+				mismatches.push({
+					packageName: manifest.name,
+					dependencyName,
+					field,
+					actual: range,
+				});
+			}
+		}
+	}
+
+	return mismatches;
+}
+
+function collectVersionMismatches(
+	expectedVersion: string,
+	packageDirs: string[],
+	cliManifestPath: string,
+): VersionMismatch[] {
 	const mismatches: VersionMismatch[] = [];
 
-	for (const packageDir of findPublishablePackageDirs(packagesRoot).sort()) {
+	for (const packageDir of packageDirs) {
 		const packageJsonPath = path.join(packageDir, 'package.json');
 		const packageJson = readJsonFile<PackageManifest>(packageJsonPath);
 		if (packageJson.version !== expectedVersion) {
@@ -89,7 +141,6 @@ function collectVersionMismatches(expectedVersion: string): VersionMismatch[] {
 		}
 	}
 
-	const cliManifestPath = path.join(repoRoot, 'packages', 'ecopages', 'package.json');
 	const cliManifest = readJsonFile<PackageManifest>(cliManifestPath);
 	if (cliManifest.version !== expectedVersion) {
 		mismatches.push({
@@ -108,17 +159,36 @@ function main(): void {
 		throw new Error('Root package.json does not have a version');
 	}
 
-	const mismatches = collectVersionMismatches(rootPackageJson.version);
-	if (mismatches.length > 0) {
-		const details = mismatches
+	const packageDirs = findPublishablePackageDirs(packagesRoot).sort();
+	const cliManifestPath = path.join(repoRoot, 'packages', 'ecopages', 'package.json');
+	const versionMismatches = collectVersionMismatches(rootPackageJson.version, packageDirs, cliManifestPath);
+	const releaseManifests = [
+		...packageDirs.map((packageDir) => readJsonFile<PackageManifest>(path.join(packageDir, 'package.json'))),
+		readJsonFile<PackageManifest>(cliManifestPath),
+	];
+	const workspaceRangeMismatches = collectInternalWorkspaceRangeMismatches(releaseManifests);
+
+	if (versionMismatches.length > 0 || workspaceRangeMismatches.length > 0) {
+		const versionDetails = versionMismatches
 			.map((mismatch) => {
 				const relativePath = path.relative(repoRoot, mismatch.filePath);
 				return `- ${relativePath}: expected ${mismatch.expected}, found ${mismatch.actual ?? 'missing'}`;
 			})
 			.join('\n');
+		const workspaceRangeDetails = workspaceRangeMismatches
+			.map((mismatch) => {
+				return `- ${mismatch.packageName} ${mismatch.field}.${mismatch.dependencyName}: expected workspace:*, found ${mismatch.actual}`;
+			})
+			.join('\n');
+		const details = [
+			versionDetails ? `Version mismatches:\n${versionDetails}` : '',
+			workspaceRangeDetails ? `Internal package range mismatches:\n${workspaceRangeDetails}` : '',
+		]
+			.filter(Boolean)
+			.join('\n');
 
 		throw new Error(
-			`Release versions are not synced:\n${details}\nRun pnpm run jsr:sync-version and commit the result before publishing.`,
+			`Release versions are not synced:\n${details}\nRun pnpm run jsr:sync-version and replace same-repo package ranges with workspace:* before publishing.`,
 		);
 	}
 

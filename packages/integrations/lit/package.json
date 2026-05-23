@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.2.0-alpha.49",
+	"version": "0.2.0-alpha.50",
 	"description": "Ecopages lit integration",
 	"keywords": [
 		"ecopages",
@@ -38,7 +38,7 @@
 		"@ecopages/testing": "workspace:*"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "0.2.0-alpha.34",
+		"@ecopages/core": "workspace:*",
 		"@lit-labs/ssr": "^3.3.0",
 		"@lit-labs/ssr-client": "^1.1.7",
 		"lit": "^3.2.1"

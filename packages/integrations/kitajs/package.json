@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/kitajs",
-	"version": "0.2.0-alpha.49",
+	"version": "0.2.0-alpha.50",
 	"description": "Kitajs plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -38,7 +38,7 @@
 		"@ecopages/testing": "workspace:*"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "0.2.0-alpha.34",
+		"@ecopages/core": "workspace:*",
 		"@kitajs/html": "^4.1.0",
 		"@kitajs/ts-html-plugin": "^4.0.1"
 	}

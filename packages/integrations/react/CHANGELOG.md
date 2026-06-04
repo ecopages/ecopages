@@ -22,6 +22,7 @@ All notable changes to `@ecopages/react` are documented here.
 - Fixed router-managed React HMR page entries to reload the active route with a cleared persisted-layout cache so shared layout edits apply while the current page stays mounted.
 - Fixed router-managed React HMR handlers to forward the active page HMR entry when reloading the current route through React Router.
 - Fixed production React route hydration bundles to inline React runtime dependencies and import the router through the emitted page browser graph instead of a published import-map key.
+- Fixed React browser bundles to rewrite both `use-sync-external-store/shim` and `use-sync-external-store/shim/with-selector` CJS shims to browser-safe ESM implementations.
 - Removed the redundant React page props bootstrap script so route hydration relies on the canonical `__ECO_PAGE_DATA__` payload.
 - Fixed React hydration, Fast Refresh, module loading, doctype handling, island asset reuse, and mixed-renderer foreign-subtree resolution across Bun, Vite, and Nitro flows.
 - Restored direct `ReactPlugin` construction so the exported class still accepts the public plugin options shape.

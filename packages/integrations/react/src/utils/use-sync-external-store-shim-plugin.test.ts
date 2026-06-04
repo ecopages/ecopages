@@ -45,39 +45,62 @@ function createPluginHarness() {
 }
 
 describe('createUseSyncExternalStoreShimPlugin', () => {
-	it('redirects the bare shim specifier into a synthetic namespace', async () => {
+	it('redirects shim specifiers into a synthetic namespace', async () => {
 		const harness = createPluginHarness();
-		const resolveRegistration = harness.onResolveRegistrations.find(({ options }) =>
-			options.filter.test('use-sync-external-store/shim'),
-		);
 
-		expect(resolveRegistration).toBeDefined();
-		const result = await resolveRegistration?.callback({
-			path: 'use-sync-external-store/shim',
-			importer: '/app/entry.tsx',
-			namespace: 'file',
-		});
+		for (const [specifier, expectedPath] of [
+			['use-sync-external-store/shim', 'use-sync-external-store/shim'],
+			['use-sync-external-store/shim/with-selector', 'use-sync-external-store/shim/with-selector'],
+		] as const) {
+			const resolveRegistration = harness.onResolveRegistrations.find(({ options }) =>
+				options.filter.test(specifier),
+			);
 
-		expect(result).toEqual({
-			path: 'use-sync-external-store/shim',
-			namespace: 'ecopages-react-hmr-shim',
-		});
+			expect(resolveRegistration).toBeDefined();
+			const result = await resolveRegistration?.callback({
+				path: specifier,
+				importer: '/app/entry.tsx',
+				namespace: 'file',
+			});
+
+			expect(result).toEqual({
+				path: expectedPath,
+				namespace: 'ecopages-react-hmr-shim',
+			});
+		}
 	});
 
-	it('rewrites shim module variants to a direct React re-export', async () => {
+	it('rewrites shim module variants to browser-safe ESM implementations', async () => {
 		const harness = createPluginHarness();
-		const loadRegistration = harness.onLoadRegistrations.find(
+		const shimLoadRegistration = harness.onLoadRegistrations.find(
 			({ options }) => options.namespace === 'ecopages-react-hmr-shim',
 		);
 
-		expect(loadRegistration).toBeDefined();
-		const syntheticResult = await loadRegistration?.callback({
+		expect(shimLoadRegistration).toBeDefined();
+		const syntheticResult = await shimLoadRegistration?.callback({
 			path: 'use-sync-external-store/shim',
 			namespace: 'ecopages-react-hmr-shim',
 		});
 
 		expect(syntheticResult).toEqual({
 			contents: "export { useSyncExternalStore } from 'react';",
+			loader: 'js',
+		});
+
+		const withSelectorLoadRegistration = harness.onLoadRegistrations.find(
+			({ options }) =>
+				options.filter.test('use-sync-external-store/shim/with-selector') &&
+				options.namespace === 'ecopages-react-hmr-shim',
+		);
+
+		expect(withSelectorLoadRegistration).toBeDefined();
+		const withSelectorSyntheticResult = await withSelectorLoadRegistration?.callback({
+			path: 'use-sync-external-store/shim/with-selector',
+			namespace: 'ecopages-react-hmr-shim',
+		});
+
+		expect(withSelectorSyntheticResult).toEqual({
+			contents: expect.stringContaining('export function useSyncExternalStoreWithSelector'),
 			loader: 'js',
 		});
 
@@ -93,6 +116,22 @@ describe('createUseSyncExternalStoreShimPlugin', () => {
 			const variantResult = await variantRegistration?.callback({ path: variantPath, namespace: 'file' });
 			expect(variantResult).toEqual({
 				contents: "export { useSyncExternalStore } from 'react';",
+				loader: 'js',
+			});
+		}
+
+		for (const variantPath of [
+			'/workspace/node_modules/use-sync-external-store/shim/with-selector.js',
+			'/workspace/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.development.js',
+			'/workspace/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js',
+		]) {
+			const variantRegistration = harness.onLoadRegistrations.find(({ options }) =>
+				options.filter.test(variantPath),
+			);
+			expect(variantRegistration).toBeDefined();
+			const variantResult = await variantRegistration?.callback({ path: variantPath, namespace: 'file' });
+			expect(variantResult).toEqual({
+				contents: expect.stringContaining('export function useSyncExternalStoreWithSelector'),
 				loader: 'js',
 			});
 		}

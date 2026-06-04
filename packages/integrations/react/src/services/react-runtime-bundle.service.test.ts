@@ -20,6 +20,7 @@ describe('ReactRuntimeBundleService', () => {
 			reactJsxRuntime: '/assets/vendors/react.js',
 			reactJsxDevRuntime: '/assets/vendors/react.js',
 			reactDom: '/assets/vendors/react-dom.js',
+			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 		});
 	});
 
@@ -48,12 +49,29 @@ describe('ReactRuntimeBundleService', () => {
 			reactJsxRuntime: '/assets/vendors/react.development.js',
 			reactJsxDevRuntime: '/assets/vendors/react.development.js',
 			reactDom: '/assets/vendors/react-dom.development.js',
+			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.development.js',
 			router: '/assets/vendors/react-router-esm.development.js',
 		});
 
 		const dependencies = service.getDependencies();
 		expect(dependencies).toEqual(
 			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'use-sync-external-store-with-selector',
+					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
+					bundleOptions: expect.objectContaining({
+						naming: 'use-sync-external-store-with-selector.js',
+						define: expect.objectContaining({ 'process.env.NODE_ENV': '"production"' }),
+					}),
+				}),
+				expect.objectContaining({
+					name: 'use-sync-external-store-with-selector',
+					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
+					bundleOptions: expect.objectContaining({
+						naming: 'use-sync-external-store-with-selector.development.js',
+						define: expect.objectContaining({ 'process.env.NODE_ENV': '"development"' }),
+					}),
+				}),
 				expect.objectContaining({
 					name: 'react',
 					importPath: expect.any(String),

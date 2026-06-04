@@ -130,13 +130,17 @@
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
+		"./build/browser-runtime-manifest": {
+			"types": "./src/build/browser-runtime-manifest.ts",
+			"default": "./src/build/browser-runtime-manifest.ts"
+		},
+		"./build/browser-runtime-import-rewrite-plugin": {
+			"types": "./src/build/browser-runtime-import-rewrite-plugin.ts",
+			"default": "./src/build/browser-runtime-import-rewrite-plugin.ts"
+		},
 		"./build/runtime-specifier-alias-plugin": {
 			"types": "./src/build/runtime-specifier-alias-plugin.ts",
 			"default": "./src/build/runtime-specifier-alias-plugin.ts"
-		},
-		"./build/runtime-specifier-aliases": {
-			"types": "./src/build/runtime-specifier-aliases.ts",
-			"default": "./src/build/runtime-specifier-aliases.ts"
 		},
 		"./plugins/foreign-jsx-override-plugin": {
 			"types": "./src/plugins/foreign-jsx-override-plugin.ts",

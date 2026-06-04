@@ -1,4 +1,9 @@
 import type { EcoBuildPlugin } from './build-types.ts';
+import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
+import {
+	collectBrowserRuntimeImportRewriteMap,
+	rewriteBrowserRuntimeImports,
+} from './browser-runtime-import-rewrite-plugin.ts';
 import {
 	createAppBuildManifest,
 	getBrowserBuildPlugins,
@@ -6,7 +11,6 @@ import {
 	type AppBuildManifest,
 } from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
-import { collectRuntimeSpecifierAliasMap, rewriteRuntimeSpecifierAliases } from './runtime-specifier-aliases.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import { getBunRuntime } from '../utils/runtime.ts';
@@ -570,6 +574,32 @@ export class BunBuildAdapter implements BuildAdapter {
 		return /\.(?:[cm]?js)$/u.test(outputPath);
 	}
 
+	private rewriteBrowserRuntimeImportsInOutputs(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
+		if (!result.success || result.outputs.length === 0) {
+			return result;
+		}
+
+		const specifierMap = collectBrowserRuntimeImportRewriteMap(plugins);
+		if (specifierMap.size === 0) {
+			return result;
+		}
+
+		for (const output of result.outputs) {
+			if (!this.hasJavaScriptExtension(output.path) || !fs.existsSync(output.path)) {
+				continue;
+			}
+
+			const code = fs.readFileSync(output.path, 'utf-8');
+			const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, output.path);
+
+			if (rewritten !== code) {
+				fs.writeFileSync(output.path, rewritten);
+			}
+		}
+
+		return result;
+	}
+
 	private findOutputMatchForEntrypoint(
 		options: BuildOptions,
 		entrypointPath: string,
@@ -669,32 +699,6 @@ export class BunBuildAdapter implements BuildAdapter {
 		};
 	}
 
-	private rewriteAliasedRuntimeSpecifiers(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
-		if (!result.success || result.outputs.length === 0) {
-			return result;
-		}
-
-		const aliasMap = collectRuntimeSpecifierAliasMap(plugins);
-		if (aliasMap.size === 0) {
-			return result;
-		}
-
-		for (const output of result.outputs) {
-			if (!/\.(?:[cm]?js)$/u.test(output.path) || !fs.existsSync(output.path)) {
-				continue;
-			}
-
-			const code = fs.readFileSync(output.path, 'utf-8');
-			const rewritten = rewriteRuntimeSpecifierAliases(code, aliasMap);
-
-			if (rewritten !== code) {
-				fs.writeFileSync(output.path, rewritten);
-			}
-		}
-
-		return result;
-	}
-
 	async build(options: BuildOptions): Promise<BuildResult> {
 		const bun = getBunRuntime();
 
@@ -726,7 +730,7 @@ export class BunBuildAdapter implements BuildAdapter {
 				plugins: plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : undefined,
 			});
 
-			return this.rewriteAliasedRuntimeSpecifiers(
+			return this.rewriteBrowserRuntimeImportsInOutputs(
 				this.normalizeBunOutputs(
 					{
 						success: result.success,
@@ -891,6 +895,7 @@ export function createConfiguredAppBuildManifest(
 		loaderPlugins: input?.loaderPlugins ?? Array.from(appConfig.loaders.values()),
 		runtimePlugins: input?.runtimePlugins,
 		browserBundlePlugins: input?.browserBundlePlugins,
+		browserRuntimeManifest: input?.browserRuntimeManifest,
 	});
 }
 
@@ -913,9 +918,10 @@ export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Par
  */
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
-): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins'>> {
+): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {
 	const runtimePlugins: EcoBuildPlugin[] = [];
 	const browserBundlePlugins: EcoBuildPlugin[] = [];
+	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
 		await processor.prepareBuildContributions();
@@ -934,11 +940,13 @@ export async function collectConfiguredAppBuildManifestContributions(
 		await integration.prepareBuildContributions();
 		runtimePlugins.push(...(integration.plugins ?? []));
 		browserBundlePlugins.push(...(integration.browserBuildPlugins ?? []));
+		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
 	return {
 		runtimePlugins,
 		browserBundlePlugins,
+		browserRuntimeManifest: mergeBrowserRuntimeManifests(...browserRuntimeManifests),
 	};
 }
 

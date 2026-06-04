@@ -1,4 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
+import type { EcoBuildOnLoadResult } from '@ecopages/core/build/build-types';
 import { ReactBundleService } from './react-bundle.service.ts';
 
 describe('ReactBundleService', () => {
@@ -26,6 +31,8 @@ describe('ReactBundleService', () => {
 
 		expect(pluginNames).not.toContain('react-renderer-eco-core-browser-shim');
 		expect(pluginNames).toContain('ecopages-client-graph-boundary');
+		expect(pluginNames).toContain('react-renderer-runtime-import-rewrite');
+		expect(pluginNames).not.toContain('react-runtime-import-alias');
 		expect(options.external).toEqual(expect.arrayContaining(Object.values(runtimeImports)));
 		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
 	});
@@ -54,6 +61,67 @@ describe('ReactBundleService', () => {
 		const pluginNames = (options.plugins as Array<{ name: string }>).map((plugin) => plugin.name);
 
 		expect(options.external).toBeUndefined();
+		expect(pluginNames).not.toContain('react-renderer-runtime-import-rewrite');
 		expect(pluginNames).not.toContain('react-runtime-import-alias');
+	});
+
+	it('rewrites React runtime imports to concrete runtime asset URLs during module loading', async () => {
+		const service = new ReactBundleService({
+			rootDir: '/app',
+		});
+		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const runtimeRewritePlugin = (options.plugins as Array<{ name: string }>).find(
+			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
+		);
+		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-react-runtime-rewrite-'));
+		const filePath = path.join(tempDir, 'entry.tsx');
+		writeFileSync(
+			filePath,
+			[
+				'import React from "react";',
+				'import { jsx } from "react/jsx-runtime";',
+				'import { jsxDEV } from "react/jsx-dev-runtime";',
+				'import { hydrateRoot } from "react-dom/client";',
+				'import ReactDOM from "react-dom";',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const loadCallbacks: Array<
+				(args: { path: string }) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>
+			> = [];
+
+			expect(runtimeRewritePlugin).toBeDefined();
+			(
+				runtimeRewritePlugin as NonNullable<typeof runtimeRewritePlugin> & {
+					setup(build: {
+						onResolve(): void;
+						onLoad(
+							_options: unknown,
+							callback: (args: {
+								path: string;
+							}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
+						): void;
+						module(): void;
+					}): void;
+				}
+			).setup({
+				onResolve() {},
+				onLoad(_options, callback) {
+					loadCallbacks.push(callback);
+				},
+				module() {},
+			});
+
+			const result = await loadCallbacks[0]?.({ path: filePath });
+
+			expect(result?.contents).toContain('from "/assets/vendors/react.js"');
+			expect(result?.contents).toContain('from "/assets/vendors/react-dom.js"');
+			expect(result?.contents).not.toContain('from "react"');
+			expect(result?.contents).not.toContain('from "react-dom"');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

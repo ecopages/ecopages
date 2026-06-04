@@ -8,6 +8,7 @@ import {
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
+import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -204,6 +205,11 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return [];
 	}
 
+	override get browserRuntimeManifest(): BrowserRuntimeManifest {
+		this.ensureRuntimeDependencies();
+		return this.runtimeBundleService.getRuntimeManifest();
+	}
+
 	/**
 	 * Ensures the optional React MDX loader exists before either config-time
 	 * manifest sealing or runtime setup needs it.
@@ -254,7 +260,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return new ReactHmrStrategy({
 			context,
 			pageMetadataCache: this.hmrPageMetadataCache,
-			runtimeAliasMap: new Map(Object.entries(this.runtimeBundleService.getRuntimeAliasMap('development'))),
+			runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
 			mdxCompilerOptions: this.mdxCompilerOptions,
 			ownedTemplateExtensions: this.extensions,
 			allTemplateExtensions: this.appConfig.templatesExt,

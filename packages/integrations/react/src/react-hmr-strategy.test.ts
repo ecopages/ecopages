@@ -2,15 +2,41 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
+import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { fileSystem } from '@ecopages/file-system';
 
-const defaultRuntimeAliasMap = new Map([
-	['react', '/assets/vendors/react.development.js'],
-	['react/jsx-runtime', '/assets/vendors/react.development.js'],
-	['react/jsx-dev-runtime', '/assets/vendors/react.development.js'],
-	['react-dom', '/assets/vendors/react-dom.development.js'],
-	['react-dom/client', '/assets/vendors/react-dom.development.js'],
+const defaultRuntimeManifest = createBrowserRuntimeManifest([
+	{
+		specifier: 'react',
+		owner: '@ecopages/react',
+		importPath: 'react',
+		publicPath: '/assets/vendors/react.development.js',
+	},
+	{
+		specifier: 'react/jsx-runtime',
+		owner: '@ecopages/react',
+		importPath: 'react/jsx-runtime',
+		publicPath: '/assets/vendors/react.development.js',
+	},
+	{
+		specifier: 'react/jsx-dev-runtime',
+		owner: '@ecopages/react',
+		importPath: 'react/jsx-dev-runtime',
+		publicPath: '/assets/vendors/react.development.js',
+	},
+	{
+		specifier: 'react-dom',
+		owner: '@ecopages/react',
+		importPath: 'react-dom',
+		publicPath: '/assets/vendors/react-dom.development.js',
+	},
+	{
+		specifier: 'react-dom/client',
+		owner: '@ecopages/react',
+		importPath: 'react-dom/client',
+		publicPath: '/assets/vendors/react-dom.development.js',
+	},
 ]);
 
 function createPageMetadataCache(
@@ -73,7 +99,7 @@ describe('ReactHmrStrategy', () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
@@ -90,7 +116,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.tsx', '.react.tsx'],
 			allTemplateExtensions: ['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
 		});
@@ -113,7 +139,7 @@ describe('ReactHmrStrategy', () => {
 				getWatchedFiles: () => watchedFiles,
 			}),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		expect(strategy.matches('/tmp/src/components/radiant-counter.script.tsx')).toBe(false);
@@ -137,7 +163,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
@@ -178,7 +204,7 @@ describe('ReactHmrStrategy', () => {
 				getBuildExecutor: () => ({ build }),
 			}),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
@@ -206,7 +232,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
@@ -233,7 +259,7 @@ describe('ReactHmrStrategy', () => {
 		);
 	});
 
-	it('rewrites runtime aliases from the React-owned HMR runtime map during output processing', async () => {
+	it('leaves runtime imports unchanged during output processing', async () => {
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
 		vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
@@ -243,7 +269,7 @@ describe('ReactHmrStrategy', () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const success = await (strategy as any).processOutput(
@@ -255,10 +281,9 @@ describe('ReactHmrStrategy', () => {
 		expect(success).toBe(true);
 		expect(writeAsync).toHaveBeenCalledWith(
 			'/tmp/.eco/assets/_hmr/components/react-counter.js',
-			expect.stringContaining('/assets/vendors/react.development.js'),
+			expect.stringContaining('from "react"'),
 		);
-		expect(writeAsync.mock.calls[0]?.[1]).not.toContain('from "react"');
-		expect(writeAsync.mock.calls[0]?.[1]).not.toContain('from "react/jsx-dev-runtime"');
+		expect(writeAsync.mock.calls[0]?.[1]).toContain('from "react/jsx-dev-runtime"');
 	});
 
 	it('rewrites grouped HMR chunk imports to the served _hmr chunk root during output processing', async () => {
@@ -271,7 +296,7 @@ describe('ReactHmrStrategy', () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const success = await (strategy as any).processOutput(
@@ -303,7 +328,7 @@ describe('ReactHmrStrategy', () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		const success = await (strategy as any).processOutput(
@@ -333,7 +358,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.react.tsx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
@@ -376,7 +401,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 			mdxCompilerOptions: {},
 			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
@@ -420,7 +445,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
@@ -468,7 +493,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
@@ -527,7 +552,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				setDeclaredModules: () => undefined,
 			}) as any,
-			runtimeAliasMap: defaultRuntimeAliasMap,
+			runtimeManifest: defaultRuntimeManifest,
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);

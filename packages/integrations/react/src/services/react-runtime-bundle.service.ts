@@ -8,6 +8,10 @@
  */
 
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import {
+	createBrowserRuntimeImportRewritePlugin,
+	DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
+} from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import {
 	buildBrowserRuntimeAssetUrl,
@@ -17,7 +21,11 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from '../utils/react-dom-runtime-interop-plugin.ts';
-import { buildReactRuntimeAliasMap } from '../utils/react-runtime-alias-map.ts';
+import { buildReactRuntimeAliasMap, buildReactRuntimeManifest } from '../utils/react-runtime-alias-map.ts';
+import {
+	createBrowserRuntimeManifest,
+	type BrowserRuntimeManifest,
+} from '@ecopages/core/build/browser-runtime-manifest';
 
 export type ReactRuntimeImports = {
 	react: string;
@@ -25,6 +33,7 @@ export type ReactRuntimeImports = {
 	reactJsxRuntime: string;
 	reactJsxDevRuntime: string;
 	reactDom: string;
+	useSyncExternalStoreWithSelector: string;
 	router?: string;
 };
 
@@ -81,6 +90,26 @@ export class ReactRuntimeBundleService {
 			: `${this.config.routerAdapter.bundle.outputName}.js`;
 	}
 
+	private getUseSyncExternalStoreWithSelectorVendorFileName(mode: RuntimeMode): string {
+		return mode === 'development'
+			? 'use-sync-external-store-with-selector.development.js'
+			: 'use-sync-external-store-with-selector.js';
+	}
+
+	private createReactVendorImportRewritePlugin(mode: RuntimeMode): EcoBuildPlugin {
+		return createBrowserRuntimeImportRewritePlugin({
+			name: `react-plugin-vendor-runtime-import-rewrite-${mode}`,
+			manifest: createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+				},
+			]),
+		})!;
+	}
+
 	getRuntimeImports(mode = this.getCurrentRuntimeMode()): ReactRuntimeImports {
 		const reactVendorFileName = this.getReactVendorFileName(mode);
 		const reactDomVendorFileName = this.getReactDomVendorFileName(mode);
@@ -90,6 +119,9 @@ export class ReactRuntimeBundleService {
 			reactJsxRuntime: buildBrowserRuntimeAssetUrl(reactVendorFileName),
 			reactJsxDevRuntime: buildBrowserRuntimeAssetUrl(reactVendorFileName),
 			reactDom: buildBrowserRuntimeAssetUrl(reactDomVendorFileName),
+			useSyncExternalStoreWithSelector: buildBrowserRuntimeAssetUrl(
+				this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
+			),
 		};
 
 		if (this.config.routerAdapter) {
@@ -103,11 +135,18 @@ export class ReactRuntimeBundleService {
 		return buildReactRuntimeAliasMap(this.getRuntimeImports(mode));
 	}
 
+	getRuntimeManifest(mode = this.getCurrentRuntimeMode()): BrowserRuntimeManifest {
+		return buildReactRuntimeManifest(this.getRuntimeImports(mode));
+	}
+
 	getDependencies(): AssetDefinition[] {
-		const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin();
 		const dependencies: AssetDefinition[] = [];
 
 		for (const mode of ['production', 'development'] as const) {
+			const reactVendorImportRewritePlugin = this.createReactVendorImportRewritePlugin(mode);
+			const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin({
+				reactSpecifier: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+			});
 			const reactRuntimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
 				{
 					react: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
@@ -133,6 +172,7 @@ export class ReactRuntimeBundleService {
 					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
 					},
 				}),
 				createBrowserRuntimeModuleAsset({
@@ -143,7 +183,18 @@ export class ReactRuntimeBundleService {
 					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
 						plugins: reactDomBundlePlugins,
+					},
+				}),
+				createBrowserRuntimeScriptAsset({
+					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
+					name: 'use-sync-external-store-with-selector',
+					fileName: this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
+						plugins: [reactVendorImportRewritePlugin],
 					},
 				}),
 			);

@@ -1,5 +1,4 @@
 import type { EcoBuildPlugin } from './build-types.ts';
-import { attachRuntimeSpecifierAliasMap } from './runtime-specifier-aliases.ts';
 
 type RuntimeSpecifierMap = ReadonlyMap<string, string> | Record<string, string>;
 
@@ -40,23 +39,20 @@ export function createRuntimeSpecifierAliasPlugin(
 
 	const filter = new RegExp(`^(${Array.from(specifierMap.keys()).map(escapeRegExp).join('|')})$`);
 
-	return attachRuntimeSpecifierAliasMap(
-		{
-			name: options?.name ?? 'runtime-specifier-alias',
-			setup(build) {
-				build.onResolve({ filter }, (args) => {
-					const mappedPath = specifierMap.get(args.path);
-					if (!mappedPath) {
-						return undefined;
-					}
+	return {
+		name: options?.name ?? 'runtime-specifier-alias',
+		setup(build) {
+			build.onResolve({ filter }, (args) => {
+				const mappedPath = specifierMap.get(args.path);
+				if (!mappedPath) {
+					return undefined;
+				}
 
-					return {
-						path: mappedPath,
-						external: options?.external ?? true,
-					};
-				});
-			},
+				return {
+					path: mappedPath,
+					external: options?.external ?? true,
+				};
+			});
 		},
-		specifierMap,
-	);
+	};
 }

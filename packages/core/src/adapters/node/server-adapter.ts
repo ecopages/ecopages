@@ -1,6 +1,5 @@
 import { createServer, type Server as NodeHttpServer } from 'node:http';
 import path from 'node:path';
-import { WebSocketServer } from 'ws';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';

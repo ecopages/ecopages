@@ -1,9 +1,19 @@
 import type { EcoBuildPlugin } from './build-types.ts';
+import {
+	createBrowserRuntimeImportRewritePlugin,
+	DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
+} from './browser-runtime-import-rewrite-plugin.ts';
+import {
+	createBrowserRuntimeManifest,
+	mergeBrowserRuntimeManifests,
+	type BrowserRuntimeManifest,
+} from './browser-runtime-manifest.ts';
 
 export interface AppBuildManifest {
 	loaderPlugins: EcoBuildPlugin[];
 	runtimePlugins: EcoBuildPlugin[];
 	browserBundlePlugins: EcoBuildPlugin[];
+	browserRuntimeManifest: BrowserRuntimeManifest;
 }
 
 /**
@@ -36,7 +46,15 @@ export function createAppBuildManifest(input?: Partial<AppBuildManifest>): AppBu
 		loaderPlugins: mergeEcoBuildPlugins(input?.loaderPlugins),
 		runtimePlugins: mergeEcoBuildPlugins(input?.runtimePlugins),
 		browserBundlePlugins: mergeEcoBuildPlugins(input?.browserBundlePlugins),
+		browserRuntimeManifest: mergeBrowserRuntimeManifests(input?.browserRuntimeManifest),
 	};
+}
+
+/**
+ * Returns the shared browser runtime asset manifest sealed into the app build manifest.
+ */
+export function getBrowserRuntimeManifest(manifest: AppBuildManifest): BrowserRuntimeManifest {
+	return manifest.browserRuntimeManifest ?? createBrowserRuntimeManifest();
 }
 
 /**
@@ -50,5 +68,15 @@ export function getServerBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugi
  * Returns the plugin list used for browser-oriented builds.
  */
 export function getBrowserBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugin[] {
-	return mergeEcoBuildPlugins(manifest.loaderPlugins, manifest.runtimePlugins, manifest.browserBundlePlugins);
+	const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+		name: DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
+		manifest: getBrowserRuntimeManifest(manifest),
+	});
+
+	return mergeEcoBuildPlugins(
+		manifest.loaderPlugins,
+		manifest.runtimePlugins,
+		runtimeRewritePlugin ? [runtimeRewritePlugin] : [],
+		manifest.browserBundlePlugins,
+	);
 }

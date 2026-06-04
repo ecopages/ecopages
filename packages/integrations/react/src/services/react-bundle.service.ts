@@ -9,12 +9,10 @@
 
 import { createClientGraphBoundaryPlugin } from '../utils/client-graph-boundary-plugin.ts';
 import {
-	buildReactRuntimeAliasMap,
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 } from '../utils/react-runtime-alias-map.ts';
-import { createUseSyncExternalStoreShimPlugin } from '../utils/use-sync-external-store-shim-plugin.ts';
-import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
+import { createBrowserRuntimeImportRewritePlugin } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
 import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-jsx-override-plugin';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -72,6 +70,10 @@ export class ReactBundleService {
 	/**
 	 * Creates esbuild bundle options for a page or component entry.
 	 *
+	 * @remarks
+	 * React derives runtime specifier mappings from the core browser runtime manifest
+	 * so ESM imports resolve to concrete runtime asset URLs during module loading.
+	 *
 	 * @param componentName - Generated unique component name for output naming
 	 * @param isMdx - Whether the source file is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
@@ -122,40 +124,22 @@ export class ReactBundleService {
 			hostJsxImportSource: this.config.jsxImportSource ?? 'react',
 			foreignExtensions: this.config.nonReactExtensions ?? [],
 		});
-		const useSyncExternalStoreShimPlugin = createUseSyncExternalStoreShimPlugin({
-			name: 'react-renderer-use-sync-external-store-shim',
-			namespace: 'ecopages-react-renderer-shim',
+		const runtimeManifest = this.runtimeBundleService.getRuntimeManifest();
+		const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+			name: 'react-renderer-runtime-import-rewrite',
+			manifest: runtimeManifest,
 		});
 		const runtimePlugins = bundleOptions.includeRuntime
 			? []
-			: [this.createRuntimeAliasPlugin(buildReactRuntimeAliasMap(runtimeImports))];
+			: [runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
-			options.plugins = [
-				foreignJsxOverridePlugin,
-				graphBoundaryPlugin,
-				...runtimePlugins,
-				mdxPlugin,
-				useSyncExternalStoreShimPlugin,
-			];
+			options.plugins = [foreignJsxOverridePlugin, graphBoundaryPlugin, ...runtimePlugins, mdxPlugin];
 		} else {
-			options.plugins = [
-				foreignJsxOverridePlugin,
-				graphBoundaryPlugin,
-				...runtimePlugins,
-				useSyncExternalStoreShimPlugin,
-			];
+			options.plugins = [foreignJsxOverridePlugin, graphBoundaryPlugin, ...runtimePlugins];
 		}
 
 		return options;
-	}
-
-	/**
-	 * Creates the esbuild plugin that rewrites bare React specifiers
-	 * to their runtime asset URLs.
-	 */
-	createRuntimeAliasPlugin(runtimeAliasMap: Record<string, string>) {
-		return createRuntimeSpecifierAliasPlugin(runtimeAliasMap, { name: 'react-runtime-import-alias' });
 	}
 }

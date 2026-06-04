@@ -34,6 +34,7 @@ export function createBrowserRuntimeScriptAsset(options: {
 		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
+		excludeAppBuildPlugins?: string[];
 		naming?: string;
 		plugins?: EcoBuildPlugin[];
 	};
@@ -74,6 +75,7 @@ export function createBrowserRuntimeModuleAsset(options: {
 		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
+		excludeAppBuildPlugins?: string[];
 		naming?: string;
 		plugins?: EcoBuildPlugin[];
 	};

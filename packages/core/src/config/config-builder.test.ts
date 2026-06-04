@@ -10,6 +10,7 @@ import {
 	getAppBuildManifest,
 	ViteHostBuildAdapter,
 } from '../build/build-adapter.ts';
+import { createBrowserRuntimeManifest } from '../build/browser-runtime-manifest.ts';
 import { createVitePluginsFromAppSourceTransforms } from '../plugins/source-transform.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
@@ -124,6 +125,16 @@ describe('EcoConfigBuilder', () => {
 			override get browserBuildPlugins() {
 				return [integrationBrowserPlugin];
 			}
+			override get browserRuntimeManifest() {
+				return createBrowserRuntimeManifest([
+					{
+						specifier: 'react',
+						owner: '@ecopages/react',
+						importPath: 'react',
+						publicPath: '/assets/vendors/react.js',
+					},
+				]);
+			}
 			override async prepareBuildContributions(): Promise<void> {}
 		})({ name: 'test-integration', extensions: ['.test'] });
 
@@ -143,6 +154,9 @@ describe('EcoConfigBuilder', () => {
 				processorBrowserPlugin,
 				integrationBrowserPlugin,
 			]);
+			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
+				'/assets/vendors/react.js',
+			);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

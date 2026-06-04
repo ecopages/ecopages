@@ -24,7 +24,10 @@ import type {
 	BuildTranspileOptions,
 	BuildTranspileProfile,
 } from './build-adapter.ts';
-import { collectRuntimeSpecifierAliasMap, rewriteRuntimeSpecifierAliases } from './runtime-specifier-aliases.ts';
+import {
+	collectBrowserRuntimeImportRewriteMap,
+	rewriteBrowserRuntimeImports,
+} from './browser-runtime-import-rewrite-plugin.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 const esbuildPath = moduleRequire.resolve('esbuild');
@@ -147,13 +150,13 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		return Array.from(nodePaths);
 	}
 
-	private rewriteAliasedRuntimeSpecifiers(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
+	private rewriteBrowserRuntimeImportsInOutputs(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
 		if (!result.success || result.outputs.length === 0) {
 			return result;
 		}
 
-		const aliasMap = collectRuntimeSpecifierAliasMap(plugins);
-		if (aliasMap.size === 0) {
+		const specifierMap = collectBrowserRuntimeImportRewriteMap(plugins);
+		if (specifierMap.size === 0) {
 			return result;
 		}
 
@@ -163,7 +166,8 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 			}
 
 			const code = readFileSync(output.path, 'utf-8');
-			const rewritten = rewriteRuntimeSpecifierAliases(code, aliasMap);
+			const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, output.path);
+
 			if (rewritten !== code) {
 				writeFileSync(output.path, rewritten);
 			}
@@ -522,7 +526,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		const logs = result.warnings.map((warning) => ({ message: warning.text }));
 		const dependencyGraph = this.extractDependencyGraph(result.metafile, contextRoot);
 
-		return this.rewriteAliasedRuntimeSpecifiers(
+		return this.rewriteBrowserRuntimeImportsInOutputs(
 			{
 				success: true,
 				logs,

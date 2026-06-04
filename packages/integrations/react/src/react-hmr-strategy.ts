@@ -12,8 +12,8 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { rewriteRuntimeSpecifierAliases } from '@ecopages/core/build/runtime-specifier-aliases';
-import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
+import { createBrowserRuntimeImportRewritePlugin } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
+import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
@@ -23,7 +23,6 @@ import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-p
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
-import { createUseSyncExternalStoreShimPlugin } from './utils/use-sync-external-store-shim-plugin.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
@@ -31,7 +30,7 @@ const appLogger = new Logger('[ReactHmrStrategy]');
 export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
 	pageMetadataCache: ReactHmrPageMetadataCache;
-	runtimeAliasMap: ReadonlyMap<string, string>;
+	runtimeManifest: BrowserRuntimeManifest;
 	mdxCompilerOptions?: CompileOptions;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
@@ -94,7 +93,7 @@ type ReactHmrBuildTarget = {
  * const strategy = new ReactHmrStrategy({
  *   context,
  *   pageMetadataCache,
- *   runtimeAliasMap
+ *   runtimeManifest
  * });
  * ```
  */
@@ -115,13 +114,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private context: DefaultHmrContext;
 	private pageMetadataCache: ReactHmrPageMetadataCache;
 	private explicitGraphEnabled: boolean;
-	private readonly runtimeAliasMap: ReadonlyMap<string, string>;
+	private readonly runtimeManifest: BrowserRuntimeManifest;
 
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
 		this.context = options.context;
 		this.pageMetadataCache = options.pageMetadataCache;
-		this.runtimeAliasMap = options.runtimeAliasMap;
+		this.runtimeManifest = options.runtimeManifest;
 		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
 		this.mdxCompilerOptions = options.mdxCompilerOptions;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
@@ -135,12 +134,18 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 *
 	 * Includes the client graph boundary plugin to prevent undeclared imports
 	 * (including `node:*`) from breaking the browser bundle.
+	 *
+	 * @remarks
+	 * HMR builds receive the React runtime manifest and rewrite manifest-owned
+	 * runtime imports to concrete asset URLs before module resolution.
 	 */
 	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
-		const allowSpecifiers = getReactClientGraphAllowSpecifiers(this.runtimeAliasMap.keys());
-
-		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(this.runtimeAliasMap, {
-			name: 'react-hmr-runtime-specifier-alias',
+		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
+			this.runtimeManifest.assets.map((asset) => asset.specifier),
+		);
+		const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+			name: 'react-hmr-runtime-import-rewrite',
+			manifest: this.runtimeManifest,
 		});
 
 		return [
@@ -149,12 +154,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
 			}),
-			...(runtimeAliasPlugin ? [runtimeAliasPlugin] : []),
+			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 			...this.context.getPlugins(),
-			createUseSyncExternalStoreShimPlugin({
-				name: 'react-hmr-use-sync-external-store-shim',
-				namespace: 'ecopages-react-hmr-shim',
-			}),
 		];
 	}
 
@@ -673,7 +674,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		try {
 			let code = await fileSystem.readFile(tempPath);
 
-			code = rewriteRuntimeSpecifierAliases(code, this.runtimeAliasMap);
 			code = this.rewriteChunkImportUrls(code);
 			code = injectHmrHandler(code);
 

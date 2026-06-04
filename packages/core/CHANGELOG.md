@@ -28,11 +28,14 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
+- Added a browser runtime import rewrite plugin that turns manifest-owned ESM runtime specifiers into concrete public asset URLs during module loading.
+- Added a core browser runtime asset manifest model for migrating runtime imports from import-map-style aliases to deterministic concrete URLs.
 - Added app-owned runtime and build ownership around `createApp()`, host module loading, the browser-safe `eco` export, `eco.html()`, `eco.layout()`, and the published `EcoPagesAppConfig` surface.
 - Added boundary-plan metadata and a compatibility `renderBoundary()` payload contract for mixed-renderer orchestration.
 
 ### Refactoring
 
+- Removed the emitted-JS runtime specifier alias fallback so browser runtime imports resolve through manifest-owned module loading instead of post-build rewriting.
 - Re-exported the renderer contribution contracts through the integration plugin surface so integrations declare page-browser and document HTML hooks from one core boundary.
 - Moved Page Browser Graph assembly into the shared route orchestrator so integrations now declare graph contributions instead of building page-browser assets inside renderer execution.
 - Cached shared Page Browser Graph resolution across repeated route preparation while automatically bypassing that cache when HMR is enabled.
@@ -112,6 +115,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Fixed Node preview and static-generation React runtime resolution so app-owned page modules and server rendering share one React module identity.
 - Fixed Bun browser output normalization so batched multi-entrypoint HMR rebuilds match emitted files to their expected served paths instead of Bun output order.
 - Fixed render-preparation graph traversal so sparse component dependency arrays do not break custom 404 rendering or file-system response fallback flows.
+- Fixed browser runtime manifest import rewrites to externalize manifest-owned specifiers during module resolution, including CJS `require()` consumers that do not pass through ESM source rewrite.
 
 ### Documentation
 

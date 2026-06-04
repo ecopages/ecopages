@@ -1,4 +1,5 @@
 import type { EcoBuildPlugin } from '../build/build-types.ts';
+import { createBrowserRuntimeManifest, type BrowserRuntimeManifest } from '../build/browser-runtime-manifest.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { EcoPagesElement } from '../types/public-types.ts';
@@ -151,6 +152,18 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
+	 * Returns shared browser runtime asset declarations owned by this integration.
+	 *
+	 * @remarks
+	 * Core seals these declarations into the app build manifest so app-owned browser
+	 * bundle paths can rewrite manifest-owned imports even when a specific build
+	 * request does not install an integration-local runtime rewrite plugin.
+	 */
+	get browserRuntimeManifest(): BrowserRuntimeManifest {
+		return createBrowserRuntimeManifest();
+	}
+
+	/**
 	 * Creates the integration with static declaration-only configuration.
 	 *
 	 * @remarks
@@ -195,7 +208,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * ```typescript
 	 * getHmrStrategy(): HmrStrategy {
 	 *   const context = this.hmrManager!.getDefaultContext();
-	 *   return new ReactHmrStrategy({ context, pageMetadataCache, runtimeAliasMap });
+	 *   return new ReactHmrStrategy({ context, pageMetadataCache, runtimeManifest });
 	 * }
 	 * ```
 	 */

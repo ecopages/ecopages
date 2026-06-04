@@ -280,7 +280,6 @@ Use these entrypoints only when implementing host adapters or framework-owned bu
 - `@ecopages/core/build/build-adapter`
 - `@ecopages/core/build/build-types`
 - `@ecopages/core/build/runtime-specifier-alias-plugin`
-- `@ecopages/core/build/runtime-specifier-aliases`
 - `@ecopages/core/plugins/foreign-jsx-override-plugin`
 
 These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.

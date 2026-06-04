@@ -26,6 +26,7 @@ import {
 	updateAppBuildManifest,
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
+import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
 import { createAppBuildExecutor } from './dev-build-coordinator.ts';
@@ -676,6 +677,28 @@ test('createConfiguredAppBuildManifest defaults loader plugins from app config',
 	assert.deepEqual(manifest.loaderPlugins, [loaderPlugin]);
 	assert.deepEqual(manifest.runtimePlugins, [runtimePlugin]);
 	assert.deepEqual(manifest.browserBundlePlugins, []);
+	assert.deepEqual(manifest.browserRuntimeManifest.assets, []);
+});
+
+test('createConfiguredAppBuildManifest preserves explicit browser runtime manifest input', () => {
+	const appConfig = {
+		loaders: new Map(),
+		runtime: {},
+	} as any;
+	const browserRuntimeManifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react.js',
+		},
+	]);
+
+	const manifest = createConfiguredAppBuildManifest(appConfig, {
+		browserRuntimeManifest,
+	});
+
+	assert.equal(manifest.browserRuntimeManifest.bySpecifier.get('react')?.publicPath, '/assets/vendors/react.js');
 });
 
 test('updateAppBuildManifest rebuilds the app manifest from config-owned loaders and explicit runtime plugins', () => {
@@ -725,6 +748,86 @@ test('collectConfiguredAppBuildManifestContributions gathers processor and integ
 	assert.deepEqual(contributionOrder, ['processor-prepare', 'integration-config', 'integration-prepare']);
 	assert.deepEqual(contributions.runtimePlugins, [processorRuntimePlugin, integrationRuntimePlugin]);
 	assert.deepEqual(contributions.browserBundlePlugins, [processorBrowserPlugin]);
+	assert.equal(contributions.browserRuntimeManifest.assets.length, 0);
+});
+
+test('collectConfiguredAppBuildManifestContributions merges integration browser runtime manifests', async () => {
+	const reactManifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react.js',
+		},
+	]);
+	const routerManifest = createBrowserRuntimeManifest([
+		{
+			specifier: '@ecopages/react-router/browser',
+			owner: '@ecopages/react-router',
+			importPath: '@ecopages/react-router/browser',
+			publicPath: '/assets/vendors/react-router.js',
+		},
+	]);
+
+	const contributions = await collectConfiguredAppBuildManifestContributions({
+		processors: new Map(),
+		integrations: [
+			{
+				setConfig() {},
+				prepareBuildContributions: vi.fn(async () => {}),
+				get plugins() {
+					return [];
+				},
+				get browserBuildPlugins() {
+					return [];
+				},
+				get browserRuntimeManifest() {
+					return reactManifest;
+				},
+			},
+			{
+				setConfig() {},
+				prepareBuildContributions: vi.fn(async () => {}),
+				get plugins() {
+					return [];
+				},
+				get browserBuildPlugins() {
+					return [];
+				},
+				get browserRuntimeManifest() {
+					return routerManifest;
+				},
+			},
+		],
+	} as any);
+
+	assert.deepEqual(Array.from(contributions.browserRuntimeManifest.bySpecifier.keys()), [
+		'react',
+		'@ecopages/react-router/browser',
+	]);
+});
+
+test('getAppBrowserBuildPlugins adds the app-level browser runtime rewrite plugin when the manifest is populated', () => {
+	const appConfig = {
+		loaders: new Map(),
+		runtime: {},
+	} as any;
+
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			browserRuntimeManifest: createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+				},
+			]),
+		}),
+	);
+
+	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-import-rewrite'));
 });
 
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {

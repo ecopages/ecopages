@@ -70,6 +70,10 @@ const PersistLayoutsContext = createContext<boolean>(false);
 
 type LayoutComponent = ComponentType<Record<string, unknown>>;
 
+type LayoutComponentWithMeta = LayoutComponent & {
+	config?: { __eco?: EcoInjectedMeta };
+};
+
 /**
  * Reads the optional layout assigned to a page component.
  *
@@ -137,6 +141,34 @@ function normalizeLayoutKey(value: string): string {
 	}
 }
 
+function hashString(value: string): string {
+	let hash = 2166136261;
+
+	for (let index = 0; index < value.length; index += 1) {
+		hash ^= value.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+
+	return (hash >>> 0).toString(36);
+}
+
+function getLayoutSourceSignature(Layout: LayoutComponent): string {
+	const source = Function.prototype.toString.call(Layout).replace(/\s+/g, ' ').trim();
+	return hashString(source);
+}
+
+function getLayoutCacheKey(Layout: LayoutComponent): string {
+	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
+	const layoutMetaKey = layoutConfig?.__eco?.file || layoutConfig?.__eco?.id;
+
+	if (layoutMetaKey) {
+		return normalizeLayoutKey(layoutMetaKey);
+	}
+
+	const layoutNameKey = Layout.displayName || Layout.name || 'layout';
+	return `${normalizeLayoutKey(layoutNameKey)}:${getLayoutSourceSignature(Layout)}`;
+}
+
 /**
  * Clears the layout cache. Called during HMR to ensure fresh layouts are used.
  */
@@ -183,9 +215,7 @@ export const PageContent: FC = () => {
 
 	if (persistLayouts) {
 		const layoutCache = getLayoutCache();
-		const layoutConfig = (Layout as LayoutComponent & { config?: { __eco?: EcoInjectedMeta } }).config;
-		const layoutKeyRaw = layoutConfig?.__eco?.id || Layout.displayName || Layout.name || 'layout';
-		const layoutKey = normalizeLayoutKey(layoutKeyRaw);
+		const layoutKey = getLayoutCacheKey(Layout);
 
 		if (!layoutCache.has(layoutKey) || (refreshPersistedLayout && layoutCache.get(layoutKey) !== Layout)) {
 			layoutCache.set(layoutKey, Layout);

@@ -711,6 +711,135 @@ describe('ReactHmrStrategy', () => {
 			expect(action).toEqual({ type: 'none' });
 		});
 
+		it('process triggers a layout refresh when dependency hits only an owned layout entrypoint', async () => {
+			const entrypointA = '/tmp/src/pages/page-a.tsx';
+			const entrypointB = '/tmp/src/pages/page-b.tsx';
+			const layoutEntrypoint = '/tmp/src/layouts/base-layout.tsx';
+			const changedComponent = '/tmp/src/components/app-shell.tsx';
+			const watchedFiles = new Map<string, string>([
+				[entrypointA, '/assets/_hmr/pages/page-a.js'],
+				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+			]);
+
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getWatchedFiles: () => watchedFiles,
+					getEntrypointDependencyGraph: () => ({
+						supportsSelectiveInvalidation: () => true,
+						getDependencyEntrypoints: (filePath: string) =>
+							filePath === changedComponent ? new Set([layoutEntrypoint]) : new Set(),
+						setEntrypointDependencies: () => {},
+						clearEntrypointDependencies: () => {},
+						reset: () => {},
+					}),
+				}),
+				pageMetadataCache: createPageMetadataCache({
+					getDeclaredModules: () => [],
+					ownsEntrypoint: (entrypointPath) =>
+						entrypointPath === entrypointA ||
+						entrypointPath === entrypointB ||
+						entrypointPath === layoutEntrypoint,
+				}) as any,
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
+			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
+				'/assets/_hmr/pages/page-a.js',
+				'/assets/_hmr/pages/page-b.js',
+			]);
+
+			const action = await strategy.process(changedComponent);
+
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
+				{ entrypointPath: entrypointA, outputUrl: '/assets/_hmr/pages/page-a.js' },
+				{ entrypointPath: entrypointB, outputUrl: '/assets/_hmr/pages/page-b.js' },
+			]);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'layout-update',
+					},
+				],
+			});
+		});
+
+		it('process triggers a layout refresh when a dependency-hit page owns the changed file through its layout subtree', async () => {
+			const entrypointA = '/tmp/src/pages/page-a.tsx';
+			const entrypointB = '/tmp/src/pages/page-b.tsx';
+			const changedComponent = '/tmp/src/components/app-shell.tsx';
+			const watchedFiles = new Map<string, string>([
+				[entrypointA, '/assets/_hmr/pages/page-a.js'],
+				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+			]);
+
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getWatchedFiles: () => watchedFiles,
+					getEntrypointDependencyGraph: () => ({
+						supportsSelectiveInvalidation: () => true,
+						getDependencyEntrypoints: (filePath: string) =>
+							filePath === changedComponent ? new Set([entrypointA, entrypointB]) : new Set(),
+						setEntrypointDependencies: () => {},
+						clearEntrypointDependencies: () => {},
+						reset: () => {},
+					}),
+					importServerModule: createImportServerModuleMock({
+						config: {
+							layout: {
+								config: {
+									__eco: {
+										id: 'layout',
+										file: '/tmp/src/layouts/base-layout.tsx',
+										integration: 'react',
+									},
+									dependencies: {
+										components: [
+											{
+												config: {
+													__eco: {
+														id: 'shell',
+														file: changedComponent,
+														integration: 'react',
+													},
+												},
+											},
+										],
+									},
+								},
+							},
+						},
+					}),
+				}),
+				pageMetadataCache: createPageMetadataCache({
+					getDeclaredModules: () => [],
+					ownsEntrypoint: (entrypointPath) =>
+						entrypointPath === entrypointA || entrypointPath === entrypointB,
+				}) as any,
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
+			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
+				'/assets/_hmr/pages/page-a.js',
+				'/assets/_hmr/pages/page-b.js',
+			]);
+
+			const action = await strategy.process(changedComponent);
+
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'layout-update',
+					},
+				],
+			});
+		});
+
 		it('process falls back to all watched entrypoints when dependency graph has no hits', async () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
@@ -760,6 +889,165 @@ describe('ReactHmrStrategy', () => {
 						type: 'update',
 						path: '/assets/_hmr/pages/page-b.js',
 						timestamp: expect.any(Number),
+					},
+				],
+			});
+		});
+
+		it('process triggers a layout refresh on dependency-graph miss when the changed file belongs to a page layout subtree', async () => {
+			const entrypointA = '/tmp/src/pages/page-a.tsx';
+			const entrypointB = '/tmp/src/pages/page-b.tsx';
+			const changedComponent = '/tmp/src/components/app-shell.tsx';
+			const watchedFiles = new Map<string, string>([
+				[entrypointA, '/assets/_hmr/pages/page-a.js'],
+				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+			]);
+
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getWatchedFiles: () => watchedFiles,
+					getEntrypointDependencyGraph: () => ({
+						supportsSelectiveInvalidation: () => true,
+						getDependencyEntrypoints: () => new Set(),
+						setEntrypointDependencies: () => {},
+						clearEntrypointDependencies: () => {},
+						reset: () => {},
+					}),
+					importServerModule: createImportServerModuleMock({
+						config: {
+							layout: {
+								config: {
+									__eco: {
+										id: 'layout',
+										file: '/tmp/src/layouts/base-layout.tsx',
+										integration: 'react',
+									},
+									dependencies: {
+										components: [
+											{
+												config: {
+													__eco: {
+														id: 'shell',
+														file: changedComponent,
+														integration: 'react',
+													},
+												},
+											},
+										],
+									},
+								},
+							},
+						},
+					}),
+				}),
+				pageMetadataCache: createPageMetadataCache({
+					getDeclaredModules: () => [],
+					ownsEntrypoint: (entrypointPath) =>
+						entrypointPath === entrypointA || entrypointPath === entrypointB,
+				}) as any,
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
+			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
+				'/assets/_hmr/pages/page-a.js',
+				'/assets/_hmr/pages/page-b.js',
+			]);
+
+			const action = await strategy.process(changedComponent);
+
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'layout-update',
+					},
+				],
+			});
+		});
+
+		it('process triggers a layout refresh when the changed watched entrypoint is owned by a page layout subtree', async () => {
+			const entrypointA = '/tmp/src/pages/page-a.tsx';
+			const entrypointB = '/tmp/src/pages/page-b.tsx';
+			const changedComponent = '/tmp/src/components/app-shell.tsx';
+			const watchedFiles = new Map<string, string>([
+				[entrypointA, '/assets/_hmr/pages/page-a.js'],
+				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[changedComponent, '/assets/_hmr/components/app-shell.js'],
+			]);
+
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getWatchedFiles: () => watchedFiles,
+					getEntrypointDependencyGraph: () => ({
+						supportsSelectiveInvalidation: () => true,
+						getDependencyEntrypoints: () => new Set(),
+						setEntrypointDependencies: () => {},
+						clearEntrypointDependencies: () => {},
+						reset: () => {},
+					}),
+					importServerModule: createImportServerModuleMock({
+						config: {
+							layout: {
+								config: {
+									__eco: {
+										id: 'layout',
+										file: '/tmp/src/layouts/base-layout.tsx',
+										integration: 'react',
+									},
+									dependencies: {
+										components: [
+											{
+												config: {
+													__eco: {
+														id: 'shell',
+														file: changedComponent,
+														integration: 'react',
+													},
+												},
+											},
+										],
+									},
+								},
+							},
+						},
+					}),
+				}),
+				pageMetadataCache: createPageMetadataCache({
+					getDeclaredModules: () => [],
+					ownsEntrypoint: (entrypointPath) =>
+						entrypointPath === entrypointA ||
+						entrypointPath === entrypointB ||
+						entrypointPath === changedComponent,
+				}) as any,
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
+			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
+				'/assets/_hmr/pages/page-a.js',
+				'/assets/_hmr/pages/page-b.js',
+			]);
+			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
+
+			const action = await strategy.process(changedComponent);
+
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
+			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
+				{ entrypointPath: entrypointA, outputUrl: '/assets/_hmr/pages/page-a.js' },
+				{ entrypointPath: entrypointB, outputUrl: '/assets/_hmr/pages/page-b.js' },
+			]);
+			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
+			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
+				changedComponent,
+				'/assets/_hmr/components/app-shell.js',
+			);
+			expect(action).toEqual({
+				type: 'broadcast',
+				events: [
+					{
+						type: 'layout-update',
 					},
 				],
 			});

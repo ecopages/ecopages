@@ -7,6 +7,11 @@ const DOCS_PAGE_FILE = path.join(process.cwd(), 'e2e/fixtures/react-router-app/s
 
 const DOCS_LAYOUT_FILE = path.join(process.cwd(), 'e2e/fixtures/react-router-app/src/layouts/docs-layout.tsx');
 
+const DOCS_LAYOUT_SIDEBAR_LINK_FILE = path.join(
+	process.cwd(),
+	'e2e/fixtures/react-router-app/src/layouts/docs-layout-sidebar-link.tsx',
+);
+
 function patchDocsHeading(content: string, suffix: string) {
 	return content.replace('<h1>Documentation</h1>', `<h1>Documentation ${suffix}</h1>`);
 }
@@ -16,6 +21,17 @@ function patchLayoutMdxLabel(content: string, suffix: string) {
 		"{ href: '/docs/mdx-docs-1', label: 'MDX Docs 1' }",
 		"{ href: '/docs/mdx-docs-1', label: 'MDX Docs 1 " + suffix + "' }",
 	);
+}
+
+function patchLayoutSidebarLinkLabel(content: string, suffix: string) {
+	return content.replace('{children}', `{children} ${suffix}`);
+}
+
+function restoreFixtureFile(filePath: string, originalContent: string) {
+	const currentContent = fs.readFileSync(filePath, 'utf-8');
+	if (currentContent !== originalContent) {
+		fs.writeFileSync(filePath, originalContent, 'utf-8');
+	}
 }
 
 function createRuntimeErrorTracker() {
@@ -69,6 +85,7 @@ async function getSharedLayoutClientProbeState(
 test.describe('React Router Persist Layouts - Dev HMR', () => {
 	let originalDocsPage: string;
 	let originalDocsLayout: string;
+	let originalDocsLayoutSidebarLink: string;
 	let runtimeErrorTracker = createRuntimeErrorTracker();
 
 	test.describe.configure({ mode: 'serial' });
@@ -76,6 +93,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	test.beforeAll(() => {
 		originalDocsPage = fs.readFileSync(DOCS_PAGE_FILE, 'utf-8');
 		originalDocsLayout = fs.readFileSync(DOCS_LAYOUT_FILE, 'utf-8');
+		originalDocsLayoutSidebarLink = fs.readFileSync(DOCS_LAYOUT_SIDEBAR_LINK_FILE, 'utf-8');
 	});
 
 	test.beforeEach(async ({ page }) => {
@@ -88,13 +106,19 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		});
 	});
 
-	test.afterEach(() => {
+	test.afterEach(async () => {
+		restoreFixtureFile(DOCS_PAGE_FILE, originalDocsPage);
+		restoreFixtureFile(DOCS_LAYOUT_FILE, originalDocsLayout);
+		restoreFixtureFile(DOCS_LAYOUT_SIDEBAR_LINK_FILE, originalDocsLayoutSidebarLink);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
 		runtimeErrorTracker.assertNoBoundaryRegressions();
 	});
 
 	test.afterAll(() => {
-		fs.writeFileSync(DOCS_PAGE_FILE, originalDocsPage, 'utf-8');
-		fs.writeFileSync(DOCS_LAYOUT_FILE, originalDocsLayout, 'utf-8');
+		restoreFixtureFile(DOCS_PAGE_FILE, originalDocsPage);
+		restoreFixtureFile(DOCS_LAYOUT_FILE, originalDocsLayout);
+		restoreFixtureFile(DOCS_LAYOUT_SIDEBAR_LINK_FILE, originalDocsLayoutSidebarLink);
 	});
 
 	test('HMR refreshes page content with persist layouts enabled', async ({ page }) => {
@@ -155,12 +179,13 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		await gotoAndWait(page, '/docs/mdx-docs-1');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1' })).toBeVisible();
+		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
+		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
 
 		const updatedLayout = patchLayoutMdxLabel(originalDocsLayout, '(updated)');
 		fs.writeFileSync(DOCS_LAYOUT_FILE, updatedLayout, 'utf-8');
 
-		await expect(page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1 (updated)' })).toBeVisible({
+		await expect(page.getByRole('link', { name: 'MDX Docs 1 (updated)', exact: true })).toBeVisible({
 			timeout: 10000,
 		});
 
@@ -171,14 +196,32 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		await gotoAndWait(page, '/docs');
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1' })).toBeVisible();
+		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
+		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
 
 		const updatedLayout = patchLayoutMdxLabel(originalDocsLayout, '(tsx-updated)');
 		fs.writeFileSync(DOCS_LAYOUT_FILE, updatedLayout, 'utf-8');
 
-		await expect(
-			page.locator('a[data-testid="docs-nav-link"]', { hasText: 'MDX Docs 1 (tsx-updated)' }),
-		).toBeVisible({ timeout: 10000 });
+		await expect(page.getByRole('link', { name: 'MDX Docs 1 (tsx-updated)', exact: true })).toBeVisible({
+			timeout: 10000,
+		});
+
+		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
+	});
+
+	test('HMR updates a component imported by the active layout (persist layouts enabled)', async ({ page }) => {
+		await gotoAndWait(page, '/docs');
+
+		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
+		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
+		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
+
+		const updatedSidebarLink = patchLayoutSidebarLinkLabel(originalDocsLayoutSidebarLink, '(component-updated)');
+		fs.writeFileSync(DOCS_LAYOUT_SIDEBAR_LINK_FILE, updatedSidebarLink, 'utf-8');
+
+		await expect(page.getByRole('link', { name: 'MDX Docs 1 (component-updated)', exact: true })).toBeVisible({
+			timeout: 10000,
+		});
 
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 	});

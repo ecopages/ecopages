@@ -8,6 +8,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Fixed React HMR dependency-hit handling to rebuild the page cohort when a changed component is only reachable through an owned layout entrypoint.
 - Grouped router-managed React page entries and HMR rebuilds so persisted layouts and context providers stay on one shared module graph during cross-route navigation.
 - Fixed router-managed React dev page entries to rewrite grouped shared chunk imports to served `/_hmr` asset URLs during initial registration and HMR rebuilds.
 - Kept non-page React HMR entrypoints such as island component entries on the per-entrypoint rebuild path while page-route cohorts use grouped page HMR builds.

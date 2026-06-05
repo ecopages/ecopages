@@ -207,8 +207,15 @@ export class ReactHmrStrategy extends HmrStrategy {
 	/**
 	 * Determines if the file is a React/MDX entrypoint that's registered for HMR.
 	 *
+	 * Uses a three-way decision strategy for selective invalidation:
+	 * 1. If the file is a watched entrypoint, check if React owns it
+	 * 2. If the file is a dependency of watched entrypoints (via dependency graph),
+	 *    check if any affected entrypoints are React-owned. Returns false if hits
+	 *    exist but none are owned (prevents unnecessary rebuilds).
+	 * 3. Otherwise, check if the file itself is a React entrypoint template
+	 *
 	 * @param filePath - Absolute path to the changed file
-	 * @returns True if this is a registered React or MDX entrypoint
+	 * @returns True if this file should trigger React HMR rebuilds
 	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
@@ -219,6 +226,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		if (watchedFiles.has(filePath)) {
 			return this.ownsWatchedEntrypoint(filePath);
+		}
+
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
+		if (dependencyHits.size > 0) {
+			for (const entrypoint of dependencyHits) {
+				if (this.ownsWatchedEntrypoint(entrypoint)) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		return this.isReactEntrypoint(filePath);
@@ -295,21 +312,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		);
 	}
 
-	private getRequestedTargets(
-		changedFilePath: string,
-		changedEntrypointOutput: string | undefined,
-		watchedFiles: Map<string, string>,
-	): ReactHmrBuildTarget[] {
-		const requestedEntries = changedEntrypointOutput
-			? ([[changedFilePath, changedEntrypointOutput]] as Array<[string, string]>)
-			: Array.from(watchedFiles.entries());
-
-		return requestedEntries.map(([entrypointPath, outputUrl]) => ({
-			entrypointPath,
-			outputUrl,
-		}));
-	}
-
 	/**
 	 * Expands one HMR request into the full React page build cohort when needed.
 	 *
@@ -365,12 +367,17 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Processes a React file change by rebuilding all React entrypoints.
+	 * Processes a React file change by rebuilding affected React entrypoints.
+	 *
+	 * Uses a three-way decision strategy for selective invalidation:
+	 * 1. Changed file is a watched entrypoint: rebuild only that entrypoint
+	 * 2. Dependency graph has hits: rebuild only affected React-owned entrypoints.
+	 *    If hits exist but none map to React-owned entrypoints, return 'none' to
+	 *    prevent unnecessary rebuilds.
+	 * 3. Dependency graph miss: fall back to rebuilding all watched entrypoints
 	 *
 	 * For layout files, broadcasts a 'layout-update' event to trigger full page reload.
 	 * For regular components/pages, broadcasts 'update' events for module-level HMR.
-	 * When a page entrypoint is first registered, only that entrypoint is built.
-	 * Subsequent file updates rebuild all watched React entrypoints as usual.
 	 *
 	 * @param _filePath - Absolute path to the changed file
 	 * @returns Action to broadcast update events (layout-update for layouts, update for components)
@@ -394,7 +401,31 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
 			return { type: 'none' };
 		}
-		const requestedTargets = this.getRequestedTargets(_filePath, changedEntrypointOutput, watchedFiles);
+
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(_filePath);
+		const hasDependencyHits = dependencyHits.size > 0;
+		const affectedEntrypoints = new Map<string, string>();
+
+		if (hasDependencyHits && !changedEntrypointOutput) {
+			for (const entrypoint of dependencyHits) {
+				const outputUrl = watchedFiles.get(entrypoint);
+				if (outputUrl && this.ownsWatchedEntrypoint(entrypoint)) {
+					affectedEntrypoints.set(entrypoint, outputUrl);
+				}
+			}
+
+			if (affectedEntrypoints.size === 0) {
+				appLogger.debug(`Dependency hits found but none map to React-owned watched entrypoints`);
+				return { type: 'none' };
+			}
+		}
+
+		const requestedTargets = changedEntrypointOutput
+			? [{ entrypointPath: _filePath, outputUrl: changedEntrypointOutput }]
+			: hasDependencyHits
+				? Array.from(affectedEntrypoints, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }))
+				: Array.from(watchedFiles, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }));
+
 		const groupedPageTargets = await this.resolveBuildTargets(requestedTargets, _filePath);
 		const { pageTargets, nonPageTargets } = this.partitionBuildTargets(requestedTargets, groupedPageTargets);
 
@@ -461,6 +492,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	/**
 	 * Bundles a single React/MDX entrypoint with HMR support.
 	 *
+	 * After successful bundling, populates the entrypoint dependency graph with
+	 * the build's dependency metadata. This enables selective invalidation on
+	 * subsequent file changes, so only entrypoints affected by a changed
+	 * dependency are rebuilt.
+	 *
 	 * @param entrypointPath - Absolute path to the source file
 	 * @param outputUrl - URL path for the bundled file
 	 * @returns True if bundling was successful
@@ -497,6 +533,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 				return false;
 			}
 
+			if (result.dependencyGraph?.entrypoints) {
+				const dependencyGraph = this.context.getEntrypointDependencyGraph();
+				for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
+					dependencyGraph.setEntrypointDependencies(entrypoint, deps);
+				}
+			}
+
 			const tempFile = result.outputs[0]?.path;
 			if (!tempFile) {
 				appLogger.error(`No output file generated for ${entrypointPath}`);
@@ -517,6 +560,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 	}
 
+	/**
+	 * Bundles multiple React/MDX entrypoints in a single build pass.
+	 *
+	 * Uses code splitting to share common dependencies across entrypoints.
+	 * After successful bundling, populates the entrypoint dependency graph with
+	 * the build's dependency metadata for selective invalidation.
+	 *
+	 * @param entrypoints - Array of entrypoint paths and their output URLs
+	 * @returns Array of output URLs that were successfully built
+	 */
 	private async bundleReactEntrypoints(entrypoints: ReactHmrBuildTarget[]): Promise<string[]> {
 		try {
 			const declaredModules = new Set<string>();
@@ -558,6 +611,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 			if (!result.success) {
 				appLogger.error(`Failed to build grouped React entrypoints:`, result.logs);
 				return [];
+			}
+
+			if (result.dependencyGraph?.entrypoints) {
+				const dependencyGraph = this.context.getEntrypointDependencyGraph();
+				for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
+					dependencyGraph.setEntrypointDependencies(entrypoint, deps);
+				}
 			}
 
 			const updatedOutputs: string[] = [];

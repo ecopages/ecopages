@@ -10,6 +10,7 @@ import type { BrowserBundleExecutor } from '../services/assets/browser-bundle.se
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
+import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type { EcoPageComponent } from '../eco/eco.types.ts';
@@ -152,6 +153,11 @@ export interface DefaultHmrContext {
 	 * Server-side module loader owned by the active app/runtime.
 	 */
 	importServerModule<T = unknown>(filePath: string | URL): Promise<T>;
+
+	/**
+	 * Entrypoint dependency graph for selective HMR invalidation.
+	 */
+	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 }
 
 /**

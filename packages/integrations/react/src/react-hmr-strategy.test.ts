@@ -581,9 +581,7 @@ describe('ReactHmrStrategy', () => {
 
 	describe('dependency graph selective invalidation', () => {
 		it('matches returns true for dependency-hit files tied to owned entrypoints', () => {
-			const watchedFiles = new Map<string, string>([
-				['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js'],
-			]);
+			const watchedFiles = new Map<string, string>([['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js']]);
 			const changedComponent = '/tmp/src/components/button.tsx';
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -607,9 +605,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		it('matches returns false for dependency-hit files not tied to owned entrypoints', () => {
-			const watchedFiles = new Map<string, string>([
-				['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js'],
-			]);
+			const watchedFiles = new Map<string, string>([['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js']]);
 			const changedComponent = '/tmp/src/components/button.tsx';
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -617,9 +613,7 @@ describe('ReactHmrStrategy', () => {
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
 						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent
-								? new Set(['/tmp/src/pages/other.tsx'])
-								: new Set(),
+							filePath === changedComponent ? new Set(['/tmp/src/pages/other.tsx']) : new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
@@ -688,9 +682,7 @@ describe('ReactHmrStrategy', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const nonReactEntrypoint = '/tmp/src/pages/other.kita.tsx';
 			const changedComponent = '/tmp/src/components/shared.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-			]);
+			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/_hmr/pages/page-a.js']]);
 
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -698,9 +690,7 @@ describe('ReactHmrStrategy', () => {
 					getEntrypointDependencyGraph: () => ({
 						supportsSelectiveInvalidation: () => true,
 						getDependencyEntrypoints: (filePath: string) =>
-							filePath === changedComponent
-								? new Set([nonReactEntrypoint])
-								: new Set(),
+							filePath === changedComponent ? new Set([nonReactEntrypoint]) : new Set(),
 						setEntrypointDependencies: () => {},
 						clearEntrypointDependencies: () => {},
 						reset: () => {},
@@ -777,9 +767,7 @@ describe('ReactHmrStrategy', () => {
 
 		it('matches gives precedence to watched entrypoint check over dependency graph hits', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-			]);
+			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/_hmr/pages/page-a.js']]);
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,

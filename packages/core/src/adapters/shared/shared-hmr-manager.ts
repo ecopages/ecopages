@@ -225,6 +225,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
 			getBrowserBundleService: () => this.browserBundleService,
+			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			importServerModule: async <T>(filePath: string) =>
 				await this.serverModuleTranspiler.importModule<T>({
 					filePath,

@@ -136,3 +136,4 @@ All notable changes to `@ecopages/core` are documented here.
 - `createApp` is now the recommended entrypoint. Import it from `@ecopages/core/create-app`.
 - `defineApiHandler` keeps the same call shape, but the handler context is now explicitly runtime-agnostic.
 - The old explicit `renderingMode` config option has been removed and full orchestration is always active.
+- `DefaultHmrContext` now requires a `getEntrypointDependencyGraph(): EntrypointDependencyGraph` method. This enables selective HMR invalidation so integrations can rebuild only the entrypoints affected by a changed dependency instead of all watched entrypoints. Implementations should return the shared `EntrypointDependencyGraph` instance from `@ecopages/core/services/runtime-state/entrypoint-dependency-graph.service`.

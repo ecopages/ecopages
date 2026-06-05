@@ -220,6 +220,16 @@ export function createBrowserRuntimeImportRewritePlugin(
 				}
 
 				const code = readFileSync(args.path, 'utf-8');
+
+				/**
+				 * Fast-path optimization: skip AST parsing for files that don't contain
+				 * any manifest-owned specifiers. This avoids expensive oxc-parser calls
+				 * on every JS/TS file in the dependency graph.
+				 */
+				if (!Array.from(specifierMap.keys()).some((specifier) => code.includes(specifier))) {
+					return undefined;
+				}
+
 				const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, args.path);
 
 				if (rewritten === code) {

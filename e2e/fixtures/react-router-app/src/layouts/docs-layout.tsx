@@ -1,5 +1,6 @@
 import type { EcoComponent } from '@ecopages/core';
 import type { ReactNode } from 'react';
+import { DocsLayoutSidebarLink } from './docs-layout-sidebar-link';
 
 export type DocsLayoutProps = {
 	children: ReactNode;
@@ -30,9 +31,7 @@ export const DocsLayout: EcoComponent<DocsLayoutProps, ReactNode> = ({ children 
 					<ul>
 						{sidebarItems.map((item) => (
 							<li key={item.href}>
-								<a href={item.href} data-testid="docs-nav-link">
-									{item.label}
-								</a>
+								<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
 							</li>
 						))}
 					</ul>
@@ -46,5 +45,6 @@ export const DocsLayout: EcoComponent<DocsLayoutProps, ReactNode> = ({ children 
 DocsLayout.config = {
 	dependencies: {
 		stylesheets: ['./docs.css'],
+		components: [DocsLayoutSidebarLink],
 	},
 };

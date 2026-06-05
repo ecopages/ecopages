@@ -56,6 +56,23 @@ function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey:
 	return Page;
 }
 
+function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: string, layoutLabel: string) {
+	const Layout = ({ children }: { children: ReactNode }) =>
+		createElement('section', { 'data-testid': layoutTestId }, layoutLabel, children);
+
+	Layout.displayName = 'layout';
+
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layout: Layout };
+	return Page;
+}
+
 function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(
@@ -309,6 +326,39 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Layout v2');
 			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
 			expect(layout?.textContent).toContain('Layout v2');
+		});
+
+		it('does not reuse a persisted layout when plain layouts share the same display name', async () => {
+			const DocsPage = createPageWithCollidingDisplayNameLayout('DocsPage', 'docs-layout', 'Docs Layout');
+			const HomePage = createPageWithCollidingDisplayNameLayout('HomePage', 'base-layout', 'Base Layout');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: DocsPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="docs-layout"]')?.textContent).toContain('Docs Layout');
+
+			root.render(
+				createElement(EcoRouter, {
+					page: HomePage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="base-layout"]')?.textContent).toContain('Base Layout');
+			expect(container.querySelector('[data-testid="docs-layout"]')).toBeNull();
 		});
 
 		it('delegates non-React documents to browser-router when it is registered', async () => {

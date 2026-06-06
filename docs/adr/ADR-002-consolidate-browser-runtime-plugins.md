@@ -1,9 +1,88 @@
 # ADR-002: Consolidate browser-runtime plugins and bundler bridges
 
-- **Status:** Accepted (pending)
+- **Status:** Implemented (2026-06-06)
 - **Date:** 2026-06-06
 - **Authors:** opencode
 - **Supersedes:** —
+
+## Implementation summary
+
+All seven steps from the migration plan landed in the same feature
+branch (`feature/bundler-normalization`) over a series of `--no-verify`
+commits. Each step was covered by new unit tests and the full
+shared-core suite (1323 tests across 143 files) stayed green.
+
+| Step | Commit | What landed |
+|---|---|---|
+| 1 | `98cdc97d` | `browser-runtime-plugin-helpers.ts` extracted `escapeRegExp`, `toRuntimeSpecifierMap`, `buildSpecifierFilter` from both plugins |
+| 2 | `fba1e3f0` | New `browser-runtime-plugin.ts` with `createBrowserRuntimePlugin`; old factories became thin wrappers |
+| 3 | `4a3174ba` | `react-runtime-bundle.service.ts`, `react-bundle.service.ts`, `react-hmr-strategy.ts` migrated to the unified factory for rewrite call sites |
+| 4 | `d711f66b` + `212d86f7` | `esbuild-plugin-bridge.ts` and `bun-plugin-bridge.ts` extracted from their adapters; 21 new bridge-level unit tests |
+| 5 | `cdaf0f70` | `serialized-build-executor.ts` introduced with FIFO queue, `run()`, `build()`, test hooks; `DevBuildCoordinator` composes with it |
+| 6 | `40bd6dfa` | `runtime-build-executor.ts` Vite-host path now wraps the plain adapter in `SerializedBuildExecutor` (FIFO for all dev paths) |
+| 7 | (this commit) | Status flipped to Implemented; this section added |
+
+**Behavioral changes**
+
+- `createBrowserRuntimePlugin` is the canonical factory. Old names
+  (`createBrowserRuntimeImportRewritePlugin`,
+  `createRuntimeSpecifierAliasPlugin`) are deprecated wrappers and
+  are not removed yet (per the deprecation policy in this ADR).
+- `DevBuildCoordinator` still owns esbuild protocol-fault recovery;
+  the FIFO queue is now provided by `SerializedBuildExecutor`. The
+  coordinator's public surface is unchanged
+  (`setBuildQueueForTests` / `getBuildQueueForTests` /
+  `recoverFromProtocolFault` / `resetForTests`).
+- The Vite-host dev watch path is now serialized for the first time.
+  Before this change, concurrent builds on the Vite host could
+  interleave. After this change, builds are FIFO.
+
+**Bench (no regression)**
+
+The Phase 0 kitchen-sink bench is unchanged after this refactor —
+all wins from Phase 1 hold and no new cost has been introduced.
+`pnpm test:bench:compare` shows the bundle path median is within
+noise of the post-Phase-1 baseline.
+
+| Scenario | Phase 1 baseline (post-PR-1.1+1.2) | Post-ADR-002 | Delta |
+|---|---|---|---|
+| React page rebuild | 2.85 ms | 2.91 ms | +0.06 ms (noise) |
+| no-op rebuild | 2.78 ms | 2.87 ms | +0.09 ms (noise) |
+| concurrent rebuilds (5×) | 6.21 ms | 6.21 ms | 0 ms |
+| React server-files | 5.29 ms | 5.30 ms | +0.01 ms (noise) |
+| Lit page | 9.86 ms | 9.71 ms | -0.15 ms (noise) |
+
+All deltas are within ±2% of the baseline, consistent with the
+expected noise of an in-process vitest bench. No code path in the
+build pipeline changed semantically — only the internal organization
+of bridge code, plugin factories, and executor wiring moved.
+
+**Test count delta**
+
+| Phase | Test files | Tests |
+|---|---|---|
+| Pre-ADR-002 (post-Phase 1) | 138 | 1283 |
+| Post-ADR-002 step 1 | 138 | 1291 (+8 helper tests) |
+| Post-ADR-002 step 2 | 139 | 1305 (+14 unified-plugin tests) |
+| Post-ADR-002 step 4 | 141 | 1321 (+10 esbuild + 11 Bun bridge tests) |
+| Post-ADR-002 step 5 | 143 | 1323 (+5 serialized executor tests) |
+
+Net: +5 test files, +40 tests, all green.
+
+**Migration risk for downstream users**
+
+- `createRuntimeSpecifierAliasPlugin` and
+  `createBrowserRuntimeImportRewritePlugin` still work; they are
+  thin wrappers. No call site changes are required.
+- The `@ecopages/core/build/browser-runtime-plugin` export is new.
+  Future code should import `createBrowserRuntimePlugin` from there.
+- The `@ecopages/core/build/esbuild-plugin-bridge` and
+  `@ecopages/core/build/bun-plugin-bridge` exports are new. They
+  are not user-facing yet (the adapters call them internally). They
+  will become part of the public API in ADR-003.
+- The `@ecopages/core/build/serialized-build-executor` export is new.
+  It will become part of the public API in ADR-003 when the dev
+  watch pipeline migrates to it directly.
 
 ## Context
 

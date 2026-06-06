@@ -1,20 +1,10 @@
-import type {
-	Loader as EsbuildLoader,
-	OnLoadResult as EsbuildOnLoadResult,
-	OnResolveResult as EsbuildOnResolveResult,
-	Plugin as EsbuildPlugin,
-} from 'esbuild';
+import type { Plugin as EsbuildPlugin } from 'esbuild';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import type {
-	EcoBuildOnLoadResult,
-	EcoBuildPlugin,
-	EcoBuildPluginBuilder,
-	EcoBuildOnResolveResult,
-} from './build-types.ts';
+import type { EcoBuildPlugin } from './build-types.ts';
 import type {
 	BuildAdapter,
 	BuildDependencyGraph,
@@ -28,6 +18,7 @@ import {
 	collectBrowserRuntimeImportRewriteMap,
 	rewriteBrowserRuntimeImports,
 } from './browser-runtime-import-rewrite-plugin.ts';
+import { createEsbuildPluginBridge } from './esbuild-plugin-bridge.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 const esbuildPath = moduleRequire.resolve('esbuild');
@@ -176,10 +167,6 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		return result;
 	}
 
-	private escapeRegExp(value: string): string {
-		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	}
-
 	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
 		const byName = new Map<string, EcoBuildPlugin>();
 
@@ -190,217 +177,6 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 		}
 
 		return Array.from(byName.values());
-	}
-
-	private normalizeEsbuildLoader(loader: unknown): EsbuildLoader | undefined {
-		switch (loader) {
-			case 'base64':
-			case 'binary':
-			case 'copy':
-			case 'css':
-			case 'dataurl':
-			case 'empty':
-			case 'file':
-			case 'global-css':
-			case 'js':
-			case 'json':
-			case 'jsx':
-			case 'local-css':
-			case 'text':
-			case 'ts':
-			case 'tsx':
-				return loader as EsbuildLoader;
-			default:
-				return undefined;
-		}
-	}
-
-	private inferEsbuildLoaderFromPath(filePath: string): EsbuildLoader {
-		const extension = path.extname(filePath).toLowerCase();
-
-		switch (extension) {
-			case '.ts':
-				return 'ts';
-			case '.tsx':
-				return 'tsx';
-			case '.jsx':
-				return 'jsx';
-			case '.json':
-				return 'json';
-			case '.css':
-				return 'css';
-			default:
-				return 'js';
-		}
-	}
-
-	private convertLoadResultToModuleSource(result: unknown): string | undefined {
-		if (!result || typeof result !== 'object') {
-			return undefined;
-		}
-
-		const candidate = result as {
-			contents?: string;
-			loader?: unknown;
-			exports?: Record<string, unknown>;
-		};
-
-		if (typeof candidate.contents === 'string') {
-			return candidate.contents;
-		}
-
-		if (candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object') {
-			const entries = Object.entries(candidate.exports)
-				.map(([key, value]) =>
-					key === 'default'
-						? `export default ${JSON.stringify(value)};`
-						: `export const ${key} = ${JSON.stringify(value)};`,
-				)
-				.join('\n');
-
-			return entries;
-		}
-
-		return undefined;
-	}
-
-	private convertPluginOnLoadResult(args: { path: string }, result: unknown): EsbuildOnLoadResult | undefined {
-		if (!result || typeof result !== 'object') {
-			return undefined;
-		}
-
-		const candidate = result as EcoBuildOnLoadResult;
-
-		const sourceFromExports =
-			candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object'
-				? this.convertLoadResultToModuleSource(candidate)
-				: undefined;
-
-		if (sourceFromExports) {
-			return {
-				contents: sourceFromExports,
-				loader: 'js',
-				resolveDir: path.dirname(args.path),
-			};
-		}
-
-		if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
-			return {
-				contents: candidate.contents,
-				loader: this.normalizeEsbuildLoader(candidate.loader) ?? this.inferEsbuildLoaderFromPath(args.path),
-				resolveDir: typeof candidate.resolveDir === 'string' ? candidate.resolveDir : path.dirname(args.path),
-			};
-		}
-
-		return undefined;
-	}
-
-	private resolvePluginPath(value: string, args: { importer: string }, contextRoot: string): string {
-		if (path.isAbsolute(value)) {
-			return value;
-		}
-
-		if (value.startsWith('.') || value.startsWith('..')) {
-			const baseDir = args.importer ? path.dirname(args.importer) : contextRoot;
-			return path.resolve(baseDir, value);
-		}
-
-		return value;
-	}
-
-	/**
-	 * Creates an esbuild plugin bridge compatible with the existing Ecopages
-	 * plugin API shape.
-	 *
-	 * **Plugin ordering is semantically significant.**
-	 *
-	 * Esbuild applies `onResolve` and `onLoad` hooks in the order they are
-	 * registered: the first handler whose filter matches wins for `onResolve`,
-	 * and the first handler that returns a non-`undefined` result wins for
-	 * `onLoad`. Because we call `plugin.setup(bridge)` sequentially here, the
-	 * position of each plugin in the `plugins` array determines its priority:
-	 *
-	 * - **Index 0** has the highest priority (its hooks run first).
-	 * - **Last index** has the lowest priority (its hooks only run if no earlier
-	 *   plugin claimed the path).
-	 *
-	 * When adding new integrations or processors, ensure security-critical plugins
-	 * (e.g. `ecopages-client-graph-boundary`) are placed **before** general-purpose
-	 * loaders in the array so they always get first refusal on every source file.
-	 *
-	 * There is currently no priority system or validation — correct ordering is
-	 * the caller's responsibility.
-	 */
-	private createEcoPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): EsbuildPlugin {
-		return {
-			name: 'ecopages-plugin-bridge',
-			setup: async (build) => {
-				let moduleCounter = 0;
-
-				const bridge: EcoBuildPluginBuilder = {
-					onResolve: (options: { filter: RegExp; namespace?: string }, callback): void => {
-						build.onResolve(options, async (args) => {
-							const result = await callback({
-								path: args.path,
-								importer: args.importer,
-								namespace: args.namespace,
-							});
-
-							if (!result || typeof result !== 'object') {
-								return undefined;
-							}
-
-							const candidate = result as EcoBuildOnResolveResult;
-
-							const resolveResult: EsbuildOnResolveResult = {};
-
-							if (typeof candidate.path === 'string') {
-								resolveResult.path = this.resolvePluginPath(candidate.path, args, contextRoot);
-							}
-
-							if (typeof candidate.namespace === 'string') {
-								resolveResult.namespace = candidate.namespace;
-							}
-
-							if (typeof candidate.external === 'boolean') {
-								resolveResult.external = candidate.external;
-							}
-
-							return Object.keys(resolveResult).length > 0 ? resolveResult : undefined;
-						});
-					},
-					onLoad: (options: { filter: RegExp; namespace?: string }, callback): void => {
-						build.onLoad(options, async (args) => {
-							const result = await callback({
-								path: args.path,
-								namespace: args.namespace,
-							});
-
-							return this.convertPluginOnLoadResult(args, result);
-						});
-					},
-					module: (specifier: string, callback): void => {
-						const namespace = `ecopages-module-${moduleCounter}`;
-						moduleCounter += 1;
-						const filter = new RegExp(`^${this.escapeRegExp(specifier)}$`);
-
-						build.onResolve({ filter }, () => ({
-							path: specifier,
-							namespace,
-						}));
-
-						build.onLoad({ filter, namespace }, async (args) => {
-							const result = await callback();
-							return this.convertPluginOnLoadResult(args, result);
-						});
-					},
-				};
-
-				for (const plugin of plugins) {
-					await plugin.setup(bridge);
-				}
-			},
-		};
 	}
 
 	private async loadEsbuildModule(moduleGeneration = 0): Promise<typeof import('esbuild')> {
@@ -470,7 +246,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 
 		const plugins = this.getPluginsForBuild(options.plugins);
 		const esbuildPlugins: EsbuildPlugin[] = [
-			...(plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : []),
+			...(plugins.length > 0 ? [createEsbuildPluginBridge(plugins, contextRoot)] : []),
 		];
 		const transpileTarget = 'es2022';
 

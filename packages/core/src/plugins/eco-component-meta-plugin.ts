@@ -27,6 +27,7 @@
  */
 
 import { parseSync } from 'oxc-parser';
+import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { rapidhash } from '../utils/hash.ts';
@@ -487,7 +488,7 @@ function findInjectionPoints(
  * ```
  */
 export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
-	const result = parseSync(filePath, contents);
+	const result = cachedParseSync(filePath, contents);
 
 	if (result.errors.length > 0) {
 		console.warn(`[eco-component-meta-plugin] Parse errors in ${filePath}:`, result.errors);

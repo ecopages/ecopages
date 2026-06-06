@@ -12,7 +12,7 @@ import {
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 } from '../utils/react-runtime-alias-map.ts';
-import { createBrowserRuntimeImportRewritePlugin } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-jsx-override-plugin';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
@@ -125,7 +125,7 @@ export class ReactBundleService {
 			foreignExtensions: this.config.nonReactExtensions ?? [],
 		});
 		const runtimeManifest = this.runtimeBundleService.getRuntimeManifest();
-		const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+		const runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-renderer-runtime-import-rewrite',
 			manifest: runtimeManifest,
 		});

@@ -156,7 +156,7 @@ describe('ReactHmrStrategy', () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
 		}));
 		const build = vi.fn(async () => {
 			throw new Error('React HMR browser rebuild should not call the raw build executor.');
@@ -174,6 +174,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(entrypointPath, '/_hmr/pages/index.js');
 
@@ -199,7 +200,7 @@ describe('ReactHmrStrategy', () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
 		}));
 		const build = vi.fn(async () => {
 			throw new Error('React HMR metadata loading should not call the raw build executor.');
@@ -215,6 +216,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(
 			'/tmp/src/pages/index.tsx',
@@ -563,6 +565,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const outputs = await (strategy as any).bundleReactEntrypoints([
 			{
@@ -577,6 +580,111 @@ describe('ReactHmrStrategy', () => {
 			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.js',
 			'/assets/_hmr/pages/posts/_slug_.js',
 		);
+	});
+
+	it('bundleReactEntrypoints clears stale HMR output before the grouped build to avoid stale chunk references', async () => {
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
+		}));
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getBrowserBundleService: () => ({ bundle }) as any,
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				getDeclaredModules: () => [],
+				setDeclaredModules: () => undefined,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		(strategy as any).processOutput = vi.fn(async () => true);
+
+		await (strategy as any).bundleReactEntrypoints([
+			{ entrypointPath: '/tmp/src/pages/index.tsx', outputUrl: '/_hmr/pages/index.js' },
+		]);
+
+		expect(bundle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				profile: 'hmr-entrypoint',
+				entrypoints: ['/tmp/src/pages/index.tsx'],
+				splitting: true,
+				naming: '[dir]/[name].[hash].tmp',
+			}),
+		);
+	});
+
+	it('clearHmrOutdir is a no-op when the outdir does not exist', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const existsSpy = vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
+		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
+
+		await (strategy as any).clearHmrOutdir('/nonexistent/dir');
+
+		expect(globSpy).not.toHaveBeenCalled();
+		expect(removeSpy).not.toHaveBeenCalled();
+		existsSpy.mockRestore();
+	});
+
+	it('clearHmrOutdir removes .tmp.js files and the chunks subdirectory but preserves the runtime script', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const tempFiles = [
+			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
+			'/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js',
+		];
+		vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === '/tmp/.eco/assets/_hmr' || p.endsWith('chunks'));
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['pages/index.123.tmp.js', 'pages/_slug_.456.tmp.js']);
+		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
+
+		await (strategy as any).clearHmrOutdir('/tmp/.eco/assets/_hmr');
+
+		const removed = removeSpy.mock.calls.map(([target]) => String(target));
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js');
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/chunks');
+		// The runtime script must not be removed.
+		expect(removed.find((target) => target.endsWith('_hmr_runtime.js'))).toBeUndefined();
+	});
+
+	it('resolveTempOutputPath falls back to glob when the literal path is missing', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const placeholder = '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js';
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.999.tmp.js']);
+
+		const resolved = await (strategy as any).resolveTempOutputPath(placeholder);
+		expect(resolved).toBe('/tmp/.eco/assets/_hmr/pages/index.999.tmp.js');
+	});
+
+	it('resolveTempOutputPath returns null when neither lookup nor glob finds the file', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
+
+		const resolved = await (strategy as any).resolveTempOutputPath('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
+		expect(resolved).toBeNull();
 	});
 
 	describe('dependency graph selective invalidation', () => {

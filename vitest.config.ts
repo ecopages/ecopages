@@ -2,9 +2,14 @@ import { defineConfig, configDefaults } from 'vitest/config';
 
 const isBunRuntime = typeof process.versions.bun === 'string';
 
+const isBenchMode = process.env.ECOPAGES_BENCH === '1' || process.argv.includes('bench');
+
 export default defineConfig({
 	test: {
 		silent: 'passed-only',
+		benchmark: {
+			include: ['playground/kitchen-sink/bench/**/*.bench.ts'],
+		},
 		projects: [
 			'vitest.browser.config.ts',
 			{
@@ -27,8 +32,17 @@ export default defineConfig({
 						'packages/vite-plugin/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
+						...(isBenchMode ? ['playground/kitchen-sink/bench/**/*.bench.ts'] : []),
+						...(process.env.ECOPAGES_BENCH_E2E === '1'
+							? ['playground/kitchen-sink/bench/e2e-hmr-bench.test.ts']
+							: []),
 					],
-					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
+					exclude: [
+						...configDefaults.exclude,
+						'packages/**/*.test.node.ts',
+						'packages/**/*.test.bun.ts',
+						'playground/kitchen-sink/bench/**/*',
+					],
 				},
 			},
 			...(isBunRuntime

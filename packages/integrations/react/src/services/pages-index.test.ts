@@ -60,7 +60,7 @@ describe('PagesIndex', () => {
 			await index.refresh();
 			const files = index.list();
 			expect(files[0]?.endsWith('alpha.tsx')).toBe(true);
-			expect(files.at(-1)?.endsWith('zeta.tsx')).toBe(true);
+			expect(files[files.length - 1]?.endsWith('zeta.tsx')).toBe(true);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}

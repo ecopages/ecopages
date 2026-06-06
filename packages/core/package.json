@@ -142,6 +142,10 @@
 			"types": "./src/build/runtime-specifier-alias-plugin.ts",
 			"default": "./src/build/runtime-specifier-alias-plugin.ts"
 		},
+		"./cache": {
+			"types": "./src/cache/index.ts",
+			"default": "./src/cache/index.ts"
+		},
 		"./plugins/foreign-jsx-override-plugin": {
 			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
 			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
@@ -151,6 +155,10 @@
 			"require": "./src/utils/html.ts"
 		},
 		"./hash": {
+			"import": "./src/utils/hash.ts",
+			"require": "./src/utils/hash.ts"
+		},
+		"./utils/hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
 		},

@@ -58,9 +58,12 @@ export class PagesIndex {
 	 * fallback used on layout changes.
 	 */
 	async refresh(): Promise<void> {
-		const files = await fileSystem.glob(this.extensions.map((ext) => `**/*${ext}`), {
-			cwd: this.pagesDir,
-		});
+		const files = await fileSystem.glob(
+			this.extensions.map((ext) => `**/*${ext}`),
+			{
+				cwd: this.pagesDir,
+			},
+		);
 
 		const next = new Set<string>();
 		for (const file of files) {

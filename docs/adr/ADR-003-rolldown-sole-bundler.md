@@ -10,11 +10,11 @@
 
 Ecopages today has **two** real bundler adapters and **one** stub:
 
-| Adapter | File | Backend | Status |
-|---|---|---|---|
-| `EsbuildBuildAdapter` | `packages/core/src/build/esbuild-build-adapter.ts` | esbuild | Active in Node dev/preview/static |
-| `BunBuildAdapter` | `packages/core/src/build/build-adapter.ts:185-766` | Bun's native bundler (with esbuild fallback) | Active under `bun run dev` |
-| `ViteHostBuildAdapter` | `packages/core/src/build/build-adapter.ts:774-788` | Vite (host-owned) | Stub — only throws "host-owned" errors |
+| Adapter                | File                                               | Backend                                      | Status                                 |
+| ---------------------- | -------------------------------------------------- | -------------------------------------------- | -------------------------------------- |
+| `EsbuildBuildAdapter`  | `packages/core/src/build/esbuild-build-adapter.ts` | esbuild                                      | Active in Node dev/preview/static      |
+| `BunBuildAdapter`      | `packages/core/src/build/build-adapter.ts:185-766` | Bun's native bundler (with esbuild fallback) | Active under `bun run dev`             |
+| `ViteHostBuildAdapter` | `packages/core/src/build/build-adapter.ts:774-788` | Vite (host-owned)                            | Stub — only throws "host-owned" errors |
 
 The reasons for the split were historical: esbuild was first, Bun's
 native bundler was faster, and we wanted to keep Bun-native as a runtime
@@ -49,24 +49,24 @@ different migration path, see [out of scope](#out-of-scope)).
 
 ### What goes
 
-| Item | Replaced by | File to delete |
-|---|---|---|
-| `EsbuildBuildAdapter` | `RolldownBuildAdapter` | `packages/core/src/build/esbuild-build-adapter.ts` |
-| `BunBuildAdapter` | `RolldownBuildAdapter` | `packages/core/src/build/build-adapter.ts:185-766` |
-| `DevBuildCoordinator` | `rolldown.watch()`'s built-in queue | `packages/core/src/build/dev-build-coordinator.ts` |
-| `ESBUILD_ADAPTER_BRAND` | n/a (no more esbuild) | n/a |
-| `getBunRuntime()` branching in build paths | n/a | `packages/core/src/utils/runtime.ts` (build branch) |
+| Item                                       | Replaced by                         | File to delete                                      |
+| ------------------------------------------ | ----------------------------------- | --------------------------------------------------- |
+| `EsbuildBuildAdapter`                      | `RolldownBuildAdapter`              | `packages/core/src/build/esbuild-build-adapter.ts`  |
+| `BunBuildAdapter`                          | `RolldownBuildAdapter`              | `packages/core/src/build/build-adapter.ts:185-766`  |
+| `DevBuildCoordinator`                      | `rolldown.watch()`'s built-in queue | `packages/core/src/build/dev-build-coordinator.ts`  |
+| `ESBUILD_ADAPTER_BRAND`                    | n/a (no more esbuild)               | n/a                                                 |
+| `getBunRuntime()` branching in build paths | n/a                                 | `packages/core/src/utils/runtime.ts` (build branch) |
 
 ### What stays
 
-| Item | Why |
-|---|---|
-| `BuildAdapter` interface | Rolldown implements it |
-| `BuildOptions` | Mapped 1:1 to Rolldown's `BuildOptions` |
-| `BuildResult.outputs` shape | Identical — Rolldown's `OutputBundle` is normalized by the adapter |
-| `BuildDependencyGraph` | Rolldown exposes a `moduleGraph`; we map it to the existing shape |
-| `EcoBuildPlugin` contract | Unchanged — Rolldown's plugin API (`resolveId`/`load`/`transform`) maps cleanly to `onResolve`/`onLoad` via the bridge added in ADR-002 |
-| `BrowserRuntimeManifest` / plugins | Unchanged |
+| Item                               | Why                                                                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter` interface           | Rolldown implements it                                                                                                                  |
+| `BuildOptions`                     | Mapped 1:1 to Rolldown's `BuildOptions`                                                                                                 |
+| `BuildResult.outputs` shape        | Identical — Rolldown's `OutputBundle` is normalized by the adapter                                                                      |
+| `BuildDependencyGraph`             | Rolldown exposes a `moduleGraph`; we map it to the existing shape                                                                       |
+| `EcoBuildPlugin` contract          | Unchanged — Rolldown's plugin API (`resolveId`/`load`/`transform`) maps cleanly to `onResolve`/`onLoad` via the bridge added in ADR-002 |
+| `BrowserRuntimeManifest` / plugins | Unchanged                                                                                                                               |
 
 ### New files
 
@@ -173,13 +173,13 @@ adapter can reuse the shared bridge core.
 Per the Phase 0 baseline, the bundle path median is 4-9 ms. Target
 post-Rolldown:
 
-| Scenario | Phase 0 baseline | ADR-003 target | Expected speedup |
-|---|---|---|---|
-| production single page | 3.41 ms | ≤ 3 ms | 1.1-1.3× |
-| no-op rebuild (file unchanged) | 2.87 ms | ≤ 2 ms | 1.4× (no fault recovery) |
-| concurrent rebuilds (5×) | 6.21 ms | ≤ 5 ms | 1.2× |
-| React server-files | 5.30 ms | ≤ 5 ms | parity |
-| HMR end-to-end (e2e) | not measured | 1.0-1.5 s | 1.3-2.0× over 2 s pain |
+| Scenario                       | Phase 0 baseline | ADR-003 target | Expected speedup         |
+| ------------------------------ | ---------------- | -------------- | ------------------------ |
+| production single page         | 3.41 ms          | ≤ 3 ms         | 1.1-1.3×                 |
+| no-op rebuild (file unchanged) | 2.87 ms          | ≤ 2 ms         | 1.4× (no fault recovery) |
+| concurrent rebuilds (5×)       | 6.21 ms          | ≤ 5 ms         | 1.2×                     |
+| React server-files             | 5.30 ms          | ≤ 5 ms         | parity                   |
+| HMR end-to-end (e2e)           | not measured     | 1.0-1.5 s      | 1.3-2.0× over 2 s pain   |
 
 We expect the **HMR e2e** number to be the headline win: dropping
 esbuild protocol-fault recovery and using `rolldown.watch()` should

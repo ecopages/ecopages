@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import {
-	buildSpecifierFilter,
-	escapeRegExp,
-	toRuntimeSpecifierMap,
-} from './browser-runtime-plugin-helpers.ts';
+import { buildSpecifierFilter, escapeRegExp, toRuntimeSpecifierMap } from './browser-runtime-plugin-helpers.ts';
 
 test('escapeRegExp escapes all regex metacharacters', () => {
 	const sample = 'a.b*c+d?e^f$g{h}i(j)k|l[m]n\\o';

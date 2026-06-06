@@ -100,10 +100,7 @@ function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string |
 	return undefined;
 }
 
-function convertPluginOnLoadResult(
-	args: { path: string },
-	result: unknown,
-): EsbuildOnLoadResult | undefined {
+function convertPluginOnLoadResult(args: { path: string }, result: unknown): EsbuildOnLoadResult | undefined {
 	if (!result || typeof result !== 'object') {
 		return undefined;
 	}
@@ -131,11 +128,7 @@ function convertPluginOnLoadResult(
 	return undefined;
 }
 
-function resolvePluginPath(
-	value: string,
-	args: { importer: string },
-	contextRoot: string,
-): string {
+function resolvePluginPath(value: string, args: { importer: string }, contextRoot: string): string {
 	if (path.isAbsolute(value)) {
 		return value;
 	}

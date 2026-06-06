@@ -32,9 +32,7 @@ export default defineConfig({
 						'packages/vite-plugin/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
-						...(isBenchMode
-							? ['playground/kitchen-sink/bench/**/*.bench.ts']
-							: []),
+						...(isBenchMode ? ['playground/kitchen-sink/bench/**/*.bench.ts'] : []),
 						...(process.env.ECOPAGES_BENCH_E2E === '1'
 							? ['playground/kitchen-sink/bench/e2e-hmr-bench.test.ts']
 							: []),

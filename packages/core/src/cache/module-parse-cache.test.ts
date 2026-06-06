@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	ModuleParseCache,
-	moduleParseCache,
-	cachedParseSync,
-} from './module-parse-cache.ts';
+import { ModuleParseCache, moduleParseCache, cachedParseSync } from './module-parse-cache.ts';
 
 describe('ModuleParseCache', () => {
 	it('returns the same result for identical (path, source, options)', () => {

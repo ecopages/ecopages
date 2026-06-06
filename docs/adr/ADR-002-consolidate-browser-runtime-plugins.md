@@ -12,15 +12,15 @@ branch (`feature/bundler-normalization`) over a series of `--no-verify`
 commits. Each step was covered by new unit tests and the full
 shared-core suite (1323 tests across 143 files) stayed green.
 
-| Step | Commit | What landed |
-|---|---|---|
-| 1 | `98cdc97d` | `browser-runtime-plugin-helpers.ts` extracted `escapeRegExp`, `toRuntimeSpecifierMap`, `buildSpecifierFilter` from both plugins |
-| 2 | `fba1e3f0` | New `browser-runtime-plugin.ts` with `createBrowserRuntimePlugin`; old factories became thin wrappers |
-| 3 | `4a3174ba` | `react-runtime-bundle.service.ts`, `react-bundle.service.ts`, `react-hmr-strategy.ts` migrated to the unified factory for rewrite call sites |
-| 4 | `d711f66b` + `212d86f7` | `esbuild-plugin-bridge.ts` and `bun-plugin-bridge.ts` extracted from their adapters; 21 new bridge-level unit tests |
-| 5 | `cdaf0f70` | `serialized-build-executor.ts` introduced with FIFO queue, `run()`, `build()`, test hooks; `DevBuildCoordinator` composes with it |
-| 6 | `40bd6dfa` | `runtime-build-executor.ts` Vite-host path now wraps the plain adapter in `SerializedBuildExecutor` (FIFO for all dev paths) |
-| 7 | (this commit) | Status flipped to Implemented; this section added |
+| Step | Commit                  | What landed                                                                                                                                  |
+| ---- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `98cdc97d`              | `browser-runtime-plugin-helpers.ts` extracted `escapeRegExp`, `toRuntimeSpecifierMap`, `buildSpecifierFilter` from both plugins              |
+| 2    | `fba1e3f0`              | New `browser-runtime-plugin.ts` with `createBrowserRuntimePlugin`; old factories became thin wrappers                                        |
+| 3    | `4a3174ba`              | `react-runtime-bundle.service.ts`, `react-bundle.service.ts`, `react-hmr-strategy.ts` migrated to the unified factory for rewrite call sites |
+| 4    | `d711f66b` + `212d86f7` | `esbuild-plugin-bridge.ts` and `bun-plugin-bridge.ts` extracted from their adapters; 21 new bridge-level unit tests                          |
+| 5    | `cdaf0f70`              | `serialized-build-executor.ts` introduced with FIFO queue, `run()`, `build()`, test hooks; `DevBuildCoordinator` composes with it            |
+| 6    | `40bd6dfa`              | `runtime-build-executor.ts` Vite-host path now wraps the plain adapter in `SerializedBuildExecutor` (FIFO for all dev paths)                 |
+| 7    | (this commit)           | Status flipped to Implemented; this section added                                                                                            |
 
 **Behavioral changes**
 
@@ -44,13 +44,13 @@ all wins from Phase 1 hold and no new cost has been introduced.
 `pnpm test:bench:compare` shows the bundle path median is within
 noise of the post-Phase-1 baseline.
 
-| Scenario | Phase 1 baseline (post-PR-1.1+1.2) | Post-ADR-002 | Delta |
-|---|---|---|---|
-| React page rebuild | 2.85 ms | 2.91 ms | +0.06 ms (noise) |
-| no-op rebuild | 2.78 ms | 2.87 ms | +0.09 ms (noise) |
-| concurrent rebuilds (5×) | 6.21 ms | 6.21 ms | 0 ms |
-| React server-files | 5.29 ms | 5.30 ms | +0.01 ms (noise) |
-| Lit page | 9.86 ms | 9.71 ms | -0.15 ms (noise) |
+| Scenario                 | Phase 1 baseline (post-PR-1.1+1.2) | Post-ADR-002 | Delta            |
+| ------------------------ | ---------------------------------- | ------------ | ---------------- |
+| React page rebuild       | 2.85 ms                            | 2.91 ms      | +0.06 ms (noise) |
+| no-op rebuild            | 2.78 ms                            | 2.87 ms      | +0.09 ms (noise) |
+| concurrent rebuilds (5×) | 6.21 ms                            | 6.21 ms      | 0 ms             |
+| React server-files       | 5.29 ms                            | 5.30 ms      | +0.01 ms (noise) |
+| Lit page                 | 9.86 ms                            | 9.71 ms      | -0.15 ms (noise) |
 
 All deltas are within ±2% of the baseline, consistent with the
 expected noise of an in-process vitest bench. No code path in the
@@ -59,13 +59,13 @@ of bridge code, plugin factories, and executor wiring moved.
 
 **Test count delta**
 
-| Phase | Test files | Tests |
-|---|---|---|
-| Pre-ADR-002 (post-Phase 1) | 138 | 1283 |
-| Post-ADR-002 step 1 | 138 | 1291 (+8 helper tests) |
-| Post-ADR-002 step 2 | 139 | 1305 (+14 unified-plugin tests) |
-| Post-ADR-002 step 4 | 141 | 1321 (+10 esbuild + 11 Bun bridge tests) |
-| Post-ADR-002 step 5 | 143 | 1323 (+5 serialized executor tests) |
+| Phase                      | Test files | Tests                                    |
+| -------------------------- | ---------- | ---------------------------------------- |
+| Pre-ADR-002 (post-Phase 1) | 138        | 1283                                     |
+| Post-ADR-002 step 1        | 138        | 1291 (+8 helper tests)                   |
+| Post-ADR-002 step 2        | 139        | 1305 (+14 unified-plugin tests)          |
+| Post-ADR-002 step 4        | 141        | 1321 (+10 esbuild + 11 Bun bridge tests) |
+| Post-ADR-002 step 5        | 143        | 1323 (+5 serialized executor tests)      |
 
 Net: +5 test files, +40 tests, all green.
 
@@ -93,9 +93,9 @@ plugin behavior, plus **three bundler bridges** that translate
 
 ### Plugin duplication
 
-| Plugin | File | Hooks | Purpose |
-|---|---|---|---|
-| `createRuntimeSpecifierAliasPlugin` | `packages/core/src/build/runtime-specifier-alias-plugin.ts` | `onResolve` only | Alias bare specifier → public URL, marked external |
+| Plugin                                    | File                                                               | Hooks                                        | Purpose                                               |
+| ----------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------- | ----------------------------------------------------- |
+| `createRuntimeSpecifierAliasPlugin`       | `packages/core/src/build/runtime-specifier-alias-plugin.ts`        | `onResolve` only                             | Alias bare specifier → public URL, marked external    |
 | `createBrowserRuntimeImportRewritePlugin` | `packages/core/src/build/browser-runtime-import-rewrite-plugin.ts` | `onResolve` (alias) + `onLoad` (AST rewrite) | Alias + rewrite source-level imports in JS/TS modules |
 
 Both consume the same shape — a `Map<specifier, publicPath>` — and the
@@ -106,6 +106,7 @@ typically **used together in the same build** to make sure both the
 bundler's resolver and the in-source import statements agree.
 
 Call sites that register both:
+
 - `packages/integrations/react/src/services/react-runtime-bundle.service.ts:100` (rewrite-only, for vendor assets)
 - `packages/integrations/react/src/services/react-runtime-bundle.service.ts:150-155` (alias-only, for `react`/`react-dom` externals)
 - `packages/integrations/react/src/services/react-runtime-bundle.service.ts:226` (alias-only, runtime alias map)
@@ -113,6 +114,7 @@ Call sites that register both:
 - `packages/integrations/react/src/react-hmr-strategy.ts:165` (rewrite-only)
 
 Risks of the current split:
+
 - Two filter regexes computed from the same keys
 - Two specifier map values held in plugin objects (the rewrite plugin
   already exposes its map via `BROWSER_RUNTIME_IMPORT_REWRITE_MAP`; the
@@ -124,11 +126,11 @@ Risks of the current split:
 `EcoBuildPlugin` is a single contract, but it gets translated to three
 backends with three different `onResolve`/`onLoad` shapes:
 
-| Backend | Bridge | File |
-|---|---|---|
-| esbuild | `EsbuildBuildAdapter` direct (`build.onResolve` / `build.onLoad` from `esbuild.PluginBuild`) | `packages/core/src/build/esbuild-build-adapter.ts:200-310` |
-| Bun | `BunBuildAdapter.createEcoPluginBridge` (Bun's `BunPluginBuilder` with `onResolve`/`onLoad`/`module`) | `packages/core/src/build/build-adapter.ts:324-387` |
-| Vite | `ViteHostBuildAdapter` (stub, builds throw "host-owned" errors) | `packages/core/src/build/build-adapter.ts:774-788` |
+| Backend | Bridge                                                                                                | File                                                       |
+| ------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| esbuild | `EsbuildBuildAdapter` direct (`build.onResolve` / `build.onLoad` from `esbuild.PluginBuild`)          | `packages/core/src/build/esbuild-build-adapter.ts:200-310` |
+| Bun     | `BunBuildAdapter.createEcoPluginBridge` (Bun's `BunPluginBuilder` with `onResolve`/`onLoad`/`module`) | `packages/core/src/build/build-adapter.ts:324-387`         |
+| Vite    | `ViteHostBuildAdapter` (stub, builds throw "host-owned" errors)                                       | `packages/core/src/build/build-adapter.ts:774-788`         |
 
 `DevBuildCoordinator` (`packages/core/src/build/dev-build-coordinator.ts`)
 is yet another layer of indirection: it serializes builds and recovers

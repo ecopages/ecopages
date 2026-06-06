@@ -28,8 +28,12 @@ const manifest = createBrowserRuntimeManifest([
 	},
 ]);
 
-type ResolveCallback = (args: { path: string }) => EcoBuildOnResolveResult | undefined | Promise<EcoBuildOnResolveResult | undefined>;
-type LoadCallback = (args: { path: string }) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
+type ResolveCallback = (args: {
+	path: string;
+}) => EcoBuildOnResolveResult | undefined | Promise<EcoBuildOnResolveResult | undefined>;
+type LoadCallback = (args: {
+	path: string;
+}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
 
 function captureCallbacks(): {
 	resolveCallbacks: ResolveCallback[];
@@ -43,7 +47,10 @@ function captureCallbacks(): {
 	};
 }
 
-function setupPlugin(plugin: ReturnType<typeof createBrowserRuntimePlugin>, callbacks: ReturnType<typeof captureCallbacks>): void {
+function setupPlugin(
+	plugin: ReturnType<typeof createBrowserRuntimePlugin>,
+	callbacks: ReturnType<typeof captureCallbacks>,
+): void {
 	assert.ok(plugin);
 	plugin.setup({
 		onResolve(_options, callback) {
@@ -168,10 +175,14 @@ test('createBrowserRuntimePlugin publicPath resolve only matches in-set paths', 
 		external: true,
 	});
 	assert.equal(await resolve('/assets/vendors/other.js'), undefined);
-	assert.deepEqual(await resolve('react'), {
-		path: '/assets/vendors/react.js',
-		external: true,
-	}, 'alias filter still matches plain specifiers');
+	assert.deepEqual(
+		await resolve('react'),
+		{
+			path: '/assets/vendors/react.js',
+			external: true,
+		},
+		'alias filter still matches plain specifiers',
+	);
 });
 
 test('createBrowserRuntimePlugin with matchPublicPaths: false skips /-prefixed resolves', async () => {
@@ -189,10 +200,14 @@ test('createBrowserRuntimePlugin with matchPublicPaths: false skips /-prefixed r
 		}
 		return undefined;
 	};
-	assert.deepEqual(await resolve('react'), {
-		path: '/assets/vendors/react.js',
-		external: true,
-	}, 'alias filter still active');
+	assert.deepEqual(
+		await resolve('react'),
+		{
+			path: '/assets/vendors/react.js',
+			external: true,
+		},
+		'alias filter still active',
+	);
 	assert.equal(await resolve('/assets/vendors/react.js'), undefined, 'no publicPath hook registered');
 });
 

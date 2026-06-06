@@ -115,7 +115,12 @@ export class ClientGraphBoundaryCache {
 	 * capacity. Defensively copies any `Set`-typed rules in `rulesAdded`
 	 * so later mutations to the caller's sets cannot corrupt the cache.
 	 */
-	set(filePath: string, source: string, globallyAllowedSpecifiers: Iterable<string>, entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash'>): void {
+	set(
+		filePath: string,
+		source: string,
+		globallyAllowedSpecifiers: Iterable<string>,
+		entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash'>,
+	): void {
 		const sourceHash = rapidhash(source);
 		const allowListHash = hashAllowList(globallyAllowedSpecifiers);
 

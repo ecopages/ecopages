@@ -3,9 +3,4 @@
  *
  * @module @ecopages/core/cache
  */
-export {
-	ModuleParseCache,
-	moduleParseCache,
-	cachedParseSync,
-	type ModuleParseOptions,
-} from './module-parse-cache.ts';
+export { ModuleParseCache, moduleParseCache, cachedParseSync, type ModuleParseOptions } from './module-parse-cache.ts';

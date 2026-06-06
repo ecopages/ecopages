@@ -55,7 +55,10 @@ test('SerializedBuildExecutor runs concurrent builds in order, never overlapping
 		serialized.build({ entrypoints: ['/in/c.ts'], naming: '5' }),
 	];
 	const results = await Promise.all(builds);
-	assert.deepEqual(results.map((result) => result.outputs[0]?.path), ['/out/1.js', '/out/2.js', '/out/3.js']);
+	assert.deepEqual(
+		results.map((result) => result.outputs[0]?.path),
+		['/out/1.js', '/out/2.js', '/out/3.js'],
+	);
 	assert.equal(inner.callOrder.length, 3);
 	assert.equal(inner.maxActive, 1, 'no two inner builds ever ran concurrently');
 });

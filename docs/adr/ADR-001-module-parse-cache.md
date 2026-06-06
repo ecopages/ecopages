@@ -35,6 +35,7 @@ cache before calling `oxc-parser.parseSync`. The cache is exposed under
 
 `contentHash` is a `rapidhash`-style 64-bit hash of the file contents, computed
 on first read. We do **not** key on mtime because:
+
 - mtime is not deterministic across CI/local copies
 - a touched-but-unchanged file is a no-op rebuild; mtime changes invalidate
   the cache even though content is identical
@@ -103,22 +104,22 @@ The bundle path on `playground/kitchen-sink`, median per-operation in ms.
 The cache hits 4 of the 5 `parseSync` call sites; the 5th
 (`ecopages-virtual-imports.ts`) is a non-plugin path left untouched.
 
-| Scenario | Before (Phase 0) | After (PR-1.1) | Speedup |
-|---|---|---|---|
-| production single page | 4.99 | 2.98 | **1.7×** |
-| production all pages (splitting) | 6.64 | 5.65 | 1.2× |
-| heavy React page | 3.55 | 2.71 | 1.3× |
-| React page rebuild | 4.24 | 2.85 | 1.5× |
-| layout rebuild | 4.19 | 2.85 | 1.5× |
-| shared-component rebuild | 4.22 | 2.83 | 1.5× |
-| concurrent rebuilds (5×) | 11.61 | 6.21 | **1.9×** |
-| no-op rebuild | 4.11 | 2.78 | 1.5× |
-| **React server-metadata** | **22.88** | **5.07** | **4.5×** |
-| **React server-files** | **53.95** | **5.29** | **10.2×** |
-| KitaJS (api-lab) | 7.66 | 3.62 | 2.1× |
-| **Lit page** | **41.95** | **9.86** | **4.3×** |
-| **Ecopages-JSX** | **27.85** | **10.39** | **2.7×** |
-| repeated rebuild (100 iters) | 4.16 | 2.87 | 1.4× |
+| Scenario                         | Before (Phase 0) | After (PR-1.1) | Speedup   |
+| -------------------------------- | ---------------- | -------------- | --------- |
+| production single page           | 4.99             | 2.98           | **1.7×**  |
+| production all pages (splitting) | 6.64             | 5.65           | 1.2×      |
+| heavy React page                 | 3.55             | 2.71           | 1.3×      |
+| React page rebuild               | 4.24             | 2.85           | 1.5×      |
+| layout rebuild                   | 4.19             | 2.85           | 1.5×      |
+| shared-component rebuild         | 4.22             | 2.83           | 1.5×      |
+| concurrent rebuilds (5×)         | 11.61            | 6.21           | **1.9×**  |
+| no-op rebuild                    | 4.11             | 2.78           | 1.5×      |
+| **React server-metadata**        | **22.88**        | **5.07**       | **4.5×**  |
+| **React server-files**           | **53.95**        | **5.29**       | **10.2×** |
+| KitaJS (api-lab)                 | 7.66             | 3.62           | 2.1×      |
+| **Lit page**                     | **41.95**        | **9.86**       | **4.3×**  |
+| **Ecopages-JSX**                 | **27.85**        | **10.39**      | **2.7×**  |
+| repeated rebuild (100 iters)     | 4.16             | 2.87           | 1.4×      |
 
 The largest wins are on the heavy pages — server-files drops 10×, Lit
 4× — because the cache amortizes the cost of re-parsing the shared
@@ -128,6 +129,7 @@ The largest wins are on the heavy pages — server-files drops 10×, Lit
 unbounded growth.
 
 **All criteria met:**
+
 - ✅ Existing plugin tests unchanged (23 eco-component-meta, 12 client-graph-boundary, 8 cache tests all pass)
 - ✅ `no-op rebuild` p99 7.82 → 5.77 ms (-26%)
 - ✅ 100 rebuilds heap stable

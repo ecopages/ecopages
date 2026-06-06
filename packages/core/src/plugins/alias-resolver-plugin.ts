@@ -55,10 +55,7 @@ export function resolveAppSourceAliasPath(srcDir: string, specifier: string): st
 	return resolved ? resolveAliasedBarrelTarget(resolved) : undefined;
 }
 
-export function createAliasResolverPlugin(
-	srcDir: string,
-	options?: { cache?: AliasResolverCache },
-): EcoBuildPlugin {
+export function createAliasResolverPlugin(srcDir: string, options?: { cache?: AliasResolverCache }): EcoBuildPlugin {
 	const cache = options?.cache ?? new AliasResolverCache();
 	return {
 		name: 'ecopages-alias-resolver',

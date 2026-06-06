@@ -129,11 +129,7 @@ export const moduleParseCache = new ModuleParseCache();
  * {@link moduleParseCache}. Use everywhere we currently call `parseSync`
  * on user/source files during a build.
  */
-export function cachedParseSync(
-	filePath: string,
-	source: string,
-	options: ModuleParseOptions = {},
-): ParseResult {
+export function cachedParseSync(filePath: string, source: string, options: ModuleParseOptions = {}): ParseResult {
 	return moduleParseCache.getOrParse(filePath, source, options);
 }
 

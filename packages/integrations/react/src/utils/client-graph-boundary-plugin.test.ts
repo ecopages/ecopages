@@ -213,18 +213,12 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 		writeFileSync(
 			sharedPath,
-			[
-				"import fs from 'node:fs';",
-				'export const safe = 1;',
-				'export const unsafe = fs.readFileSync;',
-			].join('\n'),
+			["import fs from 'node:fs';", 'export const safe = 1;', 'export const unsafe = fs.readFileSync;'].join(
+				'\n',
+			),
 			'utf-8',
 		);
-		writeFileSync(
-			entryNamedPath,
-			["import { safe } from './shared';", 'export default safe;'].join('\n'),
-			'utf-8',
-		);
+		writeFileSync(entryNamedPath, ["import { safe } from './shared';", 'export default safe;'].join('\n'), 'utf-8');
 		writeFileSync(
 			entryNamespacePath,
 			["import * as shared from './shared';", 'export default shared.safe;'].join('\n'),

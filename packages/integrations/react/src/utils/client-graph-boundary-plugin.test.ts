@@ -10,6 +10,7 @@ import type {
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/plugins/integration-plugin';
 import { createClientGraphBoundaryPlugin } from './client-graph-boundary-plugin.ts';
+import { ClientGraphBoundaryCache } from './client-graph-boundary-cache.ts';
 
 type OnLoadRegistration = {
 	options: { filter: RegExp; namespace?: string };
@@ -146,6 +147,96 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('cache hit produces the same transform output as cache miss (regression for replay semantics)', async () => {
+		// Two entrypoints that both reach the same local module. The
+		// cache stores the after-state of each transform's contribution
+		// to the requestedExports registry. A second plugin instance
+		// sharing the cache must replay the same final registry.
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const entryA = join(tempDir, 'entry-a.tsx');
+		const entryB = join(tempDir, 'entry-b.tsx');
+		writeFileSync(
+			entryA,
+			"import { createColumnHelper } from '@tanstack/react-table';\n" +
+				"import leftPad from 'left-pad';\n" +
+				'export default leftPad(createColumnHelper().name) + createColumnHelper().fn;\n',
+			'utf-8',
+		);
+		writeFileSync(
+			entryB,
+			"import { createColumnHelper } from '@tanstack/react-table';\n" +
+				"import { fn as tableFn } from 'left-pad';\n" +
+				'export default tableFn() + createColumnHelper().accessorKey;\n',
+			'utf-8',
+		);
+
+		try {
+			const cache = new ClientGraphBoundaryCache();
+			// First pass: populate the cache via the live transform.
+			const harnessA = createPluginTestHarness({ cache });
+			const resultA1 = await harnessA.transformFile(entryA);
+			const resultB1 = await harnessA.transformFile(entryB);
+
+			// Snapshot cache stats so we can verify the second pass hits.
+			const hitsAfterFirstPass = cache.stats().hits;
+			const missesAfterFirstPass = cache.stats().misses;
+			expect(missesAfterFirstPass).toBeGreaterThanOrEqual(2);
+
+			// Second pass: a fresh plugin instance with the same cache.
+			// The two transforms should hit the cache and produce the
+			// same output as the live transform.
+			const harnessB = createPluginTestHarness({ cache });
+			const resultA2 = await harnessB.transformFile(entryA);
+			const resultB2 = await harnessB.transformFile(entryB);
+
+			expect(resultA2).toBe(resultA1);
+			expect(resultB2).toBe(resultB1);
+
+			// Two cache hits recorded.
+			const finalStats = cache.stats();
+			expect(finalStats.hits).toBe(hitsAfterFirstPass + 2);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('cache replay preserves namespace promotion for an existing local-module key', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const sharedPath = join(tempDir, 'shared.ts');
+		const entryNamedPath = join(tempDir, 'entry-named.tsx');
+		const entryNamespacePath = join(tempDir, 'entry-namespace.tsx');
+
+		writeFileSync(
+			sharedPath,
+			["import fs from 'node:fs';", 'export const safe = 1;', 'export const unsafe = fs.readFileSync;'].join(
+				'\n',
+			),
+			'utf-8',
+		);
+		writeFileSync(entryNamedPath, ["import { safe } from './shared';", 'export default safe;'].join('\n'), 'utf-8');
+		writeFileSync(
+			entryNamespacePath,
+			["import * as shared from './shared';", 'export default shared.safe;'].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const cache = new ClientGraphBoundaryCache();
+
+			const firstHarness = createPluginTestHarness({ cache });
+			await firstHarness.transformFile(entryNamedPath);
+			await firstHarness.transformFile(entryNamespacePath);
+			await expect(firstHarness.transformFile(sharedPath)).rejects.toThrow();
+
+			const secondHarness = createPluginTestHarness({ cache });
+			await secondHarness.transformFile(entryNamedPath);
+			await secondHarness.transformFile(entryNamespacePath);
+			await expect(secondHarness.transformFile(sharedPath)).rejects.toThrow();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

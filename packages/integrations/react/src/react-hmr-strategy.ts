@@ -12,7 +12,7 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { createBrowserRuntimeImportRewritePlugin } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
@@ -20,11 +20,13 @@ import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
+import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
 import { someInConfigTree } from './utils/component-config-traversal.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
+import { PagesIndex } from './services/pages-index.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
@@ -37,6 +39,13 @@ export interface ReactHmrStrategyOptions {
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
 	explicitGraphEnabled?: boolean;
+	/**
+	 * Per-app cache for client-graph-boundary transform results. Owned by
+	 * the React plugin for the app's lifetime. When omitted, the strategy
+	 * uses a fresh in-memory cache that does not persist across HMR
+	 * rebuilds.
+	 */
+	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 type ImportedReactPageModule = {
@@ -117,6 +126,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private pageMetadataCache: ReactHmrPageMetadataCache;
 	private explicitGraphEnabled: boolean;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
+	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
+	private readonly pagesIndex: PagesIndex;
 
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
@@ -124,6 +135,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
 		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
+		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
+		this.pagesIndex = new PagesIndex({
+			pagesDir: this.context.getPagesDir(),
+			extensions: options.allTemplateExtensions,
+			isPageEntrypoint: (file) => this.isPageEntrypoint(file),
+		});
 		this.mdxCompilerOptions = options.mdxCompilerOptions;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -141,11 +158,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * HMR builds receive the React runtime manifest and rewrite manifest-owned
 	 * runtime imports to concrete asset URLs before module resolution.
 	 */
-	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
+	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
 		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
 			this.runtimeManifest.assets.map((asset) => asset.specifier),
 		);
-		const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+		const runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-hmr-runtime-import-rewrite',
 			manifest: this.runtimeManifest,
 		});
@@ -155,6 +172,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				absWorkingDir: path.dirname(this.context.getSrcDir()),
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
+				cache: this.clientGraphBoundaryCache,
 			}),
 			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 			...this.context.getPlugins(),
@@ -321,23 +339,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private async collectReactPageBuildTargets(): Promise<ReactHmrBuildTarget[]> {
-		const pagesDir = this.context.getPagesDir();
-		const scannedFiles = await fileSystem.glob(
-			this.allTemplateExtensions.map((extension) => `**/*${extension}`),
-			{ cwd: pagesDir },
-		);
+		await this.pagesIndex.refresh();
+		const indexed = this.pagesIndex.list();
 		const targets = new Map<string, ReactHmrBuildTarget>();
 
-		for (const file of scannedFiles) {
-			if (file.includes('.ecopages-node.')) {
-				continue;
-			}
-
-			const entrypointPath = path.join(pagesDir, file);
-			if (!this.isPageEntrypoint(entrypointPath)) {
-				continue;
-			}
-
+		for (const entrypointPath of indexed) {
 			this.pageMetadataCache.markOwnedEntrypoint(entrypointPath);
 			targets.set(entrypointPath, {
 				entrypointPath,
@@ -570,11 +576,21 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const { outputPath } = this.getEntrypointOutput(entrypointPath);
 			const tempDir = path.dirname(outputPath);
 
-			const declaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
-				? this.pageMetadataCache.getDeclaredModules(entrypointPath)!
-				: isMdx
+			const cachedDeclared = this.pageMetadataCache.getDeclaredModules(entrypointPath);
+			let entrypointDeclaredModules: readonly string[];
+			let declaredModules: readonly string[];
+			if (cachedDeclared) {
+				entrypointDeclaredModules = cachedDeclared;
+				declaredModules = cachedDeclared;
+			} else {
+				entrypointDeclaredModules = isMdx
 					? await collectPageDeclaredModules(entrypointPath)
 					: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
+				// Populate the cache so subsequent rebuilds (single or grouped)
+				// don't re-import the page module on the Node side.
+				this.pageMetadataCache.setDeclaredModules(entrypointPath, entrypointDeclaredModules);
+				declaredModules = entrypointDeclaredModules;
+			}
 			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {
@@ -582,6 +598,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdxPlugin);
 			}
 
+			await this.clearHmrOutdir(tempDir);
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: [entrypointPath],
@@ -660,6 +677,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(createReactMdxLoaderPlugin(this.mdxCompilerOptions));
 			}
 
+			await this.clearHmrOutdir(this.context.getDistDir());
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: entrypoints.map(({ entrypointPath }) => entrypointPath),
@@ -723,7 +741,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		if (!tempPath.includes('[hash]')) {
-			return tempPath;
+			return null;
 		}
 
 		const directory = path.dirname(tempPath);
@@ -735,6 +753,38 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);
+	}
+
+	/**
+	 * Clears stale HMR output from a directory before a rebuild.
+	 *
+	 * Only removes:
+	 * - `*.tmp.js` files (the per-build esbuild output the strategy owns)
+	 * - the `chunks/` subdirectory (esbuild's splitting target)
+	 *
+	 * The HMR runtime script (`_hmr_runtime.js`) and any user-authored
+	 * assets in the outdir are preserved. This is the minimal set of
+	 * files that, if left from a previous build, can cause esbuild to
+	 * emit `ENOENT` for chunk references that point to entrypoints
+	 * whose hash has since changed.
+	 */
+	private async clearHmrOutdir(outdir: string): Promise<void> {
+		if (!fileSystem.exists(outdir)) {
+			return;
+		}
+
+		const tempFiles = await fileSystem.glob(['**/*.tmp.js'], { cwd: outdir });
+		await Promise.all(
+			tempFiles.map((relativePath) => {
+				const absolutePath = path.isAbsolute(relativePath) ? relativePath : path.join(outdir, relativePath);
+				return fileSystem.removeAsync(absolutePath).catch(() => undefined);
+			}),
+		);
+
+		const chunksDir = path.join(outdir, 'chunks');
+		if (fileSystem.exists(chunksDir)) {
+			await fileSystem.removeAsync(chunksDir).catch(() => undefined);
+		}
 	}
 
 	/**

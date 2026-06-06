@@ -20,7 +20,7 @@ export class ReactHmrPageMetadataCache {
 	/**
 	 * Stores the declared browser modules for a page entrypoint.
 	 */
-	setDeclaredModules(entrypointPath: string, declaredModules: string[]): void {
+	setDeclaredModules(entrypointPath: string, declaredModules: readonly string[]): void {
 		const resolvedEntrypointPath = path.resolve(entrypointPath);
 		this.markOwnedEntrypoint(resolvedEntrypointPath);
 		this.declaredModulesByEntrypoint.set(resolvedEntrypointPath, [...declaredModules]);

@@ -8,6 +8,7 @@ import {
 } from './build-adapter.ts';
 import { EsbuildBuildAdapter, ESBUILD_ADAPTER_BRAND } from './esbuild-build-adapter.ts';
 import { mergeEcoBuildPlugins } from './build-manifest.ts';
+import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 
 function isEsbuildBuildAdapter(adapter: unknown): adapter is EsbuildBuildAdapter {
@@ -61,27 +62,35 @@ export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: ()
 }
 
 /**
- * Serialized build coordinator for the shared esbuild adapter.
+ * Build executor that serializes a sequence of {@link
+ * EsbuildBuildAdapter.buildOrThrow} calls into a single FIFO queue
+ * and recovers from known esbuild worker-protocol faults.
  *
- * The underlying adapter remains responsible for plain build execution. This
- * coordinator owns the policy that must be shared across callers while Bun-native
- * execution still uses the shared esbuild compatibility backend:
+ * @remarks
+ * Per ADR-002, the FIFO serialization is provided by
+ * {@link SerializedBuildExecutor}. This class composes that primitive
+ * with the esbuild fault-recovery policy so the dev watch pipeline
+ * has a single, well-defined entry point.
  *
- * - serialized access to the shared esbuild service
- * - recovery from known esbuild worker protocol faults
- *
- * Unlike the previous design, the coordinator does not monkey-patch the adapter
- * or install process-level fault handlers. The owning app/runtime passes this
- * executor explicitly to build consumers that need coordinated builds.
+ * The coordinator is still the right choice for esbuild-only because
+ * the protocol-fault recovery is a backend-specific concern. When the
+ * Rolldown adapter lands (ADR-003) this class is removed and the dev
+ * watch pipeline wraps the active adapter in
+ * {@link SerializedBuildExecutor} directly.
  */
 export class DevBuildCoordinator implements BuildExecutor {
-	private buildQueue: Promise<void> = Promise.resolve();
+	private readonly serialized: SerializedBuildExecutor;
 	private esbuildSessionWarm = false;
 	private esbuildModuleGeneration = 0;
 	private readonly adapter: EsbuildBuildAdapter;
 
 	constructor(adapter: EsbuildBuildAdapter) {
 		this.adapter = adapter;
+		this.serialized = new SerializedBuildExecutor({
+			async build(options) {
+				return adapterBuild.call(adapter, options);
+			},
+		});
 	}
 
 	/**
@@ -92,25 +101,27 @@ export class DevBuildCoordinator implements BuildExecutor {
 	 * the build once.
 	 */
 	async build(options: BuildOptions): Promise<BuildResult> {
-		return this.runSerialized(async () => {
-			try {
-				const result = await this.adapter.buildOrThrow(options, this.esbuildModuleGeneration);
-				this.esbuildSessionWarm = true;
-				return result;
-			} catch (error) {
-				if (await this.recoverFromProtocolFault(error)) {
-					appLogger.warn('Recovered from esbuild protocol fault. Retrying build.');
-					try {
-						const retry = await this.adapter.buildOrThrow(options, this.esbuildModuleGeneration);
-						this.esbuildSessionWarm = true;
-						return retry;
-					} catch (retryError) {
-						return this.adapter.createFailureResult(retryError);
-					}
+		return this.serialized.run(() => this.buildWithRecovery(options));
+	}
+
+	private async buildWithRecovery(options: BuildOptions): Promise<BuildResult> {
+		try {
+			const result = await this.adapter.buildOrThrow(options, this.esbuildModuleGeneration);
+			this.esbuildSessionWarm = true;
+			return result;
+		} catch (error) {
+			if (await this.recoverFromProtocolFault(error)) {
+				appLogger.warn('Recovered from esbuild protocol fault. Retrying build.');
+				try {
+					const retry = await this.adapter.buildOrThrow(options, this.esbuildModuleGeneration);
+					this.esbuildSessionWarm = true;
+					return retry;
+				} catch (retryError) {
+					return this.adapter.createFailureResult(retryError);
 				}
-				return this.adapter.createFailureResult(error);
 			}
-		});
+			return this.adapter.createFailureResult(error);
+		}
 	}
 
 	/**
@@ -123,8 +134,8 @@ export class DevBuildCoordinator implements BuildExecutor {
 		if (!this.adapter.isEsbuildProtocolError(error)) {
 			return false;
 		}
-		this.buildQueue = Promise.resolve();
 		this.esbuildSessionWarm = false;
+		this.serialized.resetForTests();
 		await this.adapter.stopEsbuildService(this.esbuildModuleGeneration);
 		this.esbuildModuleGeneration += 1;
 		return true;
@@ -134,41 +145,34 @@ export class DevBuildCoordinator implements BuildExecutor {
 	 * Clears internal coordinator state for isolated tests.
 	 */
 	resetForTests(): void {
-		this.buildQueue = Promise.resolve();
+		this.serialized.resetForTests();
 		this.esbuildSessionWarm = false;
 		this.esbuildModuleGeneration = 0;
 	}
 
 	/**
 	 * Overrides the internal queue promise for fault-recovery tests.
+	 * Delegates to {@link SerializedBuildExecutor.setBuildQueueForTests}.
 	 */
 	setBuildQueueForTests(queue: Promise<void>): void {
-		this.buildQueue = queue;
+		this.serialized.setBuildQueueForTests(queue);
 	}
 
 	/**
-	 * Returns the current internal queue promise for fault-recovery tests.
+	 * Returns the current internal queue promise for fault-recovery
+	 * tests. Delegates to {@link SerializedBuildExecutor.getBuildQueueForTests}.
 	 */
 	getBuildQueueForTests(): Promise<void> {
-		return this.buildQueue;
+		return this.serialized.getBuildQueueForTests() as Promise<void>;
 	}
+}
 
-	private async runSerialized<T>(operation: () => Promise<T>): Promise<T> {
-		let releaseBuild: (() => void) | undefined;
-		const currentBuild = new Promise<void>((resolve) => {
-			releaseBuild = resolve;
-		});
-		const previousBuild = this.buildQueue;
-
-		this.buildQueue = previousBuild.catch(() => undefined).then(async () => await currentBuild);
-		await previousBuild.catch(() => undefined);
-
-		try {
-			return await operation();
-		} finally {
-			releaseBuild?.();
-		}
-	}
+/**
+ * Trivial adapter bridge used by the {@link DevBuildCoordinator}'s
+ * inner serialized executor. Not exported.
+ */
+async function adapterBuild(this: EsbuildBuildAdapter, options: BuildOptions): Promise<BuildResult> {
+	return this.build(options);
 }
 
 /**

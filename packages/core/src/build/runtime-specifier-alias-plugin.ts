@@ -1,28 +1,48 @@
-import type { EcoBuildPlugin } from './build-types.ts';
-
-type RuntimeSpecifierMap = ReadonlyMap<string, string> | Record<string, string>;
-
 /**
- * Normalizes runtime specifier input into a read-only map shape.
- */
-function toRuntimeSpecifierMap(specifierMap: RuntimeSpecifierMap): ReadonlyMap<string, string> {
-	return specifierMap instanceof Map ? specifierMap : new Map(Object.entries(specifierMap));
-}
-
-/**
- * Escapes a literal specifier for inclusion in a regular expression.
- */
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Creates a build plugin that aliases runtime bare specifiers to concrete URLs.
+ * Backward-compatible alias-only factory built on top of the unified
+ * browser-runtime plugin.
  *
  * @remarks
- * This helper is used when browser-target builds must preserve integration-owned
- * runtime specifier semantics while letting the bundler treat the mapped URLs as
- * external runtime assets.
+ * Per ADR-002, the unified factory lives in
+ * `packages/core/src/build/browser-runtime-plugin.ts`. This module
+ * preserves the historical `createRuntimeSpecifierAliasPlugin` factory
+ * name for existing call sites.
+ *
+ * The legacy factory builds a synthetic manifest from the caller's
+ * `Map | Record` and forwards it to the unified factory with
+ * `rewriteImports: false` and `matchPublicPaths: false` so the original
+ * alias-only behavior is preserved exactly.
+ */
+
+import { createBrowserRuntimePlugin, BROWSER_RUNTIME_IMPORT_REWRITE_MAP } from './browser-runtime-plugin.ts';
+import { createBrowserRuntimeManifest, type BrowserRuntimeManifest } from './browser-runtime-manifest.ts';
+import { toRuntimeSpecifierMap } from './browser-runtime-plugin-helpers.ts';
+import type { EcoBuildPlugin } from './build-types.ts';
+
+export type RuntimeSpecifierMap = ReadonlyMap<string, string> | Record<string, string>;
+
+/**
+ * Builds a synthetic manifest from a `Map | Record` of
+ * `specifier → publicPath`. The manifest is consumed by the unified
+ * factory's alias-only path; we set `owner` to the empty string and
+ * `importPath` equal to the specifier, which is fine because the
+ * alias-only path never reads those fields.
+ */
+function manifestFromSpecifierMap(specifierMap: RuntimeSpecifierMap): BrowserRuntimeManifest {
+	const normalized = toRuntimeSpecifierMap(specifierMap);
+	return createBrowserRuntimeManifest(
+		Array.from(normalized.entries()).map(([specifier, publicPath]) => ({
+			specifier,
+			owner: '',
+			importPath: specifier,
+			publicPath,
+		})),
+	);
+}
+
+/**
+ * Legacy factory kept for backward compatibility. New code should call
+ * {@link createBrowserRuntimePlugin} directly.
  */
 export function createRuntimeSpecifierAliasPlugin(
 	specifierMapInput: RuntimeSpecifierMap,
@@ -31,28 +51,13 @@ export function createRuntimeSpecifierAliasPlugin(
 		external?: boolean;
 	},
 ): EcoBuildPlugin | null {
-	const specifierMap = toRuntimeSpecifierMap(specifierMapInput);
-
-	if (specifierMap.size === 0) {
-		return null;
-	}
-
-	const filter = new RegExp(`^(${Array.from(specifierMap.keys()).map(escapeRegExp).join('|')})$`);
-
-	return {
-		name: options?.name ?? 'runtime-specifier-alias',
-		setup(build) {
-			build.onResolve({ filter }, (args) => {
-				const mappedPath = specifierMap.get(args.path);
-				if (!mappedPath) {
-					return undefined;
-				}
-
-				return {
-					path: mappedPath,
-					external: options?.external ?? true,
-				};
-			});
-		},
-	};
+	return createBrowserRuntimePlugin({
+		manifest: manifestFromSpecifierMap(specifierMapInput),
+		name: options?.name,
+		external: options?.external ?? true,
+		rewriteImports: false,
+		matchPublicPaths: false,
+	});
 }
+
+export { BROWSER_RUNTIME_IMPORT_REWRITE_MAP };

@@ -8,10 +8,8 @@
  */
 
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	createBrowserRuntimeImportRewritePlugin,
-	DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
-} from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
+import { DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
 import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
 import {
 	buildBrowserRuntimeAssetUrl,
@@ -97,7 +95,7 @@ export class ReactRuntimeBundleService {
 	}
 
 	private createReactVendorImportRewritePlugin(mode: RuntimeMode): EcoBuildPlugin {
-		return createBrowserRuntimeImportRewritePlugin({
+		return createBrowserRuntimePlugin({
 			name: `react-plugin-vendor-runtime-import-rewrite-${mode}`,
 			manifest: createBrowserRuntimeManifest([
 				{

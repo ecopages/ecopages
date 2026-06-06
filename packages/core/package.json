@@ -32,6 +32,7 @@
 		"esbuild": "^0.28.0",
 		"ghtml": "^4.0.2",
 		"oxc-parser": "^0.124.0",
+		"rolldown": "^1.1.0",
 		"ws": "^8.20.1"
 	},
 	"devDependencies": {

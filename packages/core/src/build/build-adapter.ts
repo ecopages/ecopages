@@ -11,6 +11,7 @@ import {
 	type AppBuildManifest,
 } from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
+import { createBunPluginBridge } from './bun-plugin-bridge.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import { getBunRuntime } from '../utils/runtime.ts';
@@ -132,33 +133,6 @@ type NormalizedBunOutput = {
 	concretePath: string;
 };
 
-type BunPluginBuilder = {
-	config?: {
-		external?: string[];
-	};
-	onResolve(
-		options: { filter: RegExp; namespace?: string },
-		callback: (args: {
-			path: string;
-			importer: string;
-			namespace?: string;
-		}) =>
-			| { path?: string; namespace?: string; external?: boolean }
-			| undefined
-			| Promise<{ path?: string; namespace?: string; external?: boolean } | undefined>,
-	): void;
-	onLoad(
-		options: { filter: RegExp; namespace?: string },
-		callback: (args: {
-			path: string;
-			namespace?: string;
-		}) =>
-			| { contents?: string | Uint8Array; loader?: string; resolveDir?: string }
-			| undefined
-			| Promise<{ contents?: string | Uint8Array; loader?: string; resolveDir?: string } | undefined>,
-	): void;
-};
-
 function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 	switch (profile) {
 		case 'browser-script':
@@ -200,190 +174,6 @@ export class BunBuildAdapter implements BuildAdapter {
 
 	private escapeRegExp(value: string): string {
 		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	}
-
-	private resolvePluginPath(value: string, importer: string, contextRoot: string): string {
-		if (path.isAbsolute(value)) {
-			return value;
-		}
-
-		if (value.startsWith('.') || value.startsWith('..')) {
-			const baseDir = importer ? path.dirname(importer) : contextRoot;
-			return path.resolve(baseDir, value);
-		}
-
-		return value;
-	}
-
-	private inferLoaderFromPath(filePath: string): string {
-		const extension = path.extname(filePath).toLowerCase();
-
-		switch (extension) {
-			case '.ts':
-				return 'ts';
-			case '.tsx':
-				return 'tsx';
-			case '.jsx':
-				return 'jsx';
-			case '.json':
-				return 'json';
-			case '.css':
-				return 'css';
-			default:
-				return 'js';
-		}
-	}
-
-	private normalizeBunLoader(loader: unknown): string | undefined {
-		switch (loader) {
-			case 'js':
-			case 'jsx':
-			case 'ts':
-			case 'tsx':
-			case 'json':
-			case 'toml':
-			case 'text':
-			case 'file':
-			case 'css':
-				return loader;
-			case 'global-css':
-			case 'local-css':
-				return 'css';
-			default:
-				return undefined;
-		}
-	}
-
-	private convertLoadResultToModuleSource(result: unknown): string | undefined {
-		if (!result || typeof result !== 'object') {
-			return undefined;
-		}
-
-		const candidate = result as {
-			contents?: string;
-			loader?: unknown;
-			exports?: Record<string, unknown>;
-		};
-
-		if (typeof candidate.contents === 'string') {
-			return candidate.contents;
-		}
-
-		if (candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object') {
-			return Object.entries(candidate.exports)
-				.map(([key, value]) =>
-					key === 'default'
-						? `export default ${JSON.stringify(value)};`
-						: `export const ${key} = ${JSON.stringify(value)};`,
-				)
-				.join('\n');
-		}
-
-		return undefined;
-	}
-
-	private convertPluginOnLoadResult(
-		args: { path: string },
-		result: unknown,
-	): { contents?: string | Uint8Array; loader?: string; resolveDir?: string } | undefined {
-		if (!result || typeof result !== 'object') {
-			return undefined;
-		}
-
-		const candidate = result as {
-			contents?: string | Uint8Array;
-			loader?: unknown;
-			exports?: Record<string, unknown>;
-			resolveDir?: unknown;
-		};
-
-		const sourceFromExports =
-			candidate.loader === 'object' && candidate.exports && typeof candidate.exports === 'object'
-				? this.convertLoadResultToModuleSource(candidate)
-				: undefined;
-
-		if (sourceFromExports) {
-			return {
-				contents: sourceFromExports,
-				loader: 'js',
-				...(typeof candidate.resolveDir === 'string' ? { resolveDir: candidate.resolveDir } : {}),
-			};
-		}
-
-		if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
-			return {
-				contents: candidate.contents,
-				loader: this.normalizeBunLoader(candidate.loader) ?? this.inferLoaderFromPath(args.path),
-				...(typeof candidate.resolveDir === 'string' ? { resolveDir: candidate.resolveDir } : {}),
-			};
-		}
-
-		return undefined;
-	}
-
-	private createEcoPluginBridge(
-		plugins: EcoBuildPlugin[],
-		contextRoot: string,
-	): RuntimeBun['plugin'] extends (...args: infer A) => unknown ? A[0] : never {
-		return {
-			name: 'ecopages-plugin-bridge',
-			setup: async (build: BunPluginBuilder) => {
-				let moduleCounter = 0;
-
-				const bridge = {
-					onResolve: (options, callback) => {
-						build.onResolve(options, async (args) => {
-							const result = await callback({
-								path: args.path,
-								importer: args.importer,
-								namespace: args.namespace,
-							});
-
-							if (!result || typeof result !== 'object') {
-								return undefined;
-							}
-
-							return {
-								...(typeof result.path === 'string'
-									? { path: this.resolvePluginPath(result.path, args.importer, contextRoot) }
-									: {}),
-								...(typeof result.namespace === 'string' ? { namespace: result.namespace } : {}),
-								...(typeof result.external === 'boolean' ? { external: result.external } : {}),
-							};
-						});
-					},
-					onLoad: (options, callback) => {
-						build.onLoad(options, async (args) =>
-							this.convertPluginOnLoadResult(
-								{ path: args.path },
-								await callback({
-									path: args.path,
-									namespace: args.namespace,
-								}),
-							),
-						);
-					},
-					module: (specifier, callback) => {
-						const namespace = `ecopages-module-${moduleCounter}`;
-						moduleCounter += 1;
-						const filter = new RegExp(`^${this.escapeRegExp(specifier)}$`);
-
-						build.onResolve({ filter }, async () => ({
-							path: specifier,
-							namespace,
-						}));
-
-						build.onLoad({ filter, namespace }, async () =>
-							this.convertPluginOnLoadResult({ path: specifier }, await callback()),
-						);
-					},
-				} satisfies import('./build-types.ts').EcoBuildPluginBuilder;
-
-				for (const plugin of plugins) {
-					await plugin.setup(bridge);
-				}
-			},
-		} as RuntimeBun['plugin'] extends (...args: infer A) => unknown ? A[0] : never;
 	}
 
 	private toBuildLogs(error: unknown): BuildLog[] {
@@ -727,7 +517,7 @@ export class BunBuildAdapter implements BuildAdapter {
 				packages: options.target !== 'browser' && options.externalPackages !== false ? 'external' : undefined,
 				tsconfig: tsconfigExists ? tsconfigPath : undefined,
 				jsx: options.jsx,
-				plugins: plugins.length > 0 ? [this.createEcoPluginBridge(plugins, contextRoot)] : undefined,
+				plugins: plugins.length > 0 ? [createBunPluginBridge(plugins, contextRoot)] : undefined,
 			});
 
 			return this.rewriteBrowserRuntimeImportsInOutputs(

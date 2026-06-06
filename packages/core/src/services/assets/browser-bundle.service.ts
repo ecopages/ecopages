@@ -18,6 +18,11 @@ export type BrowserBundleOptions = {
 	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
+	/**
+	 * Whether to clear the outdir before building. Use only for
+	 * outdirs that are owned by the build (e.g. the HMR `_hmr` dir).
+	 */
+	cleanOutDir?: boolean;
 	plugins?: EcoBuildPlugin[];
 	[key: string]: unknown;
 	profile: BuildTranspileProfile;
@@ -37,6 +42,7 @@ type BrowserBundleGroupedOptions = {
 	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
+	cleanOutDir?: boolean;
 	plugins?: EcoBuildPlugin[];
 	[key: string]: unknown;
 	profile: BuildTranspileProfile;

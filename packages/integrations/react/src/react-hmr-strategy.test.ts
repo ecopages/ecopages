@@ -184,6 +184,7 @@ describe('ReactHmrStrategy', () => {
 				entrypoints: [entrypointPath],
 				outdir: path.join('/tmp/.eco/assets/_hmr', 'pages'),
 				naming: '[name].[hash].tmp',
+				cleanOutDir: true,
 				minify: false,
 			}),
 		);
@@ -577,6 +578,79 @@ describe('ReactHmrStrategy', () => {
 			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.js',
 			'/assets/_hmr/pages/posts/_slug_.js',
 		);
+	});
+
+	it('bundleReactEntrypoints opts the grouped build into cleanOutDir to avoid stale chunk references', async () => {
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
+		}));
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getBrowserBundleService: () => ({ bundle }) as any,
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				getDeclaredModules: () => [],
+				setDeclaredModules: () => undefined,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		(strategy as any).processOutput = vi.fn(async () => true);
+
+		await (strategy as any).bundleReactEntrypoints([
+			{ entrypointPath: '/tmp/src/pages/index.tsx', outputUrl: '/_hmr/pages/index.js' },
+		]);
+
+		expect(bundle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				profile: 'hmr-entrypoint',
+				entrypoints: ['/tmp/src/pages/index.tsx'],
+				splitting: true,
+				cleanOutDir: true,
+				naming: '[dir]/[name].[hash].tmp',
+			}),
+		);
+	});
+
+	it('resolveTempOutputPath retries once after a short delay before falling back to the glob pattern', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const targetPath = '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
+		const existsSpy = vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === targetPath);
+		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
+
+		// First call returns false (race), second call (after 25ms) returns true.
+		let callCount = 0;
+		existsSpy.mockImplementation((p) => {
+			if (p !== targetPath) return false;
+			callCount += 1;
+			return callCount >= 2;
+		});
+
+		const resolved = await (strategy as any).resolveTempOutputPath(targetPath);
+		expect(resolved).toBe(targetPath);
+		expect(globSpy).not.toHaveBeenCalled();
+	});
+
+	it('resolveTempOutputPath still falls back to glob when neither retry hit finds the file', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const placeholder = '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js';
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.999.tmp.js']);
+
+		const resolved = await (strategy as any).resolveTempOutputPath(placeholder);
+		expect(resolved).toBe('/tmp/.eco/assets/_hmr/pages/index.999.tmp.js');
 	});
 
 	describe('dependency graph selective invalidation', () => {

@@ -290,6 +290,7 @@ export class EsbuildBuildAdapter implements BuildAdapter {
 				: {}),
 			metafile: true,
 			write: true,
+			...(options.cleanOutDir === true ? { cleanOutDir: true as const } : {}),
 			plugins: esbuildPlugins,
 			jsx: 'automatic',
 			tsconfig: tsconfigExists ? tsconfigPath : undefined,

@@ -76,6 +76,12 @@ export interface BuildOptions {
 	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
+	/**
+	 * Whether to clear the outdir before building. Use only for
+	 * outdirs that are owned by the build (e.g. the HMR `_hmr` dir)
+	 * — passing `true` for shared outdirs is destructive.
+	 */
+	cleanOutDir?: boolean;
 	jsx?: {
 		development?: boolean;
 		factory?: string;

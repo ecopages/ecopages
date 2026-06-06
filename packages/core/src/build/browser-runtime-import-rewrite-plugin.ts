@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
-import { parseSync } from 'oxc-parser';
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import type { EcoBuildLoader, EcoBuildPlugin } from './build-types.ts';
 import { getBrowserRuntimeSpecifierMap, type BrowserRuntimeManifest } from './browser-runtime-manifest.ts';
+import { buildSpecifierFilter, escapeRegExp } from './browser-runtime-plugin-helpers.ts';
 
 type Edit = {
 	start: number;
@@ -46,10 +46,6 @@ function inferLoaderFromPath(filePath: string): EcoBuildLoader {
 		default:
 			return 'js';
 	}
-}
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function queueReplacement(options: {
@@ -182,12 +178,13 @@ export function createBrowserRuntimeImportRewritePlugin(
 	options: CreateBrowserRuntimeImportRewritePluginOptions,
 ): EcoBuildPlugin | null {
 	const specifierMap = getBrowserRuntimeSpecifierMap(options.manifest);
-	const publicPathSet = new Set(specifierMap.values());
-	const specifierFilter = new RegExp(`^(${Array.from(specifierMap.keys()).map(escapeRegExp).join('|')})$`);
+	const specifierFilter = buildSpecifierFilter(specifierMap);
 
-	if (specifierMap.size === 0) {
+	if (!specifierFilter) {
 		return null;
 	}
+
+	const publicPathSet = new Set(specifierMap.values());
 
 	const plugin: BrowserRuntimeImportRewritePlugin = {
 		name: options.name ?? DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,

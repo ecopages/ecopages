@@ -1,20 +1,7 @@
 import type { EcoBuildPlugin } from './build-types.ts';
+import { buildSpecifierFilter, toRuntimeSpecifierMap } from './browser-runtime-plugin-helpers.ts';
 
 type RuntimeSpecifierMap = ReadonlyMap<string, string> | Record<string, string>;
-
-/**
- * Normalizes runtime specifier input into a read-only map shape.
- */
-function toRuntimeSpecifierMap(specifierMap: RuntimeSpecifierMap): ReadonlyMap<string, string> {
-	return specifierMap instanceof Map ? specifierMap : new Map(Object.entries(specifierMap));
-}
-
-/**
- * Escapes a literal specifier for inclusion in a regular expression.
- */
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /**
  * Creates a build plugin that aliases runtime bare specifiers to concrete URLs.
@@ -32,12 +19,11 @@ export function createRuntimeSpecifierAliasPlugin(
 	},
 ): EcoBuildPlugin | null {
 	const specifierMap = toRuntimeSpecifierMap(specifierMapInput);
+	const filter = buildSpecifierFilter(specifierMap);
 
-	if (specifierMap.size === 0) {
+	if (!filter) {
 		return null;
 	}
-
-	const filter = new RegExp(`^(${Array.from(specifierMap.keys()).map(escapeRegExp).join('|')})$`);
 
 	return {
 		name: options?.name ?? 'runtime-specifier-alias',

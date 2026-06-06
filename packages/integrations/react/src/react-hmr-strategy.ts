@@ -12,7 +12,7 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { createBrowserRuntimeImportRewritePlugin } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
@@ -162,7 +162,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
 			this.runtimeManifest.assets.map((asset) => asset.specifier),
 		);
-		const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
+		const runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-hmr-runtime-import-rewrite',
 			manifest: this.runtimeManifest,
 		});

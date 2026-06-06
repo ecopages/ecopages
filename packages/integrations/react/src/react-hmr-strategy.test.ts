@@ -156,7 +156,7 @@ describe('ReactHmrStrategy', () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
 		}));
 		const build = vi.fn(async () => {
 			throw new Error('React HMR browser rebuild should not call the raw build executor.');
@@ -174,6 +174,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(entrypointPath, '/_hmr/pages/index.js');
 
@@ -199,7 +200,7 @@ describe('ReactHmrStrategy', () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
 		}));
 		const build = vi.fn(async () => {
 			throw new Error('React HMR metadata loading should not call the raw build executor.');
@@ -215,6 +216,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(
 			'/tmp/src/pages/index.tsx',
@@ -563,6 +565,7 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		(strategy as any).processOutput = vi.fn(async () => true);
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const outputs = await (strategy as any).bundleReactEntrypoints([
 			{
@@ -655,31 +658,7 @@ describe('ReactHmrStrategy', () => {
 		expect(removed.find((target) => target.endsWith('_hmr_runtime.js'))).toBeUndefined();
 	});
 
-	it('resolveTempOutputPath retries once after a short delay before falling back to the glob pattern', async () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const targetPath = '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
-		const existsSpy = vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === targetPath);
-		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
-
-		// First call returns false (race), second call (after 25ms) returns true.
-		let callCount = 0;
-		existsSpy.mockImplementation((p) => {
-			if (p !== targetPath) return false;
-			callCount += 1;
-			return callCount >= 2;
-		});
-
-		const resolved = await (strategy as any).resolveTempOutputPath(targetPath);
-		expect(resolved).toBe(targetPath);
-		expect(globSpy).not.toHaveBeenCalled();
-	});
-
-	it('resolveTempOutputPath still falls back to glob when neither retry hit finds the file', async () => {
+	it('resolveTempOutputPath falls back to glob when the literal path is missing', async () => {
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({}) as any,
 			pageMetadataCache: createPageMetadataCache() as any,
@@ -692,6 +671,20 @@ describe('ReactHmrStrategy', () => {
 
 		const resolved = await (strategy as any).resolveTempOutputPath(placeholder);
 		expect(resolved).toBe('/tmp/.eco/assets/_hmr/pages/index.999.tmp.js');
+	});
+
+	it('resolveTempOutputPath returns null when neither lookup nor glob finds the file', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
+
+		const resolved = await (strategy as any).resolveTempOutputPath('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
+		expect(resolved).toBeNull();
 	});
 
 	describe('dependency graph selective invalidation', () => {

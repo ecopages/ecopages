@@ -736,31 +736,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private async resolveTempOutputPath(tempPath: string): Promise<string | null> {
-		/**
-		 * Retry once after a tiny delay to absorb the case where the
-		 * esbuild worker has just finished writing the file but the
-		 * rename has not yet been observed by our filesystem. Without
-		 * this, a perfectly successful build can race the consumer
-		 * read and report a false ENOENT. See ADR-002 follow-up:
-		 * HMR ENOENT under splitting.
-		 *
-		 * Note: we preserve the original contract of returning
-		 * `tempPath` even when neither lookup hit a file, so the
-		 * downstream `processOutput` can apply its own
-		 * `exists`-then-`read` flow with ENOENT handling. Returning
-		 * `null` here would short-circuit that recovery path.
-		 */
-		if (fileSystem.exists(tempPath)) {
-			return tempPath;
-		}
-
-		await new Promise((resolve) => setTimeout(resolve, 25));
 		if (fileSystem.exists(tempPath)) {
 			return tempPath;
 		}
 
 		if (!tempPath.includes('[hash]')) {
-			return tempPath;
+			return null;
 		}
 
 		const directory = path.dirname(tempPath);
@@ -768,7 +749,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		const matches = await fileSystem.glob([pattern], { cwd: directory });
 
 		if (matches.length === 0) {
-			return tempPath;
+			return null;
 		}
 
 		return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);

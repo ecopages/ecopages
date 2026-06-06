@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
+import type { PluginBuild } from 'esbuild';
 import { test } from 'vitest';
 import { createEsbuildPluginBridge } from './esbuild-plugin-bridge.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
@@ -53,7 +54,7 @@ test('createEsbuildPluginBridge runs each supplied plugin.setup with a builder',
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 	assert.deepEqual(setupCalls, ['first', 'second'], 'plugins run in array order');
 	assert.equal(fake.resolveHandlers.length, 1, 'first plugin registered onResolve');
 	assert.equal(fake.loadHandlers.length, 1, 'second plugin registered onLoad');
@@ -71,7 +72,7 @@ test('createEsbuildPluginBridge translates onResolve results to esbuild shape', 
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'react', importer: '/app/index.ts' });
 	assert.deepEqual(result, { path: '/vendor/react.js', external: true });
@@ -89,7 +90,7 @@ test('createEsbuildPluginBridge resolves relative paths against the importer', a
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X', importer: '/app/sub/index.ts' });
 	assert.equal(result && (result as { path: string }).path, path.resolve('/app/sub', './sibling.ts'));
@@ -107,7 +108,7 @@ test('createEsbuildPluginBridge leaves absolute resolve paths untouched', async 
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X' });
 	assert.equal(result && (result as { path: string }).path, '/abs/path.ts');
@@ -125,7 +126,7 @@ test('createEsbuildPluginBridge returns undefined when resolve callback returns 
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X' });
 	assert.equal(result, undefined);
@@ -143,7 +144,7 @@ test('createEsbuildPluginBridge translates onLoad results with inferred loader',
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.loadHandlers[0]?.callback({ path: '/app/index.tsx' });
 	assert.deepEqual(result, {
@@ -168,7 +169,7 @@ test('createEsbuildPluginBridge onLoad synthesizes a module source from exports'
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = (await fake.loadHandlers[0]?.callback({ path: '/app/data.json' })) as {
 		contents: string;
@@ -191,7 +192,7 @@ test('createEsbuildPluginBridge onLoad returns undefined for empty results', asy
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	const result = await fake.loadHandlers[0]?.callback({ path: '/app/index.ts' });
 	assert.equal(result, undefined);
@@ -215,7 +216,7 @@ test('createEsbuildPluginBridge module registers a unique namespace per specifie
 
 	const bridge = createEsbuildPluginBridge(plugins, '/app');
 	const fake = createFakeEsbuildBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(fake.build as unknown as PluginBuild);
 
 	assert.equal(fake.resolveHandlers.length, 2);
 	assert.equal(fake.loadHandlers.length, 2);
@@ -224,9 +225,7 @@ test('createEsbuildPluginBridge module registers a unique namespace per specifie
 	assert.ok(loadNamespaces[1], 'second module has a load namespace');
 	assert.notEqual(loadNamespaces[0], loadNamespaces[1], 'namespaces are unique');
 
-	const resolveResults = await Promise.all(
-		fake.resolveHandlers.map((entry) => entry.callback({ path: 'X' })),
-	);
+	const resolveResults = await Promise.all(fake.resolveHandlers.map((entry) => entry.callback({ path: 'X' })));
 	assert.equal((resolveResults[0] as { namespace: string }).namespace, loadNamespaces[0]);
 	assert.equal((resolveResults[1] as { namespace: string }).namespace, loadNamespaces[1]);
 });

@@ -20,7 +20,7 @@ import path from 'node:path';
 
 export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 
-export type BuildOwnership = 'bun-native' | 'vite-host';
+export type BuildOwnership = 'bun-native' | 'vite-host' | 'rolldown';
 
 export interface BuildLog {
 	message: string;

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
 import { parseSync } from 'oxc-parser';
+import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import type { EcoBuildLoader, EcoBuildPlugin } from './build-types.ts';
 import { getBrowserRuntimeSpecifierMap, type BrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 
@@ -90,7 +91,7 @@ export function rewriteBrowserRuntimeImports(
 	const edits: Edit[] = [];
 
 	try {
-		const result = parseSync(filePath, code, {
+		const result = cachedParseSync(filePath, code, {
 			sourceType: 'module',
 			lang: path.extname(filePath).endsWith('x') ? 'tsx' : 'ts',
 		});

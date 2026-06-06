@@ -158,7 +158,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * HMR builds receive the React runtime manifest and rewrite manifest-owned
 	 * runtime imports to concrete asset URLs before module resolution.
 	 */
-	private getBuildPlugins(declaredModules?: string[]): EcoBuildPlugin[] {
+	private getBuildPlugins(declaredModules?: readonly string[]): EcoBuildPlugin[] {
 		const allowSpecifiers = getReactClientGraphAllowSpecifiers(
 			this.runtimeManifest.assets.map((asset) => asset.specifier),
 		);

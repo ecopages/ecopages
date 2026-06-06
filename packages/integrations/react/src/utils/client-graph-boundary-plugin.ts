@@ -19,10 +19,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { cachedParseSync } from '@ecopages/core/cache';
-import {
-	ClientGraphBoundaryCache,
-	type CachedTransform,
-} from './client-graph-boundary-cache.ts';
+import { ClientGraphBoundaryCache, type CachedTransform } from './client-graph-boundary-cache.ts';
 import type { RequestedExportRules } from './client-graph-boundary-cache.ts';
 import { analyzeReachability } from './reachability-analyzer.ts';
 
@@ -50,7 +47,7 @@ type ClientGraphBoundaryOptions = {
 	 * Array of module specifiers that are explicitly whitelisted to be bundled in the client code.
 	 * This is typically populated by parsing `modules: ["..."]` declarations in React/Lit components.
 	 */
-	declaredModules?: string[];
+	declaredModules?: readonly string[];
 	/** Array of emergency escape-hatch specifiers that always bypass the boundary checks regardless of component declarations. */
 	alwaysAllowSpecifiers?: string[];
 	/**
@@ -137,7 +134,7 @@ function toModuleBaseSpecifier(specifier: string): string {
  * @param moduleDeclarations - A list of module declaration strings.
  * @returns A structured map of allowed packages and their named exports.
  */
-function parseDeclaredModules(moduleDeclarations: string[] | undefined): Map<string, Set<string> | '*'> {
+function parseDeclaredModules(moduleDeclarations: readonly string[] | undefined): Map<string, Set<string> | '*'> {
 	const map = new Map<string, Set<string> | '*'>();
 	for (const declaration of moduleDeclarations ?? []) {
 		const source = declaration.trim();
@@ -401,9 +398,7 @@ function cloneRequestedExportRules(rules: RequestedExportRules): RequestedExport
 	return rules === '*' ? rules : new Set(rules);
 }
 
-function snapshotRegistry(
-	registry: Map<string, RequestedExportRules>,
-): Map<string, RequestedExportRules> {
+function snapshotRegistry(registry: Map<string, RequestedExportRules>): Map<string, RequestedExportRules> {
 	const out = new Map<string, RequestedExportRules>();
 	for (const [key, rules] of registry) {
 		out.set(key, cloneRequestedExportRules(rules));

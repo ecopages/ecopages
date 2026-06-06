@@ -142,9 +142,9 @@ different migration path, see [out of scope](#out-of-scope)).
 This is gated on ADR-002 (the bridge refactor) so the Rolldown
 adapter can reuse the shared bridge core.
 
-1. **`chore(deps): add @rolldown/core` to packages/core** — pin
-   `rolldown` at the same minor version used by the rolldown-vite
-   ecosystem.
+1. **`chore(deps): add rolldown to packages/core`** — pin
+   `rolldown` at the same version used by Vite 8, then move to the
+   stable 1.1.0 line. Workspace has both via pnpm dedupe.
 2. **`feat(build): add RolldownPluginBridge using shared core`** —
    one new file; reuses ADR-002's bridge core. Bridge-level unit
    tests with a fake Rolldown plugin context.

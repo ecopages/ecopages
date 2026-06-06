@@ -1,0 +1,315 @@
+/**
+ * Rolldown plugin bridge.
+ *
+ * @remarks
+ * Translates an array of `EcoBuildPlugin` instances (the runtime-agnostic
+ * plugin contract used by Ecopages processors and integrations) into a
+ * Rolldown `Plugin` array. The bridge exposes the same three hooks
+ * (`onResolve`, `onLoad`, `module`) the `EcoBuildPlugin` contract uses,
+ * but maps them to Rolldown's Rollup-style `resolveId`/`load` hooks.
+ *
+ * Extracted as a peer to the Bun/esbuild bridges per ADR-002, so the
+ * shared `EcoBuildPlugin` contract stays the boundary between
+ * integrations and bundler backends.
+ *
+ * **Namespace handling.**
+ *
+ * esbuild scopes `onResolve`/`onLoad` handlers with a `namespace` string.
+ * Rolldown encodes namespaces into the module id (no separate field). The
+ * bridge prepends `<namespace>:` to the resolved id when the result
+ * includes a namespace, and matches `onLoad`/`onResolve` filters against
+ * that prefix. The bridge strips the prefix before forwarding the id back
+ * to the callback so plugin code keeps seeing the same `path` shape it
+ * does on esbuild.
+ *
+ * **Plugin ordering is semantically significant.**
+ *
+ * Rolldown's `resolveId` and `load` are "first" hooks: the first plugin
+ * that returns a non-null value wins. Because the bridge translates each
+ * `EcoBuildPlugin` into its own Rolldown `Plugin` and preserves the array
+ * order, the position of each plugin in the `plugins` array determines
+ * its priority:
+ *
+ * - **Index 0** has the highest priority.
+ * - **Last index** has the lowest priority.
+ *
+ * When adding new integrations or processors, ensure security-critical
+ * plugins (e.g. `ecopages-client-graph-boundary`) are placed **before**
+ * general-purpose loaders in the array so they always get first refusal
+ * on every source file.
+ */
+
+import path from 'node:path';
+import type { LoadResult, PartialResolvedId, Plugin, ResolveIdResult, SourceDescription } from 'rolldown';
+import { escapeRegExp } from './browser-runtime-plugin-helpers.ts';
+import type {
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildOnResolveArgs,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+} from './build-types.ts';
+
+const NAMESPACE_SEPARATOR = ':';
+
+function joinNamespace(namespace: string | undefined, value: string): string {
+	return namespace ? `${namespace}${NAMESPACE_SEPARATOR}${value}` : value;
+}
+
+function splitNamespace(id: string): { namespace: string | undefined; path: string } {
+	const separatorIndex = id.indexOf(NAMESPACE_SEPARATOR);
+	if (separatorIndex <= 0) {
+		return { namespace: undefined, path: id };
+	}
+	return {
+		namespace: id.slice(0, separatorIndex),
+		path: id.slice(separatorIndex + 1),
+	};
+}
+
+function inferRolldownModuleTypeFromPath(filePath: string): string {
+	const extension = path.extname(filePath).toLowerCase();
+
+	switch (extension) {
+		case '.ts':
+			return 'ts';
+		case '.tsx':
+			return 'tsx';
+		case '.jsx':
+			return 'jsx';
+		case '.json':
+			return 'json';
+		case '.css':
+			return 'css';
+		default:
+			return 'js';
+	}
+}
+
+function normalizeRolldownModuleType(loader: unknown): string | undefined {
+	switch (loader) {
+		case 'js':
+		case 'jsx':
+		case 'ts':
+		case 'tsx':
+		case 'json':
+		case 'css':
+		case 'text':
+		case 'base64':
+		case 'dataurl':
+		case 'binary':
+		case 'empty':
+			return loader;
+		case 'global-css':
+		case 'local-css':
+			return 'css';
+		case 'file':
+		case 'copy':
+			return 'asset';
+		default:
+			return undefined;
+	}
+}
+
+function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string | undefined {
+	if (result.loader === 'object' && result.exports && typeof result.exports === 'object') {
+		return Object.entries(result.exports)
+			.map(([key, value]) =>
+				key === 'default'
+					? `export default ${JSON.stringify(value)};`
+					: `export const ${key} = ${JSON.stringify(value)};`,
+			)
+			.join('\n');
+	}
+
+	return undefined;
+}
+
+function buildIdFilter(filter: RegExp, namespace: string | undefined): RegExp {
+	if (!namespace) {
+		return filter;
+	}
+	return new RegExp(`^${escapeRegExp(namespace)}${NAMESPACE_SEPARATOR}${filter.source.slice(1)}`);
+}
+
+function resolvePluginPath(value: string, importer: string | undefined, contextRoot: string): string {
+	if (path.isAbsolute(value)) {
+		return value;
+	}
+
+	if (value.startsWith('.') || value.startsWith('..')) {
+		const baseDir = importer ? path.dirname(importer) : contextRoot;
+		return path.resolve(baseDir, value);
+	}
+
+	return value;
+}
+
+function convertPluginOnLoadResult(args: { id: string }, result: unknown): LoadResult | undefined {
+	if (!result || typeof result !== 'object') {
+		return undefined;
+	}
+
+	const candidate = result as EcoBuildOnLoadResult;
+	const { path: sourcePath } = splitNamespace(args.id);
+
+	const sourceFromExports = convertLoadResultToModuleSource(candidate);
+
+	if (sourceFromExports) {
+		const description: SourceDescription = {
+			code: sourceFromExports,
+			moduleType: 'js',
+		};
+		return description;
+	}
+
+	if (typeof candidate.contents === 'string' || candidate.contents instanceof Uint8Array) {
+		const code =
+			typeof candidate.contents === 'string' ? candidate.contents : new TextDecoder().decode(candidate.contents);
+		const description: SourceDescription = {
+			code,
+			moduleType: (normalizeRolldownModuleType(candidate.loader) ??
+				inferRolldownModuleTypeFromPath(sourcePath)) as SourceDescription['moduleType'],
+		};
+		return description;
+	}
+
+	return undefined;
+}
+
+function convertPluginOnResolveResult(
+	result: unknown,
+	importer: string | undefined,
+	contextRoot: string,
+): ResolveIdResult | undefined {
+	if (!result || typeof result !== 'object') {
+		return undefined;
+	}
+
+	const candidate = result as EcoBuildOnResolveResult;
+
+	if (typeof candidate.path !== 'string' && typeof candidate.namespace !== 'string') {
+		if (typeof candidate.external !== 'boolean') {
+			return undefined;
+		}
+	}
+
+	const partial: PartialResolvedId = { id: '' };
+
+	if (typeof candidate.path === 'string') {
+		partial.id = joinNamespace(
+			candidate.namespace,
+			resolvePluginPath(candidate.path, importer, contextRoot),
+		);
+	} else if (typeof candidate.namespace === 'string') {
+		partial.id = joinNamespace(candidate.namespace, '');
+	}
+
+	if (typeof candidate.external === 'boolean') {
+		partial.external = candidate.external;
+	}
+
+	return partial;
+}
+
+type ResolveCallback = (
+	args: EcoBuildOnResolveArgs,
+) => EcoBuildOnResolveResult | undefined | Promise<EcoBuildOnResolveResult | undefined>;
+
+type LoadCallback = (
+	args: EcoBuildOnLoadArgs,
+) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
+
+interface ResolveRegistration {
+	filter: RegExp;
+	callback: ResolveCallback;
+}
+
+interface LoadRegistration {
+	filter: RegExp;
+	callback: LoadCallback;
+}
+
+function wrapEcoPlugin(
+	ecoPlugin: EcoBuildPlugin,
+	contextRoot: string,
+	moduleCounter: { value: number },
+): Plugin {
+	const resolveRegistrations: ResolveRegistration[] = [];
+	const loadRegistrations: LoadRegistration[] = [];
+
+	const registerResolve = (filter: RegExp, callback: ResolveCallback): void => {
+		resolveRegistrations.push({ filter, callback });
+	};
+
+	const registerLoad = (filter: RegExp, callback: LoadCallback): void => {
+		loadRegistrations.push({ filter, callback });
+	};
+
+	return {
+		name: `ecopages-plugin-bridge:${ecoPlugin.name}`,
+		buildStart: async (): Promise<void> => {
+			const bridge: EcoBuildPluginBuilder = {
+				onResolve: (options, callback) => {
+					registerResolve(buildIdFilter(options.filter, options.namespace), callback);
+				},
+				onLoad: (options, callback) => {
+					registerLoad(buildIdFilter(options.filter, options.namespace), callback);
+				},
+				module: (specifier, callback) => {
+					const namespace = `ecopages-module-${moduleCounter.value}`;
+					moduleCounter.value += 1;
+					const filter = new RegExp(`^${escapeRegExp(specifier)}$`);
+
+					registerResolve(filter, async () => ({
+						path: joinNamespace(namespace, specifier),
+					}));
+
+					registerLoad(buildIdFilter(/.*/, namespace), async () => callback());
+				},
+			};
+
+			await ecoPlugin.setup(bridge);
+		},
+		resolveId: async (source, importer, _extraOptions) => {
+			for (const { filter, callback } of resolveRegistrations) {
+				if (!filter.test(source)) {
+					continue;
+				}
+				const { namespace, path: sourcePath } = splitNamespace(source);
+				const result = await callback({ path: sourcePath, importer, namespace });
+				const converted = convertPluginOnResolveResult(result, importer, contextRoot);
+				if (converted !== undefined) {
+					return converted;
+				}
+			}
+			return undefined;
+		},
+		load: async (id) => {
+			for (const { filter, callback } of loadRegistrations) {
+				if (!filter.test(id)) {
+					continue;
+				}
+				const { namespace, path: sourcePath } = splitNamespace(id);
+				const result = await callback({ path: sourcePath, namespace });
+				const converted = convertPluginOnLoadResult({ id }, result);
+				if (converted !== undefined) {
+					return converted;
+				}
+			}
+			return undefined;
+		},
+	};
+}
+
+/**
+ * Creates a Rolldown `Plugin` array that drives the supplied
+ * `EcoBuildPlugin` instances. Each `EcoBuildPlugin` becomes its own
+ * Rolldown plugin so that the order of registrations is preserved as
+ * plugin priority.
+ */
+export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Plugin[] {
+	const moduleCounter = { value: 0 };
+	return plugins.map((ecoPlugin) => wrapEcoPlugin(ecoPlugin, contextRoot, moduleCounter));
+}

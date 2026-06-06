@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 
 import { test } from 'vitest';
-import { createBunPluginBridge, type BunPluginBuilderLike } from './bun-plugin-bridge.ts';
+import { createBunPluginBridge } from './bun-plugin-bridge.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 
 type OnResolveArgs = { path: string; importer: string; namespace?: string };
@@ -15,16 +15,20 @@ function createFakeBunBuild() {
 	const resolveHandlers: Array<{ options: { filter: RegExp; namespace?: string }; callback: ResolveHandler }> = [];
 	const loadHandlers: Array<{ options: { filter: RegExp; namespace?: string }; callback: LoadHandler }> = [];
 
-	const build: BunPluginBuilderLike = {
-		onResolve(options, callback) {
+	const build = {
+		onResolve(options: { filter: RegExp; namespace?: string }, callback: ResolveHandler) {
 			resolveHandlers.push({ options, callback });
 		},
-		onLoad(options, callback) {
+		onLoad(options: { filter: RegExp; namespace?: string }, callback: LoadHandler) {
 			loadHandlers.push({ options, callback });
 		},
 	};
 
 	return { build, resolveHandlers, loadHandlers };
+}
+
+function asBunBuilder(build: ReturnType<typeof createFakeBunBuild>['build']): Bun.PluginBuilder {
+	return build as unknown as Bun.PluginBuilder;
 }
 
 test('createBunPluginBridge returns a named plugin object', () => {
@@ -53,7 +57,7 @@ test('createBunPluginBridge runs each supplied plugin.setup with a builder', asy
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 	assert.deepEqual(setupCalls, ['first', 'second'], 'plugins run in array order');
 	assert.equal(fake.resolveHandlers.length, 1, 'first plugin registered onResolve');
 	assert.equal(fake.loadHandlers.length, 1, 'second plugin registered onLoad');
@@ -71,7 +75,7 @@ test('createBunPluginBridge translates onResolve results to Bun shape', async ()
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'react', importer: '/app/index.ts' });
 	assert.deepEqual(result, { path: '/vendor/react.js', external: true });
@@ -89,7 +93,7 @@ test('createBunPluginBridge resolves relative paths against the importer', async
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X', importer: '/app/sub/index.ts' });
 	assert.equal(result && (result as { path: string }).path, path.resolve('/app/sub', './sibling.ts'));
@@ -107,7 +111,7 @@ test('createBunPluginBridge leaves absolute resolve paths untouched', async () =
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X', importer: '/app/index.ts' });
 	assert.equal(result && (result as { path: string }).path, '/abs/path.ts');
@@ -125,7 +129,7 @@ test('createBunPluginBridge returns undefined when resolve callback returns unde
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.resolveHandlers[0]?.callback({ path: 'X', importer: '/app/index.ts' });
 	assert.equal(result, undefined);
@@ -143,7 +147,7 @@ test('createBunPluginBridge onLoad returns tsx loader for .tsx files with explic
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.loadHandlers[0]?.callback({ path: '/app/index.tsx' });
 	assert.equal(result && (result as { loader: string }).loader, 'tsx');
@@ -165,7 +169,7 @@ test('createBunPluginBridge onLoad synthesizes a module source from exports', as
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = (await fake.loadHandlers[0]?.callback({ path: '/app/data.json' })) as {
 		contents: string;
@@ -188,7 +192,7 @@ test('createBunPluginBridge onLoad returns undefined for empty results', async (
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.loadHandlers[0]?.callback({ path: '/app/index.ts' });
 	assert.equal(result, undefined);
@@ -212,7 +216,7 @@ test('createBunPluginBridge module registers a unique namespace per specifier', 
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	assert.equal(fake.resolveHandlers.length, 2);
 	assert.equal(fake.loadHandlers.length, 2);
@@ -234,7 +238,7 @@ test('createBunPluginBridge normalizes local-css and global-css loaders to css',
 
 	const bridge = createBunPluginBridge(plugins, '/app');
 	const fake = createFakeBunBuild();
-	await bridge.setup(fake.build);
+	await bridge.setup(asBunBuilder(fake.build));
 
 	const result = await fake.loadHandlers[0]?.callback({ path: '/app/styles.css' });
 	assert.equal(result && (result as { loader: string }).loader, 'css');

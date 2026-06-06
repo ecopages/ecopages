@@ -10,58 +10,13 @@
  *
  * Extracted from `BunBuildAdapter` per ADR-002 so the bridge can be
  * unit-tested without spinning up a real Bun runtime.
- *
- * The bridge plugin object's type is `BunPlugin` from the Bun runtime;
- * we type it structurally here so this module does not import the Bun
- * types directly (Bun is a peer-of-the-runtime, not a hard dependency).
  */
 
 import path from 'node:path';
 import { escapeRegExp } from './browser-runtime-plugin-helpers.ts';
-import type {
-	EcoBuildOnLoadResult,
-	EcoBuildPlugin,
-	EcoBuildPluginBuilder,
-} from './build-types.ts';
+import type { EcoBuildOnLoadResult, EcoBuildPlugin, EcoBuildPluginBuilder } from './build-types.ts';
 
-type BunResolveResult = {
-	path?: string;
-	namespace?: string;
-	external?: boolean;
-};
-
-type BunLoadResult = {
-	contents?: string | Uint8Array;
-	loader?: string;
-	resolveDir?: string;
-};
-
-export type BunPluginBuilderLike = {
-	config?: {
-		external?: string[];
-	};
-	onResolve(
-		options: { filter: RegExp; namespace?: string },
-		callback: (args: { path: string; importer: string; namespace?: string }) =>
-			| BunResolveResult
-			| undefined
-			| Promise<BunResolveResult | undefined>,
-	): void;
-	onLoad(
-		options: { filter: RegExp; namespace?: string },
-		callback: (args: { path: string; namespace?: string }) =>
-			| BunLoadResult
-			| undefined
-			| Promise<BunLoadResult | undefined>,
-	): void;
-};
-
-export type BunPluginObject = {
-	name: string;
-	setup: (build: BunPluginBuilderLike) => void | Promise<void>;
-};
-
-function normalizeBunLoader(loader: unknown): string | undefined {
+function normalizeBunLoader(loader: unknown): Bun.Loader | undefined {
 	switch (loader) {
 		case 'js':
 		case 'jsx':
@@ -81,7 +36,7 @@ function normalizeBunLoader(loader: unknown): string | undefined {
 	}
 }
 
-function inferBunLoaderFromPath(filePath: string): string {
+function inferBunLoaderFromPath(filePath: string): Bun.Loader {
 	const extension = path.extname(filePath).toLowerCase();
 
 	switch (extension) {
@@ -114,10 +69,7 @@ function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string |
 	return undefined;
 }
 
-function convertPluginOnLoadResult(
-	args: { path: string },
-	result: unknown,
-): BunLoadResult | undefined {
+function convertPluginOnLoadResult(args: { path: string }, result: unknown): Bun.OnLoadResult | undefined {
 	if (!result || typeof result !== 'object') {
 		return undefined;
 	}
@@ -163,7 +115,7 @@ function resolvePluginPath(value: string, importer: string, contextRoot: string)
  * `EcoBuildPlugin` instances. The returned plugin's `setup` is async
  * because Bun callbacks may be async.
  */
-export function createBunPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): BunPluginObject {
+export function createBunPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Bun.BunPlugin {
 	return {
 		name: 'ecopages-plugin-bridge',
 		setup: async (build) => {
@@ -179,16 +131,20 @@ export function createBunPluginBridge(plugins: EcoBuildPlugin[], contextRoot: st
 						});
 
 						if (!result || typeof result !== 'object') {
-							return undefined;
+							return undefined as unknown as Bun.OnResolveResult;
 						}
 
-						return {
-							...(typeof result.path === 'string'
-								? { path: resolvePluginPath(result.path, args.importer, contextRoot) }
-								: {}),
-							...(typeof result.namespace === 'string' ? { namespace: result.namespace } : {}),
-							...(typeof result.external === 'boolean' ? { external: result.external } : {}),
-						};
+						const resolved: { path?: string; namespace?: string; external?: boolean } = {};
+						if (typeof result.path === 'string') {
+							resolved.path = resolvePluginPath(result.path, args.importer, contextRoot);
+						}
+						if (typeof result.namespace === 'string') {
+							resolved.namespace = result.namespace;
+						}
+						if (typeof result.external === 'boolean') {
+							resolved.external = result.external;
+						}
+						return resolved as Bun.OnResolveResult;
 					});
 				},
 				onLoad: (options, callback) => {

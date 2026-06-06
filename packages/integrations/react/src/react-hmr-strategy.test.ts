@@ -184,7 +184,6 @@ describe('ReactHmrStrategy', () => {
 				entrypoints: [entrypointPath],
 				outdir: path.join('/tmp/.eco/assets/_hmr', 'pages'),
 				naming: '[name].[hash].tmp',
-				cleanOutDir: true,
 				minify: false,
 			}),
 		);
@@ -580,7 +579,7 @@ describe('ReactHmrStrategy', () => {
 		);
 	});
 
-	it('bundleReactEntrypoints opts the grouped build into cleanOutDir to avoid stale chunk references', async () => {
+	it('bundleReactEntrypoints clears stale HMR output before the grouped build to avoid stale chunk references', async () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
@@ -608,10 +607,52 @@ describe('ReactHmrStrategy', () => {
 				profile: 'hmr-entrypoint',
 				entrypoints: ['/tmp/src/pages/index.tsx'],
 				splitting: true,
-				cleanOutDir: true,
 				naming: '[dir]/[name].[hash].tmp',
 			}),
 		);
+	});
+
+	it('clearHmrOutdir is a no-op when the outdir does not exist', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const existsSpy = vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
+		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
+
+		await (strategy as any).clearHmrOutdir('/nonexistent/dir');
+
+		expect(globSpy).not.toHaveBeenCalled();
+		expect(removeSpy).not.toHaveBeenCalled();
+		existsSpy.mockRestore();
+	});
+
+	it('clearHmrOutdir removes .tmp.js files and the chunks subdirectory but preserves the runtime script', async () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const tempFiles = [
+			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
+			'/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js',
+		];
+		vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === '/tmp/.eco/assets/_hmr' || p.endsWith('chunks'));
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['pages/index.123.tmp.js', 'pages/_slug_.456.tmp.js']);
+		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
+
+		await (strategy as any).clearHmrOutdir('/tmp/.eco/assets/_hmr');
+
+		const removed = removeSpy.mock.calls.map(([target]) => String(target));
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js');
+		expect(removed).toContain('/tmp/.eco/assets/_hmr/chunks');
+		// The runtime script must not be removed.
+		expect(removed.find((target) => target.endsWith('_hmr_runtime.js'))).toBeUndefined();
 	});
 
 	it('resolveTempOutputPath retries once after a short delay before falling back to the glob pattern', async () => {

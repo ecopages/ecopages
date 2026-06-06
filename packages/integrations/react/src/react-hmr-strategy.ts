@@ -598,12 +598,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(mdxPlugin);
 			}
 
+			await this.clearHmrOutdir(tempDir);
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: [entrypointPath],
 				outdir: tempDir,
 				naming: `[name].[hash].tmp`,
-				cleanOutDir: true,
 				plugins,
 				minify: false,
 			});
@@ -677,6 +677,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				plugins.unshift(createReactMdxLoaderPlugin(this.mdxCompilerOptions));
 			}
 
+			await this.clearHmrOutdir(this.context.getDistDir());
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: entrypoints.map(({ entrypointPath }) => entrypointPath),
@@ -684,7 +685,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 				outbase: this.context.getSrcDir(),
 				naming: '[dir]/[name].[hash].tmp',
 				splitting: true,
-				cleanOutDir: true,
 				plugins,
 				minify: false,
 			});
@@ -772,6 +772,38 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);
+	}
+
+	/**
+	 * Clears stale HMR output from a directory before a rebuild.
+	 *
+	 * Only removes:
+	 * - `*.tmp.js` files (the per-build esbuild output the strategy owns)
+	 * - the `chunks/` subdirectory (esbuild's splitting target)
+	 *
+	 * The HMR runtime script (`_hmr_runtime.js`) and any user-authored
+	 * assets in the outdir are preserved. This is the minimal set of
+	 * files that, if left from a previous build, can cause esbuild to
+	 * emit `ENOENT` for chunk references that point to entrypoints
+	 * whose hash has since changed.
+	 */
+	private async clearHmrOutdir(outdir: string): Promise<void> {
+		if (!fileSystem.exists(outdir)) {
+			return;
+		}
+
+		const tempFiles = await fileSystem.glob(['**/*.tmp.js'], { cwd: outdir });
+		await Promise.all(
+			tempFiles.map((relativePath) => {
+				const absolutePath = path.isAbsolute(relativePath) ? relativePath : path.join(outdir, relativePath);
+				return fileSystem.removeAsync(absolutePath).catch(() => undefined);
+			}),
+		);
+
+		const chunksDir = path.join(outdir, 'chunks');
+		if (fileSystem.exists(chunksDir)) {
+			await fileSystem.removeAsync(chunksDir).catch(() => undefined);
+		}
 	}
 
 	/**

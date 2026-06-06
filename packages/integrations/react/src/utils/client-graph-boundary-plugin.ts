@@ -18,7 +18,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { parseSync } from 'oxc-parser';
+import { cachedParseSync } from '@ecopages/core/cache';
+import {
+	ClientGraphBoundaryCache,
+	type CachedTransform,
+} from './client-graph-boundary-cache.ts';
+import type { RequestedExportRules } from './client-graph-boundary-cache.ts';
 import { analyzeReachability } from './reachability-analyzer.ts';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
@@ -48,6 +53,13 @@ type ClientGraphBoundaryOptions = {
 	declaredModules?: string[];
 	/** Array of emergency escape-hatch specifiers that always bypass the boundary checks regardless of component declarations. */
 	alwaysAllowSpecifiers?: string[];
+	/**
+	 * Persistent per-app cache for transform results. Owned by the React
+	 * plugin for the app's lifetime; survives across HMR rebuilds. When
+	 * omitted, transforms are still memoized inside the plugin for the
+	 * duration of a single build but not across builds.
+	 */
+	cache?: ClientGraphBoundaryCache;
 };
 
 /**
@@ -317,7 +329,6 @@ function stripServerOnlyEcoPageOptions(source: string, program: any): { transfor
  * `'*'` means the full module namespace is reachable, while a `Set` limits the
  * consumer to specific named exports.
  */
-type RequestedExportRules = Set<string> | '*';
 
 /**
  * Normalizes a file path into a registry key used for requested-export propagation.
@@ -386,6 +397,46 @@ function mergeRequestedExportRules(
 	}
 }
 
+function cloneRequestedExportRules(rules: RequestedExportRules): RequestedExportRules {
+	return rules === '*' ? rules : new Set(rules);
+}
+
+function snapshotRegistry(
+	registry: Map<string, RequestedExportRules>,
+): Map<string, RequestedExportRules> {
+	const out = new Map<string, RequestedExportRules>();
+	for (const [key, rules] of registry) {
+		out.set(key, cloneRequestedExportRules(rules));
+	}
+	return out;
+}
+
+function diffRequestedExportRules(
+	before: RequestedExportRules | undefined,
+	after: RequestedExportRules,
+): RequestedExportRules | undefined {
+	if (!before) {
+		return cloneRequestedExportRules(after);
+	}
+
+	if (before === '*') {
+		return undefined;
+	}
+
+	if (after === '*') {
+		return '*';
+	}
+
+	const addedRules = new Set<string>();
+	for (const rule of after) {
+		if (!before.has(rule)) {
+			addedRules.add(rule);
+		}
+	}
+
+	return addedRules.size > 0 ? addedRules : undefined;
+}
+
 /**
  * Parses a module using Oxc AST and surgically removes forbidden imports.
  * Filters down to the exact specifiers requested via `{namedImport}` syntax.
@@ -412,7 +463,7 @@ function transformModuleImports(
 	 */
 	let result;
 	try {
-		result = parseSync(filename, source, {
+		result = cachedParseSync(filename, source, {
 			sourceType: 'module',
 			lang: parserLanguageForFile(filename),
 		});
@@ -727,7 +778,7 @@ function transformModuleImports(
 
 	let reparsedResult;
 	try {
-		reparsedResult = parseSync(filename, transformed, {
+		reparsedResult = cachedParseSync(filename, transformed, {
 			sourceType: 'module',
 			lang: parserLanguageForFile(filename),
 		});
@@ -754,6 +805,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 		name: 'ecopages-client-graph-boundary',
 		setup(build) {
 			const absWorkingDir = options?.absWorkingDir ?? process.cwd();
+			const cache = options?.cache;
 			const globallyDeclaredSources = parseDeclaredModules(options?.declaredModules);
 			const requestedExports = new Map<string, RequestedExportRules>();
 			for (const alwaysAllow of options?.alwaysAllowSpecifiers ?? []) {
@@ -761,19 +813,37 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 			}
 
 			/**
-			 * Source-level transform: replace static `fs.readFileSync(path.resolve('./...'), 'utf-8')`
-			 * calls with the actual file content inlined as a string literal at build time.
-			 *
-			 * This prevents server/client hydration mismatches when components read files at module
-			 * scope — the browser bundle will contain the same content the server rendered, so React
-			 * never needs to enter client-render recovery mode.
+			 * Stable list of globally-allowed specifiers, used as part of
+			 * the cache key. Sorted on construction so iteration order is
+			 * deterministic for hashing.
 			 */
+			const allowListForCache = Array.from(globallyDeclaredSources.keys()).sort();
+
 			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) => {
 				let source: string;
 				try {
 					source = readFileSync(args.path, 'utf-8');
 				} catch {
 					return undefined;
+				}
+
+				/**
+				 * Fast path: if the cache has a transform result for this
+				 * exact (filePath, source, allowList) tuple, replay the
+				 * captured `rulesAdded` into the live registry and return
+				 * the cached transformed source. Skips the entire
+				 * `parseSync` + AST walk on a no-op rebuild.
+				 */
+				if (cache) {
+					const cached = cache.get(args.path, source, allowListForCache);
+					if (cached) {
+						for (const [moduleKey, rules] of cached.rulesAdded) {
+							mergeRequestedExportRules(requestedExports, moduleKey, rules);
+						}
+						if (!cached.modified) return undefined;
+						const ext = extname(args.path).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
+						return { contents: cached.transformed, loader: ext, resolveDir: dirname(args.path) };
+					}
 				}
 
 				let transformed = source;
@@ -809,6 +879,13 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					transformed = readFileTransformed;
 				}
 
+				// Snapshot the live registry so we can diff per-key after
+				// the transform. We must capture the **after-state** of
+				// every key the transform touched — including keys that
+				// already existed and grew via Set union or were promoted
+				// to `'*'`. A snapshot keyed only on newly-added entries
+				// would under-populate the registry on cache hit.
+				const registryBefore = snapshotRegistry(requestedExports);
 				const { transformed: oxcTransformed, modified: importsModified } = transformModuleImports(
 					transformed,
 					args.path,
@@ -819,6 +896,23 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				if (importsModified) {
 					modified = true;
 					transformed = oxcTransformed;
+				}
+
+				// Build the rulesAdded diff for cache storage.
+				if (cache) {
+					const rulesAdded = new Map<string, RequestedExportRules>();
+					for (const [key, afterRules] of requestedExports) {
+						const beforeRules = registryBefore.get(key);
+						const diff = diffRequestedExportRules(beforeRules, afterRules);
+						if (!diff) continue;
+						rulesAdded.set(key, diff);
+					}
+					const entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash'> = {
+						transformed,
+						modified,
+						rulesAdded,
+					};
+					cache.set(args.path, source, allowListForCache, entry);
 				}
 
 				if (!modified) return undefined;

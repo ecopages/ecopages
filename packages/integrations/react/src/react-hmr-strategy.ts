@@ -20,11 +20,13 @@ import type { DefaultHmrContext } from '@ecopages/core';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { injectHmrHandler } from './utils/hmr-scripts.ts';
 import { createClientGraphBoundaryPlugin } from './utils/client-graph-boundary-plugin.ts';
+import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from './utils/declared-modules.ts';
 import { someInConfigTree } from './utils/component-config-traversal.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
+import { PagesIndex } from './services/pages-index.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
@@ -37,6 +39,13 @@ export interface ReactHmrStrategyOptions {
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
 	explicitGraphEnabled?: boolean;
+	/**
+	 * Per-app cache for client-graph-boundary transform results. Owned by
+	 * the React plugin for the app's lifetime. When omitted, the strategy
+	 * uses a fresh in-memory cache that does not persist across HMR
+	 * rebuilds.
+	 */
+	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 type ImportedReactPageModule = {
@@ -117,6 +126,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private pageMetadataCache: ReactHmrPageMetadataCache;
 	private explicitGraphEnabled: boolean;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
+	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
+	private readonly pagesIndex: PagesIndex;
 
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
@@ -124,6 +135,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
 		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
+		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
+		this.pagesIndex = new PagesIndex({
+			pagesDir: this.context.getPagesDir(),
+			extensions: options.allTemplateExtensions,
+			isPageEntrypoint: (file) => this.isPageEntrypoint(file),
+		});
 		this.mdxCompilerOptions = options.mdxCompilerOptions;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -155,6 +172,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 				absWorkingDir: path.dirname(this.context.getSrcDir()),
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
+				cache: this.clientGraphBoundaryCache,
 			}),
 			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 			...this.context.getPlugins(),
@@ -321,23 +339,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private async collectReactPageBuildTargets(): Promise<ReactHmrBuildTarget[]> {
-		const pagesDir = this.context.getPagesDir();
-		const scannedFiles = await fileSystem.glob(
-			this.allTemplateExtensions.map((extension) => `**/*${extension}`),
-			{ cwd: pagesDir },
-		);
+		await this.pagesIndex.refresh();
+		const indexed = this.pagesIndex.list();
 		const targets = new Map<string, ReactHmrBuildTarget>();
 
-		for (const file of scannedFiles) {
-			if (file.includes('.ecopages-node.')) {
-				continue;
-			}
-
-			const entrypointPath = path.join(pagesDir, file);
-			if (!this.isPageEntrypoint(entrypointPath)) {
-				continue;
-			}
-
+		for (const entrypointPath of indexed) {
 			this.pageMetadataCache.markOwnedEntrypoint(entrypointPath);
 			targets.set(entrypointPath, {
 				entrypointPath,
@@ -570,11 +576,21 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const { outputPath } = this.getEntrypointOutput(entrypointPath);
 			const tempDir = path.dirname(outputPath);
 
-			const declaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
-				? this.pageMetadataCache.getDeclaredModules(entrypointPath)!
-				: isMdx
+			const cachedDeclared = this.pageMetadataCache.getDeclaredModules(entrypointPath);
+			let entrypointDeclaredModules: readonly string[];
+			let declaredModules: readonly string[];
+			if (cachedDeclared) {
+				entrypointDeclaredModules = cachedDeclared;
+				declaredModules = cachedDeclared;
+			} else {
+				entrypointDeclaredModules = isMdx
 					? await collectPageDeclaredModules(entrypointPath)
 					: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
+				// Populate the cache so subsequent rebuilds (single or grouped)
+				// don't re-import the page module on the Node side.
+				this.pageMetadataCache.setDeclaredModules(entrypointPath, entrypointDeclaredModules);
+				declaredModules = entrypointDeclaredModules;
+			}
 			const plugins = this.getBuildPlugins(declaredModules);
 
 			if (isMdx && this.mdxCompilerOptions) {

@@ -21,6 +21,7 @@ import type { ReactRouterAdapter } from './router-adapter.ts';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
+import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
@@ -131,6 +132,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 	private readonly runtimeBundleService: ReactRuntimeBundleService;
 	private readonly hmrPageMetadataCache: ReactHmrPageMetadataCache;
+	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
@@ -155,6 +157,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.mdxEnabled = Boolean(rendererConfig.mdxCompilerOptions);
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new ReactHmrPageMetadataCache();
+		this.clientGraphBoundaryCache = new ClientGraphBoundaryCache();
 		this.explicitGraphEnabled = rendererConfig.explicitGraphEnabled ?? false;
 		this.rendererConfig = {
 			...rendererConfig,
@@ -265,6 +268,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			ownedTemplateExtensions: this.extensions,
 			allTemplateExtensions: this.appConfig.templatesExt,
 			explicitGraphEnabled: this.explicitGraphEnabled,
+			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 		});
 	}
 }

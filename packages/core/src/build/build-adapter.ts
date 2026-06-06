@@ -12,6 +12,7 @@ import {
 } from './build-manifest.ts';
 import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
 import { createBunPluginBridge } from './bun-plugin-bridge.ts';
+import { createRolldownBuildAdapter, RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import { getBunRuntime } from '../utils/runtime.ts';
@@ -585,27 +586,49 @@ export function createViteHostBuildAdapter(): BuildAdapter {
 	return new ViteHostBuildAdapter();
 }
 
+/**
+ * Returns `true` when the `ECOPAGES_USE_ROLLDOWN=1` flag is set.
+ *
+ * @remarks
+ * Per ADR-003 step 5, this is the only knob that flips the default
+ * build adapter to Rolldown. Step 6 removes the flag and the Bun/esbuild
+ * adapters entirely.
+ */
+export function isRolldownBuildEnabled(): boolean {
+	return process.env.ECOPAGES_USE_ROLLDOWN === '1';
+}
+
 export function createBuildAdapter(options?: { ownership?: BuildOwnership }): BuildAdapter {
-	switch (options?.ownership ?? 'bun-native') {
+	const requested = options?.ownership ?? (isRolldownBuildEnabled() ? 'rolldown' : 'bun-native');
+	switch (requested) {
 		case 'vite-host':
 			return createViteHostBuildAdapter();
+		case 'rolldown':
+			return createRolldownBuildAdapter();
 		case 'bun-native':
 		default:
 			return createBunBuildAdapter();
 	}
 }
 
+export const defaultRolldownBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'rolldown' });
 export const defaultBunBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'bun-native' });
 export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'vite-host' });
+
 /**
- * Bun-native fallback export for callsites that still resolve build state
- * globally.
+ * Resolves the global default build adapter, honoring the
+ * `ECOPAGES_USE_ROLLDOWN=1` opt-in flag.
  *
  * New app-aware code should prefer `getAppBuildAdapter()`.
  */
-export const defaultBuildAdapter: BuildAdapter = defaultBunBuildAdapter;
+export const defaultBuildAdapter: BuildAdapter = isRolldownBuildEnabled()
+	? defaultRolldownBuildAdapter
+	: defaultBunBuildAdapter;
 
 export function getDefaultBuildAdapter(ownership: BuildOwnership = 'bun-native'): BuildAdapter {
+	if (ownership === 'rolldown') {
+		return defaultRolldownBuildAdapter;
+	}
 	return ownership === 'vite-host' ? defaultViteHostBuildAdapter : defaultBunBuildAdapter;
 }
 

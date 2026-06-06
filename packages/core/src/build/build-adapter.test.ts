@@ -19,6 +19,7 @@ import {
 	getAppBuildExecutor,
 	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
+	isRolldownBuildEnabled,
 	setAppBuildAdapter,
 	setAppBuildOwnership,
 	setAppBuildManifest,
@@ -26,6 +27,7 @@ import {
 	updateAppBuildManifest,
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
+import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import type { EcoBuildPluginBuilder } from './build-types.ts';
@@ -53,6 +55,30 @@ test('defaultBuildAdapter remains the Bun-native fallback backed by the Bun adap
 	assert.equal(defaultBuildAdapter, defaultBunBuildAdapter);
 	assert.ok(!(defaultBuildAdapter instanceof EsbuildBuildAdapter));
 	assert.equal(defaultBuildAdapter.ownership, 'bun-native');
+});
+
+test('createBuildAdapter with ownership: "rolldown" returns the RolldownBuildAdapter', () => {
+	const rolldownAdapter = createBuildAdapter({ ownership: 'rolldown' });
+	assert.ok(rolldownAdapter instanceof RolldownBuildAdapter);
+	assert.equal(rolldownAdapter.ownership, 'rolldown');
+});
+
+test('ECOPAGES_USE_ROLLDOWN=1 opt-in is reflected in isRolldownBuildEnabled()', () => {
+	const original = process.env.ECOPAGES_USE_ROLLDOWN;
+	try {
+		process.env.ECOPAGES_USE_ROLLDOWN = '1';
+		assert.equal(isRolldownBuildEnabled(), true);
+		process.env.ECOPAGES_USE_ROLLDOWN = '0';
+		assert.equal(isRolldownBuildEnabled(), false);
+		delete process.env.ECOPAGES_USE_ROLLDOWN;
+		assert.equal(isRolldownBuildEnabled(), false);
+	} finally {
+		if (original === undefined) {
+			delete process.env.ECOPAGES_USE_ROLLDOWN;
+		} else {
+			process.env.ECOPAGES_USE_ROLLDOWN = original;
+		}
+	}
 });
 
 test('createBuildAdapter makes Bun-native and Vite-host ownership explicit', () => {

@@ -84,16 +84,16 @@ function main(): void {
 	for (const file of vitestData.files) {
 		for (const group of file.groups) {
 			for (const bench of group.benchmarks) {
-			scenarios[bench.name] = {
-				count: bench.sampleCount,
-				min: ms(bench.min),
-				max: ms(bench.max),
-				mean: ms(bench.mean),
-				median: ms(bench.p50 ?? bench.mean),
-				p75: ms(bench.p75),
-				p99: ms(bench.p99),
-				hz: Math.round(bench.hz),
-			};
+				scenarios[bench.name] = {
+					count: bench.sampleCount,
+					min: ms(bench.min),
+					max: ms(bench.max),
+					mean: ms(bench.mean),
+					median: ms(bench.p50 ?? bench.mean),
+					p75: ms(bench.p75),
+					p99: ms(bench.p99),
+					hz: Math.round(bench.hz),
+				};
 			}
 		}
 	}
@@ -107,9 +107,7 @@ function main(): void {
 	};
 
 	writeFileSync(BASELINE_FILE, JSON.stringify(baseline, null, 2), 'utf-8');
-	console.log(
-		`Wrote ${BASELINE_FILE} with ${Object.keys(scenarios).length} scenarios.`,
-	);
+	console.log(`Wrote ${BASELINE_FILE} with ${Object.keys(scenarios).length} scenarios.`);
 	console.log('  Commit this file to track perf evolution. Use "pnpm test:bench:compare" to diff against it.');
 
 	mkdirSync(RESULTS_DIR, { recursive: true });

@@ -1,194 +1,194 @@
 {
-  "generatedAt": "2026-06-06T13:26:32.444Z",
-  "runtime": "node v24.15.0",
-  "platform": "darwin",
-  "scenarios": {
-    "production single page (minify + treeshake)": {
-      "count": 502,
-      "min": 2.483,
-      "max": 7.912,
-      "mean": 2.991,
-      "median": 2.991,
-      "p75": 3.021,
-      "p99": 5.957,
-      "hz": 334
-    },
-    "production all pages (minify + treeshake + splitting)": {
-      "count": 265,
-      "min": 4.952,
-      "max": 8.993,
-      "mean": 5.665,
-      "median": 5.665,
-      "p75": 5.751,
-      "p99": 8.608,
-      "hz": 177
-    },
-    "heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)": {
-      "count": 732,
-      "min": 2.084,
-      "max": 8.999,
-      "mean": 2.734,
-      "median": 2.734,
-      "p75": 2.519,
-      "p99": 6.672,
-      "hz": 366
-    },
-    "React page rebuild (react-lab.react.tsx)": {
-      "count": 501,
-      "min": 2.427,
-      "max": 8.844,
-      "mean": 2.994,
-      "median": 2.994,
-      "p75": 3.001,
-      "p99": 6.066,
-      "hz": 334
-    },
-    "layout rebuild (base-layout.kita.tsx)": {
-      "count": 494,
-      "min": 2.418,
-      "max": 16.818,
-      "mean": 3.037,
-      "median": 3.037,
-      "p75": 2.945,
-      "p99": 9.343,
-      "hz": 329
-    },
-    "shared-component rebuild (react-counter.react.tsx)": {
-      "count": 529,
-      "min": 2.41,
-      "max": 6.205,
-      "mean": 2.836,
-      "median": 2.836,
-      "p75": 2.838,
-      "p99": 5.83,
-      "hz": 353
-    },
-    "concurrent rebuilds (5 parallel)": {
-      "count": 238,
-      "min": 4.773,
-      "max": 13.335,
-      "mean": 6.315,
-      "median": 6.315,
-      "p75": 6.271,
-      "p99": 12.77,
-      "hz": 158
-    },
-    "no-op rebuild (file unchanged)": {
-      "count": 538,
-      "min": 2.341,
-      "max": 7.994,
-      "mean": 2.79,
-      "median": 2.79,
-      "p75": 2.777,
-      "p99": 5.998,
-      "hz": 358
-    },
-    "React page (.react.tsx)": {
-      "count": 533,
-      "min": 2.397,
-      "max": 7.365,
-      "mean": 2.816,
-      "median": 2.816,
-      "p75": 2.82,
-      "p99": 5.786,
-      "hz": 355
-    },
-    "React server-metadata page (.react.tsx)": {
-      "count": 297,
-      "min": 4.504,
-      "max": 7.953,
-      "mean": 5.063,
-      "median": 5.063,
-      "p75": 5.07,
-      "p99": 7.706,
-      "hz": 198
-    },
-    "React server-files index (.react.tsx)": {
-      "count": 295,
-      "min": 4.599,
-      "max": 8.637,
-      "mean": 5.1,
-      "median": 5.1,
-      "p75": 5.083,
-      "p99": 8.05,
-      "hz": 196
-    },
-    "KitaJS page (.kita.tsx)": {
-      "count": 417,
-      "min": 3.127,
-      "max": 7.174,
-      "mean": 3.597,
-      "median": 3.597,
-      "p75": 3.572,
-      "p99": 6.704,
-      "hz": 278
-    },
-    "KitaJS transitions page (.kita.tsx)": {
-      "count": 357,
-      "min": 3.608,
-      "max": 14.671,
-      "mean": 4.203,
-      "median": 4.203,
-      "p75": 4.175,
-      "p99": 7.521,
-      "hz": 238
-    },
-    "KitaJS postcss page (.kita.tsx)": {
-      "count": 456,
-      "min": 2.821,
-      "max": 6.935,
-      "mean": 3.293,
-      "median": 3.293,
-      "p75": 3.247,
-      "p99": 6.469,
-      "hz": 304
-    },
-    "KitaJS dynamic route catalog/[slug].kita.tsx": {
-      "count": 384,
-      "min": 3.052,
-      "max": 11.708,
-      "mean": 3.917,
-      "median": 3.917,
-      "p75": 3.709,
-      "p99": 8.568,
-      "hz": 255
-    },
-    "Lit page (.lit.tsx)": {
-      "count": 152,
-      "min": 8.329,
-      "max": 30.935,
-      "mean": 10.053,
-      "median": 10.053,
-      "p75": 9.785,
-      "p99": 17.726,
-      "hz": 99
-    },
-    "Ecopages-JSX page (.eco.tsx)": {
-      "count": 148,
-      "min": 8.793,
-      "max": 21.319,
-      "mean": 10.191,
-      "median": 10.191,
-      "p75": 9.926,
-      "p99": 15.904,
-      "hz": 98
-    },
-    "repeated rebuild of a single React page": {
-      "count": 695,
-      "min": 2.381,
-      "max": 6.325,
-      "mean": 2.882,
-      "median": 2.882,
-      "p75": 2.874,
-      "p99": 5.865,
-      "hz": 347
-    }
-  },
-  "notes": [
-    "Bench uses Vitest native bench() API (tinybench under the hood).",
-    "Each bench runs until `time` ms elapse, then reports min/median/p75/p99/etc.",
-    "Bundle path is fast: single-file rebuilds complete in single-digit ms on the kitchen-sink.",
-    "Heavy library import graph (react + react-dom + lit + kitajs + mdx) added in heavy-bench.bench.ts.",
-    "Run `pnpm test:bench:compare` to diff current results against this baseline."
-  ]
+	"generatedAt": "2026-06-06T13:26:32.444Z",
+	"runtime": "node v24.15.0",
+	"platform": "darwin",
+	"scenarios": {
+		"production single page (minify + treeshake)": {
+			"count": 502,
+			"min": 2.483,
+			"max": 7.912,
+			"mean": 2.991,
+			"median": 2.991,
+			"p75": 3.021,
+			"p99": 5.957,
+			"hz": 334
+		},
+		"production all pages (minify + treeshake + splitting)": {
+			"count": 265,
+			"min": 4.952,
+			"max": 8.993,
+			"mean": 5.665,
+			"median": 5.665,
+			"p75": 5.751,
+			"p99": 8.608,
+			"hz": 177
+		},
+		"heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)": {
+			"count": 732,
+			"min": 2.084,
+			"max": 8.999,
+			"mean": 2.734,
+			"median": 2.734,
+			"p75": 2.519,
+			"p99": 6.672,
+			"hz": 366
+		},
+		"React page rebuild (react-lab.react.tsx)": {
+			"count": 501,
+			"min": 2.427,
+			"max": 8.844,
+			"mean": 2.994,
+			"median": 2.994,
+			"p75": 3.001,
+			"p99": 6.066,
+			"hz": 334
+		},
+		"layout rebuild (base-layout.kita.tsx)": {
+			"count": 494,
+			"min": 2.418,
+			"max": 16.818,
+			"mean": 3.037,
+			"median": 3.037,
+			"p75": 2.945,
+			"p99": 9.343,
+			"hz": 329
+		},
+		"shared-component rebuild (react-counter.react.tsx)": {
+			"count": 529,
+			"min": 2.41,
+			"max": 6.205,
+			"mean": 2.836,
+			"median": 2.836,
+			"p75": 2.838,
+			"p99": 5.83,
+			"hz": 353
+		},
+		"concurrent rebuilds (5 parallel)": {
+			"count": 238,
+			"min": 4.773,
+			"max": 13.335,
+			"mean": 6.315,
+			"median": 6.315,
+			"p75": 6.271,
+			"p99": 12.77,
+			"hz": 158
+		},
+		"no-op rebuild (file unchanged)": {
+			"count": 538,
+			"min": 2.341,
+			"max": 7.994,
+			"mean": 2.79,
+			"median": 2.79,
+			"p75": 2.777,
+			"p99": 5.998,
+			"hz": 358
+		},
+		"React page (.react.tsx)": {
+			"count": 533,
+			"min": 2.397,
+			"max": 7.365,
+			"mean": 2.816,
+			"median": 2.816,
+			"p75": 2.82,
+			"p99": 5.786,
+			"hz": 355
+		},
+		"React server-metadata page (.react.tsx)": {
+			"count": 297,
+			"min": 4.504,
+			"max": 7.953,
+			"mean": 5.063,
+			"median": 5.063,
+			"p75": 5.07,
+			"p99": 7.706,
+			"hz": 198
+		},
+		"React server-files index (.react.tsx)": {
+			"count": 295,
+			"min": 4.599,
+			"max": 8.637,
+			"mean": 5.1,
+			"median": 5.1,
+			"p75": 5.083,
+			"p99": 8.05,
+			"hz": 196
+		},
+		"KitaJS page (.kita.tsx)": {
+			"count": 417,
+			"min": 3.127,
+			"max": 7.174,
+			"mean": 3.597,
+			"median": 3.597,
+			"p75": 3.572,
+			"p99": 6.704,
+			"hz": 278
+		},
+		"KitaJS transitions page (.kita.tsx)": {
+			"count": 357,
+			"min": 3.608,
+			"max": 14.671,
+			"mean": 4.203,
+			"median": 4.203,
+			"p75": 4.175,
+			"p99": 7.521,
+			"hz": 238
+		},
+		"KitaJS postcss page (.kita.tsx)": {
+			"count": 456,
+			"min": 2.821,
+			"max": 6.935,
+			"mean": 3.293,
+			"median": 3.293,
+			"p75": 3.247,
+			"p99": 6.469,
+			"hz": 304
+		},
+		"KitaJS dynamic route catalog/[slug].kita.tsx": {
+			"count": 384,
+			"min": 3.052,
+			"max": 11.708,
+			"mean": 3.917,
+			"median": 3.917,
+			"p75": 3.709,
+			"p99": 8.568,
+			"hz": 255
+		},
+		"Lit page (.lit.tsx)": {
+			"count": 152,
+			"min": 8.329,
+			"max": 30.935,
+			"mean": 10.053,
+			"median": 10.053,
+			"p75": 9.785,
+			"p99": 17.726,
+			"hz": 99
+		},
+		"Ecopages-JSX page (.eco.tsx)": {
+			"count": 148,
+			"min": 8.793,
+			"max": 21.319,
+			"mean": 10.191,
+			"median": 10.191,
+			"p75": 9.926,
+			"p99": 15.904,
+			"hz": 98
+		},
+		"repeated rebuild of a single React page": {
+			"count": 695,
+			"min": 2.381,
+			"max": 6.325,
+			"mean": 2.882,
+			"median": 2.882,
+			"p75": 2.874,
+			"p99": 5.865,
+			"hz": 347
+		}
+	},
+	"notes": [
+		"Bench uses Vitest native bench() API (tinybench under the hood).",
+		"Each bench runs until `time` ms elapse, then reports min/median/p75/p99/etc.",
+		"Bundle path is fast: single-file rebuilds complete in single-digit ms on the kitchen-sink.",
+		"Heavy library import graph (react + react-dom + lit + kitajs + mdx) added in heavy-bench.bench.ts.",
+		"Run `pnpm test:bench:compare` to diff current results against this baseline."
+	]
 }

@@ -6,6 +6,7 @@ Uses the `playground/kitchen-sink` example as a real-world workload.
 ## Scope (what we measure, what we don't)
 
 **In scope (this bench):**
+
 - `BrowserBundleService.bundle()` cost for the four HMR scenarios that the
   watcher actually triggers
 - Production build cost (single page and all pages, minify + treeshake)
@@ -17,6 +18,7 @@ Uses the `playground/kitchen-sink` example as a real-world workload.
 - Heap stability across 100 rebuilds
 
 **Out of scope (deferred):**
+
 - End-to-end HMR (file touch → chokidar → strategy → bundle → WS broadcast).
   The previous implementation kept failing the subprocess spawn under
   vitest's worker isolation. The user's "2s HMR" claim is now localized
@@ -40,9 +42,9 @@ default CI.
 
 ## Output
 
-| File | Purpose |
-|---|---|
-| `results/vitest-bench.json` | Raw vitest `outputJson` from the latest run. Gitignored (regenerate freely). |
+| File                          | Purpose                                                                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `results/vitest-bench.json`   | Raw vitest `outputJson` from the latest run. Gitignored (regenerate freely).                                                                                      |
 | `results/bench-baseline.json` | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
 
 The vitest `--compare` flag diffs the latest run against the baseline and
@@ -55,10 +57,10 @@ prints per-scenario ratios (e.g. `1.10x slower than baseline`).
 1. Land optimization work in a PR
 2. Run `pnpm test:bench` locally
 3. If numbers improve (or are within noise), update the baseline:
-   ```bash
-   pnpm test:bench:baseline
-   git add playground/kitchen-sink/bench/results/bench-baseline.json
-   ```
+    ```bash
+    pnpm test:bench:baseline
+    git add playground/kitchen-sink/bench/results/bench-baseline.json
+    ```
 4. Mention the deltas in the PR description
 
 This gives a versioned history of bundle-path perf over time.
@@ -66,6 +68,7 @@ This gives a versioned history of bundle-path perf over time.
 ## Baseline (Phase 1, post PR-1.1 + PR-1.2, 2026-06-06)
 
 HMR scenarios (single integration, hot path):
+
 ```
 Scenario                                          | median (ms) | p99 (ms) |   hz
 --------------------------------------------------|-------------|----------|------
@@ -81,6 +84,7 @@ repeated rebuild (100 iters, memory probe)         |        2.78 |    5.45  |  3
 ```
 
 Cross-integration (one representative page per integration):
+
 ```
 Scenario                                          | median (ms) | p99 (ms) |   hz
 --------------------------------------------------|-------------|----------|------
@@ -97,16 +101,16 @@ Ecopages-JSX (eco-entry)                           |       10.25 |   16.47  |   
 
 **Phase 1 wins (PR-1.1 ModuleParseCache + PR-1.2 ClientGraphBoundaryCache):**
 
-| Scenario | Phase 0 | Phase 1 | Speedup |
-|---|---|---|---|
-| production single page | 7.49 | 2.88 | **2.6×** |
-| React page rebuild | 6.04 | 2.84 | **2.1×** |
-| **React server-metadata** | **22.88** | **5.05** | **4.5×** |
-| **React server-files** | **53.95** | **5.11** | **10.6×** |
-| **Lit page** | **41.95** | **9.52** | **4.4×** |
-| Ecopages-JSX | 27.85 | 10.25 | 2.7× |
-| Concurrent rebuilds (5×) | 16.46 | 6.26 | 2.6× |
-| no-op rebuild | 7.26 | 2.77 | 2.6× |
+| Scenario                  | Phase 0   | Phase 1  | Speedup   |
+| ------------------------- | --------- | -------- | --------- |
+| production single page    | 7.49      | 2.88     | **2.6×**  |
+| React page rebuild        | 6.04      | 2.84     | **2.1×**  |
+| **React server-metadata** | **22.88** | **5.05** | **4.5×**  |
+| **React server-files**    | **53.95** | **5.11** | **10.6×** |
+| **Lit page**              | **41.95** | **9.52** | **4.4×**  |
+| Ecopages-JSX              | 27.85     | 10.25    | 2.7×      |
+| Concurrent rebuilds (5×)  | 16.46     | 6.26     | 2.6×      |
+| no-op rebuild             | 7.26      | 2.77     | 2.6×      |
 
 **Note on PR-1.2 (ClientGraphBoundaryCache):** the in-process bench
 bypasses the HMR strategy, so the cache is not exercised in

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
+import { AliasResolverCache } from './alias-resolver-cache.ts';
 
 const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mdx', '.css', '.scss', '.sass', '.less'];
 
@@ -54,18 +55,23 @@ export function resolveAppSourceAliasPath(srcDir: string, specifier: string): st
 	return resolved ? resolveAliasedBarrelTarget(resolved) : undefined;
 }
 
-export function createAliasResolverPlugin(srcDir: string): EcoBuildPlugin {
+export function createAliasResolverPlugin(
+	srcDir: string,
+	options?: { cache?: AliasResolverCache },
+): EcoBuildPlugin {
+	const cache = options?.cache ?? new AliasResolverCache();
 	return {
 		name: 'ecopages-alias-resolver',
 		setup(build) {
 			build.onResolve({ filter: /^@\// }, (args) => {
-				const resolved = resolveAppSourceAliasPath(srcDir, args.path);
-
-				if (resolved) {
-					return { path: resolved };
+				const cached = cache.get(srcDir, args.path);
+				if (cached.hit) {
+					return cached.resolved ? { path: cached.resolved } : {};
 				}
 
-				return {};
+				const resolved = resolveAppSourceAliasPath(srcDir, args.path);
+				cache.set(srcDir, args.path, resolved);
+				return resolved ? { path: resolved } : {};
 			});
 		},
 	};

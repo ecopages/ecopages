@@ -138,6 +138,10 @@
 			"types": "./src/build/browser-runtime-import-rewrite-plugin.ts",
 			"default": "./src/build/browser-runtime-import-rewrite-plugin.ts"
 		},
+		"./build/browser-runtime-plugin": {
+			"types": "./src/build/browser-runtime-plugin.ts",
+			"default": "./src/build/browser-runtime-plugin.ts"
+		},
 		"./build/runtime-specifier-alias-plugin": {
 			"types": "./src/build/runtime-specifier-alias-plugin.ts",
 			"default": "./src/build/runtime-specifier-alias-plugin.ts"

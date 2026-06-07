@@ -1,27 +1,25 @@
 /**
- * Rolldown build adapter.
+ * Bundler-backed build adapter.
  *
  * @remarks
- * Implements {@link BuildAdapter} on top of the `rolldown` package. This
- * is the sole bundler adapter going forward per ADR-003: both the
- * previous `EsbuildBuildAdapter` and `BunBuildAdapter` are removed in
- * the same release.
+ * Implements {@link BuildAdapter} on top of the bundler. This is the
+ * default adapter installed by `ConfigBuilder` and the only adapter
+ * that issues real builds in production.
  *
- * The adapter:
+ * Responsibilities:
  *
- * - Wraps `rolldown.build()` with our `BuildOptions` shape and maps the
- *   Rolldown `BuildOutput` to `BuildResult` (outputs + dependency graph).
- * - Uses {@link createRolldownPluginBridge} so callers can keep
- *   registering the runtime-agnostic `EcoBuildPlugin[]` array.
- * - Surfaces a single `getTranspileOptions` profile table shared across
- *   the previous esbuild adapter, so HMR / browser-script profiles
- *   keep their existing shape.
+ * - Map {@link BuildOptions} to the bundler's native options and
+ *   return a {@link BuildResult} (outputs + dependency graph).
+ * - Translate the runtime-agnostic `EcoBuildPlugin[]` via the bundled
+ *   plugin bridge, preserving plugin-priority order by giving each
+ *   plugin its own slot.
+ * - Run the browser-runtime-import rewriter against the emitted
+ *   JavaScript outputs when the manifest declares a rewrite map.
  *
- * Module graph extraction: the previous esbuild adapter walked
- * `metafile.outputs[*].inputs`. Rolldown's `OutputChunk` already groups
- * modules per chunk, so we just read `OutputChunk.moduleIds`. The
- * `BuildDependencyGraph.entrypoints` shape is preserved so callers that
- * consume it (HMR invalidation, build manifest) do not change.
+ * Module graph extraction: the bundler groups modules per chunk, so
+ * the per-chunk module list is read directly. The
+ * `BuildDependencyGraph.entrypoints` shape is preserved so HMR
+ * invalidation and the build manifest keep working without changes.
  */
 
 import { createRequire } from 'node:module';
@@ -41,8 +39,9 @@ import type {
 import {
 	collectBrowserRuntimeImportRewriteMap,
 	rewriteBrowserRuntimeImports,
-} from './browser-runtime-import-rewrite-plugin.ts';
+} from './browser-runtime-plugin.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
+import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -92,29 +91,41 @@ function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | '
 	}
 }
 
-function hasTemplateTokens(value: string | undefined): boolean {
-	return typeof value === 'string' && /\[[^\]]+\]/.test(value);
+function mapRolldownJsx(jsx: NonNullable<BuildOptions['jsx']>): Record<string, unknown> {
+	const { factory, fragment, ...rest } = jsx;
+	const out: Record<string, unknown> = { ...rest };
+	if (factory !== undefined) {
+		out.pragma = factory;
+	}
+	if (fragment !== undefined) {
+		out.pragmaFrag = fragment;
+	}
+	return out;
 }
 
-function toEntryFileNamesPattern(value: string | undefined): string | undefined {
+function toEntryFileNamesPattern(value: string | undefined): { pattern: string; literal: boolean } | undefined {
 	if (!value) {
 		return undefined;
 	}
-	const pattern = value.replaceAll(/\.?\[ext\]/g, '');
-	return pattern.length > 0 ? pattern : undefined;
+	const literal = !/\[[^\]]+\]/u.test(value);
+	const stripped = value.replaceAll(/\.?\[ext\]/g, '');
+	if (stripped.length === 0) {
+		return undefined;
+	}
+	return { pattern: stripped, literal };
 }
 
-function getJavaScriptOutExtension(options: BuildOptions): string | undefined {
-	if (options.target === 'browser') {
+function getJavaScriptOutExtension(options: BuildOptions, literal: boolean): string | undefined {
+	if (literal) {
 		return undefined;
+	}
+	if (options.target === 'browser') {
+		return '.js';
 	}
 	if (options.format === 'cjs') {
 		return '.cjs';
 	}
-	if (options.format === 'esm') {
-		return '.mjs';
-	}
-	return undefined;
+	return '.mjs';
 }
 
 function normalizeOutputPath(outputPath: string, outdir: string): string {
@@ -148,7 +159,7 @@ function toBuildLogs(error: unknown): BuildLog[] {
 	if (error instanceof Error) {
 		return [{ message: error.message }];
 	}
-	return [{ message: 'Unknown Rolldown build error' }];
+	return [{ message: 'Unknown build error' }];
 }
 
 function rewriteBrowserRuntimeImportsInOutputs(
@@ -189,32 +200,48 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const plugins = options.plugins ?? [];
 
+		const transformOptions: Record<string, unknown> = {};
+		if (options.define) {
+			transformOptions.define = options.define;
+		}
+		if (options.jsx) {
+			transformOptions.jsx = mapRolldownJsx(options.jsx);
+		}
+		if (options.target && /^(?:es|chrome|edge|firefox|safari|hermes|deno|ios)/.test(options.target)) {
+			transformOptions.target = options.target;
+		}
+
 		const bundle = await rolldown({
 			input: options.entrypoints,
 			cwd: contextRoot,
 			external: options.external,
 			platform: mapRolldownPlatform(options.target),
-			transform: options.define ? { define: options.define } : undefined,
+			transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
 			resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 			treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
-			...(options.jsx ? { jsx: options.jsx } : {}),
-			plugins: createRolldownPluginBridge(plugins, contextRoot),
+			plugins: [
+				createServerSideCssShimPlugin(),
+				...createRolldownPluginBridge(plugins, contextRoot),
+			],
 		});
 
-		const usesTemplatedNaming = hasTemplateTokens(options.naming);
 		const entryFileNames = toEntryFileNamesPattern(options.naming);
-		const jsExtension = getJavaScriptOutExtension(options);
-		const finalEntryFileNames = jsExtension
-			? `${entryFileNames ?? '[name]'}${jsExtension}`
-			: entryFileNames;
+		const jsExtension = getJavaScriptOutExtension(options, entryFileNames?.literal ?? false);
+		const finalEntryFileNames = entryFileNames
+			? jsExtension
+				? `${entryFileNames.pattern}${jsExtension}`
+				: entryFileNames.pattern
+			: jsExtension
+				? `[name]${jsExtension}`
+				: '[name]';
 
 		const output = await bundle.write({
 			dir: outdir,
 			format: mapRolldownFormat(options.format),
 			minify: !!options.minify,
-			...(finalEntryFileNames ? { entryFileNames: finalEntryFileNames } : {}),
-			chunkFileNames: '[name]-[hash]',
-			assetFileNames: '[name]-[hash]',
+			entryFileNames: finalEntryFileNames,
+			chunkFileNames: '[name]-[hash].js',
+			assetFileNames: '[name]-[hash][extname]',
 			sourcemap: mapRolldownSourcemap(options.sourcemap),
 		});
 

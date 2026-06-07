@@ -40,9 +40,60 @@ describe('RolldownBuildAdapter', () => {
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		assert.ok(firstOutput.path.startsWith(outdir), 'output path is under outdir');
+		assert.ok(firstOutput.path.endsWith('.js'), `browser output has .js extension, got: ${firstOutput.path}`);
 		assert.ok(
 			readFileSync(firstOutput.path, 'utf-8').includes('answer'),
 			'bundled output contains exported symbol',
+		);
+	});
+
+	test('preserves the .js extension when a naming template is supplied', async () => {
+		const entrypoint = writeFixture('base-layout.script.ts', "export const tag = 'layout';\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'browser',
+			format: 'esm',
+			naming: '[name]-[hash].[ext]',
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		assert.ok(
+			firstOutput.path.endsWith('.js'),
+			`naming-template output has .js extension, got: ${firstOutput.path}`,
+		);
+		assert.ok(
+			firstOutput.path.includes('base-layout.script-'),
+			`naming-template output keeps base-layout.script- prefix, got: ${firstOutput.path}`,
+		);
+	});
+
+	test('preserves a literal naming value without double extension', async () => {
+		const entrypoint = writeFixture('vendor.js', "export const tag = 'vendor';\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'browser',
+			format: 'esm',
+			naming: 'vendor.js',
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		assert.ok(
+			firstOutput.path.endsWith('vendor.js') && !firstOutput.path.endsWith('vendor.js.js'),
+			`literal naming keeps single .js extension, got: ${firstOutput.path}`,
 		);
 	});
 

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import { setAppBuildManifest } from '../../build/build-adapter.ts';
+import { type BuildExecutor, setAppBuildManifest } from '../../build/build-adapter.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import {
@@ -242,7 +242,7 @@ describe('app server module transpiler runtime state', () => {
 		fs.writeFileSync(pageFilePath, 'export default { ok: true };', 'utf8');
 
 		const observedPlugins: string[][] = [];
-		const buildExecutor = {
+		const buildExecutor: BuildExecutor = {
 			build: async (options: { outdir?: string; naming?: string; plugins?: Array<{ name: string }> }) => {
 				observedPlugins.push((options.plugins ?? []).map((plugin) => plugin.name));
 				const naming = String(options.naming ?? 'index.[ext]');
@@ -257,7 +257,7 @@ describe('app server module transpiler runtime state', () => {
 					outputs: [{ path: compiledOutputPath }],
 				};
 			},
-		} as RolldownBuildAdapter;
+		};
 
 		const appConfig = {
 			rootDir,

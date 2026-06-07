@@ -27,6 +27,7 @@
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",
+		"@oxc-project/runtime": "0.134.0",
 		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^5.0.0",
 		"esbuild": "^0.28.0",
@@ -130,6 +131,10 @@
 		"./build/build-adapter": {
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
+		},
+		"./build/runtime-build-output-normalizer": {
+			"types": "./src/build/runtime-build-output-normalizer.ts",
+			"default": "./src/build/runtime-build-output-normalizer.ts"
 		},
 		"./build/browser-runtime-manifest": {
 			"types": "./src/build/browser-runtime-manifest.ts",

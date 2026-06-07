@@ -126,9 +126,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig, {
-			development: this.options?.watch === true,
-		});
+		installAppRuntimeBuildExecutor(this.appConfig);
 
 		this.prepareRuntimePublicDir();
 		await setupAppRuntimePlugins({
@@ -336,7 +334,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *   `upgrade` event (no separate port needed).
 	 * - `NodeClientBridge` tracks active WebSocket connections and handles
 	 *   broadcast + heartbeat cleanup.
-	 * - `NodeHmrManager` watches the filesystem and triggers incremental esbuild
+	 * - `NodeHmrManager` watches the filesystem and triggers incremental
 	 *   rebuilds, notifying connected clients via the bridge.
 	 * - Shared watcher bootstrapping listens for route-level file changes and
 	 *   refreshes the router and response handlers when pages are added or removed.

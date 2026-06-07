@@ -2,6 +2,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
+import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
@@ -227,6 +228,8 @@ export class PageModuleImportService {
 		if (!compiledOutput) {
 			throw new Error(noOutputMessage(filePath));
 		}
+
+		normalizeNodeRuntimeBuildOutputFile(compiledOutput, rootDir);
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 

@@ -1,34 +1,35 @@
 /**
- * Rolldown plugin bridge.
+ * Bundler plugin bridge.
  *
  * @remarks
  * Translates an array of `EcoBuildPlugin` instances (the runtime-agnostic
- * plugin contract used by Ecopages processors and integrations) into a
- * Rolldown `Plugin` array. The bridge exposes the same three hooks
- * (`onResolve`, `onLoad`, `module`) the `EcoBuildPlugin` contract uses,
- * but maps them to Rolldown's Rollup-style `resolveId`/`load` hooks.
+ * plugin contract used by Ecopages processors and integrations) into
+ * the bundler's native `Plugin` array. The bridge exposes the same
+ * three hooks (`onResolve`, `onLoad`, `module`) the `EcoBuildPlugin`
+ * contract uses, but maps them to the bundler's `resolveId`/`load`
+ * hooks.
  *
- * Extracted as a peer to the Bun/esbuild bridges per ADR-002, so the
- * shared `EcoBuildPlugin` contract stays the boundary between
+ * The shared `EcoBuildPlugin` contract stays the boundary between
  * integrations and bundler backends.
  *
  * **Namespace handling.**
  *
- * esbuild scopes `onResolve`/`onLoad` handlers with a `namespace` string.
- * Rolldown encodes namespaces into the module id (no separate field). The
- * bridge prepends `<namespace>:` to the resolved id when the result
- * includes a namespace, and matches `onLoad`/`onResolve` filters against
- * that prefix. The bridge strips the prefix before forwarding the id back
- * to the callback so plugin code keeps seeing the same `path` shape it
- * does on esbuild.
+ * The shared `EcoBuildPlugin` contract scopes `onResolve`/`onLoad`
+ * handlers with a `namespace` string. The bundler encodes namespaces
+ * into the module id (no separate field). The bridge prepends
+ * `<namespace>:` to the resolved id when the result includes a
+ * namespace, and matches `onLoad`/`onResolve` filters against that
+ * prefix. The bridge strips the prefix before forwarding the id back
+ * to the callback so plugin code keeps seeing the same `path` shape
+ * it did on the historical contract.
  *
  * **Plugin ordering is semantically significant.**
  *
- * Rolldown's `resolveId` and `load` are "first" hooks: the first plugin
- * that returns a non-null value wins. Because the bridge translates each
- * `EcoBuildPlugin` into its own Rolldown `Plugin` and preserves the array
- * order, the position of each plugin in the `plugins` array determines
- * its priority:
+ * The bundler's `resolveId` and `load` are "first" hooks: the first
+ * plugin that returns a non-null value wins. Because the bridge
+ * translates each `EcoBuildPlugin` into its own bundler plugin and
+ * preserves the array order, the position of each plugin in the
+ * `plugins` array determines its priority:
  *
  * - **Index 0** has the highest priority.
  * - **Last index** has the lowest priority.
@@ -198,10 +199,7 @@ function convertPluginOnResolveResult(
 	const partial: PartialResolvedId = { id: '' };
 
 	if (typeof candidate.path === 'string') {
-		partial.id = joinNamespace(
-			candidate.namespace,
-			resolvePluginPath(candidate.path, importer, contextRoot),
-		);
+		partial.id = joinNamespace(candidate.namespace, resolvePluginPath(candidate.path, importer, contextRoot));
 	} else if (typeof candidate.namespace === 'string') {
 		partial.id = joinNamespace(candidate.namespace, '');
 	}
@@ -231,11 +229,7 @@ interface LoadRegistration {
 	callback: LoadCallback;
 }
 
-function wrapEcoPlugin(
-	ecoPlugin: EcoBuildPlugin,
-	contextRoot: string,
-	moduleCounter: { value: number },
-): Plugin {
+function wrapEcoPlugin(ecoPlugin: EcoBuildPlugin, contextRoot: string, moduleCounter: { value: number }): Plugin {
 	const resolveRegistrations: ResolveRegistration[] = [];
 	const loadRegistrations: LoadRegistration[] = [];
 

@@ -27,6 +27,7 @@ import path from 'node:path';
 import { rolldown } from 'rolldown';
 import type { OutputChunk } from 'rolldown';
 import type { EcoBuildPlugin } from './build-types.ts';
+
 import type {
 	BuildAdapter,
 	BuildDependencyGraph,
@@ -36,14 +37,21 @@ import type {
 	BuildTranspileOptions,
 	BuildTranspileProfile,
 } from './build-adapter.ts';
-import {
-	collectBrowserRuntimeImportRewriteMap,
-	rewriteBrowserRuntimeImports,
-} from './browser-runtime-plugin.ts';
+import { isDeclaredAppPackageImport, normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
+import { collectBrowserRuntimeImportRewriteMap, rewriteBrowserRuntimeImports } from './browser-runtime-plugin.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 
 const moduleRequire = createRequire(import.meta.url);
+const corePackageRequire = createRequire(new URL('../../package.json', import.meta.url));
+
+function tryResolveModule(id: string, resolver: NodeJS.Require): string | undefined {
+	try {
+		return resolver.resolve(id);
+	} catch {
+		return undefined;
+	}
+}
 
 /**
  * Provides common transpile output defaults shared across build profiles.
@@ -74,7 +82,12 @@ function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | 
 }
 
 function mapRolldownPlatform(value: string | undefined): 'browser' | 'node' | 'neutral' {
-	return value === 'browser' ? 'browser' : value === 'node' ? 'node' : 'neutral';
+	if (value === 'browser') return 'browser';
+	if (value === 'node') return 'node';
+	if (value && /^(?:es\d+|chrome\d+|edge\d+|firefox\d+|safari\d+|hermes|deno\d+|ios\d+)$/.test(value)) {
+		return 'node';
+	}
+	return 'neutral';
 }
 
 function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | 'hidden' {
@@ -133,7 +146,9 @@ function normalizeOutputPath(outputPath: string, outdir: string): string {
 }
 
 function normalizeModulePath(modulePath: string, contextRoot: string): string {
-	return path.isAbsolute(modulePath) ? path.normalize(modulePath) : path.normalize(path.resolve(contextRoot, modulePath));
+	return path.isAbsolute(modulePath)
+		? path.normalize(modulePath)
+		: path.normalize(path.resolve(contextRoot, modulePath));
 }
 
 function extractDependencyGraph(
@@ -160,6 +175,48 @@ function toBuildLogs(error: unknown): BuildLog[] {
 		return [{ message: error.message }];
 	}
 	return [{ message: 'Unknown build error' }];
+}
+
+function isPackageImport(id: string): boolean {
+	return (
+		!id.startsWith('.') &&
+		!path.isAbsolute(id) &&
+		!id.startsWith('/') &&
+		!id.startsWith('node:') &&
+		!id.startsWith('@/') &&
+		!id.startsWith('~/') &&
+		!id.startsWith('#') &&
+		!id.includes(':')
+	);
+}
+
+function shouldBundlePackageImport(id: string, contextRoot: string): boolean {
+	if (isDeclaredAppPackageImport(id, contextRoot)) {
+		const appRootRequire = createRequire(path.join(contextRoot, 'package.json'));
+		const appResolvedPath = tryResolveModule(id, appRootRequire);
+		return Boolean(appResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(appResolvedPath));
+	}
+
+	const coreResolvedPath = tryResolveModule(id, corePackageRequire);
+	return Boolean(coreResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(coreResolvedPath));
+}
+
+function createExternalMatcher(options: BuildOptions): (id: string) => boolean {
+	const explicitExternals = new Set(options.external ?? []);
+	const externalPackages = options.externalPackages === true;
+	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+
+	return (id: string): boolean => {
+		if (explicitExternals.has(id)) {
+			return true;
+		}
+
+		if (!externalPackages || !isPackageImport(id)) {
+			return false;
+		}
+
+		return !shouldBundlePackageImport(id, contextRoot);
+	};
 }
 
 function rewriteBrowserRuntimeImportsInOutputs(
@@ -192,6 +249,19 @@ function rewriteBrowserRuntimeImportsInOutputs(
 	return result;
 }
 
+function rewriteNodeRuntimeImportsInOutputs(result: BuildResult, contextRoot: string): BuildResult {
+	if (!result.success || result.outputs.length === 0) {
+		return result;
+	}
+
+	normalizeNodeRuntimeBuildOutputs(
+		result.outputs.map((output) => output.path),
+		contextRoot,
+	);
+
+	return result;
+}
+
 export class RolldownBuildAdapter implements BuildAdapter {
 	readonly ownership = 'rolldown' as const;
 
@@ -199,6 +269,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const plugins = options.plugins ?? [];
+		const external = createExternalMatcher(options);
 
 		const transformOptions: Record<string, unknown> = {};
 		if (options.define) {
@@ -214,15 +285,12 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const bundle = await rolldown({
 			input: options.entrypoints,
 			cwd: contextRoot,
-			external: options.external,
+			external,
 			platform: mapRolldownPlatform(options.target),
 			transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
 			resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 			treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
-			plugins: [
-				createServerSideCssShimPlugin(),
-				...createRolldownPluginBridge(plugins, contextRoot),
-			],
+			plugins: [createServerSideCssShimPlugin(), ...createRolldownPluginBridge(plugins, contextRoot)],
 		});
 
 		const entryFileNames = toEntryFileNamesPattern(options.naming);
@@ -248,7 +316,9 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		await bundle.close();
 
 		const outputs = output.output.map((entry) => ({ path: normalizeOutputPath(entry.fileName, outdir) }));
-		const entryChunks = output.output.filter((entry): entry is OutputChunk => entry.type === 'chunk' && entry.isEntry);
+		const entryChunks = output.output.filter(
+			(entry): entry is OutputChunk => entry.type === 'chunk' && entry.isEntry,
+		);
 		const dependencyGraph = extractDependencyGraph(
 			entryChunks.map((chunk) => ({ facadeModuleId: chunk.facadeModuleId, moduleIds: chunk.moduleIds })),
 			contextRoot,
@@ -261,7 +331,10 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			dependencyGraph,
 		};
 
-		return rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins);
+		return rewriteNodeRuntimeImportsInOutputs(
+			rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins),
+			contextRoot,
+		);
 	}
 
 	async build(options: BuildOptions): Promise<BuildResult> {

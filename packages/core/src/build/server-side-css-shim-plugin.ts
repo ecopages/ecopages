@@ -27,11 +27,14 @@ import path from 'node:path';
 type RolldownPluginLike = {
 	name: string;
 	resolveId: (source: string, importer: string | undefined) => Promise<string | null> | string | null;
-	load: (id: string) => Promise<{ code: string; moduleType: 'js'; moduleSideEffects: boolean } | null> | {
-		code: string;
-		moduleType: 'js';
-		moduleSideEffects: boolean;
-	} | null;
+	load: (id: string) =>
+		| Promise<{ code: string; moduleType: 'js'; moduleSideEffects: boolean } | null>
+		| {
+				code: string;
+				moduleType: 'js';
+				moduleSideEffects: boolean;
+		  }
+		| null;
 };
 
 const CSS_PATH = /\.css$/u;
@@ -65,7 +68,7 @@ export function createServerSideCssShimPlugin(): RolldownPluginLike {
 			const realPath = stripShimQuery(id);
 			readFileSync(realPath, 'utf-8');
 			return {
-				code: 'export {};',
+				code: 'export default "";',
 				moduleType: 'js',
 				moduleSideEffects: true,
 			};

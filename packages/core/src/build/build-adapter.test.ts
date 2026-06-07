@@ -1,17 +1,11 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { test, vi } from 'vitest';
 import {
 	build,
 	collectConfiguredAppBuildManifestContributions,
 	createConfiguredAppBuildManifest,
 	createBuildAdapter,
-	createBunBuildAdapter,
-	defaultBunBuildAdapter,
 	defaultBuildAdapter,
-	EsbuildBuildAdapter,
 	getAppBuildOwnership,
 	getAppBuildAdapter,
 	getAppBuildManifest,
@@ -19,42 +13,21 @@ import {
 	getAppBuildExecutor,
 	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
-	isRolldownBuildEnabled,
 	setAppBuildAdapter,
 	setAppBuildOwnership,
 	setAppBuildManifest,
 	setupAppRuntimePlugins,
 	updateAppBuildManifest,
+	withBuildExecutorPlugins,
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
-import type { EcoBuildPluginBuilder } from './build-types.ts';
-import { createAppBuildExecutor } from './dev-build-coordinator.ts';
 
-const tempRoots: string[] = [];
-
-function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
-	tempRoots.push(root);
-	return root;
-}
-
-function cleanupTempRoots(): void {
-	for (const root of tempRoots.splice(0)) {
-		fs.rmSync(root, { recursive: true, force: true });
-	}
-}
-
-function clearNodeCssBridge(): void {
-	return;
-}
-
-test('defaultBuildAdapter remains the Bun-native fallback backed by the Bun adapter', () => {
-	assert.equal(defaultBuildAdapter, defaultBunBuildAdapter);
-	assert.ok(!(defaultBuildAdapter instanceof EsbuildBuildAdapter));
-	assert.equal(defaultBuildAdapter.ownership, 'bun-native');
+test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
+	assert.ok(defaultBuildAdapter instanceof RolldownBuildAdapter);
+	assert.equal(defaultBuildAdapter.ownership, 'rolldown');
 });
 
 test('createBuildAdapter with ownership: "rolldown" returns the RolldownBuildAdapter', () => {
@@ -63,31 +36,15 @@ test('createBuildAdapter with ownership: "rolldown" returns the RolldownBuildAda
 	assert.equal(rolldownAdapter.ownership, 'rolldown');
 });
 
-test('ECOPAGES_USE_ROLLDOWN=1 opt-in is reflected in isRolldownBuildEnabled()', () => {
-	const original = process.env.ECOPAGES_USE_ROLLDOWN;
-	try {
-		process.env.ECOPAGES_USE_ROLLDOWN = '1';
-		assert.equal(isRolldownBuildEnabled(), true);
-		process.env.ECOPAGES_USE_ROLLDOWN = '0';
-		assert.equal(isRolldownBuildEnabled(), false);
-		delete process.env.ECOPAGES_USE_ROLLDOWN;
-		assert.equal(isRolldownBuildEnabled(), false);
-	} finally {
-		if (original === undefined) {
-			delete process.env.ECOPAGES_USE_ROLLDOWN;
-		} else {
-			process.env.ECOPAGES_USE_ROLLDOWN = original;
-		}
-	}
+test('createBuildAdapter with no ownership defaults to Rolldown', () => {
+	const defaultAdapter = createBuildAdapter();
+	assert.ok(defaultAdapter instanceof RolldownBuildAdapter);
 });
 
-test('createBuildAdapter makes Bun-native and Vite-host ownership explicit', () => {
-	const bunAdapter = createBuildAdapter({ ownership: 'bun-native' });
+test('createBuildAdapter with ownership: "vite-host" returns the ViteHostBuildAdapter', () => {
 	const viteAdapter = createBuildAdapter({ ownership: 'vite-host' });
 	const defaultViteAdapter = getDefaultBuildAdapter('vite-host');
 
-	assert.ok(!(bunAdapter instanceof EsbuildBuildAdapter));
-	assert.equal(bunAdapter.ownership, 'bun-native');
 	assert.ok(viteAdapter instanceof ViteHostBuildAdapter);
 	assert.equal(viteAdapter.ownership, 'vite-host');
 	assert.ok(defaultViteAdapter instanceof ViteHostBuildAdapter);
@@ -172,436 +129,18 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
-test('BunBuildAdapter bundles entrypoints by default to keep transitive app imports in the emitted server module', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-	const buildCalls: Array<Record<string, unknown>> = [];
-
-	(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-		build: vi.fn(async (options: Record<string, unknown>) => {
-			buildCalls.push(options);
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/out/entry.js' }],
-			};
-		}),
-		hash: vi.fn(() => 1),
-		resolveSync: vi.fn((importPath: string) => importPath),
-	};
-
-	try {
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: ['/tmp/entry.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-		assert.equal(buildCalls.length, 1);
-		assert.equal(buildCalls[0]?.bundle, undefined);
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-	}
-});
-
-test('BunBuildAdapter forwards the app tsconfig path to Bun builds', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-	const buildCalls: Array<Record<string, unknown>> = [];
-
-	try {
-		const root = createTempRoot('ecopages-bun-tsconfig');
-		fs.writeFileSync(path.join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: {} }), 'utf8');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async (options: Record<string, unknown>) => {
-				buildCalls.push(options);
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: '/tmp/out/entry.js' }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [path.join(root, 'src', 'entry.ts')],
-			root,
-			outdir: '/tmp/out',
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-		assert.equal(buildCalls[0]?.tsconfig, path.join(root, 'tsconfig.json'));
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-	}
-});
-
-test('BunBuildAdapter normalizes hashed naming patterns to concrete emitted output files', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-
-	try {
-		const root = createTempRoot('ecopages-bun-naming-template');
-		const srcDir = path.join(root, 'src', 'components');
-		const outDir = path.join(root, 'dist', 'assets', 'components');
-		fs.mkdirSync(srcDir, { recursive: true });
-		fs.mkdirSync(outDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'kita-counter.script.ts');
-		fs.writeFileSync(entryPath, 'export const value = 1;');
-
-		const concreteOutputPath = path.join(outDir, 'kita-counter.script-abc123.js');
-		const placeholderOutputPath = path.join(outDir, 'kita-counter.script-[hash].js');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async () => {
-				fs.writeFileSync(concreteOutputPath, 'export const value = 1;', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: placeholderOutputPath }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[name]-[hash].[ext]',
-		});
-
-		assert.equal(result.success, true);
-		assert.deepEqual(result.outputs, [{ path: concreteOutputPath }]);
-		assert.equal(fs.existsSync(concreteOutputPath), true);
-		assert.equal(fs.existsSync(placeholderOutputPath), false);
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-	}
-});
-
-test('BunBuildAdapter normalizes unordered multi-entrypoint outputs by path instead of output index', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-
-	try {
-		const root = createTempRoot('ecopages-bun-unordered-entrypoints');
-		const srcDir = path.join(root, 'src', 'components');
-		const outDir = path.join(root, 'dist', 'assets');
-		fs.mkdirSync(path.join(srcDir, 'theme-toggle'), { recursive: true });
-		fs.mkdirSync(path.join(srcDir, 'weather-app'), { recursive: true });
-		fs.mkdirSync(path.join(srcDir, 'code-tabs'), { recursive: true });
-		fs.mkdirSync(outDir, { recursive: true });
-
-		const themeToggleEntrypoint = path.join(srcDir, 'theme-toggle', 'theme-toggle.script.ts');
-		const weatherAppEntrypoint = path.join(srcDir, 'weather-app', 'weather-app.script.tsx');
-		const codeTabsEntrypoint = path.join(srcDir, 'code-tabs', 'code-tabs.script.tsx');
-		fs.writeFileSync(themeToggleEntrypoint, 'export const themeToggle = 1;');
-		fs.writeFileSync(weatherAppEntrypoint, 'export const weatherApp = 2;');
-		fs.writeFileSync(codeTabsEntrypoint, 'export const codeTabs = 3;');
-
-		const themeToggleOutput = path.join(outDir, 'components', 'theme-toggle', 'theme-toggle.script');
-		const weatherAppOutput = path.join(outDir, 'components', 'weather-app', 'weather-app.script');
-		const codeTabsOutput = path.join(outDir, 'components', 'code-tabs', 'code-tabs.script');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async () => {
-				fs.mkdirSync(path.dirname(themeToggleOutput), { recursive: true });
-				fs.mkdirSync(path.dirname(weatherAppOutput), { recursive: true });
-				fs.mkdirSync(path.dirname(codeTabsOutput), { recursive: true });
-				fs.writeFileSync(themeToggleOutput, 'export const themeToggle = 1;', 'utf8');
-				fs.writeFileSync(weatherAppOutput, 'export const weatherApp = 2;', 'utf8');
-				fs.writeFileSync(codeTabsOutput, 'export const codeTabs = 3;', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: weatherAppOutput }, { path: codeTabsOutput }, { path: themeToggleOutput }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [themeToggleEntrypoint, weatherAppEntrypoint, codeTabsEntrypoint],
-			root,
-			outdir: outDir,
-			outbase: path.join(root, 'src'),
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[dir]/[name]',
-		});
-
-		assert.equal(result.success, true);
-		assert.deepEqual(result.outputs, [
-			{ path: `${weatherAppOutput}.js` },
-			{ path: `${codeTabsOutput}.js` },
-			{ path: `${themeToggleOutput}.js` },
-		]);
-		assert.equal(fs.readFileSync(`${themeToggleOutput}.js`, 'utf8'), 'export const themeToggle = 1;');
-		assert.equal(fs.readFileSync(`${weatherAppOutput}.js`, 'utf8'), 'export const weatherApp = 2;');
-		assert.equal(fs.readFileSync(`${codeTabsOutput}.js`, 'utf8'), 'export const codeTabs = 3;');
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-		cleanupTempRoots();
-	}
-});
-
-test('BunBuildAdapter matches reordered hashed multi-entrypoint outputs back to outbase-relative targets', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-
-	try {
-		const root = createTempRoot('ecopages-bun-unordered-hashed-entrypoints');
-		const srcDir = path.join(root, 'src', 'components');
-		const outDir = path.join(root, 'dist', 'assets');
-		fs.mkdirSync(path.join(srcDir, 'theme-toggle'), { recursive: true });
-		fs.mkdirSync(path.join(srcDir, 'weather-app'), { recursive: true });
-		fs.mkdirSync(outDir, { recursive: true });
-
-		const themeToggleEntrypoint = path.join(srcDir, 'theme-toggle', 'theme-toggle.script.ts');
-		const weatherAppEntrypoint = path.join(srcDir, 'weather-app', 'weather-app.script.tsx');
-		fs.writeFileSync(themeToggleEntrypoint, 'export const themeToggle = 1;');
-		fs.writeFileSync(weatherAppEntrypoint, 'export const weatherApp = 2;');
-
-		const themeToggleBunOutput = path.join(
-			outDir,
-			'src',
-			'components',
-			'theme-toggle',
-			'theme-toggle.script-abc123.js',
-		);
-		const weatherAppBunOutput = path.join(
-			outDir,
-			'src',
-			'components',
-			'weather-app',
-			'weather-app.script-def456.js',
-		);
-		const themeToggleExpectedOutput = path.join(
-			outDir,
-			'components',
-			'theme-toggle',
-			'theme-toggle.script-abc123.js',
-		);
-		const weatherAppExpectedOutput = path.join(outDir, 'components', 'weather-app', 'weather-app.script-def456.js');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async () => {
-				fs.mkdirSync(path.dirname(themeToggleBunOutput), { recursive: true });
-				fs.mkdirSync(path.dirname(weatherAppBunOutput), { recursive: true });
-				fs.writeFileSync(themeToggleBunOutput, 'export const themeToggle = 1;', 'utf8');
-				fs.writeFileSync(weatherAppBunOutput, 'export const weatherApp = 2;', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: weatherAppBunOutput }, { path: themeToggleBunOutput }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [themeToggleEntrypoint, weatherAppEntrypoint],
-			root,
-			outdir: outDir,
-			outbase: path.join(root, 'src'),
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[dir]/[name]-[hash].[ext]',
-		});
-
-		assert.equal(result.success, true);
-		assert.deepEqual(result.outputs, [{ path: weatherAppExpectedOutput }, { path: themeToggleExpectedOutput }]);
-		assert.equal(fs.readFileSync(themeToggleExpectedOutput, 'utf8'), 'export const themeToggle = 1;');
-		assert.equal(fs.readFileSync(weatherAppExpectedOutput, 'utf8'), 'export const weatherApp = 2;');
-		assert.equal(fs.existsSync(themeToggleBunOutput), false);
-		assert.equal(fs.existsSync(weatherAppBunOutput), false);
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-		cleanupTempRoots();
-	}
-});
-
-test('BunBuildAdapter remaps Bun root-relative outputs back to outbase-relative paths', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-
-	try {
-		const root = createTempRoot('ecopages-bun-outbase-root-relative');
-		const srcDir = path.join(root, 'src', 'components', 'theme-toggle');
-		const outDir = path.join(root, 'dist', 'assets');
-		fs.mkdirSync(srcDir, { recursive: true });
-		fs.mkdirSync(outDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'theme-toggle.script.ts');
-		fs.writeFileSync(entryPath, 'export const themeToggle = 1;');
-
-		const bunRootRelativeOutputPath = path.join(outDir, 'src', 'components', 'theme-toggle', 'theme-toggle.script');
-		const expectedOutputPath = path.join(outDir, 'components', 'theme-toggle', 'theme-toggle.script');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async () => {
-				fs.mkdirSync(path.dirname(bunRootRelativeOutputPath), { recursive: true });
-				fs.writeFileSync(bunRootRelativeOutputPath, 'export const themeToggle = 1;', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: bunRootRelativeOutputPath }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			outbase: path.join(root, 'src'),
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[dir]/[name]',
-		});
-
-		assert.equal(result.success, true);
-		assert.deepEqual(result.outputs, [{ path: `${expectedOutputPath}.js` }]);
-		assert.equal(fs.existsSync(`${expectedOutputPath}.js`), true);
-		assert.equal(fs.existsSync(bunRootRelativeOutputPath), false);
-		assert.equal(fs.readFileSync(`${expectedOutputPath}.js`, 'utf8'), 'export const themeToggle = 1;');
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-		cleanupTempRoots();
-	}
-});
-
-test('BunBuildAdapter remaps root-relative grouped temp outputs when Bun reports them without the final js extension', async () => {
-	const originalBun = (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-
-	try {
-		const root = createTempRoot('ecopages-bun-outbase-root-relative-temp-output');
-		const srcDir = path.join(root, 'src', 'pages', 'docs');
-		const outDir = path.join(root, '.eco', 'assets', '_hmr');
-		fs.mkdirSync(srcDir, { recursive: true });
-		fs.mkdirSync(outDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'getting-started.tsx');
-		fs.writeFileSync(entryPath, 'export const gettingStarted = 1;');
-
-		const bunReportedOutputPath = path.join(outDir, 'src', 'pages', 'docs', 'getting-started.30d2bd3m.tmp');
-		const bunConcreteOutputPath = `${bunReportedOutputPath}.js`;
-		const expectedOutputPath = path.join(outDir, 'pages', 'docs', 'getting-started.30d2bd3m.tmp.js');
-
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {
-			build: vi.fn(async () => {
-				fs.mkdirSync(path.dirname(bunConcreteOutputPath), { recursive: true });
-				fs.writeFileSync(bunConcreteOutputPath, 'export const gettingStarted = 1;', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: bunReportedOutputPath }],
-				};
-			}),
-			hash: vi.fn(() => 1),
-			resolveSync: vi.fn((importPath: string) => importPath),
-		};
-
-		const freshAdapter = createBunBuildAdapter();
-		const result = await freshAdapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			outbase: path.join(root, 'src'),
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[dir]/[name].[hash].tmp',
-		});
-
-		assert.equal(result.success, true);
-		assert.deepEqual(result.outputs, [{ path: expectedOutputPath }]);
-		assert.equal(fs.existsSync(expectedOutputPath), true);
-		assert.equal(fs.existsSync(bunConcreteOutputPath), false);
-		assert.equal(fs.readFileSync(expectedOutputPath, 'utf8'), 'export const gettingStarted = 1;');
-	} finally {
-		if (originalBun === undefined) {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
-		} else {
-			(globalThis as typeof globalThis & { Bun?: unknown }).Bun = originalBun;
-		}
-		cleanupTempRoots();
-	}
-});
-
 test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},
 		loaders: new Map(),
-	} as any;
-	const appAdapter = new EsbuildBuildAdapter();
+	} as never;
+	const appAdapter = new RolldownBuildAdapter();
 
 	setAppBuildAdapter(appConfig, appAdapter);
 
 	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
 	assert.equal(getAppBuildExecutor(appConfig), appAdapter);
-	assert.equal(getAppBuildOwnership(appConfig), 'bun-native');
+	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
 	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
 });
 
@@ -617,25 +156,48 @@ test('getAppBuildAdapter falls back to the explicit Vite-host adapter when owner
 	assert.ok(getAppBuildAdapter(appConfig) instanceof ViteHostBuildAdapter);
 });
 
-test('createAppBuildExecutor injects app-owned plugins into builds', async () => {
+test('getAppBuildOwnership defaults to rolldown when no adapter and no ownership are set', () => {
+	const appConfig = { runtime: {}, loaders: new Map() } as never;
+	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
+	assert.ok(getAppBuildAdapter(appConfig) instanceof RolldownBuildAdapter);
+});
+
+test('withBuildExecutorPlugins does not wrap when there are no app plugins to inject', async () => {
+	const adapter = {
+		build: vi.fn(async () => ({ success: true, logs: [], outputs: [] })),
+		resolve: vi.fn(),
+		getTranspileOptions: vi.fn(),
+	};
+	const executor = withBuildExecutorPlugins(adapter, () => []);
+	await executor.build({
+		entrypoints: ['/tmp/entry.ts'],
+		root: '/tmp',
+		outdir: '/tmp/out',
+		target: 'browser',
+		format: 'esm',
+		sourcemap: 'none',
+	});
+	assert.equal(adapter.build.mock.calls.length, 1, 'no extra wrapping layer is invoked');
+});
+
+test('withBuildExecutorPlugins injects app-owned plugins into builds', async () => {
 	const plugin = {
 		name: 'app-owned-plugin',
 		setup() {},
 	};
 	const adapter = {
-		build: vi.fn(async (options) => ({
+		build: vi.fn(async (options: { outdir?: string } & Record<string, unknown>) => ({
 			success: true,
 			logs: [],
 			outputs: [{ path: options.outdir ? `${options.outdir}/entry.js` : '/tmp/entry.js' }],
 		})),
 		resolve: vi.fn(),
-		registerPlugin: vi.fn(),
 		getTranspileOptions: vi.fn(),
 	};
 	const appConfig = {
 		loaders: new Map(),
 		runtime: {},
-	} as any;
+	} as never;
 
 	setAppBuildManifest(
 		appConfig,
@@ -643,11 +205,7 @@ test('createAppBuildExecutor injects app-owned plugins into builds', async () =>
 			runtimePlugins: [plugin],
 		}),
 	);
-	const executor = createAppBuildExecutor({
-		development: false,
-		adapter,
-		getPlugins: () => getAppServerBuildPlugins(appConfig),
-	});
+	const executor = withBuildExecutorPlugins(adapter, () => getAppServerBuildPlugins(appConfig));
 
 	await executor.build({
 		entrypoints: ['/tmp/entry.ts'],
@@ -661,8 +219,9 @@ test('createAppBuildExecutor injects app-owned plugins into builds', async () =>
 	});
 
 	assert.equal(adapter.build.mock.calls.length, 1);
-	assert.deepEqual(adapter.build.mock.calls[0][0].plugins, [plugin]);
-	assert.equal(adapter.registerPlugin.mock.calls.length, 0);
+	const firstCall = adapter.build.mock.calls[0];
+	assert.ok(firstCall);
+	assert.deepEqual((firstCall[0] as { plugins?: unknown[] }).plugins, [plugin]);
 });
 
 test('build manifest separates server and browser plugin sets', () => {
@@ -853,7 +412,7 @@ test('getAppBrowserBuildPlugins adds the app-level browser runtime rewrite plugi
 		}),
 	);
 
-	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-import-rewrite'));
+	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-plugin'));
 });
 
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
@@ -901,579 +460,4 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		'processor-runtime-plugin',
 		'integration-runtime-plugin',
 	]);
-});
-
-test('EsbuildBuildAdapter supports module virtual modules', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-virtual-module');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(entryPath, "import answer from 'virtual:answer';\nexport const value = answer;");
-
-		const adapter = new EsbuildBuildAdapter();
-
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			plugins: [
-				{
-					name: 'virtual-module-test',
-					setup(build: EcoBuildPluginBuilder) {
-						build.module('virtual:answer', () => ({
-							loader: 'object',
-							exports: {
-								default: 42,
-							},
-						}));
-					},
-				},
-			],
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /42/);
-	} finally {
-		cleanupTempRoots();
-	}
-});
-
-test('EsbuildBuildAdapter applies build plugin CSS transforms to imported CSS strings', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-css');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const cssPath = path.join(srcDir, 'styles.css');
-		const entryPath = path.join(srcDir, 'entry.ts');
-
-		fs.writeFileSync(cssPath, '.counter { color: red; }');
-		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
-
-		const adapter = new EsbuildBuildAdapter();
-
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			plugins: [
-				{
-					name: 'css-bridge-replacement-test',
-					setup(build) {
-						build.onLoad({ filter: /\.css$/ }, async (args) => {
-							const contents = fs.readFileSync(args.path, 'utf-8');
-							return {
-								loader: 'object',
-								exports: {
-									default: `/* transformed */\n${contents}`,
-								},
-							};
-						});
-					},
-				},
-			],
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /\/\* transformed \*\//);
-		assert.match(outputSource, /\.counter \{ color: red; \}/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter resolves tsconfig path aliases', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-tsconfig-paths');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		const libDir = path.join(srcDir, 'lib');
-		fs.mkdirSync(libDir, { recursive: true });
-
-		const tsconfigPath = path.join(root, 'tsconfig.json');
-		fs.writeFileSync(
-			tsconfigPath,
-			JSON.stringify({
-				compilerOptions: {
-					baseUrl: '.',
-					paths: {
-						'@/*': ['src/*'],
-					},
-				},
-			}),
-		);
-
-		const utilPath = path.join(libDir, 'count.ts');
-		fs.writeFileSync(utilPath, 'export const count = 7;');
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(entryPath, "import { count } from '@/lib/count';\nexport const value = count;");
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /7/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter compiles decorated classes without legacy mode', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-decorated-declare');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(
-			entryPath,
-			[
-				'function sealed<T extends new (...args: never[]) => object>(value: T) {',
-				'\treturn value;',
-				'}',
-				'@sealed',
-				'class Counter {}',
-				'export const ready = typeof Counter === "function";',
-			].join('\n'),
-		);
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter compiles decorated accessor fields', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-decorated-accessor');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(
-			entryPath,
-			[
-				'function property(_options: unknown) {',
-				'\treturn function (_target: unknown, _context: unknown) {};',
-				'}',
-				'class Counter {',
-				'\t@property({ type: Number }) accessor count = 0;',
-				'}',
-				'export const ready = typeof Counter === "function";',
-			].join('\n'),
-		);
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter downlevels accessor fields for browser target bundles', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-browser-accessor');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(
-			entryPath,
-			[
-				'class Counter {',
-				'\taccessor count = 0;',
-				'}',
-				'export const ready = typeof Counter === "function";',
-			].join('\n'),
-		);
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.doesNotMatch(outputSource, /accessor\s+count/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter applies plugin CSS transforms for CSS imported in TS modules', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-plugin-css-transform');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const cssPath = path.join(srcDir, 'styles.css');
-		const entryPath = path.join(srcDir, 'entry.ts');
-
-		fs.writeFileSync(cssPath, '.counter { color: red; }');
-		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
-
-		const adapter = new EsbuildBuildAdapter();
-
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			plugins: [
-				{
-					name: 'css-transform-test-plugin',
-					setup(build) {
-						build.onLoad({ filter: /\.css$/ }, async (args) => {
-							const contents = fs.readFileSync(args.path, 'utf-8');
-							return {
-								loader: 'object',
-								exports: {
-									default: `/* postprocessed */\n${contents}`,
-								},
-							};
-						});
-					},
-				},
-			],
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /\/\* postprocessed \*\//);
-		assert.match(outputSource, /\.counter \{ color: red; \}/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter supports synchronous onLoad transforms for entrypoints', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-entrypoint-onload');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.tsx');
-		fs.writeFileSync(
-			entryPath,
-			[
-				"import { jsx as _jsx } from 'react/jsx-runtime';",
-				"export const view = () => _jsx('button', { children: 'ok' });",
-			].join('\n'),
-		);
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			plugins: [
-				{
-					name: 'entrypoint-onload-test-plugin',
-					setup(build) {
-						build.onLoad({ filter: /entry\.tsx$/ }, (args) => ({
-							contents: fs.readFileSync(args.path, 'utf-8'),
-							loader: 'tsx',
-							resolveDir: path.dirname(args.path),
-						}));
-					},
-				},
-			],
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /button/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter returns dependency graph entrypoint mapping', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-dependency-graph');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const sharedPath = path.join(srcDir, 'shared.ts');
-		const leafPath = path.join(srcDir, 'leaf.ts');
-		const entryPath = path.join(srcDir, 'entry.ts');
-
-		fs.writeFileSync(sharedPath, "import { leaf } from './leaf';\nexport const shared = leaf + 1;");
-		fs.writeFileSync(leafPath, 'export const leaf = 2;');
-		fs.writeFileSync(entryPath, "import { shared } from './shared';\nexport const value = shared;");
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		});
-
-		assert.equal(result.success, true);
-		assert.ok(result.dependencyGraph);
-
-		const dependencies = result.dependencyGraph?.entrypoints[path.resolve(entryPath)] ?? [];
-
-		assert.ok(dependencies.includes(path.resolve(entryPath)));
-		assert.ok(dependencies.includes(path.resolve(sharedPath)));
-		assert.ok(dependencies.includes(path.resolve(leafPath)));
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter honors first-match plugin precedence within one build', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-plugin-precedence');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const cssPath = path.join(srcDir, 'styles.css');
-		const entryPath = path.join(srcDir, 'entry.ts');
-
-		fs.writeFileSync(cssPath, '.counter { color: red; }');
-		fs.writeFileSync(entryPath, "import styles from './styles.css';\nexport const cssText = styles;");
-
-		const adapter = new EsbuildBuildAdapter();
-
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			plugins: [
-				{
-					name: 'first-css-plugin',
-					setup(build) {
-						build.onLoad({ filter: /\.css$/ }, async () => {
-							return {
-								loader: 'object',
-								exports: {
-									default: 'first-css',
-								},
-							};
-						});
-					},
-				},
-				{
-					name: 'second-css-plugin',
-					setup(build) {
-						build.onLoad({ filter: /\.css$/ }, async () => {
-							return {
-								loader: 'object',
-								exports: {
-									default: 'second-css',
-								},
-							};
-						});
-					},
-				},
-			],
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /first-css/);
-		assert.doesNotMatch(outputSource, /second-css/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter resolves templated naming patterns to concrete output files', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-naming-template');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.ts');
-		fs.writeFileSync(entryPath, 'export const value = 1;');
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[name].[ext]',
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.mjs'))?.path;
-		assert.ok(outputPath);
-		assert.equal(fs.existsSync(path.join(outDir, '[name].[ext]')), false);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
-});
-
-test('EsbuildBuildAdapter forwards define replacements into bundled runtime modules', async () => {
-	try {
-		const root = createTempRoot('ecopages-esbuild-define-runtime');
-		const srcDir = path.join(root, 'src');
-		const outDir = path.join(root, 'dist');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entryPath = path.join(srcDir, 'entry.js');
-		fs.writeFileSync(entryPath, 'export const mode = process.env.NODE_ENV;\n');
-
-		const adapter = new EsbuildBuildAdapter();
-		const result = await adapter.build({
-			entrypoints: [entryPath],
-			root,
-			outdir: outDir,
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-			define: {
-				'process.env.NODE_ENV': '"development"',
-			},
-		});
-
-		assert.equal(result.success, true);
-
-		const outputPath = result.outputs.find((output) => output.path.endsWith('entry.js'))?.path;
-		assert.ok(outputPath);
-
-		const outputSource = fs.readFileSync(outputPath, 'utf-8');
-		assert.match(outputSource, /development/);
-		assert.doesNotMatch(outputSource, /production/);
-	} finally {
-		cleanupTempRoots();
-		clearNodeCssBridge();
-	}
 });

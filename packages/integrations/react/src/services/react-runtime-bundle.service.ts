@@ -9,8 +9,7 @@
 
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import { DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME } from '@ecopages/core/build/browser-runtime-import-rewrite-plugin';
-import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
+import { DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from '@ecopages/core/build/browser-runtime-plugin';
 import {
 	buildBrowserRuntimeAssetUrl,
 	createBrowserRuntimeModuleAsset,
@@ -145,12 +144,17 @@ export class ReactRuntimeBundleService {
 			const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin({
 				reactSpecifier: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
 			});
-			const reactRuntimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
-				{
-					react: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
-				},
-				{ name: `react-plugin-runtime-specifier-alias-${mode}` },
-			);
+			const reactRuntimeAliasPlugin = createBrowserRuntimePlugin({
+				name: `react-plugin-runtime-specifier-alias-${mode}`,
+				manifest: createBrowserRuntimeManifest([
+					{
+						specifier: 'react',
+						owner: '',
+						importPath: 'react',
+						publicPath: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+					},
+				]),
+			});
 			const reactDomBundlePlugins = [reactRuntimeAliasPlugin, reactDomRuntimeInteropPlugin].filter(
 				(plugin): plugin is EcoBuildPlugin => plugin !== null,
 			);
@@ -170,7 +174,7 @@ export class ReactRuntimeBundleService {
 					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
-						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 					},
 				}),
 				createBrowserRuntimeModuleAsset({
@@ -181,7 +185,7 @@ export class ReactRuntimeBundleService {
 					rootDir: this.config.rootDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
-						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 						plugins: reactDomBundlePlugins,
 					},
 				}),
@@ -191,7 +195,7 @@ export class ReactRuntimeBundleService {
 					fileName: this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
-						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME],
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 						plugins: [reactVendorImportRewritePlugin],
 					},
 				}),
@@ -221,8 +225,18 @@ export class ReactRuntimeBundleService {
 	}
 
 	createRuntimeAliasPlugin(mode = this.getCurrentRuntimeMode()): EcoBuildPlugin {
-		return createRuntimeSpecifierAliasPlugin(this.getRuntimeAliasMap(mode), {
+		const aliasMap = this.getRuntimeAliasMap(mode);
+		const manifest = createBrowserRuntimeManifest(
+			Object.entries(aliasMap).map(([specifier, publicPath]) => ({
+				specifier,
+				owner: '',
+				importPath: specifier,
+				publicPath,
+			})),
+		);
+		return createBrowserRuntimePlugin({
 			name: `react-plugin-runtime-alias-${mode}`,
+			manifest,
 		})!;
 	}
 }

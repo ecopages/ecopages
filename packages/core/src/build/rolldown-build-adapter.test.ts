@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
@@ -22,9 +24,24 @@ function writeFixture(filename: string, source: string): string {
 	return fullPath;
 }
 
+function writeAppPackageJson(fields: Record<string, unknown> = {}): void {
+	writeFixture(
+		'package.json',
+		JSON.stringify(
+			{
+				name: 'test-app',
+				private: true,
+				...fields,
+			},
+			null,
+			2,
+		),
+	);
+}
+
 describe('RolldownBuildAdapter', () => {
 	test('builds a single entrypoint and reports outputs', async () => {
-		const entrypoint = writeFixture('index.ts', "export const answer = 42;\n");
+		const entrypoint = writeFixture('index.ts', 'export const answer = 42;\n');
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
 
@@ -45,6 +62,150 @@ describe('RolldownBuildAdapter', () => {
 			readFileSync(firstOutput.path, 'utf-8').includes('answer'),
 			'bundled output contains exported symbol',
 		);
+	});
+
+	test('externalPackages keeps bare package imports external', async () => {
+		writeAppPackageJson({ dependencies: { react: '^19.0.0' } });
+		const entrypoint = writeFixture('entry.ts', "import { useState } from 'react';\nexport { useState };\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).toMatch(/from ['"]react['"]/);
+	});
+
+	test('externalPackages still bundles source-export package imports', async () => {
+		const packageDir = path.join(workDir, 'node_modules', 'source-pkg');
+		const packageEntrypoint = path.join(packageDir, 'shell.tsx');
+		writeAppPackageJson({ dependencies: { 'source-pkg': '1.0.0' } });
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({
+				name: 'source-pkg',
+				type: 'module',
+				exports: './shell.tsx',
+			}),
+		);
+		writeFileSync(packageEntrypoint, "export const shell = 'bundled-source-package';\n");
+		const entrypoint = writeFixture('entry.ts', "import { shell } from 'source-pkg';\nexport { shell };\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).not.toMatch(/from ['"]source-pkg['"]/);
+		expect(code).toContain('bundled-source-package');
+	});
+
+	test('externalPackages rewrites undeclared core-owned runtime packages to file URLs', async () => {
+		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+		const localRequire = createRequire(import.meta.url);
+		const expectedRuntimeUrl = pathToFileURL(localRequire.resolve('oxc-parser')).href;
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).not.toMatch(/from ['"]oxc-parser['"]/);
+		expect(code).toContain(expectedRuntimeUrl);
+	});
+
+	test('externalPackages does not externalize plugin-owned virtual modules', async () => {
+		const entrypoint = writeFixture(
+			'virtual-entry.ts',
+			"import { image } from 'ecopages:images';\nexport const src = image.src;\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+			plugins: [
+				{
+					name: 'virtual-images',
+					setup(build) {
+						build.module('ecopages:images', () => ({
+							loader: 'object',
+							exports: {
+								image: { src: '/images/example.png' },
+							},
+						}));
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).not.toMatch(/from ['"]ecopages:images['"]/);
+		expect(code).toContain('/images/example.png');
+	});
+
+	test('rewrites OXC runtime helper imports to resolved file URLs', async () => {
+		const entrypoint = writeFixture(
+			'oxc-runtime-entry.ts',
+			"import decorate from '@oxc-project/runtime/helpers/decorate';\nexport { decorate };\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).toContain('decorate');
+		expect(code).not.toMatch(/@oxc-project\/runtime\/helpers\/decorate/);
 	});
 
 	test('preserves the .js extension when a naming template is supplied', async () => {
@@ -98,10 +259,7 @@ describe('RolldownBuildAdapter', () => {
 	});
 
 	test('populates dependency graph from entry chunk moduleIds', async () => {
-		const helper = writeFixture(
-			'helper.ts',
-			"export function helper(): string { return 'h'; }\n",
-		);
+		writeFixture('helper.ts', "export function helper(): string { return 'h'; }\n");
 		const entrypoint = writeFixture(
 			'index.ts',
 			"import { helper } from './helper.ts';\nexport const greet = helper();\n",

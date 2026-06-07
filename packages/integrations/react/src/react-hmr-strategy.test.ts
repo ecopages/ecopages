@@ -551,7 +551,7 @@ describe('ReactHmrStrategy', () => {
 		const bundle = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/posts/[slug].123.tmp.js' }],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/posts/_slug_.123.tmp.js' }],
 		}));
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({
@@ -576,7 +576,7 @@ describe('ReactHmrStrategy', () => {
 
 		expect(outputs).toEqual(['/assets/_hmr/pages/posts/_slug_.js']);
 		expect((strategy as any).processOutput).toHaveBeenCalledWith(
-			'/tmp/.eco/assets/_hmr/pages/posts/[slug].123.tmp.js',
+			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.123.tmp.js',
 			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.js',
 			'/assets/_hmr/pages/posts/_slug_.js',
 		);
@@ -608,11 +608,24 @@ describe('ReactHmrStrategy', () => {
 		expect(bundle).toHaveBeenCalledWith(
 			expect.objectContaining({
 				profile: 'hmr-entrypoint',
-				entrypoints: ['/tmp/src/pages/index.tsx'],
+				entrypoints: { 'pages/index': '/tmp/src/pages/index.tsx' },
 				splitting: true,
-				naming: '[dir]/[name].[hash].tmp',
+				naming: '[name].[hash].tmp',
 			}),
 		);
+	});
+
+	it('getRolldownEntryKey produces distinct keys for sibling dynamic routes', () => {
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({}) as any,
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const keyA = (strategy as any).getRolldownEntryKey('/tmp/src/pages/posts/[slug].tsx');
+		const keyB = (strategy as any).getRolldownEntryKey('/tmp/src/pages/[slug]/posts.tsx');
+
+		expect(keyA).not.toBe(keyB);
 	});
 
 	it('clearHmrOutdir is a no-op when the outdir does not exist', async () => {
@@ -640,10 +653,6 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		const tempFiles = [
-			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js',
-		];
 		vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === '/tmp/.eco/assets/_hmr' || p.endsWith('chunks'));
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['pages/index.123.tmp.js', 'pages/_slug_.456.tmp.js']);
 		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);

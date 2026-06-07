@@ -12,7 +12,7 @@ import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 } from '@ecopages/core';
-import '@lit-labs/ssr/lib/install-global-dom-shim.js';
+import './dom-shim.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';

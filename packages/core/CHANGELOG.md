@@ -8,6 +8,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Fixed server-module package ownership so `externalPackages: true` now keeps app-declared packages external while bundling or rewriting undeclared core-owned dependencies such as `@ecopages/file-system`, `oxc-parser`, and lowered OXC runtime helpers for preview, static generation, and Vite-hosted dev module loads.
+- Fixed app-owned server module imports to apply manifest runtime plugins during request-time and static-page loads so integration-owned loaders such as React MDX participate outside the main bundle pipeline.
+- Added the OXC runtime dependency required by rolldown-lowered server modules so static generation and server page imports resolve injected helper imports such as `@oxc-project/runtime/helpers/decorate`.
 - Batched grouped page-browser graph builds across sibling routes per integration so SPA navigation can reuse one shared route browser graph instead of rebuilding page-local copies.
 - Fixed grouped page-browser route remapping to match emitted assets by grouped bundle identity as well as entry name, preventing cross-route asset leakage when cohorts reuse names like `index`.
 - Prevent unrelated sibling-route contribution failures from taking down grouped page-browser asset resolution for the current route during render.

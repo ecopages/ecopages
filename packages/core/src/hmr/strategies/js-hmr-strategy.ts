@@ -157,7 +157,7 @@ export class JsHmrStrategy extends HmrStrategy {
 	 * @remarks
 	 * If runtime-specific dependency graph hooks are unavailable, this strategy
 	 * falls back to rebuilding all watched entrypoints.
-	 * When multiple entrypoints are impacted they are bundled in a single esbuild
+	 * When multiple entrypoints are impacted they are bundled in a single
 	 * invocation to share AST parsing and chunk deduplication.
 	 * @returns Action to broadcast update events
 	 */
@@ -242,7 +242,7 @@ export class JsHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Bundles one or more entrypoints in a single esbuild invocation.
+	 * Bundles one or more entrypoints in a single build invocation.
 	 * Uses the source directory as the output base so that the directory structure
 	 * is preserved under the HMR dist folder.
 	 */
@@ -292,7 +292,6 @@ export class JsHmrStrategy extends HmrStrategy {
 			const code = await fileSystem.readFile(filepath);
 
 			if (code.includes('/* [ecopages] hmr */')) {
-				// Legacy safety: previously processed bundles already carry the marker.
 				return { success: true, requiresReload: !code.includes('import.meta.hot.accept') };
 			}
 

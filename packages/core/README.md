@@ -67,11 +67,11 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- `ConfigBuilder` now seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
+- `ConfigBuilder` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `createApp()` stays the universal runtime entrypoint, while Vite and Nitro hosts own their advanced dev and build workflows.
-- esbuild remains only as a temporary Bun-path implementation detail and is not a strategic core dependency.
+- One bundled adapter is the default bundler. Vite-based apps route through the `ViteHostBuildAdapter` boundary marker instead.
 
 ## Documentation Map
 
@@ -279,7 +279,6 @@ Use these entrypoints only when implementing host adapters or framework-owned bu
 - `@ecopages/core/dev/host-runtime`
 - `@ecopages/core/build/build-adapter`
 - `@ecopages/core/build/build-types`
-- `@ecopages/core/build/runtime-specifier-alias-plugin`
 - `@ecopages/core/plugins/foreign-jsx-override-plugin`
 
 These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.

@@ -1,6 +1,6 @@
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 
-export type AppModuleLoaderOwner = 'bun' | 'host';
+export type AppModuleLoaderOwner = 'app' | 'host';
 
 export interface AppModuleLoader {
 	readonly owner: AppModuleLoaderOwner;

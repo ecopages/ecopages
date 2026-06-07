@@ -234,7 +234,7 @@ export function addTriggerAttribute(
 
 /**
  * Wraps rendered component output in a `<scripts-injector>` element that
- * carries an inline injector map for the legacy (non-global-injector) path.
+ * carries an inline injector map for the component's lazy script groups.
  *
  * @param content Rendered component HTML.
  * @param lazyGroups Resolved lazy script groups attached to the component config.

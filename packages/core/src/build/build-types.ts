@@ -25,7 +25,7 @@ export type EcoBuildOnLoadArgs = {
 };
 
 /**
- * Loader kinds supported across Bun/esbuild bridge points.
+ * Loader kinds supported by the build plugin contract.
  */
 export type EcoBuildLoader =
 	| 'base64'
@@ -56,7 +56,7 @@ export type EcoBuildOnLoadResult = {
 };
 
 /**
- * Shared plugin builder contract used by Ecopages across Bun and esbuild.
+ * Plugin builder contract consumed by build adapters.
  */
 export interface EcoBuildPluginBuilder {
 	onResolve(

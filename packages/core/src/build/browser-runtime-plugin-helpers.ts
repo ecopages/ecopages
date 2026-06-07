@@ -1,37 +1,15 @@
 /**
- * Shared helpers for the browser-runtime plugin family.
+ * Shared helpers for the browser-runtime plugin.
  *
  * @remarks
- * Both `createRuntimeSpecifierAliasPlugin` and
- * `createBrowserRuntimeImportRewritePlugin` need to:
+ * `createBrowserRuntimePlugin` needs to:
  *
- * 1. Normalize their specifier input into a `Map<specifier, publicPath>`.
- * 2. Escape each specifier for inclusion in a regex filter.
- * 3. Build a `RegExp` whose alternation matches any of those specifiers.
+ * 1. Escape each specifier for inclusion in a regex filter.
+ * 2. Build a `RegExp` whose alternation matches any of those specifiers.
  *
- * These utilities are extracted here so the two plugins do not duplicate
- * the same code path. Future plugins in the same family (e.g. a unified
- * `createBrowserRuntimePlugin` per ADR-002) can import the same helpers.
+ * These utilities are extracted here so the plugin does not duplicate
+ * the same code path.
  */
-
-type RuntimeSpecifierMap = ReadonlyMap<string, string> | Record<string, string>;
-
-/**
- * Normalizes runtime specifier input into a `Map<specifier, publicPath>`.
- *
- * Accepts either a `Map` (returned as-is, defensively shallow-copied to
- * prevent the caller from mutating the shared instance) or a plain
- * `Record` (converted to a `Map`).
- *
- * Insertion order is preserved for `Record` input via `Object.entries`.
- */
-export function toRuntimeSpecifierMap(specifierMap: RuntimeSpecifierMap): Map<string, string> {
-	if (specifierMap instanceof Map) {
-		return new Map(specifierMap);
-	}
-
-	return new Map(Object.entries(specifierMap));
-}
 
 /**
  * Escapes a literal specifier for inclusion in a regular expression.

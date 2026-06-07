@@ -68,7 +68,7 @@ describe('DevelopmentInvalidationService', () => {
 		appConfig.runtime = {
 			...(appConfig.runtime ?? {}),
 			appModuleLoader: {
-				owner: 'bun',
+				owner: 'app',
 				importModule: async <T = unknown>() => ({}) as T,
 				invalidateDevelopmentGraph,
 			},

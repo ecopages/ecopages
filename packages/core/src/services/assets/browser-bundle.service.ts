@@ -5,7 +5,7 @@ import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 export type BrowserBundleOptions = {
-	entrypoints: string[];
+	entrypoints: string[] | Record<string, string>;
 	outdir?: string;
 	outbase?: string;
 	naming?: string;

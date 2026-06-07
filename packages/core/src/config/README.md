@@ -27,7 +27,7 @@ It is responsible for:
 - `ConfigBuilder.build()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 
-Bun-native is the default ownership path. Vite-host ownership is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to Bun build execution.
+App-owned is the default ownership path. Host-owned is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to app build execution.
 
 ## Output
 

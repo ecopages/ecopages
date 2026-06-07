@@ -1,6 +1,6 @@
 # ADR-003: Rolldown as the sole bundler
 
-- **Status:** Accepted (pending)
+- **Status:** Implemented
 - **Date:** 2026-06-06
 - **Authors:** opencode
 - **Depends on:** ADR-002 (plugin + bridge consolidation must land first)
@@ -165,7 +165,7 @@ adapter can reuse the shared bridge core.
    `getBunRuntime()` branching in build paths, and
    `dev-build-coordinator.ts`. Remove `ECOPAGES_USE_ROLLDOWN=1`
    gating.
-7. **`chore(release): bump version to 0.3.0-alpha.1`**.
+7. **`chore(release): bump version to 0.3.0-alpha.1`** — deferred, not part of this work.
 8. **`docs(adr): mark ADR-003 Implemented`** with bench numbers.
 
 ## Bench (target, post-ADR-003)

@@ -110,8 +110,9 @@ describe('ClientGraphBoundaryCache', () => {
 		originalRules.add('Baz');
 		// Cache should not reflect the mutation
 		const cached = cache.get('/a', 'a', allowList);
-		expect(cached?.rulesAdded.get('/b')).toBeInstanceOf(Set);
-		expect((cached?.rulesAdded.get('/b') as Set<string>).size).toBe(2);
+		const cachedRules = cached?.rulesAdded.get('/b');
+		expect(cachedRules).toBeInstanceOf(Set);
+		expect((cachedRules as Set<string>).size).toBe(2);
 	});
 
 	it('rulesAdded stores the after-state, not just additions (Set growth)', () => {

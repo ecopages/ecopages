@@ -12,7 +12,11 @@ type ResolveHook = (source: string, importer?: string, extraOptions?: unknown) =
 type LoadHook = (id: string) => Promise<LoadResult>;
 type BuildStartHook = (this: unknown) => Promise<unknown> | unknown;
 
-function callResolveId(plugin: ReturnType<typeof createRolldownPluginBridge>[number], source: string, importer?: string): Promise<ResolveIdResult> {
+function callResolveId(
+	plugin: ReturnType<typeof createRolldownPluginBridge>[number],
+	source: string,
+	importer?: string,
+): Promise<ResolveIdResult> {
 	return (plugin.resolveId as unknown as ResolveHook)(source, importer);
 }
 
@@ -38,8 +42,18 @@ test('createRolldownPluginBridge returns one plugin per EcoBuildPlugin', () => {
 test('createRolldownPluginBridge runs each plugin.setup during buildStart', async () => {
 	const setupCalls: string[] = [];
 	const plugins: EcoBuildPlugin[] = [
-		{ name: 'a', setup: () => { setupCalls.push('a'); } },
-		{ name: 'b', setup: () => { setupCalls.push('b'); } },
+		{
+			name: 'a',
+			setup: () => {
+				setupCalls.push('a');
+			},
+		},
+		{
+			name: 'b',
+			setup: () => {
+				setupCalls.push('b');
+			},
+		},
 	];
 
 	const bridge = createRolldownPluginBridge(plugins, '/app');

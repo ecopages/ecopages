@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.53",
+	"version": "0.2.0-alpha.55",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -140,17 +140,9 @@
 			"types": "./src/build/browser-runtime-manifest.ts",
 			"default": "./src/build/browser-runtime-manifest.ts"
 		},
-		"./build/browser-runtime-import-rewrite-plugin": {
-			"types": "./src/build/browser-runtime-import-rewrite-plugin.ts",
-			"default": "./src/build/browser-runtime-import-rewrite-plugin.ts"
-		},
 		"./build/browser-runtime-plugin": {
 			"types": "./src/build/browser-runtime-plugin.ts",
 			"default": "./src/build/browser-runtime-plugin.ts"
-		},
-		"./build/runtime-specifier-alias-plugin": {
-			"types": "./src/build/runtime-specifier-alias-plugin.ts",
-			"default": "./src/build/runtime-specifier-alias-plugin.ts"
 		},
 		"./cache": {
 			"types": "./src/cache/index.ts",

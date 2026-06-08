@@ -177,9 +177,23 @@ export class ConfigBuilder {
 	 * Sets which runtime path owns build execution for the finalized app config.
 	 *
 	 * @remarks
-	 * The app-owned build path is the default. The host-owned path should be
-	 * selected only for host-driven compatibility flows where core must not
-	 * silently fall back to app build execution.
+	 * Three ownership values are accepted:
+	 *
+	 * - `'rolldown'` (default): Ecopages runs builds through
+	 *   {@link RolldownBuildAdapter}, creating a new `rolldown()` instance
+	 *   per build. Best for one-shot production builds and benchmarks.
+	 * - `'rolldown-dev'`: Ecopages runs builds through
+	 *   {@link RolldownDevBuildAdapter}, which wraps Rolldown's experimental
+	 *   `DevEngine` and reuses the cached module graph, resolver, and
+	 *   transform cache across rebuilds. Best for HMR and watch mode where
+	 *   the same entrypoints are rebuilt repeatedly.
+	 * - `'vite-host'`: a host runtime owns the build. Ecopages exposes a
+	 *   {@link ViteHostBuildAdapter} boundary marker that throws on direct
+	 *   use. Select this only for host-driven compatibility flows where
+	 *   core must not silently fall back to app build execution.
+	 *
+	 * Defaults to `'rolldown'` when {@link ConfigBuilder.build} runs
+	 * without an explicit ownership.
 	 */
 	setBuildOwnership(buildOwnership: BuildOwnership): this {
 		this.buildOwnership = buildOwnership;

@@ -2,17 +2,12 @@
  * Shared helpers for the Rolldown-backed build adapters.
  *
  * @remarks
- * Both {@link RolldownBuildAdapter} (one-shot production builds) and
- * {@link RolldownDevBuildAdapter} (DevEngine-backed incremental rebuilds)
- * need the same {@link BuildOptions} → Rolldown options mapping, the same
- * output normalization, and the same external/package resolution
- * helpers. To keep the two adapters semantically identical and avoid
- * the maintenance trap of two diverging copies, this module hosts the
- * shared helpers.
- *
- * Both adapters import from this module instead of redefining their
- * own copies. The only thing the adapters add is the bundler entry
- * point (`rolldown()` vs `dev()`) and the result-handling pipeline.
+ * The standard {@link RolldownBuildAdapter} (one-shot production builds)
+ * and the dev {@link RolldownDevBuildAdapter} (DevEngine-backed
+ * incremental rebuilds) both need the same BuildOptions → Rolldown
+ * mapping, the same dependency-graph extraction, and the same
+ * post-build rewriting pipeline. This module hosts the shared code so
+ * the two adapters stay semantically identical.
  *
  * @module
  */
@@ -37,15 +32,6 @@ import type {
 
 const corePackageRequire = createRequire(new URL('../../package.json', import.meta.url));
 
-/**
- * Resolved transpile settings for each stable profile.
- *
- * @remarks
- * All three profiles (`'browser-script'`, `'hmr-runtime'`,
- * `'hmr-entrypoint'`) share the same defaults today. The profile
- * argument is kept so per-profile tuning can land without breaking
- * callers.
- */
 export function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 	switch (profile) {
 		case 'browser-script':
@@ -59,19 +45,83 @@ export function transpileProfileToOptions(profile: BuildTranspileProfile): Build
 	}
 }
 
-export function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
+function isPackageImport(id: string): boolean {
+	return (
+		!id.startsWith('.') &&
+		!path.isAbsolute(id) &&
+		!id.startsWith('/') &&
+		!id.startsWith('node:') &&
+		!id.startsWith('@/') &&
+		!id.startsWith('~/') &&
+		!id.startsWith('#') &&
+		!id.includes(':')
+	);
+}
+
+function tryResolveModule(id: string, resolver: NodeJS.Require): string | undefined {
+	try {
+		return resolver.resolve(id);
+	} catch {
+		return undefined;
+	}
+}
+
+function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: string): NodeJS.Require {
+	const cacheKey = path.resolve(contextRoot);
+	let req = cache.get(cacheKey);
+	if (!req) {
+		req = createRequire(path.join(cacheKey, 'package.json'));
+		cache.set(cacheKey, req);
+	}
+	return req;
+}
+
+function shouldBundlePackageImport(
+	id: string,
+	contextRoot: string,
+	appRootRequireCache: Map<string, NodeJS.Require>,
+): boolean {
+	if (isDeclaredAppPackageImport(id, contextRoot)) {
+		const appRootRequire = getAppRootRequire(appRootRequireCache, contextRoot);
+		const appResolvedPath = tryResolveModule(id, appRootRequire);
+		return Boolean(appResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(appResolvedPath));
+	}
+
+	const coreResolvedPath = tryResolveModule(id, corePackageRequire);
+	return Boolean(coreResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(coreResolvedPath));
+}
+
+function createExternalMatcher(
+	options: BuildOptions,
+	appRootRequireCache: Map<string, NodeJS.Require>,
+): (id: string) => boolean {
+	const explicitExternals = new Set(options.external ?? []);
+	const externalPackages = options.externalPackages === true;
+	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+
+	return (id: string): boolean => {
+		if (explicitExternals.has(id)) {
+			return true;
+		}
+		if (!externalPackages || !isPackageImport(id)) {
+			return false;
+		}
+		return !shouldBundlePackageImport(id, contextRoot, appRootRequireCache);
+	};
+}
+
+function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
 	switch (value) {
 		case 'cjs':
 			return 'cjs';
 		case 'iife':
 			return 'iife';
-		case 'esm':
 		default:
 			return 'esm';
 	}
 }
 
-export function mapRolldownPlatform(value: string | undefined): 'browser' | 'node' | 'neutral' {
+function mapRolldownPlatform(value: string | undefined): 'browser' | 'node' | 'neutral' {
 	if (value === 'browser') return 'browser';
 	if (value === 'node') return 'node';
 	if (value && /^(?:es\d+|chrome\d+|edge\d+|firefox\d+|safari\d+|hermes|deno\d+|ios\d+)$/.test(value)) {
@@ -80,7 +130,7 @@ export function mapRolldownPlatform(value: string | undefined): 'browser' | 'nod
 	return 'neutral';
 }
 
-export function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | 'hidden' {
+function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | 'hidden' {
 	switch (value) {
 		case 'none':
 			return false;
@@ -94,7 +144,7 @@ export function mapRolldownSourcemap(value: string | undefined): boolean | 'inli
 	}
 }
 
-export function mapRolldownJsx(jsx: NonNullable<BuildOptions['jsx']>): Record<string, unknown> {
+function mapRolldownJsx(jsx: NonNullable<BuildOptions['jsx']>): Record<string, unknown> {
 	const { factory, fragment, ...rest } = jsx;
 	const out: Record<string, unknown> = { ...rest };
 	if (factory !== undefined) {
@@ -106,7 +156,7 @@ export function mapRolldownJsx(jsx: NonNullable<BuildOptions['jsx']>): Record<st
 	return out;
 }
 
-export function toEntryFileNamesPattern(value: string | undefined): { pattern: string; literal: boolean } | undefined {
+function toEntryFileNamesPattern(value: string | undefined): { pattern: string; literal: boolean } | undefined {
 	if (!value) {
 		return undefined;
 	}
@@ -118,7 +168,7 @@ export function toEntryFileNamesPattern(value: string | undefined): { pattern: s
 	return { pattern: stripped, literal };
 }
 
-export function getJavaScriptOutExtension(options: BuildOptions, literal: boolean): string | undefined {
+function getJavaScriptOutExtension(options: BuildOptions, literal: boolean): string | undefined {
 	if (literal) {
 		return undefined;
 	}
@@ -131,7 +181,7 @@ export function getJavaScriptOutExtension(options: BuildOptions, literal: boolea
 	return '.mjs';
 }
 
-export function normalizeOutputPath(outputPath: string, outdir: string): string {
+function normalizeOutputPath(outputPath: string, outdir: string): string {
 	return path.isAbsolute(outputPath) ? path.normalize(outputPath) : path.normalize(path.join(outdir, outputPath));
 }
 
@@ -167,81 +217,7 @@ export function toBuildLogs(error: unknown): BuildLog[] {
 	return [{ message: 'Unknown build error' }];
 }
 
-export function isPackageImport(id: string): boolean {
-	return (
-		!id.startsWith('.') &&
-		!path.isAbsolute(id) &&
-		!id.startsWith('/') &&
-		!id.startsWith('node:') &&
-		!id.startsWith('@/') &&
-		!id.startsWith('~/') &&
-		!id.startsWith('#') &&
-		!id.includes(':')
-	);
-}
-
-function tryResolveModule(id: string, resolver: NodeJS.Require): string | undefined {
-	try {
-		return resolver.resolve(id);
-	} catch {
-		return undefined;
-	}
-}
-
-/**
- * Returns a `createRequire` instance anchored at `<contextRoot>/package.json`,
- * caching the result so repeated calls with the same context root reuse
- * the same require.
- */
-export function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: string): NodeJS.Require {
-	const cacheKey = path.resolve(contextRoot);
-	let req = cache.get(cacheKey);
-	if (!req) {
-		req = createRequire(path.join(cacheKey, 'package.json'));
-		cache.set(cacheKey, req);
-	}
-	return req;
-}
-
-function shouldBundlePackageImport(
-	id: string,
-	contextRoot: string,
-	appRootRequireCache: Map<string, NodeJS.Require>,
-): boolean {
-	if (isDeclaredAppPackageImport(id, contextRoot)) {
-		const appRootRequire = getAppRootRequire(appRootRequireCache, contextRoot);
-		const appResolvedPath = tryResolveModule(id, appRootRequire);
-		return Boolean(appResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(appResolvedPath));
-	}
-
-	const coreResolvedPath = tryResolveModule(id, corePackageRequire);
-	return Boolean(coreResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(coreResolvedPath));
-}
-
-export function createExternalMatcher(
-	options: BuildOptions,
-	appRootRequireCache: Map<string, NodeJS.Require>,
-): (id: string) => boolean {
-	const explicitExternals = new Set(options.external ?? []);
-	const externalPackages = options.externalPackages === true;
-	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-
-	return (id: string): boolean => {
-		if (explicitExternals.has(id)) {
-			return true;
-		}
-
-		if (!externalPackages || !isPackageImport(id)) {
-			return false;
-		}
-
-		return !shouldBundlePackageImport(id, contextRoot, appRootRequireCache);
-	};
-}
-
-/**
- * Resolved Rolldown options for one `BuildOptions` request.
- */
+/** Translated Rolldown options for one {@link BuildOptions} request. */
 export interface ResolvedRolldownOptions {
 	inputOptions: InputOptions;
 	outputOptions: OutputOptions;
@@ -249,7 +225,8 @@ export interface ResolvedRolldownOptions {
 
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
- * `OutputOptions`. Shared by both the standard and dev adapters.
+ * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
+ * and always consolidates eco plugins via the bridge.
  */
 export function resolveRolldownOptions(
 	options: BuildOptions,
@@ -312,19 +289,14 @@ export function resolveRolldownOptions(
 }
 
 /**
- * Rewrites manifest-owned runtime specifiers in emitted JS output files.
+ * Rewrites manifest-owned runtime specifiers in emitted JS output
+ * files. Skips work when the specifier map is empty or when a
+ * `(specifierMap, path, content)` tuple was already seen.
  *
- * @remarks
- * For each JS output, reads the file, applies the AST-based import/export
- * rewrite against the manifest's specifier map, and writes the result back
- * if it differs. A per-path content cache (keyed on the input bytes) skips
- * the parse+write round trip when the file's source content is identical
- * to the last rewrite — important for DevEngine-backed incremental
- * rebuilds where the same files are rewritten on every cached build.
- *
- * The cache is keyed on a fingerprint of `(specifierMap, outputPath,
- * sourceBytes)` so a manifest change correctly invalidates prior entries
- * and different content with the same length does not collide.
+ * The content cache is module-level and is keyed on a djb2 hash of
+ * the input bytes plus a sorted fingerprint of the specifier map. A
+ * manifest change correctly invalidates prior entries; different
+ * content of the same length does not collide.
  */
 export function rewriteBrowserRuntimeImportsInOutputs(
 	result: BuildResult,
@@ -375,18 +347,12 @@ function djb2(input: string): string {
 	return hash.toString(36);
 }
 
-/**
- * Clears the in-memory rewriter cache. Exposed for test teardown so
- * tests with different fixtures don't inherit cache state from
- * previous runs.
- */
+/** Test-only: clears the rewriter content cache. */
 export function clearRewriteCacheForTests(): void {
 	rewriteCache.clear();
 }
 
-/**
- * Normalizes node-runtime import paths in emitted outputs.
- */
+/** Normalizes node-runtime import paths in emitted outputs. */
 export function rewriteNodeRuntimeImportsInOutputs(result: BuildResult, contextRoot: string): BuildResult {
 	if (!result.success || result.outputs.length === 0) {
 		return result;
@@ -400,10 +366,7 @@ export function rewriteNodeRuntimeImportsInOutputs(result: BuildResult, contextR
 	return result;
 }
 
-/**
- * Maps a `RolldownOutput` to a normalized `BuildResult`. Shared shape
- * for both the standard and dev adapters.
- */
+/** Maps a Rolldown `output` to a normalized {@link BuildResult}. */
 export function buildResultFromRolldownOutput(
 	output: {
 		output: Array<{

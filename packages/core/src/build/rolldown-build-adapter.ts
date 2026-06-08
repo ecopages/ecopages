@@ -2,27 +2,13 @@
  * Bundler-backed build adapter.
  *
  * @remarks
- * Implements {@link BuildAdapter} on top of the bundler. This is the
- * default adapter installed by `ConfigBuilder` and the only adapter
- * that issues real builds in production.
+ * Implements {@link BuildAdapter} on top of Rolldown. This is the
+ * default adapter installed by `ConfigBuilder` and the adapter that
+ * issues real builds in production.
  *
- * Responsibilities:
- *
- * - Map {@link BuildOptions} to the bundler's native options and
- *   return a {@link BuildResult} (outputs + dependency graph).
- * - Translate the runtime-agnostic `EcoBuildPlugin[]` via the bundled
- *   plugin bridge, preserving plugin-priority order by giving each
- *   plugin its own slot.
- * - Run the browser-runtime-import rewriter against the emitted
- *   JavaScript outputs when the manifest declares a rewrite map.
- *
- * Module graph extraction: the bundler groups modules per chunk, so
- * the per-chunk module list is read directly. The
- * `BuildDependencyGraph.entrypoints` shape is preserved so HMR
- * invalidation and the build manifest keep working without changes.
- *
- * For HMR/watch mode with cached incremental rebuilds, see
- * {@link RolldownDevBuildAdapter}.
+ * Each `build()` creates a fresh `rolldown()` bundler, so there is no
+ * module-graph reuse across calls. For HMR/watch mode where the same
+ * entrypoints are rebuilt repeatedly, see {@link RolldownDevBuildAdapter}.
  */
 
 import { createRequire } from 'node:module';
@@ -49,8 +35,15 @@ const moduleRequire = createRequire(import.meta.url);
 
 export class RolldownBuildAdapter implements BuildAdapter {
 	readonly ownership = 'rolldown' as const;
+
+	/** Per-adapter require cache, keyed on resolved context root. */
 	private readonly appRootRequireCache = new Map<string, NodeJS.Require>();
 
+	/**
+	 * Issues one build. Creates a fresh `rolldown()` bundler per call,
+	 * so no module-graph reuse. For repeated rebuilds on the same
+	 * entrypoints, use {@link RolldownDevBuildAdapter}.
+	 */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');

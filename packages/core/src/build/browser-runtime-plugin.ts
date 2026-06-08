@@ -240,6 +240,8 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 	const matchPublicPaths = options.matchPublicPaths ?? true;
 	const publicPathSet = new Set(specifierMap.values());
 
+	const specifierKeys = Array.from(specifierMap.keys());
+
 	const plugin: BrowserRuntimePlugin = {
 		name: options.name ?? DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 		setup(build) {
@@ -281,7 +283,7 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 					 * any manifest-owned specifiers. This avoids expensive oxc-parser calls
 					 * on every JS/TS file in the dependency graph.
 					 */
-					if (!Array.from(specifierMap.keys()).some((specifier) => code.includes(specifier))) {
+					if (!specifierKeys.some((specifier) => code.includes(specifier))) {
 						return undefined;
 					}
 

@@ -28,15 +28,14 @@ async function callBuildStart(plugin: ReturnType<typeof createRolldownPluginBrid
 	await (plugin.buildStart as unknown as BuildStartHook).call(fakeContext);
 }
 
-test('createRolldownPluginBridge returns one plugin per EcoBuildPlugin', () => {
+test('createRolldownPluginBridge returns a single consolidated plugin', () => {
 	const plugins: EcoBuildPlugin[] = [
 		{ name: 'a', setup: () => {} },
 		{ name: 'b', setup: () => {} },
 	];
 	const bridge = createRolldownPluginBridge(plugins, '/app');
-	assert.equal(bridge.length, 2);
-	assert.equal(bridge[0]?.name, 'ecopages-plugin-bridge:a');
-	assert.equal(bridge[1]?.name, 'ecopages-plugin-bridge:b');
+	assert.equal(bridge.length, 1);
+	assert.equal(bridge[0]?.name, 'ecopages-plugin-bridge');
 });
 
 test('createRolldownPluginBridge runs each plugin.setup during buildStart', async () => {
@@ -224,12 +223,11 @@ test('createRolldownPluginBridge module() registers unique namespaces per specif
 	];
 
 	const bridge = createRolldownPluginBridge(plugins, '/app');
-	for (const plugin of bridge) {
-		await callBuildStart(plugin);
-	}
+	const plugin = bridge[0]!;
+	await callBuildStart(plugin);
 
-	const fooResolve = (await callResolveId(bridge[0]!, 'virtual:foo')) as { id: string } | undefined;
-	const barResolve = (await callResolveId(bridge[1]!, 'virtual:bar')) as { id: string } | undefined;
+	const fooResolve = (await callResolveId(plugin, 'virtual:foo')) as { id: string } | undefined;
+	const barResolve = (await callResolveId(plugin, 'virtual:bar')) as { id: string } | undefined;
 	assert.ok(fooResolve?.id.startsWith('ecopages-module-0:'), 'first module has its own namespace');
 	assert.ok(barResolve?.id.startsWith('ecopages-module-1:'), 'second module has its own namespace');
 	assert.notEqual(fooResolve?.id, barResolve?.id);

@@ -229,7 +229,27 @@ interface LoadRegistration {
 	callback: LoadCallback;
 }
 
-function wrapEcoPlugin(ecoPlugin: EcoBuildPlugin, contextRoot: string, moduleCounter: { value: number }): Plugin {
+/**
+ * Creates a Rolldown `Plugin` array that drives the supplied
+ * `EcoBuildPlugin` instances.
+ *
+ * All eco plugins are merged into a single Rolldown plugin to minimize
+ * Rust→JS FFI overhead. Rolldown calls every hook for every module when
+ * there is no static filter, so N separate plugins would cause N
+ * `resolveId` + N `load` calls per module. Consolidating into one
+ * plugin reduces that to 1 call each, with JavaScript-side filtering
+ * routing to the correct eco plugin callback.
+ *
+ * Plugin ordering is preserved: registrations from earlier eco plugins
+ * are checked before registrations from later ones, matching the
+ * original per-plugin priority semantics.
+ */
+export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Plugin[] {
+	if (plugins.length === 0) {
+		return [];
+	}
+
+	const moduleCounter = { value: 0 };
 	const resolveRegistrations: ResolveRegistration[] = [];
 	const loadRegistrations: LoadRegistration[] = [];
 
@@ -241,69 +261,66 @@ function wrapEcoPlugin(ecoPlugin: EcoBuildPlugin, contextRoot: string, moduleCou
 		loadRegistrations.push({ filter, callback });
 	};
 
-	return {
-		name: `ecopages-plugin-bridge:${ecoPlugin.name}`,
-		buildStart: async (): Promise<void> => {
-			const bridge: EcoBuildPluginBuilder = {
-				onResolve: (options, callback) => {
-					registerResolve(buildIdFilter(options.filter, options.namespace), callback);
-				},
-				onLoad: (options, callback) => {
-					registerLoad(buildIdFilter(options.filter, options.namespace), callback);
-				},
-				module: (specifier, callback) => {
-					const namespace = `ecopages-module-${moduleCounter.value}`;
-					moduleCounter.value += 1;
-					const filter = new RegExp(`^${escapeRegExp(specifier)}$`);
-
-					registerResolve(filter, async () => ({
-						path: joinNamespace(namespace, specifier),
-					}));
-
-					registerLoad(buildIdFilter(/.*/, namespace), async () => callback());
-				},
-			};
-
-			await ecoPlugin.setup(bridge);
-		},
-		resolveId: async (source, importer, _extraOptions) => {
-			for (const { filter, callback } of resolveRegistrations) {
-				if (!filter.test(source)) {
-					continue;
-				}
-				const { namespace, path: sourcePath } = splitNamespace(source);
-				const result = await callback({ path: sourcePath, importer, namespace });
-				const converted = convertPluginOnResolveResult(result, importer, contextRoot);
-				if (converted !== undefined) {
-					return converted;
-				}
+	const resolveIdHandler = async (source: string, importer: string | undefined, _extraOptions: unknown) => {
+		for (const { filter, callback } of resolveRegistrations) {
+			if (!filter.test(source)) {
+				continue;
 			}
-			return undefined;
-		},
-		load: async (id) => {
-			for (const { filter, callback } of loadRegistrations) {
-				if (!filter.test(id)) {
-					continue;
-				}
-				const { namespace, path: sourcePath } = splitNamespace(id);
-				const result = await callback({ path: sourcePath, namespace });
-				const converted = convertPluginOnLoadResult({ id }, result);
-				if (converted !== undefined) {
-					return converted;
-				}
+			const { namespace, path: sourcePath } = splitNamespace(source);
+			const result = await callback({ path: sourcePath, importer, namespace });
+			const converted = convertPluginOnResolveResult(result, importer, contextRoot);
+			if (converted !== undefined) {
+				return converted;
 			}
-			return undefined;
-		},
+		}
+		return undefined;
 	};
-}
 
-/**
- * Creates a Rolldown `Plugin` array that drives the supplied
- * `EcoBuildPlugin` instances. Each `EcoBuildPlugin` becomes its own
- * Rolldown plugin so that the order of registrations is preserved as
- * plugin priority.
- */
-export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Plugin[] {
-	const moduleCounter = { value: 0 };
-	return plugins.map((ecoPlugin) => wrapEcoPlugin(ecoPlugin, contextRoot, moduleCounter));
+	const loadHandler = async (id: string) => {
+		for (const { filter, callback } of loadRegistrations) {
+			if (!filter.test(id)) {
+				continue;
+			}
+			const { namespace, path: sourcePath } = splitNamespace(id);
+			const result = await callback({ path: sourcePath, namespace });
+			const converted = convertPluginOnLoadResult({ id }, result);
+			if (converted !== undefined) {
+				return converted;
+			}
+		}
+		return undefined;
+	};
+
+	const plugin: Plugin = {
+		name: 'ecopages-plugin-bridge',
+		buildStart: async (): Promise<void> => {
+			for (const ecoPlugin of plugins) {
+				const bridge: EcoBuildPluginBuilder = {
+					onResolve: (options, callback) => {
+						registerResolve(buildIdFilter(options.filter, options.namespace), callback);
+					},
+					onLoad: (options, callback) => {
+						registerLoad(buildIdFilter(options.filter, options.namespace), callback);
+					},
+					module: (specifier, callback) => {
+						const namespace = `ecopages-module-${moduleCounter.value}`;
+						moduleCounter.value += 1;
+						const filter = new RegExp(`^${escapeRegExp(specifier)}$`);
+
+						registerResolve(filter, async () => ({
+							path: joinNamespace(namespace, specifier),
+						}));
+
+						registerLoad(buildIdFilter(/.*/, namespace), async () => callback());
+					},
+				};
+
+				await ecoPlugin.setup(bridge);
+			}
+		},
+		resolveId: resolveIdHandler,
+		load: loadHandler,
+	};
+
+	return [plugin];
 }

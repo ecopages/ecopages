@@ -28,6 +28,7 @@ import {
 	type AppBuildManifest,
 } from './build-manifest.ts';
 import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { createRolldownDevBuildAdapter } from './rolldown-dev-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 
@@ -36,10 +37,13 @@ import type { IHmrManager } from '../types/public-types.ts';
  *
  * - `'rolldown'`: the default. Ecopages runs the build directly through
  *   its bundler-backed adapter.
+ * - `'rolldown-dev'`: uses Rolldown's DevEngine for cached incremental
+ *   rebuilds. Ideal for HMR and watch mode where the same entrypoints
+ *   are rebuilt repeatedly.
  * - `'vite-host'`: a host runtime owns the build. {@link ViteHostBuildAdapter}
  *   is exposed as a boundary marker; any direct call into it throws.
  */
-export type BuildOwnership = 'vite-host' | 'rolldown';
+export type BuildOwnership = 'vite-host' | 'rolldown' | 'rolldown-dev';
 
 /**
  * A single message emitted by the build backend.
@@ -405,6 +409,8 @@ export function createBuildAdapter(options?: { ownership?: BuildOwnership }): Bu
 	switch (options?.ownership ?? 'rolldown') {
 		case 'vite-host':
 			return createViteHostBuildAdapter();
+		case 'rolldown-dev':
+			return createRolldownDevBuildAdapter();
 		case 'rolldown':
 		default:
 			return createRolldownBuildAdapter();

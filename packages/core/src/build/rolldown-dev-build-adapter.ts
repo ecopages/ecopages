@@ -62,13 +62,23 @@ type PendingBuild = {
  * Build adapter backed by Rolldown's DevEngine for cached incremental rebuilds.
  */
 export class RolldownDevBuildAdapter implements BuildAdapter {
-	readonly ownership = 'rolldown' as const;
+	/**
+	 * `'rolldown-dev'` (not `'rolldown'`) so {@link getBuildAdapterOwnership}
+	 * round-trips correctly and `createBuildAdapter({ ownership })` can
+	 * re-select this class.
+	 */
+	readonly ownership = 'rolldown-dev' as const;
 
 	private cachedEngine: CachedDevEngine | undefined;
 	private engineInstanceCount = 0;
 	private readonly pendingBuilds: PendingBuild[] = [];
 	private readonly appRootRequireCache = new Map<string, NodeJS.Require>();
 
+	/**
+	 * Stable key over the inputs that affect the engine configuration.
+	 * Plugin order is intentionally not part of the key: two plugin
+	 * sets with the same names are interchangeable for caching.
+	 */
 	private getCacheKey(
 		plugins: EcoBuildPlugin[],
 		contextRoot: string,
@@ -79,6 +89,11 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 		return `${contextRoot}::${pluginNames}::${target ?? 'default'}::${format ?? 'esm'}`;
 	}
 
+	/**
+	 * Returns the cached engine, creating a new one when the cache
+	 * key changes. On a cache miss the prior engine is closed and
+	 * {@link engineInstanceCount} is incremented.
+	 */
 	private async getOrCreateEngine(options: BuildOptions, contextRoot: string): Promise<CachedDevEngine> {
 		const bundlePlugins = options.plugins ?? [];
 		const cacheKey = this.getCacheKey(bundlePlugins, contextRoot, options.target, options.format);
@@ -129,14 +144,21 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 		return this.cachedEngine;
 	}
 
-	private enqueueBuild(): Promise<RolldownOutput> {
-		return new Promise<RolldownOutput>((resolve, reject) => {
+	/**
+	 * Triggers a build on the cached engine and returns the next
+	 * `RolldownOutput` delivered to `onOutput`.
+	 *
+	 * First call after engine creation invokes `engine.run`; subsequent
+	 * calls invoke `engine.triggerFullBuild` and reuse the cached
+	 * module graph, resolver, and transform caches.
+	 *
+	 * If the trigger itself throws, the queued build is removed so
+	 * the next `build()` does not consume a stale slot.
+	 */
+	private async runBuild(cached: CachedDevEngine): Promise<RolldownOutput> {
+		const outputPromise = new Promise<RolldownOutput>((resolve, reject) => {
 			this.pendingBuilds.push({ resolve, reject });
 		});
-	}
-
-	private async runBuild(cached: CachedDevEngine): Promise<RolldownOutput> {
-		const outputPromise = this.enqueueBuild();
 
 		try {
 			if (!cached.engineStarted) {
@@ -153,6 +175,7 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 		return outputPromise;
 	}
 
+	/** Throws on error; see {@link build} for the no-throw variant. */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
@@ -187,32 +210,26 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 	}
 
 	/**
-	 * Closes the cached DevEngine and releases resources.
+	 * Closes the cached DevEngine and rejects any in-flight builds
+	 * with `'DevBuildAdapter closed'`.
 	 *
 	 * @remarks
-	 * On the `BuildAdapter` interface, this is not declared; callers that
-	 * obtain the adapter via `getAppBuildAdapter` cannot call it. The
-	 * adapter is designed to be long-lived for the duration of the
-	 * process; calling this is only needed when the caller knows the
-	 * configuration will change or the process is shutting down.
+	 * Not on the {@link BuildAdapter} interface, so it is only
+	 * reachable through the concrete class. The adapter is meant to
+	 * live for the process lifetime; this is for explicit teardown.
 	 */
 	async close(): Promise<void> {
 		if (this.cachedEngine) {
 			await this.cachedEngine.engine.close();
 			this.cachedEngine = undefined;
 		}
-		// Reject any in-flight builds so callers don't hang.
 		while (this.pendingBuilds.length > 0) {
 			const pending = this.pendingBuilds.shift();
 			pending?.reject(new Error('DevBuildAdapter closed'));
 		}
 	}
 
-	/**
-	 * Number of `DevEngine` instances this adapter has created across
-	 * its lifetime. Exposed for test assertions verifying cache reuse;
-	 * production code should not depend on this.
-	 */
+	/** Test-only: number of engines created over the adapter's lifetime. */
 	getEngineInstanceCountForTests(): number {
 		return this.engineInstanceCount;
 	}

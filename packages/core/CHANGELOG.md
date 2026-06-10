@@ -8,6 +8,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Externalized package imports while bundling the production server entry so native addons such as Tailwind's platform binaries keep loading from installed dependencies instead of failing the server bundle build.
 - Fixed server-module package ownership so `externalPackages: true` now keeps app-declared packages external while bundling or rewriting undeclared core-owned dependencies such as `@ecopages/file-system`, `oxc-parser`, and lowered OXC runtime helpers for preview, static generation, and Vite-hosted dev module loads.
 - Fixed app-owned server module imports to apply manifest runtime plugins during request-time and static-page loads so integration-owned loaders such as React MDX participate outside the main bundle pipeline.
 - Added the OXC runtime dependency required by rolldown-lowered server modules so static generation and server page imports resolve injected helper imports such as `@oxc-project/runtime/helpers/decorate`.

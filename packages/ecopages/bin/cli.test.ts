@@ -37,6 +37,12 @@ vi.mock('@ecopages/logger', () => ({
 }));
 
 describe('CLI Commands', () => {
+	function mockProcessExit() {
+		return vi.spyOn(process, 'exit').mockImplementation(((code?: string | number | null) => {
+			throw new Error(`process.exit:${code ?? ''}`);
+		}) as never);
+	}
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 
@@ -72,6 +78,7 @@ describe('CLI Commands', () => {
 			['--dev'],
 			expect.objectContaining({ nodeEnv: 'development' }),
 			'app.ts',
+			'dev',
 		);
 	});
 
@@ -81,6 +88,7 @@ describe('CLI Commands', () => {
 			['--dev'],
 			expect.objectContaining({ hot: true, nodeEnv: 'development' }),
 			'app.ts',
+			'dev',
 		);
 	});
 
@@ -90,15 +98,17 @@ describe('CLI Commands', () => {
 			['--dev'],
 			expect.objectContaining({ watch: true, nodeEnv: 'development' }),
 			'app.ts',
+			'dev',
 		);
 	});
 
 	it('runs build command with custom entry file', async () => {
-		await runCli(['build', 'server.ts']);
+		await runCli(['build', '--entry-file', 'server.ts']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--build'],
-			expect.objectContaining({ nodeEnv: 'production' }),
+			expect.objectContaining({ nodeEnv: 'production', entryFile: 'server.ts' }),
 			'server.ts',
+			'build',
 		);
 	});
 
@@ -112,6 +122,7 @@ describe('CLI Commands', () => {
 				hostname: '127.0.0.1',
 			}),
 			'app.ts',
+			'build',
 		);
 	});
 
@@ -125,6 +136,7 @@ describe('CLI Commands', () => {
 				hostname: '0.0.0.0',
 			}),
 			'app.ts',
+			'start',
 		);
 	});
 
@@ -138,6 +150,7 @@ describe('CLI Commands', () => {
 				debug: true,
 			}),
 			'app.ts',
+			'preview',
 		);
 	});
 
@@ -151,6 +164,16 @@ describe('CLI Commands', () => {
 				runtime: 'bun',
 			}),
 			'app.ts',
+			'dev',
 		);
+	});
+
+	it('rejects positional entry file arguments loudly', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['build', 'server.ts'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
 	});
 });

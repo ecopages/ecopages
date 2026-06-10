@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.55",
+	"version": "0.2.0-beta.1",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -163,6 +163,11 @@
 		"./utils/hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
+		},
+		"./utils/resolve-entry-file": {
+			"import": "./src/utils/resolve-entry-file.ts",
+			"types": "./src/utils/resolve-entry-file.ts",
+			"default": "./src/utils/resolve-entry-file.ts"
 		},
 		"./errors": {
 			"types": "./src/errors/index.ts",

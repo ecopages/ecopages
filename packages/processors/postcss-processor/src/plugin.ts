@@ -153,13 +153,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			this.trackedCssFiles.add(filePath);
 
 			const rawContents = await fileSystem.readFile(filePath);
-			let transformedInput = rawContents;
 
-			if (this.options?.transformInput) {
-				transformedInput = await this.options.transformInput(rawContents, filePath);
-			}
-
-			const processed = await this.process(transformedInput, filePath);
+			const processed = await this.process(rawContents, filePath);
 			this.runtimeCssCache.set(filePath, processed);
 			await this.persistProcessedCss(filePath, processed);
 		}
@@ -262,15 +257,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	private async transformCssAsync(input: CssTransformInput): Promise<string> {
 		const { contents, filePath } = input;
-		let transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
-
-		if (this.options?.transformInput) {
-			const result = this.options.transformInput(contents, filePath);
-			transformed =
-				typeof (result as unknown as Record<string, unknown>).then === 'function'
-					? await (result as Promise<string>)
-					: (result as string);
-		}
+		const transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
 
 		const processed = await this.process(transformed, filePath);
 		this.runtimeCssCache.set(filePath, processed);
@@ -452,11 +439,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				this.refreshConfiguredPlugins();
 			}
 
-			let content = await fileSystem.readFile(filePath);
-
-			if (this.options?.transformInput) {
-				content = await this.options.transformInput(content, filePath);
-			}
+			const content = await fileSystem.readFile(filePath);
 
 			const processed = await this.process(content, filePath);
 

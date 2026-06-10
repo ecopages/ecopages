@@ -3,7 +3,7 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"start": "ecopages start",
+		"start": "pnpm run build && ecopages start",
 		"generate:llms": "bun run scripts/generate-llm-docs.ts",
 		"dev": "bun run generate:llms && ecopages dev",
 		"build": "bun run generate:llms && ecopages build",

@@ -10,7 +10,7 @@
 		"runtimeNote": "Uses bun:sqlite via Better Auth and Drizzle, so this playground is intentionally Bun-only."
 	},
 	"scripts": {
-		"start": "ecopages start",
+		"start": "pnpm run build && ecopages start",
 		"dev": "ecopages dev -r",
 		"build": "ecopages build",
 		"preview": "ecopages preview",

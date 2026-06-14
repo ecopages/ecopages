@@ -120,7 +120,7 @@ export abstract class SharedServerAdapter<
 				const module = (await serverModuleTranspiler.importModule({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
-					externalPackages: false,
+					externalPackages: true,
 					transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
 					noOutputMessage: (targetFilePath) =>
 						`No transpiled output generated for route module: ${targetFilePath}`,

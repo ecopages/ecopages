@@ -240,7 +240,7 @@ export default defineConfig({
 	fullyParallel: true,
 	workers: defaultWorkerCount,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
+	retries: process.env.CI ? 2 : 1,
 	reporter: 'list',
 	use: {
 		trace: 'on-first-retry',

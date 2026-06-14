@@ -352,7 +352,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const isNavigatingRef = useRef(false);
 	const runtimeActiveRef = useRef(true);
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
-	const pendingHoverNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
 	const committedPathRef = useRef<string>(
 		typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
@@ -606,41 +605,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		return href;
 	});
 
-	const getRecoveredHoverHref = useEffectEvent(() => {
-		const href = recoverPendingNavigationHref(
-			pendingHoverNavigationRef.current,
-			!!activeNavigationRef.current || isNavigatingRef.current,
-			performance.now(),
-		);
-
-		if (!href) {
-			pendingHoverNavigationRef.current = null;
-		}
-
-		return href;
-	});
-
-	const handleHoverIntent = useEffectEvent((event: MouseEvent | PointerEvent) => {
-		if (!runtimeActiveRef.current) {
-			return;
-		}
-
-		const link = getLinkFromEvent(event);
-		if (!link) {
-			return;
-		}
-
-		const decision = getInterceptDecision(event, link, options);
-		if (!decision.shouldIntercept) {
-			return;
-		}
-
-		pendingHoverNavigationRef.current = {
-			href: link.getAttribute('href')!,
-			timestamp: performance.now(),
-		};
-	});
-
 	const handlePointerDown = useEffectEvent((event: PointerEvent) => {
 		if (!runtimeActiveRef.current) {
 			pendingPointerNavigationRef.current = null;
@@ -669,15 +633,13 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const handleClick = useEffectEvent((event: MouseEvent) => {
 		if (!runtimeActiveRef.current) {
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			return;
 		}
 
 		const link = getLinkFromEvent(event);
 		if (!link) {
-			const recoveredHref = getRecoveredPointerHref() ?? getRecoveredHoverHref();
+			const recoveredHref = getRecoveredPointerHref();
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			if (!recoveredHref) {
 				return;
 			}
@@ -702,12 +664,10 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				}
 			}
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			return;
 		}
 
 		pendingPointerNavigationRef.current = null;
-		pendingHoverNavigationRef.current = null;
 		event.preventDefault();
 		queuedNavigationHrefRef.current = null;
 		const href = link.getAttribute('href')!;
@@ -729,10 +689,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	});
 
 	useEffect(() => {
-		const onHoverIntent = (event: Event) => {
-			handleHoverIntent(event as MouseEvent | PointerEvent);
-		};
-
 		const onPointerDown = (event: Event) => {
 			handlePointerDown(event as PointerEvent);
 		};
@@ -745,19 +701,11 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			handlePopState();
 		};
 
-		document.addEventListener('mouseover', onHoverIntent, true);
-		document.addEventListener('pointerover', onHoverIntent, true);
-		document.addEventListener('mousemove', onHoverIntent, true);
-		document.addEventListener('pointermove', onHoverIntent, true);
 		document.addEventListener('pointerdown', onPointerDown, true);
 		document.addEventListener('click', onClick, true);
 		window.addEventListener('popstate', onPopState);
 
 		return () => {
-			document.removeEventListener('mouseover', onHoverIntent, true);
-			document.removeEventListener('pointerover', onHoverIntent, true);
-			document.removeEventListener('mousemove', onHoverIntent, true);
-			document.removeEventListener('pointermove', onHoverIntent, true);
 			document.removeEventListener('pointerdown', onPointerDown, true);
 			document.removeEventListener('click', onClick, true);
 			window.removeEventListener('popstate', onPopState);

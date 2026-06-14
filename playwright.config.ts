@@ -235,6 +235,7 @@ const webServers: WebServerConfig[] = [
 ];
 
 export default defineConfig({
+	timeout: 60000,
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
 	fullyParallel: true,

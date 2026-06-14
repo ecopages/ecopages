@@ -531,7 +531,7 @@ describe('EcoRouter HMR Integration', () => {
 			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
-		it('recovers a rapid click from the last hovered link while a React navigation is in flight', async () => {
+		it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
 			const Page = createMultiLinkPage('HoverRecovery', [
 				{ href: '/slow', label: 'slow-link' },
 				{ href: '/fast', label: 'fast-link' },
@@ -546,8 +546,7 @@ describe('EcoRouter HMR Integration', () => {
 				</html>
 			`;
 			const slowFetch = createDeferred();
-
-			vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
 				const url = input.toString();
 				if (url === '/slow') {
 					return new Promise<Response>((resolve, reject) => {
@@ -598,8 +597,11 @@ describe('EcoRouter HMR Integration', () => {
 
 			await new Promise((resolve) => setTimeout(resolve, 160));
 
-			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).not.toContain('/fast');
+			expect(container.textContent).toContain('slow');
+			expect(container.textContent).not.toContain('fast');
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' });
 		});
 
 		it('does not swap the queued navigation href when the user merely hovers unrelated links during a slow navigation', async () => {
@@ -670,12 +672,8 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
-				hovered.dispatchEvent(
-					new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }),
-				);
-				hovered.dispatchEvent(
-					new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }),
-				);
+				hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }));
+				hovered.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }));
 				hovered.dispatchEvent(
 					new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }),
 				);

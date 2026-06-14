@@ -602,6 +602,103 @@ describe('EcoRouter HMR Integration', () => {
 			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
+		it('does not swap the queued navigation href when the user merely hovers unrelated links during a slow navigation', async () => {
+			const Page = createMultiLinkPage('HoverQueueLeak', [
+				{ href: '/clicked', label: 'clicked-link' },
+				{ href: '/hovered-a', label: 'hovered-a-link' },
+				{ href: '/hovered-b', label: 'hovered-b-link' },
+				{ href: '/hovered-c', label: 'hovered-c-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => `
+				<html>
+					<body>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
+					</body>
+				</html>
+			`;
+			const slowFetch = createDeferred();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+				const url = input.toString();
+				if (url === '/clicked') {
+					return new Promise<Response>((resolve, reject) => {
+						const abortSignal = init?.signal;
+						const handleAbort = () => {
+							reject(new DOMException('Aborted', 'AbortError'));
+						};
+						abortSignal?.addEventListener('abort', handleAbort, { once: true });
+						slowFetch.promise.then(() => {
+							abortSignal?.removeEventListener('abort', handleAbort);
+							resolve(new Response(createHtml('clicked'), { status: 200 }));
+						});
+					});
+				}
+				return Promise.resolve(new Response(createHtml(url.slice(1)), { status: 200 }));
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const clickedLink = container.querySelector(
+				'[data-testid="HoverQueueLeak-clicked-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredA = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-a-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredB = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-b-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredC = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-c-link"]',
+			) as HTMLAnchorElement | null;
+			expect(clickedLink).not.toBeNull();
+			expect(hoveredA).not.toBeNull();
+			expect(hoveredB).not.toBeNull();
+			expect(hoveredC).not.toBeNull();
+
+			await user.click(clickedLink as HTMLAnchorElement);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
+				hovered.dispatchEvent(
+					new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }),
+				);
+				hovered.dispatchEvent(
+					new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }),
+				);
+				hovered.dispatchEvent(
+					new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }),
+				);
+				hovered.dispatchEvent(
+					new PointerEvent('pointermove', { bubbles: true, cancelable: true, composed: true }),
+				);
+			}
+
+			slowFetch.resolve();
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).toContain('/clicked');
+			expect(fetchUrls).not.toContain('/hovered-a');
+			expect(fetchUrls).not.toContain('/hovered-b');
+			expect(fetchUrls).not.toContain('/hovered-c');
+			expect(container.textContent).toContain('clicked');
+			expect(container.textContent).not.toContain('hovered-a');
+			expect(container.textContent).not.toContain('hovered-b');
+			expect(container.textContent).not.toContain('hovered-c');
+			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'clicked' });
+		});
+
 		it('ignores stale navigation results when a newer route finishes first', async () => {
 			const Page = createMultiLinkPage('RaceStart', [
 				{ href: '/slow', label: 'slow-link' },

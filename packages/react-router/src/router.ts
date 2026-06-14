@@ -639,7 +639,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			href: link.getAttribute('href')!,
 			timestamp: performance.now(),
 		};
-		queuedNavigationHrefRef.current = link.getAttribute('href')!;
 	});
 
 	const handlePointerDown = useEffectEvent((event: PointerEvent) => {

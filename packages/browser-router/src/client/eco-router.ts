@@ -24,7 +24,6 @@ export class EcoRouter {
 	private started = false;
 	private pendingNavigations = 0;
 	private pendingPointerNavigation: EcoPendingNavigationIntent | null = null;
-	private pendingHoverNavigation: EcoPendingNavigationIntent | null = null;
 	private queuedNavigationHref: string | null = null;
 
 	private domSwapper: DomSwapper;
@@ -53,7 +52,6 @@ export class EcoRouter {
 		}
 
 		this.handleClick = this.handleClick.bind(this);
-		this.handleHoverIntent = this.handleHoverIntent.bind(this);
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 	}
@@ -101,20 +99,6 @@ export class EcoRouter {
 
 		if (!href) {
 			this.pendingPointerNavigation = null;
-		}
-
-		return href;
-	}
-
-	private getRecoveredHoverHref(): string | null {
-		const href = recoverPendingNavigationHref(
-			this.pendingHoverNavigation,
-			this.pendingNavigations > 0,
-			performance.now(),
-		);
-
-		if (!href) {
-			this.pendingHoverNavigation = null;
 		}
 
 		return href;
@@ -271,10 +255,6 @@ export class EcoRouter {
 
 		const navigationRuntime = getEcoNavigationRuntime(window);
 
-		document.addEventListener('mouseover', this.handleHoverIntent, true);
-		document.addEventListener('pointerover', this.handleHoverIntent, true);
-		document.addEventListener('mousemove', this.handleHoverIntent, true);
-		document.addEventListener('pointermove', this.handleHoverIntent, true);
 		document.addEventListener('pointerdown', this.handlePointerDown, true);
 		document.addEventListener('click', this.handleClick, true);
 		window.addEventListener('popstate', this.handlePopState);
@@ -337,10 +317,6 @@ export class EcoRouter {
 		}
 
 		this.cancelNavigationTransaction();
-		document.removeEventListener('mouseover', this.handleHoverIntent, true);
-		document.removeEventListener('pointerover', this.handleHoverIntent, true);
-		document.removeEventListener('mousemove', this.handleHoverIntent, true);
-		document.removeEventListener('pointermove', this.handleHoverIntent, true);
 		document.removeEventListener('pointerdown', this.handlePointerDown, true);
 		document.removeEventListener('click', this.handleClick, true);
 		window.removeEventListener('popstate', this.handlePopState);
@@ -348,7 +324,6 @@ export class EcoRouter {
 		this.unregisterNavigationRuntime?.();
 		this.unregisterNavigationRuntime = null;
 		this.started = false;
-		this.pendingHoverNavigation = null;
 		this.pendingPointerNavigation = null;
 		this.queuedNavigationHref = null;
 
@@ -417,35 +392,11 @@ export class EcoRouter {
 		}
 	}
 
-	private handleHoverIntent(event: MouseEvent | PointerEvent): void {
-		const link = this.getLinkFromEvent(event);
-		if (!link) {
-			return;
-		}
-
-		const href = this.canInterceptLink(event, link);
-		if (!href) {
-			return;
-		}
-
-		this.pendingHoverNavigation = {
-			href,
-			timestamp: performance.now(),
-		};
-
-		if (this.pendingNavigations > 0) {
-			this.queuedNavigationHref = href;
-		}
-	}
-
 	private handleClick(event: MouseEvent): void {
 		const navigationRuntime = getEcoNavigationRuntime(window);
 		const link = this.getLinkFromEvent(event);
-		const href = link
-			? this.canInterceptLink(event, link)
-			: (this.getRecoveredPointerHref() ?? this.getRecoveredHoverHref());
+		const href = link ? this.canInterceptLink(event, link) : this.getRecoveredPointerHref();
 		this.pendingPointerNavigation = null;
-		this.pendingHoverNavigation = null;
 		if (!href) return;
 		this.queuedNavigationHref = null;
 

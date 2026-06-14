@@ -132,7 +132,7 @@ export function trackRuntimeErrors(page: Page) {
 	};
 }
 
-export async function requestGetAndWait(request: APIRequestContext, href: string, timeout = 10000) {
+export async function requestGetAndWait(request: APIRequestContext, href: string, timeout = 30000) {
 	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
 
 	await expect

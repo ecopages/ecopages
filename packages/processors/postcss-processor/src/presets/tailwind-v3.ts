@@ -10,7 +10,7 @@ import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import type postcss from 'postcss';
-import postcssImport from 'postcss-import';
+import { createAppAwarePostcssImport } from '../postcss-import-app-aware.ts';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
 import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
@@ -43,6 +43,8 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * ```
  */
 export function tailwindV3Preset(): PostCssProcessorPluginConfig {
+	const appRoot = process.cwd();
+
 	// Check if browserslist config exists
 	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
 	const autoprefixerOptions = browserslistConfig
@@ -52,7 +54,7 @@ export function tailwindV3Preset(): PostCssProcessorPluginConfig {
 			};
 
 	const pluginFactories: PluginFactoryRecord = {
-		'postcss-import': () => postcssImport(),
+		'postcss-import': () => createAppAwarePostcssImport(appRoot),
 		'tailwindcss/nesting': () => tailwindcssNesting(),
 		tailwindcss: () => tailwindcss(),
 		autoprefixer: () => autoprefixer(autoprefixerOptions),

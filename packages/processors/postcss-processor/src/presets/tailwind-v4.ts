@@ -12,8 +12,8 @@ import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import path from 'node:path';
 import type postcss from 'postcss';
-import postcssImport from 'postcss-import';
 import postcssNested from 'postcss-nested';
+import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware.ts';
 import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 /**
@@ -57,6 +57,7 @@ export interface TailwindV4PresetOptions {
  */
 export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProcessorPluginConfig {
 	const { referencePath } = options;
+	const appRoot = resolveAppRootFromPath(referencePath);
 
 	// Check if browserslist config exists
 	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
@@ -71,7 +72,7 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 	};
 
 	const pluginFactories: PluginFactoryRecord = {
-		'postcss-import': () => postcssImport(),
+		'postcss-import': () => createAppAwarePostcssImport(appRoot),
 		'postcss-nested': () => postcssNested(),
 		'@tailwindcss/postcss': createTailwindPlugin,
 		autoprefixer: () => autoprefixer(autoprefixerOptions),

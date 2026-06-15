@@ -26,6 +26,35 @@ type HandleFileChangeOptions = {
 	broadcast?: boolean;
 };
 
+/** Dev-only guardrail when a queued HMR build never produces output. */
+const DEFAULT_HMR_REGISTRATION_TIMEOUT_MS = 4_000;
+
+/**
+ * Cold dev servers can enqueue many first-time entrypoint builds behind the
+ * serialized build executor; four seconds is too tight under parallel page load.
+ */
+const DEVELOPMENT_HMR_REGISTRATION_TIMEOUT_MS = 15_000;
+
+export function resolveHmrRegistrationTimeoutMs(explicitTimeoutMs?: number): number {
+	if (explicitTimeoutMs !== undefined) {
+		return explicitTimeoutMs;
+	}
+
+	const envTimeoutMs = process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS;
+	if (envTimeoutMs !== undefined && envTimeoutMs !== '') {
+		const parsedTimeoutMs = Number(envTimeoutMs);
+		if (Number.isFinite(parsedTimeoutMs) && parsedTimeoutMs > 0) {
+			return parsedTimeoutMs;
+		}
+	}
+
+	if (process.env.NODE_ENV === 'development') {
+		return DEVELOPMENT_HMR_REGISTRATION_TIMEOUT_MS;
+	}
+
+	return DEFAULT_HMR_REGISTRATION_TIMEOUT_MS;
+}
+
 type SharedHmrManagerParams = {
 	appConfig: EcoPagesAppConfig;
 	bridge: IClientBridge;
@@ -47,7 +76,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
 
-	constructor({ appConfig, bridge, registrationTimeoutMs = 4000 }: SharedHmrManagerParams) {
+	constructor({ appConfig, bridge, registrationTimeoutMs }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
@@ -57,7 +86,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			entrypointRegistrations: this.entrypointRegistrations,
 			watchedFiles: this.watchedFiles,
 			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
-			registrationTimeoutMs,
+			registrationTimeoutMs: resolveHmrRegistrationTimeoutMs(registrationTimeoutMs),
 		});
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(

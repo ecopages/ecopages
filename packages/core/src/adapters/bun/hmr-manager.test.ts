@@ -85,6 +85,7 @@ test('HmrManager clears timed-out entrypoint registrations so later requests can
 			subscribe: () => {},
 			unsubscribe: () => {},
 		} as any,
+		registrationTimeoutMs: 50,
 	});
 
 	const previousNodeEnv = process.env.NODE_ENV;

@@ -12,14 +12,11 @@ import type {
 	StaticRoute,
 	EcopagesSocket,
 	EcopagesWebSocketHandler,
-	IncomingWebSocketMessage,
 	OutgoingWebSocketMessage,
-	WebSocketCloseInfo,
 } from '../../types/public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
 import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
-
 
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
@@ -38,6 +35,7 @@ import {
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
+import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { HmrManager } from './hmr-manager.ts';
@@ -45,28 +43,7 @@ import { BunStaticPreviewHost } from './static-preview-host.ts';
 
 type BunServerInstance = Server<unknown>;
 type BunNativeServeOptions = Bun.Serve.Options<unknown>;
-
-/**
- * Shape of the data object attached to a Bun ServerWebSocket at upgrade time.
- *
- * The `kind` field is the registered WebSocket route pattern (e.g. '/ws/chat/:id').
- * The `params` field contains dynamic path parameters captured from the URL.
- * The `search` field contains query string parameters (all string-typed).
- * Additional user-defined fields may be present depending on the handler.
- */
-type WsKindData = {
-	kind: string;
-	params: Record<string, string>;
-	search: Record<string, string>;
-	/**
-	 * Resolved per-connection context, written once by the `open` handler and
-	 * read by `message` and `close` without re-resolving. Undefined until
-	 * `open` has settled — a guard in `message` drops frames that arrive in
-	 * this narrow window.
-	 */
-	context?: unknown;
-	[key: string]: unknown;
-};
+type WsKindData = BunUserWebSocketData;
 
 export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
@@ -111,10 +88,7 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (
-		server: NodeHttpServer,
-		options?: { passthroughUnmatched?: boolean },
-	) => void;
+	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }) => void;
 }
 
 /**
@@ -242,7 +216,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		}
 	}
 
-
 	/**
 	 * Creates a Bun server adapter with already-resolved runtime collaborators.
 	 *
@@ -284,17 +257,13 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	/**
 	 * Wires user WebSocket routes onto a Node HTTP server used by host integrations.
 	 */
-	public attachUserWebSocketUpgrades(
-		server: NodeHttpServer,
-		options?: { passthroughUnmatched?: boolean },
-	): void {
+	public attachUserWebSocketUpgrades(server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }): void {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: this.runtimeOrigin,
 			websocketHandlers: this.websocketHandlers,
 			passthroughUnmatched: options?.passthroughUnmatched,
 		});
 	}
-
 
 	/**
 	 * Returns whether adapter-level HTML responses still need HMR runtime injection.
@@ -453,33 +422,17 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			const originalFetch = serverOptions.fetch;
 			const hmrHandler = this.hmrManager.getWebSocketHandler();
 			const hmrManager = this.hmrManager;
-			const userHandlers = this.websocketHandlers;
-			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
-			const resolveContext = this.resolveBunContext.bind(this);
-			const adaptSocket = <TContext, TParams extends Record<string, string>>(
-				ws: ServerWebSocket<WsKindData>,
-				kind: string,
-				params: TParams,
-				search: Record<string, string>,
-				context: TContext,
-			) => this.adaptBunWebSocket<TContext, TParams>(ws, kind, params, search, context);
+			const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
+			const userLifecycle = createBunUserWebSocketLifecycle<WsKindData>({
+				runtimeOrigin: this.runtimeOrigin,
+				userHandlers: this.websocketHandlers,
+				resolveContext: this.resolveBunContext.bind(this),
+				adaptSocket: (ws, kind, params, search, context) =>
+					this.adaptBunWebSocket(ws, kind, params, search, context),
+			});
 
-			/**
-			 * Enable development mode for HMR.
-			 *
-			 * @remarks
-			 * This is set via the typed BunServeOptions shape to avoid `any` casts.
-			 */
 			(serverOptions as BunServeOptions & { development?: boolean }).development = true;
 
-			/**
-			 * Merged dispatcher: routes connection lifecycle events to the correct
-			 * handler based on the `kind` field stored in ws.data at upgrade time.
-			 * kind === '__hmr__' → HMR callbacks; anything else → user handler.
-			 *
-			 * `context()` is awaited before `onConnect` fires. If `context()` throws,
-			 * the connection is closed with code 1011 and the error is logged.
-			 */
 			serverOptions.websocket = {
 				open(ws: ServerWebSocket<WsKindData>) {
 					const kind: string = ws.data?.kind ?? '__hmr__';
@@ -487,22 +440,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						hmrHandler.open?.(ws);
 						return;
 					}
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							ws.data.context = context;
-							const socket = adaptSocket(ws, kind, params, search, context);
-							handler.onConnect?.(socket);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] open failed:`, error as Error);
-							ws.close(1011, 'context initialization failed');
-						});
+					userLifecycle.open(ws);
 				},
 				message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
 					const kind: string = ws.data?.kind ?? '__hmr__';
@@ -510,26 +448,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						hmrHandler.message?.(ws, msg as any);
 						return;
 					}
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const context = ws.data?.context;
-					if (context === undefined && handler.context) {
-						appLogger.warn(`[WS:${kind}] message received before context resolved; dropping.`);
-						return;
-					}
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					const socket = adaptSocket(ws, kind, params, search, context);
-					const message: IncomingWebSocketMessage =
-						typeof msg === 'string'
-							? { kind: 'text', text: msg }
-							: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
-					const result = handler.onMessage?.(socket, message);
-					if (result instanceof Promise) {
-						result.catch((error) => appLogger.error(`[WS:${kind}] onMessage failed:`, error as Error));
-					}
+					userLifecycle.message(ws, msg);
 				},
 				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
 					const kind: string = ws.data?.kind ?? '__hmr__';
@@ -537,21 +456,17 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						hmrHandler.close?.(ws, code, reason);
 						return;
 					}
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const context = ws.data?.context;
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					const socket = adaptSocket(ws, kind, params, search, context);
-					const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
-					const result = handler.onClose?.(socket, event);
-					if (result instanceof Promise) {
-						result.catch((error) => appLogger.error(`[WS:${kind}] onClose failed:`, error as Error));
-					}
+					userLifecycle.close(ws, code, reason);
 				},
-			};
+				error(ws: ServerWebSocket<WsKindData>, error: Error) {
+					const kind: string = ws.data?.kind ?? '__hmr__';
+					if (kind === '__hmr__') {
+						appLogger.error('[HMR] WebSocket error:', error);
+						return;
+					}
+					userLifecycle.error(ws, error);
+				},
+			} as WebSocketHandler<WsKindData>;
 
 			serverOptions.fetch = async function (
 				this: Server<unknown>,
@@ -603,6 +518,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 							kind: wsMatch.kind,
 							params: wsMatch.params,
 							search,
+							upgradeUrl: request.url,
 						},
 					});
 					if (success) return;
@@ -623,88 +539,16 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				return response;
 			};
 		} else if (this.websocketHandlers.size > 0) {
-			/**
-			 * Production/preview mode: serve only user websocket handlers.
-			 *
-			 * @remarks
-			 * The pattern matcher is used to intercept user WebSocket paths in the
-			 * fetch handler. The upgrade happens implicitly — no manual GET route
-			 * registration needed.
-			 */
-			const userHandlers = this.websocketHandlers;
-			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
-			const resolveContext = this.resolveBunContext.bind(this);
-			const adaptSocket = <TContext, TParams extends Record<string, string>>(
-				ws: ServerWebSocket<WsKindData>,
-				kind: string,
-				params: TParams,
-				search: Record<string, string>,
-				context: TContext,
-			) => this.adaptBunWebSocket<TContext, TParams>(ws, kind, params, search, context);
+			const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
+			const userLifecycle = createBunUserWebSocketLifecycle<WsKindData>({
+				runtimeOrigin: this.runtimeOrigin,
+				userHandlers: this.websocketHandlers,
+				resolveContext: this.resolveBunContext.bind(this),
+				adaptSocket: (ws, kind, params, search, context) =>
+					this.adaptBunWebSocket(ws, kind, params, search, context),
+			});
 
-			serverOptions.websocket = {
-				open(ws: ServerWebSocket<WsKindData>) {
-					const kind: string = ws.data?.kind;
-					if (!kind) return;
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							ws.data.context = context;
-							const socket = adaptSocket(ws, kind, params, search, context);
-							handler.onConnect?.(socket);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] open failed:`, error as Error);
-							ws.close(1011, 'context initialization failed');
-						});
-				},
-				message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
-					const kind: string = ws.data?.kind;
-					if (!kind) return;
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const context = ws.data?.context;
-					if (context === undefined && handler.context) {
-						appLogger.warn(`[WS:${kind}] message received before context resolved; dropping.`);
-						return;
-					}
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					const socket = adaptSocket(ws, kind, params, search, context);
-					const message: IncomingWebSocketMessage =
-						typeof msg === 'string'
-							? { kind: 'text', text: msg }
-							: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
-					const result = handler.onMessage?.(socket, message);
-					if (result instanceof Promise) {
-						result.catch((error) => appLogger.error(`[WS:${kind}] onMessage failed:`, error as Error));
-					}
-				},
-				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
-					const kind: string = ws.data?.kind;
-					if (!kind) return;
-					const handler = userHandlers.get(kind) as
-						| EcopagesWebSocketHandler<unknown, Record<string, string>>
-						| undefined;
-					if (!handler) return;
-					const context = ws.data?.context;
-					const params = (ws.data?.params ?? {}) as Record<string, string>;
-					const search = ws.data?.search ?? {};
-					const socket = adaptSocket(ws, kind, params, search, context);
-					const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
-					const result = handler.onClose?.(socket, event);
-					if (result instanceof Promise) {
-						result.catch((error) => appLogger.error(`[WS:${kind}] onClose failed:`, error as Error));
-					}
-				},
-			};
+			serverOptions.websocket = userLifecycle;
 
 			/**
 			 * Wrap the fetch handler to intercept user WebSocket upgrade requests.
@@ -728,6 +572,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 							kind: wsMatch.kind,
 							params: wsMatch.params,
 							search,
+							upgradeUrl: request.url,
 						},
 					});
 					if (success) return;

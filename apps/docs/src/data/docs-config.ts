@@ -56,6 +56,7 @@ export const docsConfig: DocsConfig = {
 				{ title: 'Define Handlers', slug: 'define-handlers' },
 				{ title: 'Explicit Routing', slug: 'explicit-routing' },
 				{ title: 'Routing Patterns', slug: 'routing-patterns' },
+				{ title: 'WebSockets', slug: 'websockets' },
 				{ title: 'Caching', slug: 'caching' },
 			],
 		},

@@ -242,6 +242,34 @@ describe('ecopagesDevServer', () => {
 		).toThrow('[ecopages] ecopagesDevServer requires a Vite dev server with Connect-style middlewares.use()');
 	});
 
+	it('passes WebSocket upgrade requests through to the HTTP server upgrade handlers', async () => {
+		const harness = setupDevServerMiddleware(new Response('unused'), {
+			module: {
+				app: {
+					fetch: async () => new Response('ok'),
+				},
+			},
+		});
+
+		let forwarded = false;
+
+		await harness.middleware?.(
+			{
+				headers: { upgrade: 'websocket', connection: 'Upgrade' },
+				method: 'GET',
+				originalUrl: '/ws/chat/lobby?username=test',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) throw error;
+				forwarded = true;
+			},
+		);
+
+		expect(forwarded).toBe(true);
+		expect(harness.isEnded()).toBe(false);
+	});
+
 	it('surfaces a clear error when the app module does not export app.fetch()', async () => {
 		const harness = setupDevServerMiddleware(new Response('unused'), {
 			module: {},

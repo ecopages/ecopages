@@ -1,12 +1,19 @@
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import type { Server as NodeHttpServer } from 'node:http';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
-type AppWithFetch = { fetch: (request: Request) => Promise<Response> };
+type EcopagesEmbeddedApp = {
+	fetch: (request: Request) => Promise<Response>;
+	attachWebSocketUpgrades?: (
+		httpServer: NodeHttpServer,
+		options?: { passthroughUnmatched?: boolean },
+	) => Promise<void>;
+};
 type ViteServerWithMiddleware = ViteDevServer & {
 	middlewares: {
 		use(
@@ -105,15 +112,28 @@ async function registerHostModuleLoader(server: ViteDevServer, api: EcopagesPlug
 	hostRuntime.registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
 }
 
-async function loadApp(server: ViteDevServer, appEntryPath: string): Promise<AppWithFetch> {
+async function loadApp(server: ViteDevServer, appEntryPath: string): Promise<EcopagesEmbeddedApp> {
 	const module = await server.ssrLoadModule(appEntryPath);
-	const app = module.app as AppWithFetch | undefined;
+	const app = module.app as EcopagesEmbeddedApp | undefined;
 
 	if (!app?.fetch) {
 		throw new Error(`[ecopages] App entry at '${appEntryPath}' must export an app.fetch(request) handler`);
 	}
 
 	return app;
+}
+
+async function attachEmbeddedWebSocketUpgrades(server: ViteDevServer, appEntryPath: string): Promise<void> {
+	if (!server.httpServer) {
+		return;
+	}
+
+	const app = await loadApp(server, appEntryPath);
+	if (typeof app.attachWebSocketUpgrades !== 'function') {
+		return;
+	}
+
+	await app.attachWebSocketUpgrades(server.httpServer, { passthroughUnmatched: true });
 }
 
 async function sendAppResponse(res: ServerResponse, response: Response): Promise<void> {
@@ -160,7 +180,16 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			return () => {
 				const hostLoaderReady = registerHostModuleLoader(server, api);
 
+				if (server.httpServer) {
+					void hostLoaderReady.then(() => attachEmbeddedWebSocketUpgrades(server, appEntryPath));
+				}
+
 				middlewareServer.middlewares.use(async (req, res, next) => {
+					if (req.headers.upgrade?.toLowerCase() === 'websocket') {
+						next();
+						return;
+					}
+
 					try {
 						await hostLoaderReady;
 						const app = await loadApp(server, appEntryPath);

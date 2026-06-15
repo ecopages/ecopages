@@ -79,6 +79,8 @@ const selectedProjects = new Set(
 
 const maxAvailableWorkers = availableParallelism();
 const defaultWorkerCount = maxAvailableWorkers > 1 ? maxAvailableWorkers : 1;
+/** Dev HMR builds are serialized; cap parallel browser load against one dev server. */
+const kitchenSinkDevWorkerCount = Math.min(4, defaultWorkerCount);
 const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flatMap((variant) => {
 	const projects: KitchenSinkProjectConfig[] = [
 		{
@@ -90,7 +92,7 @@ const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flat
 			workspace: `${variant.baseName}-dev`,
 			testMatch: kitchenSinkTestMatch,
 			testIgnore: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch],
-			workers: defaultWorkerCount,
+			workers: kitchenSinkDevWorkerCount,
 		},
 		{
 			name: `${variant.baseName}-hmr-e2e`,

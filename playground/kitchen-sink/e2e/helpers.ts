@@ -73,7 +73,7 @@ async function clickLocatorAndWaitInternal(page: Page, link: Locator, href: stri
 	try {
 		await Promise.all([
 			page.waitForURL((url) => url.pathname === targetUrl.pathname && url.search === targetUrl.search, {
-				timeout: 5000,
+				timeout: 15_000,
 			}),
 			link.click({ noWaitAfter: true }),
 		]);

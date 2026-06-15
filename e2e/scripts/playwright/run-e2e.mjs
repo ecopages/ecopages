@@ -20,10 +20,16 @@ const defaultProjectBatches = [
 		'cache-e2e',
 		'react-playground-e2e',
 	],
-	['kitchen-sink-bun-e2e', 'kitchen-sink-bun-hmr-e2e', 'kitchen-sink-bun-preview-e2e'],
-	['kitchen-sink-node-e2e', 'kitchen-sink-node-hmr-e2e', 'kitchen-sink-node-preview-e2e'],
-	['kitchen-sink-vite-node-e2e', 'kitchen-sink-vite-node-hmr-e2e'],
-	['kitchen-sink-vite-bun-e2e', 'kitchen-sink-vite-bun-hmr-e2e'],
+	['kitchen-sink-bun-e2e'],
+	['kitchen-sink-bun-hmr-e2e'],
+	['kitchen-sink-bun-preview-e2e'],
+	['kitchen-sink-node-e2e'],
+	['kitchen-sink-node-hmr-e2e'],
+	['kitchen-sink-node-preview-e2e'],
+	['kitchen-sink-vite-node-e2e'],
+	['kitchen-sink-vite-node-hmr-e2e'],
+	['kitchen-sink-vite-bun-e2e'],
+	['kitchen-sink-vite-bun-hmr-e2e'],
 ];
 
 const interactivePassThroughFlags = new Set(['--ui']);

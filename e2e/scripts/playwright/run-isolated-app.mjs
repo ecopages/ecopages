@@ -115,6 +115,10 @@ function buildCopyFilter(sourceDir) {
 }
 
 function prepareWorkspace(sourceDir, workspaceDir) {
+	if (wrapperManagesWorkspaceCleanup && existsSync(workspaceDir)) {
+		return;
+	}
+
 	rmSync(workspaceDir, { recursive: true, force: true });
 	mkdirSync(path.dirname(workspaceDir), { recursive: true });
 	cpSync(sourceDir, workspaceDir, {

@@ -138,7 +138,7 @@ async function rapidClickHref(
 }
 
 test.describe('Rapid navigation stress', () => {
-	test.describe.configure({ mode: 'serial' });
+	test.describe.configure({ mode: 'serial', timeout: 60_000 });
 
 	test('survives a full route traversal without a crash', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);

@@ -14,7 +14,13 @@ type ChatLabWindow = Window &
 
 const DEFAULT_ROOM = 'lobby';
 
-function buildWsUrl(username: string, roomId: string = DEFAULT_ROOM): string {
+function getRoomIdFromPage(): string {
+	const params = new URLSearchParams(location.search);
+	const room = params.get('room')?.trim();
+	return room || DEFAULT_ROOM;
+}
+
+function buildWsUrl(username: string, roomId: string = getRoomIdFromPage()): string {
 	const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 	const u = encodeURIComponent(username || 'anonymous');
 	const r = encodeURIComponent(roomId);

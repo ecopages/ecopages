@@ -1,14 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type TestInfo } from '@playwright/test';
 import { gotoAndWait, trackRuntimeErrors } from './helpers';
 
-const WS_CHAT_PATH = '/ws-chat';
 const CONNECT_TIMEOUT = 8000;
 
+function wsChatPath(testInfo: TestInfo, room?: string): string {
+	const roomId = room ?? `e2e-w${testInfo.workerIndex}-${testInfo.testId.replace(/[^\w-]/g, '-')}`;
+	return `/ws-chat?room=${encodeURIComponent(roomId)}`;
+}
+
 test.describe('Kitchen Sink WS Chat Lab', () => {
-	test('page renders the chat UI correctly', async ({ page }) => {
+	test('page renders the chat UI correctly', async ({ page }, testInfo) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoAndWait(page, WS_CHAT_PATH);
+		await gotoAndWait(page, wsChatPath(testInfo));
 
 		await expect(page.getByRole('heading', { name: /Mini Chat/ })).toBeVisible();
 		await expect(page.locator('[data-chat-messages]')).toBeVisible();
@@ -20,8 +24,8 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 		runtime.assertClean();
 	});
 
-	test('WebSocket connects and status transitions to connected', async ({ page }) => {
-		await gotoAndWait(page, WS_CHAT_PATH);
+	test('WebSocket connects and status transitions to connected', async ({ page }, testInfo) => {
+		await gotoAndWait(page, wsChatPath(testInfo));
 
 		await expect
 			.poll(
@@ -36,17 +40,15 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 		await expect(page.locator('[data-chat-status-dot]')).toHaveAttribute('data-chat-status-dot', 'connected');
 	});
 
-	test('seed messages are visible in the message list after connect', async ({ page }) => {
-		await gotoAndWait(page, WS_CHAT_PATH);
+	test('seed messages are visible in the message list after connect', async ({ page }, testInfo) => {
+		await gotoAndWait(page, wsChatPath(testInfo, 'lobby'));
 
-		// Wait for connection so history replay has happened.
 		await page.waitForFunction(
 			() => document.querySelector('[data-chat-status]')?.textContent?.trim().toLowerCase() === 'connected',
 			null,
 			{ timeout: CONNECT_TIMEOUT },
 		);
 
-		// The three seed messages should be present.
 		await expect(page.locator('[data-chat-messages] [data-message-id]').first()).toBeVisible();
 
 		await expect
@@ -63,8 +65,8 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 		expect(allTexts.some((t: string) => t.includes('WebSocket injection API'))).toBe(true);
 	});
 
-	test('sends a message and sees it appear in the list', async ({ page }) => {
-		await gotoAndWait(page, WS_CHAT_PATH);
+	test('sends a message and sees it appear in the list', async ({ page }, testInfo) => {
+		await gotoAndWait(page, wsChatPath(testInfo));
 
 		await page.waitForFunction(
 			() => document.querySelector('[data-chat-status]')?.textContent?.trim().toLowerCase() === 'connected',
@@ -87,8 +89,8 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 			.toBe(true);
 	});
 
-	test('input is cleared after sending', async ({ page }) => {
-		await gotoAndWait(page, WS_CHAT_PATH);
+	test('input is cleared after sending', async ({ page }, testInfo) => {
+		await gotoAndWait(page, wsChatPath(testInfo));
 
 		await page.waitForFunction(
 			() => document.querySelector('[data-chat-status]')?.textContent?.trim().toLowerCase() === 'connected',
@@ -102,8 +104,8 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 		await expect(page.locator('[data-chat-input]')).toHaveValue('');
 	});
 
-	test('updates username and sends message under the new username', async ({ page }) => {
-		await gotoAndWait(page, WS_CHAT_PATH);
+	test('updates username and sends message under the new username', async ({ page }, testInfo) => {
+		await gotoAndWait(page, wsChatPath(testInfo));
 
 		await page.waitForFunction(
 			() => document.querySelector('[data-chat-status]')?.textContent?.trim().toLowerCase() === 'connected',
@@ -142,21 +144,16 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 			.toBe('cool-tester');
 	});
 
-	test('message sent in one tab is broadcast to a second tab', async ({ browser }) => {
+	test('message sent in one tab is broadcast to a second tab', async ({ browser }, testInfo) => {
+		const roomPath = wsChatPath(testInfo, `e2e-broadcast-w${testInfo.workerIndex}`);
 		const ctxA = await browser.newContext();
 		const ctxB = await browser.newContext();
 		const pageA = await ctxA.newPage();
 		const pageB = await ctxB.newPage();
 
 		try {
-			// Open both tabs and wait for WS connection.
-			await Promise.all([
-				pageA.goto(pageA.url() ? pageA.url() : 'about:blank'),
-				pageB.goto(pageB.url() ? pageB.url() : 'about:blank'),
-			]);
-
-			await gotoAndWait(pageA, WS_CHAT_PATH);
-			await gotoAndWait(pageB, WS_CHAT_PATH);
+			await gotoAndWait(pageA, roomPath);
+			await gotoAndWait(pageB, roomPath);
 
 			await Promise.all([
 				pageA.waitForFunction(
@@ -173,12 +170,10 @@ test.describe('Kitchen Sink WS Chat Lab', () => {
 				),
 			]);
 
-			// Send from tab A.
 			const broadcastText = `broadcast-${Date.now()}`;
 			await pageA.locator('[data-chat-input]').fill(broadcastText);
 			await pageA.locator('[data-chat-send]').click();
 
-			// Assert tab B receives it.
 			await expect
 				.poll(
 					async () => {

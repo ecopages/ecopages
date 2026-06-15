@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
-import { CHAT_MESSAGES } from '@/handlers/ws-chat';
+import { CHAT_MESSAGES } from '@/handlers/ws-chat-room';
 
 export default eco.page({
 	dependencies: {
@@ -29,16 +29,16 @@ export default eco.page({
 					<p class="chat-lab__eyebrow">WebSocket injection</p>
 					<h1 class="chat-lab__title">Mini Chat — app.websocket() surface test</h1>
 					<p class="chat-lab__summary">
-						This page opens a real WebSocket connection to <code>/ws/chat</code>. The server handler is
-						registered with <code>app.websocket('/ws/chat', handler)</code> in <code>app.ts</code> and works
-						on both Bun and Node without any runtime-specific imports in app code.
+						This page opens a real WebSocket connection to <code>/ws/chat/lobby</code>. The server handler
+						is registered with <code>app.websocket('/ws/chat/:roomId', handler)</code> in <code>app.ts</code>
+						and works on both Bun and Node without any runtime-specific imports in app code.
 					</p>
 					<ul class="chat-lab__facts">
 						<li>
-							<span class="chat-lab__fact-path">/ws/chat</span> upgrade is handled by the merged WS
-							dispatcher — HMR traffic is never affected.
+							<span class="chat-lab__fact-path">/ws/chat/:roomId</span> is a single registration that
+							matches every room id — <code>:roomId</code> arrives in <code>params</code>.
 						</li>
-						<li>Messages are stored in an in-memory constant (no DB).</li>
+						<li>Messages are stored per room in an in-memory map (no DB).</li>
 						<li>
 							Open a second tab and send a message — both tabs receive the broadcast in real time.
 						</li>

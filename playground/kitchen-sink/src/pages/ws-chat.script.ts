@@ -12,10 +12,13 @@ type ChatLabWindow = Window &
 		__ecopages_ws_chat_cleanup__?: () => void;
 	};
 
-function buildWsUrl(username: string): string {
+const DEFAULT_ROOM = 'lobby';
+
+function buildWsUrl(username: string, roomId: string = DEFAULT_ROOM): string {
 	const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 	const u = encodeURIComponent(username || 'anonymous');
-	return `${proto}://${location.host}/ws/chat?username=${u}`;
+	const r = encodeURIComponent(roomId);
+	return `${proto}://${location.host}/ws/chat/${r}?username=${u}`;
 }
 
 function formatTime(ts: number): string {

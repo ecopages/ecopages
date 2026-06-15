@@ -4,6 +4,8 @@ import appConfig from './eco.config';
 import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
+import { chatWebsocketHandler } from './src/handlers/ws-chat';
+import { chatRoomWebsocketHandler } from './src/handlers/ws-chat-room';
 
 const isViteHosted = process.env.ECOPAGES_KITCHEN_SINK_HOST === 'vite';
 
@@ -15,6 +17,26 @@ export const app = await createApp({
 			}
 		: undefined,
 });
+
+/**
+ * Register the WebSocket chat handler — works on both Bun and Node.
+ *
+ * @remarks
+ * The framework handles the HTTP→WebSocket upgrade implicitly. No manual GET
+ * route registration is required.
+ */
+app.websocket('/ws/chat', chatWebsocketHandler);
+
+/**
+ * Register the room-based WebSocket chat handler.
+ *
+ * @remarks
+ * One registration matches every room id. The adapter resolves `params.roomId`
+ * per connection and the handler uses `context()` to build the typed
+ * per-connection state. This demonstrates the long-term scalable pattern: a
+ * single entry point supports effectively infinite rooms.
+ */
+app.websocket('/ws/chat/:roomId', chatRoomWebsocketHandler);
 
 app.get('/explicit/team', async (ctx) => {
 	return await ctx.renderServerModule(new URL('./src/views/explicit-team-view.kita.tsx', import.meta.url));

@@ -1,12 +1,24 @@
-import type { Server, WebSocketHandler } from 'bun';
+import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
+import type {
+	ApiHandler,
+	ApiHandlerContext,
+	ErrorHandler,
+	StaticRoute,
+	EcopagesSocket,
+	EcopagesWebSocketHandler,
+	IncomingWebSocketMessage,
+	OutgoingWebSocketMessage,
+	WebSocketCloseInfo,
+} from '../../types/public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
+import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
+
 
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
@@ -31,6 +43,21 @@ import { BunStaticPreviewHost } from './static-preview-host.ts';
 
 type BunServerInstance = Server<unknown>;
 type BunNativeServeOptions = Bun.Serve.Options<unknown>;
+
+/**
+ * Shape of the data object attached to a Bun ServerWebSocket at upgrade time.
+ *
+ * The `kind` field is the registered WebSocket route pattern (e.g. '/ws/chat/:id').
+ * The `params` field contains dynamic path parameters captured from the URL.
+ * The `search` field contains query string parameters (all string-typed).
+ * Additional user-defined fields may be present depending on the handler.
+ */
+type WsKindData = {
+	kind: string;
+	params: Record<string, string>;
+	search: Record<string, string>;
+	[key: string]: unknown;
+};
 
 export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
@@ -61,6 +88,7 @@ export interface BunServerAdapterParams {
 	apiHandlers?: ApiHandler<string, Request, BunServerInstance>[];
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
+	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
 	options?: {
 		watch?: boolean;
 	};
@@ -103,6 +131,106 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private readonly previewHost: StaticPreviewHost;
 
 	/**
+	 * Reference to the application-level WebSocket handlers map.
+	 *
+	 * @remarks
+	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * passed in via the constructor. The Bun adapter reads from it to wire
+	 * WebSocket upgrades for user-registered patterns.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+
+	/**
+	 * Adapts a Bun ServerWebSocket to the public EcopagesSocket interface.
+	 *
+	 * @remarks
+	 * This is the single source of truth for the Bun→public type adaptation.
+	 * Both the HMR and production branches use this helper to ensure consistency.
+	 *
+	 * @param ws - The raw Bun ServerWebSocket
+	 * @param kind - The registered route pattern
+	 * @param params - Dynamic path parameters
+	 * @param search - Query string parameters
+	 * @param context - The resolved per-connection context
+	 * @returns An EcopagesSocket view
+	 */
+	private adaptBunWebSocket<TContext, TParams extends Record<string, string>>(
+		ws: ServerWebSocket<WsKindData>,
+		kind: string,
+		params: TParams,
+		search: Record<string, string>,
+		context: TContext,
+	): EcopagesSocket<TContext, TParams> {
+		return {
+			kind,
+			params,
+			search,
+			context,
+			send: (message: OutgoingWebSocketMessage) => {
+				if (typeof message === 'string') {
+					ws.send(message);
+				} else if (message instanceof Blob) {
+					void message.arrayBuffer().then((buf) => ws.send(new Uint8Array(buf)));
+				} else if (message instanceof ArrayBuffer) {
+					ws.send(new Uint8Array(message));
+				} else if (ArrayBuffer.isView(message)) {
+					ws.send(new Uint8Array(message.buffer, message.byteOffset, message.byteLength));
+				} else {
+					ws.send(message);
+				}
+			},
+			sendStream: async (stream: ReadableStream<Uint8Array>) => {
+				const reader = stream.getReader();
+				try {
+					while (true) {
+						const { value, done } = await reader.read();
+						if (done) break;
+						if (value) ws.send(value);
+					}
+				} finally {
+					reader.releaseLock();
+				}
+			},
+			close: (code, reason) => ws.close(code, reason),
+		};
+	}
+
+	/**
+	 * Resolves the per-connection context for a Bun user connection.
+	 *
+	 * @remarks
+	 * `context()` is invoked exactly once per accepted connection. Its
+	 * resolved value is shared by all subsequent lifecycle hooks. If
+	 * `context()` throws, the connection is closed immediately with code
+	 * 1011 (server error) and the error is logged.
+	 *
+	 * @param request - The original upgrade request (best-effort reconstructed)
+	 * @param handler - The registered handler
+	 * @param kind - The registered route pattern
+	 * @param params - Dynamic path parameters
+	 * @param search - Query string parameters
+	 * @returns The resolved per-connection context
+	 */
+	private async resolveBunContext<TContext, TParams extends Record<string, string>>(
+		request: Request,
+		handler: EcopagesWebSocketHandler<TContext, TParams>,
+		kind: string,
+		params: TParams,
+		search: Record<string, string>,
+	): Promise<TContext> {
+		if (!handler.context) {
+			return undefined as unknown as TContext;
+		}
+		try {
+			return (await handler.context({ request, kind, params, search })) as TContext;
+		} catch (error) {
+			appLogger.error(`[WS:${kind}] context() failed; closing connection.`, error as Error);
+			throw error;
+		}
+	}
+
+
+	/**
 	 * Creates a Bun server adapter with already-resolved runtime collaborators.
 	 *
 	 * @remarks
@@ -118,6 +246,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		apiHandlers,
 		staticRoutes,
 		errorHandler,
+		websocketHandlers,
 		options,
 		hmrManager,
 		bridge,
@@ -134,7 +263,11 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.bridge = bridge;
 		this.hmrManager = hmrManager;
 		this.previewHost = previewHost;
+		if (websocketHandlers) {
+			this.websocketHandlers = websocketHandlers;
+		}
 	}
+
 
 	/**
 	 * Returns whether adapter-level HTML responses still need HMR runtime injection.
@@ -277,9 +410,13 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Builds the `Bun.serve()` options for the current adapter state.
 	 *
 	 * @remarks
-	 * The HMR-enabled variant wraps the base fetch handler so one Bun server can
-	 * serve normal requests, accept HMR websocket upgrades, and expose the HMR
-	 * runtime asset without splitting responsibility across separate listeners.
+	 * When HMR is enabled the websocket dispatcher merges HMR and user handlers,
+	 * routing by the `kind` field embedded in socket data at upgrade time.
+	 * This prevents user-registered websocket handlers from being silently overwritten
+	 * by the HMR handler in development mode.
+	 *
+	 * User WebSocket paths are intercepted in the fetch handler via the pattern matcher.
+	 * The upgrade happens implicitly — no manual GET route registration needed.
 	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
 		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
@@ -289,10 +426,106 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			const originalFetch = serverOptions.fetch;
 			const hmrHandler = this.hmrManager.getWebSocketHandler();
 			const hmrManager = this.hmrManager;
+			const userHandlers = this.websocketHandlers;
+			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
+			const resolveContext = this.resolveBunContext.bind(this);
+			const adaptSocket = <TContext, TParams extends Record<string, string>>(
+				ws: ServerWebSocket<WsKindData>,
+				kind: string,
+				params: TParams,
+				search: Record<string, string>,
+				context: TContext,
+			) => this.adaptBunWebSocket<TContext, TParams>(ws, kind, params, search, context);
 
-			(serverOptions as any).development = true;
+			/**
+			 * Enable development mode for HMR.
+			 *
+			 * @remarks
+			 * This is set via the typed BunServeOptions shape to avoid `any` casts.
+			 */
+			(serverOptions as BunServeOptions & { development?: boolean }).development = true;
 
-			serverOptions.websocket = hmrHandler;
+			/**
+			 * Merged dispatcher: routes connection lifecycle events to the correct
+			 * handler based on the `kind` field stored in ws.data at upgrade time.
+			 * kind === '__hmr__' → HMR callbacks; anything else → user handler.
+			 *
+			 * `context()` is awaited before `onConnect` fires. If `context()` throws,
+			 * the connection is closed with code 1011 and the error is logged.
+			 */
+			serverOptions.websocket = {
+				open(ws: ServerWebSocket<WsKindData>) {
+					const kind: string = ws.data?.kind ?? '__hmr__';
+					if (kind === '__hmr__') {
+						hmrHandler.open?.(ws);
+						return;
+					}
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							handler.onConnect?.(socket);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] open failed:`, error as Error);
+							ws.close(1011, 'context initialization failed');
+						});
+				},
+				message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
+					const kind: string = ws.data?.kind ?? '__hmr__';
+					if (kind === '__hmr__') {
+						hmrHandler.message?.(ws, msg as any);
+						return;
+					}
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							const message: IncomingWebSocketMessage =
+								typeof msg === 'string'
+									? { kind: 'text', text: msg }
+									: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
+							handler.onMessage?.(socket, message);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] message failed:`, error as Error);
+							ws.close(1011, 'context initialization failed');
+						});
+				},
+				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
+					const kind: string = ws.data?.kind ?? '__hmr__';
+					if (kind === '__hmr__') {
+						hmrHandler.close?.(ws, code, reason);
+						return;
+					}
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
+							handler.onClose?.(socket, event);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] close failed:`, error as Error);
+						});
+				},
+			};
+
 			serverOptions.fetch = async function (
 				this: Server<unknown>,
 				request: Request,
@@ -301,16 +534,24 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				const url = new URL(request.url);
 				appLogger.debug(`[HMR] Request: ${url.pathname}`);
 
-				/** Handle HMR WebSocket upgrade */
+				/**
+				 * Handle HMR WebSocket upgrade — tag with kind='__hmr__'.
+				 *
+				 * @remarks
+				 * This check must come before the user WebSocket path check to ensure
+				 * HMR upgrades are never intercepted by user handlers.
+				 */
 				if (url.pathname === '/_hmr') {
 					const success = this.upgrade(request, {
-						data: undefined,
+						data: { kind: '__hmr__', params: {}, search: {} },
 					});
 					if (success) return;
 					return new Response('WebSocket upgrade failed', { status: 400 });
 				}
 
-				/** Serve HMR runtime script */
+				/**
+				 * Serve HMR runtime script.
+				 */
 				if (url.pathname === '/_hmr_runtime.js') {
 					appLogger.debug(`[HMR] Serving runtime from ${hmrManager.getRuntimePath()}`);
 					return new Response(fileSystem.readFileAsBuffer(hmrManager.getRuntimePath()) as BodyInit, {
@@ -318,7 +559,157 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 					});
 				}
 
-				/** Proceed with normal request handling */
+				/**
+				 * Intercept user WebSocket upgrade requests.
+				 *
+				 * @remarks
+				 * The pattern matcher checks if the pathname matches any registered
+				 * WebSocket route. If it does and the request has the Upgrade header,
+				 * we perform the upgrade implicitly. This eliminates the need for
+				 * manual GET route registration.
+				 */
+				const wsMatch = matchRoute(url.pathname);
+				if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+					const search = Object.fromEntries(url.searchParams.entries());
+					const success = this.upgrade(request, {
+						data: {
+							kind: wsMatch.kind,
+							params: wsMatch.params,
+							search,
+						},
+					});
+					if (success) return;
+					return new Response('WebSocket upgrade failed', { status: 400 });
+				}
+
+				/**
+				 * Proceed with normal request handling.
+				 */
+				let response: Response;
+				if (originalFetch) {
+					const res = await originalFetch.call(this, request, this);
+					response = res instanceof Response ? res : new Response('Not Found', { status: 404 });
+				} else {
+					response = new Response('Not Found', { status: 404 });
+				}
+
+				return response;
+			};
+		} else if (this.websocketHandlers.size > 0) {
+			/**
+			 * Production/preview mode: serve only user websocket handlers.
+			 *
+			 * @remarks
+			 * The pattern matcher is used to intercept user WebSocket paths in the
+			 * fetch handler. The upgrade happens implicitly — no manual GET route
+			 * registration needed.
+			 */
+			const userHandlers = this.websocketHandlers;
+			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
+			const resolveContext = this.resolveBunContext.bind(this);
+			const adaptSocket = <TContext, TParams extends Record<string, string>>(
+				ws: ServerWebSocket<WsKindData>,
+				kind: string,
+				params: TParams,
+				search: Record<string, string>,
+				context: TContext,
+			) => this.adaptBunWebSocket<TContext, TParams>(ws, kind, params, search, context);
+
+			serverOptions.websocket = {
+				open(ws: ServerWebSocket<WsKindData>) {
+					const kind: string = ws.data?.kind;
+					if (!kind) return;
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							handler.onConnect?.(socket);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] open failed:`, error as Error);
+							ws.close(1011, 'context initialization failed');
+						});
+				},
+				message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
+					const kind: string = ws.data?.kind;
+					if (!kind) return;
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							const message: IncomingWebSocketMessage =
+								typeof msg === 'string'
+									? { kind: 'text', text: msg }
+									: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
+							handler.onMessage?.(socket, message);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] message failed:`, error as Error);
+							ws.close(1011, 'context initialization failed');
+						});
+				},
+				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
+					const kind: string = ws.data?.kind;
+					if (!kind) return;
+					const handler = userHandlers.get(kind) as
+						| EcopagesWebSocketHandler<unknown, Record<string, string>>
+						| undefined;
+					if (!handler) return;
+					const params = (ws.data?.params ?? {}) as Record<string, string>;
+					const search = ws.data?.search ?? {};
+					resolveContext(new Request('http://localhost'), handler, kind, params, search)
+						.then((context) => {
+							const socket = adaptSocket(ws, kind, params, search, context);
+							const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
+							handler.onClose?.(socket, event);
+						})
+						.catch((error) => {
+							appLogger.error(`[WS:${kind}] close failed:`, error as Error);
+						});
+				},
+			};
+
+			/**
+			 * Wrap the fetch handler to intercept user WebSocket upgrade requests.
+			 */
+			const originalFetch = serverOptions.fetch;
+			serverOptions.fetch = async function (
+				this: Server<unknown>,
+				request: Request,
+				_server: Server<unknown>,
+			): Promise<Response | void> {
+				const url = new URL(request.url);
+
+				/**
+				 * Intercept user WebSocket upgrade requests.
+				 */
+				const wsMatch = matchRoute(url.pathname);
+				if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+					const search = Object.fromEntries(url.searchParams.entries());
+					const success = this.upgrade(request, {
+						data: {
+							kind: wsMatch.kind,
+							params: wsMatch.params,
+							search,
+						},
+					});
+					if (success) return;
+					return new Response('WebSocket upgrade failed', { status: 400 });
+				}
+
+				/**
+				 * Proceed with normal request handling.
+				 */
 				let response: Response;
 				if (originalFetch) {
 					const res = await originalFetch.call(this, request, this);

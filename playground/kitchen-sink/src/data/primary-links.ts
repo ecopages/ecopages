@@ -45,4 +45,5 @@ export const primaryLinks: PrimaryLink[] = [
 	{ href: '/react-server-files', label: 'Server tree' },
 	{ href: '/react-server-metadata', label: 'Server metadata' },
 	{ href: '/postcss', label: 'PostCSS test' },
+	{ href: '/ws-chat', label: 'WS Chat' },
 ];

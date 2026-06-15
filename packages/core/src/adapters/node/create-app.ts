@@ -54,10 +54,13 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes as StaticRoute[],
 			errorHandler: this.errorHandler,
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 		});
 	}
+
+
 
 	public async start(): Promise<NodeServerInstance | void> {
 		if (!this.serverAdapter) {

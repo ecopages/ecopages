@@ -41,10 +41,12 @@ function patchExplicitRouteHeading(content: string, suffix: string) {
 	);
 }
 
+const HMR_CLIENT_CONNECT_TIMEOUT_MS = 30_000;
+
 async function waitForViteClientConnection(page: Page) {
 	const connected = page.waitForEvent('console', {
 		predicate: (message: ConsoleMessage) => message.type() === 'debug' && message.text() === '[vite] connected.',
-		timeout: 10000,
+		timeout: HMR_CLIENT_CONNECT_TIMEOUT_MS,
 	});
 
 	await connected;
@@ -54,7 +56,7 @@ async function waitForEcopagesHmrConnection(page: Page) {
 	const connected = page.waitForEvent('console', {
 		predicate: (message: ConsoleMessage) =>
 			message.type() === 'log' && message.text() === '[ecopages] HMR Connected',
-		timeout: 10000,
+		timeout: HMR_CLIENT_CONNECT_TIMEOUT_MS,
 	});
 
 	await connected;

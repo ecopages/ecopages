@@ -152,6 +152,9 @@ function buildEnv(options) {
 		...process.env,
 		...(options.host === 'vite' ? { ECOPAGES_KITCHEN_SINK_HOST: 'vite' } : {}),
 		NODE_ENV: options.mode === 'preview' ? 'production' : 'development',
+		...(options.mode === 'dev'
+			? { ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS: process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS ?? '30000' }
+			: {}),
 	};
 }
 

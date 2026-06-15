@@ -1,4 +1,4 @@
-import { createServer, type Server as NodeHttpServer } from 'node:http';
+import { createServer, type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
@@ -19,9 +19,8 @@ import type {
 	WebSocketCloseInfo,
 } from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import type { WebSocket as WsWebSocket } from 'ws';
-import { WebSocketServer } from 'ws';
-import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
+import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
+import { findWebSocketRoute, type WebSocketRouteMatch } from '../abstract/ws-pattern-matcher.ts';
 
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
@@ -198,6 +197,117 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		}
 	}
 
+	/**
+	 * Wires a single accepted ws.WebSocket connection to the matched route handler.
+	 *
+	 * `context()` is resolved exactly once at connection time. The resolved context
+	 * value and the adapted socket view are captured in a closure shared by all
+	 * subsequent lifecycle listeners so those callbacks execute without additional
+	 * async overhead or re-resolution on every frame.
+	 *
+	 * @param ws - The accepted ws.WebSocket
+	 * @param wsMatch - The matched route (handler, kind, params)
+	 * @param req - The original HTTP upgrade request
+	 * @param search - Query string parameters parsed from the upgrade URL
+	 */
+	private async setupNodeWebSocketConnection(
+		ws: WsWebSocket,
+		wsMatch: WebSocketRouteMatch,
+		req: IncomingMessage,
+		search: Record<string, string>,
+	): Promise<void> {
+		const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
+		const baseRequest = new Request(`http://localhost${req.url ?? '/'}`);
+
+		let context: unknown;
+		try {
+			context = await this.resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search);
+		} catch (error) {
+			appLogger.error(`[WS:${wsMatch.kind}] context() failed; closing connection.`, error as Error);
+			ws.close(1011, 'context initialization failed');
+			return;
+		}
+
+		const socket_ = this.adaptNodeWebSocket(ws, wsMatch.kind, wsMatch.params, search, context);
+
+		try {
+			await handler.onConnect?.(socket_);
+		} catch (error) {
+			appLogger.error(`[WS:${wsMatch.kind}] onConnect failed:`, error as Error);
+		}
+
+		ws.on('message', (msg, isBinary) => {
+			const message: IncomingWebSocketMessage = isBinary
+				? {
+						kind: 'binary',
+						data:
+							msg instanceof ArrayBuffer
+								? new Uint8Array(msg)
+								: Array.isArray(msg)
+									? new Uint8Array(Buffer.concat(msg))
+									: new Uint8Array(msg as Buffer),
+					}
+				: { kind: 'text', text: msg.toString() };
+			const result = handler.onMessage?.(socket_, message);
+			if (result instanceof Promise) {
+				result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onMessage failed:`, error as Error));
+			}
+		});
+
+		ws.on('close', (code, reason) => {
+			const event: WebSocketCloseInfo = { code, reason: reason.toString(), wasClean: code === 1000 };
+			const result = handler.onClose?.(socket_, event);
+			if (result instanceof Promise) {
+				result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onClose failed:`, error as Error));
+			}
+		});
+
+		ws.on('error', (err) => appLogger.error(`[WS:${wsMatch.kind}] error:`, err));
+	}
+
+	/**
+	 * Registers an HTTP `upgrade` listener that dispatches to user-registered
+	 * WebSocket route handlers.
+	 *
+	 * An optional `preflight` callback runs first on every upgrade request. If
+	 * it returns `true` the request has been handled (e.g. by the HMR server)
+	 * and the user-WS path is skipped entirely. Non-preflight requests that
+	 * do not match any registered route have their socket destroyed immediately.
+	 *
+	 * When `userWss` is `null` (no handlers registered) every non-preflight
+	 * upgrade is destroyed.
+	 *
+	 * @param server - The HTTP server instance
+	 * @param userWss - A `noServer: true` WebSocketServer, or null if no handlers registered
+	 * @param preflight - Optional first-check handler (e.g. HMR path guard)
+	 */
+	private wireUserWebSocketUpgrades(
+		server: NodeServerInstance,
+		userWss: WebSocketServer | null,
+		preflight?: (req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => boolean,
+	): void {
+		const matchRoute = (pathname: string) =>
+			userWss ? findWebSocketRoute(this.websocketHandlers, pathname) : null;
+
+		server.on('upgrade', (req, socket, head) => {
+			if (preflight?.(req, socket as import('node:stream').Duplex, head)) return;
+
+			const url = new URL(req.url ?? '/', this.runtimeOrigin);
+			const wsMatch = matchRoute(url.pathname);
+
+			if (wsMatch && userWss) {
+				userWss.handleUpgrade(req, socket, head, (ws) => {
+					const search = Object.fromEntries(url.searchParams.entries());
+					void this.setupNodeWebSocketConnection(ws, wsMatch, req, search).catch((err) => {
+						appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, err as Error);
+						ws.close(1011, 'internal error');
+					});
+				});
+			} else {
+				socket.destroy();
+			}
+		});
+	}
 
 	private shouldInjectHmrScript(): boolean {
 		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined);
@@ -483,128 +593,27 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			 * time. The pattern matcher resolves the actual route at request time.
 			 */
 			const userWss = hasUserWs ? new WebSocketServer({ noServer: true }) : null;
-			const userHandlers = this.websocketHandlers;
-			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
-			const resolveContext = this.resolveNodeContext.bind(this);
-			const adaptSocket = <TContext, TParams extends Record<string, string>>(
-				ws: WsWebSocket,
-				kind: string,
-				params: TParams,
-				search: Record<string, string>,
-				context: TContext,
-			) => this.adaptNodeWebSocket<TContext, TParams>(ws, kind, params, search, context);
 
-			server.on('upgrade', (req, socket, head) => {
+			/**
+			 * HMR upgrade takes priority: intercept `/_hmr` before the user-WS
+			 * pattern matcher runs so HMR connections are never captured by app handlers.
+			 */
+			const hmrPreflight = (
+				req: IncomingMessage,
+				socket: import('node:stream').Duplex,
+				head: Buffer,
+			): boolean => {
 				const url = new URL(req.url ?? '/', this.runtimeOrigin);
+				if (url.pathname !== '/_hmr') return false;
+				wss.handleUpgrade(req, socket, head, (ws) => {
+					this.bridge!.subscribe(ws);
+					ws.on('close', () => this.bridge!.unsubscribe(ws));
+					ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+				});
+				return true;
+			};
 
-				/**
-				 * Handle HMR WebSocket upgrade — tag with kind='__hmr__'.
-				 *
-				 * @remarks
-				 * This check must come before the user WebSocket path check to ensure
-				 * HMR upgrades are never intercepted by user handlers.
-				 */
-				if (url.pathname === '/_hmr') {
-					wss.handleUpgrade(req, socket, head, (ws) => {
-						this.bridge!.subscribe(ws);
-						ws.on('close', () => this.bridge!.unsubscribe(ws));
-						ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
-					});
-					return;
-				}
-
-				/**
-				 * Handle user WebSocket upgrade requests via pattern matcher.
-				 */
-				if (hasUserWs && userWss) {
-					const wsMatch = matchRoute(url.pathname);
-					if (wsMatch) {
-						userWss.handleUpgrade(req, socket, head, (ws) => {
-							const search = Object.fromEntries(url.searchParams.entries());
-							const handler = wsMatch.handler as EcopagesWebSocketHandler<
-								unknown,
-								Record<string, string>
-							>;
-							resolveContext(
-								new Request(`http://localhost${req.url ?? '/'}`),
-								handler,
-								wsMatch.kind,
-								wsMatch.params,
-								search,
-							)
-								.then((context) => {
-									const socket_ = adaptSocket(ws, wsMatch.kind, wsMatch.params, search, context);
-									handler.onConnect?.(socket_);
-								})
-								.catch((error) => {
-									appLogger.error(`[WS:${wsMatch.kind}] open failed:`, error as Error);
-									ws.close(1011, 'context initialization failed');
-								});
-							ws.on('message', (msg, isBinary) => {
-								const message: IncomingWebSocketMessage = isBinary
-									? {
-											kind: 'binary',
-											data: msg instanceof ArrayBuffer
-												? new Uint8Array(msg)
-												: Array.isArray(msg)
-													? new Uint8Array(Buffer.concat(msg))
-													: new Uint8Array(msg as Buffer),
-										}
-									: { kind: 'text', text: msg.toString() };
-								void (async () => {
-									try {
-										const context = await resolveContext(
-											new Request(`http://localhost${req.url ?? '/'}`),
-											handler,
-											wsMatch.kind,
-											wsMatch.params,
-											search,
-										);
-										const socket_ = adaptSocket(
-											ws,
-											wsMatch.kind,
-											wsMatch.params,
-											search,
-											context,
-										);
-										handler.onMessage?.(socket_, message);
-									} catch (error) {
-										appLogger.error(`[WS:${wsMatch.kind}] message failed:`, error as Error);
-									}
-								})();
-							});
-							ws.on('close', (code, reason) => {
-								const event: WebSocketCloseInfo = { code, reason: reason.toString(), wasClean: code === 1000 };
-								void (async () => {
-									try {
-										const context = await resolveContext(
-											new Request(`http://localhost${req.url ?? '/'}`),
-											handler,
-											wsMatch.kind,
-											wsMatch.params,
-											search,
-										);
-										const socket_ = adaptSocket(
-											ws,
-											wsMatch.kind,
-											wsMatch.params,
-											search,
-											context,
-										);
-										handler.onClose?.(socket_, event);
-									} catch (error) {
-										appLogger.error(`[WS:${wsMatch.kind}] close failed:`, error as Error);
-									}
-								})();
-							});
-							ws.on('error', (err) => appLogger.error(`[WS:${url.pathname}] error:`, err));
-						});
-						return;
-					}
-				}
-
-				socket.destroy();
-			});
+			this.wireUserWebSocketUpgrades(server, userWss, hmrPreflight);
 
 			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
 			this.hmrManager.setPlugins(browserBuildPlugins);
@@ -632,96 +641,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			 *
 			 * @remarks
 			 * Uses a single WebSocketServer instance and the pattern matcher to
-			 * dispatch upgrades to the correct handler.
+			 * dispatch upgrades to the correct handler. Context is resolved once
+			 * per connection inside `wireUserWebSocketUpgrades`.
 			 */
 			const userWss = new WebSocketServer({ noServer: true });
-			const userHandlers = this.websocketHandlers;
-			const matchRoute = (pathname: string) => findWebSocketRoute(userHandlers, pathname);
-			const resolveContext = this.resolveNodeContext.bind(this);
-			const adaptSocket = <TContext, TParams extends Record<string, string>>(
-				ws: WsWebSocket,
-				kind: string,
-				params: TParams,
-				search: Record<string, string>,
-				context: TContext,
-			) => this.adaptNodeWebSocket<TContext, TParams>(ws, kind, params, search, context);
-
-			server.on('upgrade', (req, socket, head) => {
-				const url = new URL(req.url ?? '/', this.runtimeOrigin);
-				const wsMatch = matchRoute(url.pathname);
-
-				if (wsMatch) {
-					userWss.handleUpgrade(req, socket, head, (ws) => {
-						const search = Object.fromEntries(url.searchParams.entries());
-						const handler = wsMatch.handler as EcopagesWebSocketHandler<
-							unknown,
-							Record<string, string>
-						>;
-						const baseRequest = new Request(`http://localhost${req.url ?? '/'}`);
-						resolveContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search)
-							.then((context) => {
-								const socket_ = adaptSocket(ws, wsMatch.kind, wsMatch.params, search, context);
-								handler.onConnect?.(socket_);
-							})
-							.catch((error) => {
-								appLogger.error(`[WS:${wsMatch.kind}] open failed:`, error as Error);
-								ws.close(1011, 'context initialization failed');
-							});
-						ws.on('message', (msg, isBinary) => {
-							const message: IncomingWebSocketMessage = isBinary
-								? {
-										kind: 'binary',
-										data: msg instanceof ArrayBuffer
-											? new Uint8Array(msg)
-											: Array.isArray(msg)
-												? new Uint8Array(Buffer.concat(msg))
-												: new Uint8Array(msg as Buffer),
-									}
-								: { kind: 'text', text: msg.toString() };
-							void (async () => {
-								try {
-									const context = await resolveContext(
-										baseRequest,
-										handler,
-										wsMatch.kind,
-										wsMatch.params,
-										search,
-									);
-									const socket_ = adaptSocket(ws, wsMatch.kind, wsMatch.params, search, context);
-									handler.onMessage?.(socket_, message);
-								} catch (error) {
-									appLogger.error(`[WS:${wsMatch.kind}] message failed:`, error as Error);
-								}
-							})();
-						});
-						ws.on('close', (code, reason) => {
-							const event: WebSocketCloseInfo = {
-								code,
-								reason: reason.toString(),
-								wasClean: code === 1000,
-							};
-							void (async () => {
-								try {
-									const context = await resolveContext(
-										baseRequest,
-										handler,
-										wsMatch.kind,
-										wsMatch.params,
-										search,
-									);
-									const socket_ = adaptSocket(ws, wsMatch.kind, wsMatch.params, search, context);
-									handler.onClose?.(socket_, event);
-								} catch (error) {
-									appLogger.error(`[WS:${wsMatch.kind}] close failed:`, error as Error);
-								}
-							})();
-						});
-						ws.on('error', (err) => appLogger.error(`[WS:${url.pathname}] error:`, err));
-					});
-				} else {
-					socket.destroy();
-				}
-			});
+			this.wireUserWebSocketUpgrades(server, userWss);
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

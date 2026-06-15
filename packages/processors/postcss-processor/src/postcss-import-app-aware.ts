@@ -6,12 +6,7 @@ import postcssImportDefault from 'postcss-import';
 import type postcssImport from 'postcss-import';
 
 type PostcssImportOptions = NonNullable<Parameters<typeof postcssImport>[0]>;
-type ResolveImportId = (
-	id: string,
-	base: string,
-	options: PostcssImportOptions,
-	node: unknown,
-) => Promise<string>;
+type ResolveImportId = (id: string, base: string, options: PostcssImportOptions, node: unknown) => Promise<string>;
 type PackageJson = {
 	style?: string;
 	main?: string;

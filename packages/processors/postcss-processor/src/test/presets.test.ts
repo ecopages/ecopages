@@ -118,10 +118,7 @@ describe('Presets Verification', () => {
 	});
 
 	test('Tailwind v4 preset should resolve bare module @import from the app package root', async () => {
-		const referencePath = path.resolve(
-			__dirname,
-			'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
-		);
+		const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
 		const preset = tailwindV4Preset({ referencePath });
 		const css = `@import 'tailwindcss';`;
 
@@ -290,10 +287,7 @@ describe('Tailwind v4 transformInput', () => {
 });
 
 describe('Tailwind v4 preset @apply resolution (regression)', () => {
-	const referencePath = path.resolve(
-		__dirname,
-		'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
-	);
+	const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
 
 	test('resolves @apply when the reference is injected at the src location but processed from a different (dist) location', async () => {
 		const preset = tailwindV4Preset({ referencePath });

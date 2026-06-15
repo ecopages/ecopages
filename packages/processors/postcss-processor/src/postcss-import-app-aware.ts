@@ -95,10 +95,37 @@ function resolveExportTarget(pkg: PackageJson, packageDir: string, subpath: stri
 	return null;
 }
 
-function resolveBarePackageImport(id: string, requireFromApp: NodeRequire): string {
+function findPackageDirFromNodeModules(packageName: string, appRoot: string): string | null {
+	let dir = path.resolve(appRoot);
+	const filesystemRoot = path.parse(dir).root;
+
+	while (true) {
+		const candidate = path.join(dir, 'node_modules', packageName, 'package.json');
+		if (existsSync(candidate)) {
+			return path.dirname(candidate);
+		}
+
+		if (dir === filesystemRoot) {
+			break;
+		}
+
+		const parent = path.dirname(dir);
+		if (parent === dir) {
+			break;
+		}
+		dir = parent;
+	}
+
+	return null;
+}
+
+function resolveBarePackageImport(id: string, appRoot: string): string {
 	const { packageName, subpath } = splitPackageSpecifier(id);
-	const packageJsonPath = requireFromApp.resolve(`${packageName}/package.json`);
-	const packageDir = path.dirname(packageJsonPath);
+	const packageDir = findPackageDirFromNodeModules(packageName, appRoot);
+	if (!packageDir) {
+		throw new Error(`Unable to locate package "${packageName}" from "${appRoot}"`);
+	}
+	const packageJsonPath = path.join(packageDir, 'package.json');
 	const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
 
 	if (subpath) {
@@ -152,7 +179,7 @@ export function createAppAwarePostcssImport(appRoot: string): postcss.AcceptedPl
 			}
 
 			try {
-				return resolveBarePackageImport(id, requireFromApp);
+				return resolveBarePackageImport(id, appRoot);
 			} catch {
 				throw error;
 			}

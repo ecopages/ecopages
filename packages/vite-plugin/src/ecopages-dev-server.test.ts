@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
 
@@ -23,7 +23,11 @@ function createApi() {
 
 function setupDevServerMiddleware(
 	fetchResponse: Response,
-	options?: { module?: Record<string, unknown>; includeMiddlewares?: boolean },
+	options?: {
+		module?: Record<string, unknown>;
+		includeMiddlewares?: boolean;
+		httpServer?: Record<string, unknown>;
+	},
 ) {
 	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
 
@@ -31,6 +35,7 @@ function setupDevServerMiddleware(
 
 	const plugin = ecopagesDevServer(api);
 	const server = {
+		httpServer: options?.httpServer,
 		async ssrLoadModule(id: string) {
 			if (id === '@ecopages/core/dev/host-runtime') {
 				return {
@@ -268,6 +273,42 @@ describe('ecopagesDevServer', () => {
 
 		expect(forwarded).toBe(true);
 		expect(harness.isEnded()).toBe(false);
+	});
+
+	it('attaches app websocket upgrades before serving HTTP', async () => {
+		const attachWebSocketUpgrades = vi.fn(async () => undefined);
+		let attachCompleted = false;
+
+		const harness = setupDevServerMiddleware(new Response('ok'), {
+			httpServer: {},
+			module: {
+				app: {
+					fetch: async () => {
+						expect(attachCompleted).toBe(true);
+						return new Response('ok');
+					},
+					attachWebSocketUpgrades: async (...args: unknown[]) => {
+						await attachWebSocketUpgrades(...args);
+						attachCompleted = true;
+					},
+				},
+			},
+		});
+
+		await harness.middleware?.(
+			{
+				headers: {},
+				method: 'GET',
+				originalUrl: '/ws-chat',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) throw error;
+			},
+		);
+
+		expect(attachWebSocketUpgrades).toHaveBeenCalledTimes(1);
+		expect(harness.isEnded()).toBe(true);
 	});
 
 	it('surfaces a clear error when the app module does not export app.fetch()', async () => {

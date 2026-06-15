@@ -179,9 +179,12 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 
 			return () => {
 				const hostLoaderReady = registerHostModuleLoader(server, api);
+				let websocketUpgradesReady: Promise<void> = Promise.resolve();
 
 				if (server.httpServer) {
-					void hostLoaderReady.then(() => attachEmbeddedWebSocketUpgrades(server, appEntryPath));
+					websocketUpgradesReady = hostLoaderReady.then(() =>
+						attachEmbeddedWebSocketUpgrades(server, appEntryPath),
+					);
 				}
 
 				middlewareServer.middlewares.use(async (req, res, next) => {
@@ -192,6 +195,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 
 					try {
 						await hostLoaderReady;
+						await websocketUpgradesReady;
 						const app = await loadApp(server, appEntryPath);
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);

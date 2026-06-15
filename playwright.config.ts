@@ -33,7 +33,6 @@ type KitchenSinkProjectConfig = {
 	testMatch: string;
 	testIgnore?: string[];
 	workers?: number;
-	timeout?: number;
 };
 
 const kitchenSinkSourceDir = 'playground/kitchen-sink';
@@ -80,7 +79,7 @@ const selectedProjects = new Set(
 
 const maxAvailableWorkers = availableParallelism();
 const defaultWorkerCount = maxAvailableWorkers > 1 ? maxAvailableWorkers : 1;
-/** Dev HMR builds are serialized; cap parallel browser load against one dev server. */
+/** One dev server serializes HMR builds; keep browser parallelism low. */
 const kitchenSinkDevWorkerCount = Math.min(2, defaultWorkerCount);
 const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flatMap((variant) => {
 	const projects: KitchenSinkProjectConfig[] = [
@@ -94,7 +93,6 @@ const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flat
 			testMatch: kitchenSinkTestMatch,
 			testIgnore: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch],
 			workers: kitchenSinkDevWorkerCount,
-			timeout: 60_000,
 		},
 		{
 			name: `${variant.baseName}-hmr-e2e`,
@@ -105,7 +103,6 @@ const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flat
 			workspace: `${variant.baseName}-hmr`,
 			testMatch: kitchenSinkStatefulTestMatch,
 			workers: 1,
-			timeout: 60_000,
 		},
 	];
 
@@ -245,7 +242,7 @@ export default defineConfig({
 	fullyParallel: true,
 	workers: defaultWorkerCount,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 1,
+	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',
 	use: {
 		trace: 'on-first-retry',
@@ -332,7 +329,6 @@ export default defineConfig({
 			testMatch: project.testMatch,
 			testIgnore: project.testIgnore,
 			workers: project.workers,
-			timeout: project.timeout,
 			metadata: {
 				isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
 			},

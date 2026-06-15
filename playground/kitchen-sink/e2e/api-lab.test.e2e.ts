@@ -5,6 +5,7 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 	test('rebinds the API lab browser script after navigation and still executes host API commands', async ({
 		page,
 	}) => {
+		test.setTimeout(60_000);
 		const runtime = trackRuntimeErrors(page);
 
 		await gotoAndWait(page, '/api-lab');
@@ -50,8 +51,10 @@ test.describe('Kitchen Sink Playground API Lab', () => {
 		await expect(page.locator('[data-response-body]')).toContainText('Semantic shells are active');
 
 		await page.getByRole('button', { name: /Admin create/i }).click({ noWaitAfter: true });
-		await expect(page.locator('[data-response-status]')).toContainText('201');
-		await expect(page.locator('[data-response-body]')).toContainText('Fresh deploy');
+		await expect
+			.poll(async () => page.locator('[data-response-status]').textContent(), { timeout: 20_000 })
+			.toContain('201');
+		await expect(page.locator('[data-response-body]')).toContainText('Fresh deploy', { timeout: 10_000 });
 		runtime.assertClean();
 	});
 

@@ -25,6 +25,7 @@ import type {
 	StaticRoute,
 	ViewLoader,
 } from '../../types/public-types.ts';
+import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
@@ -103,6 +104,12 @@ export abstract class AbstractApplicationAdapter<
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
 	protected errorHandler?: ErrorHandler;
+	/**
+	 * App-level WebSocket handlers keyed by URL path pattern (e.g. '/ws/chat/:id').
+	 * Both Bun and Node adapters read this map to register upgrade routes.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
@@ -337,6 +344,82 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	/**
+	 * Register a WebSocket handler for the given path pattern.
+	 *
+	 * The runtime adapter handles the HTTP→WebSocket upgrade for this path
+	 * and routes lifecycle events to `handler`.
+	 *
+	 * Supports dynamic segments via `:param` syntax. The handler receives
+	 * typed `params` and `search` fields, and a typed `context` produced by
+	 * the optional `context()` factory.
+	 *
+	 * One pattern registration matches infinite path variations. For example,
+	 * `app.websocket('/ws/chat/:roomId', handler)` matches `/ws/chat/abc`,
+	 * `/ws/chat/xyz`, etc. Each connection receives its own `params.roomId`.
+	 *
+	 * Works across both Bun and Node runtimes — no runtime-specific imports needed.
+	 *
+	 * @example
+	 * ```typescript
+	 * app.websocket<ChatContext, { roomId: string }>('/ws/chat/:roomId', {
+	 *   async context({ params, search }) {
+	 *     return { username: search.username ?? 'anonymous', roomId: params.roomId };
+	 *   },
+	 *   onConnect(socket) {
+	 *     socket.send(`Welcome to room ${socket.context.roomId}`);
+	 *   },
+	 *   onMessage(socket, message) {
+	 *     if (message.kind === 'text') {
+	 *       socket.send(message.text);
+	 *     }
+	 *   },
+	 * });
+	 * ```
+	 */
+	websocket<TContext = unknown, TParams extends Record<string, string> = Record<string, string>>(
+		path: string,
+		handler: EcopagesWebSocketHandler<TContext, TParams>,
+	): this {
+		invariant(
+			typeof path === 'string' && path.startsWith('/'),
+			`app.websocket(): path must be a string starting with "/", got "${path}".`,
+		);
+
+		/**
+		 * Validate the pattern at registration time. Reject empty segments
+		 * and duplicate param names early.
+		 */
+		const segments = path.split('/').filter(Boolean);
+		const paramNames = new Set<string>();
+		for (const segment of segments) {
+			if (segment.startsWith(':')) {
+				const paramName = segment.slice(1);
+				invariant(
+					paramName.length > 0,
+					`app.websocket(): invalid pattern "${path}" — empty param name in segment ":${paramName}".`,
+				);
+				invariant(
+					!paramNames.has(paramName),
+					`app.websocket(): invalid pattern "${path}" — duplicate param name ":${paramName}".`,
+				);
+				paramNames.add(paramName);
+			}
+		}
+
+		this.websocketHandlers.set(path, handler as EcopagesWebSocketHandler<any, any>);
+		return this;
+	}
+
+	/**
+	 * Get the registered WebSocket handlers map.
+	 *
+	 * @returns The map of WebSocket route patterns to handlers
+	 */
+	getWebsocketHandlers(): Map<string, EcopagesWebSocketHandler<any, any>> {
+		return this.websocketHandlers;
+	}
+
+	/**
 	 * Register a global error handler for all routes.
 	 * Useful for logging, monitoring integration, and custom error formatting.
 	 *
@@ -352,6 +435,7 @@ export abstract class AbstractApplicationAdapter<
 		this.errorHandler = handler as unknown as ErrorHandler;
 		return this;
 	}
+
 
 	/**
 	 * Get the registered error handler

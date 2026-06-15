@@ -60,8 +60,6 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		});
 	}
 
-
-
 	public async start(): Promise<NodeServerInstance | void> {
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();

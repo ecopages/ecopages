@@ -18,10 +18,7 @@ const appDeclaredPackageCache = new Map<string, Set<string>>();
  * imports in server-side output must be rewritten to absolute file: URLs so
  * the bundler does not embed them in app code.
  */
-const CORE_RUNTIME_BARE_SPECIFIER_PACKAGES = new Set<string>([
-	'ws',
-]);
-
+const CORE_RUNTIME_BARE_SPECIFIER_PACKAGES = new Set<string>(['ws']);
 
 function tryResolveRuntimeImport(specifier: string, resolver: NodeJS.Require): string | undefined {
 	try {

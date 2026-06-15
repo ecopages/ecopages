@@ -129,7 +129,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		});
 	}
 
-
 	/**
 	 * Start the Bun application server
 	 * @param options Optional settings

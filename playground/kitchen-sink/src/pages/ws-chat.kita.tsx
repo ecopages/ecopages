@@ -30,7 +30,8 @@ export default eco.page({
 					<h1 class="chat-lab__title">Mini Chat — app.websocket() surface test</h1>
 					<p class="chat-lab__summary">
 						This page opens a real WebSocket connection to <code>/ws/chat/lobby</code>. The server handler
-						is registered with <code>app.websocket('/ws/chat/:roomId', handler)</code> in <code>app.ts</code>
+						is registered with <code>app.websocket('/ws/chat/:roomId', handler)</code> in{' '}
+						<code>app.ts</code>
 						and works on both Bun and Node without any runtime-specific imports in app code.
 					</p>
 					<ul class="chat-lab__facts">
@@ -39,9 +40,7 @@ export default eco.page({
 							matches every room id — <code>:roomId</code> arrives in <code>params</code>.
 						</li>
 						<li>Messages are stored per room in an in-memory map (no DB).</li>
-						<li>
-							Open a second tab and send a message — both tabs receive the broadcast in real time.
-						</li>
+						<li>Open a second tab and send a message — both tabs receive the broadcast in real time.</li>
 					</ul>
 				</section>
 
@@ -54,7 +53,9 @@ export default eco.page({
 								Connecting…
 							</span>
 						</div>
-						<p class="chat-lab__panel-label" style="margin-top:1.5rem">Your username</p>
+						<p class="chat-lab__panel-label" style="margin-top:1.5rem">
+							Your username
+						</p>
 						<input
 							id="chat-username"
 							class="chat-lab__input"
@@ -66,7 +67,12 @@ export default eco.page({
 					</div>
 
 					<div class="chat-lab__main">
-						<div class="chat-lab__messages" data-chat-messages aria-live="polite" aria-label="Chat messages">
+						<div
+							class="chat-lab__messages"
+							data-chat-messages
+							aria-live="polite"
+							aria-label="Chat messages"
+						>
 							{seedMessages.map((m) => (
 								<div class="chat-lab__message" data-message-id={m.id}>
 									<span class="chat-lab__message-user">{m.username}</span>
@@ -85,12 +91,7 @@ export default eco.page({
 								autocomplete="off"
 								data-chat-input
 							/>
-							<button
-								id="chat-send"
-								type="submit"
-								class="chat-lab__send-btn"
-								data-chat-send
-							>
+							<button id="chat-send" type="submit" class="chat-lab__send-btn" data-chat-send>
 								Send
 							</button>
 						</form>

@@ -33,12 +33,7 @@ export type IncomingWebSocketMessage =
  * frames. `Blob` is included for cross-runtime parity and is normalized to a
  * binary frame by each adapter.
  */
-export type OutgoingWebSocketMessage =
-	| string
-	| Uint8Array
-	| ArrayBuffer
-	| ArrayBufferView
-	| Blob;
+export type OutgoingWebSocketMessage = string | Uint8Array | ArrayBuffer | ArrayBufferView | Blob;
 
 /**
  * Close event delivered to `onClose` after a connection terminates.

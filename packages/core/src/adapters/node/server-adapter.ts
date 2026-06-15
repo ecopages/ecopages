@@ -12,15 +12,14 @@ import type {
 	ApiHandler,
 	ErrorHandler,
 	StaticRoute,
-	EcopagesSocket,
 	EcopagesWebSocketHandler,
-	IncomingWebSocketMessage,
-	OutgoingWebSocketMessage,
-	WebSocketCloseInfo,
 } from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
-import { findWebSocketRoute, type WebSocketRouteMatch } from '../abstract/ws-pattern-matcher.ts';
+import { WebSocketServer } from 'ws';
+import {
+	attachNodeHttpWebSocketUpgrades,
+	type NodeHttpWebSocketUpgradePreflight,
+} from '../shared/node-http-websocket-upgrades.ts';
 
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
@@ -65,6 +64,10 @@ export interface NodeServerAdapterParams {
 export interface NodeServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: NodeServerInstance) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
+	attachUserWebSocketUpgrades: (
+		server: NodeServerInstance,
+		options?: { passthroughUnmatched?: boolean },
+	) => void;
 }
 
 /**
@@ -109,203 +112,31 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
 	/**
-	 * Adapts a ws.WebSocket to the public EcopagesSocket interface.
+	 * Wires user WebSocket routes onto a foreign Node HTTP server.
 	 *
-	 * @remarks
-	 * This is the single source of truth for the Node→public type adaptation.
-	 * Both the HMR and non-HMR branches use this helper to ensure consistency.
-	 *
-	 * @param ws - The raw ws.WebSocket
-	 * @param kind - The registered route pattern
-	 * @param params - Dynamic path parameters
-	 * @param search - Query string parameters
-	 * @param context - The resolved per-connection context
-	 * @returns An EcopagesSocket view
+	 * Host integrations such as the Vite plugin call this so `app.websocket()`
+	 * handlers work while HTTP is still served by the host dev server.
 	 */
-	private adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
-		ws: WsWebSocket,
-		kind: string,
-		params: TParams,
-		search: Record<string, string>,
-		context: TContext,
-	): EcopagesSocket<TContext, TParams> {
-		return {
-			kind,
-			params,
-			search,
-			context,
-			send: (message: OutgoingWebSocketMessage) => {
-				if (typeof message === 'string') {
-					ws.send(message);
-				} else if (message instanceof Blob) {
-					void message.arrayBuffer().then((buf) => ws.send(new Uint8Array(buf)));
-				} else if (message instanceof ArrayBuffer) {
-					ws.send(new Uint8Array(message));
-				} else if (ArrayBuffer.isView(message)) {
-					ws.send(new Uint8Array(message.buffer, message.byteOffset, message.byteLength));
-				} else {
-					ws.send(message);
-				}
-			},
-			sendStream: async (stream: ReadableStream<Uint8Array>) => {
-				const reader = stream.getReader();
-				try {
-					while (true) {
-						const { value, done } = await reader.read();
-						if (done) break;
-						if (value) ws.send(value);
-					}
-				} finally {
-					reader.releaseLock();
-				}
-			},
-			close: (code, reason) => ws.close(code, reason),
-		};
-	}
-
-	/**
-	 * Resolves the per-connection context for a Node user connection.
-	 *
-	 * @remarks
-	 * `context()` is invoked exactly once per accepted connection. Its
-	 * resolved value is shared by all subsequent lifecycle hooks. If
-	 * `context()` throws, the connection is closed immediately with code
-	 * 1011 (server error) and the error is logged.
-	 *
-	 * @param request - The original upgrade request
-	 * @param handler - The registered handler
-	 * @param kind - The registered route pattern
-	 * @param params - Dynamic path parameters
-	 * @param search - Query string parameters
-	 * @returns The resolved per-connection context
-	 */
-	private async resolveNodeContext<TContext, TParams extends Record<string, string>>(
-		request: Request,
-		handler: EcopagesWebSocketHandler<TContext, TParams>,
-		kind: string,
-		params: TParams,
-		search: Record<string, string>,
-	): Promise<TContext> {
-		if (!handler.context) {
-			return undefined as unknown as TContext;
-		}
-		try {
-			return (await handler.context({ request, kind, params, search })) as TContext;
-		} catch (error) {
-			appLogger.error(`[WS:${kind}] context() failed; closing connection.`, error as Error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Wires a single accepted ws.WebSocket connection to the matched route handler.
-	 *
-	 * `context()` is resolved exactly once at connection time. The resolved context
-	 * value and the adapted socket view are captured in a closure shared by all
-	 * subsequent lifecycle listeners so those callbacks execute without additional
-	 * async overhead or re-resolution on every frame.
-	 *
-	 * @param ws - The accepted ws.WebSocket
-	 * @param wsMatch - The matched route (handler, kind, params)
-	 * @param req - The original HTTP upgrade request
-	 * @param search - Query string parameters parsed from the upgrade URL
-	 */
-	private async setupNodeWebSocketConnection(
-		ws: WsWebSocket,
-		wsMatch: WebSocketRouteMatch,
-		req: IncomingMessage,
-		search: Record<string, string>,
-	): Promise<void> {
-		const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
-		const baseRequest = new Request(`http://localhost${req.url ?? '/'}`);
-
-		let context: unknown;
-		try {
-			context = await this.resolveNodeContext(baseRequest, handler, wsMatch.kind, wsMatch.params, search);
-		} catch (error) {
-			appLogger.error(`[WS:${wsMatch.kind}] context() failed; closing connection.`, error as Error);
-			ws.close(1011, 'context initialization failed');
-			return;
-		}
-
-		const socket_ = this.adaptNodeWebSocket(ws, wsMatch.kind, wsMatch.params, search, context);
-
-		try {
-			await handler.onConnect?.(socket_);
-		} catch (error) {
-			appLogger.error(`[WS:${wsMatch.kind}] onConnect failed:`, error as Error);
-		}
-
-		ws.on('message', (msg, isBinary) => {
-			const message: IncomingWebSocketMessage = isBinary
-				? {
-						kind: 'binary',
-						data:
-							msg instanceof ArrayBuffer
-								? new Uint8Array(msg)
-								: Array.isArray(msg)
-									? new Uint8Array(Buffer.concat(msg))
-									: new Uint8Array(msg as Buffer),
-					}
-				: { kind: 'text', text: msg.toString() };
-			const result = handler.onMessage?.(socket_, message);
-			if (result instanceof Promise) {
-				result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onMessage failed:`, error as Error));
-			}
+	public attachUserWebSocketUpgrades(
+		server: NodeServerInstance,
+		options?: { passthroughUnmatched?: boolean },
+	): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: options?.passthroughUnmatched,
 		});
-
-		ws.on('close', (code, reason) => {
-			const event: WebSocketCloseInfo = { code, reason: reason.toString(), wasClean: code === 1000 };
-			const result = handler.onClose?.(socket_, event);
-			if (result instanceof Promise) {
-				result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onClose failed:`, error as Error));
-			}
-		});
-
-		ws.on('error', (err) => appLogger.error(`[WS:${wsMatch.kind}] error:`, err));
 	}
 
-	/**
-	 * Registers an HTTP `upgrade` listener that dispatches to user-registered
-	 * WebSocket route handlers.
-	 *
-	 * An optional `preflight` callback runs first on every upgrade request. If
-	 * it returns `true` the request has been handled (e.g. by the HMR server)
-	 * and the user-WS path is skipped entirely. Non-preflight requests that
-	 * do not match any registered route have their socket destroyed immediately.
-	 *
-	 * When `userWss` is `null` (no handlers registered) every non-preflight
-	 * upgrade is destroyed.
-	 *
-	 * @param server - The HTTP server instance
-	 * @param userWss - A `noServer: true` WebSocketServer, or null if no handlers registered
-	 * @param preflight - Optional first-check handler (e.g. HMR path guard)
-	 */
 	private wireUserWebSocketUpgrades(
 		server: NodeServerInstance,
-		userWss: WebSocketServer | null,
-		preflight?: (req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => boolean,
+		preflight?: NodeHttpWebSocketUpgradePreflight,
 	): void {
-		const matchRoute = (pathname: string) =>
-			userWss ? findWebSocketRoute(this.websocketHandlers, pathname) : null;
-
-		server.on('upgrade', (req, socket, head) => {
-			if (preflight?.(req, socket as import('node:stream').Duplex, head)) return;
-
-			const url = new URL(req.url ?? '/', this.runtimeOrigin);
-			const wsMatch = matchRoute(url.pathname);
-
-			if (wsMatch && userWss) {
-				userWss.handleUpgrade(req, socket, head, (ws) => {
-					const search = Object.fromEntries(url.searchParams.entries());
-					void this.setupNodeWebSocketConnection(ws, wsMatch, req, search).catch((err) => {
-						appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, err as Error);
-						ws.close(1011, 'internal error');
-					});
-				});
-			} else {
-				socket.destroy();
-			}
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: false,
+			preflight,
 		});
 	}
 
@@ -515,6 +346,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
+			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
 		};
 	}
 
@@ -585,19 +417,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			await this.hmrManager.buildRuntime();
 
-			/**
-			 * Single user WebSocketServer instance used across all user paths.
-			 *
-			 * @remarks
-			 * We use a single instance because the path is unknown until upgrade
-			 * time. The pattern matcher resolves the actual route at request time.
-			 */
-			const userWss = hasUserWs ? new WebSocketServer({ noServer: true }) : null;
-
-			/**
-			 * HMR upgrade takes priority: intercept `/_hmr` before the user-WS
-			 * pattern matcher runs so HMR connections are never captured by app handlers.
-			 */
 			const hmrPreflight = (
 				req: IncomingMessage,
 				socket: import('node:stream').Duplex,
@@ -613,7 +432,15 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				return true;
 			};
 
-			this.wireUserWebSocketUpgrades(server, userWss, hmrPreflight);
+			if (hasUserWs) {
+				this.wireUserWebSocketUpgrades(server, hmrPreflight);
+			} else {
+				server.on('upgrade', (req, socket, head) => {
+					if (!hmrPreflight(req, socket, head)) {
+						socket.destroy();
+					}
+				});
+			}
 
 			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
 			this.hmrManager.setPlugins(browserBuildPlugins);
@@ -636,16 +463,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			await watcher.createWatcherSubscription();
 		} else if (hasUserWs) {
-			/**
-			 * Production/preview mode: wire user WebSocket handlers without HMR.
-			 *
-			 * @remarks
-			 * Uses a single WebSocketServer instance and the pattern matcher to
-			 * dispatch upgrades to the correct handler. Context is resolved once
-			 * per connection inside `wireUserWebSocketUpgrades`.
-			 */
-			const userWss = new WebSocketServer({ noServer: true });
-			this.wireUserWebSocketUpgrades(server, userWss);
+			this.wireUserWebSocketUpgrades(server);
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

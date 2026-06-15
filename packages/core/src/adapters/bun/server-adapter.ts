@@ -1,3 +1,4 @@
+import type { Server as NodeHttpServer } from 'node:http';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
@@ -36,6 +37,7 @@ import {
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { HmrManager } from './hmr-manager.ts';
@@ -109,6 +111,10 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
+	attachUserWebSocketUpgrades: (
+		server: NodeHttpServer,
+		options?: { passthroughUnmatched?: boolean },
+	) => void;
 }
 
 /**
@@ -273,6 +279,20 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		if (websocketHandlers) {
 			this.websocketHandlers = websocketHandlers;
 		}
+	}
+
+	/**
+	 * Wires user WebSocket routes onto a Node HTTP server used by host integrations.
+	 */
+	public attachUserWebSocketUpgrades(
+		server: NodeHttpServer,
+		options?: { passthroughUnmatched?: boolean },
+	): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: options?.passthroughUnmatched,
+		});
 	}
 
 
@@ -918,6 +938,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
+			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
 		};
 	}
 

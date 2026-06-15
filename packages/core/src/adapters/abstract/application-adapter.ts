@@ -110,7 +110,6 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
-
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
@@ -435,7 +434,6 @@ export abstract class AbstractApplicationAdapter<
 		this.errorHandler = handler as unknown as ErrorHandler;
 		return this;
 	}
-
 
 	/**
 	 * Get the registered error handler

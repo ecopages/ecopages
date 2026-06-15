@@ -33,6 +33,7 @@ type KitchenSinkProjectConfig = {
 	testMatch: string;
 	testIgnore?: string[];
 	workers?: number;
+	timeout?: number;
 };
 
 const kitchenSinkSourceDir = 'playground/kitchen-sink';
@@ -93,6 +94,7 @@ const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flat
 			testMatch: kitchenSinkTestMatch,
 			testIgnore: [kitchenSinkPreviewMatch, kitchenSinkStatefulTestMatch],
 			workers: kitchenSinkDevWorkerCount,
+			timeout: 60_000,
 		},
 		{
 			name: `${variant.baseName}-hmr-e2e`,
@@ -237,7 +239,6 @@ const webServers: WebServerConfig[] = [
 ];
 
 export default defineConfig({
-	timeout: 60000,
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
 	fullyParallel: true,
@@ -330,6 +331,7 @@ export default defineConfig({
 			testMatch: project.testMatch,
 			testIgnore: project.testIgnore,
 			workers: project.workers,
+			timeout: project.timeout,
 			metadata: {
 				isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
 			},

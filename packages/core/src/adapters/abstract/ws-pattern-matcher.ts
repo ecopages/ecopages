@@ -1,3 +1,5 @@
+import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
+
 /**
  * Pattern matcher for WebSocket route paths.
  *
@@ -24,10 +26,7 @@
  * @param pathname - The actual request pathname (e.g. '/ws/chat/abc123')
  * @returns A params object if the pattern matches, or null if it does not
  */
-export function matchWebSocketPath(
-	pattern: string,
-	pathname: string,
-): Record<string, string> | null {
+export function matchWebSocketPath(pattern: string, pathname: string): Record<string, string> | null {
 	const patternSegments = pattern.split('/').filter(Boolean);
 	const pathSegments = pathname.split('/').filter(Boolean);
 
@@ -58,8 +57,6 @@ export function matchWebSocketPath(
 
 	return params;
 }
-
-import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 
 /**
  * Represents a matched WebSocket route.

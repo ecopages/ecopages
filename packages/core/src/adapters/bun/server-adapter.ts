@@ -56,6 +56,13 @@ type WsKindData = {
 	kind: string;
 	params: Record<string, string>;
 	search: Record<string, string>;
+	/**
+	 * Resolved per-connection context, written once by the `open` handler and
+	 * read by `message` and `close` without re-resolving. Undefined until
+	 * `open` has settled — a guard in `message` drops frames that arrive in
+	 * this narrow window.
+	 */
+	context?: unknown;
 	[key: string]: unknown;
 };
 
@@ -468,6 +475,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 					const search = ws.data?.search ?? {};
 					resolveContext(new Request('http://localhost'), handler, kind, params, search)
 						.then((context) => {
+							ws.data.context = context;
 							const socket = adaptSocket(ws, kind, params, search, context);
 							handler.onConnect?.(socket);
 						})
@@ -486,21 +494,22 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						| EcopagesWebSocketHandler<unknown, Record<string, string>>
 						| undefined;
 					if (!handler) return;
+					const context = ws.data?.context;
+					if (context === undefined && handler.context) {
+						appLogger.warn(`[WS:${kind}] message received before context resolved; dropping.`);
+						return;
+					}
 					const params = (ws.data?.params ?? {}) as Record<string, string>;
 					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							const socket = adaptSocket(ws, kind, params, search, context);
-							const message: IncomingWebSocketMessage =
-								typeof msg === 'string'
-									? { kind: 'text', text: msg }
-									: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
-							handler.onMessage?.(socket, message);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] message failed:`, error as Error);
-							ws.close(1011, 'context initialization failed');
-						});
+					const socket = adaptSocket(ws, kind, params, search, context);
+					const message: IncomingWebSocketMessage =
+						typeof msg === 'string'
+							? { kind: 'text', text: msg }
+							: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
+					const result = handler.onMessage?.(socket, message);
+					if (result instanceof Promise) {
+						result.catch((error) => appLogger.error(`[WS:${kind}] onMessage failed:`, error as Error));
+					}
 				},
 				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
 					const kind: string = ws.data?.kind ?? '__hmr__';
@@ -512,17 +521,15 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						| EcopagesWebSocketHandler<unknown, Record<string, string>>
 						| undefined;
 					if (!handler) return;
+					const context = ws.data?.context;
 					const params = (ws.data?.params ?? {}) as Record<string, string>;
 					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							const socket = adaptSocket(ws, kind, params, search, context);
-							const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
-							handler.onClose?.(socket, event);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] close failed:`, error as Error);
-						});
+					const socket = adaptSocket(ws, kind, params, search, context);
+					const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
+					const result = handler.onClose?.(socket, event);
+					if (result instanceof Promise) {
+						result.catch((error) => appLogger.error(`[WS:${kind}] onClose failed:`, error as Error));
+					}
 				},
 			};
 
@@ -627,6 +634,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 					const search = ws.data?.search ?? {};
 					resolveContext(new Request('http://localhost'), handler, kind, params, search)
 						.then((context) => {
+							ws.data.context = context;
 							const socket = adaptSocket(ws, kind, params, search, context);
 							handler.onConnect?.(socket);
 						})
@@ -642,21 +650,22 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						| EcopagesWebSocketHandler<unknown, Record<string, string>>
 						| undefined;
 					if (!handler) return;
+					const context = ws.data?.context;
+					if (context === undefined && handler.context) {
+						appLogger.warn(`[WS:${kind}] message received before context resolved; dropping.`);
+						return;
+					}
 					const params = (ws.data?.params ?? {}) as Record<string, string>;
 					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							const socket = adaptSocket(ws, kind, params, search, context);
-							const message: IncomingWebSocketMessage =
-								typeof msg === 'string'
-									? { kind: 'text', text: msg }
-									: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
-							handler.onMessage?.(socket, message);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] message failed:`, error as Error);
-							ws.close(1011, 'context initialization failed');
-						});
+					const socket = adaptSocket(ws, kind, params, search, context);
+					const message: IncomingWebSocketMessage =
+						typeof msg === 'string'
+							? { kind: 'text', text: msg }
+							: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
+					const result = handler.onMessage?.(socket, message);
+					if (result instanceof Promise) {
+						result.catch((error) => appLogger.error(`[WS:${kind}] onMessage failed:`, error as Error));
+					}
 				},
 				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
 					const kind: string = ws.data?.kind;
@@ -665,17 +674,15 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 						| EcopagesWebSocketHandler<unknown, Record<string, string>>
 						| undefined;
 					if (!handler) return;
+					const context = ws.data?.context;
 					const params = (ws.data?.params ?? {}) as Record<string, string>;
 					const search = ws.data?.search ?? {};
-					resolveContext(new Request('http://localhost'), handler, kind, params, search)
-						.then((context) => {
-							const socket = adaptSocket(ws, kind, params, search, context);
-							const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
-							handler.onClose?.(socket, event);
-						})
-						.catch((error) => {
-							appLogger.error(`[WS:${kind}] close failed:`, error as Error);
-						});
+					const socket = adaptSocket(ws, kind, params, search, context);
+					const event: WebSocketCloseInfo = { code, reason, wasClean: code === 1000 };
+					const result = handler.onClose?.(socket, event);
+					if (result instanceof Promise) {
+						result.catch((error) => appLogger.error(`[WS:${kind}] onClose failed:`, error as Error));
+					}
 				},
 			};
 

@@ -74,6 +74,17 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		return this.serverAdapter.handleRequest(request);
 	}
 
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: { passthroughUnmatched?: boolean },
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
+	}
+
 	/**
 	 * Complete the initialization of the server adapter by processing dynamic routes
 	 * @param server The Bun server instance

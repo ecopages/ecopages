@@ -106,6 +106,17 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 
 		return this.serverAdapter.handleRequest(request);
 	}
+
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: { passthroughUnmatched?: boolean },
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
+	}
 }
 
 export async function createNodeApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {

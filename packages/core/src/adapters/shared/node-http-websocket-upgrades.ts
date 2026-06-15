@@ -7,15 +7,11 @@ import type {
 	EcopagesWebSocketHandler,
 	IncomingWebSocketMessage,
 	OutgoingWebSocketMessage,
-	WebSocketCloseInfo,
 } from '../../types/public-types.ts';
 import { findWebSocketRoute, type WebSocketRouteMatch } from '../abstract/ws-pattern-matcher.ts';
+import { invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
-export type NodeHttpWebSocketUpgradePreflight = (
-	req: IncomingMessage,
-	socket: Duplex,
-	head: Buffer,
-) => boolean;
+export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
 
 export type AttachNodeHttpWebSocketUpgradesOptions = {
 	runtimeOrigin: string;
@@ -27,6 +23,8 @@ export type AttachNodeHttpWebSocketUpgradesOptions = {
 	passthroughUnmatched?: boolean;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
+
+const attachedUpgradeServers = new WeakSet<NodeHttpServer>();
 
 function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	ws: WsWebSocket,
@@ -69,6 +67,14 @@ function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	};
 }
 
+function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage): Request {
+	const upgradeUrl = new URL(req.url ?? '/', runtimeOrigin);
+	return new Request(upgradeUrl, {
+		method: req.method,
+		headers: req.headers as HeadersInit,
+	});
+}
+
 async function resolveNodeContext<TContext, TParams extends Record<string, string>>(
 	request: Request,
 	handler: EcopagesWebSocketHandler<TContext, TParams>,
@@ -92,10 +98,11 @@ async function setupNodeWebSocketConnection(
 	ws: WsWebSocket,
 	wsMatch: WebSocketRouteMatch,
 	req: IncomingMessage,
+	runtimeOrigin: string,
 	search: Record<string, string>,
 ): Promise<void> {
 	const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
-	const baseRequest = new Request(`http://localhost${req.url ?? '/'}`);
+	const baseRequest = toUpgradeRequest(runtimeOrigin, req);
 
 	let context: unknown;
 	try {
@@ -111,6 +118,8 @@ async function setupNodeWebSocketConnection(
 		await handler.onConnect?.(socket);
 	} catch (error) {
 		appLogger.error(`[WS:${wsMatch.kind}] onConnect failed:`, error as Error);
+		ws.close(1011, 'onConnect failed');
+		return;
 	}
 
 	ws.on('message', (msg, isBinary) => {
@@ -125,21 +134,18 @@ async function setupNodeWebSocketConnection(
 								: new Uint8Array(msg as Buffer),
 				}
 			: { kind: 'text', text: msg.toString() };
-		const result = handler.onMessage?.(socket, message);
-		if (result instanceof Promise) {
-			result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onMessage failed:`, error as Error));
-		}
+		invokeWebSocketHandlerHook(wsMatch.kind, 'onMessage', handler.onMessage?.(socket, message));
 	});
 
 	ws.on('close', (code, reason) => {
-		const event: WebSocketCloseInfo = { code, reason: reason.toString(), wasClean: code === 1000 };
-		const result = handler.onClose?.(socket, event);
-		if (result instanceof Promise) {
-			result.catch((error) => appLogger.error(`[WS:${wsMatch.kind}] onClose failed:`, error as Error));
-		}
+		const event = toWebSocketCloseInfo(code, reason.toString());
+		invokeWebSocketHandlerHook(wsMatch.kind, 'onClose', handler.onClose?.(socket, event));
 	});
 
-	ws.on('error', (err) => appLogger.error(`[WS:${wsMatch.kind}] error:`, err));
+	ws.on('error', (err) => {
+		appLogger.error(`[WS:${wsMatch.kind}] error:`, err);
+		invokeWebSocketHandlerHook(wsMatch.kind, 'onError', handler.onError?.(socket, err));
+	});
 }
 
 /**
@@ -155,6 +161,13 @@ export function attachNodeHttpWebSocketUpgrades(
 	if (options.websocketHandlers.size === 0) {
 		return;
 	}
+
+	if (attachedUpgradeServers.has(server)) {
+		appLogger.warn('[WS] WebSocket upgrades already attached to this HTTP server; skipping duplicate attach.');
+		return;
+	}
+
+	attachedUpgradeServers.add(server);
 
 	const userWss = new WebSocketServer({ noServer: true });
 
@@ -175,7 +188,7 @@ export function attachNodeHttpWebSocketUpgrades(
 
 		userWss.handleUpgrade(req, socket, head, (ws) => {
 			const search = Object.fromEntries(url.searchParams.entries());
-			void setupNodeWebSocketConnection(ws, wsMatch, req, search).catch((error) => {
+			void setupNodeWebSocketConnection(ws, wsMatch, req, options.runtimeOrigin, search).catch((error) => {
 				appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, error as Error);
 				ws.close(1011, 'internal error');
 			});

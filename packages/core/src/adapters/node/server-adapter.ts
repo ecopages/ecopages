@@ -8,19 +8,12 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
-import type {
-	ApiHandler,
-	ErrorHandler,
-	StaticRoute,
-	EcopagesWebSocketHandler,
-} from '../../types/public-types.ts';
+import type { ApiHandler, ErrorHandler, StaticRoute, EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import { WebSocketServer } from 'ws';
 import {
 	attachNodeHttpWebSocketUpgrades,
 	type NodeHttpWebSocketUpgradePreflight,
 } from '../shared/node-http-websocket-upgrades.ts';
-
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -64,10 +57,7 @@ export interface NodeServerAdapterParams {
 export interface NodeServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: NodeServerInstance) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (
-		server: NodeServerInstance,
-		options?: { passthroughUnmatched?: boolean },
-	) => void;
+	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }) => void;
 }
 
 /**
@@ -117,10 +107,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * Host integrations such as the Vite plugin call this so `app.websocket()`
 	 * handlers work while HTTP is still served by the host dev server.
 	 */
-	public attachUserWebSocketUpgrades(
-		server: NodeServerInstance,
-		options?: { passthroughUnmatched?: boolean },
-	): void {
+	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }): void {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: this.runtimeOrigin,
 			websocketHandlers: this.websocketHandlers,
@@ -128,10 +115,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 	}
 
-	private wireUserWebSocketUpgrades(
-		server: NodeServerInstance,
-		preflight?: NodeHttpWebSocketUpgradePreflight,
-	): void {
+	private wireUserWebSocketUpgrades(server: NodeServerInstance, preflight?: NodeHttpWebSocketUpgradePreflight): void {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: this.runtimeOrigin,
 			websocketHandlers: this.websocketHandlers,
@@ -168,7 +152,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			this.websocketHandlers = options.websocketHandlers;
 		}
 	}
-
 
 	/**
 	 * Prepares the adapter for use.
@@ -221,8 +204,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			...this.serveOptions,
 		};
 	}
-
-
 
 	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
 		if (!this.initialized) {
@@ -473,7 +454,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			hmrEnabled: !!this.hmrManager?.isEnabled(),
 		});
 	}
-
 }
 
 /**

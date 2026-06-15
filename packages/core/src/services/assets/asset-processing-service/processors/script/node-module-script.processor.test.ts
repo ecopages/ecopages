@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { NodeModuleScriptProcessor } from './node-module-script.processor';
@@ -250,7 +251,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 		test('should resolve exported package subpaths when adapter resolution falls back', async () => {
 			const config = createMockConfig();
-			config.rootDir = '/Users/andeeplus/github/ecopages/apps/docs';
+			config.rootDir = path.resolve(import.meta.dirname, '../../../../../../../../apps/docs');
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });
 			fileSystem.readFileAsBuffer = vi.fn().mockReturnValue(Buffer.from('hydrator bootstrap'));
 

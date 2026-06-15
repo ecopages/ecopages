@@ -116,6 +116,23 @@ describe('Presets Verification', () => {
 		expect(result).toContain('.base{color:red}');
 		expect(result).toContain('.main{background:blue}');
 	});
+
+	test('Tailwind v4 preset should resolve bare module @import from the app package root', async () => {
+		const referencePath = path.resolve(
+			__dirname,
+			'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
+		);
+		const preset = tailwindV4Preset({ referencePath });
+		const css = `@import 'tailwindcss';`;
+
+		const result = await PostCssProcessor.processStringOrBuffer(css, {
+			plugins: preset.plugins ? Object.values(preset.plugins) : [],
+			filePath: referencePath,
+		});
+
+		expect(result.length).toBeGreaterThan(0);
+		expect(result).toContain('--tw-');
+	});
 });
 
 test('Tailwind v4 preset should support nesting', async () => {
@@ -273,7 +290,10 @@ describe('Tailwind v4 transformInput', () => {
 });
 
 describe('Tailwind v4 preset @apply resolution (regression)', () => {
-	const referencePath = path.resolve(__dirname, 'css/tailwind-reference.css');
+	const referencePath = path.resolve(
+		__dirname,
+		'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
+	);
 
 	test('resolves @apply when the reference is injected at the src location but processed from a different (dist) location', async () => {
 		const preset = tailwindV4Preset({ referencePath });

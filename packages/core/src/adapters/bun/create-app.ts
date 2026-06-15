@@ -106,16 +106,18 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			composedUrl: binding.runtimeOrigin,
 		});
 
-		return await createBunServerAdapter({
+		return createBunServerAdapter({
 			runtimeOrigin: binding.runtimeOrigin,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
 			errorHandler: this.errorHandler,
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 		});
 	}
+
 
 	/**
 	 * Start the Bun application server

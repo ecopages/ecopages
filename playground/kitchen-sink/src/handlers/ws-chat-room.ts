@@ -29,8 +29,23 @@ export type ChatRoomMessage = {
 	ts: number;
 };
 
+/**
+ * Default room id used by the playground lab page.
+ */
+export const DEFAULT_ROOM = 'lobby';
+
+/**
+ * In-memory message store — seeded with a few messages for the default room
+ * so history replay is testable.
+ */
+export const CHAT_MESSAGES: ChatRoomMessage[] = [
+	{ id: '1', username: 'system', text: 'Welcome to the WS Chat lab 👋', roomId: DEFAULT_ROOM, ts: Date.now() - 60_000 },
+	{ id: '2', username: 'alice', text: 'This chat tests the WebSocket injection API.', roomId: DEFAULT_ROOM, ts: Date.now() - 30_000 },
+	{ id: '3', username: 'bob', text: 'Messages are stored in a module constant — no DB needed.', roomId: DEFAULT_ROOM, ts: Date.now() - 10_000 },
+];
+
 const roomClients = new Map<string, Set<EcopagesSocket<ChatRoomData>>>();
-const roomHistory = new Map<string, ChatRoomMessage[]>();
+const roomHistory = new Map<string, ChatRoomMessage[]>([[DEFAULT_ROOM, [...CHAT_MESSAGES]]]);
 
 const ROOM_LIMIT = 1000;
 

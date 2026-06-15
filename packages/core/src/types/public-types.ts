@@ -16,6 +16,91 @@ export type { EcoPagesAppConfig } from './internal-types.ts';
 export type { EcoPageComponent } from '../eco/eco.types.ts';
 export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 
+/**
+ * Runtime-agnostic incoming WebSocket frame.
+ *
+ * Both Bun and Node `ws` deliver text and binary frames; this discriminated
+ * union lets handlers deal with both without runtime-specific casts.
+ */
+export type IncomingWebSocketMessage =
+	| { readonly kind: 'text'; readonly text: string }
+	| { readonly kind: 'binary'; readonly data: Uint8Array };
+
+/**
+ * Runtime-agnostic outgoing WebSocket payload.
+ *
+ * Strings are sent as text frames. Anything binary-shaped is sent as binary
+ * frames. `Blob` is included for cross-runtime parity and is normalized to a
+ * binary frame by each adapter.
+ */
+export type OutgoingWebSocketMessage =
+	| string
+	| Uint8Array
+	| ArrayBuffer
+	| ArrayBufferView
+	| Blob;
+
+/**
+ * Close event delivered to `onClose` after a connection terminates.
+ */
+export interface WebSocketCloseInfo {
+	readonly code: number;
+	readonly reason: string;
+	readonly wasClean: boolean;
+}
+
+/**
+ * Input passed to a WebSocket handler's `context()` factory.
+ *
+ * Adapters call `context()` exactly once per accepted upgrade. The returned
+ * value becomes `socket.context` and is shared by all lifecycle hooks.
+ */
+export interface WebSocketContextFactoryInput<TParams extends Record<string, string> = Record<string, string>> {
+	readonly request: Request;
+	readonly kind: string;
+	readonly params: TParams;
+	readonly search: Readonly<Record<string, string>>;
+	readonly locals?: RequestLocals;
+}
+
+/**
+ * Runtime-agnostic WebSocket socket view exposed to handlers.
+ *
+ * Framework-owned fields:
+ * - `kind`: the registered route pattern (e.g. '/ws/chat/:roomId')
+ * - `params`: dynamic segments captured at match time
+ * - `search`: query string, always string-typed
+ *
+ * App-owned field:
+ * - `context`: returned by the handler's `context()` factory
+ */
+export interface EcopagesSocket<TContext = unknown, TParams extends Record<string, string> = Record<string, string>> {
+	readonly kind: string;
+	readonly params: TParams;
+	readonly search: Readonly<Record<string, string>>;
+	readonly context: TContext;
+	send(message: OutgoingWebSocketMessage): void;
+	sendStream(stream: ReadableStream<Uint8Array>): Promise<void>;
+	close(code?: number, reason?: string): void;
+}
+
+/**
+ * Connection-lifecycle handler object.
+ *
+ * All hooks are optional. `context()` is the one-time initializer that
+ * produces the per-connection state shared by the lifecycle hooks. Returning
+ * a rejected promise from `context()` aborts the upgrade.
+ */
+export interface EcopagesWebSocketHandler<
+	TContext = unknown,
+	TParams extends Record<string, string> = Record<string, string>,
+> {
+	context?(input: WebSocketContextFactoryInput<TParams>): TContext | Promise<TContext>;
+	onConnect?(socket: EcopagesSocket<TContext, TParams>): void | Promise<void>;
+	onMessage?(socket: EcopagesSocket<TContext, TParams>, message: IncomingWebSocketMessage): void | Promise<void>;
+	onClose?(socket: EcopagesSocket<TContext, TParams>, event: WebSocketCloseInfo): void | Promise<void>;
+	onError?(socket: EcopagesSocket<TContext, TParams>, error: unknown): void | Promise<void>;
+}
 import type {
 	StandardSchema,
 	StandardSchemaResult,

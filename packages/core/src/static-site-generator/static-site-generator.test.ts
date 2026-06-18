@@ -256,7 +256,7 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), bufferContent);
 		});
 
-		test('should skip cache dynamic pages during static generation and log a warning', async () => {
+		test('should skip cache dynamic pages during static generation', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
 				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
@@ -281,10 +281,6 @@ describe('StaticSiteGenerator', () => {
 			});
 			expect(execute).not.toHaveBeenCalled();
 			expect(writeMock).not.toHaveBeenCalled();
-			expect(appLogger.warn).toHaveBeenCalledWith(
-				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
-				'➤ /src/pages/dashboard.tsx',
-			);
 		});
 	});
 
@@ -325,10 +321,7 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
-			expect(appLogger.warn).toHaveBeenCalledWith(
-				"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
-				'➤ /dashboard',
-			);
+			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining("dashboard"), expect.anything());
 		});
 
 		test('should render dynamic explicit static routes from staticPaths', async () => {

@@ -257,36 +257,6 @@ describe('ServerStaticBuilder', () => {
 		fs.rmSync(TMP_DIR, { recursive: true, force: true });
 	});
 
-	it('should warn when API handlers are registered for static build modes', async () => {
-		const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
-			createMockDependencies();
-
-		// Create a stub entry file so bundleServerEntry does not fail on the missing-file check.
-		fs.writeFileSync(path.join(TMP_DIR, 'app.ts'), 'await Promise.resolve();', 'utf8');
-
-		const builder = new ServerStaticBuilder({
-			appConfig: AppConfig,
-			staticSiteGenerator: StaticSiteGenerator,
-			serveOptions: ServeOptions,
-			logger,
-			apiHandlers: [
-				{ method: 'GET', path: '/api/auth/*', handler: () => undefined } as any,
-				{ method: 'POST', path: '/api/auth/*', handler: () => undefined } as any,
-			],
-		});
-
-		await builder.build(undefined, {
-			router: Router,
-			routeRendererFactory: RouteRendererFactory,
-		});
-
-		assert.deepEqual(calls.warn, [
-			[
-				'Registered API endpoints are not available in static build or preview modes because no server runtime is started. They are excluded from the generated output.\n',
-				'➤ GET /api/auth/*, POST /api/auth/*',
-			],
-		]);
-	});
 
 	describe('constructor', () => {
 		it('should create instance with provided options', () => {

@@ -61,20 +61,6 @@ export class StaticSiteGenerator {
 		return this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
 	}
 
-	/**
-	 * Logs the standardized warning emitted when a dynamic-cache page is skipped.
-	 */
-	private warnDynamicPageSkipped(filePath: string): void {
-		appLogger.warn(
-			"Pages with cache: 'dynamic' are not supported in static generation or preview, so they will be skipped\n",
-			`➤ ${filePath}`,
-		);
-	}
-
-	/**
-	 * Determines whether one filesystem-discovered page should be excluded from
-	 * static generation.
-	 */
 	private async shouldSkipStaticPageFile(
 		filePath: string,
 		routeRendererFactory: StaticPageRouteRendererFactory,
@@ -85,25 +71,11 @@ export class StaticSiteGenerator {
 			default?: EcoPageComponent<any>;
 		};
 
-		if (module.default?.cache !== 'dynamic') {
-			return false;
-		}
-
-		this.warnDynamicPageSkipped(filePath);
-		return true;
+		return module.default?.cache === 'dynamic';
 	}
 
-	/**
-	 * Determines whether one explicit static route view should be excluded from
-	 * static generation.
-	 */
-	private shouldSkipStaticView(routePath: string, view: EcoPageComponent<any>): boolean {
-		if (view.cache !== 'dynamic') {
-			return false;
-		}
-
-		this.warnDynamicPageSkipped(routePath);
-		return true;
+	private shouldSkipStaticView(_routePath: string, view: EcoPageComponent<any>): boolean {
+		return view.cache === 'dynamic';
 	}
 
 	/**
@@ -169,6 +141,7 @@ export class StaticSiteGenerator {
 		route: StaticGenerationRoute,
 		baseUrl: string,
 		routeRendererFactory?: StaticPageRouteRendererFactory,
+		skipped?: string[],
 	): Promise<string | Buffer | null> {
 		const {
 			templateRoute: { filePath },
@@ -192,6 +165,7 @@ export class StaticSiteGenerator {
 		}
 
 		if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
+			skipped?.push(filePath);
 			return null;
 		}
 
@@ -225,6 +199,7 @@ export class StaticSiteGenerator {
 		router: StaticGenerationRouteSource,
 		baseUrl: string,
 		routeRendererFactory?: StaticPageRouteRendererFactory,
+		skipped?: string[],
 	) {
 		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 
@@ -237,7 +212,7 @@ export class StaticSiteGenerator {
 
 		for (const route of routes) {
 			try {
-				const contents = await this.createFilesystemStaticContents(route, baseUrl, routeRendererFactory);
+				const contents = await this.createFilesystemStaticContents(route, baseUrl, routeRendererFactory, skipped);
 				if (contents === null) {
 					continue;
 				}
@@ -280,11 +255,20 @@ export class StaticSiteGenerator {
 		routeRendererFactory?: StaticGenerationRendererFactory;
 		staticRoutes?: StaticRoute[];
 	}) {
+		const skippedDynamicPages: string[] = [];
+
 		this.generateRobotsTxt();
-		await this.generateStaticPages(router, baseUrl, routeRendererFactory);
+		await this.generateStaticPages(router, baseUrl, routeRendererFactory, skippedDynamicPages);
 
 		if (staticRoutes && staticRoutes.length > 0 && routeRendererFactory) {
-			await this.generateExplicitStaticPages(staticRoutes, routeRendererFactory);
+			await this.generateExplicitStaticPages(staticRoutes, routeRendererFactory, skippedDynamicPages);
+		}
+
+		if (skippedDynamicPages.length > 0) {
+			appLogger.debug(
+				`Skipped ${skippedDynamicPages.length} page(s) with cache: 'dynamic' (not supported in static generation)`,
+				skippedDynamicPages,
+			);
 		}
 	}
 
@@ -295,6 +279,7 @@ export class StaticSiteGenerator {
 	private async generateExplicitStaticPages(
 		staticRoutes: StaticRoute[],
 		routeRendererFactory: ExplicitStaticRouteRendererFactory,
+		skipped?: string[],
 	): Promise<void> {
 		appLogger.debug(
 			'Generating explicit static routes',
@@ -306,6 +291,7 @@ export class StaticSiteGenerator {
 				const mod = await route.loader();
 				const view = mod.default;
 				if (this.shouldSkipStaticView(route.path, view)) {
+					skipped?.push(route.path);
 					continue;
 				}
 

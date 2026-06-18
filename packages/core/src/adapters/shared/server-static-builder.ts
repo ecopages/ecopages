@@ -81,24 +81,6 @@ export class ServerStaticBuilder {
 		this.entryFile = resolveEntryFile({ entryFile });
 	}
 
-	private warnApiHandlersUnavailableInStaticMode(): void {
-		if (this.apiHandlers.length === 0) {
-			return;
-		}
-
-		const uniqueHandlers = Array.from(
-			new Set(this.apiHandlers.map((handler) => `${handler.method} ${handler.path}`)),
-		);
-		const visibleHandlers = uniqueHandlers.slice(0, 5).join(', ');
-		const remainingCount = uniqueHandlers.length - Math.min(uniqueHandlers.length, 5);
-		const summary = remainingCount > 0 ? `${visibleHandlers}, +${remainingCount} more` : visibleHandlers;
-
-		this.logger.warn(
-			'Registered API endpoints are not available in static build or preview modes because no server runtime is started. They are excluded from the generated output.\n',
-			`➤ ${summary}`,
-		);
-	}
-
 	private prepareExportDirectory(): void {
 		const exportDir =
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
@@ -213,7 +195,6 @@ export class ServerStaticBuilder {
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		this.warnApiHandlersUnavailableInStaticMode();
 		this.prepareExportDirectory();
 		await this.refreshRuntimeAssets();
 		await this.bundleServerEntry();

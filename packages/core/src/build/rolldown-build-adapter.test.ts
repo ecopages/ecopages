@@ -121,6 +121,51 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('bundled-source-package');
 	});
 
+	test('externalPackages bundles undeclared transitive dependencies (tier 3 — pnpm strict hoisting)', async () => {
+		// Simulate a transitive dep that the app has NOT declared in its package.json.
+		// Under pnpm strict hoisting, such packages are unreachable as bare specifiers
+		// from build output dirs (.eco/, .server-route-modules/, dist/.server/), so
+		// shouldBundlePackageImport must bundle them unconditionally (tier 3).
+		const packageDir = path.join(workDir, 'node_modules', 'transitive-pkg');
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({
+				name: 'transitive-pkg',
+				type: 'module',
+				exports: './index.js',
+			}),
+		);
+		writeFileSync(path.join(packageDir, 'index.js'), "export const value = 'from-transitive-dep';\n");
+
+		// App package.json deliberately does NOT declare 'transitive-pkg'.
+		writeAppPackageJson({});
+
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"import { value } from 'transitive-pkg';\nexport { value };\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		// The transitive dep must be inlined — NOT left as a bare specifier.
+		expect(code).not.toMatch(/from ['"]transitive-pkg['"]/);
+		expect(code).toContain('from-transitive-dep');
+	});
+
 	test('externalPackages rewrites undeclared core-owned runtime packages to file URLs', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 		const adapter = new RolldownBuildAdapter();

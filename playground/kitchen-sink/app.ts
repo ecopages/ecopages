@@ -7,6 +7,7 @@ import { releaseNotes } from './src/data/demo-data';
 import { chatRoomWebsocketHandler } from './src/handlers/ws-chat-room';
 
 const isViteHosted = process.env.ECOPAGES_KITCHEN_SINK_HOST === 'vite';
+const isE2ERun = process.env.ECOPAGES_KITCHEN_SINK_E2E === 'true';
 
 export const app = await createApp({
 	appConfig,
@@ -15,6 +16,7 @@ export const app = await createApp({
 				embedded: true,
 			}
 		: undefined,
+	serverOptions: isE2ERun ? { idleTimeout: 255 } : undefined,
 });
 
 /**

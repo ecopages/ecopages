@@ -26,7 +26,7 @@ test.describe('Kitchen Sink Playground Routes And Shell', () => {
 	});
 
 	test('covers explicit routes, imperative rendering, catalog routes, and the custom 404', async ({ page }) => {
-		test.setTimeout(60_000);
+		test.setTimeout(90_000);
 		const runtime = trackRuntimeErrors(page);
 
 		await gotoAndWait(page, '/explicit/team');

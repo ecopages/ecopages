@@ -79,8 +79,8 @@ const selectedProjects = new Set(
 
 const maxAvailableWorkers = availableParallelism();
 const defaultWorkerCount = maxAvailableWorkers > 1 ? maxAvailableWorkers : 1;
-/** One dev server serializes HMR builds; keep browser parallelism low. */
-const kitchenSinkDevWorkerCount = Math.min(2, defaultWorkerCount);
+/** Dev server serializes SSR builds — one worker avoids Bun idle timeouts under load. */
+const kitchenSinkDevWorkerCount = 1;
 const kitchenSinkProjects: KitchenSinkProjectConfig[] = kitchenSinkVariants.flatMap((variant) => {
 	const projects: KitchenSinkProjectConfig[] = [
 		{
@@ -133,6 +133,26 @@ type WebServerConfig = {
 
 function includeServerForProjects(projects: string[]) {
 	return selectedProjects.size === 0 || projects.some((project) => selectedProjects.has(project));
+}
+
+/** Kitchen-sink preview runs build + full static generation before the port opens. */
+function getWebServerTimeout(server: WebServerConfig): number {
+	const isKitchenSink = server.projects.some((project) => project.startsWith('kitchen-sink-'));
+	const isPreviewBuild = server.command.includes('--mode preview') || server.command.includes('--preview');
+
+	if (isKitchenSink && isPreviewBuild) {
+		return 300_000;
+	}
+
+	if (isKitchenSink) {
+		return 180_000;
+	}
+
+	if (server.command.includes(' run build ')) {
+		return 180_000;
+	}
+
+	return 120_000;
 }
 
 const webServers: WebServerConfig[] = [
@@ -338,5 +358,10 @@ export default defineConfig({
 			},
 		})),
 	],
-	webServer: webServers.filter((server) => includeServerForProjects(server.projects)),
+	webServer: webServers
+		.filter((server) => includeServerForProjects(server.projects))
+		.map((server) => ({
+			...server,
+			timeout: getWebServerTimeout(server),
+		})),
 });

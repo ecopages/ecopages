@@ -212,7 +212,12 @@ export class StaticSiteGenerator {
 
 		for (const route of routes) {
 			try {
-				const contents = await this.createFilesystemStaticContents(route, baseUrl, routeRendererFactory, skipped);
+				const contents = await this.createFilesystemStaticContents(
+					route,
+					baseUrl,
+					routeRendererFactory,
+					skipped,
+				);
 				if (contents === null) {
 					continue;
 				}

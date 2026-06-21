@@ -152,6 +152,8 @@ export type EcoPagesAppConfig = {
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
 		buildExecutor?: BuildExecutor;
+		hmrBuildExecutor?: BuildExecutor;
+		routeModuleBuildExecutor?: BuildExecutor;
 		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		hostModuleLoader?: SourceModuleLoader;

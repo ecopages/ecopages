@@ -141,10 +141,7 @@ describe('RolldownBuildAdapter', () => {
 		// App package.json deliberately does NOT declare 'transitive-pkg'.
 		writeAppPackageJson({});
 
-		const entrypoint = writeFixture(
-			'entry.ts',
-			"import { value } from 'transitive-pkg';\nexport { value };\n",
-		);
+		const entrypoint = writeFixture('entry.ts', "import { value } from 'transitive-pkg';\nexport { value };\n");
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
 

@@ -20,7 +20,11 @@ import type { EcoBuildPlugin } from './build-types.ts';
 import { collectBrowserRuntimeImportRewriteMap, rewriteBrowserRuntimeImports } from './browser-runtime-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
-import { isDeclaredAppPackageImport, isWorkspacePackageImport, normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
+import {
+	isDeclaredAppPackageImport,
+	isWorkspacePackageImport,
+	normalizeNodeRuntimeBuildOutputs,
+} from './runtime-build-output-normalizer.ts';
 import type {
 	BuildDependencyGraph,
 	BuildLog,

@@ -257,7 +257,6 @@ describe('ServerStaticBuilder', () => {
 		fs.rmSync(TMP_DIR, { recursive: true, force: true });
 	});
 
-
 	describe('constructor', () => {
 		it('should create instance with provided options', () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, logger, previewServerFactory } =

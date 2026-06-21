@@ -321,7 +321,7 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
-			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining("dashboard"), expect.anything());
+			expect(writeMock).not.toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.anything());
 		});
 
 		test('should render dynamic explicit static routes from staticPaths', async () => {

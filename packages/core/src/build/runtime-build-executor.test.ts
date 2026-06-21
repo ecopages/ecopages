@@ -2,19 +2,19 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { createAppBuildManifest } from './build-manifest.ts';
 import {
-	getAppBuildAdapter,
-	getAppBuildOwnership,
+	getAppBuildExecutor,
+	getAppHmrBuildExecutor,
 	setAppBuildAdapter,
 	setAppBuildExecutor,
 	setAppBuildManifest,
 	ViteHostBuildAdapter,
 	withBuildExecutorPlugins,
 } from './build-adapter.ts';
-import { SerializedBuildExecutor } from './serialized-build-executor.ts';
+import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
 
-test('installAppRuntimeBuildExecutor wraps the active adapter in a SerializedBuildExecutor', () => {
+test('installAppRuntimeBuildExecutor wraps the active adapter in a ParallelBuildExecutor', () => {
 	const staleExecutor = new RolldownBuildAdapter();
 	const appConfig = {
 		runtime: {
@@ -34,7 +34,7 @@ test('installAppRuntimeBuildExecutor wraps the active adapter in a SerializedBui
 	const executor = installAppRuntimeBuildExecutor(appConfig);
 
 	assert.notEqual(executor, staleExecutor);
-	assert.ok(executor instanceof SerializedBuildExecutor, 'wraps the executor in a FIFO-serialized layer');
+	assert.ok(executor instanceof ParallelBuildExecutor, 'wraps the executor in a parallel route-module layer');
 });
 
 test('installAppRuntimeBuildExecutor rejects when the app-owned adapter is a Vite-host boundary', async () => {
@@ -124,7 +124,29 @@ test('installAppRuntimeBuildExecutor does not double-wrap an already-wrapped exe
 	);
 
 	const installed = installAppRuntimeBuildExecutor(appConfig);
-	assert.ok(installed instanceof SerializedBuildExecutor);
-	assert.equal(getAppBuildAdapter(appConfig).ownership, 'rolldown');
-	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
+	assert.ok(installed instanceof ParallelBuildExecutor);
+});
+
+test('installAppRuntimeBuildExecutor installs separate parallel executors for route modules and HMR', () => {
+	const appConfig = {
+		runtime: {},
+		loaders: new Map(),
+	} as never;
+
+	setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			runtimePlugins: [],
+		}),
+	);
+
+	installAppRuntimeBuildExecutor(appConfig);
+
+	const routeExecutor = getAppBuildExecutor(appConfig);
+	const hmrExecutor = getAppHmrBuildExecutor(appConfig);
+
+	assert.ok(routeExecutor instanceof ParallelBuildExecutor);
+	assert.ok(hmrExecutor instanceof ParallelBuildExecutor);
+	assert.notEqual(routeExecutor, hmrExecutor);
 });

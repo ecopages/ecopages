@@ -731,17 +731,44 @@ function collectJsxOwnershipPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugi
  * @remarks
  * Falls back to {@link getAppBuildAdapter} when no executor is set
  * on the runtime yet. The dev-watch pipeline replaces this value with
- * a {@link SerializedBuildExecutor} via
+ * a parallel route-module executor via
  * {@link installAppRuntimeBuildExecutor}.
  */
 export function getAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	return appConfig.runtime?.buildExecutor ?? getAppBuildAdapter(appConfig);
+	return (
+		appConfig.runtime?.routeModuleBuildExecutor ?? appConfig.runtime?.buildExecutor ?? getAppBuildAdapter(appConfig)
+	);
 }
 
-/** Installs the executor that should serve future builds for one app instance. */
+/** Returns the HMR browser-bundle executor when installed. */
+export function getAppHmrBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	return appConfig.runtime?.hmrBuildExecutor ?? getAppBuildExecutor(appConfig);
+}
+
+/** Returns the route-module build executor when installed. */
+export function getAppRouteModuleBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	return getAppBuildExecutor(appConfig);
+}
+
+/** Installs the default executor for one app instance (ConfigBuilder / tests). */
 export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
+		buildExecutor,
+	};
+}
+
+export function setAppHmrBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		hmrBuildExecutor: buildExecutor,
+	};
+}
+
+export function setAppRouteModuleBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		routeModuleBuildExecutor: buildExecutor,
 		buildExecutor,
 	};
 }

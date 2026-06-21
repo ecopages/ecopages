@@ -1,37 +1,50 @@
+import { availableParallelism } from 'node:os';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
 	getAppBuildAdapter,
-	getAppBuildExecutor,
 	getAppServerBuildPlugins,
 	setAppBuildExecutor,
+	setAppHmrBuildExecutor,
+	setAppRouteModuleBuildExecutor,
 	withBuildExecutorPlugins,
 	type BuildExecutor,
 } from './build-adapter.ts';
+import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
+function createPluginWrappedExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	const baseExecutor = getAppBuildAdapter(appConfig);
+	return withBuildExecutorPlugins(baseExecutor, () => getAppServerBuildPlugins(appConfig));
+}
+
+function resolveParallelismLimit(): number {
+	return Math.max(1, availableParallelism() - 1);
+}
+
 /**
- * Installs the app-owned runtime build executor for one app instance.
+ * Installs the app-owned runtime build executors for one app instance.
  *
  * @remarks
- * Wraps the app-owned adapter in a {@link SerializedBuildExecutor} so
- * every dev-watch caller issues builds against a single FIFO queue.
- * Plugin injection is applied here via {@link withBuildExecutorPlugins}
- * so app-owned plugins are merged into every rebuild without callers
- * having to know about the manifest.
+ * Route-module and HMR browser builds run through a {@link ParallelBuildExecutor}
+ * so independent compiles can overlap. Server-entry bundling continues to call
+ * the raw adapter directly and stays single-flight by design.
  *
- * Idempotent across calls: re-invoking replaces the existing executor
- * on `appConfig.runtime` with a fresh wrapper.
- *
- * @param appConfig - The app config whose runtime state is updated.
- *   The function reads the existing executor (falling back to the
- *   app-owned adapter) and writes the wrapped executor back.
- * @returns The installed {@link BuildExecutor}.
+ * Idempotent across calls: re-invoking replaces the existing executors on
+ * `appConfig.runtime` with fresh wrappers.
  */
 export function installAppRuntimeBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	const baseExecutor = getAppBuildExecutor(appConfig) ?? getAppBuildAdapter(appConfig);
-	const buildExecutor = new SerializedBuildExecutor(
-		withBuildExecutorPlugins(baseExecutor, () => getAppServerBuildPlugins(appConfig)),
-	);
-	setAppBuildExecutor(appConfig, buildExecutor);
-	return buildExecutor;
+	const pluginWrappedExecutor = createPluginWrappedExecutor(appConfig);
+	const parallelismLimit = resolveParallelismLimit();
+	const routeModuleBuildExecutor = new ParallelBuildExecutor(pluginWrappedExecutor, parallelismLimit);
+	const hmrBuildExecutor = new ParallelBuildExecutor(pluginWrappedExecutor, Math.min(3, parallelismLimit));
+
+	setAppRouteModuleBuildExecutor(appConfig, routeModuleBuildExecutor);
+	setAppHmrBuildExecutor(appConfig, hmrBuildExecutor);
+	setAppBuildExecutor(appConfig, routeModuleBuildExecutor);
+
+	return routeModuleBuildExecutor;
+}
+
+export function getInstalledServerEntryBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	return new SerializedBuildExecutor(createPluginWrappedExecutor(appConfig));
 }

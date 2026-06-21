@@ -782,8 +782,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
-		const bypassCache =
-			options?.bypassCache ?? (typeof Bun !== 'undefined' && process.env.NODE_ENV === 'development');
+		const bypassCache = options?.bypassCache ?? false;
 		const pageModule = this.usesIntegrationPageImporter(file)
 			? await this.importIntegrationPageFile(file, {
 					bypassCache,

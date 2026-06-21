@@ -10,7 +10,8 @@ Three concentric shapes, plus a serializer and a plugin injector:
 | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BuildAdapter`             | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
 | `BuildExecutor`            | `build-adapter.ts`             | Narrower runtime facade. Only `build` is exposed. Stored on `appConfig.runtime.buildExecutor`.                                                                      |
-| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used by the dev watch pipeline.                                                                                              |
+| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used when strict single-flight ordering is required.                                                                         |
+| `ParallelBuildExecutor`    | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
 | `withBuildExecutorPlugins` | `build-adapter.ts`             | Merges app-owned plugins into every `build` call. The single point of plugin injection.                                                                             |
 
 Plus one translation bridge:
@@ -35,8 +36,10 @@ When a server adapter initializes, it calls `installAppRuntimeBuildExecutor(appC
 
 ```
 BuildExecutor
-  └─ SerializedBuildExecutor            // FIFO queue
-       └─ withBuildExecutorPlugins       // injects app plugins
+  ├─ ParallelBuildExecutor (route modules)   // limited concurrency
+  ├─ ParallelBuildExecutor (HMR browser)     // separate pool, max 3
+  └─ SerializedBuildExecutor (server entry)  // single-flight when used directly
+       └─ withBuildExecutorPlugins
             └─ BuildAdapter (bundled adapter or Vite-host)
 ```
 

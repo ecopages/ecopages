@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -14,6 +14,17 @@ import { resolve } from 'node:path';
 
 const FIXTURE_DIR = resolve(process.cwd(), 'packages/core/__fixtures__/app');
 const TEST_CSS_FILE = resolve(FIXTURE_DIR, 'src/pages/index.css');
+
+async function readMainTitleColor(page: Page) {
+	return page.evaluate(() => {
+		const element = document.querySelector('.main-title');
+		if (!(element instanceof HTMLElement)) {
+			return '';
+		}
+
+		return getComputedStyle(element).color;
+	});
+}
 
 test.describe('HMR E2E', () => {
 	test('should load page with .main-title element', async ({ page }) => {
@@ -39,10 +50,11 @@ test.describe('HMR E2E', () => {
 		const title = page.locator('.main-title').first();
 
 		try {
-			await page.goto('/', { waitUntil: 'networkidle' });
+			await page.goto('/', { waitUntil: 'domcontentloaded' });
 			await expect(title).toBeVisible();
+			await expect.poll(async () => readMainTitleColor(page), { timeout: 10_000 }).not.toBe('');
 
-			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
+			const initialColor = await readMainTitleColor(page);
 			expect(initialColor).toBeTruthy();
 
 			const modifiedCss = originalCss.replace('.main-title {', '.main-title {\n\tcolor: rgb(255, 0, 0);');
@@ -54,11 +66,10 @@ test.describe('HMR E2E', () => {
 			await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
 
 			await reloadPromise;
-			await page.waitForLoadState('networkidle');
+			await page.waitForLoadState('domcontentloaded');
+			await expect(title).toBeVisible();
 
-			await expect
-				.poll(async () => title.evaluate((el) => getComputedStyle(el).color), { timeout: 10000 })
-				.toBe('rgb(255, 0, 0)');
+			await expect.poll(async () => readMainTitleColor(page), { timeout: 10000 }).toBe('rgb(255, 0, 0)');
 		} finally {
 			await writeFile(TEST_CSS_FILE, originalCss, { flush: true });
 		}

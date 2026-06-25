@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 
+const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
+
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
@@ -120,6 +122,34 @@ function inferLaunchMode(args, launchMode) {
  * @throws {Error} When `launchMode` is `start` and the bundle does not exist.
  */
 
+function resolveProductionServerEntry(cwd = process.cwd()) {
+	const manifestPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_MANIFEST_FILENAME);
+	if (existsSync(manifestPath)) {
+		try {
+			const parsed = JSON.parse(readFileSync(manifestPath, 'utf8'));
+			if (parsed?.serverEntry) {
+				const fromManifest = path.isAbsolute(parsed.serverEntry)
+					? parsed.serverEntry
+					: path.join(path.dirname(manifestPath), parsed.serverEntry);
+				if (existsSync(fromManifest)) {
+					return fromManifest;
+				}
+			}
+			if (parsed?.distDir) {
+				const fromDistDir = path.join(parsed.distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
+				if (existsSync(fromDistDir)) {
+					return fromDistDir;
+				}
+			}
+		} catch {
+			// fall through to legacy path
+		}
+	}
+
+	const legacyPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
+	return existsSync(legacyPath) ? legacyPath : undefined;
+}
+
 export function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};
 	const resolvedEntryFile = entryFile ?? 'app.ts';
@@ -127,9 +157,9 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
 
-	const distServerApp = path.join(process.cwd(), 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
+	const distServerApp = resolveProductionServerEntry(process.cwd());
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
-	const useBundle = shouldUseBundle && existsSync(distServerApp);
+	const useBundle = shouldUseBundle && Boolean(distServerApp);
 
 	if (shouldUseBundle && !useBundle) {
 		throw new Error('No production bundle found. Run `ecopages build` before starting in production mode.');

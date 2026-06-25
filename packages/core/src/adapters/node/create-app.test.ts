@@ -22,6 +22,7 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			handleRequest: async () => new Response(null, { status: 204 }),
 			buildStatic: async () => {},
 			attachUserWebSocketUpgrades: () => {},
+			dispose: async () => {},
 		};
 	}
 

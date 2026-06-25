@@ -110,10 +110,10 @@ The route-module registry (`route-module-build-cache-registry.ts`) shares one `R
 
 Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`).
 
-| Artifact | Location |
-| -------- | -------- |
-| Graph manifest | `.eco/.server-pages-graph/.build-cache.json` |
-| Chunk outputs | `.eco/.server-modules/` (shared with per-route cache) |
+| Artifact       | Location                                              |
+| -------------- | ----------------------------------------------------- |
+| Graph manifest | `.eco/.server-pages-graph/.build-cache.json`          |
+| Chunk outputs  | `.eco/.server-modules/` (shared with per-route cache) |
 
 `StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
 

@@ -31,6 +31,7 @@ describe('parseCliArgs', () => {
 			build: false,
 			start: false,
 			dev: true,
+			force: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
@@ -46,6 +47,7 @@ describe('parseCliArgs', () => {
 			build: false,
 			start: true,
 			dev: false,
+			force: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
@@ -61,9 +63,23 @@ describe('parseCliArgs', () => {
 			build: false,
 			start: false,
 			dev: true,
+			force: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
 		});
+	});
+
+	it('parses --force for production build commands', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		delete process.env.NODE_ENV;
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', '--force'];
+
+		expect(parseCliArgs()).toMatchObject({
+			build: true,
+			force: true,
+			dev: false,
+		});
+		expect(process.env.NODE_ENV).toBe('production');
 	});
 });

@@ -5,6 +5,7 @@ import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '.
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import type { MatchResult } from '../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
+import type { PageRendererResolver } from '../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
@@ -36,6 +37,35 @@ const routeRendererFactory = new RouteRendererFactory({
 	runtimeOrigin: appConfig.baseUrl,
 });
 
+function createRouteRendererFactoryWithStub404(
+	realFactory: PageRendererResolver,
+	error404TemplatePath: string,
+): PageRendererResolver {
+	const stub404Renderer = {
+		execute: vi.fn(async () => ({
+			body: '<h1>404 - Page Not Found</h1>',
+		})),
+		loadPageModule: vi.fn(async () => ({
+			default: () => null,
+		})),
+	};
+
+	return {
+		getPageRenderer(filePath: string) {
+			if (filePath === error404TemplatePath) {
+				return stub404Renderer;
+			}
+
+			return realFactory.getPageRenderer(filePath);
+		},
+	};
+}
+
+const routeRendererFactoryForNoMatchTests = createRouteRendererFactoryWithStub404(
+	routeRendererFactory,
+	appConfig.absolutePaths.error404TemplatePath,
+);
+
 const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 	options: {
 		watchMode: false,
@@ -48,7 +78,7 @@ describe('FileSystemResponseMatcher', () => {
 			appConfig,
 			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
-			routeRendererFactory,
+			routeRendererFactory: routeRendererFactoryForNoMatchTests,
 			fileSystemResponseFactory,
 		});
 
@@ -241,7 +271,7 @@ describe('FileSystemResponseMatcher', () => {
 			appConfig,
 			assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 			router,
-			routeRendererFactory,
+			routeRendererFactory: routeRendererFactoryForNoMatchTests,
 			fileSystemResponseFactory,
 		});
 

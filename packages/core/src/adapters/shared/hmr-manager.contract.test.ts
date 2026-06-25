@@ -7,15 +7,7 @@ import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from '../node/node-hmr-manager.ts';
 import { HmrManager as BunHmrManager } from '../bun/hmr-manager.ts';
-
-type SharedHmrManager = {
-	handleFileChange(filePath: string, options?: { broadcast?: boolean }): Promise<void>;
-	registerEntrypoint(entrypointPath: string): Promise<string>;
-	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
-	getWatchedFiles(): Map<string, string>;
-	stop(): void;
-	appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
-};
+import type { SharedHmrManager } from './shared-hmr-manager.ts';
 
 const tempRoots: string[] = [];
 
@@ -80,7 +72,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const entrypointPath = path.join(pagesDir, 'react-lab.tsx');
 		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-		const manager = await create(rootDir);
+		using manager = await create(rootDir);
 		const outputPath = getEntrypointOutputPath(manager, entrypointPath);
 
 		const handleFileChange = vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {
@@ -97,8 +89,6 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		assert.equal(firstUrl, '/assets/_hmr/pages/react-lab.js');
 		assert.equal(secondUrl, '/assets/_hmr/pages/react-lab.js');
 		assert.equal(handleFileChange.mock.calls.length, 1);
-
-		manager.stop();
 	});
 
 	test('fails strict page registration when no integration emits output', async () => {
@@ -109,13 +99,11 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const entrypointPath = path.join(pagesDir, 'react-content.mdx');
 		fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
 
-		const manager = await create(rootDir);
+		using manager = await create(rootDir);
 		vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {});
 
 		await assert.rejects(() => manager.registerEntrypoint(entrypointPath), /Integration failed to emit entrypoint/);
 		assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), false);
-
-		manager.stop();
 	});
 
 	test('uses the generic build path for explicit script entrypoints', async () => {
@@ -126,7 +114,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const entrypointPath = path.join(srcDir, 'script.ts');
 		fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
-		const manager = await create(rootDir);
+		using manager = await create(rootDir);
 		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'script.js');
 		const buildCalls: string[] = [];
 		manager.appConfig.runtime!.buildExecutor = {
@@ -147,8 +135,6 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		assert.equal(outputUrl, '/assets/_hmr/script.js');
 		assert.deepEqual(buildCalls, [entrypointPath]);
 		assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
-
-		manager.stop();
 	});
 
 	test('registering one script entrypoint does not rebuild previously watched script entrypoints', async () => {
@@ -161,7 +147,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(firstEntrypoint, 'console.log("first");', 'utf8');
 		fs.writeFileSync(secondEntrypoint, 'console.log("second");', 'utf8');
 
-		const manager = await create(rootDir);
+		using manager = await create(rootDir);
 		const buildCalls: string[][] = [];
 		manager.appConfig.runtime!.buildExecutor = {
 			build: vi.fn(async (options) => {
@@ -199,8 +185,6 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		await manager.registerScriptEntrypoint(secondEntrypoint);
 
 		assert.deepEqual(buildCalls, [[firstEntrypoint], [secondEntrypoint]]);
-
-		manager.stop();
 	});
 
 	test('stop clears retained registration state', async () => {
@@ -211,7 +195,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const entrypointPath = path.join(pagesDir, 'react-content.tsx');
 		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-		const manager = await create(rootDir);
+		using manager = await create(rootDir);
 		const outputPath = getEntrypointOutputPath(manager, entrypointPath);
 
 		vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {

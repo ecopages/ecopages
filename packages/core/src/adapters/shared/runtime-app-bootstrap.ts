@@ -11,7 +11,6 @@ export type RuntimeBinding = {
 };
 
 export type StaticRuntimeMode = {
-	requiresFetchRuntime: boolean;
 	canBuildWithoutRuntimeServer: boolean;
 };
 
@@ -60,13 +59,7 @@ export function resolveStaticRuntimeMode(options: {
 	appConfig: EcoPagesAppConfig;
 	cliArgs: ReturnParseCliArgs;
 }): StaticRuntimeMode {
-	const requiresFetchRuntime = options.appConfig.integrations.some(
-		(integration) => integration.staticBuildStep === 'fetch',
-	);
-	const canBuildWithoutRuntimeServer = (options.cliArgs.build || options.cliArgs.preview) && !requiresFetchRuntime;
-
 	return {
-		requiresFetchRuntime,
-		canBuildWithoutRuntimeServer,
+		canBuildWithoutRuntimeServer: options.cliArgs.build || options.cliArgs.preview,
 	};
 }

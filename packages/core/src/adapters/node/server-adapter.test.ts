@@ -81,4 +81,20 @@ describe('NodeServerAdapter', () => {
 
 		expect(response.status).toBe(499);
 	});
+
+	it('builds static pages without an ephemeral build server', async () => {
+		const staticBuilderBuild = vi.fn().mockResolvedValue(undefined);
+		const adapter = createAdapter({ options: { watch: false } });
+		adapter.setInitializedForTest();
+		(adapter as unknown as { staticBuilder: { build: typeof staticBuilderBuild } }).staticBuilder = {
+			build: staticBuilderBuild,
+		};
+
+		await adapter.buildStatic({ force: true });
+
+		expect(staticBuilderBuild).toHaveBeenCalledWith(
+			expect.objectContaining({ baseUrl: 'http://localhost:3000' }),
+			expect.any(Object),
+		);
+	});
 });

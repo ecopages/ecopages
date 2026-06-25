@@ -37,6 +37,7 @@ import {
 import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
 import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
+import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { HmrManager } from './hmr-manager.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
@@ -85,10 +86,11 @@ export interface BunServerAdapterParams {
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
-	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<void>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
 	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }) => void;
+	dispose: () => Promise<void>;
 }
 
 /**
@@ -115,6 +117,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: BunServerInstance | null;
+	private projectWatcher: ProjectWatcher | null = null;
+	private adapterDisposed = false;
 	private readonly previewHost: StaticPreviewHost;
 
 	/**
@@ -303,7 +307,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		installAppRuntimeBuildExecutor(this.appConfig);
 
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		await this.hmrManager.buildRuntime();
+		if (this.options?.watch) {
+			await this.hmrManager.buildRuntime();
+		}
 		this.prepareRuntimePublicDir();
 
 		const staticBuilderOptions = {
@@ -326,7 +332,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
 
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
 		}
 
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
@@ -399,6 +405,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			bridge: this.bridge,
 		});
 
+		this.projectWatcher = watcher;
 		await watcher.createWatcherSubscription();
 	}
 
@@ -684,7 +691,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Generates a static build of the site for deployment.
 	 * @param options.preview - If true, starts a preview server after build
 	 */
-	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
 		if (!this.fullyInitialized) {
 			await this.initializeSharedRouteHandling({
 				staticRoutes: this.staticRoutes,
@@ -692,9 +699,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			});
 		}
 
-		const buildRuntimeOrigin = this.serverInstance
-			? `http://${this.serverInstance.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serverInstance.port || DEFAULT_ECOPAGES_PORT}`
-			: undefined;
+		const buildRuntimeOrigin = resolveServeRuntimeOrigin(this.serveOptions);
 
 		await this.staticBuilder.build(
 			{ ...options, preview: false, baseUrl: buildRuntimeOrigin },
@@ -784,7 +789,32 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			dispose: this.dispose.bind(this),
 		};
+	}
+
+	/**
+	 * Releases dev-time resources owned by the adapter.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Does not stop the bound Bun server — callers
+	 * should shut down transport through the runtime host before disposing.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.adapterDisposed) {
+			return;
+		}
+
+		this.adapterDisposed = true;
+
+		await this.projectWatcher?.close();
+		this.projectWatcher = null;
+
+		this.hmrManager?.stop();
+
+		this.bridge?.destroy();
+
+		await this.previewHost.stop();
 	}
 
 	/**

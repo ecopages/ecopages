@@ -33,7 +33,7 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -62,8 +62,6 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 	assert.equal(secondUrl, '/assets/_hmr/pages/react-lab.js');
 	assert.equal(handleFileChange.mock.calls.length, 1);
 	assert.equal(fs.existsSync(outputPath), true);
-
-	manager.stop();
 });
 
 test('NodeHmrManager does not broadcast HMR events for initial entrypoint registration builds', async () => {
@@ -77,7 +75,7 @@ test('NodeHmrManager does not broadcast HMR events for initial entrypoint regist
 
 	const broadcast = vi.fn();
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 1,
@@ -100,8 +98,6 @@ test('NodeHmrManager does not broadcast HMR events for initial entrypoint regist
 
 	assert.equal(outputUrl, '/assets/_hmr/pages/react-content.js');
 	assert.equal(broadcast.mock.calls.length, 0);
-
-	manager.stop();
 });
 
 test('NodeHmrManager clears timed-out entrypoint registrations so later requests can retry', async () => {
@@ -114,7 +110,7 @@ test('NodeHmrManager clears timed-out entrypoint registrations so later requests
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -154,7 +150,6 @@ test('NodeHmrManager clears timed-out entrypoint registrations so later requests
 		assert.equal(watchedFiles.get(entrypointPath), retriedUrl);
 	} finally {
 		process.env.NODE_ENV = previousNodeEnv;
-		manager.stop();
 	}
 });
 
@@ -168,7 +163,7 @@ test('NodeHmrManager fails strict entrypoint registration when the owning integr
 	fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -180,8 +175,6 @@ test('NodeHmrManager fails strict entrypoint registration when the owning integr
 
 	await assert.rejects(() => manager.registerEntrypoint(entrypointPath), /Integration failed to emit entrypoint/);
 	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), false);
-
-	manager.stop();
 });
 
 test('NodeHmrManager uses the generic build path for script entrypoints when no strategy emits output', async () => {
@@ -193,7 +186,7 @@ test('NodeHmrManager uses the generic build path for script entrypoints when no 
 	fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -228,14 +221,12 @@ test('NodeHmrManager uses the generic build path for script entrypoints when no 
 	assert.equal(outputUrl, '/assets/_hmr/script.js');
 	assert.deepEqual(buildCalls, [entrypointPath]);
 	assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
-
-	manager.stop();
 });
 
 test('NodeHmrManager disables HMR instead of throwing when runtime bundle generation crashes', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-runtime-failure');
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -262,7 +253,6 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 	assert.equal(runtimeEntrypoint, fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')));
 	assert.equal(runtimeEntrypoint?.includes(`${path.sep}.eco${path.sep}hmr${path.sep}client${path.sep}`), false);
 
-	manager.stop();
 	errorSpy.mockRestore();
 });
 
@@ -276,7 +266,7 @@ test('NodeHmrManager ignores deleted watched entrypoints and clears stale regist
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -305,8 +295,6 @@ test('NodeHmrManager ignores deleted watched entrypoints and clears stale regist
 	assert.equal(manager.getWatchedFiles().has(entrypointPath), false);
 	assert.deepEqual(clearDependencies.mock.calls, [[entrypointPath]]);
 	assert.equal(strategyMatches.mock.calls.length, 0);
-
-	manager.stop();
 });
 
 test('NodeHmrManager stop clears retained registration state', async () => {
@@ -319,7 +307,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -349,7 +337,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 test('NodeHmrManager keeps internal browser and server-module outputs out of distDir', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-internal-paths');
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new NodeHmrManager({
+	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -370,6 +358,4 @@ test('NodeHmrManager keeps internal browser and server-module outputs out of dis
 		importModule.mock.calls[0]?.[0]?.outdir,
 		path.join(resolveInternalExecutionDir(config), '.server-modules'),
 	);
-
-	manager.stop();
 });

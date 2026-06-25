@@ -13,6 +13,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
+	private stopped = false;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
 
 	constructor(
@@ -31,14 +32,22 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		return createNodeServerAdapter(params);
 	}
 
-	public async stop(force = true): Promise<void> {
-		if (!this.server) {
+	public override async stop(force = true): Promise<void> {
+		if (this.stopped) {
 			return;
 		}
 
-		const activeServer = this.server;
-		this.server = null;
-		await this.runtimeHost.stop(activeServer, { force });
+		if (this.server) {
+			const activeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(activeServer, { force });
+		}
+
+		if (this.serverAdapter) {
+			await this.serverAdapter.dispose();
+		}
+
+		this.stopped = true;
 	}
 
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
@@ -61,6 +70,11 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 	}
 
 	public async start(): Promise<NodeServerInstance | void> {
+		if (this.stopped) {
+			this.serverAdapter = undefined;
+			this.stopped = false;
+		}
+
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
@@ -69,12 +83,11 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			return this.server;
 		}
 
-		const { build, preview } = this.cliArgs;
+		const { build, preview, force } = this.cliArgs;
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview });
-			await this.stop(true);
+			await this.serverAdapter.buildStatic({ preview, force });
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (build) {

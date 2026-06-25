@@ -70,8 +70,9 @@ export interface ApplicationAdapterOptions {
 /**
  * Common interface for application adapters
  */
-export interface ApplicationAdapter<T = any> {
+export interface ApplicationAdapter<T = any> extends AsyncDisposable {
 	start(): Promise<T | void>;
+	stop(force?: boolean): Promise<void>;
 }
 
 /**
@@ -451,6 +452,20 @@ export abstract class AbstractApplicationAdapter<
 	 * Start the application server
 	 */
 	public abstract start(): Promise<TServer | void>;
+
+	/**
+	 * Stops the application server and releases runtime resources.
+	 *
+	 * @remarks
+	 * Subclasses override this to shut down bound servers, watchers, and other
+	 * dev-time resources. The default implementation is a no-op so embedded
+	 * adapters that never call `start()` can still be used with `await using`.
+	 */
+	public async stop(_force = true): Promise<void> {}
+
+	public async [Symbol.asyncDispose](): Promise<void> {
+		await this.stop(true);
+	}
 
 	/**
 	 * Handles a standard Web request without requiring a bound network server.

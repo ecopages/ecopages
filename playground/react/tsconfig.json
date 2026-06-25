@@ -5,6 +5,7 @@
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
+		"lib": ["es2022"],
 		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"paths": {

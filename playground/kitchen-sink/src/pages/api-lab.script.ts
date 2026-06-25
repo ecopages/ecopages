@@ -133,15 +133,23 @@ function mountApiLab(): () => void {
 		}
 	}
 
-	for (const button of commandButtons) {
-		button.addEventListener(
-			'click',
-			() => {
-				void runCommand(button);
-			},
-			{ signal: abortController.signal },
-		);
-	}
+	document.addEventListener(
+		'click',
+		(event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) {
+				return;
+			}
+
+			const button = target.closest<HTMLButtonElement>(commandSelector);
+			if (!button) {
+				return;
+			}
+
+			void runCommand(button);
+		},
+		{ signal: abortController.signal },
+	);
 
 	const initiallySelected = commandButtons.find((button) => button.dataset.selected === 'true') ?? commandButtons[0];
 	setSelected(initiallySelected);

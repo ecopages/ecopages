@@ -21,6 +21,16 @@ export function getRouteLinkTestId(href: string): string {
 	return `route-link-${normalized || 'home'}`;
 }
 
+export function getPageTestId(href: string): string {
+	const normalized = href
+		.replace(/^\//, '')
+		.replace(/\//g, '-')
+		.replace(/[^a-zA-Z0-9-]/g, '-');
+	return `page-${normalized || 'home'}`;
+}
+
+export const kitchenSinkShellTestId = 'kitchen-sink-shell';
+
 export const kitchenSinkShell = {
 	eyebrow: 'Kitchen sink',
 	title: 'Render layers, routes, middleware, and APIs in one app',

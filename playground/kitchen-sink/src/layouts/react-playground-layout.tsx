@@ -2,7 +2,7 @@
 import { eco } from '@ecopages/core';
 import type { RequestLocals } from '@ecopages/core';
 import { ThemeToggleReact } from '@/components/theme-toggle.react';
-import { getPrimaryLinkTestId, kitchenSinkShell, primaryLinks } from '@/data/primary-links';
+import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 import type { ReactNode } from 'react';
 
 type ReactPlaygroundLayoutProps = {
@@ -21,7 +21,10 @@ export const ReactPlaygroundLayout = eco.component<ReactPlaygroundLayoutProps, R
 		const viewerRole = locals?.viewerRole;
 
 		return (
-			<div className="min-h-dvh flex flex-col bg-background text-on-background">
+			<div
+				className="min-h-dvh flex flex-col bg-background text-on-background"
+				data-testid={kitchenSinkShellTestId}
+			>
 				<header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
 					<div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
 						<div className="space-y-1">

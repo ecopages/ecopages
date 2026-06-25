@@ -80,6 +80,9 @@ function mountChatLab(): () => void {
 		if (statusEl) statusEl.textContent = state;
 		if (statusEl) statusEl.dataset.chatStatus = state;
 		if (statusDot) statusDot.dataset.chatStatusDot = state;
+		if (state !== 'connected' && statusEl) {
+			delete statusEl.dataset.chatConnectedUsername;
+		}
 	}
 
 	function appendMessage(msg: ChatMessage) {
@@ -101,6 +104,7 @@ function mountChatLab(): () => void {
 		socket.addEventListener('open', () => {
 			if (ws !== socket) return;
 			setStatus('connected');
+			if (statusEl) statusEl.dataset.chatConnectedUsername = currentUsername;
 			if (sendBtn) sendBtn.disabled = false;
 		});
 
@@ -135,14 +139,36 @@ function mountChatLab(): () => void {
 		});
 	}
 
+	function sendMessage() {
+		const text = chatInput.value.trim();
+		if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+		ws.send(JSON.stringify({ type: 'message', text }));
+		chatInput.value = '';
+	}
+
+	document.addEventListener(
+		'click',
+		(event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) {
+				return;
+			}
+
+			if (!target.closest('[data-chat-send]')) {
+				return;
+			}
+
+			event.preventDefault();
+			sendMessage();
+		},
+		{ signal: abortController.signal },
+	);
+
 	form.addEventListener(
 		'submit',
 		(ev) => {
 			ev.preventDefault();
-			const text = chatInput.value.trim();
-			if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-			ws.send(JSON.stringify({ type: 'message', text }));
-			chatInput.value = '';
+			sendMessage();
 		},
 		{ signal: abortController.signal },
 	);
@@ -150,6 +176,7 @@ function mountChatLab(): () => void {
 	function handleUsernameChange() {
 		const newUsername = usernameInput?.value.trim() || 'anonymous';
 		if (newUsername !== currentUsername) {
+			if (sendBtn) sendBtn.disabled = true;
 			ws?.close();
 			connect();
 		}
@@ -164,10 +191,19 @@ function mountChatLab(): () => void {
 	);
 
 	usernameInput?.addEventListener(
+		'blur',
+		() => {
+			handleUsernameChange();
+		},
+		{ signal: abortController.signal },
+	);
+
+	usernameInput?.addEventListener(
 		'keydown',
 		(ev) => {
 			if (ev.key === 'Enter') {
-				handleUsernameChange();
+				ev.preventDefault();
+				usernameInput?.blur();
 			}
 		},
 		{ signal: abortController.signal },

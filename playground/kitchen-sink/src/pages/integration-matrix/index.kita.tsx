@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getPageTestId } from '@/data/primary-links';
 
 interface MatrixCardProps {
 	label: string;
@@ -30,7 +31,7 @@ export default eco.page({
 		description: 'Generic hub page for the dedicated integration matrix entry routes in the kitchen sink.',
 	}),
 	render: () => (
-		<div class="space-y-8" data-testid="page-integration-matrix-index">
+		<div class="space-y-8" data-testid={getPageTestId('/integration-matrix')}>
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Integration matrix hub</p>
 				<h1 class="font-display text-4xl font-semibold tracking-tight">

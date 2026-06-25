@@ -25,7 +25,7 @@ Plus one translation bridge:
 - `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult` (outputs, dependency graph, logs).
 - `rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `serialized-build-executor.ts`: FIFO queue primitive.
-- `runtime-build-executor.ts`: dev-watch entrypoint that wraps the app-owned adapter in a `SerializedBuildExecutor + withBuildExecutorPlugins` chain.
+- `runtime-build-executor.ts`: server-adapter entrypoint that wraps the app-owned adapter in `ParallelBuildExecutor` layers plus `withBuildExecutorPlugins`. Server-entry bundling uses `getInstalledServerEntryBuildExecutor()` (serialized, single-flight).
 - `*.test.ts`: regression coverage.
 
 ## Default Flow
@@ -83,6 +83,14 @@ Plugin ordering: the bundler's `resolveId` and `load` are "first" hooks. The bri
 - `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
 
 These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
+
+## Dev / watch path
+
+`installAppRuntimeBuildExecutor` wraps the app-owned `BuildAdapter` in two `ParallelBuildExecutor` pools (route modules and HMR browser scripts). Both pools share one plugin-wrapped inner executor today.
+
+`RolldownDevBuildAdapter` (DevEngine-backed incremental rebuilds) is available via `createBuildAdapter({ ownership: 'rolldown-dev' })` but is **not** yet selected by `installAppRuntimeBuildExecutor`. HMR browser bundles in `browser-bundle.service.ts` may construct a dedicated dev adapter where needed.
+
+`ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 
 ## Testing Strategy
 

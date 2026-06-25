@@ -346,6 +346,13 @@ export function resolveRolldownOptions(
 		transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
+		...(process.env.ECOPAGES_PROFILE_BUILD === '1'
+			? {}
+			: {
+					checks: {
+						pluginTimings: false,
+					},
+				}),
 		experimental: {
 			nativeMagicString: true,
 		},

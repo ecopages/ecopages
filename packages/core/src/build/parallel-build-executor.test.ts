@@ -107,10 +107,20 @@ test('ParallelBuildExecutor releases capacity after a failed build', async () =>
 	assert.equal(followUp.success, true);
 });
 
-test('ParallelBuildExecutor completes queued builds faster than strict serialization would', async () => {
+test('ParallelBuildExecutor overlaps queued builds up to the concurrency limit', async () => {
 	const buildDelayMs = 30;
 	const buildCount = 4;
-	const inner = createDelayedExecutor(buildDelayMs);
+	let activeBuilds = 0;
+	let maxActiveBuilds = 0;
+	const inner: BuildExecutor = {
+		async build(): Promise<BuildResult> {
+			activeBuilds += 1;
+			maxActiveBuilds = Math.max(maxActiveBuilds, activeBuilds);
+			await new Promise((resolve) => setTimeout(resolve, buildDelayMs));
+			activeBuilds -= 1;
+			return { success: true, logs: [], outputs: [] };
+		},
+	};
 	const parallel = new ParallelBuildExecutor(inner, 2);
 	const buildOptions = {
 		entrypoints: ['/in/a.ts'],
@@ -121,13 +131,7 @@ test('ParallelBuildExecutor completes queued builds faster than strict serializa
 		sourcemap: 'none' as const,
 	};
 
-	const startedAt = Date.now();
 	await Promise.all(Array.from({ length: buildCount }, () => parallel.build(buildOptions)));
-	const elapsedMs = Date.now() - startedAt;
 
-	const serializedEstimateMs = buildCount * buildDelayMs;
-	assert.ok(
-		elapsedMs < serializedEstimateMs,
-		`expected parallel builds to finish faster than ${serializedEstimateMs}ms, took ${elapsedMs}ms`,
-	);
+	assert.equal(maxActiveBuilds, 2, 'expected queued builds to overlap two at a time');
 });

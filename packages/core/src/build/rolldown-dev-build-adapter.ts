@@ -43,6 +43,7 @@ import {
 	toBuildLogs,
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
+import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -51,12 +52,27 @@ interface CachedDevEngine {
 	engineStarted: boolean;
 	contextRoot: string;
 	bundlePlugins: EcoBuildPlugin[];
+	cacheKey: string;
 }
 
-type PendingBuild = {
+interface PendingBuild {
 	resolve: (output: RolldownOutput) => void;
 	reject: (error: Error) => void;
-};
+}
+
+function normalizeEntrypointList(entrypoints: BuildOptions['entrypoints']): string[] {
+	if (Array.isArray(entrypoints)) {
+		return entrypoints.map((entrypoint) => path.resolve(entrypoint)).sort();
+	}
+
+	if (entrypoints && typeof entrypoints === 'object') {
+		return Object.values(entrypoints)
+			.map((entrypoint) => path.resolve(entrypoint))
+			.sort();
+	}
+
+	return [];
+}
 
 /**
  * Build adapter backed by Rolldown's DevEngine for cached incremental rebuilds.
@@ -76,17 +92,25 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 
 	/**
 	 * Stable key over the inputs that affect the engine configuration.
-	 * Plugin order is intentionally not part of the key: two plugin
-	 * sets with the same names are interchangeable for caching.
+	 * Output paths and entrypoints must participate — HMR registers many
+	 * distinct script entrypoints with literal naming under the same outdir.
 	 */
-	private getCacheKey(
-		plugins: EcoBuildPlugin[],
-		contextRoot: string,
-		target: string | undefined,
-		format: string | undefined,
-	): string {
-		const pluginNames = plugins.map((p) => p.name).join(':');
-		return `${contextRoot}::${pluginNames}::${target ?? 'default'}::${format ?? 'esm'}`;
+	private getCacheKey(options: BuildOptions, contextRoot: string): string {
+		const pluginNames = (options.plugins ?? [])
+			.map((plugin) => plugin.name)
+			.sort()
+			.join(':');
+		const outdir = path.resolve(options.outdir ?? 'dist/assets');
+		const entrypoints = normalizeEntrypointList(options.entrypoints).join('|');
+		return [
+			contextRoot,
+			pluginNames,
+			options.target ?? 'default',
+			options.format ?? 'esm',
+			outdir,
+			options.naming ?? '[name]',
+			entrypoints,
+		].join('::');
 	}
 
 	/**
@@ -96,16 +120,10 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 	 */
 	private async getOrCreateEngine(options: BuildOptions, contextRoot: string): Promise<CachedDevEngine> {
 		const bundlePlugins = options.plugins ?? [];
-		const cacheKey = this.getCacheKey(bundlePlugins, contextRoot, options.target, options.format);
+		const cacheKey = this.getCacheKey(options, contextRoot);
 
 		if (this.cachedEngine) {
-			const existingKey = this.getCacheKey(
-				this.cachedEngine.bundlePlugins,
-				this.cachedEngine.contextRoot,
-				options.target,
-				options.format,
-			);
-			if (existingKey === cacheKey) {
+			if (this.cachedEngine.cacheKey === cacheKey) {
 				return this.cachedEngine;
 			}
 			await this.cachedEngine.engine.close();
@@ -138,6 +156,7 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 			engineStarted: false,
 			contextRoot,
 			bundlePlugins,
+			cacheKey,
 		};
 		this.engineInstanceCount += 1;
 
@@ -177,6 +196,7 @@ export class RolldownDevBuildAdapter implements BuildAdapter {
 
 	/** Throws on error; see {@link build} for the no-throw variant. */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
+		recordRolldownBuildInvocation('rolldown-dev');
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const plugins = options.plugins ?? [];

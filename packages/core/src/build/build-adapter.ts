@@ -20,15 +20,16 @@
 import type { EcoBuildPlugin } from './build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
 import { normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
-import { createForeignJsxOverridePlugin } from '../plugins/foreign-jsx-override-plugin.ts';
 import {
 	createAppBuildManifest,
 	getBrowserBuildPlugins,
 	getServerBuildPlugins,
 	type AppBuildManifest,
 } from './build-manifest.ts';
+import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
 import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createRolldownDevBuildAdapter } from './rolldown-dev-build-adapter.ts';
+import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 
@@ -518,7 +519,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 	return (
 		appConfig.runtime?.buildManifest ??
 		createAppBuildManifest({
-			loaderPlugins: Array.from(appConfig.loaders.values()),
+			loaderPlugins: Array.from(appConfig.loaders?.values() ?? []),
 		})
 	);
 }
@@ -631,32 +632,63 @@ export async function setupAppRuntimePlugins(options: {
 	hmrManager?: IHmrManager;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
-	for (const loader of options.appConfig.loaders.values()) {
-		options.onRuntimePlugin?.(loader);
-	}
-
-	for (const processor of options.appConfig.processors.values()) {
-		await processor.setup();
-
-		if (processor.plugins) {
-			for (const plugin of processor.plugins) {
+	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
+		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
+		for (const loader of options.appConfig.loaders.values()) {
+			options.onRuntimePlugin?.(loader);
+		}
+		for (const processor of options.appConfig.processors.values()) {
+			if (processor.plugins) {
+				for (const plugin of processor.plugins) {
+					options.onRuntimePlugin?.(plugin);
+				}
+			}
+		}
+		for (const integration of options.appConfig.integrations) {
+			for (const plugin of integration.plugins) {
 				options.onRuntimePlugin?.(plugin);
 			}
 		}
+		return;
 	}
 
-	for (const integration of options.appConfig.integrations) {
-		integration.setConfig(options.appConfig);
-		integration.setRuntimeOrigin(options.runtimeOrigin);
-		if (options.hmrManager) {
-			integration.setHmrManager(options.hmrManager);
+	appLogger.debugTime('setupAppRuntimePlugins');
+
+	try {
+		for (const loader of options.appConfig.loaders.values()) {
+			options.onRuntimePlugin?.(loader);
 		}
 
-		await integration.setup();
+		for (const processor of options.appConfig.processors.values()) {
+			await processor.setup();
 
-		for (const plugin of integration.plugins) {
-			options.onRuntimePlugin?.(plugin);
+			if (processor.plugins) {
+				for (const plugin of processor.plugins) {
+					options.onRuntimePlugin?.(plugin);
+				}
+			}
 		}
+
+		for (const integration of options.appConfig.integrations) {
+			integration.setConfig(options.appConfig);
+			integration.setRuntimeOrigin(options.runtimeOrigin);
+			if (options.hmrManager) {
+				integration.setHmrManager(options.hmrManager);
+			}
+
+			await integration.setup();
+
+			for (const plugin of integration.plugins) {
+				options.onRuntimePlugin?.(plugin);
+			}
+		}
+
+		options.appConfig.runtime = {
+			...(options.appConfig.runtime ?? {}),
+			runtimeAssetsPrepared: true,
+		};
+	} finally {
+		appLogger.debugTimeEnd('setupAppRuntimePlugins');
 	}
 }
 
@@ -682,47 +714,7 @@ export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuild
  */
 export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	const manifest = getAppBuildManifest(appConfig);
-	const jsxOwnershipPlugins = collectJsxOwnershipPlugins(appConfig);
-	return [...getBrowserBuildPlugins(manifest), ...jsxOwnershipPlugins];
-}
-
-/**
- * Builds one {@link createForeignJsxOverridePlugin} instance per JSX
- * extension per integration declared in the app config.
- *
- * The plugin rewrites every file matching a JSX extension with a
- * `@jsxImportSource` pragma that names the owning integration. The
- * pragma wins over both the bundler default and any tsconfig setting,
- * so JSX files in multi-integration graphs always compile against the
- * right runtime.
- *
- * @param appConfig - The app config whose integrations should be
- *   enumerated. Integrations without a `jsxImportSource` are skipped.
- * @returns A flat list of plugins, one per (integration, extension)
- *   pair, sorted by extension length so more specific suffixes take
- *   priority.
- */
-function collectJsxOwnershipPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	const jsxExtensions = (appConfig.integrations ?? [])
-		.filter((integration) => integration.jsxImportSource)
-		.flatMap((integration) =>
-			integration.extensions
-				.filter((extension) => extension.endsWith('.tsx') || extension.endsWith('.jsx'))
-				.map((extension) => ({ integration, extension })),
-		)
-		.sort((left, right) => right.extension.length - left.extension.length);
-
-	return jsxExtensions.map(({ integration, extension }) =>
-		createForeignJsxOverridePlugin({
-			hostJsxImportSource: integration.jsxImportSource!,
-			foreignExtensions: [extension],
-			excludeExtensions: jsxExtensions
-				.filter((candidate) => candidate.extension.length > extension.length)
-				.filter((candidate) => candidate.extension.endsWith(extension))
-				.map((candidate) => candidate.extension),
-			name: `ecopages-jsx-ownership-${integration.name}-${extension.replace(/[^a-zA-Z0-9]+/g, '-')}`,
-		}),
-	);
+	return [...getBrowserBuildPlugins(manifest), ...getJsxOwnershipPlugins(appConfig)];
 }
 
 /**
@@ -745,9 +737,9 @@ export function getAppHmrBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecu
 	return appConfig.runtime?.hmrBuildExecutor ?? getAppBuildExecutor(appConfig);
 }
 
-/** Returns the route-module build executor when installed. */
+/** Route-module executor (page imports, transpile). Falls back to {@link getAppBuildExecutor}. */
 export function getAppRouteModuleBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	return getAppBuildExecutor(appConfig);
+	return appConfig.runtime?.routeModuleBuildExecutor ?? getAppBuildExecutor(appConfig);
 }
 
 /** Installs the default executor for one app instance (ConfigBuilder / tests). */

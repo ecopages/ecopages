@@ -132,6 +132,10 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 
 		fileSystem.ensureDir(path.dirname(outputPath));
+		if (fileSystem.exists(outputPath) && fileSystem.readFileSync(outputPath) === css) {
+			return;
+		}
+
 		fileSystem.write(outputPath, css);
 	}
 

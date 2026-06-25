@@ -525,10 +525,13 @@ describe('EcoRouter HMR Integration', () => {
 				new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, button: 0 }),
 			);
 
-			await new Promise((resolve) => setTimeout(resolve, 100));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
@@ -595,13 +598,16 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(container);
 			slowFetch.resolve();
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' });
+				},
+				{ timeout: 2000 },
+			);
 			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
 			expect(fetchUrls).not.toContain('/fast');
 			expect(container.textContent).toContain('slow');
 			expect(container.textContent).not.toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' });
 		});
 
 		it('does not swap the queued navigation href when the user merely hovers unrelated links during a slow navigation', async () => {
@@ -683,8 +689,12 @@ describe('EcoRouter HMR Integration', () => {
 			}
 
 			slowFetch.resolve();
-			await new Promise((resolve) => setTimeout(resolve, 100));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'clicked' });
+				},
+				{ timeout: 2000 },
+			);
 			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
 			expect(fetchUrls).toContain('/clicked');
 			expect(fetchUrls).not.toContain('/hovered-a');
@@ -694,7 +704,6 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).not.toContain('hovered-a');
 			expect(container.textContent).not.toContain('hovered-b');
 			expect(container.textContent).not.toContain('hovered-c');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'clicked' });
 		});
 
 		it('ignores stale navigation results when a newer route finishes first', async () => {
@@ -744,11 +753,14 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(slowLink as HTMLAnchorElement);
 			await user.click(fastLink as HTMLAnchorElement);
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(container.textContent).toContain('fast');
 			expect(container.textContent).not.toContain('slow');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('ignores stale browser-router handoff when a newer React route finishes first', async () => {
@@ -815,12 +827,15 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(outsideLink as HTMLAnchorElement);
 			await user.click(fastLink as HTMLAnchorElement);
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 			unregister();
 		});
 	});

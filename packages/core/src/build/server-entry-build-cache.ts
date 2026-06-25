@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildDependencyGraph, BuildResult } from './build-adapter.ts';
 import { getAppServerBuildPlugins } from './build-adapter.ts';
-import { createBuildInputsFingerprint } from '../static-site-generator/static-build-invalidation.ts';
+import { createBuildInputsFingerprint } from './build-input-fingerprint.ts';
 import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
 import {
 	RouteModuleDependencyHasher,

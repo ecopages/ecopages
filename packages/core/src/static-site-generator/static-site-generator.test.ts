@@ -397,6 +397,22 @@ describe('StaticSiteGenerator', () => {
 			removeMock.mockRestore();
 		});
 
+		test('should list static routes once per run when unified graph prebuild is enabled', async () => {
+			const listStaticGenerationRoutes = vi.fn(async () => []);
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig(),
+			});
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes,
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+			});
+
+			expect(listStaticGenerationRoutes).toHaveBeenCalledTimes(1);
+		});
+
 		test('should build unified graph before integration static export hooks', async () => {
 			graphBuildOrder.length = 0;
 			ensurePagesUnifiedGraphBuiltMock.mockClear();

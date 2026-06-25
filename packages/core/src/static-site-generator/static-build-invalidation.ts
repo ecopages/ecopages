@@ -1,8 +1,11 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { Processor } from '../plugins/processor.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import {
+	createBuildInputsFingerprint,
+	hashAppConfigFile,
+	haveBuildInputsChanged,
+} from '../build/build-input-fingerprint.ts';
 import {
 	ROUTE_MODULE_BUILD_CACHE_FILENAME,
 	type RouteModuleStaticRenderCacheContext,
@@ -13,54 +16,18 @@ import {
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 
-/**
- * Optional contributor surface for build-time cache invalidation.
- *
- * @remarks
- * Processors and integrations may override {@link didChange} to report that
- * their build inputs changed independently of route source files.
- */
-export interface BuildInputChangeContributor {
-	/**
-	 * Returns `true` when this contributor's build inputs changed since the last
-	 * persisted incremental build metadata was written.
-	 */
-	didChange?(): boolean;
-}
-
-/** Returns whether a processor or integration signals changed build inputs. */
-export function didBuildInputContributorChange(contributor: BuildInputChangeContributor): boolean {
-	return contributor.didChange?.() === true;
-}
-
-/** Hashes the app's eco.config.ts file when present. */
-export function hashAppConfigFile(appConfig: EcoPagesAppConfig): string {
-	const configPath = appConfig.absolutePaths?.config;
-	if (!configPath || !fileSystem.exists(configPath)) {
-		return 'missing';
-	}
-
-	return fileSystem.hash(configPath);
-}
-
-/** Fingerprints processor/integration build-input state for cache invalidation. */
-export function createBuildInputsFingerprint(appConfig: EcoPagesAppConfig): string {
-	const changedContributors = [
-		...Array.from(appConfig.processors?.values() ?? [])
-			.filter((processor) => didBuildInputContributorChange(processor))
-			.map((processor) => `processor:${processor.getName()}`),
-		...(appConfig.integrations ?? [])
-			.filter((integration) => didBuildInputContributorChange(integration))
-			.map((integration) => `integration:${integration.name}`),
-	];
-
-	return changedContributors.length > 0 ? changedContributors.sort().join('|') : 'stable';
-}
-
-/** Returns true when any processor or integration reports changed build inputs. */
-export function haveBuildInputsChanged(appConfig: EcoPagesAppConfig): boolean {
-	return createBuildInputsFingerprint(appConfig) !== 'stable';
-}
+export type {
+	BuildInputChangeContributor,
+	IntegrationPlugin,
+	Processor,
+} from '../build/build-input-fingerprint.ts';
+export {
+	collectBuildInputContributors,
+	createBuildInputsFingerprint,
+	didBuildInputContributorChange,
+	hashAppConfigFile,
+	haveBuildInputsChanged,
+} from '../build/build-input-fingerprint.ts';
 
 /** Builds the static-render invalidation context for one app config. */
 export function createRouteModuleStaticRenderCacheContext(
@@ -124,10 +91,3 @@ export function clearProductionBuildCaches(appConfig: EcoPagesAppConfig): void {
 		appConfig.runtime.serverEntryBuildExecutor = undefined;
 	}
 }
-
-/** Collects every processor and integration that can invalidate incremental builds. */
-export function collectBuildInputContributors(appConfig: EcoPagesAppConfig): BuildInputChangeContributor[] {
-	return [...Array.from(appConfig.processors?.values() ?? []), ...(appConfig.integrations ?? [])];
-}
-
-export type { Processor, IntegrationPlugin };

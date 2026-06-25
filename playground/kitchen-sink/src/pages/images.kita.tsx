@@ -2,6 +2,7 @@ import { eco } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { kitaKamakuraPng } from 'ecopages:images';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -13,7 +14,7 @@ export default eco.page({
 		description: 'Responsive image variants, layout modes, and view transitions in the kitchen sink.',
 	}),
 	render: () => (
-		<div class="space-y-8">
+		<div class="space-y-8" data-testid={getPageTestId('/images')}>
 			<section class="card space-y-4">
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Image processor</p>
 				<h1 class="font-display text-4xl font-semibold tracking-tight">

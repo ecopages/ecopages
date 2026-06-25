@@ -2,6 +2,7 @@
 import { eco } from '@ecopages/core';
 import { buildPagesTreeSnapshot } from './tree.server';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { getPageTestId } from '@/data/primary-links';
 import type { ReactNode } from 'react';
 
 type ReactServerFilesPageProps = {
@@ -27,7 +28,7 @@ export default eco.page<ReactServerFilesPageProps, ReactNode>({
 			'React route proving that .server.ts helpers and @ecopages/file-system stay on the server while the browser receives serialized props.',
 	}),
 	render: ({ fileCount, routeFiles, scannedDir, tree }) => (
-		<div className="space-y-8">
+		<div className="space-y-8" data-testid={getPageTestId('/react-server-files')}>
 			<section className="docs-page__prose">
 				<h1>Server-only file tree</h1>
 				<p>

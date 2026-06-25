@@ -22,6 +22,7 @@
 		"test:e2e:review": "playwright test --config ../../playwright.config.ts --project kitchen-sink-bun-review-e2e --project kitchen-sink-node-review-e2e --project kitchen-sink-vite-node-review-e2e --project kitchen-sink-vite-bun-review-e2e"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.60.0",
 		"@ecopages/browser-router": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
@@ -46,6 +47,8 @@
 		"@types/react-dom": "^19.2.3",
 		"ecopages": "workspace:*",
 		"lit": "^3.3.3",
+		"playwright": "^1.60.0",
+		"playwright-core": "^1.60.0",
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6",
 		"tailwindcss": "^4.3.0",

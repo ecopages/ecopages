@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { showcasePatterns, type ShowcasePattern } from '@/data/demo-data';
+import { getPageTestId } from '@/data/primary-links';
 
 type CatalogPageProps = {
 	pattern: ShowcasePattern | null;
@@ -51,7 +52,10 @@ export default eco.page<CatalogPageProps>({
 		}
 
 		return (
-			<div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+			<div
+				class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]"
+				data-testid={getPageTestId(`/catalog/${params?.slug as string}`)}
+			>
 				<section class="rounded-[1.75rem] border border-border bg-background p-8">
 					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">
 						Static paths + static props

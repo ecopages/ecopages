@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import type { ReleaseNote } from '@/data/demo-data';
+import { getPageTestId } from '@/data/primary-links';
 
 type LatestReleaseViewProps = {
 	release: ReleaseNote;
@@ -18,7 +19,10 @@ export default eco.page<LatestReleaseViewProps>({
 	}),
 	render: ({ release }) => {
 		return (
-			<section class="grid gap-6 rounded-[1.75rem] border border-border bg-background p-8 lg:grid-cols-[1.1fr_0.9fr]">
+			<section
+				class="grid gap-6 rounded-[1.75rem] border border-border bg-background p-8 lg:grid-cols-[1.1fr_0.9fr]"
+				data-testid={getPageTestId('/latest')}
+			>
 				<div>
 					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">ctx.render()</p>
 					<h1 class="mt-3 font-display text-4xl font-semibold tracking-tight">{release.title}</h1>

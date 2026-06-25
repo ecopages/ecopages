@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CHAT_MESSAGES } from '@/handlers/ws-chat-room';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -24,7 +25,7 @@ export default eco.page({
 		const seedMessages = CHAT_MESSAGES;
 
 		return (
-			<div class="chat-lab">
+			<div class="chat-lab" data-testid={getPageTestId('/ws-chat')}>
 				<section class="chat-lab__intro">
 					<p class="chat-lab__eyebrow">WebSocket injection</p>
 					<h1 class="chat-lab__title">Mini Chat — app.websocket() surface test</h1>
@@ -91,7 +92,7 @@ export default eco.page({
 								autocomplete="off"
 								data-chat-input
 							/>
-							<button id="chat-send" type="submit" class="chat-lab__send-btn" data-chat-send>
+							<button id="chat-send" type="button" class="chat-lab__send-btn" data-chat-send>
 								Send
 							</button>
 						</form>

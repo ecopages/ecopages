@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { studioCrew } from '@/data/demo-data';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -15,7 +16,10 @@ export default eco.page({
 	}),
 	render: () => {
 		return (
-			<section class="space-y-6 rounded-[1.75rem] border border-border bg-background p-8">
+			<section
+				class="space-y-6 rounded-[1.75rem] border border-border bg-background p-8"
+				data-testid={getPageTestId('/explicit/team')}
+			>
 				<div class="space-y-3">
 					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">app.get()</p>
 					<h1 class="font-display text-4xl font-semibold tracking-tight">

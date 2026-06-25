@@ -21,6 +21,7 @@ import type {
 	PageBrowserGraphContributionContext,
 	PageBrowserGraphResult,
 	PageMetadataProps,
+	PagePackageResult,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
@@ -44,7 +45,7 @@ import {
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-render-orchestrator.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
-import { normalizeUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
+import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './render-output.utils.ts';
 import {
 	ForeignSubtreeExecutionService,
 	type ForeignSubtreeExecutionOwningRenderer,
@@ -81,22 +82,6 @@ export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
 export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 
-type MarkupNodeLike = {
-	nodeType: number;
-	outerHTML: string;
-};
-
-function isMarkupNodeLike(value: unknown): value is MarkupNodeLike {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'nodeType' in value &&
-		typeof value.nodeType === 'number' &&
-		'outerHTML' in value &&
-		typeof value.outerHTML === 'string'
-	);
-}
-
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
@@ -116,8 +101,24 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected readonly foreignSubtreeExecutionService = new ForeignSubtreeExecutionService();
+	/**
+	 * Serializes route and view renders that mutate `htmlTransformer` state.
+	 *
+	 * Integration renderers are cached per integration, so concurrent static builds
+	 * and overlapping SSR requests must not share one transformer page package.
+	 */
+	private renderExclusiveChain: Promise<void> = Promise.resolve();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	private runRenderExclusive<T>(operation: () => Promise<T>): Promise<T> {
+		const run = this.renderExclusiveChain.then(operation, operation);
+		this.renderExclusiveChain = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	}
 
 	/**
 	 * Loads one route module through the owning renderer's import path.
@@ -595,7 +596,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				? undefined
 				: typeof input.children === 'string'
 					? input.children
-					: isMarkupNodeLike(input.children)
+					: isMarkupNodeLike(input.children) && typeof input.children.outerHTML === 'string'
 						? input.children.outerHTML
 						: undefined;
 
@@ -906,8 +907,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRoutePageComponentRender: (input) => this.resolveRoutePageComponentRender(input),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
 			getRouteHtmlFinalization: (renderOptions) => this.getRouteHtmlFinalization(renderOptions),
-			transformRouteResponse: (response, htmlContributions) =>
-				this.transformRouteResponse(response, htmlContributions),
+			transformRouteResponse: (response, htmlContributions, pagePackage) =>
+				this.transformRouteResponse(response, htmlContributions, pagePackage),
 		};
 	}
 
@@ -1012,8 +1013,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async transformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
+		pagePackage?: PagePackageResult,
 	): Promise<RouteRendererBody> {
-		const transformedResponse = await this.htmlTransformer.transform(response, htmlContributions);
+		const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
+		const transformedResponse = await this.htmlTransformer.transform(
+			response,
+			htmlContributions,
+			resolvedPagePackage,
+		);
 		return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 	}
 
@@ -1068,9 +1075,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		const adapter = this.createRouteRenderOrchestratorAdapter();
-		const renderOptions = await this.prepareRenderOptions(options, adapter);
-		return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+		return this.runRenderExclusive(async () => {
+			this.htmlTransformer.setProcessedDependencies([]);
+
+			const adapter = this.createRouteRenderOrchestratorAdapter();
+			const renderOptions = await this.prepareRenderOptions(options, adapter);
+			return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+		});
 	}
 
 	/**

@@ -430,6 +430,18 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 		},
 	};
 
+	if (typeof window !== 'undefined') {
+		window.addEventListener('pageshow', (event) => {
+			if (event.persisted) {
+				runtime.cancelCurrentNavigationTransaction();
+			}
+		});
+
+		window.addEventListener('pagehide', () => {
+			runtime.cancelCurrentNavigationTransaction();
+		});
+	}
+
 	return runtime;
 }
 

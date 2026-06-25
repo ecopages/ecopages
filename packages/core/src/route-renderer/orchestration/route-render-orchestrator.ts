@@ -14,6 +14,7 @@ import type {
 	PageBrowserGraphContribution,
 	PageBrowserGraphResult,
 	PageMetadataProps,
+	PagePackageResult,
 	PageProps,
 	ResolvedLazyTrigger,
 	RouteRendererBody,
@@ -154,6 +155,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	transformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
+		pagePackage?: PagePackageResult,
 	): Promise<RouteRendererBody>;
 }
 
@@ -401,26 +403,24 @@ export class RouteRenderOrchestrator {
 		}
 
 		const cacheKey = input.integrationName;
-		const cached = this.groupedPageBrowserGraphCache.get(cacheKey);
-		if (cached) {
-			return await cached;
+		let pending = this.groupedPageBrowserGraphCache.get(cacheKey);
+		if (!pending) {
+			pending = this.buildGroupedPageBrowserAssets(input, currentContribution)
+				.then((result) => {
+					if (result.hasCollectionFailures) {
+						this.groupedPageBrowserGraphCache.delete(cacheKey);
+					}
+
+					return result.assetsByRoute;
+				})
+				.catch((error) => {
+					this.groupedPageBrowserGraphCache.delete(cacheKey);
+					throw error;
+				});
+			this.groupedPageBrowserGraphCache.set(cacheKey, pending);
 		}
 
-		const pendingGroupedAssets = this.buildGroupedPageBrowserAssets(input, currentContribution)
-			.then((result) => {
-				if (result.hasCollectionFailures) {
-					this.groupedPageBrowserGraphCache.delete(cacheKey);
-				}
-
-				return result.assetsByRoute;
-			})
-			.catch((error) => {
-				this.groupedPageBrowserGraphCache.delete(cacheKey);
-				throw error;
-			});
-		this.groupedPageBrowserGraphCache.set(cacheKey, pendingGroupedAssets);
-
-		return await pendingGroupedAssets;
+		return await pending;
 	}
 
 	/**
@@ -605,6 +605,7 @@ export class RouteRenderOrchestrator {
 					},
 				}),
 				htmlFinalization.htmlContributions,
+				renderOptions.pagePackage,
 			);
 
 			return {
@@ -624,6 +625,7 @@ export class RouteRenderOrchestrator {
 				},
 			}),
 			htmlFinalization.htmlContributions,
+			renderOptions.pagePackage,
 		);
 
 		return {

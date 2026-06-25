@@ -16,6 +16,7 @@ import {
 	type QueuedForeignSubtreeResolution,
 	type QueuedForeignSubtreeResolutionContext,
 } from './queued-foreign-subtree-resolution.service.ts';
+import { isMarkupNodeLike } from './render-output.utils.ts';
 
 export interface ForeignSubtreeExecutionOwningRenderer {
 	readonly name: string;
@@ -86,21 +87,6 @@ export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignS
 	): ForeignSubtreeExecutionOwningRenderer;
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
-}
-
-type MarkupNodeLike = {
-	nodeType: number;
-	outerHTML?: string;
-};
-
-function isMarkupNodeLike(value: unknown): value is MarkupNodeLike {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'nodeType' in value &&
-		typeof value.nodeType === 'number' &&
-		(!('outerHTML' in value) || typeof value.outerHTML === 'string')
-	);
 }
 
 /**

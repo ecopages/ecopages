@@ -136,6 +136,10 @@
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
+		"./build/runtime-build-executor": {
+			"types": "./src/build/runtime-build-executor.ts",
+			"default": "./src/build/runtime-build-executor.ts"
+		},
 		"./build/server-entry-build-cache": {
 			"types": "./src/build/server-entry-build-cache.ts",
 			"default": "./src/build/server-entry-build-cache.ts"

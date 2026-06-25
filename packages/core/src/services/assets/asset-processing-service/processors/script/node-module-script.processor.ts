@@ -17,20 +17,36 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		const modulePath = this.resolveModulePath(dep.importPath, this.appConfig.rootDir);
 		const moduleName = path.basename(modulePath);
 		const filename = dep.name ?? `nm-${moduleName}`;
+		const shouldBundle = this.shouldBundle(dep);
 		const configHash = this.generateHash(
-			JSON.stringify({ inline: dep.inline, minify: !dep.inline && this.isProduction, opts: dep.bundleOptions }),
+			JSON.stringify({
+				bundle: shouldBundle,
+				inline: dep.inline,
+				minify: shouldBundle && !dep.inline && this.isProduction,
+				opts: dep.bundleOptions,
+			}),
 		);
 		const cachekey = `${this.buildCacheKey(filename, this.generateHash(modulePath), dep)}:${configHash}`;
 
 		return this.getOrProcess(cachekey, async () => {
-			if (dep.inline) {
+			if (dep.inline || !shouldBundle) {
 				const content = fileSystem.readFileAsBuffer(modulePath).toString();
+				const filepath = dep.inline ? undefined : path.join(this.getAssetsDir(), 'vendors', filename);
+
+				if (filepath) {
+					fileSystem.ensureDir(path.dirname(filepath));
+					if (!fileSystem.exists(filepath) || fileSystem.readFileAsBuffer(filepath).toString() !== content) {
+						fileSystem.copyFile(modulePath, filepath);
+					}
+				}
+
 				return {
+					filepath,
 					content,
 					kind: dep.kind,
 					position: dep.position,
 					attributes: dep.attributes,
-					inline: true,
+					inline: dep.inline,
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
 					bundledSourceFilepaths: dep.bundledSourceFilepaths,

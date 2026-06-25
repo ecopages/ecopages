@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-beta.7",
+	"version": "0.2.0-beta.8",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -16,7 +16,7 @@
 	"sideEffects": false,
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
 		"directory": "packages/core"
 	},
 	"scripts": {

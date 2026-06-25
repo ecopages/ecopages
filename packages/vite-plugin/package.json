@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/vite-plugin",
-	"version": "0.2.0-beta.7",
+	"version": "0.2.0-beta.8",
 	"description": "Vite plugin for Ecopages apps",
 	"private": true,
 	"keywords": [
@@ -23,7 +23,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
 		"directory": "packages/vite-plugin"
 	},
 	"scripts": {

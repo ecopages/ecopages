@@ -140,6 +140,10 @@ export default eco.page({
 });
 ```
 
+## Static Export
+
+Lit pages render on the server through a dedicated worker thread started when the Lit plugin initializes. The same worker serves static export, dev, and preview requests. Before static generation, `@ecopages/lit` preloads SSR-eligible custom-element scripts from the route graph.
+
 ## Key Features
 
 - Lit owns `.lit.tsx` routes and nested Lit component boundaries.

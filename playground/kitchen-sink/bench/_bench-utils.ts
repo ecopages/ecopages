@@ -4,9 +4,9 @@
  * The bench is gated by `ECOPAGES_BENCH=1` so it does not run on every
  * developer CI run. To regenerate baseline numbers, set the env var and run:
  *
- *   pnpm test:vitest packages/core/src/bench/
+ *   pnpm test:bench
  *
- * The resulting `baseline.json` is committed and diffed in subsequent PRs.
+ * The resulting `bench-baseline.json` is committed and diffed in subsequent PRs.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -14,6 +14,71 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BENCH_RESULTS_DIR = fileURLToPath(new URL('./results', import.meta.url));
+
+export type BenchEnvSnapshot = {
+	nodeEnv?: string;
+	unifiedPagesGraph?: string;
+	rolldownBuildMetrics?: string;
+};
+
+export function snapshotBenchEnv(): BenchEnvSnapshot {
+	return {
+		nodeEnv: process.env.NODE_ENV,
+		unifiedPagesGraph: process.env.ECOPAGES_UNIFIED_PAGES_GRAPH,
+		rolldownBuildMetrics: process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS,
+	};
+}
+
+export function restoreBenchEnv(snapshot: BenchEnvSnapshot): void {
+	if (snapshot.nodeEnv === undefined) {
+		delete process.env.NODE_ENV;
+	} else {
+		process.env.NODE_ENV = snapshot.nodeEnv;
+	}
+
+	if (snapshot.unifiedPagesGraph === undefined) {
+		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
+	} else {
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = snapshot.unifiedPagesGraph;
+	}
+
+	if (snapshot.rolldownBuildMetrics === undefined) {
+		delete process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
+	} else {
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = snapshot.rolldownBuildMetrics;
+	}
+}
+
+export async function withBenchEnv<T>(
+	overrides: {
+		nodeEnv?: string;
+		unifiedPagesGraph?: 'off' | 'default';
+		rolldownBuildMetrics?: boolean;
+	},
+	run: () => Promise<T>,
+): Promise<T> {
+	const snapshot = snapshotBenchEnv();
+
+	if (overrides.nodeEnv !== undefined) {
+		process.env.NODE_ENV = overrides.nodeEnv;
+	}
+
+	if (overrides.unifiedPagesGraph === 'off') {
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '0';
+	} else if (overrides.unifiedPagesGraph === 'default') {
+		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
+	}
+
+	if (overrides.rolldownBuildMetrics) {
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+	}
+
+	try {
+		return await run();
+	} finally {
+		restoreBenchEnv(snapshot);
+	}
+}
 
 export type BenchStats = {
 	count: number;

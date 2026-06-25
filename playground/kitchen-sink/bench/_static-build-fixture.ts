@@ -90,6 +90,7 @@ export function clearBenchProductionCaches(appConfig: EcoPagesAppConfig): void {
 	appConfig.runtime?.routeModuleBuildCaches?.clear();
 	cachedBenchAdapter = undefined;
 	cachedGenerationStack = undefined;
+	diskColdCounter = 0;
 }
 
 export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {

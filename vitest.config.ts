@@ -35,6 +35,7 @@ export default defineConfig({
 						'packages/vite-plugin/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
+						'playground/kitchen-sink/bench/_*.test.ts',
 						...getOptionalVitestIncludes(),
 					],
 					exclude: [

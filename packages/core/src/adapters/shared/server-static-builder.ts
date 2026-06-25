@@ -3,8 +3,19 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { getAppBuildAdapter } from '../../build/build-adapter.ts';
-import { resolveEntryFile, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
+import { build, getAppBuildAdapter } from '../../build/build-adapter.ts';
+import {
+	getServerBundleOutputPaths,
+	lookupServerEntryBuildCache,
+	recordServerEntryBuildCache,
+	writeServerBundleDeployManifest,
+} from '../../build/server-entry-build-cache.ts';
+import { getInstalledServerEntryBuildExecutor } from '../../build/runtime-build-executor.ts';
+import {
+	clearProductionBuildCaches,
+	shouldResetStaticExportDirectory,
+} from '../../static-site-generator/static-build-invalidation.ts';
+import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler, StaticRoute } from '../../types/public-types.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
@@ -14,6 +25,7 @@ import type { StaticGenerationRendererResolver } from '../../route-renderer/rout
 export interface StaticBuildOptions {
 	preview?: boolean;
 	baseUrl?: string;
+	force?: boolean;
 }
 
 export interface ServeOptions {
@@ -81,10 +93,22 @@ export class ServerStaticBuilder {
 		this.entryFile = resolveEntryFile({ entryFile });
 	}
 
-	private prepareExportDirectory(): void {
+	private prepareExportDirectory(force: boolean): boolean {
+		if (force) {
+			clearProductionBuildCaches(this.appConfig);
+		}
+
 		const exportDir =
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		fileSystem.ensureDir(exportDir, true);
+		const shouldCleanDist = shouldResetStaticExportDirectory(this.appConfig, force);
+		fileSystem.ensureDir(exportDir, shouldCleanDist);
+
+		if (shouldCleanDist) {
+			this.appConfig.runtime = {
+				...(this.appConfig.runtime ?? {}),
+				runtimeAssetsPrepared: false,
+			};
+		}
 
 		const srcPublicDir = path.join(
 			this.appConfig.rootDir,
@@ -94,43 +118,53 @@ export class ServerStaticBuilder {
 		if (fileSystem.exists(srcPublicDir)) {
 			fileSystem.copyDir(srcPublicDir, exportDir);
 		}
+
+		return !shouldCleanDist;
 	}
 
 	private async refreshRuntimeAssets(): Promise<void> {
-		for (const processor of this.appConfig.processors.values()) {
-			await processor.setup();
+		if (this.appConfig.runtime?.runtimeAssetsPrepared) {
+			appLogger.debug('Skipped refreshRuntimeAssets: runtime assets already prepared');
+			return;
 		}
 
-		for (const integration of this.appConfig.integrations) {
-			await integration.setup();
+		appLogger.debugTime('refreshRuntimeAssets');
+		try {
+			for (const processor of this.appConfig.processors.values()) {
+				await processor.setup();
+			}
+
+			for (const integration of this.appConfig.integrations) {
+				await integration.setup();
+			}
+		} finally {
+			appLogger.debugTimeEnd('refreshRuntimeAssets');
 		}
+
+		this.appConfig.runtime = {
+			...(this.appConfig.runtime ?? {}),
+			runtimeAssetsPrepared: true,
+		};
 	}
 
 	/**
 	 * Bundles the server entry file for production use.
 	 *
 	 * @remarks
-	 * When the project has API endpoints, the entry file must be bundled
-	 * into a single JS file so the production server can start without
-	 * on-the-fly TypeScript transpilation. The bundle is output to
-	 * `dist/{SERVER_BUNDLE_DIR}/{SERVER_BUNDLE_FILENAME}` and used by
-	 * `ecopages start` in production.
+	 * Every production build emits a runnable server entry for `ecopages start`,
+	 * including static-only and websocket-only apps. Incremental builds may skip
+	 * Rolldown when the `.eco/.server-entry` cache is still valid.
 	 *
 	 * Package imports remain external so native addons and runtime-owned
 	 * dependencies continue to load through the app's installed
 	 * `node_modules` tree. Only the app entry graph is bundled.
 	 *
-	 * Skips silently when no API endpoints are registered (static-only site).
 	 * Throws if the build adapter is unavailable, is owned by a host
 	 * runtime, or bundling fails.
 	 *
 	 * @throws If the build adapter is unavailable, is host-owned, or bundling fails.
 	 */
-	private async bundleServerEntry(): Promise<void> {
-		if (this.apiHandlers.length === 0) {
-			return;
-		}
-
+	private async bundleServerEntry(options?: { force?: boolean }): Promise<void> {
 		const buildAdapter = getAppBuildAdapter(this.appConfig);
 		if (buildAdapter.ownership === 'vite-host') {
 			throw new Error(
@@ -149,27 +183,60 @@ export class ServerStaticBuilder {
 			);
 		}
 
-		const distDir =
-			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
+		const { serverOutdir, serverEntryPath } = getServerBundleOutputPaths(this.appConfig);
+		const cached = lookupServerEntryBuildCache({
+			appConfig: this.appConfig,
+			entryPath,
+			force: options?.force,
+		});
+
+		if (cached) {
+			const hasBundle = cached.outputPaths.some(
+				(outputPath) =>
+					path.resolve(outputPath) === path.resolve(serverEntryPath) && fileSystem.exists(outputPath),
+			);
+			if (hasBundle) {
+				this.logger.info('Reusing cached server entry bundle');
+				writeServerBundleDeployManifest(this.appConfig, serverEntryPath);
+				return;
+			}
+		}
 
 		this.logger.info('Bundling server entry file...');
 
-		const result = await buildAdapter.build({
-			entrypoints: [entryPath],
-			outdir: serverOutdir,
-			naming: SERVER_BUNDLE_FILENAME,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'hidden',
-			externalPackages: true,
-			root: this.appConfig.rootDir,
-		});
+		const result = await build(
+			{
+				entrypoints: [entryPath],
+				outdir: serverOutdir,
+				naming: SERVER_BUNDLE_FILENAME,
+				target: 'node',
+				format: 'esm',
+				sourcemap: 'hidden',
+				externalPackages: true,
+				root: this.appConfig.rootDir,
+			},
+			getInstalledServerEntryBuildExecutor(this.appConfig),
+		);
 
 		if (!result.success) {
 			const errorMessages = result.logs.map((log) => log.message).join('\n');
 			throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
 		}
+
+		const outputPaths =
+			result.outputs.length > 0
+				? result.outputs.map((output) => output.path)
+				: fileSystem.exists(serverEntryPath)
+					? [serverEntryPath]
+					: [];
+
+		recordServerEntryBuildCache({
+			appConfig: this.appConfig,
+			entryPath,
+			buildResult: result,
+			outputPaths,
+		});
+		writeServerBundleDeployManifest(this.appConfig, serverEntryPath);
 
 		this.logger.info('Server entry file bundled successfully');
 	}
@@ -189,21 +256,23 @@ export class ServerStaticBuilder {
 			staticRoutes?: StaticRoute[];
 		},
 	): Promise<void> {
-		const { preview = false, baseUrl: explicitBaseUrl } = options ?? {};
+		const { preview = false, baseUrl: explicitBaseUrl, force = false } = options ?? {};
 
 		const baseUrl =
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		this.prepareExportDirectory();
+		const preserveExportDirectory = this.prepareExportDirectory(force);
 		await this.refreshRuntimeAssets();
-		await this.bundleServerEntry();
+		await this.bundleServerEntry({ force });
 
 		await this.staticSiteGenerator.run({
 			router: dependencies.router,
 			baseUrl,
 			routeRendererFactory: dependencies.routeRendererFactory,
 			staticRoutes: dependencies.staticRoutes,
+			force,
+			preserveExportDirectory,
 		});
 
 		if (!preview) {

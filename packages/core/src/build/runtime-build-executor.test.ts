@@ -12,7 +12,8 @@ import {
 } from './build-adapter.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
-import { installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
+import { getInstalledServerEntryBuildExecutor, installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
+import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
 test('installAppRuntimeBuildExecutor wraps the active adapter in a ParallelBuildExecutor', () => {
 	const staleExecutor = new RolldownBuildAdapter();
@@ -149,4 +150,26 @@ test('installAppRuntimeBuildExecutor installs separate parallel executors for ro
 	assert.ok(routeExecutor instanceof ParallelBuildExecutor);
 	assert.ok(hmrExecutor instanceof ParallelBuildExecutor);
 	assert.notEqual(routeExecutor, hmrExecutor);
+});
+
+test('getInstalledServerEntryBuildExecutor returns one SerializedBuildExecutor per app config', () => {
+	const appConfig = {
+		runtime: {},
+		loaders: new Map(),
+	} as never;
+
+	setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			runtimePlugins: [],
+		}),
+	);
+
+	const first = getInstalledServerEntryBuildExecutor(appConfig);
+	const second = getInstalledServerEntryBuildExecutor(appConfig);
+
+	assert.ok(first instanceof SerializedBuildExecutor);
+	assert.equal(first, second);
+	assert.equal(appConfig.runtime?.serverEntryBuildExecutor, first);
 });

@@ -13,6 +13,7 @@ import type { SourceModuleLoader } from '../services/module-loading/module-loadi
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
+import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
 export interface RobotsPreference {
 	/**
@@ -160,6 +161,11 @@ export type EcoPagesAppConfig = {
 		rendererModuleContext?: unknown;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
+		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
+		/** Serialized server-entry bundler installed by {@link getInstalledServerEntryBuildExecutor}. */
+		serverEntryBuildExecutor?: BuildExecutor;
+		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
+		runtimeAssetsPrepared?: boolean;
 	};
 	/**
 	 * Experimental features.

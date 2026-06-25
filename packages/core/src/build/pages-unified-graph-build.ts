@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { build, getAppRouteModuleBuildExecutor, getAppServerBuildPlugins } from './build-adapter.ts';
-import { createBuildInputsFingerprint, hashAppConfigFile } from '../static-site-generator/static-build-invalidation.ts';
+import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
 import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';

@@ -84,7 +84,7 @@ async function runWithConcurrency<T>(
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
 	private readonly routeModuleBuildCacheOverride?: RouteModuleBuildCache;
-	private readonly staticRenderCacheContext: ReturnType<typeof createRouteModuleStaticRenderCacheContext>;
+	private staticRenderCacheContext: ReturnType<typeof createRouteModuleStaticRenderCacheContext>;
 	private forceFullStaticGeneration = false;
 
 	/**
@@ -292,8 +292,10 @@ export class StaticSiteGenerator {
 		routeRendererFactory?: StaticPageRouteRendererFactory,
 		skipped?: string[],
 		activeStaticPathnames?: Set<string>,
+		preloadedRoutes?: readonly StaticGenerationRoute[],
 	) {
-		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+		const routes =
+			preloadedRoutes ?? (await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl }));
 
 		appLogger.debug(
 			'Static Pages',
@@ -374,13 +376,15 @@ export class StaticSiteGenerator {
 		const skippedDynamicPages: string[] = [];
 		const activeStaticPathnames = new Set<string>();
 		this.forceFullStaticGeneration = force;
+		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig);
 
 		if (!force) {
 			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
 		}
 
+		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+
 		if (shouldBuildPagesUnifiedGraph()) {
-			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 			await ensurePagesUnifiedGraphBuilt({
 				appConfig: this.appConfig,
 				entryPaths: routes.map((route) => route.templateRoute.filePath),
@@ -408,6 +412,7 @@ export class StaticSiteGenerator {
 				routeRendererFactory,
 				skippedDynamicPages,
 				activeStaticPathnames,
+				routes,
 			);
 
 			if (staticRoutes && staticRoutes.length > 0 && routeRendererFactory) {

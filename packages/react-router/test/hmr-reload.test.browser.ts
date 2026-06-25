@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { EcoRouter, PageContent } from '../src/router';
+import { EcoRouter, PageContent, clearLayoutCache } from '../src/router';
 
 function createMockPageComponent(name: string) {
 	const Component = () => createElement('div', { 'data-testid': name }, `Page: ${name}`);
@@ -73,6 +73,49 @@ function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: st
 	return Page;
 }
 
+function createEcoComponentStyleLayout(
+	layoutTestId: string,
+	options: { file: string; stylesheets?: string[] },
+) {
+	const Layout = (({ children }: { children: ReactNode }) =>
+		createElement('div', { 'data-testid': layoutTestId, className: 'eco-layout' }, children)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: {
+			__eco?: { id: string; file: string; integration: string };
+			dependencies?: {
+				stylesheets?: string[];
+			};
+		};
+	};
+
+	Layout.config = {
+		__eco: { id: layoutTestId, file: options.file, integration: 'react' },
+		dependencies: {
+			stylesheets: options.stylesheets,
+		},
+	};
+
+	return Layout;
+}
+
+function createPageWithEcoComponentLayout(
+	name: string,
+	layoutTestId: string,
+	options: { file: string; stylesheets?: string[] },
+) {
+	const Layout = createEcoComponentStyleLayout(layoutTestId, options);
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layout: Layout };
+	return Page;
+}
+
 function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(
@@ -117,7 +160,9 @@ describe('EcoRouter HMR Integration', () => {
 			container.parentNode.removeChild(container);
 		}
 		vi.restoreAllMocks();
+		clearLayoutCache();
 		delete window.__ECO_PAGES__;
+		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
 	});
 
 	it('sets and clears the router ownership flag', async () => {
@@ -359,6 +404,46 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			expect(container.querySelector('[data-testid="base-layout"]')?.textContent).toContain('Base Layout');
 			expect(container.querySelector('[data-testid="docs-layout"]')).toBeNull();
+		});
+
+		it('switches between eco.component layouts with identical wrapper signatures', async () => {
+			const NotFoundPage = createPageWithEcoComponentLayout('NotFoundPage', 'minimal-layout-root', {
+				file: '/app/src/layouts/minimal-layout.tsx',
+				stylesheets: ['./minimal-layout.css'],
+			});
+			const HomePage = createPageWithEcoComponentLayout('HomePage', 'app-layout-root', {
+				file: '/app/src/layouts/app-layout.tsx',
+				stylesheets: ['./app-layout.css'],
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: NotFoundPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="app-layout-root"]')).toBeNull();
+
+			root.render(
+				createElement(EcoRouter, {
+					page: HomePage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="app-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).toBeNull();
 		});
 
 		it('delegates non-React documents to browser-router when it is registered', async () => {

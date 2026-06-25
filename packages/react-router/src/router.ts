@@ -37,13 +37,17 @@ import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
-import type { EcoInjectedMeta } from '@ecopages/core';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
+import {
+	clearLayoutCache,
+	resolvePersistedLayout,
+	type LayoutComponent,
+} from './layout-cache.ts';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -67,12 +71,6 @@ type PageContextValue = RouterPageState | null;
 const PageContext = createContext<PageContextValue>(null);
 
 const PersistLayoutsContext = createContext<boolean>(false);
-
-type LayoutComponent = ComponentType<Record<string, unknown>>;
-
-type LayoutComponentWithMeta = LayoutComponent & {
-	config?: { __eco?: EcoInjectedMeta };
-};
 
 /**
  * Reads the optional layout assigned to a page component.
@@ -104,77 +102,7 @@ export interface EcoRouterProps {
 	children: ReactNode;
 }
 
-/**
- * Cache for layout components to ensure same reference across navigations.
- * When different pages import the same layout, they get different function
- * references. This cache ensures we reuse the first one seen for each displayName.
- *
- * Stored on window to persist across module reloads during HMR/SPA navigation.
- */
-function getLayoutCache(): Map<string, LayoutComponent> {
-	if (typeof window === 'undefined') {
-		return new Map();
-	}
-	const win = window as typeof window & { __ecoLayoutCache?: Map<string, LayoutComponent> };
-	if (!win.__ecoLayoutCache) {
-		win.__ecoLayoutCache = new Map();
-	}
-	return win.__ecoLayoutCache;
-}
-
-/**
- * Normalizes a layout cache key so logically identical layouts reuse the same
- * persistent instance across SPA navigations and HMR cycles.
- *
- * @param value - Raw layout identifier, display name, or injected module id.
- * @returns Stable cache key.
- */
-function normalizeLayoutKey(value: string): string {
-	const trimmed = value.trim();
-	if (!trimmed) return 'layout';
-
-	try {
-		const asUrl = new URL(trimmed);
-		return asUrl.pathname.replace(/\/$/, '') || 'layout';
-	} catch {
-		return trimmed.split('#')[0]?.split('?')[0]?.replace(/\/$/, '') || 'layout';
-	}
-}
-
-function hashString(value: string): string {
-	let hash = 2166136261;
-
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-
-	return (hash >>> 0).toString(36);
-}
-
-function getLayoutSourceSignature(Layout: LayoutComponent): string {
-	const source = Function.prototype.toString.call(Layout).replace(/\s+/g, ' ').trim();
-	return hashString(source);
-}
-
-function getLayoutCacheKey(Layout: LayoutComponent): string {
-	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
-	const layoutMetaKey = layoutConfig?.__eco?.file || layoutConfig?.__eco?.id;
-
-	if (layoutMetaKey) {
-		return normalizeLayoutKey(layoutMetaKey);
-	}
-
-	const layoutNameKey = Layout.displayName || Layout.name || 'layout';
-	return `${normalizeLayoutKey(layoutNameKey)}:${getLayoutSourceSignature(Layout)}`;
-}
-
-/**
- * Clears the layout cache. Called during HMR to ensure fresh layouts are used.
- */
-export function clearLayoutCache(): void {
-	getLayoutCache().clear();
-}
+export { clearLayoutCache } from './layout-cache.ts';
 
 /**
  * Renders the current page with its layout.
@@ -214,13 +142,10 @@ export const PageContent: FC = () => {
 	}
 
 	if (persistLayouts) {
-		const layoutCache = getLayoutCache();
-		const layoutKey = getLayoutCacheKey(Layout);
-
-		if (!layoutCache.has(layoutKey) || (refreshPersistedLayout && layoutCache.get(layoutKey) !== Layout)) {
-			layoutCache.set(layoutKey, Layout);
-		}
-		const CachedLayout = layoutCache.get(layoutKey)!;
+		const { layout: CachedLayout, key: layoutKey } = resolvePersistedLayout(
+			Layout,
+			Boolean(refreshPersistedLayout),
+		);
 
 		return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, pageElement);
 	}

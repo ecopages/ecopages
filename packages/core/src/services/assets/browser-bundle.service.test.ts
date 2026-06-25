@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ViteHostBuildAdapter } from '../../build/build-adapter.ts';
+import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 
 describe('BrowserBundleService', () => {
@@ -38,6 +39,47 @@ describe('BrowserBundleService', () => {
 				target: 'browser',
 				format: 'esm',
 				sourcemap: 'none',
+			}),
+		);
+	});
+
+	it('forwards app-owned source transforms to browser bundle builds', async () => {
+		const build = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/out/entry.js' }],
+		}));
+		const metaTransform = createEcoComponentMetaTransform({
+			config: {
+				integrations: [{ name: 'react', extensions: ['.tsx'] }],
+			} as any,
+		});
+		const service = new BrowserBundleService({
+			runtime: {
+				buildAdapter: {
+					getTranspileOptions: () => ({
+						target: 'browser',
+						format: 'esm',
+						sourcemap: 'none',
+					}),
+				},
+				buildExecutor: { build },
+			},
+			loaders: new Map(),
+			sourceTransforms: new Map([[metaTransform.name, metaTransform]]),
+		} as any);
+
+		await service.bundle({
+			profile: 'hmr-entrypoint',
+			entrypoints: ['/tmp/layout.tsx'],
+			outdir: '/tmp/out',
+			minify: false,
+			naming: '[name].js',
+		});
+
+		expect(build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sourceTransforms: [metaTransform],
 			}),
 		);
 	});

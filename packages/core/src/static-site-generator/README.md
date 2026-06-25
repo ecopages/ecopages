@@ -27,10 +27,10 @@ It should not invent a parallel rendering stack just for build mode.
 
 ## Files
 
-| File | Role |
-| ---- | ---- |
-| `static-site-generator.ts` | Route enumeration, HTML artifact writes, integration export hooks |
-| `static-export-context.ts` | Hook context type for `beforeStaticExport` / `afterStaticExport` |
+| File                           | Role                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `static-site-generator.ts`     | Route enumeration, HTML artifact writes, integration export hooks            |
+| `static-export-context.ts`     | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
 | `static-build-invalidation.ts` | `dist/` reset policy, production cache clearing, static-render cache context |
 
 Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.

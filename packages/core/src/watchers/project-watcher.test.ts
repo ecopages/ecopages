@@ -659,15 +659,13 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('should watch includes and src directories alongside pages and processor paths', async () => {
+	test('should watch includes and src directories alongside processor paths', async () => {
 		const Config = await createMockConfig();
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
 		const HmrManager = createMockHmrManager();
 		const Bridge = createMockBridge();
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir, Config.absolutePaths.pagesDir].includes(
-				String(targetPath),
-			),
+			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir].includes(String(targetPath)),
 		);
 		const watcherHandle = {
 			add: vi.fn(),
@@ -699,7 +697,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 				'/test/project/custom-watch',
 				Config.absolutePaths.includesDir,
 				Config.absolutePaths.srcDir,
-				Config.absolutePaths.pagesDir,
 			]),
 			expect.any(Object),
 		);

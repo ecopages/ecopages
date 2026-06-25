@@ -1,6 +1,5 @@
-import { getAppBuildExecutor, getAppServerBuildPlugins } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { createForeignJsxOverridePlugin } from '../../plugins/foreign-jsx-override-plugin.ts';
+import { getAppRouteModuleBuildExecutor, getAppServerBuildPlugins } from '../../build/build-adapter.ts';
+import { getJsxOwnershipPlugins } from '../../build/jsx-ownership-plugins.ts';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';
@@ -47,32 +46,9 @@ export function setAppHostModuleLoader(appConfig: EcoPagesAppConfig, hostModuleL
 	};
 }
 
-function getJsxOwnershipPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	const jsxExtensions = (appConfig.integrations ?? [])
-		.filter((integration) => integration.jsxImportSource)
-		.flatMap((integration) =>
-			integration.extensions
-				.filter((extension) => extension.endsWith('.tsx') || extension.endsWith('.jsx'))
-				.map((extension) => ({ integration, extension })),
-		)
-		.sort((left, right) => right.extension.length - left.extension.length);
-
-	return jsxExtensions.map(({ integration, extension }) =>
-		createForeignJsxOverridePlugin({
-			hostJsxImportSource: integration.jsxImportSource!,
-			foreignExtensions: [extension],
-			excludeExtensions: jsxExtensions
-				.filter((candidate) => candidate.extension.length > extension.length)
-				.filter((candidate) => candidate.extension.endsWith(extension))
-				.map((candidate) => candidate.extension),
-			name: `ecopages-jsx-ownership-${integration.name}-${extension.replace(/[^a-zA-Z0-9]+/g, '-')}`,
-		}),
-	);
-}
-
 export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLoader {
 	const invalidationService = new DevelopmentInvalidationService(appConfig);
-	const pageModuleImportService = new PageModuleImportService({
+	const pageModuleImportService = new PageModuleImportService(appConfig, {
 		canLoadSourceModuleFromHost: (filePath) => shouldAppUseHostModuleLoader(appConfig, filePath),
 		getHostModuleLoader: () => getAppHostModuleLoader(appConfig),
 	});
@@ -95,7 +71,7 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 			return await pageModuleImportService.importModule<T>({
 				...options,
 				...(mergedPlugins.length > 0 ? { plugins: mergedPlugins } : {}),
-				buildExecutor: options.buildExecutor ?? getAppBuildExecutor(appConfig),
+				buildExecutor: options.buildExecutor ?? getAppRouteModuleBuildExecutor(appConfig),
 				invalidationVersion,
 			});
 		},

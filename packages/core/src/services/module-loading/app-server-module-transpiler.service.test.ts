@@ -3,7 +3,13 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import { type BuildExecutor, setAppBuildManifest } from '../../build/build-adapter.ts';
+import {
+	type BuildExecutor,
+	getAppRouteModuleBuildExecutor,
+	setAppBuildManifest,
+	setAppRouteModuleBuildExecutor,
+} from '../../build/build-adapter.ts';
+import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import {
@@ -290,6 +296,66 @@ describe('app server module transpiler runtime state', () => {
 			});
 
 			assert.deepEqual(observedPlugins, [['react-mdx-loader']]);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('defaults app module imports to the route-module build executor', async () => {
+		const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-app-module-route-executor-'));
+		const pagesDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(pagesDir, { recursive: true });
+		const pageFilePath = path.join(pagesDir, 'index.tsx');
+		fs.writeFileSync(pageFilePath, 'export default { ok: true };', 'utf8');
+
+		const observedExecutors: BuildExecutor[] = [];
+		const routeModuleBuildExecutor: BuildExecutor = {
+			build: async (options) => {
+				observedExecutors.push(routeModuleBuildExecutor);
+				const compiledOutputPath = path.join(String(options.outdir), 'index.mjs');
+				fs.mkdirSync(path.dirname(compiledOutputPath), { recursive: true });
+				fs.writeFileSync(compiledOutputPath, 'export default { ok: true };', 'utf8');
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: compiledOutputPath }],
+				};
+			},
+		};
+
+		const appConfig = {
+			rootDir,
+			absolutePaths: {
+				srcDir: path.join(rootDir, 'src'),
+				componentsDir: path.join(rootDir, 'src', 'components'),
+				includesDir: path.join(rootDir, 'src', 'includes'),
+				layoutsDir: path.join(rootDir, 'src', 'layouts'),
+				pagesDir,
+			},
+			integrations: [],
+			loaders: new Map(),
+			templatesExt: ['.tsx'],
+			runtime: {},
+		} as any;
+
+		installAppRuntimeBuildExecutor(appConfig);
+		setAppRouteModuleBuildExecutor(appConfig, routeModuleBuildExecutor);
+		setAppBuildManifest(appConfig, {
+			loaderPlugins: [],
+			runtimePlugins: [],
+			browserBundlePlugins: [],
+			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
+		});
+
+		try {
+			await getAppModuleLoader(appConfig).importModule({
+				filePath: pageFilePath,
+				rootDir,
+				outdir: path.join(rootDir, '.eco', '.server-modules'),
+			});
+
+			assert.deepEqual(observedExecutors, [routeModuleBuildExecutor]);
+			assert.equal(getAppRouteModuleBuildExecutor(appConfig), routeModuleBuildExecutor);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

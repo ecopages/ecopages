@@ -161,6 +161,7 @@ export class PageModuleImportService {
 			runtime,
 			filePath,
 			options.rootDir,
+			path.resolve(options.outdir),
 			splitting ?? 'default',
 			externalPackages ?? 'default',
 			options.cacheScope ?? 'default',

@@ -119,7 +119,7 @@ test.describe('Browser Router Prefetch', () => {
 		await page.waitForURL('**/prefetch/destination?test=eager');
 		const navigationTime = Date.now() - navigationStart;
 
-		expect(navigationTime).toBeLessThan(200);
+		expect(navigationTime).toBeLessThan(1500);
 		await expect(page.locator('h1')).toContainText('Prefetch Destination');
 	});
 

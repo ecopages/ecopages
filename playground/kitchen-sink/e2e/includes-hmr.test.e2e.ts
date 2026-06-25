@@ -2,8 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import type { ConsoleMessage, Frame, Page } from 'playwright';
-import { gotoAndWait, trackRuntimeErrors } from './helpers';
+import type { Frame } from 'playwright-core';
+import {
+	gotoPath,
+	trackRuntimeErrors,
+	waitForEcopagesHmrConnection,
+	waitForViteClientConnection,
+} from './test-support';
 
 const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
 const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
@@ -41,28 +46,7 @@ function patchExplicitRouteHeading(content: string, suffix: string) {
 	);
 }
 
-const HMR_CLIENT_CONNECT_TIMEOUT_MS = 30_000;
-
-async function waitForViteClientConnection(page: Page) {
-	const connected = page.waitForEvent('console', {
-		predicate: (message: ConsoleMessage) => message.type() === 'debug' && message.text() === '[vite] connected.',
-		timeout: HMR_CLIENT_CONNECT_TIMEOUT_MS,
-	});
-
-	await connected;
-}
-
-async function waitForEcopagesHmrConnection(page: Page) {
-	const connected = page.waitForEvent('console', {
-		predicate: (message: ConsoleMessage) =>
-			message.type() === 'log' && message.text() === '[ecopages] HMR Connected',
-		timeout: HMR_CLIENT_CONNECT_TIMEOUT_MS,
-	});
-
-	await connected;
-}
-
-test.describe('Kitchen Sink Playground Includes HMR', () => {
+test.describe('Source mutation HMR @hmr', () => {
 	let originalSeoInclude = '';
 	let seoIncludeFile = SEO_INCLUDE_FILE;
 	let originalExplicitTeamView = '';
@@ -91,7 +75,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 		const viteClientConnected = waitsForViteReload ? waitForViteClientConnection(page) : undefined;
 		const ecopagesHmrConnected = waitsForViteReload ? undefined : waitForEcopagesHmrConnection(page);
 
-		await gotoAndWait(page, '/docs');
+		await gotoPath(page, '/docs');
 		await viteClientConnected;
 		await ecopagesHmrConnected;
 		const initialTitle = await page.title();
@@ -115,7 +99,7 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 		const viteClientConnected = waitsForViteReload ? waitForViteClientConnection(page) : undefined;
 		const ecopagesHmrConnected = waitsForViteReload ? undefined : waitForEcopagesHmrConnection(page);
 
-		await gotoAndWait(page, '/explicit/team');
+		await gotoPath(page, '/explicit/team');
 		await viteClientConnected;
 		await ecopagesHmrConnected;
 		await expect(page.getByRole('heading', { name: 'Explicit routes can still feel native.' })).toBeVisible();

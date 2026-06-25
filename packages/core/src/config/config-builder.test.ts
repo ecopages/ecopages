@@ -6,7 +6,6 @@ import {
 	defaultBuildAdapter,
 	getAppBuildAdapter,
 	getAppBuildOwnership,
-	getAppBrowserBuildPlugins,
 	getAppBuildManifest,
 	ViteHostBuildAdapter,
 } from '../build/build-adapter.ts';
@@ -63,7 +62,6 @@ describe('EcoConfigBuilder', () => {
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
-		expect(getAppBrowserBuildPlugins(config).length).toBeGreaterThan(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
 		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();

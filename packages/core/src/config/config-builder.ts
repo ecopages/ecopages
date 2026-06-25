@@ -681,7 +681,17 @@ export class ConfigBuilder {
 
 	/**
 	 * Initializes default loaders that are required for EcoPages to function.
-	 * This includes the eco-component-meta-plugin which auto-injects __eco metadata into component configs.
+	 *
+	 * @remarks
+	 * `eco-component-meta` is registered twice on purpose:
+	 *
+	 * - `sourceTransforms` is the canonical browser/HMR path. The Rolldown bridge
+	 *   runs these after first-wins `onLoad` plugins rewrite module source.
+	 * - `loaders` keeps the same transform available to server-oriented builds
+	 *   that still use competing `onLoad` handlers directly.
+	 *
+	 * Browser builds exclude the loader copy in {@link getAppBrowserBuildPlugins}
+	 * when the transform name is already present in `sourceTransforms`.
 	 */
 	private async initializeDefaultLoaders(): Promise<void> {
 		const componentMetaTransform = createEcoComponentMetaTransform({ config: this.config });

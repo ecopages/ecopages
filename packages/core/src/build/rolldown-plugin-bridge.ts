@@ -42,6 +42,8 @@
 
 import path from 'node:path';
 import type { LoadResult, PartialResolvedId, Plugin, ResolveIdResult, SourceDescription } from 'rolldown';
+import { finalizeLoadResultWithSourceTransforms } from './rolldown-source-transform-pass.ts';
+import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import { escapeRegExp } from './browser-runtime-plugin-helpers.ts';
 import type {
 	EcoBuildOnLoadArgs,
@@ -243,8 +245,20 @@ interface LoadRegistration {
  * Plugin ordering is preserved: registrations from earlier eco plugins
  * are checked before registrations from later ones, matching the
  * original per-plugin priority semantics.
+ *
+ * @param plugins - `EcoBuildPlugin` instances registered for this build.
+ * @param contextRoot - Project root used to resolve relative load paths.
+ * @param sourceTransforms - Optional app-owned transforms applied after a matching
+ * `onLoad` handler returns module contents. Browser builds pass
+ * {@link getAppSourceTransforms | app source transforms} here so metadata injection
+ * still runs on output rewritten by boundary/runtime plugins. Virtual modules,
+ * CSS, and asset loads are skipped.
  */
-export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Plugin[] {
+export function createRolldownPluginBridge(
+	plugins: EcoBuildPlugin[],
+	contextRoot: string,
+	sourceTransforms: readonly EcoSourceTransform[] = [],
+): Plugin[] {
 	if (plugins.length === 0) {
 		return [];
 	}
@@ -277,6 +291,8 @@ export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoo
 	};
 
 	const loadHandler = async (id: string) => {
+		let loadResult: LoadResult | undefined;
+
 		for (const { filter, callback } of loadRegistrations) {
 			if (!filter.test(id)) {
 				continue;
@@ -285,10 +301,22 @@ export function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoo
 			const result = await callback({ path: sourcePath, namespace });
 			const converted = convertPluginOnLoadResult({ id }, result);
 			if (converted !== undefined) {
-				return converted;
+				loadResult = converted;
+				break;
 			}
 		}
-		return undefined;
+
+		const { namespace, path: sourcePath } = splitNamespace(id);
+		return finalizeLoadResultWithSourceTransforms({
+			id,
+			namespace,
+			sourcePath,
+			loadResult,
+			sourceTransforms,
+			contextRoot,
+			inferModuleTypeFromPath: (filePath) =>
+				inferRolldownModuleTypeFromPath(filePath) as SourceDescription['moduleType'],
+		});
 	};
 
 	const plugin: Plugin = {

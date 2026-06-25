@@ -415,6 +415,34 @@ test('getAppBrowserBuildPlugins adds the app-level browser runtime rewrite plugi
 	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-plugin'));
 });
 
+test('getAppBrowserBuildPlugins excludes plugins that are registered as source transforms', () => {
+	const metaTransform = {
+		name: 'eco-component-meta-plugin',
+		filter: /\.tsx$/,
+		transform: () => undefined,
+	};
+	const loaderPlugin = { name: 'eco-component-meta-plugin', setup() {} };
+	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const appConfig = {
+		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+		sourceTransforms: new Map([[metaTransform.name, metaTransform]]),
+		runtime: {},
+	} as any;
+
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			loaderPlugins: [loaderPlugin],
+			browserBundlePlugins: [browserPlugin],
+		}),
+	);
+
+	assert.deepEqual(
+		getAppBrowserBuildPlugins(appConfig).map((plugin) => plugin.name),
+		['browser-plugin'],
+	);
+});
+
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };

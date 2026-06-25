@@ -17,6 +17,7 @@
  *   and mutate the active adapter per `EcoPagesAppConfig`.
  */
 
+import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
 import { normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
@@ -26,6 +27,7 @@ import {
 	getServerBuildPlugins,
 	type AppBuildManifest,
 } from './build-manifest.ts';
+import { getAppSourceTransforms } from '../plugins/source-transform.ts';
 import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
 import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createRolldownDevBuildAdapter } from './rolldown-dev-build-adapter.ts';
@@ -209,6 +211,20 @@ export interface BuildOptions {
 	 * bridge.
 	 */
 	plugins?: EcoBuildPlugin[];
+	/**
+	 * App-owned source transforms for browser-targeted Rolldown builds.
+	 *
+	 * @remarks
+	 * Applied by the Rolldown plugin bridge after first-wins `onLoad` plugins
+	 * produce module contents. This is the canonical browser/HMR path for
+	 * `eco-component-meta` and other transforms registered in
+	 * `appConfig.sourceTransforms`. Server builds continue to use loader plugins
+	 * instead; this field is ignored unless `target` is `'browser'`.
+	 *
+	 * {@link BrowserBundleService} forwards {@link getAppSourceTransforms} here
+	 * automatically.
+	 */
+	sourceTransforms?: EcoSourceTransform[];
 	/**
 	 * Escape hatch for backends that need to forward unknown options
 	 * to their underlying driver. Consumers should prefer the typed
@@ -711,10 +727,18 @@ export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuild
  * Reads from the app's sealed build manifest. The browser-bundle
  * manifest is the source of truth for which plugins participate in the
  * browser bundle.
+ *
+ * Plugins whose `name` matches a registered {@link EcoSourceTransform} are
+ * excluded here because browser builds run those transforms via the Rolldown
+ * bridge post-load pass instead of as competing `onLoad` handlers.
  */
 export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	const manifest = getAppBuildManifest(appConfig);
-	return [...getBrowserBuildPlugins(manifest), ...getJsxOwnershipPlugins(appConfig)];
+	const sourceTransformNames = new Set(getAppSourceTransforms(appConfig).map((transform) => transform.name));
+	const browserPlugins = getBrowserBuildPlugins(manifest).filter(
+		(plugin) => !sourceTransformNames.has(plugin.name),
+	);
+	return [...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
 }
 
 /**

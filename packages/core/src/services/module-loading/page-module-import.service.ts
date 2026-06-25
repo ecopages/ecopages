@@ -3,7 +3,21 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
 import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
+import {
+	importPagesUnifiedGraphModule,
+	isPagesUnifiedGraphPage,
+	shouldBuildPagesUnifiedGraph,
+} from '../../build/pages-unified-graph-build.ts';
+import { recordPageModuleBuildInvocation } from '../../build/rolldown-build-invocation-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import {
+	resolvePageModuleOutputFileName,
+	createPluginCacheKey,
+	createJsxCacheKey,
+} from './route-module-build-cache.ts';
+import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
+import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
 
@@ -67,11 +81,13 @@ export interface PageModuleImportDependencies {
  * transpilation settings, and error semantics across the different callers.
  */
 export class PageModuleImportService {
+	private readonly appConfig?: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly importCache = new Map<string, Promise<unknown>>();
 	private developmentInvalidationVersion = 0;
 
-	constructor(dependencies?: Partial<PageModuleImportDependencies>) {
+	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
+		this.appConfig = appConfig;
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
@@ -190,11 +206,37 @@ export class PageModuleImportService {
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 		} = options;
 
-		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const cacheScopeSuffix = cacheScope ? `-${sanitizeCacheScope(cacheScope)}` : '';
-		const invalidationSuffix = shouldVersionBuildOutputPath(invalidationVersion) ? `-v${invalidationVersion}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.mjs`;
-		const outputNamingTemplate = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${invalidationSuffix}.[ext]`;
+		const outputFileName = resolvePageModuleOutputFileName({
+			filePath,
+			fileHash,
+			cacheScope,
+			invalidationVersion,
+		});
+		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
+		const preferredOutputPath = path.join(outdir, outputFileName);
+		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
+		const cachedBuild = routeModuleBuildCache.lookup({
+			...options,
+			fileHash,
+		});
+
+		if (cachedBuild) {
+			return (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+		}
+
+		if (
+			!cacheScope &&
+			shouldBuildPagesUnifiedGraph() &&
+			this.appConfig &&
+			isPagesUnifiedGraphPage(filePath, this.appConfig)
+		) {
+			const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
+			if (graphModule !== undefined) {
+				return graphModule;
+			}
+		}
+
+		recordPageModuleBuildInvocation();
 
 		const buildResult = await this.dependencies.buildModule(
 			{
@@ -220,7 +262,6 @@ export class PageModuleImportService {
 			throw new Error(transpileErrorMessage(details));
 		}
 
-		const preferredOutputPath = path.join(outdir, outputFileName);
 		const compiledOutput =
 			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
 			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
@@ -230,6 +271,12 @@ export class PageModuleImportService {
 		}
 
 		normalizeNodeRuntimeBuildOutputFile(compiledOutput, rootDir);
+		routeModuleBuildCache.recordBuild({
+			...options,
+			fileHash,
+			outputPath: compiledOutput,
+			dependencyModulePaths: resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir),
+		});
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 
@@ -243,6 +290,10 @@ export class PageModuleImportService {
 		}
 
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
+	}
+
+	private getRouteModuleBuildCache(outdir: string) {
+		return getSharedRouteModuleBuildCache(outdir, this.appConfig);
 	}
 }
 
@@ -270,33 +321,6 @@ function shouldAddRuntimeUpdateQuery(invalidationVersion: number, cacheScope?: s
 	return process.env.NODE_ENV === 'development' || invalidationVersion > 0 || !!cacheScope;
 }
 
-function shouldVersionBuildOutputPath(invalidationVersion: number): boolean {
-	return typeof Bun !== 'undefined' && invalidationVersion > 0;
-}
-
 function sanitizeCacheScope(cacheScope: string): string {
 	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
-}
-
-function createJsxCacheKey(jsx: PageModuleBuildImportOptions['jsx']): string {
-	if (!jsx) {
-		return 'jsx:default';
-	}
-
-	return JSON.stringify({
-		development: jsx.development ?? false,
-		factory: jsx.factory ?? null,
-		fragment: jsx.fragment ?? null,
-		importSource: jsx.importSource ?? null,
-		runtime: jsx.runtime ?? null,
-		sideEffects: jsx.sideEffects ?? null,
-	});
-}
-
-function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
-	if (!plugins || plugins.length === 0) {
-		return 'plugins:default';
-	}
-
-	return `plugins:${plugins.map((plugin) => plugin.name).join(',')}`;
 }

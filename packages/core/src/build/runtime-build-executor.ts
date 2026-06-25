@@ -45,5 +45,15 @@ export function installAppRuntimeBuildExecutor(appConfig: EcoPagesAppConfig): Bu
 }
 
 export function getInstalledServerEntryBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	return new SerializedBuildExecutor(createPluginWrappedExecutor(appConfig));
+	const existing = appConfig.runtime?.serverEntryBuildExecutor;
+	if (existing) {
+		return existing;
+	}
+
+	const serverEntryBuildExecutor = new SerializedBuildExecutor(createPluginWrappedExecutor(appConfig));
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		serverEntryBuildExecutor,
+	};
+	return serverEntryBuildExecutor;
 }

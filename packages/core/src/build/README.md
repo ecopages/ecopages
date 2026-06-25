@@ -25,7 +25,8 @@ Plus one translation bridge:
 - `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult` (outputs, dependency graph, logs).
 - `rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `serialized-build-executor.ts`: FIFO queue primitive.
-- `runtime-build-executor.ts`: server-adapter entrypoint that wraps the app-owned adapter in `ParallelBuildExecutor` layers plus `withBuildExecutorPlugins`. Server-entry bundling uses `getInstalledServerEntryBuildExecutor()` (serialized, single-flight).
+- `runtime-build-executor.ts`: server-adapter entrypoint that wraps the app-owned adapter in `ParallelBuildExecutor` layers plus `withBuildExecutorPlugins`. Server-entry bundling uses `getInstalledServerEntryBuildExecutor()` (serialized, single-flight, cached on `appConfig.runtime.serverEntryBuildExecutor`).
+- `server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
 - `*.test.ts`: regression coverage.
 
 ## Default Flow
@@ -91,6 +92,32 @@ These fields are kept in the type so existing call-sites compile. The proper fix
 `RolldownDevBuildAdapter` (DevEngine-backed incremental rebuilds) is available via `createBuildAdapter({ ownership: 'rolldown-dev' })` but is **not** yet selected by `installAppRuntimeBuildExecutor`. HMR browser bundles in `browser-bundle.service.ts` may construct a dedicated dev adapter where needed.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
+
+## Production build caches
+
+Two persisted cache layers accelerate production builds. Both use `.build-cache.json` manifests keyed by dependency hashes and a build-inputs fingerprint.
+
+| Cache                                  | On-disk location                                    | Module                              |
+| -------------------------------------- | --------------------------------------------------- | ----------------------------------- |
+| Server-entry bundle                    | `.eco/.server-entry/.build-cache.json`              | `server-entry-build-cache.ts`       |
+| Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` |
+
+`getInstalledServerEntryBuildExecutor()` returns one `SerializedBuildExecutor` per app instance (stored on `appConfig.runtime`). `clearProductionBuildCaches()` wipes both manifest trees and resets in-memory route-module state.
+
+The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
+
+## Unified pages graph
+
+Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`).
+
+| Artifact | Location |
+| -------- | -------- |
+| Graph manifest | `.eco/.server-pages-graph/.build-cache.json` |
+| Chunk outputs | `.eco/.server-modules/` (shared with per-route cache) |
+
+`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
+
+`ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 
 ## Testing Strategy
 

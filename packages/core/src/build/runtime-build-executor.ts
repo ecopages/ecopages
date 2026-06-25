@@ -13,8 +13,7 @@ import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
 function createPluginWrappedExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	const baseExecutor = getAppBuildAdapter(appConfig);
-	return withBuildExecutorPlugins(baseExecutor, () => getAppServerBuildPlugins(appConfig));
+	return withBuildExecutorPlugins(getAppBuildAdapter(appConfig), () => getAppServerBuildPlugins(appConfig));
 }
 
 function resolveParallelismLimit(): number {

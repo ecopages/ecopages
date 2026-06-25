@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, test } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
 import { RolldownDevBuildAdapter } from './rolldown-dev-build-adapter.ts';
 
 let workDir: string;
@@ -110,6 +111,46 @@ describe('RolldownDevBuildAdapter', () => {
 		const adapter = new RolldownDevBuildAdapter();
 		const resolved = adapter.resolve('node:fs', workDir);
 		assert.equal(typeof resolved, 'string', 'resolve returns a string');
+	});
+
+	test('creates a new DevEngine when entrypoints or naming change', { timeout: 30000 }, async () => {
+		const runtimeEntrypoint = writeFixture('_hmr_runtime.ts', 'export const runtime = 1;\n');
+		const layoutScript = writeFixture('base-layout.script.ts', 'export const layout = 2;\n');
+		const adapter = new RolldownDevBuildAdapter();
+		const outdir = path.join(workDir, 'dist', 'assets', '_hmr');
+
+		try {
+			const runtimeResult = await adapter.build({
+				entrypoints: [runtimeEntrypoint],
+				outdir,
+				naming: '_hmr_runtime.js',
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+			});
+			assert.equal(runtimeResult.success, true);
+			assert.equal(adapter.getEngineInstanceCountForTests(), 1);
+
+			const layoutResult = await adapter.build({
+				entrypoints: [layoutScript],
+				outdir,
+				naming: 'layouts/base-layout/base-layout.script.js',
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+			});
+			assert.equal(layoutResult.success, true);
+			assert.equal(adapter.getEngineInstanceCountForTests(), 2, 'entrypoint/naming change created a new engine');
+
+			const layoutOutputPath = path.join(outdir, 'layouts/base-layout/base-layout.script.js');
+			assert.equal(
+				fileSystem.exists(layoutOutputPath),
+				true,
+				`expected layout script output at ${layoutOutputPath}`,
+			);
+		} finally {
+			await adapter.close();
+		}
 	});
 
 	test('getTranspileOptions returns browser options for hmr-entrypoint', () => {

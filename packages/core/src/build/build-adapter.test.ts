@@ -461,3 +461,34 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		'integration-runtime-plugin',
 	]);
 });
+
+test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
+	const processor = {
+		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setup: vi.fn(async () => {}),
+	};
+	const integration = {
+		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setHmrManager: vi.fn(),
+		setup: vi.fn(async () => {}),
+	};
+	const observedRuntimePlugins: string[] = [];
+
+	await setupAppRuntimePlugins({
+		appConfig: {
+			loaders: new Map(),
+			processors: new Map([['processor', processor]]),
+			integrations: [integration],
+			runtime: { runtimeAssetsPrepared: true },
+		} as any,
+		runtimeOrigin: 'http://localhost:3000',
+		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
+	});
+
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
+	assert.equal(integration.setConfig.mock.calls.length, 0);
+	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
+});

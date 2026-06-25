@@ -30,6 +30,7 @@ import {
 	toBuildLogs,
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
+import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -45,6 +46,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	 * entrypoints, use {@link RolldownDevBuildAdapter}.
 	 */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
+		recordRolldownBuildInvocation('rolldown');
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const plugins = options.plugins ?? [];

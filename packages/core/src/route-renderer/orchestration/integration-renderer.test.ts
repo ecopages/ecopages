@@ -229,6 +229,37 @@ describe('IntegrationRenderer', () => {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 	} as unknown as AssetProcessingService;
 
+	it('serializes concurrent execute calls on one renderer instance', async () => {
+		let active = 0;
+		let maxActive = 0;
+		const Page = (() => 'page') as EcoComponent;
+		Page.config = {};
+		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render() {
+				active += 1;
+				maxActive = Math.max(maxActive, active);
+				await new Promise((resolve) => setTimeout(resolve, 10));
+				active -= 1;
+				return '<html><body>ok</body></html>';
+			}
+		})({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		await Promise.all([
+			renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} }),
+			renderer.execute({ file: '/app/pages/b.tsx', params: {}, query: {} }),
+		]);
+
+		expect(maxActive).toBe(1);
+	});
+
 	it('processes declarative page browser graph dependencies through shared route preparation', async () => {
 		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/page.js' }]);
 		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
@@ -297,6 +328,36 @@ describe('IntegrationRenderer', () => {
 			],
 			'declarative-renderer:/app/pages/test.tsx',
 		);
+	});
+
+	it('transformRouteResponse prefers renderer-owned page package updates over stale prepare-time package', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: AppConfig,
+			assetProcessingService: AssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const stalePagePackage = createPagePackage([]);
+		const renderTimeAsset = {
+			kind: 'script',
+			inline: false,
+			srcUrl: '/assets/scripts/render-time-hydration.js',
+			position: 'head',
+			attributes: { type: 'module' },
+		} as ProcessedAsset;
+
+		(renderer as any).htmlTransformer.setPagePackage(stalePagePackage);
+		(renderer as any).appendProcessedDependencies([renderTimeAsset]);
+
+		const body = await (renderer as any).transformRouteResponse(
+			new Response('<html><head></head><body></body></html>', {
+				headers: { 'Content-Type': 'text/html' },
+			}),
+			[],
+			stalePagePackage,
+		);
+		const html = typeof body === 'string' ? body : await new Response(body as BodyInit).text();
+
+		expect(html).toContain('/assets/scripts/render-time-hydration.js');
 	});
 
 	it('preserves the page browser graph when appending renderer-owned assets', () => {

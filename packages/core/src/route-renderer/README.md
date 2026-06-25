@@ -27,7 +27,7 @@ These concepts intentionally live in different places:
 - `component-render-context.ts` intercepts foreign children during active component render
 - `queued-foreign-subtree-resolution.service.ts` resolves queued foreign subtrees for renderers that cannot hand them off inline
 - `integration-renderer.ts` owns renderer-to-renderer delegation and shared shell composition
-- `route-render-flow.ts` owns route preparation, final response capture, and unresolved artifact enforcement
+- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement
 
 ## Main Files
 
@@ -38,7 +38,7 @@ These concepts intentionally live in different places:
 
 ### `orchestration/`
 
-- `route-render-flow.ts`: one route render from page-module loading through final HTML output
+- `route-render-orchestrator.ts`: one route render from page-module loading through final HTML output
 - `integration-renderer.ts`: abstract base class for route rendering, explicit view rendering, and foreign-child delegation
 - `ownership-planning.service.ts`: declared ownership graph construction
 - `ownership-validation.service.ts`: up-front ownership validation for route roots and declared descendants
@@ -56,11 +56,11 @@ These concepts intentionally live in different places:
 The route-render contract is:
 
 1. `RouteRendererFactory` selects the owning integration renderer.
-2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderFlow`.
-3. `RouteRenderFlow.prepareRenderOptions()` loads the page module, validates ownership, builds `ownershipPlan`, resolves page data, resolves dependencies, and builds the page browser graph.
+2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderOrchestrator`.
+3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership, builds `ownershipPlan`, resolves page data, resolves dependencies, and builds the page browser graph.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderFlow.execute()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps root or document attributes when needed, and runs the HTML transformer.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps root or document attributes when needed, and runs the HTML transformer.
 
 Important:
 
@@ -115,4 +115,5 @@ Not every integration needs queue-based handoff.
 ## Current Limits
 
 - `ownershipPlan` is still diagnostic and preparatory metadata; it does not yet drive a full route-composer execution model.
+- `integration-renderer.ts` remains large (~1,400 lines); document-shell helpers and foreign-subtree wiring are the likely future extraction targets.
 - Different integrations still own different foreign-child runtime strategies, which is intentional where child transport or hydration behavior differs.

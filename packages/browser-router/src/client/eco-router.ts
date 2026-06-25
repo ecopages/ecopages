@@ -254,6 +254,10 @@ export class EcoRouter {
 		}
 
 		const navigationRuntime = getEcoNavigationRuntime(window);
+		navigationRuntime.cancelCurrentNavigationTransaction();
+		this.pendingNavigations = 0;
+		this.queuedNavigationHref = null;
+		this.pendingPointerNavigation = null;
 
 		document.addEventListener('pointerdown', this.handlePointerDown, true);
 		document.addEventListener('click', this.handleClick, true);

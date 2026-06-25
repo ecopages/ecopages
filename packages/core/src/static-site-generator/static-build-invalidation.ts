@@ -16,11 +16,7 @@ import {
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 
-export type {
-	BuildInputChangeContributor,
-	IntegrationPlugin,
-	Processor,
-} from '../build/build-input-fingerprint.ts';
+export type { BuildInputChangeContributor, IntegrationPlugin, Processor } from '../build/build-input-fingerprint.ts';
 export {
 	collectBuildInputContributors,
 	createBuildInputsFingerprint,

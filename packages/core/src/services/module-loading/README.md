@@ -20,10 +20,10 @@ Call site (route scan, renderer, SSG, API)
 
 ## Host vs app ownership
 
-| Path | When |
-| ---- | ---- |
-| Host loader | `appConfig.runtime.hostModuleLoader` set (Vite host) and file supports direct source loading |
-| Ecopages build pipeline | Framework-owned template files under `pages/`, `includes/`, etc. |
+| Path                    | When                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| Host loader             | `appConfig.runtime.hostModuleLoader` set (Vite host) and file supports direct source loading |
+| Ecopages build pipeline | Framework-owned template files under `pages/`, `includes/`, etc.                             |
 
 `shouldAppUseHostModuleLoader()` encodes the directory + extension rules. Bun always uses the build pipeline today.
 
@@ -35,14 +35,14 @@ Call site (route scan, renderer, SSG, API)
 
 ## Files
 
-| File | Role |
-| ---- | ---- |
-| `page-module-import.service.ts` | Core import/cache/build orchestration |
-| `app-module-loader.service.ts` | App-facing loader interface |
-| `app-server-module-transpiler.service.ts` | Factory for app-scoped loader + transpiler |
-| `server-module-transpiler.service.ts` | Injectable transpiler boundary for tests and bootstrap |
-| `host-module-loader-registry.ts` | Process-global host loader fallback for embedded runtimes |
-| `source-module-support.ts` | Extension allowlist for host direct loading |
+| File                                      | Role                                                      |
+| ----------------------------------------- | --------------------------------------------------------- |
+| `page-module-import.service.ts`           | Core import/cache/build orchestration                     |
+| `app-module-loader.service.ts`            | App-facing loader interface                               |
+| `app-server-module-transpiler.service.ts` | Factory for app-scoped loader + transpiler                |
+| `server-module-transpiler.service.ts`     | Injectable transpiler boundary for tests and bootstrap    |
+| `host-module-loader-registry.ts`          | Process-global host loader fallback for embedded runtimes |
+| `source-module-support.ts`                | Extension allowlist for host direct loading               |
 
 ## Development invalidation
 

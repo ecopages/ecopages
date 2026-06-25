@@ -173,7 +173,7 @@ export class ProjectWatcher {
 
 			await this.notifyProcessors(filePath, event);
 
-			if (plan.category === 'include-source') {
+			if (plan.category === 'include-source' || plan.category === 'explicit-server-view') {
 				this.bridge.reload();
 				return;
 			}
@@ -301,36 +301,42 @@ export class ProjectWatcher {
 			return this.watcher;
 		}
 
-		const processorPaths: string[] = [];
+		const processorPaths = new Set<string>();
 		for (const processor of this.appConfig.processors.values()) {
 			const watchConfig = processor.getWatchConfig();
 			if (!watchConfig) continue;
-			processorPaths.push(...watchConfig.paths);
+			for (const watchPath of watchConfig.paths) {
+				processorPaths.add(watchPath);
+			}
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.includesDir);
+			processorPaths.add(this.appConfig.absolutePaths.includesDir);
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.srcDir);
-		}
-
-		if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+			processorPaths.add(this.appConfig.absolutePaths.srcDir);
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.publicDir);
+			processorPaths.add(this.appConfig.absolutePaths.publicDir);
 		}
 
-		if (this.appConfig.additionalWatchPaths.length) {
-			processorPaths.push(...this.appConfig.additionalWatchPaths);
+		for (const watchPath of this.appConfig.additionalWatchPaths) {
+			processorPaths.add(watchPath);
 		}
 
-		this.watcher = chokidar.watch(processorPaths, {
+		const ignored = [
+			'**/node_modules/**',
+			'**/.git/**',
+			path.join(this.appConfig.absolutePaths.workDir, '**'),
+			path.join(this.appConfig.absolutePaths.distDir, '**'),
+		];
+
+		this.watcher = chokidar.watch(Array.from(processorPaths), {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
+			ignored,
 			awaitWriteFinish: {
 				stabilityThreshold: 50,
 				pollInterval: 50,
@@ -353,5 +359,21 @@ export class ProjectWatcher {
 		}
 
 		return this.watcher;
+	}
+
+	/**
+	 * Closes the active filesystem watcher subscription.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Used when tearing down dev servers in tests
+	 * and other short-lived Ecopages runtimes.
+	 */
+	public async close(): Promise<void> {
+		if (!this.watcher) {
+			return;
+		}
+
+		await this.watcher.close();
+		this.watcher = null;
 	}
 }

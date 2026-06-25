@@ -294,8 +294,7 @@ export class StaticSiteGenerator {
 		activeStaticPathnames?: Set<string>,
 		preloadedRoutes?: readonly StaticGenerationRoute[],
 	) {
-		const routes =
-			preloadedRoutes ?? (await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl }));
+		const routes = preloadedRoutes ?? (await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl }));
 
 		appLogger.debug(
 			'Static Pages',

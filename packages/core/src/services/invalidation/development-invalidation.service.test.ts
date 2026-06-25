@@ -48,6 +48,12 @@ describe('DevelopmentInvalidationService', () => {
 			reloadBrowser: true,
 			delegateToHmr: false,
 		});
+		expect(service.planFileChange('/test/project/src/views/explicit-team-view.kita.tsx')).toMatchObject({
+			category: 'explicit-server-view',
+			invalidateServerModules: true,
+			reloadBrowser: true,
+			delegateToHmr: false,
+		});
 		expect(service.planFileChange('/test/project/src/styles/main.css')).toMatchObject({
 			category: 'processor-owned-asset',
 			invalidateServerModules: false,

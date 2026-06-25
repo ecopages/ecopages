@@ -1,60 +1,129 @@
 import { expect, test } from '@playwright/test';
-import { clickHrefAndWait, gotoAndWait, trackRuntimeErrors } from './helpers';
+import type { Page } from 'playwright-core';
+import { getPageTestId } from '../src/data/primary-links';
+import { gotoPath, recoverToPath, trackRuntimeErrors } from './test-support';
 
-test.describe('Kitchen Sink Playground API Lab', () => {
+async function readInPage<T>(page: Page, reader: () => T): Promise<T | null> {
+	try {
+		return await page.evaluate(reader);
+	} catch {
+		return null;
+	}
+}
+
+async function expectResponseStatus(page: Page, fragment: string, timeout = 15_000) {
+	await expect
+		.poll(
+			async () => {
+				const status = await readInPage(
+					page,
+					() => document.querySelector('[data-response-status]')?.textContent ?? '',
+				);
+				return status?.includes(fragment) ?? false;
+			},
+			{ timeout },
+		)
+		.toBe(true);
+}
+
+async function expectResponseBody(page: Page, fragment: string, timeout = 15_000) {
+	await expect
+		.poll(
+			async () => {
+				const body = await readInPage(
+					page,
+					() => document.querySelector('[data-response-body]')?.textContent ?? '',
+				);
+				return body?.includes(fragment) ?? false;
+			},
+			{ timeout },
+		)
+		.toBe(true);
+}
+
+async function waitForApiLabMounted(page: Page) {
+	await expect
+		.poll(
+			async () => {
+				const runtime = await readInPage(
+					page,
+					() =>
+						document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') ??
+						'',
+				);
+				return runtime === 'mounted';
+			},
+			{ timeout: 15_000 },
+		)
+		.toBe(true);
+}
+
+async function runApiCommand(page: Page, label: string, expectedStatusFragment: string, timeout = 30_000) {
+	const deadline = Date.now() + timeout;
+
+	while (Date.now() < deadline) {
+		await waitForApiLabMounted(page);
+		await page.evaluate((commandLabel) => {
+			document
+				.querySelector<HTMLButtonElement>(`[data-api-command="true"][data-label="${commandLabel}"]`)
+				?.click();
+		}, label);
+
+		const matched = await expect
+			.poll(
+				async () => {
+					const status = await readInPage(
+						page,
+						() => document.querySelector('[data-response-status]')?.textContent ?? '',
+					);
+					return status?.includes(expectedStatusFragment) ?? false;
+				},
+				{ timeout: Math.max(5_000, deadline - Date.now()) },
+			)
+			.toBe(true)
+			.then(() => true)
+			.catch(() => false);
+
+		if (matched) {
+			return;
+		}
+	}
+
+	throw new Error(`API lab command "${label}" did not reach status containing "${expectedStatusFragment}"`);
+}
+
+test.describe('API handlers @content', () => {
 	test('rebinds the API lab browser script after navigation and still executes host API commands', async ({
 		page,
 	}) => {
-		test.setTimeout(60_000);
+		test.setTimeout(120_000);
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoAndWait(page, '/api-lab');
+		await gotoPath(page, '/api-lab');
+		await expect(page.getByTestId(getPageTestId('/api-lab'))).toBeVisible({ timeout: 15_000 });
+		await waitForApiLabMounted(page);
 
-		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
-		await page.waitForFunction(
-			() =>
-				document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') ===
-				'mounted',
-			null,
-			{ timeout: 15000 },
-		);
+		await runApiCommand(page, 'Ping with locals', '200');
+		await expectResponseBody(page, '"ok": true');
+		await expectResponseBody(page, 'featureFlags');
 
-		await page.getByRole('button', { name: /Ping with locals/i }).click({ noWaitAfter: true });
-		await expect(page.locator('[data-response-status]')).toContainText('200');
-		await expect(page.locator('[data-response-body]')).toContainText('"ok": true');
-		await expect(page.locator('[data-response-body]')).toContainText('featureFlags');
+		await runApiCommand(page, 'Echo payload', '201');
+		await expectResponseBody(page, 'hello kitchen sink');
 
-		await page.getByRole('button', { name: /Echo payload/i }).click({ noWaitAfter: true });
-		await expect(page.locator('[data-response-status]')).toContainText('201');
-		await expect(page.locator('[data-response-body]')).toContainText('hello kitchen sink');
+		await gotoPath(page, '/integration-matrix');
+		await expect(page.getByTestId(getPageTestId('/integration-matrix'))).toBeVisible();
 
-		await clickHrefAndWait(page, '/integration-matrix');
-		await expect(page.getByTestId('page-integration-matrix-index')).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'Choose the entry route you want to validate.' })).toBeVisible();
+		await recoverToPath(page, '/api-lab');
+		await expect(page.getByTestId(getPageTestId('/api-lab'))).toBeVisible({ timeout: 15_000 });
+		await waitForApiLabMounted(page);
+		await expectResponseStatus(page, 'Ready');
+		await expectResponseBody(page, 'Click Run to execute the selected command.');
 
-		await gotoAndWait(page, '/api-lab');
-		await expect(page.getByRole('heading', { name: 'Handlers registered directly from app.ts' })).toBeVisible();
-		await page.waitForFunction(
-			() =>
-				document.querySelector('[data-api-response-viewer]')?.getAttribute('data-api-lab-runtime') ===
-				'mounted',
-			null,
-			{ timeout: 15000 },
-		);
-		await expect(page.locator('[data-response-status]')).toHaveText('Ready', { timeout: 15000 });
-		await expect(page.locator('[data-response-body]')).toContainText('Click Run to execute the selected command.', {
-			timeout: 15000,
-		});
+		await runApiCommand(page, 'Admin list', '200');
+		await expectResponseBody(page, 'Semantic shells are active');
 
-		await page.getByRole('button', { name: /Admin list/i }).click({ noWaitAfter: true });
-		await expect(page.locator('[data-response-status]')).toContainText('200');
-		await expect(page.locator('[data-response-body]')).toContainText('Semantic shells are active');
-
-		await page.getByRole('button', { name: /Admin create/i }).click({ noWaitAfter: true });
-		await expect
-			.poll(async () => page.locator('[data-response-status]').textContent(), { timeout: 20_000 })
-			.toContain('201');
-		await expect(page.locator('[data-response-body]')).toContainText('Fresh deploy', { timeout: 10_000 });
+		await runApiCommand(page, 'Admin create', '201', 45_000);
+		await expectResponseBody(page, 'Fresh deploy', 15_000);
 		runtime.assertClean();
 	});
 

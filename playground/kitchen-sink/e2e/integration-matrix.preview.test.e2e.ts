@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import {
 	assertAllCountersInteractivity,
-	clickHrefAndWait,
-	gotoAndWait,
+	gotoPath,
+	recoverToPath,
 	requestGetAndWait,
 	trackRuntimeErrors,
 } from './helpers';
@@ -14,11 +14,11 @@ import {
 	integrationMatrixTestIds,
 } from '../src/data/integration-matrix';
 
-test.describe('Kitchen Sink Integration Matrix', () => {
+test.describe('Kitchen Sink Integration Matrix @preview', () => {
 	test('index route links to all dedicated matrix entry pages', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoAndWait(page, '/integration-matrix');
+		await gotoPath(page, '/integration-matrix');
 
 		for (const route of integrationMatrixEntryRoutes) {
 			await expect(page.locator(`[data-testid="${route.testId}"]`)).toBeVisible();
@@ -28,10 +28,13 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	});
 
 	integrationMatrixHostPages.forEach((hostPage) => {
-		test(`${hostPage.host} entry renders the shared host shell stack`, async ({ page }) => {
+		test(`${hostPage.host} entry: host shell, flat counters, and nested shell counters are interactive`, async ({
+			page,
+		}) => {
 			const runtime = trackRuntimeErrors(page);
 
-			await gotoAndWait(page, hostPage.href);
+			await gotoPath(page, hostPage.href);
+
 			await expect(page.getByTestId(integrationMatrixTestIds.hostShellStack)).toBeVisible();
 			await expect(page.locator(`[data-kita-shell="${integrationMatrixHostShellIds.kita}"]`)).toBeVisible();
 			await expect(page.locator(`[data-lit-shell="${integrationMatrixHostShellIds.lit}"]`)).toBeVisible();
@@ -40,33 +43,15 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 				page.locator(`[data-ecopages--jsx-shell="${integrationMatrixHostShellIds['ecopages-jsx']}"]`),
 			).toBeVisible();
 
-			runtime.assertClean();
-		});
-
-		test(`${hostPage.host} entry: flat counters are all interactive`, async ({ page }) => {
-			const runtime = trackRuntimeErrors(page);
-
-			await gotoAndWait(page, hostPage.href);
-
 			await assertAllCountersInteractivity(page.getByTestId(hostPage.flatCountersTestId), {
 				radiant: hostPage.radiantInitialValue,
 			});
 
-			runtime.assertClean();
-		});
-
-		integrationMatrixShellCounterCases.forEach((shellCase) => {
-			test(`${hostPage.host} entry: every counter is interactive inside the ${shellCase.shell} shell`, async ({
-				page,
-			}) => {
-				const runtime = trackRuntimeErrors(page);
-
-				await gotoAndWait(page, hostPage.href);
-
+			for (const shellCase of integrationMatrixShellCounterCases) {
 				await assertAllCountersInteractivity(page.getByTestId(shellCase.testId));
+			}
 
-				runtime.assertClean();
-			});
+			runtime.assertClean();
 		});
 	});
 
@@ -145,22 +130,29 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 	test('ecopages-jsx entry keeps matrix styles after client navigation', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoAndWait(page, '/');
-		await clickHrefAndWait(page, '/integration-matrix/ecopages-jsx-entry');
+		await gotoPath(page, '/');
+		await recoverToPath(page, '/integration-matrix/ecopages-jsx-entry');
+		await expect(page.getByTestId(integrationMatrixTestIds.hostShellStack)).toBeVisible();
+		await expect(page.getByTestId('integration-matrix-shell-counters-ecopages-jsx')).toBeVisible();
 
 		const styleSnapshot = await page.evaluate(() => {
+			const body = document.body;
 			const counterGroup = document.querySelector(
 				'[data-testid="integration-matrix-shell-counters-ecopages-jsx"]',
 			);
 			const grid = document.querySelector('[data-testid="integration-matrix-shell-counters"] .grid');
-			const bodyStyles = getComputedStyle(document.body);
 
-			if (!(counterGroup instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
+			if (
+				!(body instanceof HTMLElement) ||
+				!(counterGroup instanceof HTMLElement) ||
+				!(grid instanceof HTMLElement)
+			) {
 				return null;
 			}
 
 			const counterGroupStyles = getComputedStyle(counterGroup);
 			const gridStyles = getComputedStyle(grid);
+			const bodyStyles = getComputedStyle(body);
 			const stylesheetHrefs = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(
 				(link) => link.getAttribute('href') ?? '',
 			);
@@ -181,16 +173,17 @@ test.describe('Kitchen Sink Integration Matrix', () => {
 		if (!styleSnapshot) {
 			throw new Error('Expected integration matrix style snapshot to be present.');
 		}
-		expect(styleSnapshot?.counterGroupDisplay).toBe('flex');
-		expect(styleSnapshot?.counterGroupGap).toBe('12px');
-		expect(styleSnapshot?.counterGroupFlexWrap).toBe('wrap');
-		expect(styleSnapshot?.gridDisplay).toBe('grid');
-		expect(styleSnapshot?.gridGap).toBe('16px');
-		expect(styleSnapshot?.bodyBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
-		expect(styleSnapshot?.bodyColor).not.toBe('rgb(0, 0, 0)');
+
+		expect(styleSnapshot.counterGroupDisplay).toBe('flex');
+		expect(styleSnapshot.counterGroupGap).toBe('12px');
+		expect(styleSnapshot.counterGroupFlexWrap).toBe('wrap');
+		expect(styleSnapshot.gridDisplay).toBe('grid');
+		expect(styleSnapshot.gridGap).toBe('16px');
+		expect(styleSnapshot.bodyBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+		expect(styleSnapshot.bodyColor).not.toBe('rgb(0, 0, 0)');
 		expect(
 			styleSnapshot.stylesheetHrefs.some(
-				(href) =>
+				(href: string) =>
 					href.includes('/assets/pages/integration-matrix/integration-matrix.css') ||
 					/assets\/styles\/style-[^/]+\.css(?:$|\?)/.test(href),
 			),

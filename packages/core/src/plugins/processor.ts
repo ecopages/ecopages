@@ -146,6 +146,14 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	 */
 	async prepareBuildContributions(): Promise<void> {}
 
+	/**
+	 * Reports whether this processor's build inputs changed since the last
+	 * incremental static build.
+	 */
+	didChange(): boolean {
+		return false;
+	}
+
 	abstract setup(): Promise<void>;
 	abstract teardown(): Promise<void>;
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;

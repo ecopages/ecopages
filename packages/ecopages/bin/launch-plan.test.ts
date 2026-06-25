@@ -260,6 +260,31 @@ describe('launch-plan', () => {
 			}
 		});
 
+		it('uses manifest.json serverEntry when present', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				const serverDir = path.join(tempDir, 'dist', SERVER_BUNDLE_DIR);
+				fs.mkdirSync(serverDir, { recursive: true });
+				const bundlePath = path.join(serverDir, SERVER_BUNDLE_FILENAME);
+				fs.writeFileSync(bundlePath, '// bundled', 'utf8');
+				fs.writeFileSync(
+					path.join(serverDir, 'manifest.json'),
+					JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME, distDir: path.join(tempDir, 'dist') }),
+					'utf8',
+				);
+
+				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
+
+				expect(plan.commandArgs).toEqual([
+					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
 		it('uses the bundled server entry in production for Bun', async () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);

@@ -9,6 +9,7 @@ function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
 		build: false,
 		start: !isDevelopment,
 		dev: isDevelopment,
+		force: false,
 		port: undefined,
 		hostname: undefined,
 		reactFastRefresh: undefined,
@@ -30,6 +31,7 @@ export type ReturnParseCliArgs = {
 	build: boolean;
 	start: boolean;
 	dev: boolean;
+	force: boolean;
 	port?: number;
 	hostname?: string;
 	reactFastRefresh?: boolean;
@@ -60,6 +62,7 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
+			force: { type: 'boolean' },
 			port: { type: 'string' },
 			hostname: { type: 'string' },
 			'react-fast-refresh': { type: 'boolean' },
@@ -92,6 +95,7 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
+		force: !!values.force,
 		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,
 		reactFastRefresh: values['react-fast-refresh'],

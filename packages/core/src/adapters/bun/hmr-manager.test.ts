@@ -32,7 +32,7 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -63,8 +63,6 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 	assert.equal(secondUrl, '/assets/_hmr/pages/react-lab.js');
 	assert.equal(handleFileChange.mock.calls.length, 1);
 	assert.equal(fs.existsSync(outputPath), true);
-
-	manager.stop();
 });
 
 test('HmrManager clears timed-out entrypoint registrations so later requests can retry', async () => {
@@ -77,7 +75,7 @@ test('HmrManager clears timed-out entrypoint registrations so later requests can
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -119,7 +117,6 @@ test('HmrManager clears timed-out entrypoint registrations so later requests can
 		assert.equal(watchedFiles.get(entrypointPath), retriedUrl);
 	} finally {
 		process.env.NODE_ENV = previousNodeEnv;
-		manager.stop();
 	}
 });
 
@@ -133,7 +130,7 @@ test('HmrManager fails strict entrypoint registration when the owning integratio
 	fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -147,8 +144,6 @@ test('HmrManager fails strict entrypoint registration when the owning integratio
 
 	await assert.rejects(() => manager.registerEntrypoint(entrypointPath), /Integration failed to emit entrypoint/);
 	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), false);
-
-	manager.stop();
 });
 
 test('HmrManager uses the generic build path for script entrypoints when no strategy emits output', async () => {
@@ -160,7 +155,7 @@ test('HmrManager uses the generic build path for script entrypoints when no stra
 	fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -193,8 +188,6 @@ test('HmrManager uses the generic build path for script entrypoints when no stra
 	assert.equal(outputUrl, '/assets/_hmr/script.js');
 	assert.deepEqual(buildCalls, [entrypointPath]);
 	assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
-
-	manager.stop();
 });
 
 test('HmrManager stop clears retained registration state', async () => {
@@ -207,7 +200,7 @@ test('HmrManager stop clears retained registration state', async () => {
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -238,7 +231,7 @@ test('HmrManager stop clears retained registration state', async () => {
 test('HmrManager keeps internal browser and server-module outputs out of distDir', async () => {
 	const rootDir = createTempRoot('ecopages-bun-hmr-internal-paths');
 	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const manager = new HmrManager({
+	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
 			subscriberCount: 0,
@@ -261,6 +254,4 @@ test('HmrManager keeps internal browser and server-module outputs out of distDir
 		importModule.mock.calls[0]?.[0]?.outdir,
 		path.join(resolveInternalExecutionDir(config), '.server-modules'),
 	);
-
-	manager.stop();
 });

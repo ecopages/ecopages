@@ -8,6 +8,7 @@ import { AssetProcessingService } from '../services/assets/asset-processing-serv
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import { invariant } from '../utils/invariant.ts';
+import type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
 export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
@@ -21,6 +22,7 @@ export type {
 	EcoBuildPluginBuilder,
 } from '../build/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
+export type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
 export type {
 	HtmlDocumentContribution,
 	HtmlDocumentContributionContext,
@@ -74,13 +76,6 @@ export interface IntegrationPluginConfig {
 	 */
 	integrationDependencies?: AssetDefinition[];
 	/**
-	 * The strategy to use for static building.
-	 * - 'render': Execute component function directly (faster, efficient).
-	 * - 'fetch': Start server and fetch URL (slower, needed for some SSR like Lit).
-	 * @default 'render'
-	 */
-	staticBuildStep?: 'render' | 'fetch';
-	/**
 	 * Declares runtime-specific requirements that must be satisfied before the
 	 * app can start with this integration enabled.
 	 */
@@ -124,7 +119,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
-	readonly staticBuildStep: 'render' | 'fetch';
 	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 	readonly jsxImportSource?: string;
 
@@ -175,7 +169,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.name = config.name;
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
-		this.staticBuildStep = config.staticBuildStep || 'render';
 		this.runtimeCapability = config.runtimeCapability;
 		this.jsxImportSource = config.jsxImportSource;
 	}
@@ -315,6 +308,28 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * `setup()`.
 	 */
 	async prepareBuildContributions(): Promise<void> {}
+
+	/**
+	 * Reports whether this integration's build inputs changed since the last
+	 * incremental static build.
+	 */
+	didChange(): boolean {
+		return false;
+	}
+
+	/**
+	 * Runs integration-specific setup before static page generation begins.
+	 *
+	 * @remarks
+	 * Integrations that need build-scoped SSR preload or worker sessions should
+	 * start them here rather than per-page inside the renderer.
+	 */
+	async beforeStaticExport?(_context: StaticExportContext): Promise<void>;
+
+	/**
+	 * Releases resources started in {@link beforeStaticExport}.
+	 */
+	async afterStaticExport?(_context: StaticExportContext): Promise<void>;
 
 	/**
 	 * Performs runtime-only integration setup after config build has already

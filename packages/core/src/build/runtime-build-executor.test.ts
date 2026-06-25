@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import {
 	getAppBuildExecutor,
@@ -171,5 +172,5 @@ test('getInstalledServerEntryBuildExecutor returns one SerializedBuildExecutor p
 
 	assert.ok(first instanceof SerializedBuildExecutor);
 	assert.equal(first, second);
-	assert.equal(appConfig.runtime?.serverEntryBuildExecutor, first);
+	assert.equal((appConfig as EcoPagesAppConfig).runtime?.serverEntryBuildExecutor, first);
 });

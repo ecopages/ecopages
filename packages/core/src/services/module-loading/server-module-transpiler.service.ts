@@ -50,7 +50,7 @@ export class ServerModuleTranspiler {
 	constructor(args: ServerModuleTranspilerBootstrapArgs) {
 		this.pageModuleImportService =
 			args.pageModuleImportService ??
-			new PageModuleImportService({
+			new PageModuleImportService(undefined, {
 				canLoadSourceModuleFromHost: args.canLoadSourceModuleFromHost,
 				getHostModuleLoader: args.getHostModuleLoader,
 			});

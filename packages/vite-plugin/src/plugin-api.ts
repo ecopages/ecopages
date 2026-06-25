@@ -1,4 +1,5 @@
 import type { EcoPagesAppConfig, EcoSourceTransform, EcoViteCompatiblePlugin } from '@ecopages/core';
+import type { EcopagesEmbeddedApp } from './warmup-dev-server.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
 /**
@@ -58,6 +59,14 @@ export interface EcopagesPluginApi {
 	getSourceTransforms(): EcoSourceTransform[];
 	setResolvedPluginNames(pluginNames: string[]): void;
 	getResolvedPluginNames(): string[];
+	setDevServerOrigin(origin: string): void;
+	getDevServerOrigin(): string | undefined;
+	getDevHostReady(): Promise<void>;
+	markDevHostReady(): void;
+	markDevHostFailed(error: unknown): void;
+	getCachedApp(): EcopagesEmbeddedApp | null;
+	setCachedApp(app: EcopagesEmbeddedApp): void;
+	invalidateAppCache(): void;
 }
 
 function uniqueStringList(values: string[] | undefined): string[] {
@@ -78,6 +87,7 @@ export function adaptSourceTransformToVitePlugin(
 ): EcopagesVitePlugin {
 	return {
 		name: nameOverride ?? plugin.name,
+		apply: 'serve',
 		enforce: plugin.enforce,
 		transform(code, id) {
 			const result = plugin.transform(code, id);
@@ -113,6 +123,16 @@ export function createEcopagesPluginApi(options: EcopagesViteOptions): EcopagesP
 	};
 
 	let resolvedPluginNames: string[] = [];
+	let devServerOrigin: string | undefined;
+	let cachedApp: EcopagesEmbeddedApp | null = null;
+
+	let resolveDevHostReady: (() => void) | undefined;
+	let rejectDevHostReady: ((error: unknown) => void) | undefined;
+	let devHostReadyState: 'pending' | 'ready' | 'failed' = 'pending';
+	const devHostReady = new Promise<void>((resolve, reject) => {
+		resolveDevHostReady = resolve;
+		rejectDevHostReady = reject;
+	});
 
 	return {
 		appConfig: options.appConfig,
@@ -125,6 +145,40 @@ export function createEcopagesPluginApi(options: EcopagesViteOptions): EcopagesP
 		},
 		getResolvedPluginNames() {
 			return [...resolvedPluginNames];
+		},
+		setDevServerOrigin(origin) {
+			devServerOrigin = origin.replace(/\/$/, '');
+		},
+		getDevServerOrigin() {
+			return devServerOrigin;
+		},
+		getDevHostReady() {
+			return devHostReady;
+		},
+		markDevHostReady() {
+			if (devHostReadyState !== 'pending') {
+				return;
+			}
+
+			devHostReadyState = 'ready';
+			resolveDevHostReady?.();
+		},
+		markDevHostFailed(error) {
+			if (devHostReadyState !== 'pending') {
+				return;
+			}
+
+			devHostReadyState = 'failed';
+			rejectDevHostReady?.(error);
+		},
+		getCachedApp() {
+			return cachedApp;
+		},
+		setCachedApp(app) {
+			cachedApp = app;
+		},
+		invalidateAppCache() {
+			cachedApp = null;
 		},
 	};
 }

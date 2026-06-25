@@ -22,6 +22,32 @@ describe('ReactRuntimeBundleService', () => {
 			reactDom: '/assets/vendors/react-dom.js',
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
 		});
+
+		const dependencies = service.getDependencies();
+		expect(dependencies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'react',
+					bundleOptions: expect.objectContaining({
+						naming: 'react.js',
+						define: expect.objectContaining({ 'process.env.NODE_ENV': '"production"' }),
+					}),
+				}),
+				expect.objectContaining({
+					name: 'react-dom',
+					bundleOptions: expect.objectContaining({
+						naming: 'react-dom.js',
+					}),
+				}),
+			]),
+		);
+		expect(
+			dependencies.some((dependency) =>
+				String((dependency as { bundleOptions?: { naming?: string } }).bundleOptions?.naming).includes(
+					'.development.',
+				),
+			),
+		).toBe(false);
 	});
 
 	it('uses development vendor asset names in development mode', () => {
@@ -60,24 +86,8 @@ describe('ReactRuntimeBundleService', () => {
 					name: 'use-sync-external-store-with-selector',
 					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
 					bundleOptions: expect.objectContaining({
-						naming: 'use-sync-external-store-with-selector.js',
-						define: expect.objectContaining({ 'process.env.NODE_ENV': '"production"' }),
-					}),
-				}),
-				expect.objectContaining({
-					name: 'use-sync-external-store-with-selector',
-					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
-					bundleOptions: expect.objectContaining({
 						naming: 'use-sync-external-store-with-selector.development.js',
 						define: expect.objectContaining({ 'process.env.NODE_ENV': '"development"' }),
-					}),
-				}),
-				expect.objectContaining({
-					name: 'react',
-					importPath: expect.any(String),
-					bundleOptions: expect.objectContaining({
-						naming: 'react.js',
-						define: expect.objectContaining({ 'process.env.NODE_ENV': '"production"' }),
 					}),
 				}),
 				expect.objectContaining({
@@ -91,15 +101,21 @@ describe('ReactRuntimeBundleService', () => {
 				expect.objectContaining({
 					name: 'react-router-esm',
 					importPath: '/router.ts',
-					bundleOptions: expect.objectContaining({ naming: 'react-router-esm.js' }),
-				}),
-				expect.objectContaining({
-					name: 'react-router-esm',
-					importPath: '/router.ts',
 					bundleOptions: expect.objectContaining({ naming: 'react-router-esm.development.js' }),
 				}),
 			]),
 		);
+		expect(
+			dependencies.some(
+				(dependency) =>
+					String((dependency as { bundleOptions?: { naming?: string } }).bundleOptions?.naming).endsWith(
+						'.js',
+					) &&
+					!String((dependency as { bundleOptions?: { naming?: string } }).bundleOptions?.naming).includes(
+						'.development.',
+					),
+			),
+		).toBe(false);
 	});
 
 	it('re-evaluates vendor asset names when the runtime mode changes after construction', () => {

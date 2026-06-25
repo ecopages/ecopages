@@ -29,6 +29,48 @@ afterEach(() => {
 });
 
 describe('ImageProcessorPlugin', () => {
+	test('skips image processing in Lit static render worker threads', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-worker-'));
+		tempRoots.push(rootDir);
+
+		const sourceDir = path.join(rootDir, 'src', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'images');
+		fs.mkdirSync(sourceDir, { recursive: true });
+		await createTestImage(path.join(sourceDir, 'hero.png'));
+
+		const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
+		process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+
+		try {
+			const plugin = imageProcessorPlugin({
+				options: {
+					sourceDir,
+					outputDir,
+					publicPath: '/images',
+					quality: 80,
+					format: 'webp',
+					sizes: [{ width: 320, label: 'sm' }],
+				},
+			});
+
+			await new ConfigBuilder()
+				.setRootDir(rootDir)
+				.setBaseUrl('http://localhost:3000')
+				.setProcessors([plugin])
+				.build();
+
+			expect(fs.existsSync(outputDir)).toBe(false);
+			await plugin.setup();
+			expect(fs.existsSync(outputDir)).toBe(false);
+		} finally {
+			if (previousWorkerFlag === undefined) {
+				delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
+			} else {
+				process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
+			}
+		}
+	});
+
 	test('setup rehydrates generated files after dist cleanup removes them', async () => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-plugin-'));
 		tempRoots.push(rootDir);

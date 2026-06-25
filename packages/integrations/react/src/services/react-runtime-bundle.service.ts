@@ -37,6 +37,7 @@ export type ReactRuntimeImports = {
 export interface ReactRuntimeBundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
 	rootDir?: string;
+	workDir?: string;
 }
 
 type RuntimeMode = 'development' | 'production';
@@ -50,6 +51,10 @@ export class ReactRuntimeBundleService {
 
 	setRootDir(rootDir: string | undefined): void {
 		this.config.rootDir = rootDir;
+	}
+
+	setWorkDir(workDir: string | undefined): void {
+		this.config.workDir = workDir;
 	}
 
 	private get isDevelopment(): boolean {
@@ -136,10 +141,11 @@ export class ReactRuntimeBundleService {
 		return buildReactRuntimeManifest(this.getRuntimeImports(mode));
 	}
 
-	getDependencies(): AssetDefinition[] {
+	getDependencies(options?: { modes?: RuntimeMode[] }): AssetDefinition[] {
 		const dependencies: AssetDefinition[] = [];
+		const modes = options?.modes ?? [this.getCurrentRuntimeMode()];
 
-		for (const mode of ['production', 'development'] as const) {
+		for (const mode of modes) {
 			const reactVendorImportRewritePlugin = this.createReactVendorImportRewritePlugin(mode);
 			const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin({
 				reactSpecifier: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
@@ -172,6 +178,7 @@ export class ReactRuntimeBundleService {
 					fileName: this.getReactVendorFileName(mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
 					rootDir: this.config.rootDir,
+					workDir: this.config.workDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
@@ -183,6 +190,7 @@ export class ReactRuntimeBundleService {
 					fileName: this.getReactDomVendorFileName(mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
 					rootDir: this.config.rootDir,
+					workDir: this.config.workDir,
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],

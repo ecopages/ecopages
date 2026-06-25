@@ -1,7 +1,20 @@
 # ecopages bundle benchmark
 
-Lean Vitest-based benchmark suite for the React integration's bundle path.
-Uses the `playground/kitchen-sink` example as a real-world workload.
+Lean Vitest-based benchmark suite for the **kitchen-sink** project
+(`playground/kitchen-sink`) — the full integration demo app, not a synthetic
+fixture. All benches read from the real `src/` tree and use
+`kitchen-sink-config.ts` (same factory as `eco.config.ts`).
+
+## What is being built
+
+| Layer                                    | Kitchen-sink?    | Notes                                                                                                      |
+| ---------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Sources**                              | Yes              | `playground/kitchen-sink/src/**` — all pages, layouts, handlers                                            |
+| **Config**                               | Yes              | `createKitchenSinkConfig()` — Kita, React, Lit, Ecopages-JSX, MDX, image processor, PostCSS/Tailwind       |
+| **Server entry**                         | Yes              | Real `app.ts` (API routes, WebSocket handler, explicit views)                                              |
+| **E2E build (`buildStatic`, `SSG.run`)** | Yes              | Full route tree — all static pages, Lit fetch server, image pipeline                                       |
+| **Micro segments**                       | Sample pages     | Per-operation timing on one page per integration (not the full tree)                                       |
+| **Output dirs**                          | Usually isolated | `dist/__bench-*` / `.eco/__bench-*` so benches don't clobber `dist/`; one scenario uses production `dist/` |
 
 ## Scope (what we measure, what we don't)
 
@@ -10,6 +23,10 @@ Uses the `playground/kitchen-sink` example as a real-world workload.
 - `BrowserBundleService.bundle()` cost for the four HMR scenarios that the
   watcher actually triggers
 - Production build cost (single page and all pages, minify + treeshake)
+- **Route-module disk cache** warm import cost (`build-speed-bench.bench.ts`)
+- **Static production build segments** (`static-build-bench.bench.ts`):
+  server-entry Rolldown cold/warm, route-module Rolldown cold vs warm,
+  `StaticSiteGenerator.run`, and full `buildStatic` cold/warm
 - Heavy-library scenario (page that pulls in `react-dom`, `lit`, `kitajs`,
   `mdx` and the ecopages core)
 - Cross-integration cost: a representative page per integration
@@ -132,6 +149,51 @@ is 2.77 ms total; the post-build pass is sub-ms. Re-evaluate after
 Rolldown (Phase 3) since Rolldown's tree-shaking and import
 preservation are different from esbuild's.
 
+## Static production build baseline (kitchen-sink, 2026-06-24)
+
+Measured via `static-build-bench.bench.ts` on Node after Build Performance Plan
+work (probe dedupe, server-entry cache, parallel SSG, setup dedupe).
+
+```
+Scenario                                          | median (ms) | p99 (ms) |   hz
+--------------------------------------------------|-------------|----------|------
+server entry bundle cold (app.ts)                  |       399   |    540   |     3
+server entry bundle warm (.eco cache hit)          |         8   |     18   |   129
+route-module rolldown cold (fresh loader)          |        24   |     62   |    42
+route-module warm import cache hit                 |      0.06   |   0.13   | 16801
+route-module warm import (3 pages)                 |      0.12   |   0.22   |  8697
+StaticSiteGenerator.run warm (full SSG)            |       141   |    299   |     7
+buildStatic warm (unchanged sources)               |       148   |    261   |     7
+buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0.22
+```
+
+**Interpretation:**
+
+- **Rolldown cold route-module** (~24 ms/page) vs **warm cache hit** (~0.06 ms)
+  shows why removing the `static-page-probe` double-bundle mattered.
+- **Server-entry warm** (~8 ms lookup) vs **cold** (~400 ms Rolldown) validates
+  the `.eco/.server-entry` cache path.
+- **`buildStatic` warm** (~148 ms) runs in an isolated bench dist with warm
+  caches; full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
+  server, image processor, all pages).
+- **`StaticSiteGenerator.run`** (~141 ms warm) isolates SSG from server-entry
+  bundling and duplicate processor setup.
+
+### Unified pages graph baseline (kitchen-sink, 2026-06-25)
+
+Measured via `static-build-bench.bench.ts` and `static-build-unified-graph-parity.test.ts`.
+
+```
+Scenario                                          | Notes
+--------------------------------------------------|------------------------------------------
+buildStatic cold baseline (graph off)             | Anchor for total Rolldown + wall time
+buildStatic cold unified graph (default on)       | Asserts 0 per-page route-module Rolldowns
+StaticSiteGenerator.run cold unified graph        | Asserts 0 per-page route-module Rolldowns
+```
+
+Parity suite compares normalized HTML for all static routes with graph on vs `ECOPAGES_UNIFIED_PAGES_GRAPH=0`.
+Primary success metric: `getPageModuleRolldownBuildInvocations() === 0` during SSG after one graph build.
+
 ## Files
 
 - `_kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
@@ -142,4 +204,10 @@ preservation are different from esbuild's.
 - `heavy-bench.bench.ts` — heavy-library scenario.
 - `integration-bench.bench.ts` — one representative page per integration.
 - `memory-snap.bench.ts` — 100-iteration memory stability.
+- `build-speed-bench.bench.ts` — route-module disk cache warm hits.
+- `static-build-bench.bench.ts` — static production build segments (server entry,
+  route-module Rolldown, SSG, full `buildStatic`, unified graph on/off). Uses isolated
+  `dist/__bench-static-build__` / `.eco/__bench-static-build__` dirs.
+- `_static-build-fixture.ts` — bootstrap for static-build benches.
+- `static-build-unified-graph-parity.test.ts` — HTML parity and eligibility for unified graph.
 - `results/bench-baseline.json` — versioned baseline.

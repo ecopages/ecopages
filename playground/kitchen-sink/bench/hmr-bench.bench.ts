@@ -98,4 +98,16 @@ describe('hmr-bench', () => {
 		},
 		{ time: 1500, warmupTime: 300, warmupIterations: 2 },
 	);
+
+	bench(
+		'watch-session warm rebuild loop (10 sequential saves)',
+		async () => {
+			const b = await setupBrowser();
+			for (let index = 0; index < 10; index += 1) {
+				touchFile(REACT_PAGE);
+				await b.bundle({ ...BUNDLE_OPTIONS_BASE, entrypoints: [REACT_PAGE] });
+			}
+		},
+		{ time: 2500, warmupTime: 400, warmupIterations: 1 },
+	);
 });

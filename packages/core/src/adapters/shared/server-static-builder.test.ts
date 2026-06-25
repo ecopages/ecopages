@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
+import * as staticBuildInvalidation from '../../static-site-generator/static-build-invalidation.ts';
 import {
 	ServerStaticBuilder,
 	type ServeOptions,
@@ -69,7 +70,22 @@ function createMockDependencies() {
 			distDir: path.join(TMP_DIR, 'dist'),
 			workDir: path.join(TMP_DIR, '.eco'),
 		} as EcoPagesAppConfig['absolutePaths'],
+		runtime: {},
 	} as unknown as EcoPagesAppConfig;
+
+	const defaultBuildAdapter: BuildAdapter = {
+		ownership: 'rolldown',
+		async build(): Promise<BuildResult> {
+			return { success: true, logs: [], outputs: [] };
+		},
+		resolve(importPath: string): string {
+			return importPath;
+		},
+		getTranspileOptions() {
+			return { target: 'node', format: 'esm', sourcemap: 'hidden' };
+		},
+	};
+	setAppBuildAdapter(AppConfig, defaultBuildAdapter);
 
 	const ServeOptions: ServeOptions = {
 		hostname: 'localhost',
@@ -251,6 +267,7 @@ describe('resolve-entry-file constants', () => {
 describe('ServerStaticBuilder', () => {
 	beforeAll(() => {
 		fs.mkdirSync(TMP_DIR, { recursive: true });
+		fs.writeFileSync(path.join(TMP_DIR, 'app.ts'), 'await Promise.resolve();\n', 'utf8');
 	});
 
 	afterAll(() => {
@@ -273,6 +290,69 @@ describe('ServerStaticBuilder', () => {
 	});
 
 	describe('build', () => {
+		it('re-runs refreshRuntimeAssets when dist is reset even if adapter init already prepared runtime assets', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
+				createMockDependencies();
+			const appConfig = {
+				...AppConfig,
+				runtime: {
+					...AppConfig.runtime,
+					runtimeAssetsPrepared: true,
+				},
+			} as EcoPagesAppConfig;
+
+			const builder = new ServerStaticBuilder({
+				appConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+				logger,
+			});
+
+			await builder.build(undefined, {
+				router: Router,
+				routeRendererFactory: RouteRendererFactory,
+			});
+
+			expect(calls.processorSetup).toBe(1);
+			expect(calls.integrationSetup).toBe(1);
+			expect(appConfig.runtime?.runtimeAssetsPrepared).toBe(true);
+		});
+
+		it('skips refreshRuntimeAssets when runtime assets were already prepared and dist is preserved', async () => {
+			const shouldResetSpy = vi
+				.spyOn(staticBuildInvalidation, 'shouldResetStaticExportDirectory')
+				.mockReturnValue(false);
+
+			try {
+				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
+					createMockDependencies();
+				const appConfig = {
+					...AppConfig,
+					runtime: {
+						...AppConfig.runtime,
+						runtimeAssetsPrepared: true,
+					},
+				} as EcoPagesAppConfig;
+
+				const builder = new ServerStaticBuilder({
+					appConfig,
+					staticSiteGenerator: StaticSiteGenerator,
+					serveOptions: ServeOptions,
+					logger,
+				});
+
+				await builder.build(undefined, {
+					router: Router,
+					routeRendererFactory: RouteRendererFactory,
+				});
+
+				expect(calls.processorSetup).toBe(0);
+				expect(calls.integrationSetup).toBe(0);
+			} finally {
+				shouldResetSpy.mockRestore();
+			}
+		});
+
 		it('should run static site generator with correct options', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();
@@ -295,6 +375,8 @@ describe('ServerStaticBuilder', () => {
 					baseUrl: 'http://localhost:3000',
 					routeRendererFactory: RouteRendererFactory,
 					staticRoutes: undefined,
+					force: false,
+					preserveExportDirectory: false,
 				},
 			]);
 		});
@@ -457,13 +539,14 @@ describe('ServerStaticBuilder', () => {
 				return distDir;
 			}
 
-			it('skips bundling when no API endpoints are registered', async () => {
+			it('bundles server entry even when no API endpoints are registered', async () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 					createMockDependencies();
 				const distDir = setupBundleFixture('no-endpoints');
-				fs.writeFileSync(path.join(distDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				fs.writeFileSync(path.join(TMP_DIR, 'app.ts'), 'await Promise.resolve();', 'utf8');
 				const appConfig = {
 					...AppConfig,
+					rootDir: TMP_DIR,
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
 
@@ -479,11 +562,11 @@ describe('ServerStaticBuilder', () => {
 					routeRendererFactory: RouteRendererFactory,
 				});
 
-				expect(fs.existsSync(path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME))).toBe(false);
-				assert.equal(
-					calls.info.some((m) => m === 'Bundling server entry file...'),
-					false,
-				);
+				expect(
+					calls.info.some(
+						(m) => m === 'Bundling server entry file...' || m === 'Reusing cached server entry bundle',
+					),
+				).toBe(true);
 			});
 
 			it('throws when entry file does not exist', async () => {

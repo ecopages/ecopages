@@ -32,6 +32,7 @@ describe('runtime app bootstrap', () => {
 				build: false,
 				start: false,
 				dev: true,
+				force: false,
 				port: 4321,
 				hostname: '127.0.0.1',
 				reactFastRefresh: undefined,
@@ -56,41 +57,59 @@ describe('runtime app bootstrap', () => {
 		assert.equal(binding.watch, true);
 	});
 
-	it('skips the runtime server only when build or preview does not require fetch', () => {
-		const withoutFetchRuntime = resolveStaticRuntimeMode({
+	it('builds static pages directly for build and preview commands', () => {
+		const previewMode = resolveStaticRuntimeMode({
 			appConfig: {
-				integrations: [{ staticBuildStep: 'render' }],
+				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
 			} as any,
 			cliArgs: {
 				preview: true,
 				build: false,
 				start: false,
 				dev: false,
+				force: false,
 				port: undefined,
 				hostname: undefined,
 				reactFastRefresh: undefined,
 			},
 		});
 
-		assert.equal(withoutFetchRuntime.requiresFetchRuntime, false);
-		assert.equal(withoutFetchRuntime.canBuildWithoutRuntimeServer, true);
+		assert.equal(previewMode.canBuildWithoutRuntimeServer, true);
 
-		const withFetchRuntime = resolveStaticRuntimeMode({
+		const buildMode = resolveStaticRuntimeMode({
 			appConfig: {
-				integrations: [{ staticBuildStep: 'fetch' }],
+				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
 			} as any,
 			cliArgs: {
 				preview: false,
 				build: true,
 				start: false,
 				dev: false,
+				force: false,
 				port: undefined,
 				hostname: undefined,
 				reactFastRefresh: undefined,
 			},
 		});
 
-		assert.equal(withFetchRuntime.requiresFetchRuntime, true);
-		assert.equal(withFetchRuntime.canBuildWithoutRuntimeServer, false);
+		assert.equal(buildMode.canBuildWithoutRuntimeServer, true);
+
+		const devMode = resolveStaticRuntimeMode({
+			appConfig: {
+				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
+			} as any,
+			cliArgs: {
+				preview: false,
+				build: false,
+				start: false,
+				dev: true,
+				force: false,
+				port: undefined,
+				hostname: undefined,
+				reactFastRefresh: undefined,
+			},
+		});
+
+		assert.equal(devMode.canBuildWithoutRuntimeServer, false);
 	});
 });

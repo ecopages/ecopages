@@ -308,6 +308,20 @@ export abstract class SharedHmrManager implements IHmrManager {
 			return;
 		}
 
+		if (!fileSystem.exists(outputPath) && buildResult.outputs.length > 0) {
+			const resolvedOutputPath = path.resolve(outputPath);
+			const emittedOutput =
+				buildResult.outputs.find((output) => path.resolve(output.path) === resolvedOutputPath)?.path ??
+				buildResult.outputs.find((output) => path.basename(output.path) === path.basename(outputPath))?.path;
+
+			if (emittedOutput && fileSystem.exists(emittedOutput)) {
+				fileSystem.ensureDir(path.dirname(outputPath));
+				if (path.resolve(emittedOutput) !== resolvedOutputPath) {
+					fileSystem.copyFile(emittedOutput, outputPath);
+				}
+			}
+		}
+
 		const entrypointDependencies = buildResult.dependencyGraph?.entrypoints?.[entrypointPath];
 		if (entrypointDependencies) {
 			this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, entrypointDependencies);
@@ -323,5 +337,9 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.watchedFiles.clear();
 		this.entrypointDependencyGraph.reset();
 		this.plugins = [];
+	}
+
+	[Symbol.dispose]() {
+		this.stop();
 	}
 }

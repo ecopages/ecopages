@@ -1,4 +1,4 @@
-import { createServer, type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
+import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
@@ -25,6 +25,7 @@ import {
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
+import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
@@ -58,6 +59,7 @@ export interface NodeServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: NodeServerInstance) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
 	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }) => void;
+	dispose: () => Promise<void>;
 }
 
 /**
@@ -88,6 +90,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private errorHandler?: ErrorHandler;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
+	private projectWatcher: ProjectWatcher | null = null;
+	private adapterDisposed = false;
 	private readonly previewHost: StaticPreviewHost;
 	private readonly requestBridge: NodeHttpRequestBridge;
 	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
@@ -193,7 +197,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
 
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
 		}
 
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
@@ -205,26 +209,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
-	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
 		if (!this.initialized) {
 			await this.initialize();
 		}
 
-		const buildServer = await this.startBuildRuntimeServer();
-		const buildRuntimeOrigin = this.getListeningServerOrigin(buildServer);
-
-		try {
-			await this.staticBuilder.build(
-				{ preview: false, baseUrl: buildRuntimeOrigin },
-				{
-					router: this.router,
-					routeRendererFactory: this.routeRendererFactory,
-					staticRoutes: this.staticRoutes,
-				},
-			);
-		} finally {
-			await this.stopBuildRuntimeServer(buildServer);
-		}
+		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
+		await this.staticBuilder.build(
+			{ preview: false, baseUrl, force: options?.force },
+			{
+				router: this.router,
+				routeRendererFactory: this.routeRendererFactory,
+				staticRoutes: this.staticRoutes,
+			},
+		);
 
 		if (!options?.preview) {
 			return;
@@ -241,84 +239,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
-	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
-		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
-		const port = 0;
-
-		const server = createServer(async (req, res) => {
-			try {
-				const webRequest = this.requestBridge.createWebRequest(req, this.runtimeOrigin);
-				const response = await this.handleRequest(webRequest);
-				await this.requestBridge.sendNodeResponse(res, response);
-			} catch (error) {
-				if (error instanceof NodeClientAbortError) {
-					return;
-				}
-
-				appLogger.error('Node static build runtime request failed', error as Error);
-				res.statusCode = 500;
-				res.end('Internal Server Error');
-			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(port, hostname, () => {
-				server.off('error', reject);
-				resolve();
-			});
-		});
-
-		this.serverInstance = server;
-		appLogger.info(`Server running at ${this.getListeningServerOrigin(server)}`);
-
-		return server;
-	}
-
-	private getListeningServerOrigin(server: NodeHttpServer): string {
-		const address = server.address();
-		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
-
-		if (!address || typeof address === 'string') {
-			throw new Error('Build runtime server did not expose a numeric listening port');
-		}
-
-		return `http://${hostname}:${address.port}`;
-	}
-
-	/**
-	 * Gracefully shuts down the ephemeral build runtime server.
-	 *
-	 * `closeAllConnections()` is called *before* `close()` because `server.close()`
-	 * only stops accepting new connections — it waits for existing keep-alive
-	 * connections to finish naturally, which can stall the build indefinitely.
-	 * `closeAllConnections()` force-closes any lingering sockets immediately so
-	 * the `close()` callback fires promptly.
-	 *
-	 * The `NodeClientBridge` heartbeat is also destroyed here so its `setInterval`
-	 * does not prevent the Node.js process from exiting cleanly after the build.
-	 */
-	private async stopBuildRuntimeServer(server: NodeHttpServer): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			server.close((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-
-				resolve();
-			});
-			server.closeAllConnections();
-		});
-
-		if (this.serverInstance === server) {
-			this.serverInstance = null;
-		}
-
-		this.bridge?.destroy();
-		this.bridge = null;
-	}
-
 	public async createAdapter(): Promise<NodeServerAdapterResult> {
 		await this.initialize();
 
@@ -328,7 +248,34 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			dispose: this.dispose.bind(this),
 		};
+	}
+
+	/**
+	 * Releases dev-time resources owned by the adapter.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
+	 * should shut down transport through the runtime host before disposing.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.adapterDisposed) {
+			return;
+		}
+
+		this.adapterDisposed = true;
+
+		await this.projectWatcher?.close();
+		this.projectWatcher = null;
+
+		this.hmrManager?.stop();
+		this.hmrManager = null;
+
+		this.bridge?.destroy();
+		this.bridge = null;
+
+		await this.previewHost.stop();
 	}
 
 	/**
@@ -442,6 +389,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				bridge: this.bridge,
 			});
 
+			this.projectWatcher = watcher;
 			await watcher.createWatcherSubscription();
 		} else if (hasUserWs) {
 			this.wireUserWebSocketUpgrades(server);

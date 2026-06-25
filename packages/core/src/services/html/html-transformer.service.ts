@@ -255,8 +255,12 @@ export class HtmlTransformerService {
 	 * string-based fallback remains in place for runtimes that cannot provide one
 	 * of those rewriter implementations.
 	 */
-	async transform(res: Response, contributions: HtmlDocumentContribution[] = []): Promise<Response> {
-		const { head, body } = this.groupDependenciesByPosition();
+	async transform(
+		res: Response,
+		contributions: HtmlDocumentContribution[] = [],
+		pagePackage?: PagePackageResult,
+	): Promise<Response> {
+		const { head, body } = this.groupDependenciesByPosition(pagePackage);
 		const { headPrepend, headAppend, bodyPrepend, bodyAppend } = this.groupContributionsByPlacement(contributions);
 		const htmlRewriter = await this.htmlRewriterProvider.createHtmlRewriter();
 
@@ -314,10 +318,12 @@ export class HtmlTransformerService {
 	/**
 	 * Splits processed assets into head and body injection groups.
 	 */
-	private groupDependenciesByPosition() {
-		const dependencies = this.pagePackage
-			? this.resolvePagePackageHtmlDependencies(this.pagePackage)
-			: this.processedDependencies;
+	private groupDependenciesByPosition(pagePackageOverride?: PagePackageResult) {
+		const dependencies = pagePackageOverride
+			? this.resolvePagePackageHtmlDependencies(pagePackageOverride)
+			: this.pagePackage
+				? this.resolvePagePackageHtmlDependencies(this.pagePackage)
+				: this.processedDependencies;
 
 		return dependencies.reduce(
 			(acc, dep) => {

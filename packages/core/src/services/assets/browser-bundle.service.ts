@@ -2,6 +2,7 @@ import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../../bui
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import {
 	getAppBrowserBuildPlugins,
+	getAppBuildExecutor,
 	getAppHmrBuildExecutor,
 	getAppTranspileOptions,
 } from '../../build/build-adapter.ts';
@@ -23,6 +24,7 @@ export type BrowserBundleOptions = {
 	externalPackages?: boolean;
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
+	executor?: 'build' | 'hmr';
 	[key: string]: unknown;
 	profile: BuildTranspileProfile;
 	excludeAppBuildPlugins?: string[];
@@ -83,7 +85,7 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	 * site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, excludeAppBuildPlugins, plugins, ...rawBuildOptions } = options;
+		const { profile, excludeAppBuildPlugins, plugins, executor = 'hmr', ...rawBuildOptions } = options;
 		const appBrowserPlugins = getAppBrowserBuildPlugins(this.appConfig);
 		const filteredAppBrowserPlugins =
 			excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
@@ -96,7 +98,9 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 			plugins: mergeEcoBuildPlugins(plugins, filteredAppBrowserPlugins),
 		};
 
-		return await getAppHmrBuildExecutor(this.appConfig).build(request);
+		const buildExecutor =
+			executor === 'build' ? getAppBuildExecutor(this.appConfig) : getAppHmrBuildExecutor(this.appConfig);
+		return await buildExecutor.build(request);
 	}
 
 	async bundleGroupedEntries(

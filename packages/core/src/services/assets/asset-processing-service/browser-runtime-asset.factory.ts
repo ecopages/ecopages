@@ -71,6 +71,7 @@ export function createBrowserRuntimeModuleAsset(options: {
 	fileName: string;
 	cacheDirName?: string;
 	rootDir?: string;
+	workDir?: string;
 	bundleOptions?: {
 		define?: Record<string, string>;
 		minify?: boolean;
@@ -85,6 +86,7 @@ export function createBrowserRuntimeModuleAsset(options: {
 		modules: options.modules,
 		fileName: `${options.name}-entry.mjs`,
 		rootDir: options.rootDir,
+		workDir: options.workDir,
 		cacheDirName: options.cacheDirName,
 	});
 

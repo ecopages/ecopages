@@ -220,6 +220,39 @@ describe('NodeModuleScriptProcessor', () => {
 			);
 			expect(result.filepath).toBe('/test/project/.eco/public/assets/vendors/react.development.js');
 		});
+
+		test('should copy node module scripts when bundling is disabled', async () => {
+			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptSpy = vi.spyOn(
+				processor as unknown as { bundleScript: (options: Record<string, unknown>) => Promise<string> },
+				'bundleScript',
+			);
+			const ensureDirSpy = vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => undefined);
+			const copyFileSpy = vi.spyOn(fileSystem, 'copyFile').mockImplementation(() => undefined);
+			fileSystem.exists = vi.fn(
+				(candidatePath: string) =>
+					candidatePath !== '/test/project/.eco/public/assets/vendors/nm-install-hydrator',
+			);
+
+			const dep: NodeModuleScriptAsset = {
+				kind: 'script',
+				source: 'node-module',
+				importPath: '@ecopages/radiant/client/install-hydrator',
+				inline: false,
+				bundle: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(bundleScriptSpy).not.toHaveBeenCalled();
+			expect(ensureDirSpy).toHaveBeenCalledWith('/test/project/.eco/public/assets/vendors');
+			expect(copyFileSpy).toHaveBeenCalledWith(
+				'/test/project/node_modules/@ecopages/radiant/client/install-hydrator',
+				'/test/project/.eco/public/assets/vendors/nm-install-hydrator',
+			);
+			expect(result.inline).toBe(false);
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/vendors/nm-install-hydrator');
+		});
 	});
 
 	describe('resolveModulePath with real dependencies', () => {

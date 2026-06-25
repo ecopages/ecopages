@@ -1,5 +1,6 @@
 import { createRendererModuleContext } from './integration-di.ts';
-import type { Alias, AliasOptions, SSROptions } from 'vite';
+import { resolveViteDevServerOrigin } from './resolve-vite-dev-origin.ts';
+import type { Alias, AliasOptions, ResolvedConfig, SSROptions } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin, EcopagesViteUserConfig } from './types.ts';
 
@@ -72,7 +73,12 @@ function mergeNoExternal(existing: SSROptions['noExternal'], additions: string[]
 export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 	return {
 		name: 'ecopages:config',
-		configResolved() {
+		apply: 'serve',
+		configResolved(config: ResolvedConfig) {
+			const devServerOrigin = resolveViteDevServerOrigin(config);
+			api.setDevServerOrigin(devServerOrigin);
+			api.appConfig.baseUrl = devServerOrigin;
+
 			api.appConfig.runtime = {
 				...(api.appConfig.runtime ?? {}),
 				rendererModuleContext: createRendererModuleContext(api.appConfig),

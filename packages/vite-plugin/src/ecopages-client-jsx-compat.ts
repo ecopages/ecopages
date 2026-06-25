@@ -23,6 +23,7 @@ export function ecopagesClientJsxCompat(api: EcopagesPluginApi): EcopagesVitePlu
 	if (!hostIntegration?.jsxImportSource) {
 		return {
 			name: 'ecopages:client-jsx-compat',
+			apply: 'serve',
 		};
 	}
 
@@ -45,6 +46,7 @@ export function ecopagesClientJsxCompat(api: EcopagesPluginApi): EcopagesVitePlu
 
 	return {
 		name: 'ecopages:client-jsx-compat',
+		apply: 'serve',
 		enforce: 'pre',
 		transform(code, id, options) {
 			if (options?.ssr) {

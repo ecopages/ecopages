@@ -27,6 +27,7 @@ function createIslandClientModuleSource(): string {
 export function ecopagesIslands(_api: EcopagesPluginApi): EcopagesVitePlugin {
 	return {
 		name: 'ecopages:islands',
+		apply: 'serve',
 		resolveId(id) {
 			if (id === ECOPAGES_ISLAND_CLIENT_MODULE_ID) {
 				return RESOLVED_ISLAND_CLIENT_MODULE_ID;

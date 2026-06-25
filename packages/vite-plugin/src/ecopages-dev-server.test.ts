@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
 
+type DevServerModule = {
+	app?: {
+		fetch?: (request: Request) => Promise<Response>;
+		attachWebSocketUpgrades?: (...args: unknown[]) => Promise<void>;
+	};
+};
+
 function createApi() {
 	return createEcopagesPluginApi({
 		appConfig: {
@@ -21,21 +28,40 @@ function createApi() {
 	});
 }
 
-function setupDevServerMiddleware(
+async function setupDevServerMiddleware(
 	fetchResponse: Response,
 	options?: {
-		module?: Record<string, unknown>;
+		module?: DevServerModule;
 		includeMiddlewares?: boolean;
 		httpServer?: Record<string, unknown>;
+		devServerOrigin?: string;
+		captureFetch?: (request: Request) => void;
 	},
 ) {
 	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
 
 	const api = createApi();
+	if (options?.devServerOrigin) {
+		api.setDevServerOrigin(options.devServerOrigin);
+	}
 
 	const plugin = ecopagesDevServer(api);
+	const fetchImpl =
+		options?.module?.app?.fetch ??
+		(async (request: Request) => {
+			options?.captureFetch?.(request);
+			return fetchResponse;
+		});
+
 	const server = {
 		httpServer: options?.httpServer,
+		async transformIndexHtml(_url: string, html: string) {
+			if (html.includes('/@vite/client')) {
+				return html;
+			}
+
+			return html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>');
+		},
 		async ssrLoadModule(id: string) {
 			if (id === '@ecopages/core/dev/host-runtime') {
 				return {
@@ -47,10 +73,14 @@ function setupDevServerMiddleware(
 				};
 			}
 
+			if (id === 'virtual:ecopages/images.ts') {
+				return { images: {} };
+			}
+
 			return (
 				options?.module ?? {
 					app: {
-						fetch: async () => fetchResponse,
+						fetch: fetchImpl,
 					},
 				}
 			);
@@ -66,6 +96,7 @@ function setupDevServerMiddleware(
 	}
 
 	(plugin.configureServer as Function)(server as never)?.();
+	await api.getDevHostReady();
 
 	const headers = new Map<string, string>();
 	const chunks: Uint8Array[] = [];
@@ -85,6 +116,7 @@ function setupDevServerMiddleware(
 	};
 
 	return {
+		api,
 		middleware,
 		headers,
 		chunks,
@@ -137,7 +169,7 @@ describe('ecopagesDevServer', () => {
 		};
 
 		(plugin.configureServer as Function)(server as never)?.();
-		await Promise.resolve();
+		await api.getDevHostReady();
 
 		expect(registeredLoader).toBeTypeOf('function');
 		await expect(registeredLoader?.('/virtual:tla-module')).resolves.toEqual({
@@ -146,8 +178,34 @@ describe('ecopagesDevServer', () => {
 		});
 	});
 
+	it('builds middleware requests from the resolved Vite dev-server origin', async () => {
+		let receivedRequest: Request | undefined;
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			devServerOrigin: 'http://localhost:4012',
+			captureFetch: (request) => {
+				receivedRequest = request;
+			},
+		});
+
+		await harness.middleware?.(
+			{
+				headers: {},
+				method: 'GET',
+				originalUrl: '/catalog/semantic-html',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) {
+					throw error;
+				}
+			},
+		);
+
+		expect(receivedRequest?.url).toBe('http://localhost:4012/catalog/semantic-html');
+	});
+
 	it('removes stale body-derived headers after HTML rewriting', async () => {
-		const harness = setupDevServerMiddleware(
+		const harness = await setupDevServerMiddleware(
 			new Response('<!DOCTYPE html><html><head></head><body></body></html>', {
 				headers: {
 					'content-length': '54',
@@ -179,7 +237,7 @@ describe('ecopagesDevServer', () => {
 	});
 
 	it('passes non-html responses through without rewriting them', async () => {
-		const harness = setupDevServerMiddleware(
+		const harness = await setupDevServerMiddleware(
 			new Response(JSON.stringify({ ok: true }), {
 				status: 200,
 				headers: {
@@ -208,7 +266,7 @@ describe('ecopagesDevServer', () => {
 	});
 
 	it('forwards redirect responses without rewriting them', async () => {
-		const harness = setupDevServerMiddleware(
+		const harness = await setupDevServerMiddleware(
 			new Response(null, {
 				status: 302,
 				headers: {
@@ -248,7 +306,7 @@ describe('ecopagesDevServer', () => {
 	});
 
 	it('passes WebSocket upgrade requests through to the HTTP server upgrade handlers', async () => {
-		const harness = setupDevServerMiddleware(new Response('unused'), {
+		const harness = await setupDevServerMiddleware(new Response('unused'), {
 			module: {
 				app: {
 					fetch: async () => new Response('ok'),
@@ -278,17 +336,21 @@ describe('ecopagesDevServer', () => {
 	it('attaches app websocket upgrades before serving HTTP', async () => {
 		const attachWebSocketUpgrades = vi.fn(async () => undefined);
 		let attachCompleted = false;
+		let fetchCount = 0;
 
-		const harness = setupDevServerMiddleware(new Response('ok'), {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
 			httpServer: {},
 			module: {
 				app: {
 					fetch: async () => {
-						expect(attachCompleted).toBe(true);
+						fetchCount += 1;
+						if (fetchCount > 1) {
+							expect(attachCompleted).toBe(true);
+						}
 						return new Response('ok');
 					},
 					attachWebSocketUpgrades: async (...args: unknown[]) => {
-						await attachWebSocketUpgrades(...args);
+						await (attachWebSocketUpgrades as (...spreadArgs: unknown[]) => Promise<void>)(...args);
 						attachCompleted = true;
 					},
 				},
@@ -312,25 +374,28 @@ describe('ecopagesDevServer', () => {
 	});
 
 	it('surfaces a clear error when the app module does not export app.fetch()', async () => {
-		const harness = setupDevServerMiddleware(new Response('unused'), {
-			module: {},
+		await expect(setupDevServerMiddleware(new Response('unused'), { module: {} })).rejects.toThrow(
+			'must export an app.fetch(request) handler',
+		);
+	});
+
+	it('serves repeated middleware requests from the warmed app cache', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			module: {
+				app: {
+					fetch: async () => new Response('ok'),
+				},
+			},
 		});
 
-		let receivedError: unknown;
-
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, () => undefined);
 		await harness.middleware?.(
-			{
-				headers: {},
-				method: 'GET',
-				originalUrl: '/',
-			},
+			{ headers: {}, method: 'GET', originalUrl: '/images' },
 			harness.response,
-			(error?: unknown) => {
-				receivedError = error;
-			},
+			() => undefined,
 		);
 
-		expect(receivedError).toBeInstanceOf(Error);
-		expect((receivedError as Error).message).toContain('must export an app.fetch(request) handler');
+		expect(harness.api.getCachedApp()).not.toBeNull();
+		expect(harness.isEnded()).toBe(true);
 	});
 });

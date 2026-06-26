@@ -125,12 +125,8 @@ export function resolvePersistedLayout(
 
 	if (!cached || (refreshPersistedLayout && cached !== Layout)) {
 		layoutCache.set(layoutKey, Layout);
+		return { layout: Layout, key: layoutKey };
 	}
 
-	const persistedLayout = layoutCache.get(layoutKey) ?? Layout;
-
-	return {
-		layout: persistedLayout,
-		key: layoutKey,
-	};
+	return { layout: cached, key: layoutKey };
 }

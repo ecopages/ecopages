@@ -1,23 +1,19 @@
 /**
  * Page module loading and configuration resolution service for React integration.
  *
- * Handles MDX compilation, component config metadata resolution,
- * and module hydration analysis.
+ * Handles component config metadata resolution and module hydration analysis.
+ * MDX page modules load through the core {@link PageModuleImportService} path
+ * using the React plugin's server build contributions.
  *
  * @module
  */
 
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { EcoComponentConfig, EcoPageFile } from '@ecopages/core';
-import { build, type BuildExecutor } from '@ecopages/core/build/build-adapter';
-import { normalizeNodeRuntimeBuildOutputFile } from '@ecopages/core/build/runtime-build-output-normalizer';
 import { rapidhash } from '@ecopages/core/hash';
 import { fileSystem } from '@ecopages/file-system';
-import type { CompileOptions } from '@mdx-js/mdx';
 import { someInConfigTree } from '../utils/component-config-traversal.ts';
 import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
-import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts';
 
 /**
  * Configuration for the ReactPageModuleService.
@@ -26,18 +22,15 @@ export interface ReactPageModuleServiceConfig {
 	rootDir: string;
 	distDir: string;
 	workDir: string;
-	buildExecutor: BuildExecutor;
 	layoutsDir?: string;
 	componentsDir?: string;
-	mdxCompilerOptions?: CompileOptions;
 	mdxExtensions: string[];
 	integrationName: string;
 	hasRouterAdapter: boolean;
 }
 
 /**
- * Manages page module loading (including MDX compilation), config metadata
- * resolution, and hydration analysis for React pages.
+ * Manages page module metadata resolution and hydration analysis for React pages.
  */
 export class ReactPageModuleService {
 	private readonly config: ReactPageModuleServiceConfig;
@@ -48,94 +41,13 @@ export class ReactPageModuleService {
 
 	/**
 	 * Checks if the given file path corresponds to an MDX file based on configured extensions.
-	 * @param filePath - The file path to check
-	 * @returns True if the file is an MDX file
 	 */
 	isMdxFile(filePath: string): boolean {
 		return this.config.mdxExtensions.some((ext) => filePath.endsWith(ext));
 	}
 
 	/**
-	 * Compiles and imports an MDX file as a page module.
-	 *
-	 * @param filePath - Absolute path to the MDX file
-	 * @returns The imported module
-	 */
-	async importMdxPageFile(
-		filePath: string,
-		options?: { bypassCache?: boolean; cacheScope?: string },
-	): Promise<EcoPageFile<{ config?: EcoComponentConfig }>> {
-		const mdxPlugin = createReactMdxLoaderPlugin(
-			this.config.mdxCompilerOptions ?? {
-				jsxImportSource: 'react',
-				jsxRuntime: 'automatic',
-				development: process?.env?.NODE_ENV === 'development',
-			},
-		);
-
-		const outdir = path.join(this.config.workDir, '.server-modules-react-mdx');
-		const fileBaseName = path.basename(filePath, path.extname(filePath));
-		const fileHash = fileSystem.hash(filePath);
-		const cacheScopeSuffix = options?.cacheScope ? `-${sanitizeCacheScope(options.cacheScope)}` : '';
-		const cacheBuster = options?.bypassCache || process?.env?.NODE_ENV === 'development' ? `-${Date.now()}` : '';
-		const outputFileName = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.mjs`;
-		const outputNamingTemplate = `${fileBaseName}-${fileHash}${cacheScopeSuffix}${cacheBuster}.[ext]`;
-
-		const buildResult = await build(
-			{
-				entrypoints: [filePath],
-				root: this.config.rootDir,
-				outdir,
-				target: 'es2022',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: false,
-				minify: false,
-				treeshaking: false,
-				externalPackages: true,
-				naming: outputNamingTemplate,
-				plugins: [mdxPlugin],
-			},
-			this.config.buildExecutor,
-		);
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(`Failed to compile MDX page module: ${details}`);
-		}
-
-		const preferredOutputPath = path.join(outdir, outputFileName);
-		const compiledOutput =
-			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
-
-		if (!compiledOutput) {
-			throw new Error(`No compiled MDX output generated for page: ${filePath}`);
-		}
-
-		normalizeNodeRuntimeBuildOutputFile(compiledOutput, this.config.rootDir);
-
-		const compiledOutputUrl = pathToFileURL(compiledOutput);
-
-		if (process?.env?.NODE_ENV === 'development' || options?.cacheScope) {
-			compiledOutputUrl.searchParams.set(
-				'update',
-				[fileHash, options?.cacheScope ? sanitizeCacheScope(options.cacheScope) : undefined]
-					.filter((value) => value !== undefined)
-					.join('-'),
-			);
-		}
-
-		return await import(/* @vite-ignore */ compiledOutputUrl.href);
-	}
-
-	/**
 	 * Ensures that an EcoComponentConfig has proper `__eco` metadata attached.
-	 * Resolves the file path from dependency declarations when not already set.
-	 *
-	 * @param config - The component config to augment
-	 * @param pagePath - Fallback file path if dependency resolution fails
-	 * @returns Config with `__eco` metadata populated
 	 */
 	ensureConfigFileMetadata(config: EcoComponentConfig, pagePath: string): EcoComponentConfig {
 		if (config.__eco?.file) {
@@ -180,10 +92,6 @@ export class ReactPageModuleService {
 		};
 	}
 
-	/**
-	 * Recursively checks whether a component config tree declares any browser modules.
-	 * Used to determine if a page needs hydration.
-	 */
 	hasModulesInConfig(config: EcoComponentConfig | undefined): boolean {
 		return someInConfigTree(
 			config,
@@ -191,12 +99,6 @@ export class ReactPageModuleService {
 		);
 	}
 
-	/**
-	 * Determines whether a page needs client-side hydration.
-	 *
-	 * @param pageModule - The imported page module
-	 * @returns True if the page should be hydrated
-	 */
 	shouldHydratePage(
 		pageModule: EcoPageFile<{ config?: EcoComponentConfig }> & { config?: EcoComponentConfig },
 	): boolean {
@@ -208,12 +110,6 @@ export class ReactPageModuleService {
 		return this.hasModulesInConfig(pageConfig) || this.hasModulesInConfig(pageModule.config);
 	}
 
-	/**
-	 * Collects all explicitly declared browser module specifiers from a page module.
-	 *
-	 * @param pageModule - The imported page module
-	 * @returns Deduplicated list of declared module specifiers
-	 */
 	collectPageDeclaredModules(
 		pageModule: EcoPageFile<{ config?: EcoComponentConfig }> & { config?: EcoComponentConfig },
 	): string[] {
@@ -224,8 +120,4 @@ export class ReactPageModuleService {
 
 		return Array.from(new Set(declarations));
 	}
-}
-
-function sanitizeCacheScope(cacheScope: string): string {
-	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }

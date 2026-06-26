@@ -976,7 +976,7 @@ describe('ReactRenderer', () => {
 	});
 
 	describe('page importing', () => {
-		it('uses the integration-specific importer only for MDX files and normalizes config onto the page component', async () => {
+		it('routes MDX and TSX page imports through the core page module loader and normalizes config onto the page component', async () => {
 			const testRenderer = new ImportTestReactRenderer({
 				appConfig: Config,
 				assetProcessingService: createAssetProcessingServiceMock() as any,
@@ -985,21 +985,19 @@ describe('ReactRenderer', () => {
 			});
 			const pageComponent = (() => null) as unknown as typeof Page;
 			const mdxConfig = { title: 'mdx-config' } as any;
-			const importMdxPageFile = vi
-				.spyOn(testRenderer.pageModuleService, 'importMdxPageFile')
-				.mockResolvedValue({ default: pageComponent, config: mdxConfig });
 			const baseImporter = vi
 				.spyOn((testRenderer as any).pageModuleLoaderService, 'importPageFile')
-				.mockResolvedValue({ default: Page });
+				.mockResolvedValueOnce({ default: pageComponent, config: mdxConfig })
+				.mockResolvedValueOnce({ default: Page });
 
 			const mdxModule = await testRenderer.importForTest('/tmp/page.mdx');
 			const tsxModule = await testRenderer.importForTest('/tmp/page.tsx');
 
-			expect(importMdxPageFile).toHaveBeenCalledWith('/tmp/page.mdx', {
+			expect(baseImporter).toHaveBeenNthCalledWith(1, '/tmp/page.mdx', {
 				bypassCache: false,
 				cacheScope: undefined,
 			});
-			expect(baseImporter).toHaveBeenCalledWith('/tmp/page.tsx', {
+			expect(baseImporter).toHaveBeenNthCalledWith(2, '/tmp/page.tsx', {
 				bypassCache: false,
 				cacheScope: undefined,
 			});

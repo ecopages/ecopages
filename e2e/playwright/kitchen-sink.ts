@@ -187,7 +187,9 @@ export function createKitchenSinkWebServers(
 			port: project.port,
 		}),
 		cwd: '.',
-		port: project.port,
+		...(project.host === 'vite' && project.mode === 'dev'
+			? { url: `http://localhost:${project.port}/` }
+			: { port: project.port }),
 		projects: [project.name],
 		reuseExistingServer,
 		stdout: 'pipe' as const,

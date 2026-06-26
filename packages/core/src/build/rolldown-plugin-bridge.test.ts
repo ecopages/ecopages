@@ -291,3 +291,28 @@ test('createRolldownPluginBridge applies source transforms after first-wins onLo
 	assert.match(result?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
 	assert.equal(result?.moduleType, 'tsx');
 });
+
+test('createRolldownPluginBridge does not multiply onLoad handler registrations across rebuilds', async () => {
+	let loadCalls = 0;
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'counter',
+			setup(build) {
+				build.onLoad({ filter: /counter\.ts$/ }, () => {
+					loadCalls += 1;
+					return { contents: 'export const count = 1;', loader: 'ts' };
+				});
+			},
+		},
+	];
+
+	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const plugin = bridge[0]!;
+
+	for (let rebuild = 0; rebuild < 3; rebuild += 1) {
+		await callBuildStart(plugin);
+		loadCalls = 0;
+		await callLoad(plugin, '/app/counter.ts');
+		assert.equal(loadCalls, 1, `rebuild ${rebuild + 1} should invoke the onLoad handler once`);
+	}
+});

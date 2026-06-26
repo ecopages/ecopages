@@ -108,7 +108,9 @@ Key `DevEngine` methods:
 - **`invalidate(file)`** — Mark file changed, trigger incremental rebuild
 - **`close()`** — Release resources
 
-The cache key in `RolldownDevBuildAdapter` is `${contextRoot}::${pluginNames}::${target}::${format}`. When any of those change, the cached engine is closed and a new one is created.
+The cache key in `RolldownDevBuildAdapter` is `${contextRoot}::${pluginNames}::${target}::${format}::${outdir}::${naming}`. Entrypoints are tracked separately: when they change the engine is recreated, but warm rebuilds of the same entrypoint reuse the cached module graph.
+
+Dev profiles (`route-module`, `browser-hmr`) use serialized DevEngine adapters in development via `installBuildRuntime()`. Production keeps one-shot Rolldown with parallel executors where safe.
 
 See: [rolldown.rs/reference/experimental](https://rolldown.rs/reference/experimental)
 

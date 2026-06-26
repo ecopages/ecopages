@@ -10,7 +10,6 @@ import {
 	getAppBuildAdapter,
 	getAppBuildManifest,
 	getAppBrowserBuildPlugins,
-	getAppBuildExecutor,
 	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
@@ -129,7 +128,7 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
-test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
+test('getAppBuildAdapter returns the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},
 		loaders: new Map(),
@@ -139,7 +138,6 @@ test('getAppBuildExecutor falls back to the app-owned adapter before the shared 
 	setAppBuildAdapter(appConfig, appAdapter);
 
 	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
-	assert.equal(getAppBuildExecutor(appConfig), appAdapter);
 	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
 	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
 });

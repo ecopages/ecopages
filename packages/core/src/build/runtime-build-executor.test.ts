@@ -1,26 +1,26 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import {
-	getAppBuildExecutor,
-	getAppHmrBuildExecutor,
 	setAppBuildAdapter,
-	setAppBuildExecutor,
 	setAppBuildManifest,
 	ViteHostBuildAdapter,
 	withBuildExecutorPlugins,
 } from './build-adapter.ts';
+import { getBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
-import { getInstalledServerEntryBuildExecutor, installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
+import { getInstalledServerEntryBuildExecutor, installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
 
 test('installAppRuntimeBuildExecutor wraps the active adapter in a ParallelBuildExecutor', () => {
 	const staleExecutor = new RolldownBuildAdapter();
 	const appConfig = {
 		runtime: {
-			buildExecutor: staleExecutor,
+			buildRuntime: {
+				getProfile: () => staleExecutor,
+				dispose: async () => undefined,
+			},
 		},
 		loaders: new Map(),
 	} as never;
@@ -113,23 +113,7 @@ test('installAppRuntimeBuildExecutor merges app-owned server plugins into every 
 	assert.ok(observedPlugins?.some((plugin) => plugin.name === injectedPlugin.name));
 });
 
-test('installAppRuntimeBuildExecutor does not double-wrap an already-wrapped executor', () => {
-	const appConfig = {
-		runtime: {},
-		loaders: new Map(),
-	} as never;
-
-	setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
-	setAppBuildExecutor(
-		appConfig,
-		withBuildExecutorPlugins(new RolldownBuildAdapter(), () => []),
-	);
-
-	const installed = installAppRuntimeBuildExecutor(appConfig);
-	assert.ok(installed instanceof ParallelBuildExecutor);
-});
-
-test('installAppRuntimeBuildExecutor installs separate parallel executors for route modules and HMR', () => {
+test('installAppRuntimeBuildExecutor installs separate executors for route modules and HMR', () => {
 	const appConfig = {
 		runtime: {},
 		loaders: new Map(),
@@ -145,8 +129,11 @@ test('installAppRuntimeBuildExecutor installs separate parallel executors for ro
 
 	installAppRuntimeBuildExecutor(appConfig);
 
-	const routeExecutor = getAppBuildExecutor(appConfig);
-	const hmrExecutor = getAppHmrBuildExecutor(appConfig);
+	const buildRuntime = getBuildRuntime(appConfig);
+	assert.ok(buildRuntime);
+
+	const routeExecutor = buildRuntime.getProfile('route-module');
+	const hmrExecutor = buildRuntime.getProfile('browser-hmr');
 
 	assert.ok(routeExecutor instanceof ParallelBuildExecutor);
 	assert.ok(hmrExecutor instanceof ParallelBuildExecutor);
@@ -172,5 +159,5 @@ test('getInstalledServerEntryBuildExecutor returns one SerializedBuildExecutor p
 
 	assert.ok(first instanceof SerializedBuildExecutor);
 	assert.equal(first, second);
-	assert.equal((appConfig as EcoPagesAppConfig).runtime?.serverEntryBuildExecutor, first);
+	assert.equal(requireBuildRuntime(appConfig).getProfile('server-entry'), first);
 });

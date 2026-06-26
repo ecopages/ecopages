@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/production-build-cache.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
@@ -128,32 +129,24 @@ export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCach
 }
 
 export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteModuleBuildCacheManifest | undefined {
-	if (!fileSystem.exists(manifestPath)) {
+	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest>(manifestPath);
+	if (!parsed || typeof parsed.entries !== 'object') {
 		return undefined;
 	}
 
-	try {
-		const parsed = JSON.parse(fileSystem.readFileSync(manifestPath)) as RouteModuleBuildCacheManifest;
-		if (!parsed || typeof parsed !== 'object' || typeof parsed.entries !== 'object') {
-			return undefined;
-		}
-
-		return {
-			invalidationVersion: parsed.invalidationVersion ?? '',
-			configHash: parsed.configHash,
-			buildInputsFingerprint: parsed.buildInputsFingerprint,
-			entries: parsed.entries,
-		};
-	} catch {
-		return undefined;
-	}
+	return {
+		invalidationVersion: parsed.invalidationVersion ?? '',
+		configHash: parsed.configHash,
+		buildInputsFingerprint: parsed.buildInputsFingerprint,
+		entries: parsed.entries,
+	};
 }
 
 export function writeRouteModuleBuildCacheManifest(
 	manifestPath: string,
 	manifest: RouteModuleBuildCacheManifest,
 ): void {
-	fileSystem.write(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
+	writeProductionCacheManifest(manifestPath, manifest);
 }
 
 function shouldVersionBuildOutputPath(invalidationVersion: number): boolean {

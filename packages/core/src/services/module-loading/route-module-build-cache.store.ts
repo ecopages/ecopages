@@ -15,6 +15,10 @@ import {
 	type RouteModuleBuildCacheManifest,
 	type RouteModuleStaticRenderCacheContext,
 } from './route-module-build-manifest.ts';
+import {
+	isProductionCacheManifestCurrent,
+	matchesProductionCacheFingerprint,
+} from '../../build/production-build-cache.ts';
 
 export type { RouteModuleDependencyHashes };
 
@@ -124,13 +128,13 @@ export class RouteModuleBuildCache {
 		}
 
 		const manifest = this.loadManifest();
-		if (manifest.invalidationVersion !== this.dependencies.getCorePackageVersion()) {
+		if (!isProductionCacheManifestCurrent(manifest, this.dependencies.getCorePackageVersion())) {
 			return false;
 		}
 
 		return (
 			manifest.configHash === context.configHash &&
-			manifest.buildInputsFingerprint === context.buildInputsFingerprint
+			matchesProductionCacheFingerprint(manifest, context.buildInputsFingerprint)
 		);
 	}
 

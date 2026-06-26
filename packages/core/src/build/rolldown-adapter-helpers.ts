@@ -2,12 +2,9 @@
  * Shared helpers for the Rolldown-backed build adapters.
  *
  * @remarks
- * The standard {@link RolldownBuildAdapter} (one-shot production builds)
- * and the dev {@link RolldownDevBuildAdapter} (DevEngine-backed
- * incremental rebuilds) both need the same BuildOptions → Rolldown
- * mapping, the same dependency-graph extraction, and the same
- * post-build rewriting pipeline. This module hosts the shared code so
- * the two adapters stay semantically identical.
+ * The standard {@link RolldownBuildAdapter} uses these helpers for
+ * BuildOptions → Rolldown mapping, dependency-graph extraction, and the
+ * post-build rewriting pipeline.
  *
  * @module
  */

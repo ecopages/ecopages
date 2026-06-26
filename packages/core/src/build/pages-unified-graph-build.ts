@@ -10,8 +10,17 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import { build, getAppRouteModuleBuildExecutor, getAppServerBuildPlugins } from './build-adapter.ts';
+import { build, getAppServerBuildPlugins } from './build-adapter.ts';
+import { requireBuildRuntime } from './build-runtime.ts';
+import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
+import {
+	isProductionCacheManifestCurrent,
+	matchesProductionCacheBuildKey,
+	matchesProductionCacheFingerprint,
+	readProductionCacheManifest,
+	writeProductionCacheManifest,
+} from './production-build-cache.ts';
 import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
@@ -81,26 +90,17 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 }
 
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
-	const manifestPath = getPagesUnifiedGraphCachePath(appConfig);
-	if (!fileSystem.exists(manifestPath)) {
+	const manifest = readProductionCacheManifest<PagesUnifiedGraphCacheManifest>(
+		getPagesUnifiedGraphCachePath(appConfig),
+	);
+	if (!manifest?.outputs) {
 		return undefined;
 	}
-
-	try {
-		const parsed = JSON.parse(fileSystem.readFileSync(manifestPath)) as PagesUnifiedGraphCacheManifest;
-		if (!parsed?.outputs) {
-			return undefined;
-		}
-		return parsed;
-	} catch {
-		return undefined;
-	}
+	return manifest;
 }
 
 function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: PagesUnifiedGraphCacheManifest): void {
-	const manifestPath = getPagesUnifiedGraphCachePath(appConfig);
-	fileSystem.ensureDir(path.dirname(manifestPath));
-	fileSystem.write(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
+	writeProductionCacheManifest(getPagesUnifiedGraphCachePath(appConfig), manifest);
 }
 
 function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
@@ -117,11 +117,7 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
  * `entryOutputs`; it can mis-associate keys such as `pages-blog` and
  * `pages-blog-index`.
  */
-function resolveOutputForEntrypoint(
-	entryPath: string,
-	entryKey: string,
-	buildResult: BuildResult,
-): string | undefined {
+function resolveOutputForEntrypoint(entryPath: string, entryKey: string, buildResult: BuildResult): string | undefined {
 	const exactOutput = buildResult.entryOutputs?.[path.resolve(entryPath)];
 	if (exactOutput) {
 		return exactOutput;
@@ -146,15 +142,15 @@ function isManifestValidForEntries(
 	outdir: string,
 	entryPaths: readonly string[],
 ): boolean {
-	if (manifest.invalidationVersion !== getCorePackageVersion()) {
+	if (!isProductionCacheManifestCurrent(manifest, getCorePackageVersion())) {
 		return false;
 	}
 
-	if (manifest.buildInputsFingerprint !== createBuildInputsFingerprint(appConfig)) {
+	if (!matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig))) {
 		return false;
 	}
 
-	if (manifest.buildKey !== createPagesUnifiedGraphBuildKey(appConfig, outdir)) {
+	if (!matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir))) {
 		return false;
 	}
 
@@ -211,19 +207,15 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	appLogger.debugTime('pagesUnifiedGraphBuild');
 	const buildResult = await build(
 		{
-			entrypoints: entryRecord,
-			root: options.appConfig.rootDir,
-			outdir,
-			target: 'es2022',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: true,
-			minify: false,
-			naming: '[name]-[hash].[ext]',
-			externalPackages: true,
-			plugins: mergedPlugins.length > 0 ? mergedPlugins : undefined,
+			...resolveBuildProfileOptions('route-module', options.appConfig, {
+				entrypoints: entryRecord,
+				outdir,
+				splitting: true,
+				naming: '[name]-[hash].[ext]',
+				plugins: mergedPlugins.length > 0 ? mergedPlugins : undefined,
+			}),
 		},
-		getAppRouteModuleBuildExecutor(options.appConfig),
+		requireBuildRuntime(options.appConfig).getProfile('route-module'),
 	);
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
 

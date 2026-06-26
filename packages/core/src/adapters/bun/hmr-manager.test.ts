@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { installBuildRuntime } from '../../build/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { HmrManager } from './hmr-manager.ts';
@@ -165,21 +166,20 @@ test('HmrManager uses the generic build path for script entrypoints when no stra
 		} as any,
 	});
 
+	installBuildRuntime(config);
 	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', 'script.js');
 	const buildCalls: string[] = [];
-	config.runtime!.buildExecutor = {
-		build: vi.fn(async (options) => {
-			buildCalls.push(options.entrypoints[0] as string);
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
+	config.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildCalls.push(options.entrypoints[0] as string);
+		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+		fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
 
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: outputPath }],
-			};
-		}),
-	};
+		return {
+			success: true,
+			logs: [],
+			outputs: [{ path: outputPath }],
+		};
+	});
 
 	vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {});
 

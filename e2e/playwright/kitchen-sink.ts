@@ -187,7 +187,7 @@ export function createKitchenSinkWebServers(
 			port: project.port,
 		}),
 		cwd: '.',
-		...(project.host === 'vite' && project.mode === 'dev'
+		...(project.mode === 'dev'
 			? { url: `http://localhost:${project.port}/` }
 			: { port: project.port }),
 		projects: [project.name],

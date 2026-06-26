@@ -256,9 +256,7 @@ export function createHmrPhaseTimer(testName: string) {
 			const sincePrevious =
 				previousPhase && marks.has(previousPhase) ? now - (marks.get(previousPhase) ?? now) : sinceStart;
 
-			console.log(
-				`[e2e-hmr-timing] ${testName} :: ${phase} +${sincePrevious}ms (total ${sinceStart}ms)`,
-			);
+			console.log(`[e2e-hmr-timing] ${testName} :: ${phase} +${sincePrevious}ms (total ${sinceStart}ms)`);
 		},
 	};
 }

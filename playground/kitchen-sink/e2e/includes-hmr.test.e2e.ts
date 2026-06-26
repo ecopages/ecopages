@@ -84,15 +84,18 @@ test.describe('Source mutation HMR @hmr', () => {
 		const titleReadyTimeout = testInfo.project.name.includes('vite') ? 45_000 : 10_000;
 		let initialTitle = '';
 		await expect
-			.poll(async () => {
-				const title = await page.title();
-				if (title.length > 0 && !title.startsWith('Loading ')) {
-					initialTitle = title;
-					return true;
-				}
+			.poll(
+				async () => {
+					const title = await page.title();
+					if (title.length > 0 && !title.startsWith('Loading ')) {
+						initialTitle = title;
+						return true;
+					}
 
-				return false;
-			}, { timeout: titleReadyTimeout })
+					return false;
+				},
+				{ timeout: titleReadyTimeout },
+			)
 			.toBe(true);
 		const navigationWatch = watchForMainFrameNavigation(page);
 

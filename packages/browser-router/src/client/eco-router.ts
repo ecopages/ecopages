@@ -579,11 +579,7 @@ export class EcoRouter {
 	 * @param signal - AbortSignal for cancelling the request
 	 * @throws Error if the response is not ok
 	 */
-	private async fetchPage(
-		url: URL,
-		signal: AbortSignal,
-		options: { bypassCache?: boolean } = {},
-	): Promise<string> {
+	private async fetchPage(url: URL, signal: AbortSignal, options: { bypassCache?: boolean } = {}): Promise<string> {
 		if (!options.bypassCache && this.prefetchManager) {
 			const cachedHtml = this.prefetchManager.getCachedHtml(url.href);
 			if (cachedHtml) {

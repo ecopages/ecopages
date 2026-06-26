@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -136,7 +137,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
 		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined, this.hostOwnsDevClient) &&
+			shouldInjectHmrHtmlResponse(
+				this.options?.watch === true,
+				this.hmrManager ?? undefined,
+				this.hostOwnsDevClient,
+			) &&
 			this.isHtmlResponse(response)
 		) {
 			return injectHmrRuntimeIntoHtmlResponse(response);
@@ -285,6 +290,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 		await this.projectWatcher?.close();
 		this.projectWatcher = null;
+
+		await disposeAppBuildRuntime(this.appConfig);
 
 		this.hmrManager?.stop();
 		this.hmrManager = null;

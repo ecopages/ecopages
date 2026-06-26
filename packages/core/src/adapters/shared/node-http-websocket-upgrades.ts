@@ -2,11 +2,7 @@ import type { Duplex } from 'node:stream';
 import type { Server as NodeHttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
-import type {
-	EcopagesSocket,
-	EcopagesWebSocketHandler,
-	IncomingWebSocketMessage,
-} from '../../types/public-types.ts';
+import type { EcopagesSocket, EcopagesWebSocketHandler, IncomingWebSocketMessage } from '../../types/public-types.ts';
 import { findWebSocketRoute, type WebSocketRouteMatch } from '../abstract/ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 

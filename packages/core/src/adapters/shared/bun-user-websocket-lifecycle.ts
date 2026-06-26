@@ -1,10 +1,6 @@
 import type { ServerWebSocket } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
-import type {
-	EcopagesSocket,
-	EcopagesWebSocketHandler,
-	IncomingWebSocketMessage,
-} from '../../types/public-types.ts';
+import type { EcopagesSocket, EcopagesWebSocketHandler, IncomingWebSocketMessage } from '../../types/public-types.ts';
 import { invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
 export type BunUserWebSocketData = {
@@ -141,7 +137,11 @@ export function createBunUserWebSocketLifecycle<TWsData extends BunUserWebSocket
 					? { kind: 'text', text: msg }
 					: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
 
-			invokeWebSocketHandlerHook(resolved.kind, 'onMessage', resolved.handler.onMessage?.(resolved.socket, message));
+			invokeWebSocketHandlerHook(
+				resolved.kind,
+				'onMessage',
+				resolved.handler.onMessage?.(resolved.socket, message),
+			);
 		},
 		close(ws, code, reason) {
 			const resolved = resolveSocketForEvent(ws);

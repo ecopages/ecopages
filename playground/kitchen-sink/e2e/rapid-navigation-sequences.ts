@@ -5,7 +5,7 @@ import {
 	kitchenSinkShellTestId,
 	primaryLinks,
 } from '../src/data/primary-links';
-import { cancelPendingNavigation, recoverToPath, waitForNavigationIdle } from './test-support';
+import { cancelPendingNavigation, gotoPathWithMorphSettling, waitForNavigationIdle } from './test-support';
 
 export async function fireRapidLinkClicks(page: Page, hops: string[]) {
 	const entries = hops.map((href) => ({
@@ -42,7 +42,7 @@ export async function settleAfterRapidHops(page: Page, recoveryPath = '/') {
 	const shellVisible = await shell.isVisible().catch(() => false);
 
 	if (!shellVisible) {
-		await recoverToPath(page, recoveryPath);
+		await gotoPathWithMorphSettling(page, recoveryPath);
 		return;
 	}
 

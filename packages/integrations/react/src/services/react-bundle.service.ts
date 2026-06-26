@@ -14,7 +14,7 @@ import {
 } from '../utils/react-runtime-alias-map.ts';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
-import type { EcoPagesAppConfig } from '@ecopages/core/types/internal-types';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';

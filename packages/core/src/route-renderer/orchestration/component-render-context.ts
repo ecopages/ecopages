@@ -131,7 +131,9 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		const asyncInterception = this.context.foreignChildRuntime?.interceptForeignChild?.(foreignChildRuntimeInput);
 		if (asyncInterception !== undefined) {
 			if (isThenable<ForeignChildInterceptionResult>(asyncInterception)) {
-				return asyncInterception.then((result) => this.applyForeignChildInterceptionResult(result));
+				return asyncInterception.then((result) =>
+					result === undefined ? undefined : this.applyForeignChildInterceptionResult(result),
+				);
 			}
 
 			return this.applyForeignChildInterceptionResult(asyncInterception);

@@ -10,7 +10,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import { build, getAppServerBuildPlugins } from './build-adapter.ts';
+import { build, getAppServerBuildPlugins, type BuildOptions } from './build-adapter.ts';
 import { requireBuildRuntime } from './build-runtime.ts';
 import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
@@ -205,16 +205,18 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	}
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
+	const buildOptions: BuildOptions = {
+		...resolveBuildProfileOptions('route-module', options.appConfig, {
+			entrypoints: entryRecord,
+			outdir,
+			splitting: true,
+			naming: '[name]-[hash].[ext]',
+			plugins: mergedPlugins.length > 0 ? mergedPlugins : undefined,
+		}),
+		entrypoints: entryRecord,
+	};
 	const buildResult = await build(
-		{
-			...resolveBuildProfileOptions('route-module', options.appConfig, {
-				entrypoints: entryRecord,
-				outdir,
-				splitting: true,
-				naming: '[name]-[hash].[ext]',
-				plugins: mergedPlugins.length > 0 ? mergedPlugins : undefined,
-			}),
-		},
+		buildOptions,
 		requireBuildRuntime(options.appConfig).getProfile('route-module'),
 	);
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');

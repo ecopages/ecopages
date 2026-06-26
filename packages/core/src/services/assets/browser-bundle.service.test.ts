@@ -33,7 +33,9 @@ describe('BrowserBundleService', () => {
 		});
 		installBuildRuntime(appConfig);
 		const buildRuntime = appConfig.runtime.buildRuntime;
-		const originalHmrBuild = buildRuntime.getProfile('browser-hmr').build.bind(buildRuntime.getProfile('browser-hmr'));
+		const originalHmrBuild = buildRuntime
+			.getProfile('browser-hmr')
+			.build.bind(buildRuntime.getProfile('browser-hmr'));
 		buildRuntime.getProfile('browser-hmr').build = hmrBuild;
 
 		const service = new BrowserBundleService(appConfig);
@@ -169,7 +171,11 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 	};
 }
 
-function buildRuntimeProfileSpy(appConfig: any, profile: 'browser-hmr' | 'route-module', build: ReturnType<typeof vi.fn>) {
+function buildRuntimeProfileSpy(
+	appConfig: any,
+	profile: 'browser-hmr' | 'route-module',
+	build: ReturnType<typeof vi.fn>,
+) {
 	const executor = appConfig.runtime.buildRuntime.getProfile(profile);
 	executor.build = build;
 }

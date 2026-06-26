@@ -5,7 +5,6 @@ import {
 	setAppBuildAdapter,
 	setAppBuildManifest,
 	ViteHostBuildAdapter,
-	withBuildExecutorPlugins,
 } from './build-adapter.ts';
 import { getBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';

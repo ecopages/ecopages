@@ -29,7 +29,7 @@ describe('production-build-cache', () => {
 		const appConfig = {
 			rootDir: '/tmp/app',
 			absolutePaths: { executionDir: '/tmp/app/.eco' },
-		} as EcoPagesAppConfig;
+		} as unknown as EcoPagesAppConfig;
 
 		const paths = getProductionBuildCacheManifestPaths(appConfig);
 		assert.equal(paths.length, 4);

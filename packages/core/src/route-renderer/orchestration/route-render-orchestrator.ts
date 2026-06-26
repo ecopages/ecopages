@@ -33,10 +33,7 @@ import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } fro
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
-import {
-	OwnershipValidationService,
-	throwIfOwnershipInvalid,
-} from './ownership-validation.service.ts';
+import { OwnershipValidationService, throwIfOwnershipInvalid } from './ownership-validation.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {

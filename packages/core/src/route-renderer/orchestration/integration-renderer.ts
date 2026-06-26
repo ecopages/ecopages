@@ -411,7 +411,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
 		const { documentHtml } = await composeDocumentShell(
 			{
-				renderComponentWithForeignChildren: (renderInput) => this.renderComponentWithForeignChildren(renderInput),
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
 			{
@@ -468,7 +469,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}): Promise<string> {
 		return renderPageDocumentShell(
 			{
-				renderComponentWithForeignChildren: (renderInput) => this.renderComponentWithForeignChildren(renderInput),
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
 			input,

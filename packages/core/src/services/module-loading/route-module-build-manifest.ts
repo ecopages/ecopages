@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
 import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/production-build-cache.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';

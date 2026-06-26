@@ -9,7 +9,7 @@ Three concentric shapes, plus profile executors and a plugin injector:
 | Shape                      | Lives in                       | Purpose                                                                                                                                                             |
 | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BuildAdapter`             | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
-| `BuildRuntime`             | `build-runtime.ts`             | Profile-based executor registry. Single entry point on `appConfig.runtime.buildRuntime`.                                                                          |
+| `BuildRuntime`             | `build-runtime.ts`             | Profile-based executor registry. Single entry point on `appConfig.runtime.buildRuntime`.                                                                            |
 | `BuildExecutor`            | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
 | `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
 | `ParallelBuildExecutor`    | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
@@ -89,11 +89,11 @@ These fields are kept in the type so existing call-sites compile. The proper fix
 
 `installBuildRuntime` (via `installAppRuntimeBuildExecutor`) installs profile-based executors:
 
-| Profile        | Backend           | Concurrency            |
-| -------------- | ----------------- | ---------------------- |
-| `server-entry` | Rolldown one-shot | Serialized             |
-| `route-module` | Rolldown one-shot | Parallel               |
-| `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3)   |
+| Profile        | Backend           | Concurrency          |
+| -------------- | ----------------- | -------------------- |
+| `server-entry` | Rolldown one-shot | Serialized           |
+| `route-module` | Rolldown one-shot | Parallel             |
+| `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3) |
 
 `hmr-entrypoint` rebuilds use the `browser-hmr` profile. Other browser builds (`browser-script`, `hmr-runtime`) use `route-module`.
 
@@ -135,11 +135,11 @@ Build-input fingerprinting lives in `build-input-fingerprint.ts` and is shared w
 
 Mixed-integration apps need explicit `@jsxImportSource` handling in two different shapes:
 
-| Helper | Use when | Behavior |
-| ------ | -------- | -------- |
-| `getJsxOwnershipPlugins()` | App-wide server/transpile builds | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime. |
+| Helper                               | Use when                                  | Behavior                                                                                                                |
+| ------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `getJsxOwnershipPlugins()`           | App-wide server/transpile builds          | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime.            |
 | `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
-| `eco-component-meta-plugin` | Component metadata injection | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files. |
+| `eco-component-meta-plugin`          | Component metadata injection              | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files.                      |
 
 `foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
 

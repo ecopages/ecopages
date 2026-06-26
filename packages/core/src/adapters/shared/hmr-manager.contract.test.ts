@@ -120,13 +120,13 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'script.js');
 		const buildCalls: string[] = [];
 		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
-				buildCalls.push(options.entrypoints[0] as string);
-				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-				fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: outputPath }],
+			buildCalls.push(options.entrypoints[0] as string);
+			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+			fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
+			return {
+				success: true,
+				logs: [],
+				outputs: [{ path: outputPath }],
 			};
 		});
 
@@ -151,34 +151,34 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		installBuildRuntime(manager.appConfig);
 		const buildCalls: string[][] = [];
 		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
-				const entrypoints = (options.entrypoints as string[]).map(String);
-				buildCalls.push(entrypoints);
-				for (const entrypoint of entrypoints) {
-					const relativePathJs = path
-						.relative(path.join(rootDir, 'src'), entrypoint)
-						.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-					const outputPath = path.join(
+			const entrypoints = (options.entrypoints as string[]).map(String);
+			buildCalls.push(entrypoints);
+			for (const entrypoint of entrypoints) {
+				const relativePathJs = path
+					.relative(path.join(rootDir, 'src'), entrypoint)
+					.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
+				const outputPath = path.join(
+					resolveInternalWorkDir(manager.appConfig),
+					'assets',
+					'_hmr',
+					relativePathJs,
+				);
+				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+				fs.writeFileSync(outputPath, `output:${path.basename(entrypoint)}`, 'utf8');
+			}
+			return {
+				success: true,
+				logs: [],
+				outputs: entrypoints.map((entrypoint) => ({
+					path: path.join(
 						resolveInternalWorkDir(manager.appConfig),
 						'assets',
 						'_hmr',
-						relativePathJs,
-					);
-					fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-					fs.writeFileSync(outputPath, `output:${path.basename(entrypoint)}`, 'utf8');
-				}
-				return {
-					success: true,
-					logs: [],
-					outputs: entrypoints.map((entrypoint) => ({
-						path: path.join(
-							resolveInternalWorkDir(manager.appConfig),
-							'assets',
-							'_hmr',
-							path.relative(path.join(rootDir, 'src'), entrypoint).replace(/\.(tsx?|jsx?|mdx?)$/, '.js'),
-						),
-					})),
-				};
-			});
+						path.relative(path.join(rootDir, 'src'), entrypoint).replace(/\.(tsx?|jsx?|mdx?)$/, '.js'),
+					),
+				})),
+			};
+		});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);
 		await manager.registerScriptEntrypoint(secondEntrypoint);

@@ -13,8 +13,8 @@ const SERVER_RENDERED_TEMPLATE_PRIORITY_OFFSET = 50;
 import type { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 
 export class ServerRenderedTemplateHmrStrategy extends HmrStrategy {
-	readonly type = HmrStrategyType.INTEGRATION;
-	readonly priorityOffset = SERVER_RENDERED_TEMPLATE_PRIORITY_OFFSET;
+	override readonly type = HmrStrategyType.INTEGRATION;
+	override readonly priorityOffset = SERVER_RENDERED_TEMPLATE_PRIORITY_OFFSET;
 
 	constructor(private readonly invalidationService: DevelopmentInvalidationService) {
 		super();

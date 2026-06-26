@@ -33,11 +33,11 @@ These concepts intentionally live in different places:
 
 Mixed-integration apps use two separate mechanisms:
 
-| Layer | Mechanism | Purpose |
-| ----- | --------- | ------- |
-| Build | `getJsxOwnershipPlugins()` / `getHostScopedJsxOwnershipPlugins()` | Prepend `@jsxImportSource` so bundled `.tsx` files compile with the correct JSX runtime |
-| Build | `eco-component-meta-plugin` | Prepends the owning integration pragma when injecting `__eco` metadata into native files |
-| Runtime | `eco.component()` / `eco.embed()` + foreign-child runtime | Hand off cross-integration children during SSR |
+| Layer   | Mechanism                                                         | Purpose                                                                                  |
+| ------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Build   | `getJsxOwnershipPlugins()` / `getHostScopedJsxOwnershipPlugins()` | Prepend `@jsxImportSource` so bundled `.tsx` files compile with the correct JSX runtime  |
+| Build   | `eco-component-meta-plugin`                                       | Prepends the owning integration pragma when injecting `__eco` metadata into native files |
+| Runtime | `eco.component()` / `eco.embed()` + foreign-child runtime         | Hand off cross-integration children during SSR                                           |
 
 See [`../build/README.md`](../build/README.md) for the JSX ownership helper split.
 

@@ -1,7 +1,12 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
+import {
+	build,
+	type BuildExecutor,
+	type BuildOptions,
+	type BuildResult,
+} from '../../build/build-adapter.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
 import {
@@ -240,21 +245,20 @@ export class PageModuleImportService {
 
 		recordPageModuleBuildInvocation();
 
-		const buildResult = await this.dependencies.buildModule(
-			{
-				...resolveBuildProfileOptions('route-module', this.appConfig ?? ({ rootDir } as EcoPagesAppConfig), {
-					entrypoints: [filePath],
-					outdir,
-					naming: outputNamingTemplate,
-					splitting: splitting ?? true,
-					jsx: options.jsx,
-					plugins: options.plugins,
-					...(externalPackages !== undefined ? { externalPackages } : {}),
-				}),
-				root: rootDir,
-			},
-			options.buildExecutor,
-		);
+		const buildOptions: BuildOptions = {
+			...resolveBuildProfileOptions('route-module', this.appConfig ?? ({ rootDir } as EcoPagesAppConfig), {
+				entrypoints: [filePath],
+				outdir,
+				naming: outputNamingTemplate,
+				splitting: splitting ?? true,
+				jsx: options.jsx,
+				plugins: options.plugins,
+				...(externalPackages !== undefined ? { externalPackages } : {}),
+			}),
+			root: rootDir,
+			entrypoints: [filePath],
+		};
+		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
 
 		if (!buildResult.success) {
 			const details = buildResult.logs.map((log) => log.message).join(' | ');

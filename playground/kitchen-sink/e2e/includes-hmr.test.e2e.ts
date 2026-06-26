@@ -44,7 +44,7 @@ function patchSeoTitle(content: string, suffix: string) {
 function patchExplicitRouteHeading(content: string, suffix: string) {
 	return content.replace(
 		'Explicit routes can still feel native.',
-		`Explicit routes can still feel native. ${EXPLICIT_TEAM_SUFFIX}`,
+		`Explicit routes can still feel native. ${suffix}`,
 	);
 }
 

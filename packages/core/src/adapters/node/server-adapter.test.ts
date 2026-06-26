@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
-import { NodeClientAbortError } from './http-request-bridge.ts';
+import { DefaultNodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeStaticPreviewHost } from './static-preview-host.ts';
 
 class TestNodeServerAdapter extends NodeServerAdapter {
 	public handleSharedRequestImpl?: () => Promise<Response>;
@@ -38,6 +40,9 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 		runtimeOrigin: 'http://localhost:3000',
 		serveOptions: {},
 		options: { watch: true },
+		previewHost: new NodeStaticPreviewHost(),
+		requestBridge: new NodeHttpRequestBridge(),
+		devRuntimeFactory: new DefaultNodeServerDevRuntimeFactory(),
 		...options,
 	});
 }

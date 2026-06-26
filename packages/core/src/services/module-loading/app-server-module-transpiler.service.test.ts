@@ -3,11 +3,7 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import {
-	type BuildExecutor,
-	setAppBuildAdapter,
-	setAppBuildManifest,
-} from '../../build/build-adapter.ts';
+import { type BuildExecutor, setAppBuildAdapter, setAppBuildManifest } from '../../build/build-adapter.ts';
 import { installBuildRuntime } from '../../build/runtime-build-executor.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';

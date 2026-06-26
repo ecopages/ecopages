@@ -57,7 +57,9 @@ export function getHostScopedJsxOwnershipPlugins(
 	hostIntegrationName: string,
 	options?: { name?: string },
 ): EcoBuildPlugin[] {
-	const hostIntegration = (appConfig.integrations ?? []).find((integration) => integration.name === hostIntegrationName);
+	const hostIntegration = (appConfig.integrations ?? []).find(
+		(integration) => integration.name === hostIntegrationName,
+	);
 	const hostJsxImportSource = hostIntegration?.jsxImportSource;
 	if (!hostJsxImportSource) {
 		return [];

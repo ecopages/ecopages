@@ -71,11 +71,11 @@ Ecopages implements this in `rolldown-plugin-bridge.ts` — all `EcoBuildPlugin`
 
 Ecopages installs one `BuildRuntime` on `appConfig.runtime.buildRuntime` with three profiles:
 
-| Profile | Executor | Use case |
-| ------- | -------- | -------- |
-| `server-entry` | `SerializedBuildExecutor` | Single-flight server entry builds |
-| `route-module` | `ParallelBuildExecutor` | Route module transpilation and browser bundles |
-| `browser-hmr` | `ParallelBuildExecutor` | HMR browser entry rebuilds |
+| Profile        | Executor                  | Use case                                       |
+| -------------- | ------------------------- | ---------------------------------------------- |
+| `server-entry` | `SerializedBuildExecutor` | Single-flight server entry builds              |
+| `route-module` | `ParallelBuildExecutor`   | Route module transpilation and browser bundles |
+| `browser-hmr`  | `ParallelBuildExecutor`   | HMR browser entry rebuilds                     |
 
 All profiles wrap the same one-shot `RolldownBuildAdapter` in both dev and production. Repeated work is amortized through production build caches (`production-build-cache.ts`, route-module disk cache, server-entry cache) rather than a long-lived dev engine instance.
 
@@ -119,10 +119,10 @@ See: [meta/design/watch-mode.md](https://github.com/rolldown/rolldown/blob/main/
 
 Ecopages uses a `BuildAdapter` pattern with two implementations:
 
-| Adapter                | Ownership     | Use Case                        |
-| ---------------------- | ------------- | ------------------------------- |
-| `RolldownBuildAdapter` | `'rolldown'`  | Default bundled backend         |
-| `ViteHostBuildAdapter` | `'vite-host'` | Host-managed builds (Vite)      |
+| Adapter                | Ownership     | Use Case                   |
+| ---------------------- | ------------- | -------------------------- |
+| `RolldownBuildAdapter` | `'rolldown'`  | Default bundled backend    |
+| `ViteHostBuildAdapter` | `'vite-host'` | Host-managed builds (Vite) |
 
 Runtime code accesses executors through `requireBuildRuntime(appConfig).getProfile(...)`.
 

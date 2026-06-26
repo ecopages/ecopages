@@ -47,6 +47,8 @@ export interface NodeServerAdapterParams {
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
+	delegateBrowserReloadToHost?: boolean;
+	hostOwnsDevClient?: boolean;
 	options?: {
 		watch?: boolean;
 	};
@@ -128,33 +130,48 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 	}
 
-	private shouldInjectHmrScript(): boolean {
-		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined);
-	}
-
 	private isHtmlResponse(response: Response): boolean {
 		return isHtmlResponse(response);
 	}
 
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+		if (
+			shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined, this.hostOwnsDevClient) &&
+			this.isHtmlResponse(response)
+		) {
 			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 
 		return response;
 	}
 
-	constructor(options: NodeServerAdapterParams) {
+	/**
+	 * @remarks
+	 * `previewHost`, `requestBridge`, and `devRuntimeFactory` are optional on the
+	 * public {@link NodeServerAdapterParams} so factory callers can omit them, but
+	 * they are mandatory by the time the concrete adapter is constructed —
+	 * {@link createNodeServerAdapter} fills in Node-specific defaults first. The
+	 * constructor signature makes that invariant explicit instead of relying on
+	 * non-null assertions.
+	 */
+	constructor(
+		options: NodeServerAdapterParams & {
+			previewHost: StaticPreviewHost;
+			requestBridge: NodeHttpRequestBridge;
+			devRuntimeFactory: NodeServerDevRuntimeFactory;
+		},
+	) {
 		super(options);
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
-		this.previewHost = options.previewHost!;
-		this.requestBridge = options.requestBridge!;
-		this.devRuntimeFactory = options.devRuntimeFactory!;
+		this.previewHost = options.previewHost;
+		this.requestBridge = options.requestBridge;
+		this.devRuntimeFactory = options.devRuntimeFactory;
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
+		this.hostOwnsDevClient = options.hostOwnsDevClient === true;
 	}
 
 	/**
@@ -387,6 +404,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				}),
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
+				hostOwnsDevClient: this.hostOwnsDevClient,
 			});
 
 			this.projectWatcher = watcher;

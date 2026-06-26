@@ -29,6 +29,7 @@
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
 import { rapidhash } from '../utils/hash.ts';
 import {
 	createEcoBuildPluginFromSourceTransform,
@@ -135,14 +136,6 @@ function detectIntegration(
 	return { name: 'ghtml' };
 }
 
-function prependJsxImportSource(code: string, jsxImportSource: string | undefined): string {
-	if (!jsxImportSource || code.includes('@jsxImportSource')) {
-		return code;
-	}
-
-	return `/** @jsxImportSource ${jsxImportSource} */\n${code}`;
-}
-
 /**
  * Creates a RegExp pattern that matches files with any of the configured extensions.
  *
@@ -201,7 +194,10 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		transform(code, id) {
 			const integration = detectIntegration(id, extensionToIntegration);
 			return {
-				code: prependJsxImportSource(injectEcoMeta(code, id, integration.name), integration.jsxImportSource),
+				code: prependJsxImportSourceIfMissing(
+					injectEcoMeta(code, id, integration.name),
+					integration.jsxImportSource,
+				),
 			};
 		},
 	};

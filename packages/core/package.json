@@ -192,6 +192,10 @@
 			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
 			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
 		},
+		"./plugins/jsx-import-source.utils": {
+			"types": "./src/plugins/jsx-import-source.utils.ts",
+			"default": "./src/plugins/jsx-import-source.utils.ts"
+		},
 		"./html": {
 			"import": "./src/utils/html.ts",
 			"require": "./src/utils/html.ts"

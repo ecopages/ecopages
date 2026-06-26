@@ -154,9 +154,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		const includeFile = path.join(includesDir, 'seo.kita.tsx');
 		fs.writeFileSync(includeFile, 'export const seo = true;\n', 'utf8');
-		manager.registerStrategy(
-			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, () => true, { type: 'none' }),
-		);
+		manager.registerStrategy(new FakeHmrStrategy(HmrStrategyType.INTEGRATION, () => true, { type: 'none' }));
 
 		await manager.handleFileChange(includeFile);
 

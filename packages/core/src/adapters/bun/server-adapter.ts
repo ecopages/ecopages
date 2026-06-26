@@ -20,6 +20,7 @@ import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -405,7 +406,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			runtimeOrigin: this.runtimeOrigin,
 			userHandlers: this.websocketHandlers,
 			resolveContext: this.resolveBunContext.bind(this),
-			adaptSocket: (ws, kind, params, search, context) => this.adaptBunWebSocket(ws, kind, params, search, context),
+			adaptSocket: (ws, kind, params, search, context) =>
+				this.adaptBunWebSocket(ws, kind, params, search, context),
 		});
 	}
 
@@ -692,6 +694,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		await this.projectWatcher?.close();
 		this.projectWatcher = null;
+
+		await disposeAppBuildRuntime(this.appConfig);
 
 		this.hmrManager?.stop();
 

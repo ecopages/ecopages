@@ -1,18 +1,10 @@
 import { Readable } from 'node:stream';
 import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
-import {
-	injectEcopagesDocumentDevBootstrap,
-	stripViteBrowserHmrScripts,
-} from './ecopages-hmr-runtime-injection.ts';
+import { injectEcopagesDocumentDevBootstrap, stripViteBrowserHmrScripts } from './ecopages-hmr-runtime-injection.ts';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
-import {
-	getAppEntryPath,
-	loadApp,
-	registerHostModuleLoader,
-	type EcopagesEmbeddedApp,
-} from './embedded-dev-server.ts';
+import { getAppEntryPath, loadApp, registerHostModuleLoader, type EcopagesEmbeddedApp } from './embedded-dev-server.ts';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import { resolveEcopagesDevServerOrigin } from './resolve-vite-dev-origin.ts';
 import type { EcopagesVitePlugin } from './types.ts';

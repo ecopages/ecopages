@@ -54,5 +54,4 @@ describe('createEcopagesPluginApi', () => {
 
 		expect(api.getDevServerOrigin()).toBe('http://localhost:4012');
 	});
-
 });

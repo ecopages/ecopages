@@ -43,11 +43,7 @@ import {
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
-import {
-	clearLayoutCache,
-	resolvePersistedLayout,
-	type LayoutComponent,
-} from './layout-cache.ts';
+import { clearLayoutCache, resolvePersistedLayout, type LayoutComponent } from './layout-cache.ts';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,

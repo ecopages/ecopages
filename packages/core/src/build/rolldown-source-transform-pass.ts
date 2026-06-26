@@ -52,14 +52,18 @@ export async function finalizeLoadResultWithSourceTransforms(options: {
 	contextRoot: string;
 	inferModuleTypeFromPath: (filePath: string) => SourceDescription['moduleType'];
 }): Promise<LoadResult | undefined> {
-	const { id, namespace, sourcePath, loadResult, sourceTransforms, contextRoot, inferModuleTypeFromPath } =
-		options;
+	const { id, namespace, sourcePath, loadResult, sourceTransforms, contextRoot, inferModuleTypeFromPath } = options;
 
 	if (!shouldApplySourceTransforms(namespace, sourcePath)) {
 		return loadResult;
 	}
 
-	if (typeof loadResult === 'object' && loadResult !== null && 'code' in loadResult && typeof loadResult.code === 'string') {
+	if (
+		typeof loadResult === 'object' &&
+		loadResult !== null &&
+		'code' in loadResult &&
+		typeof loadResult.code === 'string'
+	) {
 		if (!shouldTransformLoadedModule(loadResult.moduleType)) {
 			return loadResult;
 		}

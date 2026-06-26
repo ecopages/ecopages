@@ -73,10 +73,7 @@ function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: st
 	return Page;
 }
 
-function createEcoComponentStyleLayout(
-	layoutTestId: string,
-	options: { file: string; stylesheets?: string[] },
-) {
+function createEcoComponentStyleLayout(layoutTestId: string, options: { file: string; stylesheets?: string[] }) {
 	const Layout = (({ children }: { children: ReactNode }) =>
 		createElement('div', { 'data-testid': layoutTestId, className: 'eco-layout' }, children)) as ReturnType<
 		typeof createMockPageComponent

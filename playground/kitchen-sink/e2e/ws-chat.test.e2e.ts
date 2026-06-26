@@ -1,7 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import type { Page } from 'playwright-core';
 import { getPageTestId } from '../src/data/primary-links';
-import { gotoPath, trackRuntimeErrors, waitForNavigationIdle } from './test-support';
+import { gotoPathSimple, trackRuntimeErrors } from './test-support';
 
 const CONNECT_TIMEOUT = 30_000;
 
@@ -27,45 +27,21 @@ async function waitForChatConnected(page: Page) {
 }
 
 async function setChatUsername(page: Page, username: string) {
-	await waitForNavigationIdle(page);
-	await page.evaluate((name: string) => {
-		const input = document.querySelector<HTMLInputElement>('[data-chat-username]');
-		if (!input) {
-			return;
-		}
-
-		input.value = name;
-		input.dispatchEvent(new Event('change', { bubbles: true }));
-		input.blur();
-	}, username);
+	const input = page.locator('[data-chat-username]');
+	await input.fill(username);
+	await input.blur();
 }
 
 async function expectConnectedUsername(page: Page, username: string) {
-	await expect
-		.poll(
-			async () =>
-				page.evaluate(
-					() =>
-						document.querySelector('[data-chat-status]')?.getAttribute('data-chat-connected-username') ??
-						'',
-				),
-			{ timeout: CONNECT_TIMEOUT },
-		)
-		.toBe(username);
+	await expect(page.locator('[data-chat-status]')).toHaveAttribute('data-chat-connected-username', username);
 }
 
 async function sendChatMessage(page: Page, text: string) {
-	await waitForNavigationIdle(page, 5_000);
-	await page.evaluate((message: string) => {
-		const input = document.querySelector<HTMLInputElement>('[data-chat-input]');
-		const form = document.querySelector<HTMLFormElement>('[data-chat-form]');
-		if (!input || !form) {
-			return;
-		}
-
-		input.value = message;
+	const input = page.locator('[data-chat-input]');
+	await input.fill(text);
+	await page.locator('[data-chat-form]').evaluate((form: HTMLFormElement) => {
 		form.requestSubmit();
-	}, text);
+	});
 }
 
 test.describe('WebSocket broadcast @realtime', () => {
@@ -73,7 +49,7 @@ test.describe('WebSocket broadcast @realtime', () => {
 	test('page renders the chat UI correctly', async ({ page }, testInfo) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoPath(page, wsChatPath(testInfo));
+		await gotoPathSimple(page, wsChatPath(testInfo));
 
 		await expect(page.getByTestId(getPageTestId('/ws-chat'))).toBeVisible();
 		await expect(page.locator('[data-chat-messages]')).toBeVisible();
@@ -86,13 +62,13 @@ test.describe('WebSocket broadcast @realtime', () => {
 	});
 
 	test('WebSocket connects and status transitions to connected', async ({ page }, testInfo) => {
-		await gotoPath(page, wsChatPath(testInfo));
+		await gotoPathSimple(page, wsChatPath(testInfo));
 		await waitForChatConnected(page);
 		await expect(page.locator('[data-chat-status-dot]')).toHaveAttribute('data-chat-status-dot', 'connected');
 	});
 
 	test('seed messages are visible in the message list after connect', async ({ page }, testInfo) => {
-		await gotoPath(page, wsChatPath(testInfo, 'lobby'));
+		await gotoPathSimple(page, wsChatPath(testInfo, 'lobby'));
 		await waitForChatConnected(page);
 
 		await expect(page.locator('[data-chat-messages] [data-message-id]').first()).toBeVisible();
@@ -108,29 +84,19 @@ test.describe('WebSocket broadcast @realtime', () => {
 	});
 
 	test('sends a message and sees it appear in the list', async ({ page }, testInfo) => {
-		await gotoPath(page, wsChatPath(testInfo));
-		await waitForNavigationIdle(page);
+		await gotoPathSimple(page, wsChatPath(testInfo));
 		await waitForChatConnected(page);
 
 		const uniqueText = `hello-${Date.now()}`;
 		await sendChatMessage(page, uniqueText);
 
-		await expect
-			.poll(
-				async () =>
-					page.evaluate((needle: string) => {
-						const texts = [
-							...document.querySelectorAll('[data-chat-messages] .chat-lab__message-text'),
-						].map((element) => element.textContent ?? '');
-						return texts.some((text) => text.includes(needle));
-					}, uniqueText),
-				{ timeout: 30_000, intervals: [200, 400, 600] },
-			)
-			.toBe(true);
+		await expect(
+			page.locator('[data-chat-messages] .chat-lab__message-text').filter({ hasText: uniqueText }),
+		).toBeVisible();
 	});
 
 	test('input is cleared after sending', async ({ page }, testInfo) => {
-		await gotoPath(page, wsChatPath(testInfo));
+		await gotoPathSimple(page, wsChatPath(testInfo));
 		await waitForChatConnected(page);
 
 		await sendChatMessage(page, 'clearing test');
@@ -138,7 +104,7 @@ test.describe('WebSocket broadcast @realtime', () => {
 	});
 
 	test('updates username and sends message under the new username', async ({ page }, testInfo) => {
-		await gotoPath(page, wsChatPath(testInfo));
+		await gotoPathSimple(page, wsChatPath(testInfo));
 		await waitForChatConnected(page);
 
 		await setChatUsername(page, 'cool-tester');
@@ -148,22 +114,11 @@ test.describe('WebSocket broadcast @realtime', () => {
 		const text = `test-message-${Date.now()}`;
 		await sendChatMessage(page, text);
 
-		await expect
-			.poll(
-				async () => {
-					const messages = await page.locator('[data-chat-messages] .chat-lab__message').all();
-					for (const msg of messages) {
-						const msgText = await msg.locator('.chat-lab__message-text').textContent();
-						if (msgText?.includes(text)) {
-							const user = await msg.locator('.chat-lab__message-user').textContent();
-							return user?.trim();
-						}
-					}
-					return null;
-				},
-				{ timeout: 15_000, intervals: [200, 400, 600] },
-			)
-			.toBe('cool-tester');
+		const matchingMessage = page
+			.locator('[data-chat-messages] .chat-lab__message')
+			.filter({ has: page.locator('.chat-lab__message-text', { hasText: text }) });
+
+		await expect(matchingMessage.locator('.chat-lab__message-user')).toHaveText('cool-tester');
 	});
 
 	test('message sent in one tab is broadcast to a second tab', async ({ browser }, testInfo) => {
@@ -174,8 +129,8 @@ test.describe('WebSocket broadcast @realtime', () => {
 		const pageB = await ctxB.newPage();
 
 		try {
-			await gotoPath(pageA, roomPath);
-			await gotoPath(pageB, roomPath);
+			await gotoPathSimple(pageA, roomPath);
+			await gotoPathSimple(pageB, roomPath);
 
 			await waitForChatConnected(pageA);
 			await waitForChatConnected(pageB);
@@ -183,24 +138,9 @@ test.describe('WebSocket broadcast @realtime', () => {
 			const broadcastText = `broadcast-${Date.now()}`;
 			await sendChatMessage(pageA, broadcastText);
 
-			await expect
-				.poll(
-					async () => {
-						try {
-							await waitForNavigationIdle(pageB, 1_000);
-							return await pageB.evaluate((needle: string) => {
-								const texts = [
-									...document.querySelectorAll('[data-chat-messages] .chat-lab__message-text'),
-								].map((element) => element.textContent ?? '');
-								return texts.some((text) => text.includes(needle));
-							}, broadcastText);
-						} catch {
-							return false;
-						}
-					},
-					{ timeout: 30_000, intervals: [200, 400, 600] },
-				)
-				.toBe(true);
+			await expect(
+				pageB.locator('[data-chat-messages] .chat-lab__message-text').filter({ hasText: broadcastText }),
+			).toBeVisible();
 		} finally {
 			await ctxA.close();
 			await ctxB.close();

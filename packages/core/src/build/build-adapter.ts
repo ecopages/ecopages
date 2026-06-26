@@ -111,6 +111,14 @@ export interface BuildResult {
 	 * back deterministically.
 	 */
 	dependencyGraph?: BuildDependencyGraph;
+	/**
+	 * @remarks
+	 * Keyed by the bundler's normalized `facadeModuleId`. Callers use this to
+	 * map a source entry to its emitted file without inferring chunk names from
+	 * `[name]-[hash]` templates, which can collide when sanitized entry keys share
+	 * a prefix. Undefined when the backend produced no entry chunks.
+	 */
+	entryOutputs?: Record<string, string>;
 }
 
 /**
@@ -371,6 +379,18 @@ export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: ()
 	};
 }
 
+/**
+ * @remarks
+ * All runtime-bag setters funnel through here so `appConfig.runtime` is patched
+ * in one place instead of repeating the spread-merge at every call site.
+ */
+function patchAppRuntime(appConfig: EcoPagesAppConfig, patch: Partial<NonNullable<EcoPagesAppConfig['runtime']>>): void {
+	appConfig.runtime = {
+		...(appConfig.runtime ?? {}),
+		...patch,
+	};
+}
+
 function createHostOwnedBuildError(methodName: string): Error {
 	return new Error(
 		`Vite-hosted builds are owned by the host runtime. Core cannot ${methodName} through the host-owned compatibility adapter.`,
@@ -491,10 +511,7 @@ export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnersh
  * value is a no-op.
  */
 export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		buildOwnership,
-	};
+	patchAppRuntime(appConfig, { buildOwnership });
 }
 
 /**
@@ -515,11 +532,10 @@ export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
  * declared ownership.
  */
 export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
+	patchAppRuntime(appConfig, {
 		buildOwnership: getBuildAdapterOwnership(buildAdapter),
 		buildAdapter,
-	};
+	});
 }
 
 /**
@@ -542,10 +558,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 
 /** Installs the build manifest that should be visible to one app instance. */
 export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		buildManifest,
-	};
+	patchAppRuntime(appConfig, { buildManifest });
 }
 
 /**
@@ -699,10 +712,7 @@ export async function setupAppRuntimePlugins(options: {
 			}
 		}
 
-		options.appConfig.runtime = {
-			...(options.appConfig.runtime ?? {}),
-			runtimeAssetsPrepared: true,
-		};
+		patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: true });
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
 	}
@@ -766,25 +776,18 @@ export function getAppRouteModuleBuildExecutor(appConfig: EcoPagesAppConfig): Bu
 
 /** Installs the default executor for one app instance (ConfigBuilder / tests). */
 export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		buildExecutor,
-	};
+	patchAppRuntime(appConfig, { buildExecutor });
 }
 
 export function setAppHmrBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		hmrBuildExecutor: buildExecutor,
-	};
+	patchAppRuntime(appConfig, { hmrBuildExecutor: buildExecutor });
 }
 
 export function setAppRouteModuleBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
+	patchAppRuntime(appConfig, {
 		routeModuleBuildExecutor: buildExecutor,
 		buildExecutor,
-	};
+	});
 }
 
 /**

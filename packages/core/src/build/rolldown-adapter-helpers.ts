@@ -426,13 +426,31 @@ export function rewriteBrowserRuntimeImportsInOutputs(
 		if (rewritten !== code) {
 			fs.writeFileSync(output.path, rewritten);
 		}
-		rewriteCache.add(contentKey);
+		rememberRewrite(contentKey);
 	}
 
 	return result;
 }
 
+const REWRITE_CACHE_MAX_ENTRIES = 2048;
 const rewriteCache = new Set<string>();
+
+/**
+ * @remarks
+ * Dev rebuilds hit the same output paths with stable specifier maps; memoizing
+ * skips re-reading and re-writing unchanged files. The cache is capped because
+ * a process-global set would otherwise grow for the lifetime of a watch session.
+ * Eviction uses insertion order as an approximate LRU.
+ */
+function rememberRewrite(contentKey: string): void {
+	rewriteCache.add(contentKey);
+	if (rewriteCache.size > REWRITE_CACHE_MAX_ENTRIES) {
+		const oldest = rewriteCache.values().next().value;
+		if (oldest !== undefined) {
+			rewriteCache.delete(oldest);
+		}
+	}
+}
 
 function djb2(input: string): string {
 	let hash = 5381;
@@ -480,16 +498,28 @@ export function buildResultFromRolldownOutput(
 	}));
 
 	const entryChunks = output.output.filter((entry) => entry.type === 'chunk' && entry.isEntry) as Array<{
+		fileName: string;
 		facadeModuleId: string | null;
 		moduleIds: string[];
 	}>;
 
 	const dependencyGraph = entryChunks.length > 0 ? extractDependencyGraph(entryChunks, contextRoot) : undefined;
 
+	const entryOutputs: Record<string, string> = {};
+	for (const chunk of entryChunks) {
+		if (chunk.facadeModuleId) {
+			entryOutputs[normalizeModulePath(chunk.facadeModuleId, contextRoot)] = normalizeOutputPath(
+				chunk.fileName,
+				outdir,
+			);
+		}
+	}
+
 	return {
 		success: true,
 		logs: [],
 		outputs,
 		dependencyGraph,
+		entryOutputs: entryChunks.length > 0 ? entryOutputs : undefined,
 	};
 }

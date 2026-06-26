@@ -246,6 +246,13 @@ interface LoadRegistration {
  * are checked before registrations from later ones, matching the
  * original per-plugin priority semantics.
  *
+ * @remarks
+ * {@link RolldownDevBuildAdapter} keeps one bridge plugin alive across
+ * `triggerFullBuild()` calls. Rolldown re-fires `buildStart` on each rebuild,
+ * so registrations and the virtual-module counter are cleared before every
+ * `setup` pass — otherwise handlers accumulate and the Nth dev rebuild runs each
+ * `onLoad`/`onResolve` callback N times.
+ *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
  * @param contextRoot - Project root used to resolve relative load paths.
  * @param sourceTransforms - Optional app-owned transforms applied after a matching
@@ -322,6 +329,10 @@ export function createRolldownPluginBridge(
 	const plugin: Plugin = {
 		name: 'ecopages-plugin-bridge',
 		buildStart: async (): Promise<void> => {
+			resolveRegistrations.length = 0;
+			loadRegistrations.length = 0;
+			moduleCounter.value = 0;
+
 			for (const ecoPlugin of plugins) {
 				const bridge: EcoBuildPluginBuilder = {
 					onResolve: (options, callback) => {

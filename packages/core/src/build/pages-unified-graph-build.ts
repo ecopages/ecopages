@@ -109,10 +109,25 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 	return safeKey.length > 0 ? safeKey : 'page';
 }
 
-function resolveOutputForEntrypoint(entryKey: string, buildResult: BuildResult): string | undefined {
-	const outputs = buildResult.outputs.map((output) => output.path);
+/**
+ * @remarks
+ * Uses {@link BuildResult.entryOutputs} when present so resolution follows the
+ * bundler's `facadeModuleId` instead of guessing from sanitized entry keys.
+ * Basename prefix matching remains only as a fallback for backends that omit
+ * `entryOutputs`; it can mis-associate keys such as `pages-blog` and
+ * `pages-blog-index`.
+ */
+function resolveOutputForEntrypoint(
+	entryPath: string,
+	entryKey: string,
+	buildResult: BuildResult,
+): string | undefined {
+	const exactOutput = buildResult.entryOutputs?.[path.resolve(entryPath)];
+	if (exactOutput) {
+		return exactOutput;
+	}
 
-	for (const outputPath of outputs) {
+	for (const { path: outputPath } of buildResult.outputs) {
 		const outputBaseName = path.basename(outputPath);
 		if (outputBaseName.startsWith(`${entryKey}-`) && /\.(?:m?js)$/u.test(outputBaseName)) {
 			return outputPath;
@@ -222,7 +237,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
 		const entryKey = entryKeysByPath.get(entryPath);
-		const compiledOutput = entryKey ? resolveOutputForEntrypoint(entryKey, buildResult) : undefined;
+		const compiledOutput = entryKey ? resolveOutputForEntrypoint(entryPath, entryKey, buildResult) : undefined;
 		if (!compiledOutput) {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}

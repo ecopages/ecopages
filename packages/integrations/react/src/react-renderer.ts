@@ -395,40 +395,46 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 	/**
 	 * Resolves queued renderer-owned foreign-subtree tokens produced during React component rendering.
-	 *
-	 * React components can enqueue nested foreign subtrees while the parent HTML is being
-	 * rendered. This delegates to the shared renderer-owned queue resolver but keeps
-	 * the React-specific child rendering behavior local so raw child HTML and React's
-	 * fragment rendering semantics stay coordinated.
 	 */
-	private async resolveQueuedForeignSubtreeHtml(
+	private async renderReactQueuedForeignSubtreeChildren(
+		children: unknown,
+		currentRuntimeContext: ReactForeignSubtreeResolutionContext,
+		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
+		const renderedHtml = await this.renderQueuedChildrenToHtml(
+			children,
+			currentRuntimeContext,
+			queuedResolutionsByToken,
+			resolveToken,
+		);
+
+		if (renderedHtml === undefined) {
+			return { assets: [] };
+		}
+
+		return {
+			assets: [],
+			html: renderedHtml,
+		};
+	}
+
+	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	): Promise<{ assets: NonNullable<ComponentRenderResult['assets']>; html: string }> {
-		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.resolveQueuedForeignSubtreeHtml(
 			html,
 			runtimeContext,
-			queueLabel: 'React',
-			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => {
-				const renderedHtml = await this.renderQueuedChildrenToHtml(
+			(children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) =>
+				this.renderReactQueuedForeignSubtreeChildren(
 					children,
 					currentRuntimeContext,
 					queuedResolutionsByToken,
 					resolveToken,
-				);
-
-				return {
-					assets: [],
-					html: renderedHtml,
-				};
-			},
-		});
+				),
+			'React',
+		);
 	}
 
 	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
@@ -490,7 +496,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			hasDependencies && canResolveAssets
 				? await this.processComponentDependencies([input.component])
 				: undefined;
-		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(html, runtimeContext);
+		const queuedForeignSubtreeResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(assets ?? []),
 			...queuedForeignSubtreeResolution.assets,
@@ -522,7 +528,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 		const hasResolvedChildHtml = input.children !== undefined;
 		let html = this.renderComponentHtml(input, context, runtimeContext);
-		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(html, runtimeContext);
+		const queuedForeignSubtreeResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		html = queuedForeignSubtreeResolution.html;
 		const canAttachAttributes = hasSingleRootElement(html);
 		const rootTag = this.getRootTagName(html);

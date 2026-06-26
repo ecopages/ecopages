@@ -42,6 +42,10 @@ export class OwnershipValidationService {
 					return errors;
 				}
 
+				if (integrationName === 'html') {
+					return errors;
+				}
+
 				if (!componentMeta) {
 					errors.push({
 						code: 'MISSING_COMPONENT_METADATA',
@@ -73,4 +77,15 @@ export class OwnershipValidationService {
 
 		return this.appConfig.integrations.some((integration) => integration.name === integrationName);
 	}
+}
+
+/**
+ * Throws when declared ownership validation collected one or more errors.
+ */
+export function throwIfOwnershipInvalid(validationErrors: OwnershipValidationError[]): void {
+	if (validationErrors.length === 0) {
+		return;
+	}
+
+	throw new Error(validationErrors.map((error) => error.message).join('\n'));
 }

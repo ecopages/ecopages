@@ -156,11 +156,9 @@ Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integr
 
 **Plugin Bridge**: Ecopages plugins (`EcoBuildPlugin`) are translated to Rolldown `Plugin` instances via `createRolldownPluginBridge()`. All eco plugins are consolidated into a **single** Rolldown plugin to minimize Rust→JS FFI overhead. Each plugin hook without a filter causes 3–4× slowdown per module.
 
-**DevEngine for HMR**: The `RolldownDevBuildAdapter` wraps Rolldown's experimental `DevEngine` API. It caches the module graph, resolver cache, and transform cache across rebuilds. In development, `installBuildRuntime()` wires separate serialized DevEngine pools for `route-module` and `browser-hmr` profiles.
+**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
 
-**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. Production uses one-shot Rolldown with parallel pools where safe; dev route-module and browser-HMR use serialized DevEngine adapters.
-
-**Build Ownership**: Three adapters exist — `'rolldown'` (production), `'rolldown-dev'` (cached HMR, dev profiles only), `'vite-host'` (host-managed).
+**Build Ownership**: Two adapters exist — `'rolldown'` (default bundled backend) and `'vite-host'` (host-managed boundary marker).
 
 **Native MagicString**: Enabled via `experimental.nativeMagicString: true` for Rust-native string manipulation.
 

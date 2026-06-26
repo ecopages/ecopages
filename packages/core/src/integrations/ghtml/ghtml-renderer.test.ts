@@ -14,6 +14,7 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '../../route-renderer/orchestration/integration-renderer.ts';
+import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestration/foreign-subtree-execution.service.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
@@ -181,10 +182,12 @@ describe('GhtmlRenderer', () => {
 		const renderer = createRenderer();
 		const Component = (async () => '<main>Foreign Subtree</main>') as EcoComponent<Record<string, unknown>>;
 
-		const result = await renderer.renderForeignSubtree({
-			component: Component,
-			props: {},
-		});
+		const result = toForeignSubtreeRenderPayload(
+			await renderer.renderComponentWithForeignChildren({
+				component: Component,
+				props: {},
+			}),
+		);
 
 		expect(result).toEqual<ForeignSubtreeRenderPayload>({
 			html: '<main>Foreign Subtree</main>',

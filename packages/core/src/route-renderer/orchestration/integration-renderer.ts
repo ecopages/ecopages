@@ -8,7 +8,6 @@ import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	ForeignSubtreeRenderPayload,
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
@@ -49,9 +48,14 @@ import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './rende
 import {
 	ForeignSubtreeExecutionService,
 	type ForeignSubtreeExecutionOwningRenderer,
+	type QueuedForeignSubtreeResolutionContext,
 } from './foreign-subtree-execution.service.ts';
-import { type QueuedForeignSubtreeResolutionContext } from './queued-foreign-subtree-resolution.service.ts';
 import { buildProcessedAssetDedupeKey } from './processed-asset-dedupe.ts';
+import {
+	applyDocumentShellAttributeStamping,
+	composeDocumentShell,
+	renderPageDocumentShell,
+} from './document-shell-render.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -130,67 +134,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		return this.importPageFile(file, options);
-	}
-
-	/**
-	 * Reads the execution-scoped owning-renderer cache from one render input.
-	 *
-	 * Shared page/layout/document shell helpers pass one cache through
-	 * `integrationContext` so repeated delegation to the same foreign integration
-	 * can reuse a single initialized renderer instance during one render flow.
-	 * The cache is deliberately scoped to the current render execution rather than
-	 * stored on the renderer, which avoids leaking mutable integration state across
-	 * requests while still preventing redundant renderer initialization.
-	 *
-	 * @param integrationContext - Optional render context carried with one render input.
-	 * @returns The current execution cache when present.
-	 */
-	private getOwningRendererCache(
-		integrationContext?: BaseIntegrationContext,
-	): Map<string, IntegrationRenderer<any>> | undefined {
-		if (integrationContext?.rendererCache instanceof Map) {
-			return integrationContext.rendererCache as Map<string, IntegrationRenderer<any>>;
-		}
-
-		return undefined;
-	}
-
-	private getForeignOwnerIntegrationName(component: EcoComponent): string | undefined {
-		const integrationName = component.config?.integration ?? component.config?.__eco?.integration;
-		if (!integrationName || integrationName === this.name) {
-			return undefined;
-		}
-
-		return this.appConfig.integrations.some((integration) => integration.name === integrationName)
-			? integrationName
-			: undefined;
-	}
-
-	/**
-	 * Attaches an execution-scoped owning-renderer cache to one render input.
-	 *
-	 * Foreign-owned page, layout, or document shells may delegate several times in
-	 * the same render flow. Threading the cache through `integrationContext`
-	 * preserves renderer reuse without changing the public render input contract.
-	 * Existing integration-specific context is preserved and augmented.
-	 *
-	 * @param input - Original render input.
-	 * @param rendererCache - Execution-scoped renderer cache to propagate.
-	 * @returns Render input augmented with the shared renderer cache.
-	 */
-	private withOwningRendererCache(
-		input: ComponentRenderInput,
-		rendererCache: Map<string, IntegrationRenderer<any>>,
-	): ComponentRenderInput {
-		const integrationContext = input.integrationContext;
-		const sharedRendererCache = rendererCache as BaseIntegrationContext['rendererCache'];
-
-		return {
-			...input,
-			integrationContext: integrationContext
-				? { ...integrationContext, rendererCache: sharedRendererCache }
-				: { rendererCache: sharedRendererCache },
-		};
 	}
 
 	protected getRendererModuleValue(key: string): unknown {
@@ -466,21 +409,27 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const { documentHtml } = await this.composeDocumentShell({
-			primaryComponent: input.view as EcoComponent,
-			primaryProps: normalizedProps,
-			layout: input.layout
-				? {
-						component: input.layout,
-						props: {},
-					}
-				: undefined,
-			htmlTemplate: HtmlTemplate as EcoComponent,
-			documentProps: {
-				metadata,
-				pageProps: normalizedProps,
+		const { documentHtml } = await composeDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) => this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
-		});
+			{
+				primaryComponent: input.view as EcoComponent,
+				primaryProps: normalizedProps,
+				layout: input.layout
+					? {
+							component: input.layout,
+							props: {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
+				documentProps: {
+					metadata,
+					pageProps: normalizedProps,
+				},
+			},
+		);
 
 		const html = await this.finalizeResolvedHtml({
 			html: `${this.DOC_TYPE}${documentHtml}`,
@@ -517,76 +466,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		documentProps?: Record<string, unknown>;
 		transformDocumentHtml?: (html: string) => string;
 	}): Promise<string> {
-		const { documentHtml: composedDocumentHtml } = await this.composeDocumentShell({
-			primaryComponent: input.page.component,
-			primaryProps: input.page.props,
-			layout: input.layout,
-			htmlTemplate: input.htmlTemplate,
-			documentProps: {
-				metadata: input.metadata,
-				pageProps: input.pageProps,
-				...(input.documentProps ?? {}),
+		return renderPageDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) => this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
-		});
-
-		const documentHtml = input.transformDocumentHtml
-			? input.transformDocumentHtml(composedDocumentHtml)
-			: composedDocumentHtml;
-
-		return `${this.DOC_TYPE}${documentHtml}`;
+			input,
+			this.DOC_TYPE,
+		);
 	}
 
-	private async composeDocumentShell(input: {
-		primaryComponent: EcoComponent;
-		primaryProps: Record<string, unknown>;
-		layout?: {
-			component: EcoComponent;
-			props?: Record<string, unknown>;
-		};
-		htmlTemplate: EcoComponent;
-		documentProps: Record<string, unknown>;
-	}): Promise<{ documentHtml: string }> {
-		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const primaryRender = await this.renderComponentWithForeignChildren({
-			component: input.primaryComponent,
-			props: input.primaryProps,
-			integrationContext: { rendererCache },
-		});
-		const layoutRender = input.layout
-			? await this.renderComponentWithForeignChildren({
-					component: input.layout.component,
-					props: input.layout.props ?? {},
-					children: primaryRender.html,
-					integrationContext: { rendererCache },
-				})
-			: undefined;
-		const documentRender = await this.renderComponentWithForeignChildren({
-			component: input.htmlTemplate,
-			props: input.documentProps,
-			children: layoutRender?.html ?? primaryRender.html,
-			integrationContext: { rendererCache },
-		});
-
-		this.appendProcessedDependencies(primaryRender.assets, layoutRender?.assets, documentRender.assets);
-
-		return {
-			documentHtml: documentRender.html,
-		};
-	}
-
-	/**
-	 * Renders one string-first component with serialized children and collects its assets.
-	 *
-	 * String-oriented integrations frequently share the same component contract:
-	 * pass serialized children through props, coerce the render result to HTML, and
-	 * attach any component-scoped dependencies. This helper centralizes that flow
-	 * so integrations can opt into shared orchestration without repeating the same
-	 * string-render boilerplate.
-	 *
-	 * @param input - Component render input.
-	 * @param component - String-oriented component implementation to execute.
-	 * @returns Structured component render result for orchestration paths.
-	 */
 	protected async renderStringComponentWithSerializedChildren(
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
@@ -1102,15 +991,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const rendererBootstrapDependencies = this.getRendererBootstrapDependencies(options.partial);
 		this.appendProcessedDependencies(rendererBootstrapDependencies);
 
-		let html = options.html;
-
-		if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
-			html = this.htmlTransformer.applyAttributesToFirstBodyElement(html, options.componentRootAttributes);
-		}
-
-		if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
-			html = this.htmlTransformer.applyAttributesToHtmlElement(html, options.documentAttributes);
-		}
+		let html = applyDocumentShellAttributeStamping(
+			options.html,
+			{
+				applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
+					this.htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
+				applyAttributesToHtmlElement: (nextHtml, attributes) =>
+					this.htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
+			},
+			{
+				componentRootAttributes: options.componentRootAttributes,
+				documentAttributes: options.documentAttributes,
+			},
+		);
 
 		const shouldTransform = options.transformHtml ?? !options.partial;
 		if (!shouldTransform) {
@@ -1226,24 +1119,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			getOwningRenderer: (integrationName, rendererCache) =>
 				this.getIntegrationRendererForName(integrationName, rendererCache),
 		});
-	}
-
-	/**
-	 * Compatibility foreign-subtree contract that exposes a narrower payload shape for
-	 * future route-composition work while preserving the current
-	 * `renderComponentWithForeignChildren()` runtime semantics.
-	 */
-	async renderForeignSubtree(input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> {
-		const result = await this.renderComponentWithForeignChildren(input);
-
-		return {
-			html: result.html,
-			assets: result.assets ?? [],
-			rootTag: result.rootTag,
-			rootAttributes: result.rootAttributes,
-			attachmentPolicy: result.canAttachAttributes ? { kind: 'first-element' } : { kind: 'none' },
-			integrationName: result.integrationName,
-		};
 	}
 
 	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {

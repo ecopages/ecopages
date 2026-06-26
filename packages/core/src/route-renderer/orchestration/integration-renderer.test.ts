@@ -25,6 +25,7 @@ import type {
 } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
+import { toForeignSubtreeRenderPayload } from './foreign-subtree-execution.service.ts';
 
 function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
@@ -190,7 +191,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	public async testRenderForeignSubtree(input: ComponentRenderInput) {
-		return this.renderForeignSubtree(input);
+		return toForeignSubtreeRenderPayload(await this.renderComponentWithForeignChildren(input));
 	}
 
 	protected override createForeignChildRuntime(options: {
@@ -662,7 +663,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
-	it('should include an ownership plan for page, layout, and html template roots', async () => {
+	it('should prepare render options when declared foreign dependencies are valid', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...AppConfig,
@@ -722,30 +723,22 @@ describe('IntegrationRenderer', () => {
 		};
 		renderer.HtmlTemplate = HtmlTemplate;
 
-		const result = await renderer.testPrepareRenderOptions({
-			file: '/app/pages/index.tsx',
-			params: {},
-			query: {},
-		});
-
-		expect(result.ownershipPlan).toEqual(
+		await expect(
+			renderer.testPrepareRenderOptions({
+				file: '/app/pages/index.tsx',
+				params: {},
+				query: {},
+			}),
+		).resolves.toEqual(
 			expect.objectContaining({
-				foreignEdgeCount: 1,
-				hasValidationErrors: false,
-				rendererNames: expect.arrayContaining(['test-renderer', 'foreign-renderer']),
-				root: expect.objectContaining({
-					source: 'route',
-					children: expect.arrayContaining([
-						expect.objectContaining({ source: 'html-template' }),
-						expect.objectContaining({ source: 'layout' }),
-						expect.objectContaining({ source: 'page' }),
-					]),
-				}),
+				Page: PageIdx,
+				Layout,
+				HtmlTemplate,
 			}),
 		);
 	});
 
-	it('should record validation errors for unknown foreign integration owners', async () => {
+	it('should fail fast for unknown foreign integration owners', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: AppConfig,
 			assetProcessingService: AssetService,
@@ -788,21 +781,14 @@ describe('IntegrationRenderer', () => {
 		};
 		renderer.HtmlTemplate = HtmlTemplate;
 
-		const result = await renderer.testPrepareRenderOptions({
-			file: '/app/pages/index.tsx',
-			params: {},
-			query: {},
-		});
-
-		expect(result.ownershipPlan?.hasValidationErrors).toBe(true);
-		expect(result.ownershipPlan?.validationErrors).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					code: 'UNKNOWN_INTEGRATION_OWNER',
-					componentId: 'missing-foreign-component',
-					integrationName: 'missing-renderer',
-				}),
-			]),
+		await expect(
+			renderer.testPrepareRenderOptions({
+				file: '/app/pages/index.tsx',
+				params: {},
+				query: {},
+			}),
+		).rejects.toThrow(
+			'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
 		);
 	});
 

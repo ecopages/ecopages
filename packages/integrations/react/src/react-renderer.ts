@@ -144,13 +144,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		this.bundleService = new ReactBundleService({
 			rootDir: this.appConfig.rootDir,
+			appConfig: this.appConfig,
+			hostIntegrationName: this.name,
 			routerAdapter: this.routerAdapter,
 			mdxCompilerOptions: this.mdxCompilerOptions,
-			jsxImportSource: (this.appConfig.integrations ?? []).find((integration) => integration.name === this.name)
-				?.jsxImportSource,
-			nonReactExtensions: (this.appConfig.integrations ?? [])
-				.filter((integration) => integration.name !== this.name)
-				.flatMap((integration) => integration.extensions),
 		});
 
 		this.pageModuleService = new ReactPageModuleService({

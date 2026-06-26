@@ -735,9 +735,7 @@ export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuild
 export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	const manifest = getAppBuildManifest(appConfig);
 	const sourceTransformNames = new Set(getAppSourceTransforms(appConfig).map((transform) => transform.name));
-	const browserPlugins = getBrowserBuildPlugins(manifest).filter(
-		(plugin) => !sourceTransformNames.has(plugin.name),
-	);
+	const browserPlugins = getBrowserBuildPlugins(manifest).filter((plugin) => !sourceTransformNames.has(plugin.name));
 	return [...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
 }
 

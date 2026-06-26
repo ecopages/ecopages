@@ -41,11 +41,7 @@ export function createFixturePlaywrightProjects(desktopChrome: DesktopChromeUse)
 		{
 			name: 'react-router-e2e',
 			testMatch: 'e2e/tests/react-router/**/*.test.e2e.ts',
-			testIgnore: [
-				'**/persist-layouts.test.e2e.ts',
-				'**/*hmr*.test.e2e.ts',
-				'**/eco-layout-switch.test.e2e.ts',
-			],
+			testIgnore: ['**/persist-layouts.test.e2e.ts', '**/*hmr*.test.e2e.ts', '**/eco-layout-switch.test.e2e.ts'],
 			use: {
 				...desktopChrome,
 				baseURL: 'http://localhost:4003',

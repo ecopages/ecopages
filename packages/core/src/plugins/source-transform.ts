@@ -85,11 +85,7 @@ function getSourceTransformEnforceOrder(transform: EcoSourceTransform): number {
  * @param id - Module id forwarded to each transform after query/hash normalization.
  * @returns The transformed source, or the original `code` when no transform matches.
  */
-export function applySourceTransforms(
-	transforms: readonly EcoSourceTransform[],
-	code: string,
-	id: string,
-): string {
+export function applySourceTransforms(transforms: readonly EcoSourceTransform[], code: string, id: string): string {
 	let current = code;
 
 	for (const transform of [...transforms].sort(

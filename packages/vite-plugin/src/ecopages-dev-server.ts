@@ -1,11 +1,21 @@
 import { Readable } from 'node:stream';
+import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
+import {
+	injectEcopagesDocumentDevBootstrap,
+	stripViteBrowserHmrScripts,
+} from './ecopages-hmr-runtime-injection.ts';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
+import {
+	getAppEntryPath,
+	loadApp,
+	registerHostModuleLoader,
+	type EcopagesEmbeddedApp,
+} from './embedded-dev-server.ts';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import { resolveEcopagesDevServerOrigin } from './resolve-vite-dev-origin.ts';
 import type { EcopagesVitePlugin } from './types.ts';
-import { getAppEntryPath, loadApp, type EcopagesEmbeddedApp, warmupDevServer } from './warmup-dev-server.ts';
 
 type ViteServerWithMiddleware = ViteDevServer & {
 	middlewares: {
@@ -122,11 +132,23 @@ async function attachEmbeddedWebSocketUpgrades(
 	await app.attachWebSocketUpgrades(server.httpServer, { passthroughUnmatched: true });
 }
 
+function isConnectDocumentNavigation(req: Connect.IncomingMessage): boolean {
+	return isDocumentHtmlNavigationFromHeaders((name) => {
+		const value = req.headers[name.toLowerCase()];
+		if (Array.isArray(value)) {
+			return value[0] ?? null;
+		}
+
+		return value ?? null;
+	});
+}
+
 async function sendAppResponse(
 	res: ServerResponse,
 	response: Response,
 	server: ViteDevServer,
 	requestUrl: string,
+	req: Connect.IncomingMessage,
 ): Promise<void> {
 	const contentType = response.headers.get('content-type') ?? '';
 
@@ -137,7 +159,16 @@ async function sendAppResponse(
 
 	const originalBody = await response.text();
 	const normalizedBody = normalizeHtmlResponse(originalBody);
-	const rewrittenBody = await server.transformIndexHtml(requestUrl, normalizedBody);
+	const isDocumentNavigation = isConnectDocumentNavigation(req);
+	let rewrittenBody = isDocumentNavigation
+		? await server.transformIndexHtml(requestUrl, normalizedBody)
+		: normalizedBody;
+
+	if (isDocumentNavigation) {
+		rewrittenBody = stripViteBrowserHmrScripts(rewrittenBody);
+		rewrittenBody = injectEcopagesDocumentDevBootstrap(rewrittenBody);
+	}
+
 	const headers = new Headers(response.headers);
 	headers.delete('content-length');
 	headers.delete('etag');
@@ -168,15 +199,22 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 		apply: 'serve',
 		configureServer(server: ViteDevServer) {
 			const middlewareServer = assertMiddlewareServer(server);
+			api.appConfig.runtime = {
+				...(api.appConfig.runtime ?? {}),
+				devClientOwner: 'host',
+			};
 
 			return () => {
-				void warmupDevServer(server, api, appEntryPath)
-					.then(() => {
+				void (async () => {
+					try {
+						await registerHostModuleLoader(server, api);
+						const app = await loadApp(server, appEntryPath);
+						api.setCachedApp(app);
 						api.markDevHostReady();
-					})
-					.catch((error) => {
+					} catch (error) {
 						api.markDevHostFailed(error);
-					});
+					}
+				})();
 
 				let websocketUpgradesReady: Promise<void> = Promise.resolve();
 
@@ -188,6 +226,14 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 
 				middlewareServer.middlewares.use(async (req, res, next) => {
 					if (req.headers.upgrade?.toLowerCase() === 'websocket') {
+						try {
+							await api.getDevHostReady();
+							await websocketUpgradesReady;
+						} catch (error) {
+							next(error);
+							return;
+						}
+
 						next();
 						return;
 					}
@@ -200,7 +246,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);
 						const requestUrl = webRequest.url;
-						await sendAppResponse(res, response, server, requestUrl);
+						await sendAppResponse(res, response, server, requestUrl, req);
 					} catch (error) {
 						next(error);
 					}

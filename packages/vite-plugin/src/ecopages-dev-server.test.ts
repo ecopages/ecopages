@@ -50,11 +50,19 @@ async function setupDevServerMiddleware(
 		options?.module?.app?.fetch ??
 		(async (request: Request) => {
 			options?.captureFetch?.(request);
-			return fetchResponse;
+			return fetchResponse.clone();
 		});
 
 	const server = {
 		httpServer: options?.httpServer,
+		hot: { send: vi.fn() },
+		environments: {
+			client: {
+				hot: { send: vi.fn() },
+				async waitForRequestsIdle() {},
+				async warmupRequest() {},
+			},
+		},
 		async transformIndexHtml(_url: string, html: string) {
 			if (html.includes('/@vite/client')) {
 				return html;
@@ -137,6 +145,14 @@ describe('ecopagesDevServer', () => {
 		let registeredLoader: ((id: string) => Promise<unknown>) | undefined;
 
 		const server = {
+			hot: { send: vi.fn() },
+			environments: {
+				client: {
+					hot: { send: vi.fn() },
+					async waitForRequestsIdle() {},
+					async warmupRequest() {},
+				},
+			},
 			async ssrLoadModule(id: string) {
 				if (id === '@ecopages/core/dev/host-runtime') {
 					return {
@@ -217,7 +233,10 @@ describe('ecopagesDevServer', () => {
 
 		await harness.middleware?.(
 			{
-				headers: {},
+				headers: {
+					'sec-fetch-dest': 'document',
+					'sec-fetch-mode': 'navigate',
+				},
 				method: 'GET',
 				originalUrl: '/',
 			},
@@ -232,7 +251,39 @@ describe('ecopagesDevServer', () => {
 		expect(harness.headers.has('content-length')).toBe(false);
 		expect(harness.headers.has('etag')).toBe(false);
 		expect(harness.headers.get('content-type')).toBe('text/html; charset=utf-8');
-		expect(harness.getBody()).toContain('/@vite/client');
+		expect(harness.getBody()).not.toContain('/@vite/client');
+		expect(harness.getBody()).toContain("import '/_hmr_runtime.js'");
+		expect(harness.isEnded()).toBe(true);
+	});
+
+	it('skips Vite index transforms for browser-router HTML fetches', async () => {
+		const harness = await setupDevServerMiddleware(
+			new Response('<!DOCTYPE html><html><head></head><body></body></html>', {
+				headers: {
+					'content-type': 'text/html; charset=utf-8',
+				},
+			}),
+		);
+
+		await harness.middleware?.(
+			{
+				headers: {
+					'sec-fetch-dest': 'empty',
+					'sec-fetch-mode': 'cors',
+				},
+				method: 'GET',
+				originalUrl: '/images',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) {
+					throw error;
+				}
+			},
+		);
+
+		expect(harness.getBody()).not.toContain('/@vite/client');
+		expect(harness.getBody()).not.toContain("import '/_hmr_runtime.js'");
 		expect(harness.isEnded()).toBe(true);
 	});
 

@@ -1,9 +1,6 @@
 import path from 'node:path';
 import type { ViteDevServer } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
-import { resolveEcopagesDevServerOrigin } from './resolve-vite-dev-origin.ts';
-
-const IMAGE_VIRTUAL_MODULE_ID = 'virtual:ecopages/images.ts';
 
 export type EcopagesEmbeddedApp = {
 	fetch: (request: Request) => Promise<Response>;
@@ -37,36 +34,6 @@ export async function loadApp(server: ViteDevServer, appEntryPath: string): Prom
 	}
 
 	return app;
-}
-
-async function preloadImageVirtualModule(server: ViteDevServer): Promise<void> {
-	try {
-		await server.ssrLoadModule(IMAGE_VIRTUAL_MODULE_ID);
-	} catch {
-		// Apps without the image processor integration can skip this preload.
-	}
-}
-
-/**
- * Eagerly warms the Vite dev host before the first browser request.
- *
- * Compiles the SSR graph, caches the app module, and preloads image virtual
- * modules so Playwright navigations do not race cold-start work.
- */
-export async function warmupDevServer(
-	server: ViteDevServer,
-	api: EcopagesPluginApi,
-	appEntryPath: string,
-): Promise<void> {
-	await registerHostModuleLoader(server, api);
-
-	const app = await loadApp(server, appEntryPath);
-	api.setCachedApp(app);
-
-	await preloadImageVirtualModule(server);
-
-	const baseUrl = resolveEcopagesDevServerOrigin(api.getDevServerOrigin(), api.appConfig.baseUrl);
-	await app.fetch(new Request(new URL('/', baseUrl)));
 }
 
 export function getAppEntryPath(rootDir: string): string {

@@ -1,10 +1,10 @@
 import path from 'node:path';
 import type { EnvironmentModuleNode, HotUpdateOptions, ViteDevServer } from 'vite';
+import { hostOwnsDevClient } from '@ecopages/core/dev/dev-client-ownership';
 import { createDevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
+import type { DevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
-
-const FULL_RELOAD_DEBOUNCE_MS = 200;
 
 function assertWatcherServer(server: ViteDevServer): void {
 	if (!server.watcher || typeof server.watcher.add !== 'function') {
@@ -30,27 +30,80 @@ function invalidateFileInServerEnvironments(server: ViteDevServer, filePath: str
 	}
 }
 
-function createFullReloadScheduler() {
-	let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+type ProcessFileChangeOptions = {
+	server: ViteDevServer;
+	api: EcopagesPluginApi;
+	hostRuntime: DevelopmentHostRuntime;
+	extraWatchedPaths: string[];
+	hostOwnsClient: () => boolean;
+	clientModules?: EnvironmentModuleNode[];
+	invalidateClientModule?: (module: EnvironmentModuleNode) => void;
+};
 
-	return {
-		schedule(server: ViteDevServer) {
-			if (reloadTimer) {
-				clearTimeout(reloadTimer);
-			}
+function processEcopagesFileChange(
+	file: string,
+	{
+		server,
+		api,
+		hostRuntime,
+		extraWatchedPaths,
+		hostOwnsClient,
+		clientModules = [],
+		invalidateClientModule,
+	}: ProcessFileChangeOptions,
+): EnvironmentModuleNode[] | undefined {
+	for (const watchedPath of extraWatchedPaths) {
+		if (file === watchedPath || file.startsWith(`${watchedPath}/`)) {
+			void server.restart();
+			return [];
+		}
+	}
 
-			reloadTimer = setTimeout(() => {
-				reloadTimer = undefined;
-				server.hot.send({ type: 'full-reload', path: '*' });
-			}, FULL_RELOAD_DEBOUNCE_MS);
-		},
-		dispose() {
-			if (reloadTimer) {
-				clearTimeout(reloadTimer);
-				reloadTimer = undefined;
-			}
-		},
-	};
+	const plan = hostRuntime.planFileChange(file);
+
+	if (plan.invalidateServerModules) {
+		hostRuntime.invalidateServerModules([file]);
+		invalidateFileInServerEnvironments(server, file);
+		api.invalidateAppCache();
+	}
+
+	if (plan.reloadBrowser) {
+		void api.getDevHostReady().then(() => {
+			hostRuntime.broadcastClientEvent({
+				type: 'reload',
+				path: file,
+				timestamp: Date.now(),
+			});
+		});
+		return [];
+	}
+
+	if (plan.delegateToHmr && hostRuntime.isServerRenderedTemplatePlan(plan)) {
+		void api.getDevHostReady().then(() => {
+			hostRuntime.broadcastClientEvent({
+				type: 'layout-update',
+				path: file,
+				timestamp: Date.now(),
+			});
+		});
+		return [];
+	}
+
+	if (!plan.delegateToHmr) {
+		return clientModules;
+	}
+
+	if (invalidateClientModule) {
+		for (const mod of clientModules) {
+			invalidateClientModule(mod);
+		}
+	}
+
+	if (hostOwnsClient()) {
+		return [];
+	}
+
+	return clientModules;
 }
 
 /**
@@ -63,7 +116,7 @@ function createFullReloadScheduler() {
 export function ecopagesHotUpdate(api: EcopagesPluginApi, options?: { watchedPaths?: string[] }): EcopagesVitePlugin {
 	const hostRuntime = createDevelopmentHostRuntime(api.appConfig);
 	const extraWatchedPaths = options?.watchedPaths ?? [];
-	const scheduleFullReload = createFullReloadScheduler();
+	const hostOwnsClient = () => hostOwnsDevClient(api.appConfig.runtime);
 
 	return {
 		name: 'ecopages:hot-update',
@@ -82,50 +135,48 @@ export function ecopagesHotUpdate(api: EcopagesPluginApi, options?: { watchedPat
 
 			server.watcher.add(watchedPaths);
 
+			if (!hostOwnsClient()) {
+				return;
+			}
+
+			const onFileEvent = (file: string) => {
+				processEcopagesFileChange(file, {
+					server,
+					api,
+					hostRuntime,
+					extraWatchedPaths,
+					hostOwnsClient,
+				});
+			};
+
+			server.watcher.on('change', onFileEvent);
+			server.watcher.on('add', onFileEvent);
+
 			return () => {
-				scheduleFullReload.dispose();
+				server.watcher.off('change', onFileEvent);
+				server.watcher.off('add', onFileEvent);
 			};
 		},
 		hotUpdate(hotUpdateOptions: HotUpdateOptions) {
+			if (hostOwnsClient()) {
+				return [];
+			}
+
 			if (this.environment.name !== 'client') return;
 			const { server } = hotUpdateOptions;
 			assertWatcherServer(server);
 
-			for (const watchedPath of extraWatchedPaths) {
-				if (hotUpdateOptions.file === watchedPath || hotUpdateOptions.file.startsWith(`${watchedPath}/`)) {
-					void server.restart();
-					return [];
-				}
-			}
-
-			const plan = hostRuntime.planFileChange(hotUpdateOptions.file);
-
-			if (plan.invalidateServerModules) {
-				hostRuntime.invalidateServerModules([hotUpdateOptions.file]);
-				invalidateFileInServerEnvironments(server, hotUpdateOptions.file);
-				api.invalidateAppCache();
-			}
-
-			const scheduleReload = () => {
-				void api.getDevHostReady().then(() => {
-					scheduleFullReload.schedule(server);
-				});
-			};
-
-			if (plan.reloadBrowser) {
-				scheduleReload();
-				return [];
-			}
-
-			if (!plan.delegateToHmr) {
-				return hotUpdateOptions.modules;
-			}
-
-			for (const mod of hotUpdateOptions.modules) {
-				this.environment.moduleGraph.invalidateModule(mod);
-			}
-
-			return hotUpdateOptions.modules;
+			return processEcopagesFileChange(hotUpdateOptions.file, {
+				server,
+				api,
+				hostRuntime,
+				extraWatchedPaths,
+				hostOwnsClient,
+				clientModules: hotUpdateOptions.modules,
+				invalidateClientModule: (module) => {
+					this.environment.moduleGraph.invalidateModule(module);
+				},
+			});
 		},
 	};
 }

@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig, EcoSourceTransform, EcoViteCompatiblePlugin } from '@ecopages/core';
-import type { EcopagesEmbeddedApp } from './warmup-dev-server.ts';
+import type { EcopagesEmbeddedApp } from './embedded-dev-server.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
 /**
@@ -62,6 +62,7 @@ export interface EcopagesPluginApi {
 	setDevServerOrigin(origin: string): void;
 	getDevServerOrigin(): string | undefined;
 	getDevHostReady(): Promise<void>;
+	isDevHostReady(): boolean;
 	markDevHostReady(): void;
 	markDevHostFailed(error: unknown): void;
 	getCachedApp(): EcopagesEmbeddedApp | null;
@@ -154,6 +155,9 @@ export function createEcopagesPluginApi(options: EcopagesViteOptions): EcopagesP
 		},
 		getDevHostReady() {
 			return devHostReady;
+		},
+		isDevHostReady() {
+			return devHostReadyState === 'ready';
 		},
 		markDevHostReady() {
 			if (devHostReadyState !== 'pending') {

@@ -22,6 +22,18 @@ function createApi() {
 	});
 }
 
+function createHotUpdateServer(send = vi.fn()) {
+	const hot = { send };
+	return {
+		watcher: { add: vi.fn() },
+		environments: {
+			client: { hot },
+			ssr: { moduleGraph: { getModulesByFile: () => undefined } },
+		},
+		hot,
+	};
+}
+
 describe('ecopagesHotUpdate', () => {
 	afterEach(() => {
 		vi.useRealTimers();
@@ -47,18 +59,16 @@ describe('ecopagesHotUpdate', () => {
 		]);
 	});
 
-	it('requests a debounced full reload for public asset invalidations', async () => {
-		vi.useFakeTimers();
-
+	it('broadcasts a reload for public asset invalidations', async () => {
 		const api = createApi();
 		api.markDevHostReady();
+		const broadcast = vi.fn();
+		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
+		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
-		const server = {
-			watcher: { add: vi.fn() },
-			environments: { client: {}, ssr: { moduleGraph: { getModulesByFile: () => undefined } } },
-			hot: { send },
-		};
+		const server = createHotUpdateServer(send);
 
 		const result = callPluginHook(
 			plugin.hotUpdate,
@@ -78,58 +88,25 @@ describe('ecopagesHotUpdate', () => {
 		expect(send).not.toHaveBeenCalled();
 		expect(result).toEqual([]);
 
-		await vi.advanceTimersByTimeAsync(200);
+		await Promise.resolve();
 
-		expect(send).toHaveBeenCalledTimes(1);
-		expect(send).toHaveBeenCalledWith({ type: 'full-reload', path: '*' });
+		expect(broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'reload',
+				path: '/app/public/favicon.ico',
+			}),
+		);
 	});
 
-	it('coalesces multiple rapid full reload requests into one send', async () => {
-		vi.useFakeTimers();
-
+	it('defers reload broadcasts until the dev host has finished loading', async () => {
 		const api = createApi();
-		api.markDevHostReady();
+		const broadcast = vi.fn();
+		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
+		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
-		const server = {
-			watcher: { add: vi.fn() },
-			environments: { client: {}, ssr: { moduleGraph: { getModulesByFile: () => undefined } } },
-			hot: { send },
-		};
-		const context = {
-			environment: {
-				name: 'client',
-				moduleGraph: { invalidateModule: vi.fn() },
-			},
-		} as never;
-
-		callPluginHook(plugin.hotUpdate, context, {
-			file: '/app/public/a.ico',
-			modules: [],
-			server: server as never,
-		});
-		callPluginHook(plugin.hotUpdate, context, {
-			file: '/app/public/b.ico',
-			modules: [],
-			server: server as never,
-		});
-
-		await vi.advanceTimersByTimeAsync(200);
-
-		expect(send).toHaveBeenCalledTimes(1);
-	});
-
-	it('defers full reload until the dev host warmup has completed', async () => {
-		vi.useFakeTimers();
-
-		const api = createApi();
-		const plugin = ecopagesHotUpdate(api);
-		const send = vi.fn();
-		const server = {
-			watcher: { add: vi.fn() },
-			environments: { client: {}, ssr: { moduleGraph: { getModulesByFile: () => undefined } } },
-			hot: { send },
-		};
+		const server = createHotUpdateServer(send);
 
 		callPluginHook(
 			plugin.hotUpdate,
@@ -146,16 +123,17 @@ describe('ecopagesHotUpdate', () => {
 			},
 		);
 
-		await vi.advanceTimersByTimeAsync(500);
-		expect(send).not.toHaveBeenCalled();
+		expect(broadcast).not.toHaveBeenCalled();
 
 		api.markDevHostReady();
 		await Promise.resolve();
 
-		await vi.advanceTimersByTimeAsync(200);
-
-		expect(send).toHaveBeenCalledTimes(1);
-		expect(send).toHaveBeenCalledWith({ type: 'full-reload', path: '*' });
+		expect(broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'reload',
+				path: '/app/public/favicon.ico',
+			}),
+		);
 	});
 
 	it('clears the warmed app cache when server modules are invalidated', () => {
@@ -168,7 +146,7 @@ describe('ecopagesHotUpdate', () => {
 		const server = {
 			watcher: { add: vi.fn() },
 			environments: {
-				client: {},
+				client: { hot: { send } },
 				ssr: {
 					moduleGraph: {
 						getModulesByFile: () => new Set([{ id: 'page' }]),
@@ -197,18 +175,16 @@ describe('ecopagesHotUpdate', () => {
 		expect(api.getCachedApp()).toBeNull();
 	});
 
-	it('requests a debounced full reload for explicit server view invalidations', async () => {
-		vi.useFakeTimers();
-
+	it('broadcasts a layout-update for explicit server view invalidations', async () => {
 		const api = createApi();
 		api.markDevHostReady();
+		const broadcast = vi.fn();
+		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
+		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
-		const server = {
-			watcher: { add: vi.fn() },
-			environments: { client: {}, ssr: { moduleGraph: { getModulesByFile: () => undefined } } },
-			hot: { send },
-		};
+		const server = createHotUpdateServer(send);
 
 		const result = callPluginHook(
 			plugin.hotUpdate,
@@ -228,15 +204,54 @@ describe('ecopagesHotUpdate', () => {
 		expect(send).not.toHaveBeenCalled();
 		expect(result).toEqual([]);
 
-		await vi.advanceTimersByTimeAsync(200);
+		await Promise.resolve();
 
-		expect(send).toHaveBeenCalledTimes(1);
-		expect(send).toHaveBeenCalledWith({ type: 'full-reload', path: '*' });
+		expect(broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'layout-update',
+				path: '/app/src/views/explicit-team-view.kita.tsx',
+			}),
+		);
+	});
+
+	it('broadcasts a layout-update for include template invalidations', async () => {
+		const api = createApi();
+		api.markDevHostReady();
+		const broadcast = vi.fn();
+		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
+		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+
+		const plugin = ecopagesHotUpdate(api);
+		const send = vi.fn();
+		const server = createHotUpdateServer(send);
+
+		callPluginHook(
+			plugin.hotUpdate,
+			{
+				environment: {
+					name: 'client',
+					moduleGraph: { invalidateModule: vi.fn() },
+				},
+			} as never,
+			{
+				file: '/app/src/includes/seo.kita.tsx',
+				modules: [],
+				server: server as never,
+			},
+		);
+
+		await Promise.resolve();
+
+		expect(send).not.toHaveBeenCalled();
+		expect(broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'layout-update',
+				path: '/app/src/includes/seo.kita.tsx',
+			}),
+		);
 	});
 
 	it('delegates route-source changes to Vite HMR without a full reload', async () => {
-		vi.useFakeTimers();
-
 		const api = createApi();
 		api.markDevHostReady();
 		const plugin = ecopagesHotUpdate(api);
@@ -246,7 +261,7 @@ describe('ecopagesHotUpdate', () => {
 		const server = {
 			watcher: { add: vi.fn() },
 			environments: {
-				client: {},
+				client: { hot: { send } },
 				ssr: {
 					moduleGraph: {
 						getModulesByFile: () => new Set(modules),
@@ -274,9 +289,80 @@ describe('ecopagesHotUpdate', () => {
 
 		expect(invalidateModule).toHaveBeenCalledWith(modules[0]);
 		expect(result).toBe(modules);
+		expect(send).not.toHaveBeenCalled();
+	});
 
-		await vi.advanceTimersByTimeAsync(500);
+	it('handles include changes through the watcher when the host owns the dev client', async () => {
+		const api = createApi();
+		api.appConfig.runtime = { devClientOwner: 'host' };
+		api.markDevHostReady();
+		const broadcast = vi.fn();
+		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
+		setAppDevClientBridge(api.appConfig, { broadcast } as never);
 
+		const plugin = ecopagesHotUpdate(api);
+		const send = vi.fn();
+		const listeners = new Map<string, Set<(file: string) => void>>();
+		const server = {
+			watcher: {
+				add: vi.fn(),
+				on(event: string, listener: (file: string) => void) {
+					const bucket = listeners.get(event) ?? new Set();
+					bucket.add(listener);
+					listeners.set(event, bucket);
+				},
+				off(event: string, listener: (file: string) => void) {
+					listeners.get(event)?.delete(listener);
+				},
+			},
+			environments: {
+				client: { hot: { send } },
+				ssr: { moduleGraph: { getModulesByFile: () => undefined } },
+			},
+			hot: { send },
+		};
+
+		callPluginHook(plugin.configureServer, {} as never, server as never);
+
+		for (const listener of listeners.get('change') ?? []) {
+			listener('/app/src/includes/seo.kita.tsx');
+		}
+
+		await Promise.resolve();
+
+		expect(broadcast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'layout-update',
+				path: '/app/src/includes/seo.kita.tsx',
+			}),
+		);
+	});
+
+	it('returns an empty hot-update result when the host owns the dev client', () => {
+		const api = createApi();
+		api.appConfig.runtime = { devClientOwner: 'host' };
+		api.markDevHostReady();
+		const plugin = ecopagesHotUpdate(api);
+		const send = vi.fn();
+		const modules = [{ id: 'page' }];
+		const server = createHotUpdateServer(send);
+
+		const result = callPluginHook(
+			plugin.hotUpdate,
+			{
+				environment: {
+					name: 'client',
+					moduleGraph: { invalidateModule: vi.fn() },
+				},
+			} as never,
+			{
+				file: '/app/src/pages/index.kita.tsx',
+				modules,
+				server: server as never,
+			},
+		);
+
+		expect(result).toEqual([]);
 		expect(send).not.toHaveBeenCalled();
 	});
 });

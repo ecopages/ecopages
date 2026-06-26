@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { getPageTestId, getPrimaryLinkTestId, kitchenSinkShellTestId } from '../src/data/primary-links';
-import { clickByTestId, gotoPath, trackRuntimeErrors } from './test-support';
+import { clickByTestId, gotoPathSimple, trackRuntimeErrors } from './test-support';
 
 test.describe('Shell and navigation @content', () => {
 	test('renders the overview page, primary navigation, and theme toggle', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoPath(page, '/');
+		await gotoPathSimple(page, '/');
 
 		await page.evaluate(() => {
 			localStorage.setItem('theme', 'light');
@@ -44,27 +44,26 @@ test.describe('Shell and navigation @content', () => {
 	test('covers explicit routes, imperative rendering, catalog routes, and the custom 404', async ({ page }) => {
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoPath(page, '/explicit/team');
+		await gotoPathSimple(page, '/explicit/team');
 		await expect(page.getByTestId(getPageTestId('/explicit/team'))).toBeVisible();
 		await expect(page.getByText('Jules')).toBeVisible();
 
-		await gotoPath(page, '/latest');
+		await gotoPathSimple(page, '/latest');
 		await expect(page.getByTestId(getPageTestId('/latest'))).toBeVisible();
 
-		await gotoPath(page, '/catalog/semantic-html');
+		await gotoPathSimple(page, '/catalog/semantic-html');
 		await expect(page.getByTestId(getPageTestId('/catalog/semantic-html'))).toBeVisible();
 		await expect(page.getByText('semantic-html')).toBeVisible();
 
-		await gotoPath(page, '/does-not-exist');
+		await gotoPathSimple(page, '/does-not-exist');
 		await expect(page.getByTestId(getPageTestId('/does-not-exist'))).toBeVisible();
 		runtime.assertClean();
 	});
 
 	test('completes a full shell tour across the major playground surfaces', async ({ page }) => {
-		test.setTimeout(120_000);
 		const runtime = trackRuntimeErrors(page);
 
-		await gotoPath(page, '/');
+		await gotoPathSimple(page, '/');
 		await expect(page.getByTestId(getPageTestId('/'))).toBeVisible();
 
 		for (const route of [
@@ -76,7 +75,7 @@ test.describe('Shell and navigation @content', () => {
 			'/api-lab',
 			'/docs',
 		]) {
-			await gotoPath(page, route);
+			await gotoPathSimple(page, route);
 			await expect(page.getByTestId(getPageTestId(route))).toBeVisible();
 		}
 

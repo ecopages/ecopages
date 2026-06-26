@@ -6,10 +6,9 @@ import type {
 	EcopagesSocket,
 	EcopagesWebSocketHandler,
 	IncomingWebSocketMessage,
-	OutgoingWebSocketMessage,
 } from '../../types/public-types.ts';
 import { findWebSocketRoute, type WebSocketRouteMatch } from '../abstract/ws-pattern-matcher.ts';
-import { invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
+import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
 export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
 
@@ -33,38 +32,13 @@ function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	search: Record<string, string>,
 	context: TContext,
 ): EcopagesSocket<TContext, TParams> {
-	return {
-		kind,
-		params,
-		search,
-		context,
-		send: (message: OutgoingWebSocketMessage) => {
-			if (typeof message === 'string') {
-				ws.send(message);
-			} else if (message instanceof Blob) {
-				void message.arrayBuffer().then((buf) => ws.send(new Uint8Array(buf)));
-			} else if (message instanceof ArrayBuffer) {
-				ws.send(new Uint8Array(message));
-			} else if (ArrayBuffer.isView(message)) {
-				ws.send(new Uint8Array(message.buffer, message.byteOffset, message.byteLength));
-			} else {
-				ws.send(message);
-			}
+	return createEcopagesSocket(
+		{
+			send: (data) => ws.send(data),
+			close: (code, reason) => ws.close(code, reason),
 		},
-		sendStream: async (stream: ReadableStream<Uint8Array>) => {
-			const reader = stream.getReader();
-			try {
-				while (true) {
-					const { value, done } = await reader.read();
-					if (done) break;
-					if (value) ws.send(value);
-				}
-			} finally {
-				reader.releaseLock();
-			}
-		},
-		close: (code, reason) => ws.close(code, reason),
-	};
+		{ kind, params, search, context },
+	);
 }
 
 function toUpgradeRequest(runtimeOrigin: string, req: IncomingMessage): Request {

@@ -1,6 +1,10 @@
 import type { ServerWebSocket } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcopagesSocket, EcopagesWebSocketHandler, IncomingWebSocketMessage } from '../../types/public-types.ts';
+import type {
+	EcopagesSocket,
+	EcopagesWebSocketHandler,
+	IncomingWebSocketMessage,
+} from '../../types/public-types.ts';
 import { invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
 export type BunUserWebSocketData = {
@@ -86,6 +90,29 @@ export function createBunUserWebSocketLifecycle<TWsData extends BunUserWebSocket
 	close(ws: ServerWebSocket<TWsData>, code: number, reason: string): void;
 	error(ws: ServerWebSocket<TWsData>, error: Error): void;
 } {
+	const resolveSocketForEvent = (
+		ws: ServerWebSocket<TWsData>,
+	):
+		| { kind: string; handler: EcopagesWebSocketHandler<unknown, Record<string, string>>; socket: EcopagesSocket }
+		| undefined => {
+		const kind = ws.data?.kind;
+		if (!kind) {
+			return undefined;
+		}
+
+		const handler = deps.userHandlers.get(kind) as
+			| EcopagesWebSocketHandler<unknown, Record<string, string>>
+			| undefined;
+		if (!handler) {
+			return undefined;
+		}
+
+		const params = (ws.data?.params ?? {}) as Record<string, string>;
+		const search = ws.data?.search ?? {};
+		const socket = deps.adaptSocket(ws, kind, params, search, ws.data?.context);
+		return { kind, handler, socket };
+	};
+
 	return {
 		open(ws) {
 			const kind = ws.data?.kind;
@@ -99,73 +126,40 @@ export function createBunUserWebSocketLifecycle<TWsData extends BunUserWebSocket
 			});
 		},
 		message(ws, msg) {
-			const kind = ws.data?.kind;
-			if (!kind) {
+			const resolved = resolveSocketForEvent(ws);
+			if (!resolved) {
 				return;
 			}
 
-			const handler = deps.userHandlers.get(kind) as
-				| EcopagesWebSocketHandler<unknown, Record<string, string>>
-				| undefined;
-			if (!handler) {
+			if (ws.data?.context === undefined && resolved.handler.context) {
+				appLogger.warn(`[WS:${resolved.kind}] message received before context resolved; dropping.`);
 				return;
 			}
 
-			const context = ws.data?.context;
-			if (context === undefined && handler.context) {
-				appLogger.warn(`[WS:${kind}] message received before context resolved; dropping.`);
-				return;
-			}
-
-			const params = (ws.data?.params ?? {}) as Record<string, string>;
-			const search = ws.data?.search ?? {};
-			const socket = deps.adaptSocket(ws, kind, params, search, context);
 			const message: IncomingWebSocketMessage =
 				typeof msg === 'string'
 					? { kind: 'text', text: msg }
 					: { kind: 'binary', data: new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength) };
 
-			invokeWebSocketHandlerHook(kind, 'onMessage', handler.onMessage?.(socket, message));
+			invokeWebSocketHandlerHook(resolved.kind, 'onMessage', resolved.handler.onMessage?.(resolved.socket, message));
 		},
 		close(ws, code, reason) {
-			const kind = ws.data?.kind;
-			if (!kind) {
+			const resolved = resolveSocketForEvent(ws);
+			if (!resolved) {
 				return;
 			}
 
-			const handler = deps.userHandlers.get(kind) as
-				| EcopagesWebSocketHandler<unknown, Record<string, string>>
-				| undefined;
-			if (!handler) {
-				return;
-			}
-
-			const context = ws.data?.context;
-			const params = (ws.data?.params ?? {}) as Record<string, string>;
-			const search = ws.data?.search ?? {};
-			const socket = deps.adaptSocket(ws, kind, params, search, context);
 			const event = toWebSocketCloseInfo(code, reason);
-			invokeWebSocketHandlerHook(kind, 'onClose', handler.onClose?.(socket, event));
+			invokeWebSocketHandlerHook(resolved.kind, 'onClose', resolved.handler.onClose?.(resolved.socket, event));
 		},
 		error(ws, error) {
-			const kind = ws.data?.kind;
-			if (!kind) {
+			const resolved = resolveSocketForEvent(ws);
+			if (!resolved) {
 				return;
 			}
 
-			const handler = deps.userHandlers.get(kind) as
-				| EcopagesWebSocketHandler<unknown, Record<string, string>>
-				| undefined;
-			if (!handler) {
-				return;
-			}
-
-			appLogger.error(`[WS:${kind}] error:`, error as Error);
-			const context = ws.data?.context;
-			const params = (ws.data?.params ?? {}) as Record<string, string>;
-			const search = ws.data?.search ?? {};
-			const socket = deps.adaptSocket(ws, kind, params, search, context);
-			invokeWebSocketHandlerHook(kind, 'onError', handler.onError?.(socket, error));
+			appLogger.error(`[WS:${resolved.kind}] error:`, error as Error);
+			invokeWebSocketHandlerHook(resolved.kind, 'onError', resolved.handler.onError?.(resolved.socket, error));
 		},
 	};
 }

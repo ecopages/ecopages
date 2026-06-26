@@ -12,7 +12,6 @@ import type {
 	StaticRoute,
 	EcopagesSocket,
 	EcopagesWebSocketHandler,
-	OutgoingWebSocketMessage,
 } from '../../types/public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
@@ -36,9 +35,11 @@ import {
 } from '../shared/hmr-html-response.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
 import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
+import { createEcopagesSocket } from '../shared/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
 import { ClientBridge } from './client-bridge.ts';
+import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
 import { HmrManager } from './hmr-manager.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
 
@@ -79,6 +80,8 @@ export interface BunServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
+	delegateBrowserReloadToHost?: boolean;
+	hostOwnsDevClient?: boolean;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
 	previewHost?: StaticPreviewHost;
@@ -131,20 +134,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
-	/**
-	 * Adapts a Bun ServerWebSocket to the public EcopagesSocket interface.
-	 *
-	 * @remarks
-	 * This is the single source of truth for the Bun→public type adaptation.
-	 * Both the HMR and production branches use this helper to ensure consistency.
-	 *
-	 * @param ws - The raw Bun ServerWebSocket
-	 * @param kind - The registered route pattern
-	 * @param params - Dynamic path parameters
-	 * @param search - Query string parameters
-	 * @param context - The resolved per-connection context
-	 * @returns An EcopagesSocket view
-	 */
 	private adaptBunWebSocket<TContext, TParams extends Record<string, string>>(
 		ws: ServerWebSocket<WsKindData>,
 		kind: string,
@@ -152,38 +141,13 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		search: Record<string, string>,
 		context: TContext,
 	): EcopagesSocket<TContext, TParams> {
-		return {
-			kind,
-			params,
-			search,
-			context,
-			send: (message: OutgoingWebSocketMessage) => {
-				if (typeof message === 'string') {
-					ws.send(message);
-				} else if (message instanceof Blob) {
-					void message.arrayBuffer().then((buf) => ws.send(new Uint8Array(buf)));
-				} else if (message instanceof ArrayBuffer) {
-					ws.send(new Uint8Array(message));
-				} else if (ArrayBuffer.isView(message)) {
-					ws.send(new Uint8Array(message.buffer, message.byteOffset, message.byteLength));
-				} else {
-					ws.send(message);
-				}
+		return createEcopagesSocket(
+			{
+				send: (data) => ws.send(data),
+				close: (code, reason) => ws.close(code, reason),
 			},
-			sendStream: async (stream: ReadableStream<Uint8Array>) => {
-				const reader = stream.getReader();
-				try {
-					while (true) {
-						const { value, done } = await reader.read();
-						if (done) break;
-						if (value) ws.send(value);
-					}
-				} finally {
-					reader.releaseLock();
-				}
-			},
-			close: (code, reason) => ws.close(code, reason),
-		};
+			{ kind, params, search, context },
+		);
 	}
 
 	/**
@@ -238,6 +202,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		errorHandler,
 		websocketHandlers,
 		options,
+		hostOwnsDevClient,
 		hmrManager,
 		bridge,
 		previewHost,
@@ -253,6 +218,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.bridge = bridge;
 		this.hmrManager = hmrManager;
 		this.previewHost = previewHost;
+		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		if (websocketHandlers) {
 			this.websocketHandlers = websocketHandlers;
 		}
@@ -277,24 +243,11 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * adapter-level check exists for explicit API handlers that return HTML and
 	 * would otherwise bypass the route wrapper entirely.
 	 */
-	private shouldInjectHmrScript(): boolean {
-		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager);
-	}
-
-	/**
-	 * Delegates the HTML-response test to the shared response helper used by both
-	 * adapters.
-	 */
-	private isHtmlResponse(response: Response): boolean {
-		return isHtmlResponse(response);
-	}
-
-	/**
-	 * Injects HMR script into HTML responses in development mode.
-	 * Ensures explicit API handlers that return HTML get auto-reload capability.
-	 */
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+		if (
+			shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager, this.hostOwnsDevClient) &&
+			isHtmlResponse(response)
+		) {
 			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 		return response;
@@ -403,6 +356,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
+			hostOwnsDevClient: this.hostOwnsDevClient,
 		});
 
 		this.projectWatcher = watcher;
@@ -424,184 +378,113 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
 		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
 		const serverOptions = this.buildServerSettings();
+		const hasUserWs = this.websocketHandlers.size > 0;
+
+		if (!enableHmr && !hasUserWs) {
+			return serverOptions as BunServeOptions;
+		}
+
+		const userLifecycle = this.createBunUserLifecycle();
 
 		if (enableHmr) {
-			const originalFetch = serverOptions.fetch;
-			const hmrHandler = this.hmrManager.getWebSocketHandler();
-			const hmrManager = this.hmrManager;
-			const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
-			const userLifecycle = createBunUserWebSocketLifecycle<WsKindData>({
-				runtimeOrigin: this.runtimeOrigin,
-				userHandlers: this.websocketHandlers,
-				resolveContext: this.resolveBunContext.bind(this),
-				adaptSocket: (ws, kind, params, search, context) =>
-					this.adaptBunWebSocket(ws, kind, params, search, context),
-			});
-
 			(serverOptions as BunServeOptions & { development?: boolean }).development = true;
+			serverOptions.websocket = this.createHmrAwareWebSocketHandler(userLifecycle);
+		} else {
+			serverOptions.websocket = userLifecycle;
+		}
 
-			serverOptions.websocket = {
-				open(ws: ServerWebSocket<WsKindData>) {
-					const kind: string = ws.data?.kind ?? '__hmr__';
-					if (kind === '__hmr__') {
-						hmrHandler.open?.(ws);
-						return;
-					}
-					userLifecycle.open(ws);
-				},
-				message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
-					const kind: string = ws.data?.kind ?? '__hmr__';
-					if (kind === '__hmr__') {
-						hmrHandler.message?.(ws, msg as any);
-						return;
-					}
-					userLifecycle.message(ws, msg);
-				},
-				close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
-					const kind: string = ws.data?.kind ?? '__hmr__';
-					if (kind === '__hmr__') {
-						hmrHandler.close?.(ws, code, reason);
-						return;
-					}
-					userLifecycle.close(ws, code, reason);
-				},
-				error(ws: ServerWebSocket<WsKindData>, error: Error) {
-					const kind: string = ws.data?.kind ?? '__hmr__';
-					if (kind === '__hmr__') {
-						appLogger.error('[HMR] WebSocket error:', error);
-						return;
-					}
-					userLifecycle.error(ws, error);
-				},
-			} as WebSocketHandler<WsKindData>;
+		serverOptions.fetch = this.wrapFetchWithWebSocketUpgrades(serverOptions.fetch, {
+			serveHmrEndpoints: enableHmr,
+		});
 
-			serverOptions.fetch = async function (
-				this: Server<unknown>,
-				request: Request,
-				_server: Server<unknown>,
-			): Promise<Response | void> {
-				const url = new URL(request.url);
-				appLogger.debug(`[HMR] Request: ${url.pathname}`);
+		return serverOptions as BunServeOptions;
+	}
 
-				/**
-				 * Handle HMR WebSocket upgrade — tag with kind='__hmr__'.
-				 *
-				 * @remarks
-				 * This check must come before the user WebSocket path check to ensure
-				 * HMR upgrades are never intercepted by user handlers.
-				 */
+	private createBunUserLifecycle(): ReturnType<typeof createBunUserWebSocketLifecycle<WsKindData>> {
+		return createBunUserWebSocketLifecycle<WsKindData>({
+			runtimeOrigin: this.runtimeOrigin,
+			userHandlers: this.websocketHandlers,
+			resolveContext: this.resolveBunContext.bind(this),
+			adaptSocket: (ws, kind, params, search, context) => this.adaptBunWebSocket(ws, kind, params, search, context),
+		});
+	}
+
+	/**
+	 * @remarks
+	 * HMR and user sockets share one Bun `websocket` handler. Upgrade tags HMR
+	 * connections with `kind: '__hmr__'`; everything else routes to the user lifecycle.
+	 */
+	private createHmrAwareWebSocketHandler(
+		userLifecycle: ReturnType<typeof createBunUserWebSocketLifecycle<WsKindData>>,
+	): WebSocketHandler<WsKindData> {
+		const hmrHandler = this.hmrManager.getWebSocketHandler();
+		const isHmrSocket = (ws: ServerWebSocket<WsKindData>): boolean => (ws.data?.kind ?? '__hmr__') === '__hmr__';
+
+		return {
+			open(ws: ServerWebSocket<WsKindData>) {
+				if (isHmrSocket(ws)) return void hmrHandler.open?.(ws);
+				userLifecycle.open(ws);
+			},
+			message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
+				if (isHmrSocket(ws)) return void hmrHandler.message?.(ws, msg as any);
+				userLifecycle.message(ws, msg);
+			},
+			close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
+				if (isHmrSocket(ws)) return void hmrHandler.close?.(ws, code, reason);
+				userLifecycle.close(ws, code, reason);
+			},
+			error(ws: ServerWebSocket<WsKindData>, error: Error) {
+				if (isHmrSocket(ws)) return void appLogger.error('[HMR] WebSocket error:', error);
+				userLifecycle.error(ws, error);
+			},
+		} as WebSocketHandler<WsKindData>;
+	}
+
+	/**
+	 * @remarks
+	 * When `serveHmrEndpoints` is set, `/_hmr` and `/_hmr_runtime.js` are checked
+	 * before user websocket patterns so HMR upgrades are never captured by app routes.
+	 * Production mode with only user handlers skips the HMR branch entirely.
+	 */
+	private wrapFetchWithWebSocketUpgrades(
+		originalFetch: BunServeOptions['fetch'],
+		{ serveHmrEndpoints }: { serveHmrEndpoints: boolean },
+	): BunServeOptions['fetch'] {
+		const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
+		const hmrManager = this.hmrManager;
+
+		return async function (this: Server<unknown>, request: Request, server: Server<unknown>) {
+			const url = new URL(request.url);
+
+			if (serveHmrEndpoints) {
 				if (url.pathname === '/_hmr') {
-					const success = this.upgrade(request, {
-						data: { kind: '__hmr__', params: {}, search: {} },
-					});
-					if (success) return;
-					return new Response('WebSocket upgrade failed', { status: 400 });
+					const success = this.upgrade(request, { data: { kind: '__hmr__', params: {}, search: {} } });
+					return success ? undefined : new Response('WebSocket upgrade failed', { status: 400 });
 				}
 
-				/**
-				 * Serve HMR runtime script.
-				 */
 				if (url.pathname === '/_hmr_runtime.js') {
-					appLogger.debug(`[HMR] Serving runtime from ${hmrManager.getRuntimePath()}`);
 					return new Response(fileSystem.readFileAsBuffer(hmrManager.getRuntimePath()) as BodyInit, {
 						headers: { 'Content-Type': 'application/javascript' },
 					});
 				}
+			}
 
-				/**
-				 * Intercept user WebSocket upgrade requests.
-				 *
-				 * @remarks
-				 * The pattern matcher checks if the pathname matches any registered
-				 * WebSocket route. If it does and the request has the Upgrade header,
-				 * we perform the upgrade implicitly. This eliminates the need for
-				 * manual GET route registration.
-				 */
-				const wsMatch = matchRoute(url.pathname);
-				if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
-					const search = Object.fromEntries(url.searchParams.entries());
-					const success = this.upgrade(request, {
-						data: {
-							kind: wsMatch.kind,
-							params: wsMatch.params,
-							search,
-							upgradeUrl: request.url,
-						},
-					});
-					if (success) return;
-					return new Response('WebSocket upgrade failed', { status: 400 });
-				}
+			const wsMatch = matchRoute(url.pathname);
+			if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+				const search = Object.fromEntries(url.searchParams.entries());
+				const success = this.upgrade(request, {
+					data: { kind: wsMatch.kind, params: wsMatch.params, search, upgradeUrl: request.url },
+				});
+				return success ? undefined : new Response('WebSocket upgrade failed', { status: 400 });
+			}
 
-				/**
-				 * Proceed with normal request handling.
-				 */
-				let response: Response;
-				if (originalFetch) {
-					const res = await originalFetch.call(this, request, this);
-					response = res instanceof Response ? res : new Response('Not Found', { status: 404 });
-				} else {
-					response = new Response('Not Found', { status: 404 });
-				}
+			if (!originalFetch) {
+				return new Response('Not Found', { status: 404 });
+			}
 
-				return response;
-			};
-		} else if (this.websocketHandlers.size > 0) {
-			const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
-			const userLifecycle = createBunUserWebSocketLifecycle<WsKindData>({
-				runtimeOrigin: this.runtimeOrigin,
-				userHandlers: this.websocketHandlers,
-				resolveContext: this.resolveBunContext.bind(this),
-				adaptSocket: (ws, kind, params, search, context) =>
-					this.adaptBunWebSocket(ws, kind, params, search, context),
-			});
-
-			serverOptions.websocket = userLifecycle;
-
-			/**
-			 * Wrap the fetch handler to intercept user WebSocket upgrade requests.
-			 */
-			const originalFetch = serverOptions.fetch;
-			serverOptions.fetch = async function (
-				this: Server<unknown>,
-				request: Request,
-				_server: Server<unknown>,
-			): Promise<Response | void> {
-				const url = new URL(request.url);
-
-				/**
-				 * Intercept user WebSocket upgrade requests.
-				 */
-				const wsMatch = matchRoute(url.pathname);
-				if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
-					const search = Object.fromEntries(url.searchParams.entries());
-					const success = this.upgrade(request, {
-						data: {
-							kind: wsMatch.kind,
-							params: wsMatch.params,
-							search,
-							upgradeUrl: request.url,
-						},
-					});
-					if (success) return;
-					return new Response('WebSocket upgrade failed', { status: 400 });
-				}
-
-				/**
-				 * Proceed with normal request handling.
-				 */
-				let response: Response;
-				if (originalFetch) {
-					const res = await originalFetch.call(this, request, this);
-					response = res instanceof Response ? res : new Response('Not Found', { status: 404 });
-				} else {
-					response = new Response('Not Found', { status: 404 });
-				}
-
-				return response;
-			};
-		}
-
-		return serverOptions as BunServeOptions;
+			const res = await originalFetch.call(this, request, server);
+			return res instanceof Response ? res : new Response('Not Found', { status: 404 });
+		};
 	}
 
 	/**
@@ -885,6 +768,7 @@ export async function createBunServerAdapter(params: BunServerAdapterParams): Pr
 	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
 	const bridge = params.bridge ?? new ClientBridge();
 	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });
+	setAppDevClientBridge(params.appConfig, bridge);
 	const previewHost = params.previewHost ?? new BunStaticPreviewHost();
 
 	const adapter = new BunServerAdapter({

@@ -239,17 +239,17 @@ describe('ProjectWatcher - File Change Handling', () => {
 	});
 
 	describe('include files', () => {
-		test('should reload for include template changes', async () => {
+		test('should delegate include template changes to HMR before reloading the browser', async () => {
 			const includeFilePath = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(includeFilePath));
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
-		test('should notify processors before reloading include template changes', async () => {
+		test('should defer processor notifications until after include template HMR handling', async () => {
 			const onChange = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
@@ -269,9 +269,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(includeFilePath));
+			expect(Bridge.reload).not.toHaveBeenCalled();
+			await new Promise<void>((resolve) => {
+				setImmediate(resolve);
+			});
 			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(includeFilePath), bridge: Bridge });
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 	});
 
@@ -293,6 +296,21 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(exactPath);
 
 			expect(Bridge.reload).toHaveBeenCalled();
+		});
+
+		test('should defer browser reload to the host when configured', async () => {
+			const delegatedWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: vi.fn(),
+				hmrManager: HmrManager as any,
+				bridge: Bridge as any,
+				hostOwnsDevClient: true,
+			});
+			Config.additionalWatchPaths = ['**/*.config.ts'];
+
+			await (delegatedWatcher as any).handleFileChange('/test/project/app.config.ts');
+
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
 		test('should not reload for non-matching paths', async () => {

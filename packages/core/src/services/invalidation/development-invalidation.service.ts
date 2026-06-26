@@ -102,8 +102,8 @@ export class DevelopmentInvalidationService {
 				category: 'include-source',
 				invalidateServerModules: true,
 				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
 				processorHandledAsset: false,
 			};
 		}
@@ -113,8 +113,8 @@ export class DevelopmentInvalidationService {
 				category: 'explicit-server-view',
 				invalidateServerModules: true,
 				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
 				processorHandledAsset: false,
 			};
 		}

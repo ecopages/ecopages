@@ -70,6 +70,17 @@ describe('NodeServerAdapter', () => {
 		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
+	it('does not inject the HMR runtime when the host owns dev-client bootstrap', async () => {
+		const adapter = createAdapter({ hostOwnsDevClient: true });
+		adapter.setInitializedForTest();
+		adapter.setHmrManagerForTest({ isEnabled: () => true });
+
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
+		const html = await response.text();
+
+		expect(html).not.toContain("import '/_hmr_runtime.js'");
+	});
+
 	it('returns 499 for normalized client aborts', async () => {
 		const adapter = createAdapter({ options: { watch: false } });
 		adapter.setInitializedForTest();

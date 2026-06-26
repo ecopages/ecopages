@@ -45,6 +45,21 @@ export interface ApplicationRuntimeOptions {
 	 */
 	embedded?: boolean;
 	/**
+	 * When true, full-page reload signaling is owned by the host dev server
+	 * (for example Vite's `full-reload` websocket event) instead of the Ecopages
+	 * client bridge.
+	 *
+	 * @deprecated Prefer `devClientOwner: 'host'`.
+	 */
+	delegateBrowserReloadToHost?: boolean;
+	/**
+	 * Selects which layer injects browser dev-client bootstrap (HMR runtime, reload).
+	 *
+	 * `host` disables core injection and reload signaling so embedded hosts like
+	 * Vite own the full dev-client surface.
+	 */
+	devClientOwner?: 'core' | 'host';
+	/**
 	 * Explicit source module loader for request-time imports.
 	 *
 	 * When omitted in embedded mode, the adapter attempts automatic
@@ -115,6 +130,12 @@ export abstract class AbstractApplicationAdapter<
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.runtimeOptions = options.runtime ?? {};
+		if (options.runtime) {
+			this.appConfig.runtime = {
+				...(this.appConfig.runtime ?? {}),
+				...options.runtime,
+			};
+		}
 		this.cliArgs = parseCliArgs({ embeddedRuntime: this.runtimeOptions.embedded });
 
 		const hostModuleLoader =

@@ -8,6 +8,7 @@ import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
@@ -66,6 +67,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 		});
 	}
 
@@ -124,6 +126,12 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 	): Promise<void> {
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		if (!this.server) {
+			this.server = httpServer;
+			await this.serverAdapter.completeInitialization(httpServer);
+			return;
 		}
 
 		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);

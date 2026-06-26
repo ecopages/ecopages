@@ -330,6 +330,11 @@ export interface IHmrManager {
 	getOutputUrl(entrypointPath: string): string | undefined;
 
 	/**
+	 * Returns an existing emitted HMR script artifact without registering it.
+	 */
+	getResolvedScriptOutput?(entrypointPath: string): { outputUrl: string; outputPath: string } | undefined;
+
+	/**
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;

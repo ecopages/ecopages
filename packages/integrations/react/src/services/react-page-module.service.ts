@@ -10,9 +10,9 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoComponentConfig, EcoPageFile } from '@ecopages/core';
-import type { BuildExecutor } from '@ecopages/core/build/build-adapter';
+import { build, type BuildExecutor } from '@ecopages/core/build/build-adapter';
+import { normalizeNodeRuntimeBuildOutputFile } from '@ecopages/core/build/runtime-build-output-normalizer';
 import { rapidhash } from '@ecopages/core/hash';
-import { build } from '@ecopages/core/build/build-adapter';
 import { fileSystem } from '@ecopages/file-system';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { someInConfigTree } from '../utils/component-config-traversal.ts';
@@ -92,6 +92,7 @@ export class ReactPageModuleService {
 				splitting: false,
 				minify: false,
 				treeshaking: false,
+				externalPackages: true,
 				naming: outputNamingTemplate,
 				plugins: [mdxPlugin],
 			},
@@ -111,6 +112,8 @@ export class ReactPageModuleService {
 		if (!compiledOutput) {
 			throw new Error(`No compiled MDX output generated for page: ${filePath}`);
 		}
+
+		normalizeNodeRuntimeBuildOutputFile(compiledOutput, this.config.rootDir);
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 

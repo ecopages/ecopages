@@ -155,9 +155,6 @@ function embed<P extends Record<string, unknown>, R>(
 
 /**
  * Creates a document shell component.
- *
- * Phase 1 keeps this as a semantic alias over eco.component() so existing
- * renderer behavior remains unchanged.
  */
 function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E> {
 	return createComponentFactory(options) as EcoHtmlComponent<E>;
@@ -165,9 +162,6 @@ function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E>
 
 /**
  * Creates a route layout component.
- *
- * Phase 1 keeps this as a semantic alias over eco.component() so existing
- * renderer behavior remains unchanged.
  */
 function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
 	return createComponentFactory(options) as EcoLayoutComponent<E>;

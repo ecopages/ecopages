@@ -24,7 +24,7 @@ export interface ForeignJsxOverrideOptions {
  * another JSX integration (e.g. `.kita.tsx`), that file inherits the project
  * `tsconfig` JSX runtime which produces the wrong output (HTML strings instead
  * of framework elements). This plugin rewrites the source to explicitly target
- * the host's JSX factory so esbuild compiles every JSX expression into the
+ * the host's JSX factory so the bundler compiles every JSX expression into the
  * correct element creation calls.
  *
  * The plugin is intentionally framework-agnostic: any integration that does

@@ -1,81 +1,199 @@
+/**
+ * Build pipeline contracts and app-owned adapter wiring.
+ *
+ * @remarks
+ * The build layer exposes three concentric shapes:
+ *
+ * - `BuildAdapter` — the low-level backend contract. Two implementations
+ *   exist: a bundler-backed adapter (the real backend) and
+ *   {@link ViteHostBuildAdapter} (a host-owned boundary marker that throws
+ *   on direct use, for host runtimes that own their own build pipeline).
+ * - `BuildExecutor` — the runtime-facing facade stored on
+ *   `appConfig.runtime.buildExecutor`. It is intentionally narrower than
+ *   `BuildAdapter` so callers that only need to issue builds do not depend
+ *   on `resolve` / `getTranspileOptions`.
+ * - App-owned helpers (`getAppBuildAdapter`, `getAppBuildExecutor`, and
+ *   the `set*` counterparts) — the supported way for runtime code to read
+ *   and mutate the active adapter per `EcoPagesAppConfig`.
+ */
+
 import type { EcoBuildPlugin } from './build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
-import {
-	collectBrowserRuntimeImportRewriteMap,
-	rewriteBrowserRuntimeImports,
-} from './browser-runtime-import-rewrite-plugin.ts';
+import { normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
+import { createForeignJsxOverridePlugin } from '../plugins/foreign-jsx-override-plugin.ts';
 import {
 	createAppBuildManifest,
 	getBrowserBuildPlugins,
 	getServerBuildPlugins,
 	type AppBuildManifest,
 } from './build-manifest.ts';
-import { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
-import { createBunPluginBridge } from './bun-plugin-bridge.ts';
+import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { createRolldownDevBuildAdapter } from './rolldown-dev-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
-import { getBunRuntime } from '../utils/runtime.ts';
-import fs from 'node:fs';
-import path from 'node:path';
 
-export { EsbuildBuildAdapter } from './esbuild-build-adapter.ts';
+/**
+ * Which backend owns the app's build pipeline.
+ *
+ * - `'rolldown'`: the default. Ecopages runs the build directly through
+ *   its bundler-backed adapter.
+ * - `'rolldown-dev'`: uses Rolldown's DevEngine for cached incremental
+ *   rebuilds. Ideal for HMR and watch mode where the same entrypoints
+ *   are rebuilt repeatedly.
+ * - `'vite-host'`: a host runtime owns the build. {@link ViteHostBuildAdapter}
+ *   is exposed as a boundary marker; any direct call into it throws.
+ */
+export type BuildOwnership = 'vite-host' | 'rolldown' | 'rolldown-dev';
 
-export type BuildOwnership = 'bun-native' | 'vite-host';
-
+/**
+ * A single message emitted by the build backend.
+ *
+ * @remarks
+ * Today this only carries `message`. Severity and structured fields
+ * belong in a future schema bump; the current shape mirrors the
+ * bundler's log output 1:1.
+ */
 export interface BuildLog {
 	message: string;
 }
 
+/**
+ * A single artifact emitted by the build backend.
+ *
+ * @remarks
+ * `path` is the absolute on-disk path of the emitted file. For
+ * filename templates that include a content-hash token, the bundler
+ * returns the concrete resolved path (not the template), so callers
+ * can read the file directly.
+ */
 export interface BuildOutput {
 	path: string;
 }
 
 /**
- * Dependency graph metadata produced by a build backend.
+ * Per-entrypoint dependency metadata surfaced alongside a build.
  *
  * @remarks
- * This structure is runtime-neutral at the type level, but current population
- * is Node/esbuild-only. Bun-backed builds may omit this metadata.
+ * Populated from the bundler's per-chunk module list and exposed as a
+ * normalized absolute-path map. Consumers (HMR invalidation, the build
+ * manifest) read this without needing to know which adapter produced
+ * it. The shape is preserved across adapters so historical callers
+ * continue to compile.
  */
 export interface BuildDependencyGraph {
 	/**
-	 * Normalized absolute entrypoint path mapped to all normalized absolute
-	 * source inputs that contributed to that entrypoint output.
+	 * Normalized absolute entrypoint path mapped to every normalized
+	 * absolute source input that contributed to that entrypoint's
+	 * output, including the entrypoint itself.
 	 */
 	entrypoints: Record<string, string[]>;
 }
 
+/**
+ * The full result of one `BuildAdapter.build` call.
+ *
+ * @remarks
+ * `success === false` means the build failed and `outputs` will be
+ * empty. Inspect `logs` for the error message; the original `Error` is
+ * already normalized into `BuildLog` shape.
+ */
 export interface BuildResult {
 	success: boolean;
 	logs: BuildLog[];
 	outputs: BuildOutput[];
 	/**
-	 * Optional build dependency metadata for selective invalidation.
-	 *
-	 * @remarks
-	 * This is currently filled by the Node/esbuild adapter. Other runtimes should
-	 * treat missing graph data as a valid state and fall back deterministically.
+	 * Per-entrypoint dependency metadata, when the backend produced it.
+	 * Some backends (notably the Vite-host boundary marker) leave this
+	 * undefined; callers must treat that as a valid state and fall
+	 * back deterministically.
 	 */
 	dependencyGraph?: BuildDependencyGraph;
 }
 
+/**
+ * Options accepted by every `BuildAdapter.build` call.
+ *
+ * @remarks
+ * Fields that the adapter can forward are honored; fields that cannot
+ * (currently `splitting`, `bundle`, and `outbase`) are accepted so
+ * call-sites compile, but the adapter ignores them. See each field's
+ * docstring for the current behavior.
+ */
 export interface BuildOptions {
-	entrypoints: string[];
+	/**
+	 * Absolute or context-root-relative source files that begin the build graph.
+	 *
+	 * Use a record (key → source path) when the caller needs to control chunk
+	 * names. Keys become the `[name]` token in `naming`, which lets the caller
+	 * embed path information that the bundler would otherwise strip.
+	 */
+	entrypoints: string[] | Record<string, string>;
+	/** Output directory. Defaults to `dist/assets` when omitted. */
 	outdir?: string;
+	/**
+	 * Base directory for `[dir]` placeholders in `naming`. Currently
+	 * the bundled adapter derives the base from `root` directly and
+	 * ignores this field.
+	 */
 	outbase?: string;
+	/**
+	 * Filename pattern for entrypoints. The bundled adapter honors
+	 * `[name]`, `[hash]`, and `[ext]`. The `[dir]` token is stripped
+	 * before forwarding to the bundler (rolldown does not implement it);
+	 * callers that need directory structure preserved should use the
+	 * record form of `entrypoints` so each key becomes its own chunk.
+	 * When omitted, the bundler's default applies.
+	 */
 	naming?: string;
+	/**
+	 * Package export conditions to honor during resolution
+	 * (e.g. `['import', 'browser', 'default']`).
+	 */
 	conditions?: string[];
+	/**
+	 * Global identifier replacements. Honored by the bundled adapter.
+	 */
 	define?: Record<string, string>;
+	/** Run the bundler's minifier. Off by default. */
 	minify?: boolean;
+	/** Enable the bundler's tree-shaker. Defaults to `true`. */
 	treeshaking?: boolean;
+	/**
+	 * Output target family. Accepted values: `'browser'`, `'node'`,
+	 * anything else falls through to a platform-neutral setup.
+	 */
 	target?: string;
+	/** Output module format. Accepted: `'esm'`, `'cjs'`, `'iife'`. */
 	format?: string;
+	/**
+	 * Source map mode. Accepted: `'none'`, `'inline'`, `'external'`,
+	 * `'linked'`. Anything else maps to the bundler's default (linked).
+	 */
 	sourcemap?: string;
+	/**
+	 * Historical code-splitting flag. Currently a no-op on the bundled
+	 * adapter: the bundler splits by default and this flag is not
+	 * forwarded. See the per-chunk naming convention in the adapter for
+	 * the available control.
+	 */
 	splitting?: boolean;
+	/** Project root used to resolve relative paths and the tsconfig lookup. */
 	root?: string;
+	/**
+	 * Historical bundle flag. Currently a no-op on the bundled adapter:
+	 * the bundler always bundles. Accepted so call-sites compile.
+	 */
 	bundle?: boolean;
+	/**
+	 * Treat `node_modules` packages as external. Honored by the bundled
+	 * adapter.
+	 */
 	externalPackages?: boolean;
+	/** Explicit list of module specifiers to leave as external imports. */
 	external?: string[];
+	/**
+	 * JSX runtime configuration. Mirrors the bundler's `jsx` option shape.
+	 */
 	jsx?: {
 		development?: boolean;
 		factory?: string;
@@ -84,475 +202,156 @@ export interface BuildOptions {
 		runtime?: 'classic' | 'automatic';
 		sideEffects?: boolean;
 	};
+	/**
+	 * Runtime-agnostic `EcoBuildPlugin[]` to attach to this build. The
+	 * bundled adapter translates the array via the rolldown plugin
+	 * bridge.
+	 */
 	plugins?: EcoBuildPlugin[];
+	/**
+	 * Escape hatch for backends that need to forward unknown options
+	 * to their underlying driver. Consumers should prefer the typed
+	 * fields above.
+	 */
 	[key: string]: unknown;
 }
 
+/** Stable profile identifiers for `BuildAdapter.getTranspileOptions`. */
 export type BuildTranspileProfile = 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
 
+/**
+ * Resolved transpile settings for a given profile.
+ *
+ * @remarks
+ * The three fields map 1:1 to the trio the HMR and browser-script
+ * code paths look at: target platform, output format, and source-map
+ * mode. Today the bundled adapter returns identical defaults for all
+ * three profiles; the type is kept open so per-profile tuning can
+ * land without breaking callers.
+ */
 export interface BuildTranspileOptions {
 	target: string;
 	format: string;
 	sourcemap: string;
 }
 
+/**
+ * Low-level build backend contract.
+ *
+ * @remarks
+ * One instance is owned by each `EcoPagesAppConfig` (see
+ * {@link getAppBuildAdapter}). Two implementations exist: the bundled
+ * adapter does the work; {@link ViteHostBuildAdapter} is a host-owned
+ * boundary marker that throws on direct use.
+ */
 export interface BuildAdapter {
+	/** Which backend owns this adapter. Used for routing decisions in app helpers. */
 	readonly ownership?: BuildOwnership;
 	/**
-	 * Executes one concrete backend build.
+	 * Run one build.
 	 *
 	 * @remarks
-	 * `BuildAdapter` is the low-level backend contract. Bun-native execution owns
-	 * one adapter directly; Vite-hosted execution is represented as an explicit
-	 * host-owned compatibility path rather than an implicit esbuild default.
+	 * Implementations are expected to be safe to call from any caller.
+	 * Concurrent calls are not guaranteed to be serialized by the
+	 * adapter itself; the dev-watch pipeline wraps the adapter in
+	 * {@link SerializedBuildExecutor} when it needs FIFO ordering.
+	 *
+	 * Returns a `BuildResult` with `success: false` on failure; the
+	 * thrown-error variant (`buildOrThrow`) is reserved for callers
+	 * that need the original `Error` object.
 	 */
 	build(options: BuildOptions): Promise<BuildResult>;
+	/**
+	 * Resolve a module specifier against the project's `rootDir`.
+	 *
+	 * @remarks
+	 * Used by the source-loading services when they need to know the
+	 * absolute path of a specifier without performing a full build.
+	 */
 	resolve(importPath: string, rootDir: string): string;
+	/**
+	 * Resolve transpile settings for a known profile.
+	 *
+	 * @remarks
+	 * Today the bundled adapter returns identical defaults for all
+	 * profiles. The profile argument is kept so per-profile tuning
+	 * can land without breaking callers.
+	 */
 	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
 }
 
 /**
- * Runtime-owned facade for issuing builds.
+ * Runtime-facing facade for issuing builds.
  *
  * @remarks
- * This is intentionally narrower than `BuildAdapter`. A build executor answers
- * only the question "how should this app execute a build right now?".
+ * Strictly narrower than {@link BuildAdapter}: it only exposes `build`.
+ * This is the shape stored on `appConfig.runtime.buildExecutor` and
+ * passed across the dev-watch and server-module-loading seams, so
+ * callers cannot accidentally depend on `resolve` or
+ * `getTranspileOptions`.
  *
- * In Bun-native production and non-watch flows the executor is usually the
- * adapter itself. In development watch flows the executor may be a
- * compatibility coordinator around the Bun-native adapter while the Vite host
- * path continues migrating toward host-owned execution.
+ * In production and non-watch flows the executor is the adapter
+ * itself. In development watch flows the executor is a
+ * {@link SerializedBuildExecutor} wrapping the adapter so dev-watch
+ * pipelines are FIFO-serialized.
  */
 export interface BuildExecutor {
 	build(options: BuildOptions): Promise<BuildResult>;
 }
 
-type RuntimeBun = NonNullable<ReturnType<typeof getBunRuntime>>;
-
-type NormalizedBunOutput = {
-	concretePath: string;
-};
-
-function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-	switch (profile) {
-		case 'browser-script':
-			return {
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			};
-		case 'hmr-runtime':
-			return {
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			};
-		case 'hmr-entrypoint':
-			return {
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			};
+/**
+ * Merges `appPlugins` into an existing `plugins` array, deduping by
+ * `plugin.name` so the app-owned manifest always wins on collision.
+ *
+ * @remarks
+ * The last write wins because the function intentionally lets the
+ * caller-supplied list override a manifest entry. Tests that exercise
+ * this behavior live in `build-adapter.test.ts`.
+ */
+function mergeBuildExecutorPlugins(
+	existing: EcoBuildPlugin[] | undefined,
+	appPlugins: EcoBuildPlugin[],
+): EcoBuildPlugin[] {
+	if (!existing || existing.length === 0) {
+		return appPlugins;
 	}
+	const byName = new Map<string, EcoBuildPlugin>();
+	for (const plugin of existing) {
+		byName.set(plugin.name, plugin);
+	}
+	for (const plugin of appPlugins) {
+		byName.set(plugin.name, plugin);
+	}
+	return Array.from(byName.values());
 }
 
-export class BunBuildAdapter implements BuildAdapter {
-	readonly ownership = 'bun-native' as const;
-	private readonly fallbackAdapter = new EsbuildBuildAdapter();
-
-	private getPluginsForBuild(additionalPlugins?: EcoBuildPlugin[]): EcoBuildPlugin[] {
-		const byName = new Map<string, EcoBuildPlugin>();
-
-		for (const plugin of additionalPlugins ?? []) {
-			if (!byName.has(plugin.name)) {
-				byName.set(plugin.name, plugin);
+/**
+ * Wraps a {@link BuildExecutor} so each call to `build` receives the
+ * union of the caller's `options.plugins` and the plugins sourced
+ * from `getPlugins()`.
+ *
+ * @remarks
+ * The single point of plugin injection in the runtime path: the
+ * `ConfigBuilder` stores a raw adapter on
+ * `appConfig.runtime.buildAdapter` and the
+ * `installAppRuntimeBuildExecutor` step wraps that adapter with this
+ * helper. Callers that issue builds against
+ * `appConfig.runtime.buildExecutor` get the merged plugin set without
+ * further ceremony.
+ */
+export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: () => EcoBuildPlugin[]): BuildExecutor {
+	return {
+		async build(options: BuildOptions): Promise<BuildResult> {
+			const appPlugins = getPlugins();
+			if (appPlugins.length === 0) {
+				return executor.build(options);
 			}
-		}
-
-		return Array.from(byName.values());
-	}
-
-	private escapeRegExp(value: string): string {
-		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	}
-
-	private toBuildLogs(error: unknown): BuildLog[] {
-		if (error instanceof Error) {
-			return [{ message: error.message }];
-		}
-
-		return [{ message: 'Unknown Bun build error' }];
-	}
-
-	private mapBunTarget(value: string | undefined): 'browser' | 'bun' {
-		return value === 'browser' ? 'browser' : 'bun';
-	}
-
-	private mapBunFormat(value: string | undefined): 'esm' | 'cjs' | undefined {
-		switch (value) {
-			case 'cjs':
-				return 'cjs';
-			case 'esm':
-			default:
-				return 'esm';
-		}
-	}
-
-	private getOutputExtension(options: BuildOptions, entrypointPath: string): string {
-		const entryExtension = path.extname(entrypointPath).toLowerCase();
-
-		if (entryExtension === '.css') {
-			return '.css';
-		}
-
-		if (entryExtension === '.json') {
-			return '.json';
-		}
-
-		if (entryExtension === '.toml') {
-			return '.toml';
-		}
-
-		if (options.target !== 'browser') {
-			if (options.format === 'cjs') {
-				return '.cjs';
-			}
-
-			if (options.format === 'esm') {
-				return '.mjs';
-			}
-		}
-
-		return '.js';
-	}
-
-	private resolveConcreteOutputPath(outputPath: string): string | undefined {
-		if (fs.existsSync(outputPath)) {
-			return outputPath;
-		}
-
-		for (const extension of ['.js', '.mjs', '.cjs']) {
-			const outputPathWithExtension = `${outputPath}${extension}`;
-			if (fs.existsSync(outputPathWithExtension)) {
-				return outputPathWithExtension;
-			}
-		}
-
-		if (!outputPath.includes('[hash]')) {
-			return outputPath;
-		}
-
-		const directory = path.dirname(outputPath);
-		if (!fs.existsSync(directory)) {
-			return undefined;
-		}
-
-		const basenamePattern = path.basename(outputPath);
-		const matcher = new RegExp(`^${this.escapeRegExp(basenamePattern).replace(/\\\[hash\\\]/g, '(.+)')}$`);
-		const matches = fs
-			.readdirSync(directory)
-			.filter((candidate) => matcher.test(candidate))
-			.sort();
-
-		if (matches.length === 0) {
-			return undefined;
-		}
-
-		return path.join(directory, matches[0]!);
-	}
-
-	private normalizePathForMatch(filePath: string): string {
-		return path.normalize(filePath).split(path.sep).join('/');
-	}
-
-	private normalizeOutputPathForMatch(outputPath: string, templatePath: string): string {
-		const normalizedOutputPath = path.normalize(outputPath);
-		const templateExtension = path.extname(templatePath);
-
-		if (!templateExtension) {
-			return normalizedOutputPath;
-		}
-
-		if (templateExtension === '.js') {
-			if (this.hasJavaScriptExtension(normalizedOutputPath)) {
-				return path.normalize(normalizedOutputPath.replace(/\.(?:[cm]?js)$/u, '.js'));
-			}
-
-			return path.normalize(`${normalizedOutputPath}.js`);
-		}
-
-		if (normalizedOutputPath.endsWith(templateExtension)) {
-			return normalizedOutputPath;
-		}
-
-		return path.normalize(`${normalizedOutputPath}${templateExtension}`);
-	}
-
-	private extractTemplateHashTokens(templatePath: string, candidatePath: string): string[] | undefined {
-		const normalizedTemplatePath = this.normalizePathForMatch(templatePath);
-		const normalizedCandidatePath = this.normalizePathForMatch(
-			this.normalizeOutputPathForMatch(candidatePath, templatePath),
-		);
-		const matcher = new RegExp(
-			`^${this.escapeRegExp(normalizedTemplatePath).replace(/\\\[hash\\\]/g, '([^/]+)')}$`,
-		);
-		const match = normalizedCandidatePath.match(matcher);
-
-		if (!match) {
-			return undefined;
-		}
-
-		return match.slice(1);
-	}
-
-	private applyTemplateHashTokens(templatePath: string, hashTokens: string[]): string | undefined {
-		const hashTokenCount = templatePath.match(/\[hash\]/g)?.length ?? 0;
-
-		if (hashTokenCount !== hashTokens.length) {
-			return undefined;
-		}
-
-		if (hashTokenCount === 0) {
-			return templatePath;
-		}
-
-		let hashTokenIndex = 0;
-		return templatePath.replace(/\[hash\]/g, () => hashTokens[hashTokenIndex++] ?? '');
-	}
-
-	private resolveTemplatedOutputPath(options: BuildOptions, entrypointPath: string): string | undefined {
-		if (!options.outdir) {
-			return undefined;
-		}
-
-		const template = typeof options.naming === 'string' ? options.naming : '[dir]/[name]';
-		const outdir = path.resolve(options.outdir);
-		const outputExtension = this.getOutputExtension(options, entrypointPath);
-		const relativeBase = path.resolve(options.outbase ?? options.root ?? process.cwd());
-		const relativeEntrypoint = path.relative(relativeBase, entrypointPath);
-		const relativeDir = path.dirname(relativeEntrypoint);
-		const dirToken = relativeDir === '.' ? '' : relativeDir.split(path.sep).join('/');
-		const nameToken = path.basename(relativeEntrypoint, path.extname(relativeEntrypoint));
-		const extToken = outputExtension.replace(/^\./, '');
-
-		let resolvedPath = template
-			.replaceAll('[dir]', dirToken)
-			.replaceAll('[name]', nameToken)
-			.replaceAll('[ext]', extToken);
-
-		if (outputExtension && !resolvedPath.endsWith(outputExtension)) {
-			resolvedPath += outputExtension;
-		}
-
-		resolvedPath = resolvedPath.replace(/^\.\//, '');
-
-		return path.join(outdir, resolvedPath);
-	}
-
-	private relocateOutputFile(currentPath: string, targetPath: string): string {
-		if (currentPath === targetPath || !fs.existsSync(currentPath)) {
-			return fs.existsSync(targetPath) ? targetPath : currentPath;
-		}
-
-		fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-		fs.rmSync(targetPath, { force: true });
-		fs.renameSync(currentPath, targetPath);
-		return targetPath;
-	}
-
-	private hasJavaScriptExtension(outputPath: string): boolean {
-		return /\.(?:[cm]?js)$/u.test(outputPath);
-	}
-
-	private rewriteBrowserRuntimeImportsInOutputs(result: BuildResult, plugins: EcoBuildPlugin[]): BuildResult {
-		if (!result.success || result.outputs.length === 0) {
-			return result;
-		}
-
-		const specifierMap = collectBrowserRuntimeImportRewriteMap(plugins);
-		if (specifierMap.size === 0) {
-			return result;
-		}
-
-		for (const output of result.outputs) {
-			if (!this.hasJavaScriptExtension(output.path) || !fs.existsSync(output.path)) {
-				continue;
-			}
-
-			const code = fs.readFileSync(output.path, 'utf-8');
-			const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, output.path);
-
-			if (rewritten !== code) {
-				fs.writeFileSync(output.path, rewritten);
-			}
-		}
-
-		return result;
-	}
-
-	private findOutputMatchForEntrypoint(
-		options: BuildOptions,
-		entrypointPath: string,
-		outputs: NormalizedBunOutput[],
-		usedOutputIndexes: Set<number>,
-	): { outputIndex: number; targetPath: string } | undefined {
-		const expectedOutputPath = this.resolveTemplatedOutputPath(options, entrypointPath);
-
-		if (!expectedOutputPath) {
-			return undefined;
-		}
-
-		const expectedMatchPaths = [expectedOutputPath];
-
-		if (options.outbase) {
-			const bunRootRelativeOutputPath = this.resolveTemplatedOutputPath(
-				{ ...options, outbase: undefined },
-				entrypointPath,
-			);
-
-			if (bunRootRelativeOutputPath && bunRootRelativeOutputPath !== expectedOutputPath) {
-				expectedMatchPaths.push(bunRootRelativeOutputPath);
-			}
-		}
-
-		for (const [outputIndex, output] of outputs.entries()) {
-			if (usedOutputIndexes.has(outputIndex)) {
-				continue;
-			}
-
-			for (const matchPath of expectedMatchPaths) {
-				const hashTokens = this.extractTemplateHashTokens(matchPath, output.concretePath);
-				if (!hashTokens) {
-					continue;
-				}
-
-				const targetPath = this.applyTemplateHashTokens(expectedOutputPath, hashTokens);
-				if (!targetPath) {
-					continue;
-				}
-
-				usedOutputIndexes.add(outputIndex);
-				return { outputIndex, targetPath };
-			}
-		}
-
-		return undefined;
-	}
-
-	private normalizeBunOutputs(result: BuildResult, options: BuildOptions): BuildResult {
-		if (!result.success || result.outputs.length === 0) {
-			return result;
-		}
-
-		const normalizedOutputs = result.outputs.map((output) => ({
-			concretePath: this.resolveConcreteOutputPath(output.path) ?? output.path,
-		}));
-		const matchedTargetsByIndex = new Map<number, string>();
-		const usedOutputIndexes = new Set<number>();
-
-		for (const entrypointPath of options.entrypoints) {
-			const matchedOutput = this.findOutputMatchForEntrypoint(
-				options,
-				entrypointPath,
-				normalizedOutputs,
-				usedOutputIndexes,
-			);
-
-			if (matchedOutput) {
-				matchedTargetsByIndex.set(matchedOutput.outputIndex, matchedOutput.targetPath);
-			}
-		}
-
-		return {
-			...result,
-			outputs: normalizedOutputs.map((output, index) => {
-				const expectedOutputPath = matchedTargetsByIndex.get(index);
-				const concreteOutputPath = output.concretePath;
-
-				if (expectedOutputPath) {
-					return {
-						path: this.relocateOutputFile(concreteOutputPath, expectedOutputPath),
-					};
-				}
-
-				if (this.hasJavaScriptExtension(concreteOutputPath)) {
-					return {
-						path: concreteOutputPath,
-					};
-				}
-
-				const normalizedPath = `${concreteOutputPath}.js`;
-				return {
-					path: this.relocateOutputFile(concreteOutputPath, normalizedPath),
-				};
-			}),
-		};
-	}
-
-	async build(options: BuildOptions): Promise<BuildResult> {
-		const bun = getBunRuntime();
-
-		if (!bun) {
-			return this.fallbackAdapter.build(options);
-		}
-
-		try {
-			const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-			const outdir = path.resolve(options.outdir ?? 'dist/assets');
-			const tsconfigPath = path.join(contextRoot, 'tsconfig.json');
-			const tsconfigExists = fs.existsSync(tsconfigPath);
-			const plugins = this.getPluginsForBuild(options.plugins);
-			const result = await bun.build({
-				entrypoints: options.entrypoints,
-				outdir,
-				root: contextRoot,
-				naming: typeof options.naming === 'string' ? options.naming : undefined,
-				define: options.define,
-				external: options.external,
-				format: this.mapBunFormat(options.format),
-				target: this.mapBunTarget(options.target),
-				sourcemap: options.sourcemap as 'none' | 'external' | 'linked' | 'inline' | undefined,
-				splitting: !!options.splitting,
-				minify: !!options.minify,
-				packages: options.target !== 'browser' && options.externalPackages !== false ? 'external' : undefined,
-				tsconfig: tsconfigExists ? tsconfigPath : undefined,
-				jsx: options.jsx,
-				plugins: plugins.length > 0 ? [createBunPluginBridge(plugins, contextRoot)] : undefined,
+			return executor.build({
+				...options,
+				plugins: mergeBuildExecutorPlugins(options.plugins, appPlugins),
 			});
-
-			return this.rewriteBrowserRuntimeImportsInOutputs(
-				this.normalizeBunOutputs(
-					{
-						success: result.success,
-						logs: result.logs.map((log) => ({ message: log.message })),
-						outputs: result.outputs.map((output) => ({ path: output.path })),
-					},
-					options,
-				),
-				plugins,
-			);
-		} catch (error) {
-			return {
-				success: false,
-				logs: this.toBuildLogs(error),
-				outputs: [],
-			};
-		}
-	}
-
-	resolve(importPath: string, rootDir: string): string {
-		const bun = getBunRuntime();
-
-		if (!bun) {
-			return this.fallbackAdapter.resolve(importPath, rootDir);
-		}
-
-		return bun.resolveSync(importPath, rootDir);
-	}
-
-	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-		return transpileProfileToOptions(profile);
-	}
+		},
+	};
 }
 
 function createHostOwnedBuildError(methodName: string): Error {
@@ -561,6 +360,21 @@ function createHostOwnedBuildError(methodName: string): Error {
 	);
 }
 
+/**
+ * Boundary-marker adapter for Vite-host ownership.
+ *
+ * @remarks
+ * This is not a real backend. It exists so `appConfig.runtime.buildAdapter`
+ * can carry the `'vite-host'` ownership without falling back to a
+ * framework-owned bundler path. Every method throws a
+ * {@link createHostOwnedBuildError} so misrouted calls fail loudly
+ * with a clear message instead of silently executing under a
+ * different backend.
+ *
+ * The class stays in the public surface for host runtimes that own
+ * their build pipeline (e.g. Nitro) and for app code that wants to
+ * opt into host-owned ownership before its host wires up the build.
+ */
 export class ViteHostBuildAdapter implements BuildAdapter {
 	readonly ownership = 'vite-host' as const;
 
@@ -577,46 +391,88 @@ export class ViteHostBuildAdapter implements BuildAdapter {
 	}
 }
 
-export function createBunBuildAdapter(): BuildAdapter {
-	return new BunBuildAdapter();
-}
-
+/**
+ * Constructs a {@link ViteHostBuildAdapter}. Use only in code paths
+ * that explicitly opt into the host-owned boundary.
+ */
 export function createViteHostBuildAdapter(): BuildAdapter {
 	return new ViteHostBuildAdapter();
 }
 
+/**
+ * Constructs a build adapter for the given ownership.
+ *
+ * @param options - When `options.ownership` is omitted, the default is
+ * `'rolldown'`. The Vite-host path is opt-in.
+ */
 export function createBuildAdapter(options?: { ownership?: BuildOwnership }): BuildAdapter {
-	switch (options?.ownership ?? 'bun-native') {
+	switch (options?.ownership ?? 'rolldown') {
 		case 'vite-host':
 			return createViteHostBuildAdapter();
-		case 'bun-native':
+		case 'rolldown-dev':
+			return createRolldownDevBuildAdapter();
+		case 'rolldown':
 		default:
-			return createBunBuildAdapter();
+			return createRolldownBuildAdapter();
 	}
 }
 
-export const defaultBunBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'bun-native' });
+/** The shared default-bundler backend instance. Use {@link getAppBuildAdapter} in app-aware code. */
+export const defaultRolldownBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'rolldown' });
+
+/** The shared Vite-host boundary instance. Use {@link getAppBuildAdapter} in app-aware code. */
 export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'vite-host' });
+
 /**
- * Bun-native fallback export for callsites that still resolve build state
- * globally.
+ * Global default build adapter.
  *
- * New app-aware code should prefer `getAppBuildAdapter()`.
+ * @remarks
+ * Resolves to the bundled default-bundler adapter. New app-aware
+ * code should prefer {@link getAppBuildAdapter}.
  */
-export const defaultBuildAdapter: BuildAdapter = defaultBunBuildAdapter;
+export const defaultBuildAdapter: BuildAdapter = defaultRolldownBuildAdapter;
 
-export function getDefaultBuildAdapter(ownership: BuildOwnership = 'bun-native'): BuildAdapter {
-	return ownership === 'vite-host' ? defaultViteHostBuildAdapter : defaultBunBuildAdapter;
+/**
+ * Resolves the default build adapter for an ownership value.
+ *
+ * @param ownership - Defaults to `'rolldown'`. Returns the
+ * {@link ViteHostBuildAdapter} only when the caller explicitly asks
+ * for `'vite-host'`.
+ */
+export function getDefaultBuildAdapter(ownership: BuildOwnership = 'rolldown'): BuildAdapter {
+	return ownership === 'vite-host' ? defaultViteHostBuildAdapter : defaultRolldownBuildAdapter;
 }
 
+/**
+ * Reads the {@link BuildOwnership} declared on a {@link BuildAdapter}.
+ *
+ * @param buildAdapter - When `undefined`, defaults to `'rolldown'`.
+ */
 export function getBuildAdapterOwnership(buildAdapter: BuildAdapter | undefined): BuildOwnership {
-	return buildAdapter?.ownership ?? 'bun-native';
+	return buildAdapter?.ownership ?? 'rolldown';
 }
 
+/**
+ * Resolves the build ownership of an app config.
+ *
+ * @remarks
+ * Resolution order: `appConfig.runtime.buildOwnership` (explicit), then
+ * the ownership declared on `appConfig.runtime.buildAdapter`, then the
+ * default `'rolldown'`.
+ */
 export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnership {
 	return appConfig.runtime?.buildOwnership ?? getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
 }
 
+/**
+ * Sets the explicit build ownership on an app config.
+ *
+ * @remarks
+ * The `ConfigBuilder` uses this when the caller calls
+ * `setBuildOwnership`. App code that needs a different ownership
+ * should call this directly with a new value; passing the same
+ * value is a no-op.
+ */
 export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
@@ -628,16 +484,18 @@ export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnershi
  * Returns the adapter owned by an app/runtime instance.
  *
  * @remarks
- * The config builder installs an explicit adapter per app. The Bun-native
- * fallback remains only as compatibility scaffolding for helpers that do not
- * yet thread app runtime state explicitly.
+ * Falls back through `appConfig.runtime.buildAdapter` →
+ * {@link getDefaultBuildAdapter} on the resolved ownership. Throws
+ * never; a missing adapter resolves to the global default.
  */
 export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
 	return appConfig.runtime?.buildAdapter ?? getDefaultBuildAdapter(getAppBuildOwnership(appConfig));
 }
 
 /**
- * Installs the adapter that should serve future builds for one app instance.
+ * Installs the adapter that should serve future builds for one app
+ * instance, and aligns the ownership field to the new adapter's
+ * declared ownership.
  */
 export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
 	appConfig.runtime = {
@@ -649,6 +507,12 @@ export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: B
 
 /**
  * Returns the build manifest owned by an app/runtime instance.
+ *
+ * @remarks
+ * Falls back to a fresh manifest seeded from the config's loaders when
+ * the app config has no manifest yet. This is the supported way to
+ * read the manifest across the source-loading and asset-processing
+ * services.
  */
 export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	return (
@@ -659,9 +523,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 	);
 }
 
-/**
- * Installs the build manifest that should be visible to one app instance.
- */
+/** Installs the build manifest that should be visible to one app instance. */
 export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
@@ -670,12 +532,14 @@ export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest:
 }
 
 /**
- * Rebuilds an app-owned manifest from config-owned loaders plus explicit
- * runtime/browser contribution input.
+ * Builds a fresh app manifest from the config's loaders plus optional
+ * caller-supplied runtime/browser contributions.
  *
  * @remarks
- * This keeps loader ownership with config finalization while still letting a
- * caller supply the non-loader plugin buckets that were discovered elsewhere.
+ * Loader plugins are always taken from the config; runtime and
+ * browser-bundle plugins are passed through from the caller when
+ * supplied, otherwise left empty for later population by
+ * {@link collectConfiguredAppBuildManifestContributions}.
  */
 export function createConfiguredAppBuildManifest(
 	appConfig: EcoPagesAppConfig,
@@ -690,21 +554,28 @@ export function createConfiguredAppBuildManifest(
 }
 
 /**
- * Replaces the app-owned manifest using config-owned loaders and explicit
- * contribution input.
+ * Replaces the app-owned manifest using config-owned loaders and the
+ * caller-supplied contribution input.
  */
 export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Partial<AppBuildManifest>): void {
 	setAppBuildManifest(appConfig, createConfiguredAppBuildManifest(appConfig, input));
 }
 
 /**
- * Collects the build-facing processor and integration contributions that should
- * be sealed into the app manifest during config finalization.
+ * Collects the build-facing processor and integration contributions
+ * that should be sealed into the app manifest during config
+ * finalization.
  *
  * @remarks
- * This runs `prepareBuildContributions()` only. Runtime-only side effects such
- * as HMR registration, cache prewarming, and runtime-origin wiring belong to
- * the startup path and must not be triggered here.
+ * Runs `prepareBuildContributions()` on every processor and
+ * integration. Runtime-only side effects (HMR registration, cache
+ * prewarming, runtime-origin wiring) belong to the startup path and
+ * must not be triggered here; use {@link setupAppRuntimePlugins} for
+ * those.
+ *
+ * @returns The new manifest's runtime / browser / browser-runtime-manifest
+ * contribution buckets. Caller seals them into a manifest via
+ * {@link updateAppBuildManifest}.
  */
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
@@ -741,13 +612,18 @@ export async function collectConfiguredAppBuildManifestContributions(
 }
 
 /**
- * Runs runtime-only processor and integration setup against an already sealed
- * app manifest.
+ * Runs runtime-only processor and integration setup against an already
+ * sealed app manifest.
  *
  * @remarks
- * Startup paths call this after config build has finalized manifest
- * contributions. The manifest is reused as-is; this helper only performs the
- * runtime side effects that still need live startup context.
+ * Startup paths call this after `ConfigBuilder.build` has finalized
+ * the manifest. The manifest is reused as-is; this helper only performs
+ * the runtime side effects that need live startup context (cache
+ * prewarming, runtime-origin wiring, HMR manager attachment).
+ *
+ * Loaders, processors, and integrations are visited in that order;
+ * each one's plugins are forwarded to the optional `onRuntimePlugin`
+ * callback so callers can attach to every plugin discovered.
  */
 export async function setupAppRuntimePlugins(options: {
 	appConfig: EcoPagesAppConfig;
@@ -784,29 +660,85 @@ export async function setupAppRuntimePlugins(options: {
 	}
 }
 
+/**
+ * Returns the server-bundle plugin list for one app/runtime instance.
+ *
+ * @remarks
+ * Reads from the app's sealed build manifest; the manifest itself is
+ * the source of truth for which plugins participate in the server
+ * bundle.
+ */
 export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	return getServerBuildPlugins(getAppBuildManifest(appConfig));
 }
 
+/**
+ * Returns the browser-bundle plugin list for one app/runtime instance.
+ *
+ * @remarks
+ * Reads from the app's sealed build manifest. The browser-bundle
+ * manifest is the source of truth for which plugins participate in the
+ * browser bundle.
+ */
 export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	return getBrowserBuildPlugins(getAppBuildManifest(appConfig));
+	const manifest = getAppBuildManifest(appConfig);
+	const jsxOwnershipPlugins = collectJsxOwnershipPlugins(appConfig);
+	return [...getBrowserBuildPlugins(manifest), ...jsxOwnershipPlugins];
+}
+
+/**
+ * Builds one {@link createForeignJsxOverridePlugin} instance per JSX
+ * extension per integration declared in the app config.
+ *
+ * The plugin rewrites every file matching a JSX extension with a
+ * `@jsxImportSource` pragma that names the owning integration. The
+ * pragma wins over both the bundler default and any tsconfig setting,
+ * so JSX files in multi-integration graphs always compile against the
+ * right runtime.
+ *
+ * @param appConfig - The app config whose integrations should be
+ *   enumerated. Integrations without a `jsxImportSource` are skipped.
+ * @returns A flat list of plugins, one per (integration, extension)
+ *   pair, sorted by extension length so more specific suffixes take
+ *   priority.
+ */
+function collectJsxOwnershipPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
+	const jsxExtensions = (appConfig.integrations ?? [])
+		.filter((integration) => integration.jsxImportSource)
+		.flatMap((integration) =>
+			integration.extensions
+				.filter((extension) => extension.endsWith('.tsx') || extension.endsWith('.jsx'))
+				.map((extension) => ({ integration, extension })),
+		)
+		.sort((left, right) => right.extension.length - left.extension.length);
+
+	return jsxExtensions.map(({ integration, extension }) =>
+		createForeignJsxOverridePlugin({
+			hostJsxImportSource: integration.jsxImportSource!,
+			foreignExtensions: [extension],
+			excludeExtensions: jsxExtensions
+				.filter((candidate) => candidate.extension.length > extension.length)
+				.filter((candidate) => candidate.extension.endsWith(extension))
+				.map((candidate) => candidate.extension),
+			name: `ecopages-jsx-ownership-${integration.name}-${extension.replace(/[^a-zA-Z0-9]+/g, '-')}`,
+		}),
+	);
 }
 
 /**
  * Returns the executor owned by an app/runtime instance.
  *
  * @remarks
- * The config builder seeds this with the app-owned adapter. Runtime adapters
- * may replace it with a compatibility coordinator while keeping ownership tied
- * to the same Bun-native backend.
+ * Falls back to {@link getAppBuildAdapter} when no executor is set
+ * on the runtime yet. The dev-watch pipeline replaces this value with
+ * a {@link SerializedBuildExecutor} via
+ * {@link installAppRuntimeBuildExecutor}.
  */
 export function getAppBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
 	return appConfig.runtime?.buildExecutor ?? getAppBuildAdapter(appConfig);
 }
 
-/**
- * Installs the executor that should serve future builds for one app instance.
- */
+/** Installs the executor that should serve future builds for one app instance. */
 export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor: BuildExecutor): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
@@ -818,23 +750,42 @@ export function setAppBuildExecutor(appConfig: EcoPagesAppConfig, buildExecutor:
  * Runs a build through the active pipeline.
  *
  * @remarks
- * Callers can pass an explicit executor when builds should be routed through an
- * app-owned development coordinator. Without one, the Bun-native default
- * adapter is used directly.
+ * `executor` defaults to the default-bundler adapter for non-app-aware
+ * callsites. App-aware code should pass
+ * `getAppBuildExecutor(appConfig)` (or read it directly) to honor the
+ * per-app pipeline.
  */
-export function build(options: BuildOptions, executor: BuildExecutor = defaultBunBuildAdapter): Promise<BuildResult> {
-	return executor.build(options);
+export function build(
+	options: BuildOptions,
+	executor: BuildExecutor = defaultRolldownBuildAdapter,
+): Promise<BuildResult> {
+	return executor.build(options).then((result) => {
+		if (result.success) {
+			normalizeNodeRuntimeBuildOutputs(
+				result.outputs.map((output) => output.path),
+				options.root ?? process.cwd(),
+			);
+		}
+
+		return result;
+	});
 }
 
 /**
- * Bun-native fallback helper for callsites without app runtime context.
+ * Default transpile-options helper for callsites without app runtime
+ * context.
  *
- * New app-aware code should prefer `getAppTranspileOptions()`.
+ * @remarks
+ * New app-aware code should prefer {@link getAppTranspileOptions}.
  */
 export function getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-	return defaultBunBuildAdapter.getTranspileOptions(profile);
+	return defaultRolldownBuildAdapter.getTranspileOptions(profile);
 }
 
+/**
+ * Resolves transpile options for one app/runtime instance by asking
+ * the app's adapter.
+ */
 export function getAppTranspileOptions(
 	appConfig: EcoPagesAppConfig,
 	profile: BuildTranspileProfile,

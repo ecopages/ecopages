@@ -171,9 +171,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Initializes the server adapter's core runtime components.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig, {
-			development: this.options?.watch === true,
-		});
+		installAppRuntimeBuildExecutor(this.appConfig);
 
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		await this.hmrManager.buildRuntime();
@@ -527,6 +525,13 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 	/**
 	 * Handles HTTP requests by passing them securely to the shared core router adapter.
+	 *
+	 * @remarks
+	 * Filesystem page responses are wrapped by `ServerRouteHandler`. This
+	 * adapter-level pass only covers HTML returned by explicit API handlers,
+	 * which bypass that route-layer wrapper and would otherwise miss the
+	 * dev HMR runtime — so the HMR script injection happens here, after
+	 * the shared handler runs.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
 		const response = await this.handleSharedRequest(request, {
@@ -536,9 +541,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			hmrManager: this.hmrManager,
 		});
 
-		// Filesystem page responses are wrapped by ServerRouteHandler. This adapter-
-		// level pass only covers HTML returned by explicit API handlers, which bypass
-		// that route-layer wrapper and would otherwise miss the dev HMR runtime.
 		return await this.maybeInjectHmrScript(response);
 	}
 

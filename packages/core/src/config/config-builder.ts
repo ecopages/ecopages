@@ -14,13 +14,11 @@ import {
 	collectConfiguredAppBuildManifestContributions,
 	createBuildAdapter,
 	type BuildOwnership,
-	getAppServerBuildPlugins,
 	setAppBuildAdapter,
 	setAppBuildExecutor,
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
-import { createAppBuildExecutor } from '../build/dev-build-coordinator.ts';
 import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
@@ -106,7 +104,7 @@ type RuntimeCapabilityOwner = {
  * @throws {Error} When adding duplicate processors or loaders
  */
 export class ConfigBuilder {
-	private buildOwnership: BuildOwnership = 'bun-native';
+	private buildOwnership: BuildOwnership = 'rolldown';
 
 	public config: EcoPagesAppConfig = {
 		baseUrl: '',
@@ -179,9 +177,23 @@ export class ConfigBuilder {
 	 * Sets which runtime path owns build execution for the finalized app config.
 	 *
 	 * @remarks
-	 * Bun-native remains the default. Vite-host ownership should be selected only
-	 * for host-driven compatibility flows where core must not silently fall back to
-	 * Bun build execution.
+	 * Three ownership values are accepted:
+	 *
+	 * - `'rolldown'` (default): Ecopages runs builds through
+	 *   {@link RolldownBuildAdapter}, creating a new `rolldown()` instance
+	 *   per build. Best for one-shot production builds and benchmarks.
+	 * - `'rolldown-dev'`: Ecopages runs builds through
+	 *   {@link RolldownDevBuildAdapter}, which wraps Rolldown's experimental
+	 *   `DevEngine` and reuses the cached module graph, resolver, and
+	 *   transform cache across rebuilds. Best for HMR and watch mode where
+	 *   the same entrypoints are rebuilt repeatedly.
+	 * - `'vite-host'`: a host runtime owns the build. Ecopages exposes a
+	 *   {@link ViteHostBuildAdapter} boundary marker that throws on direct
+	 *   use. Select this only for host-driven compatibility flows where
+	 *   core must not silently fall back to app build execution.
+	 *
+	 * Defaults to `'rolldown'` when {@link ConfigBuilder.build} runs
+	 * without an explicit ownership.
 	 */
 	setBuildOwnership(buildOwnership: BuildOwnership): this {
 		this.buildOwnership = buildOwnership;
@@ -723,14 +735,7 @@ export class ConfigBuilder {
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
 		setAppServerInvalidationState(this.config, new CounterServerInvalidationState());
 		setAppEntrypointDependencyGraph(this.config, new NoopEntrypointDependencyGraph());
-		setAppBuildExecutor(
-			this.config,
-			createAppBuildExecutor({
-				development: false,
-				adapter: buildAdapter,
-				getPlugins: () => getAppServerBuildPlugins(this.config),
-			}),
-		);
+		setAppBuildExecutor(this.config, buildAdapter);
 
 		return this.config;
 	}

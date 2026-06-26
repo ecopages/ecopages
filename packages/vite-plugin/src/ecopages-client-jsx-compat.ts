@@ -9,7 +9,7 @@ import type { EcopagesVitePlugin } from './types.ts';
  * own JSX runtimes. When those components are imported inside a host page and
  * the host framework calls their render function during hydration, the string
  * return value is rendered as a text node instead of a DOM element. Prepending
- * the host's JSX pragma before Vite's esbuild transform ensures the JSX
+ * the host's JSX pragma before Vite's transform ensures the JSX
  * compiles to the host framework's element creation calls on the client,
  * producing proper elements that hydrate correctly against the SSR'd custom
  * elements.

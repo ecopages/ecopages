@@ -11,11 +11,7 @@
  * This cache memoizes the result keyed by `(srcDir, specifier)`. It is
  * process-local and not currently invalidated by the file watcher —
  * `srcDir` contents are assumed to be stable for the lifetime of the
- * process. The watcher's `uncacheModules` path (Phase 0+1.6) will
- * integrate this once pagesIndex work lands.
- *
- * Survives into Phase 3 (Rolldown): Rolldown's `oxc-resolver` replaces
- * this plugin's manual resolution, so the cache becomes a no-op.
+ * process.
  */
 
 import path from 'node:path';

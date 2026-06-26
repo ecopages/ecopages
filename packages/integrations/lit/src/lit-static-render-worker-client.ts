@@ -104,15 +104,12 @@ export class LitStaticRenderWorkerClient {
 	async renderPage(input: { filePath: string; params: Record<string, string> }): Promise<string> {
 		await this.start();
 
-		if (!this.worker) {
-			throw new Error('Lit static render worker is not available');
-		}
-
-		const id = String(++this.nextRenderId);
 		const worker = this.worker;
 		if (!worker) {
 			throw new Error('Lit static render worker is not available');
 		}
+
+		const id = String(++this.nextRenderId);
 
 		return new Promise<string>((resolve, reject) => {
 			this.pending.set(id, { resolve, reject });

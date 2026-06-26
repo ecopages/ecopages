@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -13,7 +14,7 @@ export default eco.page({
 
 	render: () => {
 		return (
-			<section class="card text-center border-dashed">
+			<section class="card text-center border-dashed" data-testid={getPageTestId('/does-not-exist')}>
 				<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Custom 404</p>
 				<h1 class="font-display text-5xl font-semibold tracking-tight">The route exists in neither router.</h1>
 				<p class="mx-auto max-w-2xl text-lg leading-8 text-muted">

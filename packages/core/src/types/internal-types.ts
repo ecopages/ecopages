@@ -1,6 +1,7 @@
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { AppBuildManifest } from '../build/build-manifest.ts';
-import type { BuildAdapter, BuildExecutor, BuildOwnership } from '../build/build-adapter.ts';
+import type { BuildAdapter, BuildOwnership } from '../build/build-adapter.ts';
+import type { BuildRuntime } from '../build/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -13,6 +14,7 @@ import type { SourceModuleLoader } from '../services/module-loading/module-loadi
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
+import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
 export interface RobotsPreference {
 	/**
@@ -151,13 +153,21 @@ export type EcoPagesAppConfig = {
 		buildOwnership?: BuildOwnership;
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
-		buildExecutor?: BuildExecutor;
 		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		hostModuleLoader?: SourceModuleLoader;
 		rendererModuleContext?: unknown;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
+		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
+		/** Profile-based build runtime installed by {@link installBuildRuntime}. */
+		buildRuntime?: BuildRuntime;
+		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
+		runtimeAssetsPrepared?: boolean;
+		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
+		devClientOwner?: 'core' | 'host';
+		/** @deprecated Prefer {@link devClientOwner}: `'host'`. */
+		delegateBrowserReloadToHost?: boolean;
 	};
 	/**
 	 * Experimental features.

@@ -19,10 +19,8 @@ import {
 	type HtmlDocumentContributionContext,
 	type PageBrowserGraphContributionContext,
 	type RenderToResponseContext,
-	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
-import { getAppBuildExecutor } from '@ecopages/core/build/build-adapter';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createRequire } from 'node:module';
@@ -146,23 +144,18 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		this.bundleService = new ReactBundleService({
 			rootDir: this.appConfig.rootDir,
+			appConfig: this.appConfig,
+			hostIntegrationName: this.name,
 			routerAdapter: this.routerAdapter,
 			mdxCompilerOptions: this.mdxCompilerOptions,
-			jsxImportSource: (this.appConfig.integrations ?? []).find((integration) => integration.name === this.name)
-				?.jsxImportSource,
-			nonReactExtensions: (this.appConfig.integrations ?? [])
-				.filter((integration) => integration.name !== this.name)
-				.flatMap((integration) => integration.extensions),
 		});
 
 		this.pageModuleService = new ReactPageModuleService({
 			rootDir: this.appConfig.rootDir,
 			distDir: this.appConfig.absolutePaths.distDir,
 			workDir: this.appConfig.absolutePaths.workDir,
-			buildExecutor: getAppBuildExecutor(this.appConfig),
 			layoutsDir: this.appConfig.absolutePaths.layoutsDir,
 			componentsDir: this.appConfig.absolutePaths.componentsDir,
-			mdxCompilerOptions: this.mdxCompilerOptions,
 			mdxExtensions: this.mdxExtensions,
 			integrationName: this.name,
 			hasRouterAdapter: Boolean(this.routerAdapter),
@@ -619,17 +612,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 */
 	public isMdxFile(filePath: string): boolean {
 		return this.pageModuleService.isMdxFile(filePath);
-	}
-
-	protected override usesIntegrationPageImporter(file: string): boolean {
-		return this.pageModuleService.isMdxFile(file);
-	}
-
-	protected override async importIntegrationPageFile(
-		file: string,
-		options?: RouteModuleLoadOptions,
-	): Promise<EcoPageFile> {
-		return await this.pageModuleService.importMdxPageFile(file, options);
 	}
 
 	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(

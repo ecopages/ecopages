@@ -9,6 +9,7 @@ import { SharedHmrManager } from '../shared/shared-hmr-manager.ts';
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;
 	bridge: IClientBridge;
+	registrationTimeoutMs?: number;
 }
 
 /**
@@ -34,8 +35,8 @@ export class NodeHmrManager extends SharedHmrManager {
 	 * actually differs: dependency-graph storage, missing-file tolerance, and how
 	 * runtime bundle failures disable HMR.
 	 */
-	constructor({ appConfig, bridge }: NodeHmrManagerParams) {
-		super({ appConfig, bridge });
+	constructor({ appConfig, bridge, registrationTimeoutMs }: NodeHmrManagerParams) {
+		super({ appConfig, bridge, registrationTimeoutMs });
 	}
 
 	/**

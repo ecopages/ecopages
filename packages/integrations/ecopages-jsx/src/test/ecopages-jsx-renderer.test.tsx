@@ -13,6 +13,7 @@ import {
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
@@ -190,10 +191,12 @@ describe('EcopagesJsxRenderer', () => {
 				render: () => <section data-jsx-foreign-subtree>ready</section>,
 			});
 
-			const result = await renderer.renderForeignSubtree({
-				component: Component,
-				props: {},
-			});
+			const result = toForeignSubtreeRenderPayload(
+				await renderer.renderComponentWithForeignChildren({
+					component: Component,
+					props: {},
+				}),
+			);
 
 			expect(result).toMatchObject<Partial<ForeignSubtreeRenderPayload>>({
 				assets: [],

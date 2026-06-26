@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getPageTestId } from '@/data/primary-links';
 
 const commands = [
 	{
@@ -84,7 +85,7 @@ export default eco.page({
 		const initialRequestHeaders = JSON.stringify(initialCommand.headers, null, 2);
 
 		return (
-			<div class="api-lab">
+			<div class="api-lab" data-testid={getPageTestId('/api-lab')}>
 				<section class="api-lab__intro">
 					<p class="api-lab__eyebrow">Explicit APIs</p>
 					<h1 class="api-lab__title">Handlers registered directly from app.ts</h1>

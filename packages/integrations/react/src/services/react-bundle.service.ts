@@ -13,7 +13,8 @@ import {
 	getReactRuntimeExternalSpecifiers,
 } from '../utils/react-runtime-alias-map.ts';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import { createForeignJsxOverridePlugin } from '@ecopages/core/plugins/foreign-jsx-override-plugin';
+import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
@@ -24,10 +25,10 @@ import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts'
  */
 export interface ReactBundleServiceConfig {
 	rootDir: string;
+	appConfig: EcoPagesAppConfig;
+	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
 	mdxCompilerOptions?: CompileOptions;
-	nonReactExtensions?: string[];
-	jsxImportSource?: string;
 }
 
 /**
@@ -119,11 +120,11 @@ export class ReactBundleService {
 			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers([], this.config.routerAdapter),
 		});
 
-		const foreignJsxOverridePlugin = createForeignJsxOverridePlugin({
-			name: 'react-renderer-foreign-jsx-override',
-			hostJsxImportSource: this.config.jsxImportSource ?? 'react',
-			foreignExtensions: this.config.nonReactExtensions ?? [],
-		});
+		const [foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
+			this.config.appConfig,
+			this.config.hostIntegrationName,
+			{ name: 'react-renderer-foreign-jsx-override' },
+		);
 		const runtimeManifest = this.runtimeBundleService.getRuntimeManifest();
 		const runtimeRewritePlugin = createBrowserRuntimePlugin({
 			name: 'react-renderer-runtime-import-rewrite',
@@ -135,9 +136,18 @@ export class ReactBundleService {
 
 		if (isMdx && this.config.mdxCompilerOptions) {
 			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
-			options.plugins = [foreignJsxOverridePlugin, graphBoundaryPlugin, ...runtimePlugins, mdxPlugin];
+			options.plugins = [
+				...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
+				graphBoundaryPlugin,
+				...runtimePlugins,
+				mdxPlugin,
+			];
 		} else {
-			options.plugins = [foreignJsxOverridePlugin, graphBoundaryPlugin, ...runtimePlugins];
+			options.plugins = [
+				...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
+				graphBoundaryPlugin,
+				...runtimePlugins,
+			];
 		}
 
 		return options;

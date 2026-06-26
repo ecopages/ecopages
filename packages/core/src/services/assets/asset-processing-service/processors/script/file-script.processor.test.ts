@@ -55,6 +55,34 @@ describe('FileScriptProcessor', () => {
 	});
 
 	describe('process', () => {
+		test('should reuse an existing HMR artifact without blocking on registration', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const registerScriptEntrypoint = vi.fn(async () => '/assets/_hmr/script.js');
+			const HmrManager = {
+				isEnabled: () => true,
+				registerScriptEntrypoint,
+				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
+				getResolvedScriptOutput: () => ({
+					outputUrl: '/assets/_hmr/script.js',
+					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+				}),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+
+			const dep: FileScriptAsset = {
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/script.ts',
+				inline: false,
+			};
+
+			const result = await processor.process(dep);
+
+			expect(registerScriptEntrypoint).not.toHaveBeenCalled();
+			expect(result.srcUrl).toBe('/assets/_hmr/script.js');
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/_hmr/script.js');
+		});
+
 		test('should delegate to HMR manager when enabled and not inline and preserve excludeFromHtml', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {

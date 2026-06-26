@@ -8,6 +8,7 @@ import type {
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await createTestAppConfig();
@@ -189,10 +190,12 @@ describe('MDXRenderer', () => {
 			const testRenderer = createRenderer();
 			const Component = (async () => '<article>Foreign Subtree</article>') as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderForeignSubtree({
-				component: Component,
-				props: {},
-			});
+			const result = toForeignSubtreeRenderPayload(
+				await testRenderer.renderComponentWithForeignChildren({
+					component: Component,
+					props: {},
+				}),
+			);
 
 			expect(result).toEqual<ForeignSubtreeRenderPayload>({
 				html: '<article>Foreign Subtree</article>',

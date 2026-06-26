@@ -1,15 +1,20 @@
-import { createServer, type Server as NodeHttpServer } from 'node:http';
+import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
-import type { ApiHandler, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
+import type { ApiHandler, ErrorHandler, StaticRoute, EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
+import {
+	attachNodeHttpWebSocketUpgrades,
+	type NodeHttpWebSocketUpgradePreflight,
+} from '../shared/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -21,6 +26,7 @@ import {
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
+import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
@@ -41,6 +47,9 @@ export interface NodeServerAdapterParams {
 	apiHandlers?: ApiHandler[];
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
+	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
+	delegateBrowserReloadToHost?: boolean;
+	hostOwnsDevClient?: boolean;
 	options?: {
 		watch?: boolean;
 	};
@@ -52,6 +61,8 @@ export interface NodeServerAdapterParams {
 export interface NodeServerAdapterResult extends ServerAdapterResult {
 	completeInitialization: (server: NodeServerInstance) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
+	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }) => void;
+	dispose: () => Promise<void>;
 }
 
 /**
@@ -82,12 +93,42 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private errorHandler?: ErrorHandler;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
+	private projectWatcher: ProjectWatcher | null = null;
+	private adapterDisposed = false;
 	private readonly previewHost: StaticPreviewHost;
 	private readonly requestBridge: NodeHttpRequestBridge;
 	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
+	/**
+	 * Reference to the application-level WebSocket handlers map.
+	 *
+	 * @remarks
+	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * passed in via the constructor. The Node adapter reads from it to wire
+	 * WebSocket upgrades for user-registered patterns.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
-	private shouldInjectHmrScript(): boolean {
-		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager ?? undefined);
+	/**
+	 * Wires user WebSocket routes onto a foreign Node HTTP server.
+	 *
+	 * Host integrations such as the Vite plugin call this so `app.websocket()`
+	 * handlers work while HTTP is still served by the host dev server.
+	 */
+	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: options?.passthroughUnmatched,
+		});
+	}
+
+	private wireUserWebSocketUpgrades(server: NodeServerInstance, preflight?: NodeHttpWebSocketUpgradePreflight): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: false,
+			preflight,
+		});
 	}
 
 	private isHtmlResponse(response: Response): boolean {
@@ -95,21 +136,47 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	}
 
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+		if (
+			shouldInjectHmrHtmlResponse(
+				this.options?.watch === true,
+				this.hmrManager ?? undefined,
+				this.hostOwnsDevClient,
+			) &&
+			this.isHtmlResponse(response)
+		) {
 			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 
 		return response;
 	}
 
-	constructor(options: NodeServerAdapterParams) {
+	/**
+	 * @remarks
+	 * `previewHost`, `requestBridge`, and `devRuntimeFactory` are optional on the
+	 * public {@link NodeServerAdapterParams} so factory callers can omit them, but
+	 * they are mandatory by the time the concrete adapter is constructed —
+	 * {@link createNodeServerAdapter} fills in Node-specific defaults first. The
+	 * constructor signature makes that invariant explicit instead of relying on
+	 * non-null assertions.
+	 */
+	constructor(
+		options: NodeServerAdapterParams & {
+			previewHost: StaticPreviewHost;
+			requestBridge: NodeHttpRequestBridge;
+			devRuntimeFactory: NodeServerDevRuntimeFactory;
+		},
+	) {
 		super(options);
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
-		this.previewHost = options.previewHost!;
-		this.requestBridge = options.requestBridge!;
-		this.devRuntimeFactory = options.devRuntimeFactory!;
+		this.previewHost = options.previewHost;
+		this.requestBridge = options.requestBridge;
+		this.devRuntimeFactory = options.devRuntimeFactory;
+		if (options.websocketHandlers) {
+			this.websocketHandlers = options.websocketHandlers;
+		}
+		this.hostOwnsDevClient = options.hostOwnsDevClient === true;
 	}
 
 	/**
@@ -152,7 +219,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
 
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
 		}
 
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
@@ -164,26 +231,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
-	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
 		if (!this.initialized) {
 			await this.initialize();
 		}
 
-		const buildServer = await this.startBuildRuntimeServer();
-		const buildRuntimeOrigin = this.getListeningServerOrigin(buildServer);
-
-		try {
-			await this.staticBuilder.build(
-				{ preview: false, baseUrl: buildRuntimeOrigin },
-				{
-					router: this.router,
-					routeRendererFactory: this.routeRendererFactory,
-					staticRoutes: this.staticRoutes,
-				},
-			);
-		} finally {
-			await this.stopBuildRuntimeServer(buildServer);
-		}
+		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
+		await this.staticBuilder.build(
+			{ preview: false, baseUrl, force: options?.force },
+			{
+				router: this.router,
+				routeRendererFactory: this.routeRendererFactory,
+				staticRoutes: this.staticRoutes,
+			},
+		);
 
 		if (!options?.preview) {
 			return;
@@ -200,84 +261,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
 	}
 
-	private async startBuildRuntimeServer(): Promise<NodeHttpServer> {
-		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
-		const port = 0;
-
-		const server = createServer(async (req, res) => {
-			try {
-				const webRequest = this.requestBridge.createWebRequest(req, this.runtimeOrigin);
-				const response = await this.handleRequest(webRequest);
-				await this.requestBridge.sendNodeResponse(res, response);
-			} catch (error) {
-				if (error instanceof NodeClientAbortError) {
-					return;
-				}
-
-				appLogger.error('Node static build runtime request failed', error as Error);
-				res.statusCode = 500;
-				res.end('Internal Server Error');
-			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(port, hostname, () => {
-				server.off('error', reject);
-				resolve();
-			});
-		});
-
-		this.serverInstance = server;
-		appLogger.info(`Server running at ${this.getListeningServerOrigin(server)}`);
-
-		return server;
-	}
-
-	private getListeningServerOrigin(server: NodeHttpServer): string {
-		const address = server.address();
-		const hostname = String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME);
-
-		if (!address || typeof address === 'string') {
-			throw new Error('Build runtime server did not expose a numeric listening port');
-		}
-
-		return `http://${hostname}:${address.port}`;
-	}
-
-	/**
-	 * Gracefully shuts down the ephemeral build runtime server.
-	 *
-	 * `closeAllConnections()` is called *before* `close()` because `server.close()`
-	 * only stops accepting new connections — it waits for existing keep-alive
-	 * connections to finish naturally, which can stall the build indefinitely.
-	 * `closeAllConnections()` force-closes any lingering sockets immediately so
-	 * the `close()` callback fires promptly.
-	 *
-	 * The `NodeClientBridge` heartbeat is also destroyed here so its `setInterval`
-	 * does not prevent the Node.js process from exiting cleanly after the build.
-	 */
-	private async stopBuildRuntimeServer(server: NodeHttpServer): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			server.close((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-
-				resolve();
-			});
-			server.closeAllConnections();
-		});
-
-		if (this.serverInstance === server) {
-			this.serverInstance = null;
-		}
-
-		this.bridge?.destroy();
-		this.bridge = null;
-	}
-
 	public async createAdapter(): Promise<NodeServerAdapterResult> {
 		await this.initialize();
 
@@ -286,7 +269,37 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
+			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			dispose: this.dispose.bind(this),
 		};
+	}
+
+	/**
+	 * Releases dev-time resources owned by the adapter.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
+	 * should shut down transport through the runtime host before disposing.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.adapterDisposed) {
+			return;
+		}
+
+		this.adapterDisposed = true;
+
+		await this.projectWatcher?.close();
+		this.projectWatcher = null;
+
+		await disposeAppBuildRuntime(this.appConfig);
+
+		this.hmrManager?.stop();
+		this.hmrManager = null;
+
+		this.bridge?.destroy();
+		this.bridge = null;
+
+		await this.previewHost.stop();
 	}
 
 	/**
@@ -339,11 +352,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * - Shared watcher bootstrapping listens for route-level file changes and
 	 *   refreshes the router and response handlers when pages are added or removed.
 	 *
-	 * WebSocket upgrade requests that do not target `/_hmr` are rejected with an
+	 * WebSocket upgrade requests that do not match a known path are rejected with an
 	 * immediate socket destroy to prevent unhandled upgrade leaks.
 	 */
 	public async completeInitialization(server: NodeServerInstance): Promise<void> {
 		this.serverInstance = server;
+
+		const hasUserWs = this.websocketHandlers.size > 0;
 
 		if (this.options?.watch) {
 			const devRuntime = this.devRuntimeFactory.create({ appConfig: this.appConfig });
@@ -354,18 +369,30 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			await this.hmrManager.buildRuntime();
 
-			server.on('upgrade', (req, socket, head) => {
+			const hmrPreflight = (
+				req: IncomingMessage,
+				socket: import('node:stream').Duplex,
+				head: Buffer,
+			): boolean => {
 				const url = new URL(req.url ?? '/', this.runtimeOrigin);
-				if (url.pathname === '/_hmr') {
-					wss.handleUpgrade(req, socket, head, (ws) => {
-						this.bridge!.subscribe(ws);
-						ws.on('close', () => this.bridge!.unsubscribe(ws));
-						ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
-					});
-				} else {
-					socket.destroy();
-				}
-			});
+				if (url.pathname !== '/_hmr') return false;
+				wss.handleUpgrade(req, socket, head, (ws) => {
+					this.bridge!.subscribe(ws);
+					ws.on('close', () => this.bridge!.unsubscribe(ws));
+					ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+				});
+				return true;
+			};
+
+			if (hasUserWs) {
+				this.wireUserWebSocketUpgrades(server, hmrPreflight);
+			} else {
+				server.on('upgrade', (req, socket, head) => {
+					if (!hmrPreflight(req, socket, head)) {
+						socket.destroy();
+					}
+				});
+			}
 
 			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
 			this.hmrManager.setPlugins(browserBuildPlugins);
@@ -384,9 +411,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				}),
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
+				hostOwnsDevClient: this.hostOwnsDevClient,
 			});
 
+			this.projectWatcher = watcher;
 			await watcher.createWatcherSubscription();
+		} else if (hasUserWs) {
+			this.wireUserWebSocketUpgrades(server);
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

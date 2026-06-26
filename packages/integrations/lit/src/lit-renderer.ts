@@ -10,10 +10,13 @@ import type {
 	EcoFunctionComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
+	RouteRenderResult,
 	RouteRendererBody,
+	RouteRendererOptions,
 } from '@ecopages/core';
 import './dom-shim.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { getActiveLitStaticRenderSession } from './lit-static-render-coordinator.ts';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
@@ -40,6 +43,22 @@ type LitForeignSubtreeResolutionContext = {
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = LIT_PLUGIN_NAME;
+
+	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
+		const session = getActiveLitStaticRenderSession();
+		if (session) {
+			const html = await session.renderPageInWorker({
+				filePath: options.file,
+				params: (options.params ?? {}) as Record<string, string>,
+			});
+
+			return {
+				body: html,
+			};
+		}
+
+		return super.execute(options);
+	}
 
 	private isFunctionComponent(
 		component: EcoComponent,
@@ -207,6 +226,12 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
 	protected async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+		const session = getActiveLitStaticRenderSession();
+		if (session) {
+			await session.preloadSsrLazyScripts(components);
+			return;
+		}
+
 		await this.ssrLazyPreloader.preloadSsrLazyScripts(components);
 	}
 

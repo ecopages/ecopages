@@ -4,13 +4,15 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 
 ## Mental Model
 
-Three concentric shapes, plus a serializer and a plugin injector:
+Three concentric shapes, plus profile executors and a plugin injector:
 
 | Shape                      | Lives in                       | Purpose                                                                                                                                                             |
 | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BuildAdapter`             | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
-| `BuildExecutor`            | `build-adapter.ts`             | Narrower runtime facade. Only `build` is exposed. Stored on `appConfig.runtime.buildExecutor`.                                                                      |
-| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used by the dev watch pipeline.                                                                                              |
+| `BuildRuntime`             | `build-runtime.ts`             | Profile-based executor registry. Single entry point on `appConfig.runtime.buildRuntime`.                                                                            |
+| `BuildExecutor`            | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
+| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
+| `ParallelBuildExecutor`    | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
 | `withBuildExecutorPlugins` | `build-adapter.ts`             | Merges app-owned plugins into every `build` call. The single point of plugin injection.                                                                             |
 
 Plus one translation bridge:
@@ -20,29 +22,31 @@ Plus one translation bridge:
 ## Files
 
 - `build-adapter.ts`: types, factories, app-owned helpers, `withBuildExecutorPlugins`.
+- `build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
 - `build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
 - `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult` (outputs, dependency graph, logs).
 - `rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `serialized-build-executor.ts`: FIFO queue primitive.
-- `runtime-build-executor.ts`: dev-watch entrypoint that wraps the app-owned adapter in a `SerializedBuildExecutor + withBuildExecutorPlugins` chain.
+- `runtime-build-executor.ts`: server-adapter entrypoint that installs `BuildRuntime` via `installAppRuntimeBuildExecutor()`.
+- `server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
 - `*.test.ts`: regression coverage.
 
 ## Default Flow
 
-`ConfigBuilder.build()` creates one app-owned adapter, manifest, executor, dev graph, and runtime registry. The executor it stores is the raw `BuildAdapter`; the plugin-wrap step lives in the runtime path.
-
-When a server adapter initializes, it calls `installAppRuntimeBuildExecutor(appConfig)`. That function reads the existing executor (or falls back to the app-owned adapter) and stores a fresh wrapper:
+`ConfigBuilder.build()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installAppRuntimeBuildExecutor(appConfig)`, which installs `BuildRuntime`:
 
 ```
-BuildExecutor
-  └─ SerializedBuildExecutor            // FIFO queue
-       └─ withBuildExecutorPlugins       // injects app plugins
-            └─ BuildAdapter (bundled adapter or Vite-host)
+BuildRuntime.getProfile(...)
+  ├─ server-entry  → SerializedBuildExecutor → withBuildExecutorPlugins → RolldownBuildAdapter
+  ├─ route-module  → ParallelBuildExecutor   → withBuildExecutorPlugins → RolldownBuildAdapter
+  └─ browser-hmr   → ParallelBuildExecutor   → withBuildExecutorPlugins → RolldownBuildAdapter
 ```
 
-Every dev-watch caller reads `appConfig.runtime.buildExecutor` and gets the merged plugin set without further ceremony.
+All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
 
-The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `getAppBuildExecutor()`, and `getAppTranspileOptions()`.
+Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-module' | 'browser-hmr' | 'server-entry')` instead of reading legacy executor slots.
+
+The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildRuntime()`, and `getAppTranspileOptions()`.
 
 ## Vite-Host Boundary
 
@@ -81,11 +85,70 @@ Plugin ordering: the bundler's `resolveId` and `load` are "first" hooks. The bri
 
 These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
 
+## Dev / watch path
+
+`installBuildRuntime` (via `installAppRuntimeBuildExecutor`) installs profile-based executors:
+
+| Profile        | Backend           | Concurrency          |
+| -------------- | ----------------- | -------------------- |
+| `server-entry` | Rolldown one-shot | Serialized           |
+| `route-module` | Rolldown one-shot | Parallel             |
+| `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3) |
+
+`hmr-entrypoint` rebuilds use the `browser-hmr` profile. Other browser builds (`browser-script`, `hmr-runtime`) use `route-module`.
+
+`ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
+
+## Metrics
+
+Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during dev and production builds. Compare kitchen-sink dev navigation and `static-build-bench` before/after runtime changes.
+
+## Production build caches
+
+Two persisted cache layers accelerate production builds. Both use `.build-cache.json` manifests keyed by dependency hashes and a build-inputs fingerprint.
+
+| Cache                                  | On-disk location                                    | Module                              |
+| -------------------------------------- | --------------------------------------------------- | ----------------------------------- |
+| Server-entry bundle                    | `.eco/.server-entry/.build-cache.json`              | `server-entry-build-cache.ts`       |
+| Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` |
+
+`getInstalledServerEntryBuildExecutor()` returns the `server-entry` profile from `BuildRuntime`. `clearProductionBuildCaches()` wipes both manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
+
+The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
+
+## Unified pages graph
+
+Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`).
+
+| Artifact       | Location                                              |
+| -------------- | ----------------------------------------------------- |
+| Graph manifest | `.eco/.server-pages-graph/.build-cache.json`          |
+| Chunk outputs  | `.eco/.server-modules/` (shared with per-route cache) |
+
+`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
+
+`ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
+
+Build-input fingerprinting lives in `build-input-fingerprint.ts` and is shared with server-entry cache, unified pages graph, and static-render invalidation.
+
+## JSX Ownership Plugins
+
+Mixed-integration apps need explicit `@jsxImportSource` handling in two different shapes:
+
+| Helper                               | Use when                                  | Behavior                                                                                                                |
+| ------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `getJsxOwnershipPlugins()`           | App-wide server/transpile builds          | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime.            |
+| `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
+| `eco-component-meta-plugin`          | Component metadata injection              | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files.                      |
+
+`foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
+
 ## Testing Strategy
 
 - `rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
 - `rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
 - `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, the `withBuildExecutorPlugins` injection, and the default-fallback behaviour.
-- `runtime-build-executor.test.ts` covers the dev-watch wrapper: serialization, plugin injection, and the Vite-host rejection path.
+- `build-runtime.test.ts` covers profile executor installation and parallelism.
+- `runtime-build-executor.test.ts` covers the runtime wrapper: plugin injection and the Vite-host rejection path.
 
 If you change option mapping or plugin-bridge semantics, update the adapter and bridge tests first. If you change the app-owned helper contracts, update `build-adapter.test.ts` first.

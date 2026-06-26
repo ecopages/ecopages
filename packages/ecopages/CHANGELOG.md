@@ -8,6 +8,7 @@ All notable changes to `ecopages` are documented here.
 
 ### Bug Fixes
 
+- Restored `ecopages build` and `preview` source-entry execution, kept `start` on built output, and rejected positional entry-file arguments in favor of `--entry-file`.
 - Restored app-level `require(...)` support for Node runtime launches while keeping direct `tsx` execution.
 - Loaded standard `.env` files for Node runtime launches so `ecopages ... --runtime node` sees app-local environment values.
 - Restored shared server/build option parsing for `ecopages build` so documented flags like `--base-url` and `--hostname` still flow through to the launch environment.

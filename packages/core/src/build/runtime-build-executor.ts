@@ -1,37 +1,25 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { BuildExecutor } from './build-adapter.ts';
 import {
-	getAppBuildAdapter,
-	getAppBuildExecutor,
-	getAppServerBuildPlugins,
-	setAppBuildExecutor,
-	withBuildExecutorPlugins,
-	type BuildExecutor,
-} from './build-adapter.ts';
-import { SerializedBuildExecutor } from './serialized-build-executor.ts';
+	installBuildRuntime,
+	requireBuildRuntime,
+} from './build-runtime.ts';
+
+export type { BuildProfile, BuildRuntime } from './build-runtime.ts';
+export { disposeAppBuildRuntime, getBuildRuntime, installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 
 /**
- * Installs the app-owned runtime build executor for one app instance.
+ * Installs the app-owned runtime build executors for one app instance.
  *
  * @remarks
- * Wraps the app-owned adapter in a {@link SerializedBuildExecutor} so
- * every dev-watch caller issues builds against a single FIFO queue.
- * Plugin injection is applied here via {@link withBuildExecutorPlugins}
- * so app-owned plugins are merged into every rebuild without callers
- * having to know about the manifest.
- *
- * Idempotent across calls: re-invoking replaces the existing executor
- * on `appConfig.runtime` with a fresh wrapper.
- *
- * @param appConfig - The app config whose runtime state is updated.
- *   The function reads the existing executor (falling back to the
- *   app-owned adapter) and writes the wrapped executor back.
- * @returns The installed {@link BuildExecutor}.
+ * Delegates to {@link installBuildRuntime}. Route-module and HMR browser builds
+ * use parallel one-shot Rolldown. Server-entry bundling stays serialized
+ * single-flight.
  */
 export function installAppRuntimeBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
-	const baseExecutor = getAppBuildExecutor(appConfig) ?? getAppBuildAdapter(appConfig);
-	const buildExecutor = new SerializedBuildExecutor(
-		withBuildExecutorPlugins(baseExecutor, () => getAppServerBuildPlugins(appConfig)),
-	);
-	setAppBuildExecutor(appConfig, buildExecutor);
-	return buildExecutor;
+	return installBuildRuntime(appConfig).getProfile('route-module');
+}
+
+export function getInstalledServerEntryBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	return requireBuildRuntime(appConfig).getProfile('server-entry');
 }

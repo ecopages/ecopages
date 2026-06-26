@@ -12,6 +12,10 @@ function extractAppendedChildren(appendedHtml: string): string {
  * Normalizes an Ecopages HTML response by injecting appended route content
  * into the template slot marker, unwrapping Lit SSR part wrappers, and
  * optionally injecting the Vite client script in dev mode.
+ *
+ * @remarks
+ * Prefer `server.transformIndexHtml()` for Vite client injection. The
+ * `injectViteClient` option remains for legacy callers and tests.
  */
 export function normalizeHtmlResponse(body: string, options?: { injectViteClient?: boolean }): string {
 	let html = body;

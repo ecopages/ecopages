@@ -14,6 +14,7 @@ import type {
 	PageBrowserGraphContribution,
 	PageBrowserGraphResult,
 	PageMetadataProps,
+	PagePackageResult,
 	PageProps,
 	ResolvedLazyTrigger,
 	RouteRendererBody,
@@ -32,8 +33,7 @@ import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } fro
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
-import { OwnershipValidationService } from './ownership-validation.service.ts';
-import { OwnershipPlanningService } from './ownership-planning.service.ts';
+import { OwnershipValidationService, throwIfOwnershipInvalid } from './ownership-validation.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
@@ -154,6 +154,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	transformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
+		pagePackage?: PagePackageResult,
 	): Promise<RouteRendererBody>;
 }
 
@@ -169,7 +170,6 @@ export interface CapturedHtmlRenderResult {
  * Optional app-scoped collaborators used by the route render orchestrator.
  */
 export interface RouteRenderOrchestratorDependencies {
-	ownershipPlanningService?: OwnershipPlanningService;
 	ownershipValidationService?: OwnershipValidationService;
 }
 
@@ -184,7 +184,6 @@ export interface RouteRenderOrchestratorDependencies {
 export class RouteRenderOrchestrator {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
-	private readonly ownershipPlanningService: OwnershipPlanningService;
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphCache = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
 	private readonly groupedPageBrowserGraphCache = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
@@ -196,7 +195,6 @@ export class RouteRenderOrchestrator {
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
-		this.ownershipPlanningService = dependencies.ownershipPlanningService ?? new OwnershipPlanningService();
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
 	}
@@ -222,14 +220,7 @@ export class RouteRenderOrchestrator {
 				{ component: Page as EcoComponent, source: 'page' },
 			],
 		});
-		const ownershipPlan = this.ownershipPlanningService.buildPlan({
-			routeFile: routeOptions.file,
-			currentIntegrationName: adapter.name,
-			HtmlTemplate: HtmlTemplate as EcoComponent,
-			Layout,
-			Page: Page as EcoComponent,
-			validationErrors,
-		});
+		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
 		const { resolvedDependencies } = await adapter.resolveRouteDependencies({
@@ -298,7 +289,6 @@ export class RouteRenderOrchestrator {
 			locals,
 			pageLocals,
 			cacheStrategy,
-			ownershipPlan,
 		};
 
 		return {
@@ -401,26 +391,24 @@ export class RouteRenderOrchestrator {
 		}
 
 		const cacheKey = input.integrationName;
-		const cached = this.groupedPageBrowserGraphCache.get(cacheKey);
-		if (cached) {
-			return await cached;
+		let pending = this.groupedPageBrowserGraphCache.get(cacheKey);
+		if (!pending) {
+			pending = this.buildGroupedPageBrowserAssets(input, currentContribution)
+				.then((result) => {
+					if (result.hasCollectionFailures) {
+						this.groupedPageBrowserGraphCache.delete(cacheKey);
+					}
+
+					return result.assetsByRoute;
+				})
+				.catch((error) => {
+					this.groupedPageBrowserGraphCache.delete(cacheKey);
+					throw error;
+				});
+			this.groupedPageBrowserGraphCache.set(cacheKey, pending);
 		}
 
-		const pendingGroupedAssets = this.buildGroupedPageBrowserAssets(input, currentContribution)
-			.then((result) => {
-				if (result.hasCollectionFailures) {
-					this.groupedPageBrowserGraphCache.delete(cacheKey);
-				}
-
-				return result.assetsByRoute;
-			})
-			.catch((error) => {
-				this.groupedPageBrowserGraphCache.delete(cacheKey);
-				throw error;
-			});
-		this.groupedPageBrowserGraphCache.set(cacheKey, pendingGroupedAssets);
-
-		return await pendingGroupedAssets;
+		return await pending;
 	}
 
 	/**
@@ -605,6 +593,7 @@ export class RouteRenderOrchestrator {
 					},
 				}),
 				htmlFinalization.htmlContributions,
+				renderOptions.pagePackage,
 			);
 
 			return {
@@ -624,6 +613,7 @@ export class RouteRenderOrchestrator {
 				},
 			}),
 			htmlFinalization.htmlContributions,
+			renderOptions.pagePackage,
 		);
 
 		return {

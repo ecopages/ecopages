@@ -12,6 +12,7 @@ import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtim
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
+import path from 'node:path';
 import type React from 'react';
 import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import { ReactRenderer } from './react-renderer.ts';
@@ -196,6 +197,12 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		}
 
 		this.runtimeBundleService.setRootDir(this.appConfig?.rootDir);
+		this.runtimeBundleService.setWorkDir(
+			this.appConfig?.absolutePaths?.workDir ??
+				(this.appConfig?.rootDir
+					? path.join(this.appConfig.rootDir, this.appConfig.workDir ?? '.eco')
+					: undefined),
+		);
 
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 		this.runtimeDependenciesInitialized = true;

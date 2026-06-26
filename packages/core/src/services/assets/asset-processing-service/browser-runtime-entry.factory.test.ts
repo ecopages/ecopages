@@ -20,7 +20,7 @@ test('createBrowserRuntimeEntryModule writes a shared runtime entry file', () =>
 		assert.equal(path.basename(filePath), 'runtime-entry.mjs');
 		assert.equal(
 			filePath,
-			path.join(rootDir, 'node_modules', '.cache', 'ecopages-react-runtime-test', 'runtime-entry.mjs'),
+			path.join(rootDir, '.eco', '.browser-runtime-entries', 'ecopages-react-runtime-test', 'runtime-entry.mjs'),
 		);
 
 		const contents = fs.readFileSync(filePath, 'utf8');
@@ -56,10 +56,10 @@ test('createBrowserRuntimeEntryModule preserves a default export and deduplicate
 		});
 
 		const contents = fs.readFileSync(filePath, 'utf8');
-		assert.match(contents, /import __ecopages_default_export__ from 'runtime-a';/);
+		assert.match(contents, /import __ecopages_default_export__ from '\.\..*node_modules\/runtime-a\/index\.js';/);
 		assert.match(contents, /export default __ecopages_default_export__;/);
-		assert.match(contents, /export \{ alpha, shared \} from 'runtime-a';/);
-		assert.match(contents, /export \{ beta \} from 'runtime-b';/);
+		assert.match(contents, /export \{ alpha, shared \} from '\.\..*node_modules\/runtime-a\/index\.js';/);
+		assert.match(contents, /export \{ beta \} from '\.\..*node_modules\/runtime-b\/index\.js';/);
 		assert.doesNotMatch(contents, /export \{ .*shared.* \} from 'runtime-b';/);
 	} finally {
 		fs.rmSync(rootDir, { recursive: true, force: true });

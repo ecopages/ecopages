@@ -40,7 +40,7 @@ radiant-code-tabs {
 	}
 
 	&__code {
-		@apply block w-full max-w-full min-w-0 text-[13px];
+		@apply block w-full max-w-full min-w-0 text-[15px];
 
 		&:has([data-rehype-pretty-code-figure]) {
 			@apply flex flex-col flex-1 min-h-0 overflow-y-hidden;

@@ -1,43 +1,20 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { APIRequestContext, Page } from 'playwright-core';
 import {
 	assertAllCountersInteractivity,
 	assertRadiantCounterInteractivity,
-	gotoAndWait,
 	incrementCounter,
+	requestGetAndWait,
+	gotoPath,
 	trackRuntimeErrors,
 } from './helpers';
-
-async function requestUntilOk(request: APIRequestContext, href: string) {
-	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
-
-	await expect
-		.poll(
-			async () => {
-				try {
-					lastResponse = await request.get(href);
-					return lastResponse.ok() ? lastResponse.status() : 0;
-				} catch {
-					lastResponse = undefined;
-					return 0;
-				}
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout: 10000,
-			},
-		)
-		.toBe(200);
-
-	expect(lastResponse?.ok(), `${href} should respond with a successful status after preview warmup`).toBe(true);
-	return lastResponse!;
-}
 
 async function requestUntilContains(request: APIRequestContext, href: string, text: string) {
 	await expect
 		.poll(
 			async () => {
 				try {
-					const response = await requestUntilOk(request, href);
+					const response = await requestGetAndWait(request, href, 10000);
 					const body = await response.text();
 					return body.includes(text);
 				} catch {
@@ -59,18 +36,18 @@ async function waitForReactPageHydration(page: Page) {
 }
 
 async function gotoAndWaitForHeading(page: Page, href: string, heading: string) {
-	await gotoAndWait(page, href);
+	await gotoPath(page, href);
 	await expect(page.getByRole('heading', { name: heading })).toHaveText(heading, {
 		timeout: 10000,
 	});
 }
 
-test.describe('Kitchen Sink Preview Regressions', () => {
+test.describe('Kitchen Sink Preview Regressions @preview', () => {
 	test('keeps Ecopages JSX shell nodes marker-free while Radiant hosts stay interactive', async ({
 		request,
 		page,
 	}) => {
-		const response = await requestUntilOk(request, '/integration-matrix/ecopages-jsx-entry');
+		const response = await requestGetAndWait(request, '/integration-matrix/ecopages-jsx-entry', 10000);
 		const html = await response.text();
 
 		expect(html).not.toMatch(/<html[^>]*data-radiant-jsx-bind-/);
@@ -85,7 +62,7 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 		expect(html).toContain('data-radiant-counter');
 
 		const runtime = trackRuntimeErrors(page);
-		await gotoAndWait(page, '/integration-matrix/ecopages-jsx-entry');
+		await gotoPath(page, '/integration-matrix/ecopages-jsx-entry');
 
 		const counter = page.locator('radiant-counter#ecopages-jsx-entry-radiant');
 		await assertRadiantCounterInteractivity(counter, '0');
@@ -129,7 +106,7 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 		expect(apiLabCss).toContain('.api-lab__workspace-grid');
 		expect(apiLabCss).not.toContain('__workspace-grid.api-lab');
 
-		await gotoAndWait(page, '/api-lab');
+		await gotoPath(page, '/api-lab');
 		await expect(page.locator('.api-lab__workspace-grid')).toHaveCSS('display', 'grid');
 		await expect(page.locator('.api-lab__command').first()).toHaveCSS('text-align', 'left');
 	});
@@ -145,17 +122,18 @@ test.describe('Kitchen Sink Preview Regressions', () => {
 		expect(html).not.toContain('<--content-->');
 
 		const runtime = trackRuntimeErrors(page);
-		await gotoAndWait(page, '/integration-matrix/lit-entry');
+		await gotoPath(page, '/integration-matrix/lit-entry');
+		await expect(page.getByTestId('integration-matrix-lit-counters')).toBeVisible();
 		await assertAllCountersInteractivity(page.getByTestId('integration-matrix-lit-counters'));
 		runtime.assertClean();
 	});
 
 	test('keeps React preview vendors available and hydration interactive', async ({ request, page }) => {
-		const reactVendorResponse = await requestUntilOk(request, '/assets/vendors/react.js');
+		const reactVendorResponse = await requestGetAndWait(request, '/assets/vendors/react.js', 10000);
 		expect(reactVendorResponse.ok()).toBe(true);
 		expect(reactVendorResponse.headers()['content-type']).toContain('javascript');
 
-		const reactDomVendorResponse = await requestUntilOk(request, '/assets/vendors/react-dom.js');
+		const reactDomVendorResponse = await requestGetAndWait(request, '/assets/vendors/react-dom.js', 10000);
 		expect(reactDomVendorResponse.ok()).toBe(true);
 		expect(reactDomVendorResponse.headers()['content-type']).toContain('javascript');
 		await requestUntilContains(request, '/react-lab', 'React Page Route');

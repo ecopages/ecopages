@@ -36,7 +36,7 @@ describe('NodeStaticContentServer', () => {
 		);
 		fs.writeFileSync(path.join(distDir, 'assets', 'pages', 'api-lab.css'), '.api-lab { color: tomato; }');
 
-		const server = new NodeStaticContentServer({
+		await using server = new NodeStaticContentServer({
 			appConfig: createAppConfig(),
 			options: { hostname: '127.0.0.1', port: 0 },
 		});
@@ -44,17 +44,13 @@ describe('NodeStaticContentServer', () => {
 		const httpServer = await server.start();
 		const address = httpServer.address() as AddressInfo;
 
-		try {
-			const htmlResponse = await fetch(`http://127.0.0.1:${address.port}/api-lab`);
-			const cssResponse = await fetch(`http://127.0.0.1:${address.port}/assets/pages/api-lab.css`);
+		const htmlResponse = await fetch(`http://127.0.0.1:${address.port}/api-lab`);
+		const cssResponse = await fetch(`http://127.0.0.1:${address.port}/assets/pages/api-lab.css`);
 
-			expect(htmlResponse.status).toBe(200);
-			expect(await htmlResponse.text()).toContain('/assets/pages/api-lab.css');
-			expect(cssResponse.status).toBe(200);
-			expect(cssResponse.headers.get('content-type')).toContain('text/css');
-			expect(await cssResponse.text()).toContain('.api-lab { color: tomato; }');
-		} finally {
-			await server.stop();
-		}
+		expect(htmlResponse.status).toBe(200);
+		expect(await htmlResponse.text()).toContain('/assets/pages/api-lab.css');
+		expect(cssResponse.status).toBe(200);
+		expect(cssResponse.headers.get('content-type')).toContain('text/css');
+		expect(await cssResponse.text()).toContain('.api-lab { color: tomato; }');
 	});
 });

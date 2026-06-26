@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
-import type { BuildResult } from '../../build/build-adapter.js';
+import type { BuildResult } from '../../build/build-adapter.ts';
+import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
+import { setAppBuildAdapter } from '../../build/build-adapter.ts';
+import { requireBuildRuntime } from '../../build/runtime-build-executor.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader, setAppHostModuleLoader } from './app-server-module-transpiler.service.ts';
@@ -172,7 +175,6 @@ describe('ServerModuleTranspiler', () => {
 
 	it('applies the app invalidation version to app-owned module imports', async () => {
 		const calls: Array<unknown> = [];
-		const buildExecutor = { build: async () => createBuildResult() };
 		const appConfig = {
 			rootDir: '/app',
 			absolutePaths: {
@@ -182,11 +184,14 @@ describe('ServerModuleTranspiler', () => {
 				componentsDir: '/app/src/components',
 			},
 			templatesExt: ['.tsx'],
+			loaders: new Map(),
 			runtime: {
-				buildExecutor,
 				serverInvalidationState: new CounterServerInvalidationState(),
 			},
 		} as unknown as EcoPagesAppConfig;
+
+		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
+		const routeModuleExecutor = requireBuildRuntime(appConfig).getProfile('route-module');
 
 		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {
 			pageModuleImportService: {
@@ -234,7 +239,7 @@ describe('ServerModuleTranspiler', () => {
 				filePath: '/app/src/includes/html.kita.tsx',
 				rootDir: '/app',
 				outdir: '/app/.eco/.server-modules',
-				buildExecutor,
+				buildExecutor: routeModuleExecutor,
 				invalidationVersion: 1,
 			},
 		);

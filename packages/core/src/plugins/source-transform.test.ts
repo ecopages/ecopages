@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	applySourceTransform,
+	applySourceTransforms,
 	createVitePluginsFromAppSourceTransforms,
 	createEcoBuildPluginFromSourceTransform,
 	getAppSourceTransforms,
@@ -33,6 +34,42 @@ describe('source-transform', () => {
 		expect(result).toEqual({
 			code: '/* injected */\nexport const value = 1;',
 		});
+	});
+
+	it('applies transforms in pre, default, and post order', () => {
+		const calls: string[] = [];
+		const transforms = [
+			{
+				name: 'post',
+				enforce: 'post' as const,
+				filter: /main\.tsx$/,
+				transform(code: string) {
+					calls.push('post');
+					return code;
+				},
+			},
+			{
+				name: 'pre',
+				enforce: 'pre' as const,
+				filter: /main\.tsx$/,
+				transform(code: string) {
+					calls.push('pre');
+					return code;
+				},
+			},
+			{
+				name: 'default',
+				filter: /main\.tsx$/,
+				transform(code: string) {
+					calls.push('default');
+					return code;
+				},
+			},
+		];
+
+		applySourceTransforms(transforms, 'export const value = 1;', '/src/main.tsx');
+
+		expect(calls).toEqual(['pre', 'default', 'post']);
 	});
 
 	it('creates a Vite-compatible transform plugin', () => {

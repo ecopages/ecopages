@@ -130,6 +130,7 @@ describe('application adapter runtime bootstrap', () => {
 			build: false,
 			start: false,
 			dev: true,
+			force: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,

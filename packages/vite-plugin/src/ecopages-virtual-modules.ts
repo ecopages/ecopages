@@ -15,6 +15,26 @@ const RESOLVED_IMAGE_VIRTUAL_MODULE_ID = `\0${IMAGE_VIRTUAL_MODULE_ID}`;
 const RESOLVED_INTEGRATION_MANIFEST_MODULE_ID = `\0${ECOPAGES_INTEGRATION_MANIFEST_MODULE_ID}`;
 const RESOLVED_ISLAND_REGISTRY_MODULE_ID = `\0${ECOPAGES_ISLAND_REGISTRY_MODULE_ID}`;
 const IMAGE_PROCESSOR_NAME = 'ecopages-image-processor';
+const IMAGE_MODULE_READ_ATTEMPTS = 30;
+const IMAGE_MODULE_READ_DELAY_MS = 100;
+
+async function readImageVirtualModuleSource(modulePath: string): Promise<string> {
+	for (let attempt = 0; attempt < IMAGE_MODULE_READ_ATTEMPTS; attempt += 1) {
+		try {
+			const source = await fs.readFile(modulePath, 'utf8');
+			return source.replaceAll(/\s+as const;/g, ';');
+		} catch (error) {
+			const errno = (error as NodeJS.ErrnoException).code;
+			if (errno !== 'ENOENT' || attempt === IMAGE_MODULE_READ_ATTEMPTS - 1) {
+				throw error;
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, IMAGE_MODULE_READ_DELAY_MS));
+		}
+	}
+
+	throw new Error(`[ecopages] Failed to read image virtual module at '${modulePath}'`);
+}
 
 /**
  * Serves Ecopages-owned virtual modules: integration manifest, island registry,
@@ -30,6 +50,7 @@ export function ecopagesVirtualModules(appConfig: EcoPagesAppConfig): EcopagesVi
 
 	return {
 		name: 'ecopages-virtual-modules',
+		apply: 'serve',
 		resolveId(id) {
 			if (id === LEGACY_IMAGE_MODULE_ID || id === IMAGE_VIRTUAL_MODULE_ID) {
 				return RESOLVED_IMAGE_VIRTUAL_MODULE_ID;
@@ -47,8 +68,7 @@ export function ecopagesVirtualModules(appConfig: EcoPagesAppConfig): EcopagesVi
 		},
 		async load(id) {
 			if (id === RESOLVED_IMAGE_VIRTUAL_MODULE_ID) {
-				const source = await fs.readFile(runtimeImageModulePath, 'utf8');
-				return source.replaceAll(/\s+as const;/g, ';');
+				return readImageVirtualModuleSource(runtimeImageModulePath);
 			}
 
 			if (id === RESOLVED_INTEGRATION_MANIFEST_MODULE_ID) {

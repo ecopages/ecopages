@@ -255,7 +255,7 @@ describe('EcoRouter', () => {
 				expect(pushStateSpy).toHaveBeenCalled();
 			});
 
-			it('should recover a rapid click from the last hovered link while navigation is in flight', async () => {
+			it('should ignore hover when a click lands on a non-link target during a slow navigation', async () => {
 				router = createRouter();
 				const firstFetch = createDeferred();
 				fetchSpy?.mockImplementationOnce(
@@ -295,8 +295,9 @@ describe('EcoRouter', () => {
 				firstFetch.resolve();
 				await navigation;
 
-				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/hover-recovered-route'));
-				expect(document.body.innerHTML).toContain('Recovered Content');
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/first-route'));
+				expect(document.body.innerHTML).toContain('First Content');
+				expect(document.body.innerHTML).not.toContain('Recovered Content');
 			});
 
 			it('should intercept clicks on internal links', async () => {

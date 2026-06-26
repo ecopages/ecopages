@@ -54,7 +54,8 @@ export abstract class SharedServerAdapter<
 	protected routeHandler!: ServerRouteHandler;
 	protected staticSiteGenerator!: StaticSiteGenerator;
 	protected staticBuilder!: ServerStaticBuilder;
-	protected readonly schemaValidator = new SchemaValidationService();
+	protected schemaValidator = new SchemaValidationService();
+	protected hostOwnsDevClient = false;
 
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];
@@ -120,7 +121,7 @@ export abstract class SharedServerAdapter<
 				const module = (await serverModuleTranspiler.importModule({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
-					externalPackages: false,
+					externalPackages: true,
 					transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
 					noOutputMessage: (targetFilePath) =>
 						`No transpiled output generated for route module: ${targetFilePath}`,
@@ -167,6 +168,7 @@ export abstract class SharedServerAdapter<
 			explicitStaticRouteMatcher,
 			watch: !!this.options?.watch,
 			hmrManager,
+			hostOwnsDevClient: this.hostOwnsDevClient,
 		});
 	}
 
@@ -510,7 +512,10 @@ export abstract class SharedServerAdapter<
 			const runtimePath = context.hmrManager.getRuntimePath();
 			if (fileSystem.exists(runtimePath)) {
 				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
-					headers: { 'Content-Type': 'application/javascript' },
+					headers: {
+						'Content-Type': 'application/javascript',
+						'Cache-Control': 'no-store, must-revalidate',
+					},
 				});
 			}
 		}
@@ -521,7 +526,10 @@ export abstract class SharedServerAdapter<
 
 			if (fileSystem.exists(assetPath)) {
 				return new Response(fileSystem.readFileAsBuffer(assetPath) as BodyInit, {
-					headers: { 'Content-Type': 'application/javascript' },
+					headers: {
+						'Content-Type': 'application/javascript',
+						'Cache-Control': 'no-store, must-revalidate',
+					},
 				});
 			}
 		}

@@ -1,7 +1,9 @@
-import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
+import type { BuildExecutor, BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { getAppBrowserBuildPlugins, getAppBuildExecutor, getAppTranspileOptions } from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins, getAppTranspileOptions } from '../../build/build-adapter.ts';
+import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
+import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 export type BrowserBundleOptions = {
@@ -19,6 +21,7 @@ export type BrowserBundleOptions = {
 	externalPackages?: boolean;
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
+	executor?: 'build' | 'hmr';
 	[key: string]: unknown;
 	profile: BuildTranspileProfile;
 	excludeAppBuildPlugins?: string[];
@@ -52,6 +55,20 @@ export type BrowserBundleGroupedEntry = {
 	entryName: string;
 };
 
+function resolveBrowserBundleExecutor(
+	appConfig: EcoPagesAppConfig,
+	profile: BuildTranspileProfile,
+	executor: 'build' | 'hmr',
+): BuildExecutor {
+	const buildRuntime = requireBuildRuntime(appConfig);
+
+	if (executor === 'hmr' && profile === 'hmr-entrypoint') {
+		return buildRuntime.getProfile('browser-hmr');
+	}
+
+	return buildRuntime.getProfile('route-module');
+}
+
 /**
  * App-owned boundary for browser-oriented bundle work.
  *
@@ -76,10 +93,11 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	 * @remarks
 	 * Browser defaults and app-owned browser build plugins are applied here so HMR
 	 * and runtime asset generation do not have to recreate that policy at each call
-	 * site.
+	 * site. Also forwards {@link getAppSourceTransforms | app source transforms} so
+	 * metadata injection runs after boundary/runtime `onLoad` rewrites.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, excludeAppBuildPlugins, plugins, ...rawBuildOptions } = options;
+		const { profile, excludeAppBuildPlugins, plugins, executor = 'hmr', ...rawBuildOptions } = options;
 		const appBrowserPlugins = getAppBrowserBuildPlugins(this.appConfig);
 		const filteredAppBrowserPlugins =
 			excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
@@ -90,9 +108,11 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 			entrypoints: options.entrypoints,
 			...getAppTranspileOptions(this.appConfig, profile),
 			plugins: mergeEcoBuildPlugins(plugins, filteredAppBrowserPlugins),
+			sourceTransforms: getAppSourceTransforms(this.appConfig),
 		};
 
-		return await getAppBuildExecutor(this.appConfig).build(request);
+		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
+		return await buildExecutor.build(request);
 	}
 
 	async bundleGroupedEntries(

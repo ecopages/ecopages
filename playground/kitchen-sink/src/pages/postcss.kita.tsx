@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -12,7 +13,7 @@ export default eco.page({
 	}),
 	render: () => {
 		return (
-			<div class="space-y-10">
+			<div class="space-y-10" data-testid={getPageTestId('/postcss')}>
 				<section class="section--featured border-dashed border-sky-400">
 					<div class="space-y-5">
 						<p class="text-sm font-semibold uppercase tracking-[0.28em] text-fuchsia-500">

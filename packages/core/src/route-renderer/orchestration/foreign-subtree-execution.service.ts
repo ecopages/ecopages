@@ -11,16 +11,43 @@ import {
 	runWithComponentRenderContext,
 	type ForeignChildRuntime,
 } from './component-render-context.ts';
-import {
-	QueuedForeignSubtreeResolutionService,
-	type QueuedForeignSubtreeResolution,
-	type QueuedForeignSubtreeResolutionContext,
-} from './queued-foreign-subtree-resolution.service.ts';
+import { isMarkupNodeLike } from './render-output.utils.ts';
+
+export type QueuedForeignChildDecisionInput = {
+	currentIntegration: string;
+	targetIntegration?: string;
+	component: EcoComponent;
+	props: Record<string, unknown>;
+};
+
+export type QueuedForeignSubtreeResolution = {
+	token: string;
+	component: EcoComponent;
+	props: Record<string, unknown>;
+	componentInstanceId: string;
+};
+
+/**
+ * Shared mutable state for one renderer-owned queued foreign-subtree runtime.
+ */
+export type QueuedForeignSubtreeResolutionContext = {
+	rendererCache: Map<string, unknown>;
+	componentInstanceScope?: string;
+	nextForeignSubtreeId: number;
+	queuedResolutions: QueuedForeignSubtreeResolution[];
+};
+
+type QueuedForeignSubtreeIntegrationContext = BaseIntegrationContext & Record<string, unknown>;
+
+type QueuedForeignSubtreeChildRenderResult = {
+	assets: ProcessedAsset[];
+	html?: string;
+	children?: unknown;
+};
 
 export interface ForeignSubtreeExecutionOwningRenderer {
 	readonly name: string;
 	renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult>;
-	renderForeignSubtree(input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload>;
 }
 
 export interface ForeignSubtreeExecutionDecisionInput {
@@ -88,36 +115,46 @@ export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignS
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 }
 
-type MarkupNodeLike = {
-	nodeType: number;
-	outerHTML?: string;
-};
+export interface ResolveQueuedForeignSubtreeTokensOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
+	html: string;
+	runtimeContext?: TContext;
+	queueLabel: string;
+	renderQueuedChildren: (
+		children: unknown,
+		runtimeContext: TContext,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
+		resolveToken: (token: string) => Promise<string>,
+	) => Promise<QueuedForeignSubtreeChildRenderResult>;
+	resolveForeignSubtree: (
+		input: ComponentRenderInput,
+		rendererCache: Map<string, unknown>,
+	) => Promise<ForeignSubtreeRenderPayload | undefined>;
+	applyAttributesToFirstElement: (html: string, attributes: Record<string, string>) => string;
+	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
+}
 
-function isMarkupNodeLike(value: unknown): value is MarkupNodeLike {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'nodeType' in value &&
-		typeof value.nodeType === 'number' &&
-		(!('outerHTML' in value) || typeof value.outerHTML === 'string')
-	);
+/**
+ * Maps one component render result into the foreign-subtree payload shape used by
+ * queue resolution and integration tests.
+ */
+export function toForeignSubtreeRenderPayload(result: ComponentRenderResult): ForeignSubtreeRenderPayload {
+	return {
+		html: result.html,
+		assets: result.assets ?? [],
+		rootTag: result.rootTag,
+		rootAttributes: result.rootAttributes,
+		attachmentPolicy: result.canAttachAttributes ? { kind: 'first-element' } : { kind: 'none' },
+		integrationName: result.integrationName,
+	};
 }
 
 /**
  * Executes one component render tree under Foreign Child support.
  *
- * This service owns the execution policy for mixed-integration component trees:
- * it decides when a child stays inline, when it must delegate to an owning
- * renderer, how one render-pass renderer cache is reused, and how queued
- * Foreign Subtree tokens resolve back into final HTML.
+ * This service owns mixed-integration execution policy and the queued token
+ * mechanics renderers use when foreign children cannot resolve inline.
  */
 export class ForeignSubtreeExecutionService {
-	private readonly queuedForeignSubtreeResolutionService: QueuedForeignSubtreeResolutionService;
-
-	constructor(queuedForeignSubtreeResolutionService = new QueuedForeignSubtreeResolutionService()) {
-		this.queuedForeignSubtreeResolutionService = queuedForeignSubtreeResolutionService;
-	}
-
 	private requiresForeignChildRuntime(input: ComponentRenderInput): boolean {
 		const children = input.children ?? input.props.children;
 
@@ -136,19 +173,10 @@ export class ForeignSubtreeExecutionService {
 		return !isMarkupNodeLike(children);
 	}
 
-	/**
-	 * Returns whether the current render pass must hand the child off to a foreign owner.
-	 */
 	shouldDelegateForeignChild(input: ForeignSubtreeExecutionDecisionInput): boolean {
 		return !!input.targetIntegration && input.targetIntegration !== input.currentIntegration;
 	}
 
-	/**
-	 * Creates the base runtime used when a renderer has not supplied its own queueing runtime.
-	 *
-	 * The runtime allows same-integration children to continue inline and fails fast
-	 * when execution crosses into a foreign owner without a renderer-owned handoff.
-	 */
 	createFailFastRuntime(rendererName: string): ForeignChildRuntime {
 		const interceptForeignChild = (input: ForeignSubtreeExecutionDecisionInput) => {
 			if (!this.shouldDelegateForeignChild(input)) {
@@ -173,13 +201,13 @@ export class ForeignSubtreeExecutionService {
 		input: ComponentRenderInput,
 		runtimeContextKey: string,
 	): TContext | undefined {
-		return this.queuedForeignSubtreeResolutionService.getRuntimeContext<TContext>(input, runtimeContextKey);
+		return this.getRuntimeContext<TContext>(input, runtimeContextKey);
 	}
 
 	createQueuedRuntime<TContext extends QueuedForeignSubtreeResolutionContext>(
 		options: ForeignSubtreeQueuedRuntimeOptions<TContext>,
 	): ForeignChildRuntime {
-		return this.queuedForeignSubtreeResolutionService.createRuntime<TContext>({
+		return this.createQueueRuntime<TContext>({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache as Map<string, unknown>,
 			runtimeContextKey: options.runtimeContextKey,
@@ -189,9 +217,65 @@ export class ForeignSubtreeExecutionService {
 		});
 	}
 
-	/**
-	 * Resolves a string-first renderer HTML fragment that may contain queued Foreign Subtree tokens.
-	 */
+	createQueueRuntime<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
+		renderInput: ComponentRenderInput;
+		rendererCache: Map<string, unknown>;
+		runtimeContextKey: string;
+		tokenPrefix: string;
+		shouldQueueForeignChild: (input: QueuedForeignChildDecisionInput) => boolean;
+		createRuntimeContext?: (
+			integrationContext: QueuedForeignSubtreeIntegrationContext,
+			rendererCache: Map<string, unknown>,
+		) => TContext;
+	}): ForeignChildRuntime {
+		const runtimeContext = this.ensureRuntimeContext(options);
+
+		const interceptForeignChild = (input: QueuedForeignChildDecisionInput) => {
+			if (!options.shouldQueueForeignChild(input)) {
+				return {
+					kind: 'inline' as const,
+					props: { ...input.props },
+				};
+			}
+
+			runtimeContext.nextForeignSubtreeId += 1;
+			const foreignSubtreeId = runtimeContext.nextForeignSubtreeId;
+			const token = this.createForeignSubtreeToken(options.tokenPrefix, runtimeContext, foreignSubtreeId);
+			runtimeContext.queuedResolutions.push({
+				token,
+				component: input.component,
+				props: { ...input.props },
+				componentInstanceId: runtimeContext.componentInstanceScope
+					? `${runtimeContext.componentInstanceScope}_n_${foreignSubtreeId}`
+					: `n_${foreignSubtreeId}`,
+			});
+
+			return {
+				kind: 'resolved' as const,
+				value: token,
+			};
+		};
+
+		return {
+			interceptForeignChild,
+			interceptForeignChildSync: interceptForeignChild,
+		};
+	}
+
+	getRuntimeContext<TContext extends QueuedForeignSubtreeResolutionContext>(
+		input: ComponentRenderInput,
+		runtimeContextKey: string,
+	): TContext | undefined {
+		const integrationContext = input.integrationContext as QueuedForeignSubtreeIntegrationContext | undefined;
+		const runtimeContext = integrationContext?.[runtimeContextKey];
+
+		if (typeof runtimeContext !== 'object' || runtimeContext === null) {
+			return undefined;
+		}
+
+		return runtimeContext as TContext;
+	}
+
 	async resolveStringQueuedHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
 		options: ForeignSubtreeStringQueuedHtmlOptions,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
@@ -228,7 +312,7 @@ export class ForeignSubtreeExecutionService {
 	async resolveQueuedHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
 		options: ForeignSubtreeQueuedHtmlOptions<TContext>,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.queuedForeignSubtreeResolutionService.resolveQueuedHtml({
+		return this.resolveQueuedForeignSubtreeTokens({
 			html: options.html,
 			runtimeContext: options.runtimeContext,
 			queueLabel: options.queueLabel,
@@ -245,9 +329,119 @@ export class ForeignSubtreeExecutionService {
 		});
 	}
 
-	/**
-	 * Executes one component render with Foreign Child support under the current integration.
-	 */
+	async resolveQueuedForeignSubtreeTokens<TContext extends QueuedForeignSubtreeResolutionContext>(
+		options: ResolveQueuedForeignSubtreeTokensOptions<TContext>,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		if (!options.runtimeContext || options.runtimeContext.queuedResolutions.length === 0) {
+			return { assets: [], html: options.html };
+		}
+
+		const runtimeContext = options.runtimeContext;
+		const queuedResolutionsByToken = new Map<string, QueuedForeignSubtreeResolution>();
+		const resolvedHtmlByToken = new Map<string, string>();
+		const resolvingTokens = new Set<string>();
+		const collectedAssets: ProcessedAsset[] = [];
+
+		const syncQueuedResolutions = () => {
+			for (const resolution of runtimeContext.queuedResolutions) {
+				if (!queuedResolutionsByToken.has(resolution.token)) {
+					queuedResolutionsByToken.set(resolution.token, resolution);
+				}
+			}
+		};
+
+		const resolveToken = async (token: string): Promise<string> => {
+			syncQueuedResolutions();
+
+			const cachedHtml = resolvedHtmlByToken.get(token);
+			if (cachedHtml) {
+				return cachedHtml;
+			}
+
+			const resolution = queuedResolutionsByToken.get(token);
+			if (!resolution) {
+				return token;
+			}
+
+			if (resolvingTokens.has(token)) {
+				throw new Error(
+					`[ecopages] ${options.queueLabel} foreign-subtree queue contains a cycle or unresolved dependency links.`,
+				);
+			}
+
+			resolvingTokens.add(token);
+
+			try {
+				const renderedChildren = await options.renderQueuedChildren(
+					resolution.props.children,
+					runtimeContext,
+					queuedResolutionsByToken,
+					resolveToken,
+				);
+				syncQueuedResolutions();
+
+				if (renderedChildren.assets.length > 0) {
+					collectedAssets.push(...renderedChildren.assets);
+				}
+
+				const foreignSubtreeRender = await options.resolveForeignSubtree(
+					{
+						component: resolution.component,
+						props: { ...resolution.props },
+						children: renderedChildren.html ?? renderedChildren.children,
+						integrationContext: {
+							rendererCache: runtimeContext.rendererCache,
+							componentInstanceId: resolution.componentInstanceId,
+						},
+					},
+					runtimeContext.rendererCache,
+				);
+
+				if (!foreignSubtreeRender) {
+					throw new Error(
+						`[ecopages] ${options.queueLabel} queued foreign subtree could not resolve its owning renderer.`,
+					);
+				}
+
+				if ((foreignSubtreeRender.assets?.length ?? 0) > 0) {
+					collectedAssets.push(...(foreignSubtreeRender.assets ?? []));
+				}
+
+				const resolvedHtml =
+					foreignSubtreeRender.attachmentPolicy.kind === 'first-element' &&
+					foreignSubtreeRender.rootAttributes
+						? options.applyAttributesToFirstElement(
+								foreignSubtreeRender.html,
+								foreignSubtreeRender.rootAttributes,
+							)
+						: foreignSubtreeRender.html;
+
+				resolvedHtmlByToken.set(token, resolvedHtml);
+				return resolvedHtml;
+			} finally {
+				resolvingTokens.delete(token);
+			}
+		};
+
+		let resolvedHtml = options.html;
+
+		for (let index = 0; index < runtimeContext.queuedResolutions.length; index += 1) {
+			syncQueuedResolutions();
+
+			const resolution = runtimeContext.queuedResolutions[index];
+			if (!resolvedHtml.includes(resolution.token)) {
+				continue;
+			}
+
+			resolvedHtml = resolvedHtml.split(resolution.token).join(await resolveToken(resolution.token));
+		}
+
+		return {
+			assets: options.dedupeProcessedAssets(collectedAssets),
+			html: resolvedHtml,
+		};
+	}
+
 	async executeComponentRender(options: ForeignSubtreeExecutionRenderOptions): Promise<ComponentRenderResult> {
 		const rendererCache =
 			this.getRendererCache(options.input.integrationContext) ??
@@ -322,12 +516,6 @@ export class ForeignSubtreeExecutionService {
 		};
 	}
 
-	/**
-	 * Returns the delegatable owning renderer integration for one component.
-	 *
-	 * The pseudo `html` integration marks document-shell ownership only and does
-	 * not participate in component-level foreign subtree execution.
-	 */
 	private getForeignOwnerIntegrationName(
 		component: EcoComponent,
 		currentIntegrationName: string,
@@ -372,7 +560,8 @@ export class ForeignSubtreeExecutionService {
 			input: options.input,
 			rendererCache: options.rendererCache,
 			getOwningRenderer: options.getOwningRenderer,
-			run: (owningRenderer, delegatedInput) => owningRenderer.renderForeignSubtree(delegatedInput),
+			run: async (owningRenderer, delegatedInput) =>
+				toForeignSubtreeRenderPayload(await owningRenderer.renderComponentWithForeignChildren(delegatedInput)),
 		});
 	}
 
@@ -427,5 +616,52 @@ export class ForeignSubtreeExecutionService {
 		}
 
 		return resolvedHtml;
+	}
+
+	private createForeignSubtreeToken(
+		tokenPrefix: string,
+		runtimeContext: QueuedForeignSubtreeResolutionContext,
+		foreignSubtreeId: number,
+	): string {
+		return `${tokenPrefix}${runtimeContext.componentInstanceScope ?? 'root'}__${foreignSubtreeId}__`;
+	}
+
+	private ensureRuntimeContext<TContext extends QueuedForeignSubtreeResolutionContext>(options: {
+		renderInput: ComponentRenderInput;
+		rendererCache: Map<string, unknown>;
+		runtimeContextKey: string;
+		createRuntimeContext?: (
+			integrationContext: QueuedForeignSubtreeIntegrationContext,
+			rendererCache: Map<string, unknown>,
+		) => TContext;
+	}): TContext {
+		let integrationContext: QueuedForeignSubtreeIntegrationContext;
+		if (
+			typeof options.renderInput.integrationContext === 'object' &&
+			options.renderInput.integrationContext !== null
+		) {
+			integrationContext = options.renderInput.integrationContext as QueuedForeignSubtreeIntegrationContext;
+		} else {
+			integrationContext = {};
+		}
+
+		const existingRuntimeContext = integrationContext[options.runtimeContextKey];
+		if (typeof existingRuntimeContext !== 'object' || existingRuntimeContext === null) {
+			integrationContext[options.runtimeContextKey] =
+				options.createRuntimeContext?.(integrationContext, options.rendererCache) ??
+				({
+					rendererCache: options.rendererCache,
+					componentInstanceScope: integrationContext.componentInstanceId,
+					nextForeignSubtreeId: 0,
+					queuedResolutions: [],
+				} satisfies QueuedForeignSubtreeResolutionContext);
+		} else {
+			(existingRuntimeContext as QueuedForeignSubtreeResolutionContext).rendererCache = options.rendererCache;
+		}
+
+		integrationContext.rendererCache = options.rendererCache;
+		options.renderInput.integrationContext = integrationContext;
+
+		return integrationContext[options.runtimeContextKey] as TContext;
 	}
 }

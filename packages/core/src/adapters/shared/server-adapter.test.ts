@@ -32,6 +32,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		return {
 			getServerOptions: () => ({}),
 			buildStatic: async () => {},
+			dispose: async () => {},
 		};
 	}
 	public async handleRequest(request: Request): Promise<Response> {

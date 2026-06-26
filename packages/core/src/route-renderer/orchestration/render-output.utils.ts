@@ -146,6 +146,11 @@ function isMarkupNodeLikeShape(value: unknown): value is MarkupNodeLikeShape {
 	);
 }
 
+/** Returns whether a value looks like a DOM-like markup node from SSR integrations. */
+export function isMarkupNodeLike(value: unknown): value is MarkupNodeLikeShape {
+	return isMarkupNodeLikeShape(value);
+}
+
 function injectTriggerAttributeIntoString(content: string, triggerId: string): string {
 	const str = content;
 	let i = 0;

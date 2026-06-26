@@ -236,4 +236,8 @@ export class NodeStaticContentServer {
 			}
 		});
 	}
+
+	async [Symbol.asyncDispose](): Promise<void> {
+		await this.stop();
+	}
 }

@@ -1,16 +1,26 @@
-import type { Server, WebSocketHandler } from 'bun';
+import type { Server as NodeHttpServer } from 'node:http';
+import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { ApiHandler, ApiHandlerContext, ErrorHandler, StaticRoute } from '../../types/public-types.ts';
+import type {
+	ApiHandler,
+	ApiHandlerContext,
+	ErrorHandler,
+	StaticRoute,
+	EcopagesSocket,
+	EcopagesWebSocketHandler,
+} from '../../types/public-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { createRequire } from '../../utils/locals-utils.ts';
+import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -24,13 +34,19 @@ import {
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
 } from '../shared/hmr-html-response.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
+import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
+import { createEcopagesSocket } from '../shared/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
+import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
 import { ClientBridge } from './client-bridge.ts';
+import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
 import { HmrManager } from './hmr-manager.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
 
 type BunServerInstance = Server<unknown>;
 type BunNativeServeOptions = Bun.Serve.Options<unknown>;
+type WsKindData = BunUserWebSocketData;
 
 export type BunServerRoutes = Bun.Serve.Routes<unknown, string>;
 
@@ -61,9 +77,12 @@ export interface BunServerAdapterParams {
 	apiHandlers?: ApiHandler<string, Request, BunServerInstance>[];
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
+	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
 	options?: {
 		watch?: boolean;
 	};
+	delegateBrowserReloadToHost?: boolean;
+	hostOwnsDevClient?: boolean;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
 	previewHost?: StaticPreviewHost;
@@ -71,9 +90,11 @@ export interface BunServerAdapterParams {
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
-	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<void>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
+	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }) => void;
+	dispose: () => Promise<void>;
 }
 
 /**
@@ -100,7 +121,69 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private initializationPromise: Promise<void> | null = null;
 	private fullyInitialized = false;
 	declare serverInstance: BunServerInstance | null;
+	private projectWatcher: ProjectWatcher | null = null;
+	private adapterDisposed = false;
 	private readonly previewHost: StaticPreviewHost;
+
+	/**
+	 * Reference to the application-level WebSocket handlers map.
+	 *
+	 * @remarks
+	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * passed in via the constructor. The Bun adapter reads from it to wire
+	 * WebSocket upgrades for user-registered patterns.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+
+	private adaptBunWebSocket<TContext, TParams extends Record<string, string>>(
+		ws: ServerWebSocket<WsKindData>,
+		kind: string,
+		params: TParams,
+		search: Record<string, string>,
+		context: TContext,
+	): EcopagesSocket<TContext, TParams> {
+		return createEcopagesSocket(
+			{
+				send: (data) => ws.send(data),
+				close: (code, reason) => ws.close(code, reason),
+			},
+			{ kind, params, search, context },
+		);
+	}
+
+	/**
+	 * Resolves the per-connection context for a Bun user connection.
+	 *
+	 * @remarks
+	 * `context()` is invoked exactly once per accepted connection. Its
+	 * resolved value is shared by all subsequent lifecycle hooks. If
+	 * `context()` throws, the connection is closed immediately with code
+	 * 1011 (server error) and the error is logged.
+	 *
+	 * @param request - The original upgrade request (best-effort reconstructed)
+	 * @param handler - The registered handler
+	 * @param kind - The registered route pattern
+	 * @param params - Dynamic path parameters
+	 * @param search - Query string parameters
+	 * @returns The resolved per-connection context
+	 */
+	private async resolveBunContext<TContext, TParams extends Record<string, string>>(
+		request: Request,
+		handler: EcopagesWebSocketHandler<TContext, TParams>,
+		kind: string,
+		params: TParams,
+		search: Record<string, string>,
+	): Promise<TContext> {
+		if (!handler.context) {
+			return undefined as unknown as TContext;
+		}
+		try {
+			return (await handler.context({ request, kind, params, search })) as TContext;
+		} catch (error) {
+			appLogger.error(`[WS:${kind}] context() failed; closing connection.`, error as Error);
+			throw error;
+		}
+	}
 
 	/**
 	 * Creates a Bun server adapter with already-resolved runtime collaborators.
@@ -118,7 +201,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		apiHandlers,
 		staticRoutes,
 		errorHandler,
+		websocketHandlers,
 		options,
+		hostOwnsDevClient,
 		hmrManager,
 		bridge,
 		previewHost,
@@ -134,6 +219,21 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.bridge = bridge;
 		this.hmrManager = hmrManager;
 		this.previewHost = previewHost;
+		this.hostOwnsDevClient = hostOwnsDevClient === true;
+		if (websocketHandlers) {
+			this.websocketHandlers = websocketHandlers;
+		}
+	}
+
+	/**
+	 * Wires user WebSocket routes onto a Node HTTP server used by host integrations.
+	 */
+	public attachUserWebSocketUpgrades(server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: options?.passthroughUnmatched,
+		});
 	}
 
 	/**
@@ -144,24 +244,11 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * adapter-level check exists for explicit API handlers that return HTML and
 	 * would otherwise bypass the route wrapper entirely.
 	 */
-	private shouldInjectHmrScript(): boolean {
-		return shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager);
-	}
-
-	/**
-	 * Delegates the HTML-response test to the shared response helper used by both
-	 * adapters.
-	 */
-	private isHtmlResponse(response: Response): boolean {
-		return isHtmlResponse(response);
-	}
-
-	/**
-	 * Injects HMR script into HTML responses in development mode.
-	 * Ensures explicit API handlers that return HTML get auto-reload capability.
-	 */
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (this.shouldInjectHmrScript() && this.isHtmlResponse(response)) {
+		if (
+			shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager, this.hostOwnsDevClient) &&
+			isHtmlResponse(response)
+		) {
 			return injectHmrRuntimeIntoHtmlResponse(response);
 		}
 		return response;
@@ -174,7 +261,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		installAppRuntimeBuildExecutor(this.appConfig);
 
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		await this.hmrManager.buildRuntime();
+		if (this.options?.watch) {
+			await this.hmrManager.buildRuntime();
+		}
 		this.prepareRuntimePublicDir();
 
 		const staticBuilderOptions = {
@@ -197,7 +286,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
 
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
+			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
 		}
 
 		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
@@ -268,8 +357,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
+			hostOwnsDevClient: this.hostOwnsDevClient,
 		});
 
+		this.projectWatcher = watcher;
 		await watcher.createWatcherSubscription();
 	}
 
@@ -277,61 +368,125 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Builds the `Bun.serve()` options for the current adapter state.
 	 *
 	 * @remarks
-	 * The HMR-enabled variant wraps the base fetch handler so one Bun server can
-	 * serve normal requests, accept HMR websocket upgrades, and expose the HMR
-	 * runtime asset without splitting responsibility across separate listeners.
+	 * When HMR is enabled the websocket dispatcher merges HMR and user handlers,
+	 * routing by the `kind` field embedded in socket data at upgrade time.
+	 * This prevents user-registered websocket handlers from being silently overwritten
+	 * by the HMR handler in development mode.
+	 *
+	 * User WebSocket paths are intercepted in the fetch handler via the pattern matcher.
+	 * The upgrade happens implicitly — no manual GET route registration needed.
 	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
 		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
 		const serverOptions = this.buildServerSettings();
+		const hasUserWs = this.websocketHandlers.size > 0;
+
+		if (!enableHmr && !hasUserWs) {
+			return serverOptions as BunServeOptions;
+		}
+
+		const userLifecycle = this.createBunUserLifecycle();
 
 		if (enableHmr) {
-			const originalFetch = serverOptions.fetch;
-			const hmrHandler = this.hmrManager.getWebSocketHandler();
-			const hmrManager = this.hmrManager;
+			(serverOptions as BunServeOptions & { development?: boolean }).development = true;
+			serverOptions.websocket = this.createHmrAwareWebSocketHandler(userLifecycle);
+		} else {
+			serverOptions.websocket = userLifecycle;
+		}
 
-			(serverOptions as any).development = true;
+		serverOptions.fetch = this.wrapFetchWithWebSocketUpgrades(serverOptions.fetch, {
+			serveHmrEndpoints: enableHmr,
+		});
 
-			serverOptions.websocket = hmrHandler;
-			serverOptions.fetch = async function (
-				this: Server<unknown>,
-				request: Request,
-				_server: Server<unknown>,
-			): Promise<Response | void> {
-				const url = new URL(request.url);
-				appLogger.debug(`[HMR] Request: ${url.pathname}`);
+		return serverOptions as BunServeOptions;
+	}
 
-				/** Handle HMR WebSocket upgrade */
+	private createBunUserLifecycle(): ReturnType<typeof createBunUserWebSocketLifecycle<WsKindData>> {
+		return createBunUserWebSocketLifecycle<WsKindData>({
+			runtimeOrigin: this.runtimeOrigin,
+			userHandlers: this.websocketHandlers,
+			resolveContext: this.resolveBunContext.bind(this),
+			adaptSocket: (ws, kind, params, search, context) =>
+				this.adaptBunWebSocket(ws, kind, params, search, context),
+		});
+	}
+
+	/**
+	 * @remarks
+	 * HMR and user sockets share one Bun `websocket` handler. Upgrade tags HMR
+	 * connections with `kind: '__hmr__'`; everything else routes to the user lifecycle.
+	 */
+	private createHmrAwareWebSocketHandler(
+		userLifecycle: ReturnType<typeof createBunUserWebSocketLifecycle<WsKindData>>,
+	): WebSocketHandler<WsKindData> {
+		const hmrHandler = this.hmrManager.getWebSocketHandler();
+		const isHmrSocket = (ws: ServerWebSocket<WsKindData>): boolean => (ws.data?.kind ?? '__hmr__') === '__hmr__';
+
+		return {
+			open(ws: ServerWebSocket<WsKindData>) {
+				if (isHmrSocket(ws)) return void hmrHandler.open?.(ws);
+				userLifecycle.open(ws);
+			},
+			message(ws: ServerWebSocket<WsKindData>, msg: string | Buffer) {
+				if (isHmrSocket(ws)) return void hmrHandler.message?.(ws, msg as any);
+				userLifecycle.message(ws, msg);
+			},
+			close(ws: ServerWebSocket<WsKindData>, code: number, reason: string) {
+				if (isHmrSocket(ws)) return void hmrHandler.close?.(ws, code, reason);
+				userLifecycle.close(ws, code, reason);
+			},
+			error(ws: ServerWebSocket<WsKindData>, error: Error) {
+				if (isHmrSocket(ws)) return void appLogger.error('[HMR] WebSocket error:', error);
+				userLifecycle.error(ws, error);
+			},
+		} as WebSocketHandler<WsKindData>;
+	}
+
+	/**
+	 * @remarks
+	 * When `serveHmrEndpoints` is set, `/_hmr` and `/_hmr_runtime.js` are checked
+	 * before user websocket patterns so HMR upgrades are never captured by app routes.
+	 * Production mode with only user handlers skips the HMR branch entirely.
+	 */
+	private wrapFetchWithWebSocketUpgrades(
+		originalFetch: BunServeOptions['fetch'],
+		{ serveHmrEndpoints }: { serveHmrEndpoints: boolean },
+	): BunServeOptions['fetch'] {
+		const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
+		const hmrManager = this.hmrManager;
+
+		return async function (this: Server<unknown>, request: Request, server: Server<unknown>) {
+			const url = new URL(request.url);
+
+			if (serveHmrEndpoints) {
 				if (url.pathname === '/_hmr') {
-					const success = this.upgrade(request, {
-						data: undefined,
-					});
-					if (success) return;
-					return new Response('WebSocket upgrade failed', { status: 400 });
+					const success = this.upgrade(request, { data: { kind: '__hmr__', params: {}, search: {} } });
+					return success ? undefined : new Response('WebSocket upgrade failed', { status: 400 });
 				}
 
-				/** Serve HMR runtime script */
 				if (url.pathname === '/_hmr_runtime.js') {
-					appLogger.debug(`[HMR] Serving runtime from ${hmrManager.getRuntimePath()}`);
 					return new Response(fileSystem.readFileAsBuffer(hmrManager.getRuntimePath()) as BodyInit, {
 						headers: { 'Content-Type': 'application/javascript' },
 					});
 				}
+			}
 
-				/** Proceed with normal request handling */
-				let response: Response;
-				if (originalFetch) {
-					const res = await originalFetch.call(this, request, this);
-					response = res instanceof Response ? res : new Response('Not Found', { status: 404 });
-				} else {
-					response = new Response('Not Found', { status: 404 });
-				}
+			const wsMatch = matchRoute(url.pathname);
+			if (wsMatch && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+				const search = Object.fromEntries(url.searchParams.entries());
+				const success = this.upgrade(request, {
+					data: { kind: wsMatch.kind, params: wsMatch.params, search, upgradeUrl: request.url },
+				});
+				return success ? undefined : new Response('WebSocket upgrade failed', { status: 400 });
+			}
 
-				return response;
-			};
-		}
+			if (!originalFetch) {
+				return new Response('Not Found', { status: 404 });
+			}
 
-		return serverOptions as BunServeOptions;
+			const res = await originalFetch.call(this, request, server);
+			return res instanceof Response ? res : new Response('Not Found', { status: 404 });
+		};
 	}
 
 	/**
@@ -421,7 +576,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Generates a static build of the site for deployment.
 	 * @param options.preview - If true, starts a preview server after build
 	 */
-	public async buildStatic(options?: { preview?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
 		if (!this.fullyInitialized) {
 			await this.initializeSharedRouteHandling({
 				staticRoutes: this.staticRoutes,
@@ -429,9 +584,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			});
 		}
 
-		const buildRuntimeOrigin = this.serverInstance
-			? `http://${this.serverInstance.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serverInstance.port || DEFAULT_ECOPAGES_PORT}`
-			: undefined;
+		const buildRuntimeOrigin = resolveServeRuntimeOrigin(this.serveOptions);
 
 		await this.staticBuilder.build(
 			{ ...options, preview: false, baseUrl: buildRuntimeOrigin },
@@ -520,7 +673,35 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			buildStatic: this.buildStatic.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
+			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			dispose: this.dispose.bind(this),
 		};
+	}
+
+	/**
+	 * Releases dev-time resources owned by the adapter.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Does not stop the bound Bun server — callers
+	 * should shut down transport through the runtime host before disposing.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.adapterDisposed) {
+			return;
+		}
+
+		this.adapterDisposed = true;
+
+		await this.projectWatcher?.close();
+		this.projectWatcher = null;
+
+		await disposeAppBuildRuntime(this.appConfig);
+
+		this.hmrManager?.stop();
+
+		this.bridge?.destroy();
+
+		await this.previewHost.stop();
 	}
 
 	/**
@@ -591,6 +772,7 @@ export async function createBunServerAdapter(params: BunServerAdapterParams): Pr
 	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
 	const bridge = params.bridge ?? new ClientBridge();
 	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });
+	setAppDevClientBridge(params.appConfig, bridge);
 	const previewHost = params.previewHost ?? new BunStaticPreviewHost();
 
 	const adapter = new BunServerAdapter({

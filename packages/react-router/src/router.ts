@@ -188,7 +188,7 @@ function useNavigationCoordinator(
 
 	const handleCoordinatorReload = useEffectEvent(async (request?: EcoReloadRequest) => {
 		if (activeNavigationRef.current || isNavigatingRef.current) {
-			return;
+			return false;
 		}
 
 		if (request?.clearCache) {
@@ -197,6 +197,7 @@ function useNavigationCoordinator(
 
 		const currentUrl = window.location.pathname + window.location.search;
 		await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
+		return true;
 	});
 
 	const handleCleanupBeforeHandoff = useEffectEvent(async () => {

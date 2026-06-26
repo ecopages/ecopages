@@ -291,7 +291,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			const reloadResult = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
 
-			expect(reloadResult).toBe(true);
+			expect(reloadResult).toBe(false);
 			expect(fetchSpy).toHaveBeenCalledTimes(1);
 
 			resolveFetch(new Response('<html><body><main>Done</main></body></html>', { status: 200 }));

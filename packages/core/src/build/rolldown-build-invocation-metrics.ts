@@ -11,7 +11,7 @@ export function isRolldownBuildMetricsEnabled(): boolean {
 	return process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS === '1' || process.env.ECOPAGES_LOGGER_DEBUG === 'true';
 }
 
-export function recordRolldownBuildInvocation(adapter: 'rolldown' | 'rolldown-dev' = 'rolldown'): void {
+export function recordRolldownBuildInvocation(adapter: 'rolldown' = 'rolldown'): void {
 	if (!isRolldownBuildMetricsEnabled()) {
 		return;
 	}

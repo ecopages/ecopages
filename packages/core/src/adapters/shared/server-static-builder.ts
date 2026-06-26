@@ -3,7 +3,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { build, getAppBuildAdapter } from '../../build/build-adapter.ts';
+import { build, getAppBuildAdapter, type BuildOptions } from '../../build/build-adapter.ts';
+import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
@@ -204,19 +205,17 @@ export class ServerStaticBuilder {
 
 		this.logger.info('Bundling server entry file...');
 
-		const result = await build(
-			{
+		const buildOptions: BuildOptions = {
+			...resolveBuildProfileOptions('server-entry', this.appConfig, {
 				entrypoints: [entryPath],
 				outdir: serverOutdir,
 				naming: SERVER_BUNDLE_FILENAME,
-				target: 'node',
-				format: 'esm',
 				sourcemap: 'hidden',
-				externalPackages: true,
-				root: this.appConfig.rootDir,
-			},
-			getInstalledServerEntryBuildExecutor(this.appConfig),
-		);
+			}),
+			entrypoints: [entryPath],
+		};
+
+		const result = await build(buildOptions, getInstalledServerEntryBuildExecutor(this.appConfig));
 
 		if (!result.success) {
 			const errorMessages = result.logs.map((log) => log.message).join('\n');

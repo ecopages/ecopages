@@ -28,13 +28,11 @@ describe('rolldown-build-invocation-metrics', () => {
 
 		recordRolldownBuildInvocation('rolldown');
 		recordRolldownBuildInvocation('rolldown');
-		recordRolldownBuildInvocation('rolldown-dev');
 
 		assert.deepEqual(getRolldownBuildInvocationCounts(), {
 			rolldown: 2,
-			'rolldown-dev': 1,
 		});
-		assert.equal(getTotalRolldownBuildInvocations(), 3);
+		assert.equal(getTotalRolldownBuildInvocations(), 2);
 	});
 
 	it('tracks per-page route-module build invocations separately', () => {

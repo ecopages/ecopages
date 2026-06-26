@@ -247,11 +247,9 @@ interface LoadRegistration {
  * original per-plugin priority semantics.
  *
  * @remarks
- * {@link RolldownDevBuildAdapter} keeps one bridge plugin alive across
- * `triggerFullBuild()` calls. Rolldown re-fires `buildStart` on each rebuild,
- * so registrations and the virtual-module counter are cleared before every
- * `setup` pass — otherwise handlers accumulate and the Nth dev rebuild runs each
- * `onLoad`/`onResolve` callback N times.
+ * Rolldown re-fires `buildStart` on each build, so registrations and the
+ * virtual-module counter are cleared before every `setup` pass — otherwise
+ * handlers accumulate when bridge plugins are reused.
  *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
  * @param contextRoot - Project root used to resolve relative load paths.

@@ -1,6 +1,7 @@
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { AppBuildManifest } from '../build/build-manifest.ts';
-import type { BuildAdapter, BuildExecutor, BuildOwnership } from '../build/build-adapter.ts';
+import type { BuildAdapter, BuildOwnership } from '../build/build-adapter.ts';
+import type { BuildRuntime } from '../build/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -152,9 +153,6 @@ export type EcoPagesAppConfig = {
 		buildOwnership?: BuildOwnership;
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
-		buildExecutor?: BuildExecutor;
-		hmrBuildExecutor?: BuildExecutor;
-		routeModuleBuildExecutor?: BuildExecutor;
 		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		hostModuleLoader?: SourceModuleLoader;
@@ -162,10 +160,14 @@ export type EcoPagesAppConfig = {
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
-		/** Serialized server-entry bundler installed by {@link getInstalledServerEntryBuildExecutor}. */
-		serverEntryBuildExecutor?: BuildExecutor;
+		/** Profile-based build runtime installed by {@link installBuildRuntime}. */
+		buildRuntime?: BuildRuntime;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
+		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
+		devClientOwner?: 'core' | 'host';
+		/** @deprecated Prefer {@link devClientOwner}: `'host'`. */
+		delegateBrowserReloadToHost?: boolean;
 	};
 	/**
 	 * Experimental features.

@@ -15,7 +15,6 @@ import {
 	createBuildAdapter,
 	type BuildOwnership,
 	setAppBuildAdapter,
-	setAppBuildExecutor,
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
@@ -181,12 +180,7 @@ export class ConfigBuilder {
 	 *
 	 * - `'rolldown'` (default): Ecopages runs builds through
 	 *   {@link RolldownBuildAdapter}, creating a new `rolldown()` instance
-	 *   per build. Best for one-shot production builds and benchmarks.
-	 * - `'rolldown-dev'`: Ecopages runs builds through
-	 *   {@link RolldownDevBuildAdapter}, which wraps Rolldown's experimental
-	 *   `DevEngine` and reuses the cached module graph, resolver, and
-	 *   transform cache across rebuilds. Best for HMR and watch mode where
-	 *   the same entrypoints are rebuilt repeatedly.
+	 *   per build.
 	 * - `'vite-host'`: a host runtime owns the build. Ecopages exposes a
 	 *   {@link ViteHostBuildAdapter} boundary marker that throws on direct
 	 *   use. Select this only for host-driven compatibility flows where
@@ -745,7 +739,6 @@ export class ConfigBuilder {
 		updateAppBuildManifest(this.config, await collectConfiguredAppBuildManifestContributions(this.config));
 		setAppServerInvalidationState(this.config, new CounterServerInvalidationState());
 		setAppEntrypointDependencyGraph(this.config, new NoopEntrypointDependencyGraph());
-		setAppBuildExecutor(this.config, buildAdapter);
 
 		return this.config;
 	}

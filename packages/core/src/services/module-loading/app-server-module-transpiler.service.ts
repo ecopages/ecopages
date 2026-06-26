@@ -1,4 +1,5 @@
-import { getAppRouteModuleBuildExecutor, getAppServerBuildPlugins } from '../../build/build-adapter.ts';
+import { getAppServerBuildPlugins } from '../../build/build-adapter.ts';
+import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../../build/jsx-ownership-plugins.ts';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -71,7 +72,7 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 			return await pageModuleImportService.importModule<T>({
 				...options,
 				...(mergedPlugins.length > 0 ? { plugins: mergedPlugins } : {}),
-				buildExecutor: options.buildExecutor ?? getAppRouteModuleBuildExecutor(appConfig),
+				buildExecutor: options.buildExecutor ?? requireBuildRuntime(appConfig).getProfile('route-module'),
 				invalidationVersion,
 			});
 		},

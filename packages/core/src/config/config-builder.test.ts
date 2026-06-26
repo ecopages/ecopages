@@ -54,13 +54,11 @@ describe('EcoConfigBuilder', () => {
 		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
 	});
 
-	test('should create a dedicated build adapter and executor per app config', async () => {
+	test('should create a dedicated build adapter per app config', async () => {
 		const config = await builder.setRootDir('/project').build();
 
-		expect(config.runtime?.buildExecutor).toBeDefined();
 		expect(getAppBuildOwnership(config)).toBe('rolldown');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
-		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
 		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
@@ -73,7 +71,6 @@ describe('EcoConfigBuilder', () => {
 
 		expect(getAppBuildOwnership(config)).toBe('vite-host');
 		expect(getAppBuildAdapter(config)).toBeInstanceOf(ViteHostBuildAdapter);
-		expect(config.runtime?.buildExecutor).toBeDefined();
 	});
 
 	test('should allow explicit app-owned source transforms for Vite-oriented bundlers', async () => {

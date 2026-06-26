@@ -3,6 +3,13 @@ import { fileSystem } from '@ecopages/file-system';
 import type { BuildDependencyGraph, BuildResult } from './build-adapter.ts';
 import { getAppServerBuildPlugins } from './build-adapter.ts';
 import { createBuildInputsFingerprint } from './build-input-fingerprint.ts';
+import {
+	isProductionCacheManifestCurrent,
+	matchesProductionCacheBuildKey,
+	matchesProductionCacheFingerprint,
+	readProductionCacheManifest,
+	writeProductionCacheManifest,
+} from './production-build-cache.ts';
 import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
 import {
 	RouteModuleDependencyHasher,
@@ -91,31 +98,16 @@ export function getServerBundleOutputPaths(appConfig: EcoPagesAppConfig): {
 export function readServerEntryBuildCacheManifest(
 	appConfig: EcoPagesAppConfig,
 ): ServerEntryBuildCacheManifest | undefined {
-	const manifestPath = getServerEntryCacheManifestPath(appConfig);
-	if (!fileSystem.exists(manifestPath)) {
-		return undefined;
-	}
-
-	try {
-		const parsed = JSON.parse(fileSystem.readFileSync(manifestPath)) as ServerEntryBuildCacheManifest;
-		if (!parsed || typeof parsed !== 'object') {
-			return undefined;
-		}
-		return parsed;
-	} catch {
-		return undefined;
-	}
+	return readProductionCacheManifest<ServerEntryBuildCacheManifest>(getServerEntryCacheManifestPath(appConfig));
 }
 
 function writeServerEntryBuildCacheManifest(
 	appConfig: EcoPagesAppConfig,
 	manifest: ServerEntryBuildCacheManifest,
 ): void {
-	const cacheDir = getServerEntryCacheDir(appConfig);
-	fileSystem.ensureDir(cacheDir);
-	fileSystem.write(
-		path.join(cacheDir, SERVER_ENTRY_BUILD_CACHE_FILENAME),
-		`${JSON.stringify(manifest, null, '\t')}\n`,
+	writeProductionCacheManifest(
+		path.join(getServerEntryCacheDir(appConfig), SERVER_ENTRY_BUILD_CACHE_FILENAME),
+		manifest,
 	);
 }
 
@@ -153,15 +145,15 @@ export function lookupServerEntryBuildCache(options: {
 		return undefined;
 	}
 
-	if (manifest.invalidationVersion !== getCorePackageVersion()) {
+	if (!isProductionCacheManifestCurrent(manifest, getCorePackageVersion())) {
 		return undefined;
 	}
 
 	if (
 		manifest.entryPath !== entryPath ||
 		manifest.entryHash !== entryHash ||
-		manifest.buildInputsFingerprint !== buildInputsFingerprint ||
-		manifest.buildKey !== buildKey
+		!matchesProductionCacheFingerprint(manifest, buildInputsFingerprint) ||
+		!matchesProductionCacheBuildKey(manifest, buildKey)
 	) {
 		return undefined;
 	}

@@ -1,11 +1,7 @@
-import type { BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
+import type { BuildExecutor, BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import {
-	getAppBrowserBuildPlugins,
-	getAppBuildExecutor,
-	getAppHmrBuildExecutor,
-	getAppTranspileOptions,
-} from '../../build/build-adapter.ts';
+import { getAppBrowserBuildPlugins, getAppTranspileOptions } from '../../build/build-adapter.ts';
+import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -59,6 +55,20 @@ export type BrowserBundleGroupedEntry = {
 	entryName: string;
 };
 
+function resolveBrowserBundleExecutor(
+	appConfig: EcoPagesAppConfig,
+	profile: BuildTranspileProfile,
+	executor: 'build' | 'hmr',
+): BuildExecutor {
+	const buildRuntime = requireBuildRuntime(appConfig);
+
+	if (executor === 'hmr' && profile === 'hmr-entrypoint') {
+		return buildRuntime.getProfile('browser-hmr');
+	}
+
+	return buildRuntime.getProfile('route-module');
+}
+
 /**
  * App-owned boundary for browser-oriented bundle work.
  *
@@ -101,8 +111,7 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 			sourceTransforms: getAppSourceTransforms(this.appConfig),
 		};
 
-		const buildExecutor =
-			executor === 'build' ? getAppBuildExecutor(this.appConfig) : getAppHmrBuildExecutor(this.appConfig);
+		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
 		return await buildExecutor.build(request);
 	}
 

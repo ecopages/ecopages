@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
+import { installBuildRuntime } from '../../build/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from '../node/node-hmr-manager.ts';
@@ -115,10 +116,10 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
 		using manager = await create(rootDir);
+		installBuildRuntime(manager.appConfig);
 		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'script.js');
 		const buildCalls: string[] = [];
-		manager.appConfig.runtime!.buildExecutor = {
-			build: vi.fn(async (options) => {
+		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
 				buildCalls.push(options.entrypoints[0] as string);
 				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 				fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
@@ -126,9 +127,8 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 					success: true,
 					logs: [],
 					outputs: [{ path: outputPath }],
-				};
-			}),
-		};
+			};
+		});
 
 		const outputUrl = await manager.registerScriptEntrypoint(entrypointPath);
 
@@ -148,9 +148,9 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(secondEntrypoint, 'console.log("second");', 'utf8');
 
 		using manager = await create(rootDir);
+		installBuildRuntime(manager.appConfig);
 		const buildCalls: string[][] = [];
-		manager.appConfig.runtime!.buildExecutor = {
-			build: vi.fn(async (options) => {
+		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
 				const entrypoints = (options.entrypoints as string[]).map(String);
 				buildCalls.push(entrypoints);
 				for (const entrypoint of entrypoints) {
@@ -178,8 +178,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 						),
 					})),
 				};
-			}),
-		};
+			});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);
 		await manager.registerScriptEntrypoint(secondEntrypoint);

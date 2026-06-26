@@ -5,11 +5,10 @@ import path from 'node:path';
 import { describe, it } from 'vitest';
 import {
 	type BuildExecutor,
-	getAppRouteModuleBuildExecutor,
+	setAppBuildAdapter,
 	setAppBuildManifest,
-	setAppRouteModuleBuildExecutor,
 } from '../../build/build-adapter.ts';
-import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { installBuildRuntime } from '../../build/runtime-build-executor.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import {
@@ -309,20 +308,6 @@ describe('app server module transpiler runtime state', () => {
 		fs.writeFileSync(pageFilePath, 'export default { ok: true };', 'utf8');
 
 		const observedExecutors: BuildExecutor[] = [];
-		const routeModuleBuildExecutor: BuildExecutor = {
-			build: async (options) => {
-				observedExecutors.push(routeModuleBuildExecutor);
-				const compiledOutputPath = path.join(String(options.outdir), 'index.mjs');
-				fs.mkdirSync(path.dirname(compiledOutputPath), { recursive: true });
-				fs.writeFileSync(compiledOutputPath, 'export default { ok: true };', 'utf8');
-				return {
-					success: true,
-					logs: [],
-					outputs: [{ path: compiledOutputPath }],
-				};
-			},
-		};
-
 		const appConfig = {
 			rootDir,
 			absolutePaths: {
@@ -338,14 +323,20 @@ describe('app server module transpiler runtime state', () => {
 			runtime: {},
 		} as any;
 
-		installAppRuntimeBuildExecutor(appConfig);
-		setAppRouteModuleBuildExecutor(appConfig, routeModuleBuildExecutor);
+		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
 		setAppBuildManifest(appConfig, {
 			loaderPlugins: [],
 			runtimePlugins: [],
 			browserBundlePlugins: [],
 			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
 		});
+		installBuildRuntime(appConfig);
+		const routeModuleExecutor = appConfig.runtime.buildRuntime.getProfile('route-module');
+		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
+		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {
+			observedExecutors.push(routeModuleExecutor);
+			return originalBuild(options);
+		};
 
 		try {
 			await getAppModuleLoader(appConfig).importModule({
@@ -354,8 +345,7 @@ describe('app server module transpiler runtime state', () => {
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
 			});
 
-			assert.deepEqual(observedExecutors, [routeModuleBuildExecutor]);
-			assert.equal(getAppRouteModuleBuildExecutor(appConfig), routeModuleBuildExecutor);
+			assert.deepEqual(observedExecutors, [routeModuleExecutor]);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

@@ -6,9 +6,7 @@
  * default adapter installed by `ConfigBuilder` and the adapter that
  * issues real builds in production.
  *
- * Each `build()` creates a fresh `rolldown()` bundler, so there is no
- * module-graph reuse across calls. For HMR/watch mode where the same
- * entrypoints are rebuilt repeatedly, see {@link RolldownDevBuildAdapter}.
+ * Each `build()` creates a fresh `rolldown()` bundler.
  */
 
 import { createRequire } from 'node:module';
@@ -41,9 +39,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	private readonly appRootRequireCache = new Map<string, NodeJS.Require>();
 
 	/**
-	 * Issues one build. Creates a fresh `rolldown()` bundler per call,
-	 * so no module-graph reuse. For repeated rebuilds on the same
-	 * entrypoints, use {@link RolldownDevBuildAdapter}.
+	 * Issues one build. Creates a fresh `rolldown()` bundler per call.
 	 */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
 		recordRolldownBuildInvocation('rolldown');

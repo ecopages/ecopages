@@ -2,6 +2,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildResult } from '../../build/build-adapter.ts';
+import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
 import {
 	importPagesUnifiedGraphModule,
@@ -241,19 +242,16 @@ export class PageModuleImportService {
 
 		const buildResult = await this.dependencies.buildModule(
 			{
-				entrypoints: [filePath],
+				...resolveBuildProfileOptions('route-module', this.appConfig ?? ({ rootDir } as EcoPagesAppConfig), {
+					entrypoints: [filePath],
+					outdir,
+					naming: outputNamingTemplate,
+					splitting: splitting ?? true,
+					jsx: options.jsx,
+					plugins: options.plugins,
+					...(externalPackages !== undefined ? { externalPackages } : {}),
+				}),
 				root: rootDir,
-				outdir,
-				target: 'es2022',
-				format: 'esm',
-				sourcemap: 'none',
-				splitting: splitting ?? true,
-				minify: false,
-				naming: outputNamingTemplate,
-				externalPackages: true,
-				jsx: options.jsx,
-				plugins: options.plugins,
-				...(externalPackages !== undefined ? { externalPackages } : {}),
 			},
 			options.buildExecutor,
 		);

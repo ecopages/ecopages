@@ -14,6 +14,7 @@ export const app = await createApp({
 	runtime: isViteHosted
 		? {
 				embedded: true,
+				devClientOwner: 'host',
 			}
 		: undefined,
 	serverOptions: isE2ERun ? { idleTimeout: 255 } : undefined,

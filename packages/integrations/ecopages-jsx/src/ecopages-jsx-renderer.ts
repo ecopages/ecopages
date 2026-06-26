@@ -10,6 +10,7 @@ import {
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/integration-renderer';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import type {
 	ForeignChildInterceptionInput,
 	ForeignChildRuntime,
@@ -29,18 +30,6 @@ import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.t
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
-
-type EcopagesJsxForeignSubtreeResolutionContext = {
-	rendererCache: Map<string, IntegrationRenderer<any>>;
-	componentInstanceScope?: string;
-	nextForeignSubtreeId: number;
-	queuedResolutions: Array<{
-		token: string;
-		component: EcoComponent;
-		props: Record<string, unknown>;
-		componentInstanceId: string;
-	}>;
-};
 
 /**
  * Local Ecopages renderer for JSX templates in the docs app.
@@ -119,30 +108,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		};
 	}
 
-	/**
-	 * Resolves queued foreign subtrees after JSX has been stringified.
-	 *
-	 * JSX content needs one extra render pass because child foreign subtrees may emit
-	 * additional browser assets while also replacing placeholder tokens.
-	 */
-	private async resolveOwnedForeignSubtreeHtml(
-		html: string,
-		runtimeContext: EcopagesJsxForeignSubtreeResolutionContext | undefined,
-	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
-			html,
-			runtimeContext,
-			queueLabel: 'Ecopages JSX',
-			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-				this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-		});
-	}
 
 	protected override createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
@@ -262,11 +227,18 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 								};
 					const content = await this.withCustomElementRenderHook(() => component(componentProps));
 					const rendered = await this.renderJsx(content);
-					const queuedForeignSubtreeResolution = await this.resolveOwnedForeignSubtreeHtml(
+					const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(
 						rendered.html,
-						this.getQueuedForeignSubtreeResolutionContext<EcopagesJsxForeignSubtreeResolutionContext>(
+						this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(
 							input,
 						),
+						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+							this.renderQueuedForeignSubtreeChildren(
+								children,
+								queuedResolutionsByToken,
+								resolveToken,
+							),
+						'Ecopages JSX',
 					);
 					const componentAssets =
 						input.component.config?.dependencies &&

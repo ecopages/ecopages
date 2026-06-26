@@ -48,6 +48,7 @@ import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './rende
 import {
 	ForeignSubtreeExecutionService,
 	type ForeignSubtreeExecutionOwningRenderer,
+	type ForeignSubtreeQueuedHtmlOptions,
 	type QueuedForeignSubtreeResolutionContext,
 } from './foreign-subtree-execution.service.ts';
 import { buildProcessedAssetDedupeKey } from './processed-asset-dedupe.ts';
@@ -554,6 +555,26 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			input,
 			this.getForeignSubtreeResolutionContextKey(),
 		);
+	}
+
+	protected async resolveQueuedForeignSubtreeHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
+		html: string,
+		runtimeContext: TContext | undefined,
+		renderQueuedChildren: ForeignSubtreeQueuedHtmlOptions<TContext>['renderQueuedChildren'],
+		queueLabel: string = this.name,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
+			html,
+			runtimeContext,
+			queueLabel,
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.getIntegrationRendererForName(integrationName, rendererCache),
+			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+			renderQueuedChildren,
+		});
 	}
 
 	/**

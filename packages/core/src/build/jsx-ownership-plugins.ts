@@ -1,4 +1,5 @@
 import { createForeignJsxOverridePlugin } from '../plugins/foreign-jsx-override-plugin.ts';
+import { collectJsxExtensions, filterJsxSourceExtensions } from '../plugins/jsx-import-source.utils.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
@@ -11,9 +12,7 @@ function collectJsxExtensionEntries(appConfig: EcoPagesAppConfig): JsxExtensionE
 	return (appConfig.integrations ?? [])
 		.filter((integration) => integration.jsxImportSource)
 		.flatMap((integration) =>
-			integration.extensions
-				.filter((extension) => extension.endsWith('.tsx') || extension.endsWith('.jsx'))
-				.map((extension) => ({ integration, extension })),
+			filterJsxSourceExtensions(integration.extensions).map((extension) => ({ integration, extension })),
 		)
 		.sort((left, right) => right.extension.length - left.extension.length);
 }
@@ -65,11 +64,9 @@ export function getHostScopedJsxOwnershipPlugins(
 		return [];
 	}
 
-	const foreignExtensions = (appConfig.integrations ?? [])
-		.filter((integration) => integration.name !== hostIntegrationName)
-		.flatMap((integration) =>
-			integration.extensions.filter((extension) => extension.endsWith('.tsx') || extension.endsWith('.jsx')),
-		);
+	const foreignExtensions = collectJsxExtensions(appConfig.integrations ?? [], {
+		excludeIntegrationName: hostIntegrationName,
+	});
 
 	return [
 		createForeignJsxOverridePlugin({

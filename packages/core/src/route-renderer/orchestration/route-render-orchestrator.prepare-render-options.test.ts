@@ -3,7 +3,6 @@ import { fileSystem } from '@ecopages/file-system';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
-	OwnershipPlan,
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
@@ -12,7 +11,6 @@ import type {
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
-import { OwnershipPlanningService } from './ownership-planning.service.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -1093,7 +1091,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		} as unknown as AssetProcessingService;
 		const appConfig = {
 			cache: { defaultStrategy: 'static' },
-			integrations: [],
+			integrations: [{ name: 'lit' }],
 		} as unknown as EcoPagesAppConfig;
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -1166,7 +1164,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		} as unknown as AssetProcessingService;
 		const appConfig = {
 			cache: { defaultStrategy: 'static' },
-			integrations: [],
+			integrations: [{ name: 'lit' }],
 		} as unknown as EcoPagesAppConfig;
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -1293,7 +1291,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it('uses an injected ownership planning service when provided', async () => {
+	it('uses an injected ownership validation service when provided', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),
 		} as unknown as AssetProcessingService;
@@ -1301,39 +1299,16 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
 		} as unknown as EcoPagesAppConfig;
-		const ownershipPlan = {
-			root: {
-				id: 'route:/app/pages/index.tsx',
-				source: 'route',
-				ownership: {
-					integrationName: 'ghtml',
-					componentId: 'route:/app/pages/index.tsx',
-					componentFile: '/app/pages/index.tsx',
-					isPageEntry: false,
-					isForeignToParent: false,
-				},
-				children: [],
-				declaredDependenciesValid: true,
-			},
-			rendererNames: ['ghtml'],
-			foreignEdgeCount: 0,
-			hasValidationErrors: false,
-			validationErrors: [],
-		} satisfies OwnershipPlan;
-		const injectedOwnershipPlanningService = {
-			buildPlan: vi.fn(() => ownershipPlan),
-		} as unknown as OwnershipPlanningService;
 		const injectedOwnershipValidationService = {
 			validate: vi.fn(() => []),
 		} as unknown as OwnershipValidationService;
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
-			ownershipPlanningService: injectedOwnershipPlanningService,
 			ownershipValidationService: injectedOwnershipValidationService,
 		});
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 
-		const result = await flow.prepareRenderOptions(
+		await flow.prepareRenderOptions(
 			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 			createFlowAdapter({
 				resolvePageModule: async () => ({
@@ -1352,14 +1327,61 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(injectedOwnershipPlanningService.buildPlan).toHaveBeenCalledWith({
-			routeFile: '/app/pages/index.tsx',
+		expect(injectedOwnershipValidationService.validate).toHaveBeenCalledWith({
 			currentIntegrationName: 'ghtml',
-			HtmlTemplate,
-			Layout: undefined,
-			Page,
-			validationErrors: [],
+			roots: [
+				{ component: HtmlTemplate, source: 'html-template' },
+				{ component: Page, source: 'page' },
+			],
 		});
-		expect(result.ownershipPlan).toBe(ownershipPlan);
+	});
+
+	it('throws when injected ownership validation reports errors', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+		const injectedOwnershipValidationService = {
+			validate: vi.fn(() => [
+				{
+					code: 'UNKNOWN_INTEGRATION_OWNER',
+					message:
+						'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
+					componentId: 'missing-foreign-component',
+					integrationName: 'missing-renderer',
+				},
+			]),
+		} as unknown as OwnershipValidationService;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
+			ownershipValidationService: injectedOwnershipValidationService,
+		});
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+
+		await expect(
+			flow.prepareRenderOptions(
+				{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+				createFlowAdapter({
+					resolvePageModule: async () => ({
+						Page,
+						integrationSpecificProps: {},
+					}),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({
+						props: {},
+						metadata: { title: 'Page', description: 'Page description' },
+					}),
+					resolveDependencies: async () => [],
+					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
+					shouldRenderPageComponent: () => false,
+					renderPageComponent: vi.fn(),
+				}),
+			),
+		).rejects.toThrow(
+			'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
+		);
 	});
 });

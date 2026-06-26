@@ -10,10 +10,6 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
  */
 export type ForeignChildInterceptionResult =
 	| { kind: 'inline'; props?: Record<string, unknown> }
-	| { kind: 'resolved'; value: unknown };
-
-export type ForeignChildRenderInterception =
-	| { kind: 'inline'; props?: Record<string, unknown> }
 	| { kind: 'resolved'; value: unknown }
 	| undefined;
 
@@ -44,7 +40,9 @@ export interface ForeignChildRuntime {
 	interceptForeignChild?(
 		input: ForeignChildInterceptionInput,
 	): ForeignChildInterceptionResult | Promise<ForeignChildInterceptionResult>;
-	interceptForeignChildSync?(input: ForeignChildInterceptionInput): ForeignChildInterceptionResult;
+	interceptForeignChildSync?(
+		input: ForeignChildInterceptionInput,
+	): Exclude<ForeignChildInterceptionResult, undefined>;
 }
 
 type ForeignChildRenderInput = {
@@ -106,8 +104,8 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	}
 
 	private applyForeignChildInterceptionResult(
-		result: ForeignChildInterceptionResult,
-	): ForeignChildRenderInterception {
+		result: Exclude<ForeignChildInterceptionResult, undefined>,
+	): ForeignChildInterceptionResult {
 		if (result.kind === 'resolved') {
 			return result;
 		}
@@ -122,7 +120,7 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 	 */
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
-	): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception {
+	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult {
 		const foreignChildRuntimeInput = {
 			currentIntegration: this.context.currentIntegration,
 			targetIntegration: input.targetIntegration,
@@ -158,7 +156,7 @@ export type ComponentRenderContext = {
 	foreignChildRuntime?: ForeignChildRuntime;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
-	): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception;
+	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T;
 };
 
@@ -276,7 +274,7 @@ const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
  */
 export function interceptForeignChild(
 	input: ForeignChildRenderInput,
-): Promise<ForeignChildRenderInterception> | ForeignChildRenderInterception {
+): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult {
 	return getComponentRenderContext()?.interceptForeignChild(input);
 }
 

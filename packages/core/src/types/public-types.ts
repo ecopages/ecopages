@@ -854,7 +854,6 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
-	ownershipPlan?: OwnershipPlan;
 };
 
 /**
@@ -940,30 +939,6 @@ export interface OwnershipValidationError {
 }
 
 export type OwnershipPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
-
-export interface IntegrationOwnership {
-	integrationName: string;
-	componentId: string;
-	componentFile?: string;
-	isPageEntry: boolean;
-	isForeignToParent: boolean;
-}
-
-export interface OwnershipPlanNode {
-	id: string;
-	source: OwnershipPlanNodeSource;
-	ownership: IntegrationOwnership;
-	children: OwnershipPlanNode[];
-	declaredDependenciesValid: boolean;
-}
-
-export interface OwnershipPlan {
-	root: OwnershipPlanNode;
-	rendererNames: string[];
-	foreignEdgeCount: number;
-	hasValidationErrors: boolean;
-	validationErrors: OwnershipValidationError[];
-}
 
 export type ForeignSubtreeAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
 

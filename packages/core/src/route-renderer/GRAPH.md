@@ -41,7 +41,7 @@ flowchart TD
   B --> C[resolvePageModule]
   C --> D[ownershipValidationService.validate]
   D --> E[resolvePageData]
-  E --> F[ownershipPlanningService.buildPlan]
+  E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
   F --> G[resolveDependencies]
   G --> H[buildPageBrowserGraph]
   H --> I{shouldRenderPageComponent?}
@@ -77,7 +77,7 @@ flowchart TD
   D -- Yes --> E[render inline]
   D -- No --> F[delegate to owning renderer]
   F --> G[owning renderer renderComponentWithForeignChildren]
-  G --> H[owning renderer renderForeignSubtree when payload form is needed]
+  G --> H[owning renderer renderComponentWithForeignChildren mapped via toForeignSubtreeRenderPayload]
   H --> I[resolved html plus assets and attachment policy]
 ```
 
@@ -126,7 +126,7 @@ The most useful reading order is:
 4. `orchestration/ownership-validation.service.ts`
 5. `orchestration/ownership-planning.service.ts`
 6. `orchestration/component-render-context.ts`
-7. `orchestration/queued-foreign-subtree-resolution.service.ts`
+7. `orchestration/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
 9. `page-loading/dependency-resolver.ts`
 10. `eco/eco.ts`
@@ -139,7 +139,7 @@ The most useful reading order is:
 - `packages/core/src/route-renderer/orchestration/ownership-validation.service.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-planning.service.ts`
 - `packages/core/src/route-renderer/orchestration/component-render-context.ts`
-- `packages/core/src/route-renderer/orchestration/queued-foreign-subtree-resolution.service.ts`
+- `packages/core/src/route-renderer/orchestration/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/eco/eco.ts`

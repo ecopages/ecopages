@@ -69,6 +69,10 @@
 			"types": "./src/route-renderer/orchestration/component-render-context.ts",
 			"default": "./src/route-renderer/orchestration/component-render-context.ts"
 		},
+		"./route-renderer/orchestration/foreign-subtree-execution.service": {
+			"types": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts",
+			"default": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts"
+		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
 			"default": "./src/router/client/navigation-coordinator.ts"
@@ -175,6 +179,10 @@
 		"./build/browser-runtime-plugin": {
 			"types": "./src/build/browser-runtime-plugin.ts",
 			"default": "./src/build/browser-runtime-plugin.ts"
+		},
+		"./build/jsx-ownership-plugins": {
+			"types": "./src/build/jsx-ownership-plugins.ts",
+			"default": "./src/build/jsx-ownership-plugins.ts"
 		},
 		"./cache": {
 			"types": "./src/cache/index.ts",

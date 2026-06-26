@@ -10,6 +10,7 @@ import {
 	type HtmlTemplateProps,
 	type PageBrowserGraphResult,
 } from '@ecopages/core';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/integration-renderer';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { fileSystem } from '@ecopages/file-system';
@@ -428,11 +429,13 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const result = await testRenderer.renderForeignSubtree({
-				component: Component,
-				props: { title: 'Island' },
-				integrationContext: { componentInstanceId: 'island-1' },
-			});
+			const result = toForeignSubtreeRenderPayload(
+				await testRenderer.renderComponentWithForeignChildren({
+					component: Component,
+					props: { title: 'Island' },
+					integrationContext: { componentInstanceId: 'island-1' },
+				}),
+			);
 
 			expect(result).toEqual<ForeignSubtreeRenderPayload>({
 				html: '<h3>Island</h3>',
@@ -457,10 +460,12 @@ describe('ReactRenderer', () => {
 				</>
 			)) as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderForeignSubtree({
-				component: Component,
-				props: {},
-			});
+			const result = toForeignSubtreeRenderPayload(
+				await testRenderer.renderComponentWithForeignChildren({
+					component: Component,
+					props: {},
+				}),
+			);
 
 			expect(result.attachmentPolicy).toEqual({ kind: 'none' });
 			expect(result.rootAttributes).toBeUndefined();

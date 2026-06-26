@@ -16,7 +16,7 @@ Practical knowledge gained from integrating Rolldown into Ecopages, including pe
 
 Ecopages bundles with Rolldown across every runtime (Node, Bun, browser). The decision to drop the previous esbuild and Bun-native adapters was driven by:
 
-- **HMR cycle.** esbuild's worker-protocol fault recovery dominated the rebuild path. Rolldown keeps the Rust core warm between rebuilds via `DevEngine`; no protocol fault to recover from.
+- **HMR cycle.** Rolldown keeps the Rust core warm between rebuilds via `watch()` where needed; Ecopages route-module and browser-HMR profiles use parallel one-shot Rolldown builds backed by production caches.
 - **Single AST pipeline.** Rolldown is built on oxc. Ecopages plugins already use `oxc-parser` for AST walks. One Rust dependency tree, no plugin-side parser duplication.
 - **One option surface.** Every esbuild option (`define`, `jsx`, `loader`) needed a hand-mapped counterpart for the Bun adapter, and Bun's option set drifted independently. Rolldown is the only option set to maintain.
 - **Bench wins.** Across 18 kitchen-sink scenarios, Rolldown wins 15 and ties/beats the geometric mean by **1.21×** versus esbuild. Biggest wins: React page rebuilds (1.56×), production single page (1.49×), Lit (1.52×), Ecopages-JSX (1.47×). See [Performance Benchmarks](#performance-benchmarks) for the full table.
@@ -67,52 +67,19 @@ Ecopages implements this in `rolldown-plugin-bridge.ts` — all `EcoBuildPlugin`
 
 ---
 
-## DevEngine for Cached Incremental Rebuilds
+## BuildRuntime Profile Executors
 
-Rolldown's experimental `DevEngine` maintains internal state (module graph, resolver cache, transform cache) across rebuilds. Ecopages wraps it in `RolldownDevBuildAdapter` and exposes it via `ConfigBuilder.setBuildOwnership('rolldown-dev')`.
+Ecopages installs one `BuildRuntime` on `appConfig.runtime.buildRuntime` with three profiles:
 
-```typescript
-import { dev } from 'rolldown/experimental';
-import type { RolldownOutput } from 'rolldown';
+| Profile | Executor | Use case |
+| ------- | -------- | -------- |
+| `server-entry` | `SerializedBuildExecutor` | Single-flight server entry builds |
+| `route-module` | `ParallelBuildExecutor` | Route module transpilation and browser bundles |
+| `browser-hmr` | `ParallelBuildExecutor` | HMR browser entry rebuilds |
 
-const pendingBuilds: Array<(output: RolldownOutput) => void> = [];
+All profiles wrap the same one-shot `RolldownBuildAdapter` in both dev and production. Repeated work is amortized through production build caches (`production-build-cache.ts`, route-module disk cache, server-entry cache) rather than a long-lived dev engine instance.
 
-const engine = await dev(inputOptions, outputOptions, {
-	rebuildStrategy: 'never', // Don't auto-rebuild; we control invalidation
-	onOutput: (result) => {
-		if (result instanceof Error) return;
-		const next = pendingBuilds.shift();
-		next?.(result);
-	},
-});
-
-function runBuild(): Promise<RolldownOutput> {
-	return new Promise((resolve) => pendingBuilds.push(resolve));
-}
-
-// First build
-await engine.run();
-const output1 = await runBuild();
-
-// Subsequent builds reuse cached state
-engine.triggerFullBuild();
-const output2 = await runBuild();
-
-await engine.close();
-```
-
-Key `DevEngine` methods:
-
-- **`run()`** — Initial build (call once on first build only)
-- **`triggerFullBuild()`** — Full rebuild (reuses cached state); preferred for adapter-level rebuilds
-- **`invalidate(file)`** — Mark file changed, trigger incremental rebuild
-- **`close()`** — Release resources
-
-The cache key in `RolldownDevBuildAdapter` is `${contextRoot}::${pluginNames}::${target}::${format}::${outdir}::${naming}`. Entrypoints are tracked separately: when they change the engine is recreated, but warm rebuilds of the same entrypoint reuse the cached module graph.
-
-Dev profiles (`route-module`, `browser-hmr`) use serialized DevEngine adapters in development via `installBuildRuntime()`. Production keeps one-shot Rolldown with parallel executors where safe.
-
-See: [rolldown.rs/reference/experimental](https://rolldown.rs/reference/experimental)
+See [`packages/core/src/build/README.md`](../packages/core/src/build/README.md) for the full build-layer map.
 
 ---
 
@@ -150,24 +117,14 @@ See: [meta/design/watch-mode.md](https://github.com/rolldown/rolldown/blob/main/
 
 ## Build Adapter Pattern
 
-Ecopages uses a `BuildAdapter` pattern with three implementations:
+Ecopages uses a `BuildAdapter` pattern with two implementations:
 
-| Adapter                   | Ownership        | Use Case                           |
-| ------------------------- | ---------------- | ---------------------------------- |
-| `RolldownBuildAdapter`    | `'rolldown'`     | Production builds, benchmarks      |
-| `RolldownDevBuildAdapter` | `'rolldown-dev'` | HMR, watch mode, repeated rebuilds |
-| `ViteHostBuildAdapter`    | `'vite-host'`    | Host-managed builds (Vite)         |
+| Adapter                | Ownership     | Use Case                        |
+| ---------------------- | ------------- | ------------------------------- |
+| `RolldownBuildAdapter` | `'rolldown'`  | Default bundled backend         |
+| `ViteHostBuildAdapter` | `'vite-host'` | Host-managed builds (Vite)      |
 
-The `DevBuildAdapter` caches the `DevEngine` for the same plugin configuration, avoiding re-initialization overhead:
-
-```typescript
-import { ConfigBuilder } from '@ecopages/core';
-
-const config = await new ConfigBuilder()
-	.setBuildOwnership('rolldown-dev') // Use cached DevEngine
-	.setRootDir('./my-app')
-	.build();
-```
+Runtime code accesses executors through `requireBuildRuntime(appConfig).getProfile(...)`.
 
 ---
 
@@ -272,7 +229,7 @@ Rolldown vs esbuild on the kitchen-sink fixture (10+ plugins: KitaJS, React, Lit
 | KitaJS dynamic route catalog/[slug].kita.tsx          |        3.917 |         4.394 |     0.89× |
 | no-op rebuild (file unchanged)                        |        2.790 |         3.787 |     0.74× |
 
-Three scenarios regressed (KitaJS postcss, dynamic route, no-op rebuild). The no-op case is dominated by Rust startup overhead because every build creates a new `rolldown()` instance; the `RolldownDevBuildAdapter` with `DevEngine` (see above) eliminates this for HMR.
+Three scenarios regressed (KitaJS postcss, dynamic route, no-op rebuild). The no-op case is dominated by Rust startup overhead when every build creates a new `rolldown()` instance; route-module disk cache and fingerprinted production caches reduce repeated work on warm paths.
 
 Benchmarks run via `ECOPAGES_BENCH=1 pnpm vitest bench`. The esbuild baseline was captured at commit `93fe9e6e` (Phase 0); the Rolldown numbers are post-plugin-consolidation.
 
@@ -280,7 +237,7 @@ Benchmarks run via `ECOPAGES_BENCH=1 pnpm vitest bench`. The esbuild baseline wa
 
 ## Common Pitfalls
 
-1. **Don't create new `rolldown()` instances for repeated builds** — Use `DevEngine` or `watch()` to reuse the module graph cache.
+1. **Don't create new `rolldown()` instances without closing them** — The `RolldownBuild` instance holds native resources. Always close it after `write()` or `generate()`, and prefer production caches for warm rebuild paths.
 
 2. **Don't use plain function hooks without filters** — Rolldown calls them for every module through FFI. Use `{ filter, handler }` format or consolidate plugins.
 

@@ -8,9 +8,9 @@ import type {
 	EcoComponent,
 } from '../../types/public-types.ts';
 import {
-	QueuedForeignSubtreeResolutionService,
+	ForeignSubtreeExecutionService,
 	type QueuedForeignSubtreeResolutionContext,
-} from './queued-foreign-subtree-resolution.service.ts';
+} from './foreign-subtree-execution.service.ts';
 
 function createComponent(name: string, integration = name): EcoComponent<Record<string, unknown>, string> {
 	return eco.component<Record<string, unknown>, string>({
@@ -53,9 +53,9 @@ function applyAttributesToFirstElement(html: string, attributes: Record<string, 
 	return html.replace(/^<([a-zA-Z][a-zA-Z0-9:-]*)/, `<$1${serializedAttributes}`);
 }
 
-describe('QueuedForeignSubtreeResolutionService', () => {
+describe('ForeignSubtreeExecutionService queue resolution', () => {
 	it('creates scoped queue tokens and stores runtime state on the render input', () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const deferredWidget = createComponent('deferred-widget', 'deferred');
 		const renderInput: ComponentRenderInput = {
@@ -68,7 +68,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 		const rendererCache = new Map<string, unknown>();
 		const originalProps = { label: 'deferred' };
 
-		const runtime = service.createRuntime({
+		const runtime = service.createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -115,7 +115,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 	});
 
 	it('preserves existing shared integration context fields when queue runtime state is attached', () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const renderInput: ComponentRenderInput = {
 			component: shell,
@@ -127,7 +127,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 		};
 		const rendererCache = new Map<string, unknown>();
 
-		service.createRuntime({
+		service.createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -145,7 +145,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 	});
 
 	it('resolves nested queued foreign subtrees, applies root attributes, and dedupes bubbled assets', async () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
 		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
@@ -158,7 +158,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 		};
 		const rendererCache = new Map<string, unknown>();
 
-		const runtime = service.createRuntime({
+		const runtime = service.createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -222,7 +222,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 			},
 		);
 
-		const result = await service.resolveQueuedHtml({
+		const result = await service.resolveQueuedForeignSubtreeTokens({
 			html: `<article>${parentToken.value}</article>`,
 			runtimeContext,
 			queueLabel: 'Test',
@@ -264,7 +264,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 	});
 
 	it('throws when queued foreign subtrees form a cycle', async () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const foreignSubtreeA = createComponent('foreign-subtree-a', 'deferred');
 		const foreignSubtreeB = createComponent('foreign-subtree-b', 'deferred');
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -288,7 +288,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 		};
 
 		await expect(
-			service.resolveQueuedHtml({
+			service.resolveQueuedForeignSubtreeTokens({
 				html: `<article>__TEST_QUEUE__host__1__</article>`,
 				runtimeContext,
 				queueLabel: 'Test',
@@ -323,7 +323,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 	});
 
 	it('passes structured queued children through to the owning renderer', async () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const foreignSubtree = createComponent('foreign-subtree', 'deferred');
 		const structuredChildren = { kind: 'structured-child' };
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -350,7 +350,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 			}),
 		);
 
-		const result = await service.resolveQueuedHtml({
+		const result = await service.resolveQueuedForeignSubtreeTokens({
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',
@@ -373,7 +373,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 	});
 
 	it('resolves queued tokens appended while another token is resolving', async () => {
-		const service = new QueuedForeignSubtreeResolutionService();
+		const service = new ForeignSubtreeExecutionService();
 		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
 		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -419,7 +419,7 @@ describe('QueuedForeignSubtreeResolutionService', () => {
 			},
 		);
 
-		const result = await service.resolveQueuedHtml({
+		const result = await service.resolveQueuedForeignSubtreeTokens({
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',

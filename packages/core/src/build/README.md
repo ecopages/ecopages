@@ -131,6 +131,18 @@ Production static exports compile all template pages in one Rolldown invocation 
 
 Build-input fingerprinting lives in `build-input-fingerprint.ts` and is shared with server-entry cache, unified pages graph, and static-render invalidation.
 
+## JSX Ownership Plugins
+
+Mixed-integration apps need explicit `@jsxImportSource` handling in two different shapes:
+
+| Helper | Use when | Behavior |
+| ------ | -------- | -------- |
+| `getJsxOwnershipPlugins()` | App-wide server/transpile builds | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime. |
+| `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
+| `eco-component-meta-plugin` | Component metadata injection | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files. |
+
+`foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
+
 ## Testing Strategy
 
 - `rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.

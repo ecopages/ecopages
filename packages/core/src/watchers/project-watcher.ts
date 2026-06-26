@@ -19,6 +19,8 @@ export interface ProjectWatcherConfig {
 	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
+	/** When true, the host dev server owns browser dev-client bootstrap. */
+	hostOwnsDevClient?: boolean;
 }
 
 /**
@@ -49,16 +51,18 @@ export class ProjectWatcher {
 	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
+	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private watcher: FSWatcher | null = null;
 	private lastHandledChange = new Map<string, number>();
 	private changeQueue: Promise<void> = Promise.resolve();
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
+	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge, hostOwnsDevClient }: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
+		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
@@ -91,6 +95,14 @@ export class ProjectWatcher {
 		return this.invalidationService.isIncludeSourceFile(filePath);
 	}
 
+	private requestBrowserReload(): void {
+		if (this.hostOwnsDevClient) {
+			return;
+		}
+
+		this.bridge.reload();
+	}
+
 	/**
 	 * Handles public directory file changes by copying only the changed file.
 	 * @param filePath - Absolute path of the changed file
@@ -106,10 +118,10 @@ export class ProjectWatcher {
 				await fileSystem.copyFileAsync(filePath, destPath);
 			}
 
-			this.bridge.reload();
+			this.requestBrowserReload();
 		} catch (error) {
 			appLogger.error(`Failed to copy public file: ${error instanceof Error ? error.message : String(error)}`);
-			this.bridge.reload();
+			this.requestBrowserReload();
 		}
 	}
 
@@ -127,7 +139,7 @@ export class ProjectWatcher {
 	 * Follows 5-rule priority:
 	 * 0. Public directory match? -> copy file and reload
 	 * 1. additionalWatchPaths match? -> reload
-	 * 2. Include template source? -> reload after processor notifications
+	 * 2. Include template source? -> current-page refresh via HMR after processor notifications are deferred
 	 * 3. Processor-owned asset? -> processor already handled it via notification, skip HMR
 	 * 4. Otherwise -> HMR strategies
 	 *
@@ -166,17 +178,21 @@ export class ProjectWatcher {
 				await this.refreshRouterRoutesCallback();
 			}
 
-			if (plan.category === 'additional-watch') {
-				this.bridge.reload();
+			if (plan.reloadBrowser) {
+				this.requestBrowserReload();
+				return;
+			}
+
+			const deferProcessorNotifications =
+				plan.category === 'include-source' || plan.category === 'explicit-server-view';
+
+			if (deferProcessorNotifications && plan.delegateToHmr) {
+				await this.hmrManager.handleFileChange(filePath);
+				void this.notifyProcessors(filePath, event);
 				return;
 			}
 
 			await this.notifyProcessors(filePath, event);
-
-			if (plan.category === 'include-source' || plan.category === 'explicit-server-view') {
-				this.bridge.reload();
-				return;
-			}
 
 			if (plan.processorHandledAsset) {
 				return;

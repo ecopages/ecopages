@@ -35,20 +35,40 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		 * If HMR Manager is active, delegate build/watch to it.
 		 */
 		if (this.hmrManager?.isEnabled() && !dep.inline) {
-			const outputUrl = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
-			const outputFilepath = this.resolveHmrOutputFilepath(dep.filepath);
-			return {
-				filepath: outputFilepath ?? dep.filepath,
-				sourceFilepath: dep.filepath,
-				srcUrl: outputUrl,
-				kind: 'script',
-				position: dep.position,
-				attributes: dep.attributes,
-				inline: false,
-				excludeFromHtml: dep.excludeFromHtml,
-				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
-			};
+			const resolvedOutput = this.hmrManager.getResolvedScriptOutput?.(dep.filepath);
+			if (resolvedOutput) {
+				return {
+					filepath: resolvedOutput.outputPath,
+					sourceFilepath: dep.filepath,
+					srcUrl: resolvedOutput.outputUrl,
+					kind: 'script',
+					position: dep.position,
+					attributes: dep.attributes,
+					inline: false,
+					excludeFromHtml: dep.excludeFromHtml,
+					packageRole: dep.packageRole,
+					bundledSourceFilepaths: dep.bundledSourceFilepaths,
+				};
+			}
+
+			try {
+				const outputUrl = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
+				const outputFilepath = this.resolveHmrOutputFilepath(dep.filepath);
+				return {
+					filepath: outputFilepath ?? dep.filepath,
+					sourceFilepath: dep.filepath,
+					srcUrl: outputUrl,
+					kind: 'script',
+					position: dep.position,
+					attributes: dep.attributes,
+					inline: false,
+					excludeFromHtml: dep.excludeFromHtml,
+					packageRole: dep.packageRole,
+					bundledSourceFilepaths: dep.bundledSourceFilepaths,
+				};
+			} catch {
+				// Fall back to the non-HMR path when registration is still in flight.
+			}
 		}
 
 		const content = fileSystem.readFileSync(dep.filepath);

@@ -3,6 +3,8 @@ import {
 	DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
+import { getAppDevClientBridge } from './client-bridge-registry.ts';
+import type { ClientBridgeEvent } from '../types/public-types.ts';
 import { setHostModuleLoader } from '../services/module-loading/host-module-loader-registry.ts';
 
 export type HostRuntimeModuleLoader = (id: string) => Promise<unknown>;
@@ -12,6 +14,8 @@ export interface DevelopmentHostRuntime {
 	planFileChange(filePath: string): DevelopmentInvalidationPlan;
 	invalidateServerModules(changedFiles?: string[]): void;
 	resetRuntimeState(changedFiles?: string[]): void;
+	broadcastClientEvent(event: ClientBridgeEvent): void;
+	isServerRenderedTemplatePlan(plan: DevelopmentInvalidationPlan): boolean;
 }
 
 export function createDevelopmentHostRuntime(appConfig: EcoPagesAppConfig): DevelopmentHostRuntime {
@@ -29,6 +33,12 @@ export function createDevelopmentHostRuntime(appConfig: EcoPagesAppConfig): Deve
 		},
 		resetRuntimeState(changedFiles) {
 			invalidationService.resetRuntimeState(changedFiles);
+		},
+		broadcastClientEvent(event) {
+			getAppDevClientBridge(appConfig)?.broadcast(event);
+		},
+		isServerRenderedTemplatePlan(plan) {
+			return plan.category === 'include-source' || plan.category === 'explicit-server-view';
 		},
 	};
 }

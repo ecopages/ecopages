@@ -145,6 +145,26 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 0);
 	});
 
+	test('include template changes broadcast layout-update ahead of integration no-op strategies', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-include-template');
+		const includesDir = path.join(rootDir, 'src', 'includes');
+		fs.mkdirSync(includesDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const includeFile = path.join(includesDir, 'seo.kita.tsx');
+		fs.writeFileSync(includeFile, 'export const seo = true;\n', 'utf8');
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, () => true, { type: 'none' }),
+		);
+
+		await manager.handleFileChange(includeFile);
+
+		assert.equal(spy.broadcasts.length, 1);
+		assert.equal(spy.broadcasts[0].type, 'layout-update');
+		assert.equal(spy.broadcasts[0].path, includeFile);
+	});
+
 	test('INTEGRATION strategy wins over DefaultHmrStrategy for matched files', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-integration-priority');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });

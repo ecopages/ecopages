@@ -112,6 +112,14 @@
 			"types": "./src/dev/host-runtime.ts",
 			"default": "./src/dev/host-runtime.ts"
 		},
+	"./dev/client-bridge-registry": {
+			"types": "./src/dev/client-bridge-registry.ts",
+			"default": "./src/dev/client-bridge-registry.ts"
+		},
+		"./dev/dev-client-ownership": {
+			"types": "./src/dev/dev-client-ownership.ts",
+			"default": "./src/dev/dev-client-ownership.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"

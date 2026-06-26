@@ -9,6 +9,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
+import { ServerRenderedTemplateHmrStrategy } from '../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
+import { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { HmrEntrypointRegistrar } from './hmr-entrypoint-registrar.ts';
@@ -143,7 +145,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
-		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
+		const invalidationService = new DevelopmentInvalidationService(this.appConfig);
+
+		this.strategies = [
+			new JsHmrStrategy(jsContext),
+			new ServerRenderedTemplateHmrStrategy(invalidationService),
+			new DefaultHmrStrategy(),
+		];
 	}
 
 	public registerStrategy(strategy: HmrStrategy): void {
@@ -230,6 +238,30 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	public getOutputUrl(entrypointPath: string): string | undefined {
 		return this.watchedFiles.get(entrypointPath);
+	}
+
+	/**
+	 * Returns the emitted HMR script output when the artifact already exists on disk.
+	 *
+	 * SSR must not block on entrypoint registration when a previous build already
+	 * produced the browser bundle.
+	 */
+	public getResolvedScriptOutput(entrypointPath: string): { outputUrl: string; outputPath: string } | undefined {
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		const relativePath = path.relative(this.appConfig.absolutePaths.srcDir, normalizedEntrypoint);
+		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js').replace(/\[([^\]]+)\]/g, '_$1_');
+		const urlPath = relativePathJs.split(path.sep).join('/');
+		const outputPath = path.join(this.distDir, urlPath);
+
+		if (!fileSystem.exists(outputPath)) {
+			return undefined;
+		}
+
+		const outputUrl =
+			this.watchedFiles.get(normalizedEntrypoint) ??
+			`/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath).split(path.sep).join('/')}`;
+
+		return { outputUrl, outputPath };
 	}
 
 	public getWatchedFiles(): Map<string, string> {

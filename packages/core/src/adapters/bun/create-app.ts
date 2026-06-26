@@ -20,6 +20,7 @@ import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
@@ -127,6 +128,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 		});
 	}
 

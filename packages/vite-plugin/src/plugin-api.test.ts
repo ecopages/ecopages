@@ -28,10 +28,10 @@ describe('createEcopagesPluginApi', () => {
 		const api = createApi();
 		const ready = api.getDevHostReady();
 
-		api.markDevHostFailed(new Error('warmup failed'));
+		api.markDevHostFailed(new Error('load failed'));
 		api.markDevHostReady();
 
-		await expect(ready).rejects.toThrow('warmup failed');
+		await expect(ready).rejects.toThrow('load failed');
 	});
 
 	it('tracks the warmed app cache across invalidation', () => {
@@ -54,4 +54,5 @@ describe('createEcopagesPluginApi', () => {
 
 		expect(api.getDevServerOrigin()).toBe('http://localhost:4012');
 	});
+
 });

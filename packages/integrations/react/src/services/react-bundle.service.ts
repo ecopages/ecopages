@@ -1,7 +1,7 @@
 /**
  * Bundle configuration service for React integration.
  *
- * Encapsulates all esbuild plugin creation and bundle options
+ * Encapsulates all build plugin creation and bundle options
  * for client-side React component builds.
  *
  * @module
@@ -46,7 +46,7 @@ export interface ReactClientBundleOptions {
 }
 
 /**
- * Manages esbuild bundle configuration and plugin creation for React page/component builds.
+ * Manages bundle configuration and plugin creation for React page/component builds.
  */
 export class ReactBundleService {
 	private readonly runtimeBundleService: ReactRuntimeBundleService;
@@ -68,7 +68,7 @@ export class ReactBundleService {
 	}
 
 	/**
-	 * Creates esbuild bundle options for a page or component entry.
+	 * Creates bundle options for a page or component entry.
 	 *
 	 * @remarks
 	 * React derives runtime specifier mappings from the core browser runtime manifest

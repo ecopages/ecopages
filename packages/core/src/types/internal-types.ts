@@ -131,7 +131,7 @@ export type EcoPagesAppConfig = {
 	loaders: Map<string, EcoBuildPlugin>;
 	/**
 	 * App-owned source transforms that can be adapted into Vite or other
-	 * transform-first bundlers without going through the legacy loader bridge.
+	 * transform-first bundlers.
 	 */
 	sourceTransforms: Map<string, EcoSourceTransform>;
 	/**

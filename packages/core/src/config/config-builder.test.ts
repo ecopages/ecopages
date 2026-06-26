@@ -59,7 +59,7 @@ describe('EcoConfigBuilder', () => {
 		const config = await builder.setRootDir('/project').build();
 
 		expect(config.runtime?.buildExecutor).toBeDefined();
-		expect(getAppBuildOwnership(config)).toBe('bun-native');
+		expect(getAppBuildOwnership(config)).toBe('rolldown');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(config.runtime?.buildExecutor).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);

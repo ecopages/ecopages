@@ -10,6 +10,9 @@ export default defineProject({
 			'apps/**/*.test.browser.ts',
 			'apps/**/*.test.browser.tsx',
 		],
+		benchmark: {
+			include: [],
+		},
 		browser: {
 			enabled: true,
 			provider: playwright(),

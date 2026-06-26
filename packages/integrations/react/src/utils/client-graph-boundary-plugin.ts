@@ -1,7 +1,7 @@
 /**
  * @module ClientGraphBoundaryPlugin
  *
- * This module defines the primary esbuild plugin responsible for securing the Ecopages
+ * This module defines the primary build plugin responsible for securing the Ecopages
  * isomorphic compilation pipeline. It ensures that backend-only code, sensitive Node.js APIs,
  * and massive server utilities do not accidentally leak into the browser bundle.
  *
@@ -34,7 +34,7 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 ]);
 
 /**
- * Configuration options for the Client Graph Boundary esbuild plugin.
+ * Configuration options for the Client Graph Boundary build plugin.
  *
  * This plugin serves as the primary security layer between server-only logic and the client-side JavaScript bundle.
  * It prevents Node.js built-ins (`node:fs`, `node:path`) and backend-exclusive dependencies (e.g. `pg`, `redis`)
@@ -557,8 +557,8 @@ function transformModuleImports(
 	 * - **Forbidden + reachable from a known client root** → throw a build error so the
 	 *   developer is forced to resolve the server-client boundary violation explicitly.
 	 * - **Allowed with specific named rules** → surgically rewrite the import to keep only
-	 *   the permitted named bindings; esbuild tree-shakes the rest.
-	 * - **Allowed with no restrictions** → left untouched; esbuild handles tree-shaking.
+	 *   the permitted named bindings; the bundler tree-shakes the rest.
+	 * - **Allowed with no restrictions** → left untouched; the bundler handles tree-shaking.
 	 */
 	const edits: { start: number; end: number; replacement: string }[] = [];
 
@@ -790,7 +790,7 @@ function transformModuleImports(
 }
 
 /**
- * Instantiates the client graph boundary esbuild plugin.
+ * Instantiates the client graph boundary build plugin.
  *
  * @param options - Configuration options for the graph boundary.
  * @returns The resulting `EcoBuildPlugin`.

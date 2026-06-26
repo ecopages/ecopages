@@ -149,3 +149,19 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - "static" historically refers to "no server needed," but in ecopages it means "cached forever at build time." A **Static Page** may run on a server during **Request-Time Rendering** of other pages; it just uses pre-computed HTML. Resolved: use "Static Page" (cache strategy) not "static site" (deployment model) to avoid confusion.
 - "rendering" can mean the act of converting a Component to HTML, or the runtime service that does it. Resolved: "rendering" is the act; "renderer" or "rendering service" is the service.
 - Component, Layout, Page, Html all have the same underlying type shape. Resolved: they are four distinct **component roles**, not four different types. The role determines what semantic contract the component fulfills (e.g., a Layout receives `children` and context; a Component does not).
+
+## Rolldown Integration
+
+Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integration patterns:
+
+**Plugin Bridge**: Ecopages plugins (`EcoBuildPlugin`) are translated to Rolldown `Plugin` instances via `createRolldownPluginBridge()`. All eco plugins are consolidated into a **single** Rolldown plugin to minimize Rust→JS FFI overhead. Each plugin hook without a filter causes 3–4× slowdown per module.
+
+**DevEngine for HMR**: The `RolldownDevBuildAdapter` wraps Rolldown's experimental `DevEngine` API. It caches the module graph, resolver cache, and transform cache across rebuilds. Activated via `ConfigBuilder.setBuildOwnership('rolldown-dev')`.
+
+**Build Ownership**: Three adapters exist — `'rolldown'` (production), `'rolldown-dev'` (cached HMR), `'vite-host'` (host-managed).
+
+**Native MagicString**: Enabled via `experimental.nativeMagicString: true` for Rust-native string manipulation.
+
+**CSS Shim**: Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
+
+See [docs/rolldown-integration-guide.md](./docs/rolldown-integration-guide.md) for the full guide with API references and benchmarks.

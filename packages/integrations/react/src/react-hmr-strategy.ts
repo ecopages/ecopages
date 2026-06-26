@@ -327,15 +327,19 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return { outputPath, outputUrl };
 	}
 
-	private getGroupedTempOutputPattern(entrypointPath: string): { outputDir: string; outputBaseName: string } {
+	private getRolldownEntryKey(entrypointPath: string): string {
 		const srcDir = this.context.getSrcDir();
 		const relativePath = path.relative(srcDir, entrypointPath);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '.js');
+		const relativePathNoExt = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '');
+		return relativePathNoExt;
+	}
 
-		return {
-			outputDir: path.join(this.context.getDistDir(), path.dirname(relativePathJs)),
-			outputBaseName: path.basename(relativePathJs, '.js'),
-		};
+	private getTempFileBasename(entrypointPath: string): string {
+		const srcDir = this.context.getSrcDir();
+		const relativePath = path.relative(srcDir, entrypointPath);
+		const relativePathNoExt = relativePath.replace(/\.(tsx?|jsx?|mdx)$/, '');
+		const encodedPath = this.encodeDynamicSegments(relativePathNoExt);
+		return path.basename(encodedPath);
 	}
 
 	private async collectReactPageBuildTargets(): Promise<ReactHmrBuildTarget[]> {
@@ -443,8 +447,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		const changedEntrypointOutput = watchedFiles.get(_filePath);
 		if (changedEntrypointOutput && !this.ownsWatchedEntrypoint(_filePath)) {
-			appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
-			return { type: 'none' };
+			if (this.isReactEntrypoint(_filePath)) {
+				this.pageMetadataCache.markOwnedEntrypoint(_filePath);
+			} else {
+				appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
+				return { type: 'none' };
+			}
 		}
 
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(_filePath);
@@ -678,12 +686,20 @@ export class ReactHmrStrategy extends HmrStrategy {
 			}
 
 			await this.clearHmrOutdir(this.context.getDistDir());
+			const entryNameByPath = new Map<string, { key: string; basename: string }>();
+			for (const { entrypointPath } of entrypoints) {
+				entryNameByPath.set(entrypointPath, {
+					key: this.getRolldownEntryKey(entrypointPath),
+					basename: this.getTempFileBasename(entrypointPath),
+				});
+			}
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
-				entrypoints: entrypoints.map(({ entrypointPath }) => entrypointPath),
+				entrypoints: Object.fromEntries(
+					entrypoints.map(({ entrypointPath }) => [entryNameByPath.get(entrypointPath)!.key, entrypointPath]),
+				),
 				outdir: this.context.getDistDir(),
-				outbase: this.context.getSrcDir(),
-				naming: '[dir]/[name].[hash].tmp',
+				naming: '[name].[hash].tmp',
 				splitting: true,
 				plugins,
 				minify: false,
@@ -704,18 +720,19 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const updatedOutputs: string[] = [];
 			for (const { entrypointPath, outputUrl } of entrypoints) {
 				const { outputPath } = this.getEntrypointOutput(entrypointPath);
-				const { outputDir, outputBaseName } = this.getGroupedTempOutputPattern(entrypointPath);
+				const { basename: tempBasename, key: entryKey } = entryNameByPath.get(entrypointPath)!;
+				const expectedSubdir = path.join(this.context.getDistDir(), path.dirname(entryKey));
 				const tempOutput = result.outputs.find((output) => {
 					return (
-						path.dirname(output.path) === outputDir &&
-						path.basename(output.path).startsWith(`${outputBaseName}.`) &&
+						path.dirname(output.path) === expectedSubdir &&
+						path.basename(output.path).startsWith(`${tempBasename}.`) &&
 						path.basename(output.path).includes('.tmp')
 					);
 				})?.path;
 
 				const resolvedTempOutput = tempOutput
 					? await this.resolveTempOutputPath(tempOutput)
-					: await this.resolveTempOutputPath(path.join(outputDir, `${outputBaseName}.[hash].tmp.js`));
+					: await this.resolveTempOutputPath(path.join(expectedSubdir, `${tempBasename}.[hash].tmp.js`));
 
 				if (!resolvedTempOutput) {
 					appLogger.debug(`Missing grouped temp output for ${outputUrl}`);
@@ -759,13 +776,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * Clears stale HMR output from a directory before a rebuild.
 	 *
 	 * Only removes:
-	 * - `*.tmp.js` files (the per-build esbuild output the strategy owns)
-	 * - the `chunks/` subdirectory (esbuild's splitting target)
+	 * - `*.tmp.js` files (the per-build bundler output the strategy owns)
+	 * - the `chunks/` subdirectory (the bundler's splitting target)
 	 *
 	 * The HMR runtime script (`_hmr_runtime.js`) and any user-authored
 	 * assets in the outdir are preserved. This is the minimal set of
-	 * files that, if left from a previous build, can cause esbuild to
-	 * emit `ENOENT` for chunk references that point to entrypoints
+	 * files that, if left from a previous build, can cause the bundler
+	 * to emit `ENOENT` for chunk references that point to entrypoints
 	 * whose hash has since changed.
 	 */
 	private async clearHmrOutdir(outdir: string): Promise<void> {

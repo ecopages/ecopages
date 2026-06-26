@@ -2,21 +2,16 @@
  * Process-wide parse cache for `oxc-parser.parseSync`.
  *
  * @remarks
- * Three of the heaviest build plugins (eco-component-meta, client-graph-
- * boundary, browser-runtime-import-rewrite) each call `parseSync` on the
- * same source file with overlapping options. This cache memoizes the
- * parse result keyed by `(absolute path, source, options)`. When the
- * source is unchanged, subsequent calls return the cached result without
- * re-parsing.
+ * Several build plugins (eco-component-meta, client-graph-boundary,
+ * browser-runtime) each call `parseSync` on the same source file with
+ * overlapping options. This cache memoizes the parse result keyed by
+ * `(absolute path, source, options)`. When the source is unchanged,
+ * subsequent calls return the cached result without re-parsing.
  *
  * The cache is LRU-bounded (10 000 entries) and key-stable across a
  * single HMR session. It is **content-hashed** rather than
  * mtime-hashed so that `touch`/`utimes` does not invalidate a
  * still-valid parse.
- *
- * Survives into the Rolldown migration (Phase 3): Rolldown's Rust-side
- * caching absorbs the bulk of the win, but this JS-side cache still
- * helps the post-build pass and any JS-only plugins we keep.
  */
 
 import { parseSync, type ParseResult, type ParserOptions } from 'oxc-parser';

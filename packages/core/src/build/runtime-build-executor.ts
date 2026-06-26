@@ -2,44 +2,36 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
 	getAppBuildAdapter,
 	getAppBuildExecutor,
-	getAppBuildOwnership,
 	getAppServerBuildPlugins,
 	setAppBuildExecutor,
+	withBuildExecutorPlugins,
 	type BuildExecutor,
 } from './build-adapter.ts';
-import { createOrReuseAppBuildExecutor, withBuildExecutorPlugins } from './dev-build-coordinator.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
 /**
  * Installs the app-owned runtime build executor for one app instance.
  *
  * @remarks
- * This is the single runtime executor boundary for adapter-owned startup.
- * Bun-native ownership may reuse `DevBuildCoordinator` in development
- * (esbuild-specific protocol-fault recovery + serialization); the
- * Vite-host path wraps the plain adapter in {@link SerializedBuildExecutor}
- * so its builds are also FIFO-serialized. Per ADR-002, all dev watch
- * paths must serialize.
+ * Wraps the app-owned adapter in a {@link SerializedBuildExecutor} so
+ * every dev-watch caller issues builds against a single FIFO queue.
+ * Plugin injection is applied here via {@link withBuildExecutorPlugins}
+ * so app-owned plugins are merged into every rebuild without callers
+ * having to know about the manifest.
+ *
+ * Idempotent across calls: re-invoking replaces the existing executor
+ * on `appConfig.runtime` with a fresh wrapper.
+ *
+ * @param appConfig - The app config whose runtime state is updated.
+ *   The function reads the existing executor (falling back to the
+ *   app-owned adapter) and writes the wrapped executor back.
+ * @returns The installed {@link BuildExecutor}.
  */
-export function installAppRuntimeBuildExecutor(
-	appConfig: EcoPagesAppConfig,
-	options: {
-		development: boolean;
-	},
-): BuildExecutor {
-	const buildOwnership = getAppBuildOwnership(appConfig);
-	const buildExecutor =
-		buildOwnership === 'bun-native'
-			? createOrReuseAppBuildExecutor({
-					development: options.development,
-					adapter: getAppBuildAdapter(appConfig),
-					currentExecutor: getAppBuildExecutor(appConfig),
-					getPlugins: () => getAppServerBuildPlugins(appConfig),
-				})
-			: new SerializedBuildExecutor(
-					withBuildExecutorPlugins(getAppBuildAdapter(appConfig), () => getAppServerBuildPlugins(appConfig)),
-				);
-
+export function installAppRuntimeBuildExecutor(appConfig: EcoPagesAppConfig): BuildExecutor {
+	const baseExecutor = getAppBuildExecutor(appConfig) ?? getAppBuildAdapter(appConfig);
+	const buildExecutor = new SerializedBuildExecutor(
+		withBuildExecutorPlugins(baseExecutor, () => getAppServerBuildPlugins(appConfig)),
+	);
 	setAppBuildExecutor(appConfig, buildExecutor);
 	return buildExecutor;
 }

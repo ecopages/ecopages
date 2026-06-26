@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.2.0-alpha.53",
+	"version": "0.2.0-alpha.55",
 	"engines": {
 		"node": ">=24.0.0"
 	},
@@ -60,6 +60,7 @@
 		"playwright": "^1.60.0",
 		"prettier": "^3.8.3",
 		"typescript": "^5.9.3",
+		"vite": "^8.0.16",
 		"vitest": "^4.1.6"
 	},
 	"module": "src/index.js",

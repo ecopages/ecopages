@@ -182,11 +182,8 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
 /**
  * Options for creating a page with eco.page()
  *
- * Supports two patterns:
- * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
- * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
- *
- * When using `middleware`, `cache` must be set to `'dynamic'` because middleware
+ * Define staticPaths, staticProps, and metadata inline. When using
+ * `middleware`, `cache` must be set to `'dynamic'` because middleware
  * runs on every request and caching would bypass middleware effects.
  *
  * @template T - The props type for the page

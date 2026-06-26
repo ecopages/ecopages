@@ -1,107 +1,91 @@
 # Build Layer
 
-This directory contains the runtime-neutral build contract used across Ecopages, the Bun-native adapter that currently uses esbuild under the hood, and the explicit host-owned Vite compatibility boundary.
+The build layer is the bundler contract for Ecopages. One bundled adapter is the default; one host-owned boundary marker covers the Vite-host path.
+
+## Mental Model
+
+Three concentric shapes, plus a serializer and a plugin injector:
+
+| Shape                      | Lives in                       | Purpose                                                                                                                                                             |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`             | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
+| `BuildExecutor`            | `build-adapter.ts`             | Narrower runtime facade. Only `build` is exposed. Stored on `appConfig.runtime.buildExecutor`.                                                                      |
+| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used by the dev watch pipeline.                                                                                              |
+| `withBuildExecutorPlugins` | `build-adapter.ts`             | Merges app-owned plugins into every `build` call. The single point of plugin injection.                                                                             |
+
+Plus one translation bridge:
+
+- `rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into the bundler's native `Plugin` array. Each `EcoBuildPlugin` becomes its own plugin entry to preserve plugin-priority order.
 
 ## Files
 
-- `build-adapter.ts`: shared build interfaces, explicit Bun-native versus Vite-host ownership helpers, app-owned adapter/executor helpers, and compatibility fallback helpers for older Bun-native call paths.
-- `build-types.ts`: plugin bridge types used by integrations and processors.
-- `esbuild-build-adapter.ts`: the concrete Bun-native adapter implementation. It is compatibility infrastructure, not strategic architecture.
-- `dev-build-coordinator.ts`: development-only orchestration around the temporary Bun-native esbuild backend.
-- `*.test.ts`: focused regression coverage for plain builds and development serialization and recovery.
-
-## Responsibilities
-
-The build layer is intentionally split into two parts.
-
-`BuildExecutor` is the runtime-facing contract.
-
-- It is the narrow facade stored on `appConfig.runtime.buildExecutor`.
-- It answers only how a given app instance should execute builds right now.
-- the Bun-native adapter satisfies this contract directly in plain flows.
-- `DevBuildCoordinator` also satisfies this contract by wrapping the temporary Bun-native esbuild adapter with development-only serialization and recovery policy.
-
-`EsbuildBuildAdapter` is the current Bun-native backend. It knows how to:
-
-- load the esbuild module
-- translate Ecopages `BuildOptions` into esbuild options
-- bridge Ecopages build plugins into esbuild hooks
-- normalize build output, logs, and dependency graph metadata
-- detect the subset of runtime faults that mean the esbuild worker protocol is corrupted
-
-`ViteHostBuildAdapter` is a boundary marker, not a real backend. It exists so app/runtime state can represent that Vite owns host-side build execution instead of silently falling back to a framework-owned esbuild path.
-
-`DevBuildCoordinator` is the development policy layer. It exists because one app/runtime can have many build callers during dev mode, including:
-
-- page module imports
-- HMR entrypoint builds
-- script and asset processors
-- React integration build paths
-
-Those callers must not race each other against one long-lived esbuild worker. The coordinator therefore owns temporary compatibility policy for the Bun-native path:
-
-- serialized access to the shared adapter in development
-- recycling warm Node-target esbuild sessions between builds
-- recovery from known esbuild worker protocol faults
+- `build-adapter.ts`: types, factories, app-owned helpers, `withBuildExecutorPlugins`.
+- `build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
+- `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult` (outputs, dependency graph, logs).
+- `rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
+- `serialized-build-executor.ts`: FIFO queue primitive.
+- `runtime-build-executor.ts`: dev-watch entrypoint that wraps the app-owned adapter in a `SerializedBuildExecutor + withBuildExecutorPlugins` chain.
+- `*.test.ts`: regression coverage.
 
 ## Default Flow
 
-Each `EcoPagesAppConfig` owns explicit build ownership, a build adapter, a build manifest, and a `buildExecutor` in `appConfig.runtime`. `ConfigBuilder.build()` now creates that app-owned build state up front so later runtime startup can reuse it rather than mutating a shared adapter.
+`ConfigBuilder.build()` creates one app-owned adapter, manifest, executor, dev graph, and runtime registry. The executor it stores is the raw `BuildAdapter`; the plugin-wrap step lives in the runtime path.
 
-When a Bun server adapter starts in watch mode, it replaces that executor with a per-app `DevBuildCoordinator`. Vite-hosted flows should not use that coordinator; the host owns watch, graph, and HMR policy there. Build consumers then either call the executor directly or pass it explicitly to the top-level `build()` helper.
+When a server adapter initializes, it calls `installAppRuntimeBuildExecutor(appConfig)`. That function reads the existing executor (or falls back to the app-owned adapter) and stores a fresh wrapper:
 
-The exported `defaultBuildAdapter` and top-level `getTranspileOptions()` helper are compatibility fallbacks only. New runtime code should prefer app-owned access through `getAppBuildAdapter()`, `getAppBuildExecutor()`, and `getAppTranspileOptions()`.
-
-The same rule applies to source-module loading: host-owned import behavior must be injected through abstract runtime state rather than imported directly into core services.
-
-Plugins are part of app-owned manifest or per-build input now. The source build contract no longer exposes adapter-level plugin registration, which keeps build composition scoped to an app/runtime instance instead of leaking across instances.
-
-HMR callers follow the same ownership model. Integration-specific runtime aliasing stays with the integration that owns those specifiers, rather than in generic core HMR bundling.
-
-## Orchestration Diagram
-
-```mermaid
-flowchart TD
-    Config["ConfigBuilder.build()"] --> DefaultExec["appConfig.runtime.buildExecutor = createAppBuildExecutor(app adapter, manifest)"]
-    Adapter["Server adapter initialize() in watch mode"] --> DevExec["appConfig.runtime.buildExecutor = DevBuildCoordinator"]
-    Caller["Any build caller with app/runtime context"] --> Build["executor.build(options) or build(options, executor)"]
-    Build --> Executor["BuildExecutor"]
-    Executor --> Coordinator["DevBuildCoordinator.build()"]
-    Coordinator --> Backend["EsbuildBuildAdapter.buildOrThrow()"]
-    Executor -->|plain flow| Direct["EsbuildBuildAdapter.build()"]
-    Backend --> Result["BuildResult"]
-    Direct --> Result["BuildResult"]
-    Result --> Browser["Browser consumes emitted bundle directly"]
+```
+BuildExecutor
+  └─ SerializedBuildExecutor            // FIFO queue
+       └─ withBuildExecutorPlugins       // injects app plugins
+            └─ BuildAdapter (bundled adapter or Vite-host)
 ```
 
-## Recovery Model
+Every dev-watch caller reads `appConfig.runtime.buildExecutor` and gets the merged plugin set without further ceremony.
 
-The recovery path is narrow on purpose. The coordinator only treats an error as recoverable when `EsbuildBuildAdapter.isEsbuildProtocolError()` matches one of the known worker-protocol failure signatures.
+The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `getAppBuildExecutor()`, and `getAppTranspileOptions()`.
 
-When that happens, recovery does three things in order:
+## Vite-Host Boundary
 
-1. Reset the serialized queue so future builds are not stuck behind a wedged promise.
-2. Stop the current esbuild service instance.
-3. Increment the esbuild module generation so the next import gets a fresh worker instance.
+`ViteHostBuildAdapter` is not a real backend. It exists so `appConfig.runtime.buildAdapter` can carry the `'vite-host'` ownership without falling back to a framework-owned bundler path. Every method throws a clear `Vite-hosted builds are owned by the host runtime. Core cannot …` error so misrouted calls fail loudly.
 
-After that reset, the coordinator retries the failed build once.
+Vite-based apps (or any future host runtime) should:
 
-## Why Explicit App Ownership
+1. Construct a `ViteHostBuildAdapter` via `createViteHostBuildAdapter()` and install it on the app config with `setAppBuildAdapter`.
+2. Run their own build pipeline outside the core.
+3. Reuse the core's `BuildExecutor`-shaped surface where possible so call-sites stay backend-neutral.
 
-There are many build callsites across core and integrations. The coordinator still needs to stay centralized for the remaining Bun-native compatibility path, but process-global installation hid the real dependency and tied behavior to startup order.
+## Plugin Authoring
 
-The explicit app-owned executor model keeps the design honest:
+`EcoBuildPlugin` is the runtime-agnostic contract integrations and processors register. The shape:
 
-- each app/runtime owns its own build executor
-- development policy stays in one place (`DevBuildCoordinator`) for the remaining Bun-native path only
-- callers with app context use that executor explicitly instead of consulting global state
-- tests can still instantiate `EsbuildBuildAdapter`, `ViteHostBuildAdapter`, or `DevBuildCoordinator` directly when they want the raw ownership boundary or compatibility backend only
+- `name: string`
+- `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
+
+`EcoBuildPluginBuilder` exposes three hooks:
+
+- `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
+- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
+- `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
+
+Namespace handling: the shared plugin contract scopes handlers with a `namespace` string; the bundler encodes namespaces into the module id. The bridge prepends `<namespace>:` to resolved ids and matches filters against that prefix, then strips it before forwarding back to callbacks. Plugin code keeps the same `path` shape it had on the shared contract.
+
+Plugin ordering: the bundler's `resolveId` and `load` are "first" hooks. The bridge translates each `EcoBuildPlugin` into its own plugin and preserves the array order, so position determines priority: index 0 wins first, the last index is the lowest priority. Security-critical plugins (e.g. `ecopages-client-graph-boundary`) should be placed before general-purpose loaders in the array.
+
+## BuildOptions Caveats
+
+`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
+
+- `splitting` — accepted but currently ignored. The bundler splits by default. The per-chunk naming is fixed to `[name]-[hash]`. If you need to disable splitting or rename chunks, the adapter will need a new option.
+- `bundle` — accepted but ignored. The bundler always bundles.
+- `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
+
+These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
 
 ## Testing Strategy
 
-The build tests are split by concern.
+- `rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
+- `rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
+- `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, the `withBuildExecutorPlugins` injection, and the default-fallback behaviour.
+- `runtime-build-executor.test.ts` covers the dev-watch wrapper: serialization, plugin injection, and the Vite-host rejection path.
 
-- `build-adapter.test.ts` verifies plain backend behavior and plugin bridging.
-- `build-adapter-serialization.test.ts` verifies development orchestration behavior such as serialization, warm-session recycling, and protocol-fault recovery.
-
-If you change the build orchestration rules, update the coordinator tests first. If you change esbuild option mapping or plugin behavior, update the backend tests first.
+If you change option mapping or plugin-bridge semantics, update the adapter and bridge tests first. If you change the app-owned helper contracts, update `build-adapter.test.ts` first.

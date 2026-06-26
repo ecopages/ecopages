@@ -1,0 +1,14 @@
+import { installWindowOnGlobal } from '@lit-labs/ssr/lib/dom-shim.js';
+import '@lit-labs/ssr/lib/install-global-dom-shim.js';
+
+if (typeof globalThis.document?.createTreeWalker !== 'function') {
+	if (typeof globalThis.window === 'undefined') {
+		installWindowOnGlobal();
+	} else {
+		Object.defineProperty(globalThis.document, 'createTreeWalker', {
+			configurable: true,
+			writable: true,
+			value: () => ({}),
+		});
+	}
+}

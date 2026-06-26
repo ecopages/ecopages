@@ -66,6 +66,7 @@ describe('ReactPageModuleService', () => {
 		expect(buildMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				entrypoints: [mdxPath],
+				externalPackages: true,
 				format: 'esm',
 				naming: expect.stringContaining('[ext]'),
 				outdir: path.join(workDir, '.server-modules-react-mdx'),

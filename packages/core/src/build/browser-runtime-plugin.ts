@@ -2,9 +2,8 @@
  * Unified browser-runtime plugin factory.
  *
  * @remarks
- * Replaces both `createRuntimeSpecifierAliasPlugin` (alias-only) and
- * `createBrowserRuntimeImportRewritePlugin` (rewrite-only) with a single
- * factory that exposes the union of behaviors:
+ * Single factory that exposes the union of behaviors for the browser
+ * runtime:
  *
  * - `onResolve` for manifest specifiers → mapped public URL, marked external
  * - `onResolve` for paths starting with `/` whose target is in the manifest's
@@ -12,19 +11,13 @@
  * - `onLoad` for JS/TS files → AST-walking import/export rewrite against the
  *   manifest specifier set, with a `code.includes(specifier)` fast path
  *
- * The old factories are preserved as thin wrappers (see
- * `runtime-specifier-alias-plugin.ts` and
- * `browser-runtime-import-rewrite-plugin.ts`) so call sites are unchanged.
- *
  * The plugin object carries the manifest's `specifier → publicPath` map
  * under `BROWSER_RUNTIME_IMPORT_REWRITE_MAP` so
  * `collectBrowserRuntimeImportRewriteMap` and the post-build rewriter can
  * read it without re-walking the manifest.
  *
- * Per ADR-002, this is the single source of truth for browser-runtime
- * plugin behavior. Future per-bundler bridges (esbuild, Bun, Rolldown)
- * can treat it as a single plugin and need not understand the two legacy
- * factories.
+ * This is the single source of truth for browser-runtime plugin behavior.
+ * Per-bundler bridges can treat it as a single plugin.
  */
 
 import path from 'node:path';
@@ -45,18 +38,12 @@ type Edit = {
  * Symbol used to attach the manifest's `specifier → publicPath` map to a
  * plugin instance. Consumers read it via `getBrowserRuntimeImportRewriteMap`
  * or `collectBrowserRuntimeImportRewriteMap`.
- *
- * The name is preserved from the previous rewrite-only plugin for
- * backward compatibility.
  */
 export const BROWSER_RUNTIME_IMPORT_REWRITE_MAP = Symbol.for('ecopages.browserRuntimeImportRewriteMap');
 
 /**
  * Default name used by `createBrowserRuntimePlugin` when the caller
- * does not provide one. Replaces the older
- * `DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME` constant for new
- * code; the older name is still re-exported from
- * `browser-runtime-import-rewrite-plugin.ts` for backward compatibility.
+ * does not provide one.
  */
 export const DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME = 'browser-runtime-plugin';
 
@@ -66,23 +53,22 @@ export type CreateBrowserRuntimePluginOptions = {
 	/** Stable build plugin name used for deduplication and selective exclusion. */
 	name?: string;
 	/**
-	 * Whether alias `onResolve` results should be marked `external`. The
-	 * default `true` matches the legacy alias plugin's behavior; pass
-	 * `false` to let the bundler try to bundle the mapped URL.
+	 * Whether alias `onResolve` results should be marked `external`.
+	 * Default `true`. Pass `false` to let the bundler try to bundle the
+	 * mapped URL.
 	 */
 	external?: boolean;
 	/**
 	 * Enable source-level AST import/export rewrite via the `onLoad`
-	 * hook. Default `true` to match the legacy rewrite plugin. Set
-	 * `false` for alias-only consumers (e.g. `react`/`react-dom`
-	 * externals in vendor assets).
+	 * hook. Default `true`. Set `false` for alias-only consumers
+	 * (e.g. `react`/`react-dom` externals in vendor assets).
 	 */
 	rewriteImports?: boolean;
 	/**
 	 * Register an `onResolve` for paths starting with `/` whose target
 	 * is in the manifest's public path set. Marks them external so the
 	 * bundler does not try to resolve them as source modules. Default
-	 * `true` to match the legacy rewrite plugin.
+	 * `true`.
 	 */
 	matchPublicPaths?: boolean;
 };
@@ -139,7 +125,7 @@ function queueReplacement(options: {
  * Rewrites static ESM import/export specifiers and string-literal dynamic imports
  * from manifest-owned runtime specifiers to concrete browser public URLs.
  *
- * Exposed for the post-build rewriter (esbuild + Bun paths) and for tests.
+ * Exposed for the post-build rewriter and for tests.
  */
 export function rewriteBrowserRuntimeImports(
 	code: string,
@@ -254,6 +240,8 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 	const matchPublicPaths = options.matchPublicPaths ?? true;
 	const publicPathSet = new Set(specifierMap.values());
 
+	const specifierKeys = Array.from(specifierMap.keys());
+
 	const plugin: BrowserRuntimePlugin = {
 		name: options.name ?? DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 		setup(build) {
@@ -295,7 +283,7 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 					 * any manifest-owned specifiers. This avoids expensive oxc-parser calls
 					 * on every JS/TS file in the dependency graph.
 					 */
-					if (!Array.from(specifierMap.keys()).some((specifier) => code.includes(specifier))) {
+					if (!specifierKeys.some((specifier) => code.includes(specifier))) {
 						return undefined;
 					}
 

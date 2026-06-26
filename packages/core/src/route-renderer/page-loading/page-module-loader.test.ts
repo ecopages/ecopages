@@ -110,7 +110,7 @@ describe('PageModuleLoaderService', () => {
 				...appConfig,
 				runtime: {
 					appModuleLoader: {
-						owner: 'bun',
+						owner: 'app',
 						async importModule<T = unknown>(options: unknown): Promise<T> {
 							calls.push(options);
 							return expectedModule as T;
@@ -150,7 +150,7 @@ describe('PageModuleLoaderService', () => {
 				...appConfig,
 				runtime: {
 					appModuleLoader: {
-						owner: 'bun',
+						owner: 'app',
 						async importModule<T = unknown>(options: unknown): Promise<T> {
 							calls.push(options);
 							return expectedModule as T;

@@ -148,7 +148,7 @@ describe('ServerModuleTranspiler', () => {
 		const secondLoader = getAppModuleLoader(appConfig);
 
 		assert.equal(firstLoader, secondLoader);
-		assert.equal(firstLoader.owner, 'bun');
+		assert.equal(firstLoader.owner, 'app');
 	});
 
 	it('reflects host ownership on the app-owned module loader after runtime wiring changes', () => {
@@ -238,6 +238,5 @@ describe('ServerModuleTranspiler', () => {
 				invalidationVersion: 1,
 			},
 		);
-		assert.equal(importOptions.plugins?.[0]?.name, 'node-bootstrap-plugin');
 	});
 });

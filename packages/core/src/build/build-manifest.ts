@@ -1,8 +1,5 @@
 import type { EcoBuildPlugin } from './build-types.ts';
-import {
-	createBrowserRuntimeImportRewritePlugin,
-	DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
-} from './browser-runtime-import-rewrite-plugin.ts';
+import { createBrowserRuntimePlugin, DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from './browser-runtime-plugin.ts';
 import {
 	createBrowserRuntimeManifest,
 	mergeBrowserRuntimeManifests,
@@ -68,8 +65,8 @@ export function getServerBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugi
  * Returns the plugin list used for browser-oriented builds.
  */
 export function getBrowserBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugin[] {
-	const runtimeRewritePlugin = createBrowserRuntimeImportRewritePlugin({
-		name: DEFAULT_BROWSER_RUNTIME_IMPORT_REWRITE_PLUGIN_NAME,
+	const runtimeRewritePlugin = createBrowserRuntimePlugin({
+		name: DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 		manifest: getBrowserRuntimeManifest(manifest),
 	});
 

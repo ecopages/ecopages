@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.53",
+	"version": "0.2.0-alpha.55",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -27,11 +27,13 @@
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",
+		"@oxc-project/runtime": "0.134.0",
 		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^5.0.0",
 		"esbuild": "^0.28.0",
 		"ghtml": "^4.0.2",
 		"oxc-parser": "^0.124.0",
+		"rolldown": "^1.1.0",
 		"ws": "^8.20.1"
 	},
 	"devDependencies": {
@@ -130,21 +132,17 @@
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
+		"./build/runtime-build-output-normalizer": {
+			"types": "./src/build/runtime-build-output-normalizer.ts",
+			"default": "./src/build/runtime-build-output-normalizer.ts"
+		},
 		"./build/browser-runtime-manifest": {
 			"types": "./src/build/browser-runtime-manifest.ts",
 			"default": "./src/build/browser-runtime-manifest.ts"
 		},
-		"./build/browser-runtime-import-rewrite-plugin": {
-			"types": "./src/build/browser-runtime-import-rewrite-plugin.ts",
-			"default": "./src/build/browser-runtime-import-rewrite-plugin.ts"
-		},
 		"./build/browser-runtime-plugin": {
 			"types": "./src/build/browser-runtime-plugin.ts",
 			"default": "./src/build/browser-runtime-plugin.ts"
-		},
-		"./build/runtime-specifier-alias-plugin": {
-			"types": "./src/build/runtime-specifier-alias-plugin.ts",
-			"default": "./src/build/runtime-specifier-alias-plugin.ts"
 		},
 		"./cache": {
 			"types": "./src/cache/index.ts",

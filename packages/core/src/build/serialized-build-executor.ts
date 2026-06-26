@@ -1,3 +1,5 @@
+import type { BuildExecutor, BuildOptions, BuildResult } from './build-adapter.ts';
+
 /**
  * FIFO-serialized build executor wrapper.
  *
@@ -6,17 +8,11 @@
  * concurrently. The next build waits for the previous one to finish
  * (success or failure) before starting.
  *
- * This is a bundler-agnostic primitive. It does **not** know about
- * esbuild worker protocol faults, Rolldown lifecycle events, or any
- * other backend-specific behavior — it just enforces one build at a
- * time. Per ADR-002, this is the correct primitive for any backend
- * that does not natively serialize its builds.
- *
+ * This is a bundler-agnostic primitive. It is unaware of bundler
+ * lifecycle events and exists purely to enforce one build at a time.
  * Use it from the dev watch pipeline, the static preview path, or any
  * caller that issues builds concurrently.
  */
-
-import type { BuildExecutor, BuildOptions, BuildResult } from './build-adapter.ts';
 
 /**
  * FIFO-serialized wrapper around a {@link BuildExecutor}.
@@ -47,9 +43,9 @@ export class SerializedBuildExecutor implements BuildExecutor {
 	 *
 	 * Use this when the work is not a `build()` call against a wrapped
 	 * executor (e.g. when composing with a coordinator that needs to
-	 * inject protocol-fault recovery around the inner call). The
-	 * returned promise resolves with the operation's result. A
-	 * rejected operation does not block the queue.
+	 * inject recovery around the inner call). The returned promise
+	 * resolves with the operation's result. A rejected operation does
+	 * not block the queue.
 	 */
 	run<T>(operation: () => Promise<T>): Promise<T> {
 		const next = this.tail.catch(() => undefined).then(() => operation());
@@ -64,19 +60,6 @@ export class SerializedBuildExecutor implements BuildExecutor {
 	 */
 	unwrap(): BuildExecutor {
 		return this.inner;
-	}
-
-	/**
-	 * Returns the number of builds that are currently in flight or
-	 * waiting in the queue. Useful for tests that want to assert the
-	 * queue drains to zero.
-	 */
-	get queueDepth(): number {
-		// We can't introspect the chain count directly, so we expose a
-		// method that returns the inner executor. Tests assert via
-		// timing: enqueue builds, await them all, then assert no
-		// dangling handles. The `queueDepth` getter is best-effort.
-		return 0;
 	}
 
 	/**

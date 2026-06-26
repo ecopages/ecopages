@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
+import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
 
 /**
  * Options for the shared foreign-JSX override build plugin.
@@ -35,10 +36,8 @@ export interface ForeignJsxOverrideOptions {
  * no-op so integrations can register it unconditionally.
  */
 export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOptions): EcoBuildPlugin {
-	const extensions = options.foreignExtensions.filter((ext) => ext.endsWith('.tsx') || ext.endsWith('.jsx'));
-	const excludedExtensions = (options.excludeExtensions ?? []).filter(
-		(ext) => ext.endsWith('.tsx') || ext.endsWith('.jsx'),
-	);
+	const extensions = filterJsxSourceExtensions(options.foreignExtensions);
+	const excludedExtensions = filterJsxSourceExtensions(options.excludeExtensions ?? []);
 
 	if (extensions.length === 0) {
 		return {
@@ -47,7 +46,7 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 		};
 	}
 
-	const pragma = `/** @jsxImportSource ${options.hostJsxImportSource} */\n`;
+	const pragma = createJsxImportSourcePragma(options.hostJsxImportSource);
 	const filter = new RegExp(`(${extensions.map((e) => e.replace('.', '\\.')).join('|')})$`);
 
 	return {

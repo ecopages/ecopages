@@ -14,8 +14,10 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '@ecopages/core';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import './dom-shim.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { getActiveLitStaticRenderSession } from './lit-static-render-coordinator.ts';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
@@ -25,18 +27,6 @@ import {
 	normalizeLitHtml,
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
-
-type LitForeignSubtreeResolutionContext = {
-	rendererCache: Map<string, IntegrationRenderer<any>>;
-	componentInstanceScope?: string;
-	nextForeignSubtreeId: number;
-	queuedResolutions: Array<{
-		token: string;
-		component: EcoComponent;
-		props: Record<string, unknown>;
-		componentInstanceId: string;
-	}>;
-};
 
 /**
  * A renderer for the Lit integration.
@@ -89,45 +79,27 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return renderedChildren;
 	}
 
-	private async resolveQueuedForeignSubtreeHtml(
-		html: string,
-		runtimeContext: LitForeignSubtreeResolutionContext | undefined,
-	): Promise<{ html: string; assets: ComponentRenderResult['assets'] }> {
-		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
-			html,
-			runtimeContext,
-			queueLabel: 'Lit',
-			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
-				const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
-					children,
-					queuedResolutionsByToken,
-					resolveToken,
-				);
+	private async renderLitQueuedForeignSubtreeChildren(
+		children: unknown,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<{ assets: ProcessedAsset[]; children?: unknown; html?: string }> {
+		const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
+			children,
+			queuedResolutionsByToken,
+			resolveToken,
+		);
 
-				if (typeof renderedChildren !== 'string') {
-					return {
-						assets: [],
-						children: renderedChildren,
-					};
-				}
-
-				return {
-					assets: [],
-					html: renderedChildren,
-				};
-			},
-		});
+		if (typeof renderedChildren !== 'string') {
+			return {
+				assets: [],
+				children: renderedChildren,
+			};
+		}
 
 		return {
-			html: queuedForeignSubtreeResolution.html,
-			assets:
-				queuedForeignSubtreeResolution.assets.length > 0 ? queuedForeignSubtreeResolution.assets : undefined,
+			assets: [],
+			html: renderedChildren,
 		};
 	}
 
@@ -175,7 +147,10 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			renderedChildren === undefined ? renderedHtml : injectLitRenderedChildren(renderedHtml, renderedChildren);
 		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(
 			html,
-			this.getQueuedForeignSubtreeResolutionContext<LitForeignSubtreeResolutionContext>(input),
+			this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(input),
+			(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+				this.renderLitQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
+			'Lit',
 		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
@@ -191,7 +166,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			integrationName: this.name,
 			assets: this.htmlTransformer.dedupeProcessedAssets([
 				...(assets ?? []),
-				...(queuedForeignSubtreeResolution.assets ?? []),
+				...queuedForeignSubtreeResolution.assets,
 			]),
 		};
 	}

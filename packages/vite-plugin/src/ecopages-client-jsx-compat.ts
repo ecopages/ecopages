@@ -1,5 +1,6 @@
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
+import { createJsxImportSourcePragma, filterJsxSourceExtensions } from '@ecopages/core/plugins/jsx-import-source.utils';
 
 /**
  * Overrides the JSX import source for non-host integration files when served
@@ -27,12 +28,14 @@ export function ecopagesClientJsxCompat(api: EcopagesPluginApi): EcopagesVitePlu
 		};
 	}
 
-	const pragma = `/** @jsxImportSource ${hostIntegration.jsxImportSource} */\n`;
+	const pragma = createJsxImportSourcePragma(hostIntegration.jsxImportSource);
 
 	const nonHostExtensions = new Set(
-		api.appConfig.integrations
-			.filter((integration) => integration.name !== hostIntegration.name)
-			.flatMap((integration) => integration.extensions),
+		filterJsxSourceExtensions(
+			api.appConfig.integrations
+				.filter((integration) => integration.name !== hostIntegration.name)
+				.flatMap((integration) => integration.extensions),
+		),
 	);
 
 	function matchesNonHostExtension(id: string): boolean {

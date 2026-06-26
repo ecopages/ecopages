@@ -109,7 +109,7 @@ export type EcoNavigationRuntimeRegistration = {
 	 * Implementations may honor `request.moduleUrl` to force a specific page entry
 	 * and `request.clearCache` to discard persisted runtime state before reloading.
 	 */
-	reloadCurrentPage?: (request?: EcoReloadRequest) => Promise<void>;
+	reloadCurrentPage?: (request?: EcoReloadRequest) => Promise<boolean | void>;
 	/**
 	 * Releases runtime-owned client state before another runtime commits a new
 	 * document.
@@ -402,8 +402,8 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 					continue;
 				}
 
-				await registration.reloadCurrentPage(request);
-				return true;
+				const handled = await registration.reloadCurrentPage(request);
+				return handled !== false;
 			}
 
 			return false;
@@ -429,6 +429,18 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 			await runtime.cleanupOwner(owner);
 		},
 	};
+
+	if (typeof window !== 'undefined') {
+		window.addEventListener('pageshow', (event) => {
+			if (event.persisted) {
+				runtime.cancelCurrentNavigationTransaction();
+			}
+		});
+
+		window.addEventListener('pagehide', () => {
+			runtime.cancelCurrentNavigationTransaction();
+		});
+	}
 
 	return runtime;
 }

@@ -9,7 +9,7 @@
 			@apply flex items-center gap-4;
 
 			.version {
-				@apply text-[10px] font-heading font-medium tracking-tight bg-background text-on-background/90 px-2 py-0.5 rounded border border-border;
+				@apply text-xs font-heading font-medium tracking-tight bg-background text-on-background/90 px-2 py-0.5 rounded border border-border;
 			}
 		}
 	}

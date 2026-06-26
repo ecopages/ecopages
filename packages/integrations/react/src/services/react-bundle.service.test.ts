@@ -3,13 +3,32 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/build/build-types';
 import { ReactBundleService } from './react-bundle.service.ts';
+
+const testAppConfig = {
+	rootDir: '/app',
+	integrations: [
+		{
+			name: 'react',
+			jsxImportSource: 'react',
+			extensions: ['.react.tsx', '.tsx'],
+		},
+		{
+			name: 'kitajs',
+			jsxImportSource: '@kitajs/html',
+			extensions: ['.kita.tsx'],
+		},
+	],
+} as unknown as EcoPagesAppConfig;
 
 describe('ReactBundleService', () => {
 	it('does not include the Eco core browser shim in client bundle options', async () => {
 		const service = new ReactBundleService({
 			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
 			routerAdapter: {
 				name: 'eco-router',
 				bundle: {
@@ -40,6 +59,8 @@ describe('ReactBundleService', () => {
 	it('can bundle runtime specifiers directly into page-owned entries', async () => {
 		const service = new ReactBundleService({
 			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
 			routerAdapter: {
 				name: 'eco-router',
 				bundle: {
@@ -68,6 +89,8 @@ describe('ReactBundleService', () => {
 	it('rewrites React runtime imports to concrete runtime asset URLs during module loading', async () => {
 		const service = new ReactBundleService({
 			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
 		});
 		const options = await service.createBundleOptions('ecopages-react-page', false, []);
 		const runtimeRewritePlugin = (options.plugins as Array<{ name: string }>).find(

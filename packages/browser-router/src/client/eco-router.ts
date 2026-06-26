@@ -24,7 +24,6 @@ export class EcoRouter {
 	private started = false;
 	private pendingNavigations = 0;
 	private pendingPointerNavigation: EcoPendingNavigationIntent | null = null;
-	private pendingHoverNavigation: EcoPendingNavigationIntent | null = null;
 	private queuedNavigationHref: string | null = null;
 
 	private domSwapper: DomSwapper;
@@ -53,7 +52,6 @@ export class EcoRouter {
 		}
 
 		this.handleClick = this.handleClick.bind(this);
-		this.handleHoverIntent = this.handleHoverIntent.bind(this);
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 	}
@@ -106,20 +104,6 @@ export class EcoRouter {
 		return href;
 	}
 
-	private getRecoveredHoverHref(): string | null {
-		const href = recoverPendingNavigationHref(
-			this.pendingHoverNavigation,
-			this.pendingNavigations > 0,
-			performance.now(),
-		);
-
-		if (!href) {
-			this.pendingHoverNavigation = null;
-		}
-
-		return href;
-	}
-
 	private isAnotherNavigationRuntimeActive(): boolean {
 		const ownerState = getEcoNavigationRuntime(window).getOwnerState();
 		return (
@@ -159,8 +143,10 @@ export class EcoRouter {
 		options: {
 			html?: string;
 			isStaleNavigation?: () => boolean;
+			allowFullDocumentFallback?: boolean;
 		} = {},
-	): Promise<void> {
+	): Promise<boolean> {
+		const allowFullDocumentFallback = options.allowFullDocumentFallback ?? true;
 		const previousUrl = new URL(window.location.href);
 		const navigationRuntime = getEcoNavigationRuntime(window);
 		const isStaleNavigation = options.isStaleNavigation ?? (() => false);
@@ -182,27 +168,37 @@ export class EcoRouter {
 		};
 
 		document.dispatchEvent(new CustomEvent('eco:before-swap', { detail: beforeSwapEvent }));
-		if (isStaleNavigation()) return;
+		if (isStaleNavigation()) {
+			return false;
+		}
 
 		if (shouldReload) {
 			if (shouldCleanupCurrentOwner) {
 				await navigationRuntime.cleanupOwner(currentDocumentOwner);
 			}
-			if (isStaleNavigation()) return;
-			this.reloadDocument(url);
-			return;
+			if (isStaleNavigation()) {
+				return false;
+			}
+			if (allowFullDocumentFallback) {
+				this.reloadDocument(url);
+			}
+			return false;
 		}
 
 		const useViewTransitions = this.options.viewTransitions;
 		await this.domSwapper.preloadStylesheets(newDocument);
-		if (isStaleNavigation()) return;
+		if (isStaleNavigation()) {
+			return false;
+		}
 
 		// Defer source-runtime cleanup until the incoming document is ready to win.
 		if (shouldCleanupCurrentOwner) {
 			await navigationRuntime.cleanupOwner(currentDocumentOwner);
 		}
 
-		if (isStaleNavigation()) return;
+		if (isStaleNavigation()) {
+			return false;
+		}
 
 		const commitSwap = () => {
 			if (isStaleNavigation()) return;
@@ -230,7 +226,9 @@ export class EcoRouter {
 			commitSwap();
 		}
 
-		if (isStaleNavigation()) return;
+		if (isStaleNavigation()) {
+			return false;
+		}
 
 		navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
 
@@ -256,6 +254,8 @@ export class EcoRouter {
 				}),
 			);
 		});
+
+		return true;
 	}
 
 	/**
@@ -270,11 +270,11 @@ export class EcoRouter {
 		}
 
 		const navigationRuntime = getEcoNavigationRuntime(window);
+		navigationRuntime.cancelCurrentNavigationTransaction();
+		this.pendingNavigations = 0;
+		this.queuedNavigationHref = null;
+		this.pendingPointerNavigation = null;
 
-		document.addEventListener('mouseover', this.handleHoverIntent, true);
-		document.addEventListener('pointerover', this.handleHoverIntent, true);
-		document.addEventListener('mousemove', this.handleHoverIntent, true);
-		document.addEventListener('pointermove', this.handleHoverIntent, true);
 		document.addEventListener('pointerdown', this.handlePointerDown, true);
 		document.addEventListener('click', this.handleClick, true);
 		window.addEventListener('popstate', this.handlePopState);
@@ -305,7 +305,9 @@ export class EcoRouter {
 				return true;
 			},
 			reloadCurrentPage: async (request) => {
-				if (this.pendingNavigations > 0) return;
+				if (this.pendingNavigations > 0) {
+					return false;
+				}
 
 				const currentUrl = window.location.pathname + window.location.search;
 
@@ -313,7 +315,10 @@ export class EcoRouter {
 					this.prefetchManager?.invalidate(currentUrl);
 				}
 
-				await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace');
+				return await this.performNavigation(new URL(currentUrl, window.location.origin), 'replace', {
+					bypassPrefetchCache: !!request?.clearCache,
+					allowFullDocumentFallback: false,
+				});
 			},
 			cleanupBeforeHandoff: async () => {
 				this.cancelNavigationTransaction();
@@ -337,10 +342,6 @@ export class EcoRouter {
 		}
 
 		this.cancelNavigationTransaction();
-		document.removeEventListener('mouseover', this.handleHoverIntent, true);
-		document.removeEventListener('pointerover', this.handleHoverIntent, true);
-		document.removeEventListener('mousemove', this.handleHoverIntent, true);
-		document.removeEventListener('pointermove', this.handleHoverIntent, true);
 		document.removeEventListener('pointerdown', this.handlePointerDown, true);
 		document.removeEventListener('click', this.handleClick, true);
 		window.removeEventListener('popstate', this.handlePopState);
@@ -348,7 +349,6 @@ export class EcoRouter {
 		this.unregisterNavigationRuntime?.();
 		this.unregisterNavigationRuntime = null;
 		this.started = false;
-		this.pendingHoverNavigation = null;
 		this.pendingPointerNavigation = null;
 		this.queuedNavigationHref = null;
 
@@ -417,35 +417,11 @@ export class EcoRouter {
 		}
 	}
 
-	private handleHoverIntent(event: MouseEvent | PointerEvent): void {
-		const link = this.getLinkFromEvent(event);
-		if (!link) {
-			return;
-		}
-
-		const href = this.canInterceptLink(event, link);
-		if (!href) {
-			return;
-		}
-
-		this.pendingHoverNavigation = {
-			href,
-			timestamp: performance.now(),
-		};
-
-		if (this.pendingNavigations > 0) {
-			this.queuedNavigationHref = href;
-		}
-	}
-
 	private handleClick(event: MouseEvent): void {
 		const navigationRuntime = getEcoNavigationRuntime(window);
 		const link = this.getLinkFromEvent(event);
-		const href = link
-			? this.canInterceptLink(event, link)
-			: (this.getRecoveredPointerHref() ?? this.getRecoveredHoverHref());
+		const href = link ? this.canInterceptLink(event, link) : this.getRecoveredPointerHref();
 		this.pendingPointerNavigation = null;
-		this.pendingHoverNavigation = null;
 		if (!href) return;
 		this.queuedNavigationHref = null;
 
@@ -525,31 +501,48 @@ export class EcoRouter {
 	 * @param url - The target URL to navigate to
 	 * @param direction - Navigation direction ('forward', 'back', or 'replace')
 	 */
-	private async performNavigation(url: URL, direction: EcoNavigationEvent['direction']): Promise<void> {
+	private async performNavigation(
+		url: URL,
+		direction: EcoNavigationEvent['direction'],
+		options: { bypassPrefetchCache?: boolean; allowFullDocumentFallback?: boolean } = {},
+	): Promise<boolean> {
+		const allowFullDocumentFallback = options.allowFullDocumentFallback ?? true;
 		this.pendingNavigations++;
 		const { isStaleNavigation, signal, complete } = this.beginNavigationTransaction();
 		let queuedNavigationHref: string | null = null;
+		let committed = false;
 
 		try {
-			const html = await this.fetchPage(url, signal);
-			if (isStaleNavigation()) return;
+			const html = await this.fetchPage(url, signal, { bypassCache: options.bypassPrefetchCache });
+			if (isStaleNavigation()) {
+				return false;
+			}
 
 			const newDocument = this.domSwapper.parseHTML(html, url);
-			if (isStaleNavigation()) return;
+			if (isStaleNavigation()) {
+				return false;
+			}
 
-			await this.commitDocumentNavigation(url, direction, newDocument, {
+			committed = await this.commitDocumentNavigation(url, direction, newDocument, {
 				html,
 				isStaleNavigation,
+				allowFullDocumentFallback,
 			});
+			return committed;
 		} catch (error) {
-			if (isStaleNavigation()) return;
+			if (isStaleNavigation()) {
+				return false;
+			}
 
 			if (error instanceof Error && error.name === 'AbortError') {
-				return;
+				return false;
 			}
 
 			console.error('[ecopages] Navigation failed:', error);
-			window.location.href = url.href;
+			if (allowFullDocumentFallback) {
+				window.location.href = url.href;
+			}
+			return false;
 		} finally {
 			complete();
 			this.pendingNavigations--;
@@ -586,8 +579,8 @@ export class EcoRouter {
 	 * @param signal - AbortSignal for cancelling the request
 	 * @throws Error if the response is not ok
 	 */
-	private async fetchPage(url: URL, signal: AbortSignal): Promise<string> {
-		if (this.prefetchManager) {
+	private async fetchPage(url: URL, signal: AbortSignal, options: { bypassCache?: boolean } = {}): Promise<string> {
+		if (!options.bypassCache && this.prefetchManager) {
 			const cachedHtml = this.prefetchManager.getCachedHtml(url.href);
 			if (cachedHtml) {
 				return cachedHtml;
@@ -596,6 +589,7 @@ export class EcoRouter {
 
 		const response = await fetch(url.href, {
 			signal,
+			cache: 'no-store',
 			headers: {
 				Accept: 'text/html',
 			},

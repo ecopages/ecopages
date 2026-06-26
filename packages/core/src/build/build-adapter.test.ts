@@ -10,7 +10,6 @@ import {
 	getAppBuildAdapter,
 	getAppBuildManifest,
 	getAppBrowserBuildPlugins,
-	getAppBuildExecutor,
 	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
@@ -129,7 +128,7 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
-test('getAppBuildExecutor falls back to the app-owned adapter before the shared default adapter', async () => {
+test('getAppBuildAdapter returns the app-owned adapter before the shared default adapter', async () => {
 	const appConfig = {
 		runtime: {},
 		loaders: new Map(),
@@ -139,7 +138,6 @@ test('getAppBuildExecutor falls back to the app-owned adapter before the shared 
 	setAppBuildAdapter(appConfig, appAdapter);
 
 	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
-	assert.equal(getAppBuildExecutor(appConfig), appAdapter);
 	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
 	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
 });
@@ -415,6 +413,34 @@ test('getAppBrowserBuildPlugins adds the app-level browser runtime rewrite plugi
 	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-plugin'));
 });
 
+test('getAppBrowserBuildPlugins excludes plugins that are registered as source transforms', () => {
+	const metaTransform = {
+		name: 'eco-component-meta-plugin',
+		filter: /\.tsx$/,
+		transform: () => undefined,
+	};
+	const loaderPlugin = { name: 'eco-component-meta-plugin', setup() {} };
+	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const appConfig = {
+		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+		sourceTransforms: new Map([[metaTransform.name, metaTransform]]),
+		runtime: {},
+	} as any;
+
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest({
+			loaderPlugins: [loaderPlugin],
+			browserBundlePlugins: [browserPlugin],
+		}),
+	);
+
+	assert.deepEqual(
+		getAppBrowserBuildPlugins(appConfig).map((plugin) => plugin.name),
+		['browser-plugin'],
+	);
+});
+
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
@@ -460,4 +486,35 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		'processor-runtime-plugin',
 		'integration-runtime-plugin',
 	]);
+});
+
+test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
+	const processor = {
+		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setup: vi.fn(async () => {}),
+	};
+	const integration = {
+		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setHmrManager: vi.fn(),
+		setup: vi.fn(async () => {}),
+	};
+	const observedRuntimePlugins: string[] = [];
+
+	await setupAppRuntimePlugins({
+		appConfig: {
+			loaders: new Map(),
+			processors: new Map([['processor', processor]]),
+			integrations: [integration],
+			runtime: { runtimeAssetsPrepared: true },
+		} as any,
+		runtimeOrigin: 'http://localhost:3000',
+		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
+	});
+
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
+	assert.equal(integration.setConfig.mock.calls.length, 0);
+	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
 });

@@ -20,6 +20,8 @@ export interface ServerRouteHandlerParams {
 	watch?: boolean;
 	/** HMR manager for broadcasting hot module reload events in development. */
 	hmrManager?: IHmrManager;
+	/** When true, the host dev server owns browser dev-client bootstrap. */
+	hostOwnsDevClient?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export class ServerRouteHandler {
 	private readonly explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 	private readonly watch: boolean;
 	private readonly hmrManager?: IHmrManager;
+	private readonly hostOwnsDevClient: boolean;
 
 	/**
 	 * Creates a new ServerRouteHandler instance.
@@ -50,12 +53,14 @@ export class ServerRouteHandler {
 		explicitStaticRouteMatcher,
 		watch = false,
 		hmrManager,
+		hostOwnsDevClient = false,
 	}: ServerRouteHandlerParams) {
 		this.router = router;
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
 		this.explicitStaticRouteMatcher = explicitStaticRouteMatcher;
 		this.watch = watch;
 		this.hmrManager = hmrManager;
+		this.hostOwnsDevClient = hostOwnsDevClient;
 	}
 
 	/**
@@ -64,7 +69,7 @@ export class ServerRouteHandler {
 	 * @returns true if in watch mode and HMR manager is enabled
 	 */
 	shouldInjectHmrScript(): boolean {
-		return shouldInjectHmrHtmlResponse(this.watch, this.hmrManager);
+		return shouldInjectHmrHtmlResponse(this.watch, this.hmrManager, this.hostOwnsDevClient);
 	}
 
 	/**

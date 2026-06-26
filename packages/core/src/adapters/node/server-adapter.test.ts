@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
-import { NodeClientAbortError } from './http-request-bridge.ts';
+import { DefaultNodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeStaticPreviewHost } from './static-preview-host.ts';
 
 class TestNodeServerAdapter extends NodeServerAdapter {
 	public handleSharedRequestImpl?: () => Promise<Response>;
@@ -38,6 +40,9 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 		runtimeOrigin: 'http://localhost:3000',
 		serveOptions: {},
 		options: { watch: true },
+		previewHost: new NodeStaticPreviewHost(),
+		requestBridge: new NodeHttpRequestBridge(),
+		devRuntimeFactory: new DefaultNodeServerDevRuntimeFactory(),
 		...options,
 	});
 }
@@ -70,6 +75,17 @@ describe('NodeServerAdapter', () => {
 		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
+	it('does not inject the HMR runtime when the host owns dev-client bootstrap', async () => {
+		const adapter = createAdapter({ hostOwnsDevClient: true });
+		adapter.setInitializedForTest();
+		adapter.setHmrManagerForTest({ isEnabled: () => true });
+
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
+		const html = await response.text();
+
+		expect(html).not.toContain("import '/_hmr_runtime.js'");
+	});
+
 	it('returns 499 for normalized client aborts', async () => {
 		const adapter = createAdapter({ options: { watch: false } });
 		adapter.setInitializedForTest();
@@ -80,5 +96,21 @@ describe('NodeServerAdapter', () => {
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/upload'));
 
 		expect(response.status).toBe(499);
+	});
+
+	it('builds static pages without an ephemeral build server', async () => {
+		const staticBuilderBuild = vi.fn().mockResolvedValue(undefined);
+		const adapter = createAdapter({ options: { watch: false } });
+		adapter.setInitializedForTest();
+		(adapter as unknown as { staticBuilder: { build: typeof staticBuilderBuild } }).staticBuilder = {
+			build: staticBuilderBuild,
+		};
+
+		await adapter.buildStatic({ force: true });
+
+		expect(staticBuilderBuild).toHaveBeenCalledWith(
+			expect.objectContaining({ baseUrl: 'http://localhost:3000' }),
+			expect.any(Object),
+		);
 	});
 });

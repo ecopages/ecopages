@@ -1,12 +1,14 @@
-import path from 'node:path';
 import { Readable } from 'node:stream';
+import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
+import { injectEcopagesDocumentDevBootstrap, stripViteBrowserHmrScripts } from './ecopages-hmr-runtime-injection.ts';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import type { Connect, ViteDevServer } from 'vite';
+import { getAppEntryPath, loadApp, registerHostModuleLoader, type EcopagesEmbeddedApp } from './embedded-dev-server.ts';
 import type { EcopagesPluginApi } from './plugin-api.ts';
+import { resolveEcopagesDevServerOrigin } from './resolve-vite-dev-origin.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
-type AppWithFetch = { fetch: (request: Request) => Promise<Response> };
 type ViteServerWithMiddleware = ViteDevServer & {
 	middlewares: {
 		use(
@@ -90,33 +92,56 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 	}
 }
 
-async function registerHostModuleLoader(server: ViteDevServer, api: EcopagesPluginApi): Promise<void> {
-	const runtimeModule = (await server.ssrLoadModule('@ecopages/core/dev/host-runtime')) as {
-		createDevelopmentHostRuntime?: (appConfig: EcopagesPluginApi['appConfig']) => {
-			registerHostModuleLoader(loader: (id: string) => Promise<unknown>): void;
-		};
-	};
-
-	if (typeof runtimeModule.createDevelopmentHostRuntime !== 'function') {
-		throw new Error('[ecopages] @ecopages/core/dev/host-runtime must export createDevelopmentHostRuntime()');
+async function getOrLoadApp(
+	server: ViteDevServer,
+	api: EcopagesPluginApi,
+	appEntryPath: string,
+): Promise<EcopagesEmbeddedApp> {
+	const cachedApp = api.getCachedApp();
+	if (cachedApp) {
+		return cachedApp;
 	}
 
-	const hostRuntime = runtimeModule.createDevelopmentHostRuntime(api.appConfig);
-	hostRuntime.registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
-}
-
-async function loadApp(server: ViteDevServer, appEntryPath: string): Promise<AppWithFetch> {
-	const module = await server.ssrLoadModule(appEntryPath);
-	const app = module.app as AppWithFetch | undefined;
-
-	if (!app?.fetch) {
-		throw new Error(`[ecopages] App entry at '${appEntryPath}' must export an app.fetch(request) handler`);
-	}
-
+	const app = await loadApp(server, appEntryPath);
+	api.setCachedApp(app);
 	return app;
 }
 
-async function sendAppResponse(res: ServerResponse, response: Response): Promise<void> {
+async function attachEmbeddedWebSocketUpgrades(
+	server: ViteDevServer,
+	api: EcopagesPluginApi,
+	appEntryPath: string,
+): Promise<void> {
+	if (!server.httpServer) {
+		return;
+	}
+
+	const app = await getOrLoadApp(server, api, appEntryPath);
+	if (typeof app.attachWebSocketUpgrades !== 'function') {
+		return;
+	}
+
+	await app.attachWebSocketUpgrades(server.httpServer, { passthroughUnmatched: true });
+}
+
+function isConnectDocumentNavigation(req: Connect.IncomingMessage): boolean {
+	return isDocumentHtmlNavigationFromHeaders((name) => {
+		const value = req.headers[name.toLowerCase()];
+		if (Array.isArray(value)) {
+			return value[0] ?? null;
+		}
+
+		return value ?? null;
+	});
+}
+
+async function sendAppResponse(
+	res: ServerResponse,
+	response: Response,
+	server: ViteDevServer,
+	requestUrl: string,
+	req: Connect.IncomingMessage,
+): Promise<void> {
 	const contentType = response.headers.get('content-type') ?? '';
 
 	if (!contentType.includes('text/html')) {
@@ -125,7 +150,17 @@ async function sendAppResponse(res: ServerResponse, response: Response): Promise
 	}
 
 	const originalBody = await response.text();
-	const rewrittenBody = normalizeHtmlResponse(originalBody, { injectViteClient: true });
+	const normalizedBody = normalizeHtmlResponse(originalBody);
+	const isDocumentNavigation = isConnectDocumentNavigation(req);
+	let rewrittenBody = isDocumentNavigation
+		? await server.transformIndexHtml(requestUrl, normalizedBody)
+		: normalizedBody;
+
+	if (isDocumentNavigation) {
+		rewrittenBody = stripViteBrowserHmrScripts(rewrittenBody);
+		rewrittenBody = injectEcopagesDocumentDevBootstrap(rewrittenBody);
+	}
+
 	const headers = new Headers(response.headers);
 	headers.delete('content-length');
 	headers.delete('etag');
@@ -149,24 +184,61 @@ async function sendAppResponse(res: ServerResponse, response: Response): Promise
  * Vite client injection.
  */
 export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
-	const appEntryPath = path.join(api.appConfig.rootDir, 'app');
+	const appEntryPath = getAppEntryPath(api.appConfig.rootDir);
 
 	return {
 		name: 'ecopages:dev-server',
+		apply: 'serve',
 		configureServer(server: ViteDevServer) {
-			const baseUrl = api.appConfig.baseUrl ?? 'http://localhost:3000';
 			const middlewareServer = assertMiddlewareServer(server);
+			api.appConfig.runtime = {
+				...(api.appConfig.runtime ?? {}),
+				devClientOwner: 'host',
+			};
 
 			return () => {
-				const hostLoaderReady = registerHostModuleLoader(server, api);
+				void (async () => {
+					try {
+						await registerHostModuleLoader(server, api);
+						const app = await loadApp(server, appEntryPath);
+						api.setCachedApp(app);
+						api.markDevHostReady();
+					} catch (error) {
+						api.markDevHostFailed(error);
+					}
+				})();
+
+				let websocketUpgradesReady: Promise<void> = Promise.resolve();
+
+				if (server.httpServer) {
+					websocketUpgradesReady = api
+						.getDevHostReady()
+						.then(() => attachEmbeddedWebSocketUpgrades(server, api, appEntryPath));
+				}
 
 				middlewareServer.middlewares.use(async (req, res, next) => {
+					if (req.headers.upgrade?.toLowerCase() === 'websocket') {
+						try {
+							await api.getDevHostReady();
+							await websocketUpgradesReady;
+						} catch (error) {
+							next(error);
+							return;
+						}
+
+						next();
+						return;
+					}
+
 					try {
-						await hostLoaderReady;
-						const app = await loadApp(server, appEntryPath);
+						await api.getDevHostReady();
+						await websocketUpgradesReady;
+						const app = await getOrLoadApp(server, api, appEntryPath);
+						const baseUrl = resolveEcopagesDevServerOrigin(api.getDevServerOrigin(), api.appConfig.baseUrl);
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);
-						await sendAppResponse(res, response);
+						const requestUrl = webRequest.url;
+						await sendAppResponse(res, response, server, requestUrl, req);
 					} catch (error) {
 						next(error);
 					}

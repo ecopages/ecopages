@@ -1,7 +1,7 @@
 {
 	"name": "@ecopages/ecopages",
 	"private": true,
-	"version": "0.2.0-alpha.55",
+	"version": "0.2.0-beta.9",
 	"engines": {
 		"node": ">=24.0.0"
 	},
@@ -9,7 +9,6 @@
 		"dev:docs": "pnpm --filter @ecopages/docs run dev",
 		"build:docs": "pnpm --filter @ecopages/docs run build",
 		"build:npm": "node scripts/build-npm-packages.ts",
-		"build:npm:packages": "node scripts/build-npm-packages.ts",
 		"release:check:versions": "node scripts/check-release-versions.ts",
 		"release:check:npm-package": "node scripts/check-npm-package-published.ts",
 		"release:npm": "node scripts/release-npm-package.ts",
@@ -37,10 +36,16 @@
 		"prepare:husky": "husky",
 		"test:all": "pnpm run test:vitest && pnpm run test:e2e",
 		"test:vitest": "vitest run --project shared-core --project browser",
-		"test:bench": "ECOPAGES_BENCH=1 vitest bench --outputJson playground/kitchen-sink/bench/results/vitest-bench.json",
+		"test:bench": "ECOPAGES_BENCH=1 vitest bench --project bench --outputJson playground/kitchen-sink/bench/results/vitest-bench.json",
 		"test:bench:baseline": "pnpm exec tsx playground/kitchen-sink/bench/_consolidate.ts",
-		"test:bench:compare": "ECOPAGES_BENCH=1 vitest bench --compare playground/kitchen-sink/bench/results/bench-baseline.json --outputJson playground/kitchen-sink/bench/results/vitest-bench.json",
+		"test:bench:compare": "ECOPAGES_BENCH=1 vitest bench --project bench --compare playground/kitchen-sink/bench/results/bench-baseline.json --outputJson playground/kitchen-sink/bench/results/vitest-bench.json",
+		"test:vitest:static-parity": "ECOPAGES_TEST_STATIC_BUILD_PARITY=1 pnpm run test:vitest",
 		"test:e2e": "node e2e/scripts/playwright/run-e2e.mjs",
+		"test:e2e:smoke": "node e2e/scripts/playwright/run-e2e.mjs --project kitchen-sink-bun-e2e --project kitchen-sink-vite-node-e2e --grep @stress",
+		"test:e2e:stress": "node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only --grep @stress",
+		"test:e2e:kitchen": "node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only",
+		"test:e2e:timing": "ECOPAGES_E2E_TIMING=true node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only --grep @stress",
+		"test:e2e:baseline": "ECOPAGES_E2E_TIMING=true node e2e/scripts/playwright/run-e2e.mjs",
 		"test:e2e:ui": "playwright test --ui",
 		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck"
 	},
@@ -66,17 +71,5 @@
 	"module": "src/index.js",
 	"repository": "https://github.com/ecopages/ecopages.git",
 	"type": "module",
-	"workspaces": [
-		"npm/*",
-		"packages/*",
-		"packages/__internals/*",
-		"packages/core/__fixtures__/app",
-		"packages/integrations/*",
-		"packages/loaders/*",
-		"packages/plugins/*",
-		"packages/processors/*",
-		"playground/*",
-		"e2e/fixtures/*",
-		"apps/*"
-	]
+	"packageManager": "pnpm@11.5.2+sha512.71c631e382066efc25625d5cf029075de07b61b37f6e27350fbd84b1bda5864c8c1967adc280776b45c30a715c0359a3be08fef42d5bb09e2b99029979692916"
 }

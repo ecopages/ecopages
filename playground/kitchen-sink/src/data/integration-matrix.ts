@@ -46,7 +46,7 @@ export const integrationMatrixShellCounterCases = integrationMatrixShellKinds.ma
 }));
 
 export const integrationMatrixTestIds = {
-	hub: 'page-integration-matrix-index',
+	hub: 'page-integration-matrix',
 	kitaPage: 'page-integration-matrix-kita',
 	hostShellStack: 'integration-matrix-host-shell-stack',
 	kitaCounters: 'integration-matrix-kita-counters',

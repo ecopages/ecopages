@@ -89,7 +89,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const rootDir = createTempRoot('ecopages-dispatch-css');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const cssFile = path.join(rootDir, 'src', 'styles', 'main.css');
 		fs.mkdirSync(path.dirname(cssFile), { recursive: true });
@@ -99,15 +99,13 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
 		assert.equal(spy.broadcasts[0].path, cssFile);
-
-		manager.stop();
 	});
 
 	test('HTML file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-html');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const htmlFile = path.join(rootDir, 'src', 'pages', 'index.html');
 		fs.mkdirSync(path.dirname(htmlFile), { recursive: true });
@@ -117,8 +115,6 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
 		assert.equal(spy.broadcasts[0].path, htmlFile);
-
-		manager.stop();
 	});
 
 	test('TS file with no registered entrypoints falls back to DefaultHmrStrategy reload', async () => {
@@ -126,7 +122,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const tsFile = path.join(srcDir, 'component.ts');
 		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
@@ -134,30 +130,44 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
-
-		manager.stop();
 	});
 
 	test('broadcast:false suppresses events even when the strategy returns a broadcast action', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-broadcast');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const cssFile = path.join(rootDir, 'src', 'main.css');
 		fs.writeFileSync(cssFile, 'body {}\n', 'utf8');
 		await manager.handleFileChange(cssFile, { broadcast: false });
 
 		assert.equal(spy.broadcasts.length, 0);
+	});
 
-		manager.stop();
+	test('include template changes broadcast layout-update ahead of integration no-op strategies', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-include-template');
+		const includesDir = path.join(rootDir, 'src', 'includes');
+		fs.mkdirSync(includesDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const includeFile = path.join(includesDir, 'seo.kita.tsx');
+		fs.writeFileSync(includeFile, 'export const seo = true;\n', 'utf8');
+		manager.registerStrategy(new FakeHmrStrategy(HmrStrategyType.INTEGRATION, () => true, { type: 'none' }));
+
+		await manager.handleFileChange(includeFile);
+
+		assert.equal(spy.broadcasts.length, 1);
+		assert.equal(spy.broadcasts[0].type, 'layout-update');
+		assert.equal(spy.broadcasts[0].path, includeFile);
 	});
 
 	test('INTEGRATION strategy wins over DefaultHmrStrategy for matched files', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-integration-priority');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'component.jsx');
 		fs.writeFileSync(customFile, 'export default null;\n', 'utf8');
@@ -177,15 +187,13 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.deepEqual(spy.broadcasts[0], integrationEvent);
-
-		manager.stop();
 	});
 
 	test('action.type none suppresses broadcast even when shouldBroadcast is true', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-none-action');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'silent.ts');
 		fs.writeFileSync(customFile, 'export const silent = true;\n', 'utf8');
@@ -196,15 +204,13 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		await manager.handleFileChange(customFile);
 
 		assert.equal(spy.broadcasts.length, 0);
-
-		manager.stop();
 	});
 
 	test('all events returned by a strategy are each broadcast individually', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-multi-event');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
-		const manager = await create(rootDir, spy);
+		using manager = await create(rootDir, spy);
 
 		const customFile = path.join(rootDir, 'src', 'multi.ts');
 		fs.writeFileSync(customFile, 'export const multi = true;\n', 'utf8');
@@ -223,7 +229,5 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 2);
 		assert.deepEqual(spy.broadcasts, events);
-
-		manager.stop();
 	});
 });

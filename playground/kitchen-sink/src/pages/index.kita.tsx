@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
 import { liveAnnouncements, releaseNotes, showcasePatterns } from '@/data/demo-data';
+import { getPageTestId } from '@/data/primary-links';
 
 const featureMatrix = [
 	{
@@ -75,7 +76,7 @@ export default eco.page({
 	}),
 	render: () => {
 		return (
-			<div class="space-y-10">
+			<div class="space-y-10" data-testid={getPageTestId('/')}>
 				<section class="grid gap-6 rounded-md border border-border bg-background/90 p-8 shadow-[0_8px_30px_rgba(15,23,42,0.04)] lg:grid-cols-[1.3fr_0.7fr]">
 					<div class="space-y-5">
 						<p class="text-sm font-semibold uppercase tracking-[0.28em] text-sky-600">Kitchen sink app</p>

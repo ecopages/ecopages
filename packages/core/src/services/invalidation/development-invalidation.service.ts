@@ -6,6 +6,7 @@ export type DevelopmentInvalidationCategory =
 	| 'public-asset'
 	| 'additional-watch'
 	| 'include-source'
+	| 'explicit-server-view'
 	| 'route-source'
 	| 'processor-owned-asset'
 	| 'server-source'
@@ -101,8 +102,19 @@ export class DevelopmentInvalidationService {
 				category: 'include-source',
 				invalidateServerModules: true,
 				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isExplicitServerViewFile(filePath)) {
+			return {
+				category: 'explicit-server-view',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
 				processorHandledAsset: false,
 			};
 		}
@@ -201,6 +213,29 @@ export class DevelopmentInvalidationService {
 		const resolvedPath = path.resolve(filePath);
 
 		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.includesDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
+	/**
+	 * Returns whether the file is an explicit server-rendered view module.
+	 *
+	 * @remarks
+	 * These modules are typically registered through `renderServerModule` in
+	 * `app.ts` rather than the filesystem router. They need a full browser reload
+	 * because their HTML is produced on the server, not through client HMR entrypoints.
+	 */
+	isExplicitServerViewFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
+
+		if (resolvedPath !== viewsDir && !resolvedPath.startsWith(`${viewsDir}${path.sep}`)) {
 			return false;
 		}
 

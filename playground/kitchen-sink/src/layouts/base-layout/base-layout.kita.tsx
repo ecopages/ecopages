@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import { ThemeToggleReact } from '../../components/theme-toggle.react';
-import { getPrimaryLinkTestId, kitchenSinkShell, primaryLinks } from '@/data/primary-links';
+import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
@@ -13,7 +13,7 @@ export const BaseLayout = eco.layout({
 		const viewerRole = locals?.viewerRole;
 
 		return (
-			<div class="min-h-dvh flex flex-col bg-background text-on-background">
+			<div class="min-h-dvh flex flex-col bg-background text-on-background" data-testid={kitchenSinkShellTestId}>
 				<header class="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
 					<div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
 						<div class="space-y-1">

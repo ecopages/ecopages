@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { EcoRouter, PageContent } from '../src/router';
+import { EcoRouter, PageContent, clearLayoutCache } from '../src/router';
 
 function createMockPageComponent(name: string) {
 	const Component = () => createElement('div', { 'data-testid': name }, `Page: ${name}`);
@@ -73,6 +73,46 @@ function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: st
 	return Page;
 }
 
+function createEcoComponentStyleLayout(layoutTestId: string, options: { file: string; stylesheets?: string[] }) {
+	const Layout = (({ children }: { children: ReactNode }) =>
+		createElement('div', { 'data-testid': layoutTestId, className: 'eco-layout' }, children)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: {
+			__eco?: { id: string; file: string; integration: string };
+			dependencies?: {
+				stylesheets?: string[];
+			};
+		};
+	};
+
+	Layout.config = {
+		__eco: { id: layoutTestId, file: options.file, integration: 'react' },
+		dependencies: {
+			stylesheets: options.stylesheets,
+		},
+	};
+
+	return Layout;
+}
+
+function createPageWithEcoComponentLayout(
+	name: string,
+	layoutTestId: string,
+	options: { file: string; stylesheets?: string[] },
+) {
+	const Layout = createEcoComponentStyleLayout(layoutTestId, options);
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layout: Layout };
+	return Page;
+}
+
 function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(
@@ -117,7 +157,9 @@ describe('EcoRouter HMR Integration', () => {
 			container.parentNode.removeChild(container);
 		}
 		vi.restoreAllMocks();
+		clearLayoutCache();
 		delete window.__ECO_PAGES__;
+		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
 	});
 
 	it('sets and clears the router ownership flag', async () => {
@@ -249,7 +291,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			const reloadResult = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
 
-			expect(reloadResult).toBe(true);
+			expect(reloadResult).toBe(false);
 			expect(fetchSpy).toHaveBeenCalledTimes(1);
 
 			resolveFetch(new Response('<html><body><main>Done</main></body></html>', { status: 200 }));
@@ -359,6 +401,46 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			expect(container.querySelector('[data-testid="base-layout"]')?.textContent).toContain('Base Layout');
 			expect(container.querySelector('[data-testid="docs-layout"]')).toBeNull();
+		});
+
+		it('switches between eco.component layouts with identical wrapper signatures', async () => {
+			const NotFoundPage = createPageWithEcoComponentLayout('NotFoundPage', 'minimal-layout-root', {
+				file: '/app/src/layouts/minimal-layout.tsx',
+				stylesheets: ['./minimal-layout.css'],
+			});
+			const HomePage = createPageWithEcoComponentLayout('HomePage', 'app-layout-root', {
+				file: '/app/src/layouts/app-layout.tsx',
+				stylesheets: ['./app-layout.css'],
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: NotFoundPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="app-layout-root"]')).toBeNull();
+
+			root.render(
+				createElement(EcoRouter, {
+					page: HomePage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="app-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).toBeNull();
 		});
 
 		it('delegates non-React documents to browser-router when it is registered', async () => {
@@ -525,13 +607,16 @@ describe('EcoRouter HMR Integration', () => {
 				new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, button: 0 }),
 			);
 
-			await new Promise((resolve) => setTimeout(resolve, 100));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
-		it('recovers a rapid click from the last hovered link while a React navigation is in flight', async () => {
+		it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
 			const Page = createMultiLinkPage('HoverRecovery', [
 				{ href: '/slow', label: 'slow-link' },
 				{ href: '/fast', label: 'fast-link' },
@@ -546,8 +631,7 @@ describe('EcoRouter HMR Integration', () => {
 				</html>
 			`;
 			const slowFetch = createDeferred();
-
-			vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
 				const url = input.toString();
 				if (url === '/slow') {
 					return new Promise<Response>((resolve, reject) => {
@@ -596,10 +680,112 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(container);
 			slowFetch.resolve();
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' });
+				},
+				{ timeout: 2000 },
+			);
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).not.toContain('/fast');
+			expect(container.textContent).toContain('slow');
+			expect(container.textContent).not.toContain('fast');
+		});
 
-			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+		it('does not swap the queued navigation href when the user merely hovers unrelated links during a slow navigation', async () => {
+			const Page = createMultiLinkPage('HoverQueueLeak', [
+				{ href: '/clicked', label: 'clicked-link' },
+				{ href: '/hovered-a', label: 'hovered-a-link' },
+				{ href: '/hovered-b', label: 'hovered-b-link' },
+				{ href: '/hovered-c', label: 'hovered-c-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => `
+				<html>
+					<body>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
+						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
+					</body>
+				</html>
+			`;
+			const slowFetch = createDeferred();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+				const url = input.toString();
+				if (url === '/clicked') {
+					return new Promise<Response>((resolve, reject) => {
+						const abortSignal = init?.signal;
+						const handleAbort = () => {
+							reject(new DOMException('Aborted', 'AbortError'));
+						};
+						abortSignal?.addEventListener('abort', handleAbort, { once: true });
+						slowFetch.promise.then(() => {
+							abortSignal?.removeEventListener('abort', handleAbort);
+							resolve(new Response(createHtml('clicked'), { status: 200 }));
+						});
+					});
+				}
+				return Promise.resolve(new Response(createHtml(url.slice(1)), { status: 200 }));
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const clickedLink = container.querySelector(
+				'[data-testid="HoverQueueLeak-clicked-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredA = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-a-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredB = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-b-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredC = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-c-link"]',
+			) as HTMLAnchorElement | null;
+			expect(clickedLink).not.toBeNull();
+			expect(hoveredA).not.toBeNull();
+			expect(hoveredB).not.toBeNull();
+			expect(hoveredC).not.toBeNull();
+
+			await user.click(clickedLink as HTMLAnchorElement);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
+				hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }));
+				hovered.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }));
+				hovered.dispatchEvent(
+					new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }),
+				);
+				hovered.dispatchEvent(
+					new PointerEvent('pointermove', { bubbles: true, cancelable: true, composed: true }),
+				);
+			}
+
+			slowFetch.resolve();
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'clicked' });
+				},
+				{ timeout: 2000 },
+			);
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).toContain('/clicked');
+			expect(fetchUrls).not.toContain('/hovered-a');
+			expect(fetchUrls).not.toContain('/hovered-b');
+			expect(fetchUrls).not.toContain('/hovered-c');
+			expect(container.textContent).toContain('clicked');
+			expect(container.textContent).not.toContain('hovered-a');
+			expect(container.textContent).not.toContain('hovered-b');
+			expect(container.textContent).not.toContain('hovered-c');
 		});
 
 		it('ignores stale navigation results when a newer route finishes first', async () => {
@@ -649,11 +835,14 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(slowLink as HTMLAnchorElement);
 			await user.click(fastLink as HTMLAnchorElement);
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(container.textContent).toContain('fast');
 			expect(container.textContent).not.toContain('slow');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 		});
 
 		it('ignores stale browser-router handoff when a newer React route finishes first', async () => {
@@ -720,12 +909,15 @@ describe('EcoRouter HMR Integration', () => {
 			await user.click(outsideLink as HTMLAnchorElement);
 			await user.click(fastLink as HTMLAnchorElement);
 
-			await new Promise((resolve) => setTimeout(resolve, 160));
-
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
 			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
-			expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
 			unregister();
 		});
 	});

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-alpha.55",
+	"version": "0.2.0-beta.9",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -16,7 +16,7 @@
 	"sideEffects": false,
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
 		"directory": "packages/core"
 	},
 	"scripts": {
@@ -60,10 +60,18 @@
 			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
 			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
 		},
+		"./route-renderer/route-renderer": {
+			"types": "./src/route-renderer/route-renderer.ts",
+			"default": "./src/route-renderer/route-renderer.ts"
+		},
 		"./route-renderer/component-render-context": {
 			"import": "./src/route-renderer/orchestration/component-render-context.ts",
 			"types": "./src/route-renderer/orchestration/component-render-context.ts",
 			"default": "./src/route-renderer/orchestration/component-render-context.ts"
+		},
+		"./route-renderer/orchestration/foreign-subtree-execution.service": {
+			"types": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts",
+			"default": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts"
 		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
@@ -108,6 +116,14 @@
 			"types": "./src/dev/host-runtime.ts",
 			"default": "./src/dev/host-runtime.ts"
 		},
+		"./dev/client-bridge-registry": {
+			"types": "./src/dev/client-bridge-registry.ts",
+			"default": "./src/dev/client-bridge-registry.ts"
+		},
+		"./dev/dev-client-ownership": {
+			"types": "./src/dev/dev-client-ownership.ts",
+			"default": "./src/dev/dev-client-ownership.ts"
+		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"
@@ -132,6 +148,26 @@
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
+		"./build/runtime-build-executor": {
+			"types": "./src/build/runtime-build-executor.ts",
+			"default": "./src/build/runtime-build-executor.ts"
+		},
+		"./build/build-runtime": {
+			"types": "./src/build/build-runtime.ts",
+			"default": "./src/build/build-runtime.ts"
+		},
+		"./build/build-contracts": {
+			"types": "./src/build/build-contracts.ts",
+			"default": "./src/build/build-contracts.ts"
+		},
+		"./build/production-build-cache": {
+			"types": "./src/build/production-build-cache.ts",
+			"default": "./src/build/production-build-cache.ts"
+		},
+		"./build/server-entry-build-cache": {
+			"types": "./src/build/server-entry-build-cache.ts",
+			"default": "./src/build/server-entry-build-cache.ts"
+		},
 		"./build/runtime-build-output-normalizer": {
 			"types": "./src/build/runtime-build-output-normalizer.ts",
 			"default": "./src/build/runtime-build-output-normalizer.ts"
@@ -143,6 +179,10 @@
 		"./build/browser-runtime-plugin": {
 			"types": "./src/build/browser-runtime-plugin.ts",
 			"default": "./src/build/browser-runtime-plugin.ts"
+		},
+		"./build/jsx-ownership-plugins": {
+			"types": "./src/build/jsx-ownership-plugins.ts",
+			"default": "./src/build/jsx-ownership-plugins.ts"
 		},
 		"./cache": {
 			"types": "./src/cache/index.ts",
@@ -163,6 +203,11 @@
 		"./utils/hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
+		},
+		"./utils/resolve-entry-file": {
+			"import": "./src/utils/resolve-entry-file.ts",
+			"types": "./src/utils/resolve-entry-file.ts",
+			"default": "./src/utils/resolve-entry-file.ts"
 		},
 		"./errors": {
 			"types": "./src/errors/index.ts",

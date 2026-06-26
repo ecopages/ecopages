@@ -33,15 +33,15 @@ flowchart TD
 
 ## 2) Route Render Flow
 
-`IntegrationRenderer.execute()` delegates shared route orchestration to `RouteRenderFlow`.
+`IntegrationRenderer.execute()` delegates shared route orchestration to `RouteRenderOrchestrator`.
 
 ```mermaid
 flowchart TD
-  A[IntegrationRenderer.execute] --> B[RouteRenderFlow.prepareRenderOptions]
+  A[IntegrationRenderer.execute] --> B[RouteRenderOrchestrator.prepareRenderOptions]
   B --> C[resolvePageModule]
   C --> D[ownershipValidationService.validate]
   D --> E[resolvePageData]
-  E --> F[ownershipPlanningService.buildPlan]
+  E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
   F --> G[resolveDependencies]
   G --> H[buildPageBrowserGraph]
   H --> I{shouldRenderPageComponent?}
@@ -77,7 +77,7 @@ flowchart TD
   D -- Yes --> E[render inline]
   D -- No --> F[delegate to owning renderer]
   F --> G[owning renderer renderComponentWithForeignChildren]
-  G --> H[owning renderer renderForeignSubtree when payload form is needed]
+  G --> H[owning renderer renderComponentWithForeignChildren mapped via toForeignSubtreeRenderPayload]
   H --> I[resolved html plus assets and attachment policy]
 ```
 
@@ -121,12 +121,12 @@ flowchart TD
 The most useful reading order is:
 
 1. `route-renderer.ts`
-2. `orchestration/route-render-flow.ts`
+2. `orchestration/route-render-orchestrator.ts`
 3. `orchestration/integration-renderer.ts`
 4. `orchestration/ownership-validation.service.ts`
 5. `orchestration/ownership-planning.service.ts`
 6. `orchestration/component-render-context.ts`
-7. `orchestration/queued-foreign-subtree-resolution.service.ts`
+7. `orchestration/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
 9. `page-loading/dependency-resolver.ts`
 10. `eco/eco.ts`
@@ -134,12 +134,12 @@ The most useful reading order is:
 ## 7) Key Files
 
 - `packages/core/src/route-renderer/route-renderer.ts`
-- `packages/core/src/route-renderer/orchestration/route-render-flow.ts`
+- `packages/core/src/route-renderer/orchestration/route-render-orchestrator.ts`
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-validation.service.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-planning.service.ts`
 - `packages/core/src/route-renderer/orchestration/component-render-context.ts`
-- `packages/core/src/route-renderer/orchestration/queued-foreign-subtree-resolution.service.ts`
+- `packages/core/src/route-renderer/orchestration/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/eco/eco.ts`

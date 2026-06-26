@@ -126,7 +126,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
 	});
 
-	it('should seal both production and development runtime vendor dependencies during setup preparation', async () => {
+	it('should seal runtime vendor dependencies for the active NODE_ENV during setup preparation', async () => {
 		process.env.NODE_ENV = 'production';
 		const plugin = reactPlugin({});
 		plugin.setConfig(Config);
@@ -142,18 +142,15 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 					bundleOptions: expect.objectContaining({ naming: 'react.js' }),
 				}),
 				expect.objectContaining({
-					name: 'react',
-					bundleOptions: expect.objectContaining({ naming: 'react.development.js' }),
-				}),
-				expect.objectContaining({
 					name: 'react-dom',
 					bundleOptions: expect.objectContaining({ naming: 'react-dom.js' }),
 				}),
-				expect.objectContaining({
-					name: 'react-dom',
-					bundleOptions: expect.objectContaining({ naming: 'react-dom.development.js' }),
-				}),
 			]),
 		);
+		expect(
+			(plugin as any).integrationDependencies.some((dependency: { bundleOptions?: { naming?: string } }) =>
+				String(dependency.bundleOptions?.naming).includes('.development.'),
+			),
+		).toBe(false);
 	});
 });

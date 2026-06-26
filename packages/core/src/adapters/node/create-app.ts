@@ -8,11 +8,13 @@ import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
+	private stopped = false;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
 
 	constructor(
@@ -31,14 +33,22 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		return createNodeServerAdapter(params);
 	}
 
-	public async stop(force = true): Promise<void> {
-		if (!this.server) {
+	public override async stop(force = true): Promise<void> {
+		if (this.stopped) {
 			return;
 		}
 
-		const activeServer = this.server;
-		this.server = null;
-		await this.runtimeHost.stop(activeServer, { force });
+		if (this.server) {
+			const activeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(activeServer, { force });
+		}
+
+		if (this.serverAdapter) {
+			await this.serverAdapter.dispose();
+		}
+
+		this.stopped = true;
 	}
 
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
@@ -54,12 +64,19 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes as StaticRoute[],
 			errorHandler: this.errorHandler,
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 		});
 	}
 
 	public async start(): Promise<NodeServerInstance | void> {
+		if (this.stopped) {
+			this.serverAdapter = undefined;
+			this.stopped = false;
+		}
+
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
@@ -68,12 +85,11 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			return this.server;
 		}
 
-		const { build, preview } = this.cliArgs;
+		const { build, preview, force } = this.cliArgs;
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview });
-			await this.stop(true);
+			await this.serverAdapter.buildStatic({ preview, force });
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (build) {
@@ -102,6 +118,23 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		}
 
 		return this.serverAdapter.handleRequest(request);
+	}
+
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: { passthroughUnmatched?: boolean },
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		if (!this.server) {
+			this.server = httpServer;
+			await this.serverAdapter.completeInitialization(httpServer);
+			return;
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
 	}
 }
 

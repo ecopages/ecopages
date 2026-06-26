@@ -14,6 +14,7 @@ type BunSocketHandler = WebSocketHandler<unknown>;
 export interface HmrManagerParams {
 	appConfig: EcoPagesAppConfig;
 	bridge: ClientBridge;
+	registrationTimeoutMs?: number;
 }
 
 /**
@@ -38,8 +39,8 @@ export class HmrManager extends SharedHmrManager {
 	 * generation to `SharedHmrManager`. The Bun subclass only supplies the
 	 * transport-specific dependency graph policy and websocket hook surface.
 	 */
-	constructor({ appConfig, bridge }: HmrManagerParams) {
-		super({ appConfig, bridge });
+	constructor({ appConfig, bridge, registrationTimeoutMs }: HmrManagerParams) {
+		super({ appConfig, bridge, registrationTimeoutMs });
 	}
 
 	/**

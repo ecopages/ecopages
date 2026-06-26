@@ -19,6 +19,8 @@ export interface ProjectWatcherConfig {
 	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
+	/** When true, the host dev server owns browser dev-client bootstrap. */
+	hostOwnsDevClient?: boolean;
 }
 
 /**
@@ -49,16 +51,18 @@ export class ProjectWatcher {
 	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
+	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private watcher: FSWatcher | null = null;
 	private lastHandledChange = new Map<string, number>();
 	private changeQueue: Promise<void> = Promise.resolve();
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
+	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge, hostOwnsDevClient }: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
+		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
@@ -91,6 +95,14 @@ export class ProjectWatcher {
 		return this.invalidationService.isIncludeSourceFile(filePath);
 	}
 
+	private requestBrowserReload(): void {
+		if (this.hostOwnsDevClient) {
+			return;
+		}
+
+		this.bridge.reload();
+	}
+
 	/**
 	 * Handles public directory file changes by copying only the changed file.
 	 * @param filePath - Absolute path of the changed file
@@ -106,10 +118,10 @@ export class ProjectWatcher {
 				await fileSystem.copyFileAsync(filePath, destPath);
 			}
 
-			this.bridge.reload();
+			this.requestBrowserReload();
 		} catch (error) {
 			appLogger.error(`Failed to copy public file: ${error instanceof Error ? error.message : String(error)}`);
-			this.bridge.reload();
+			this.requestBrowserReload();
 		}
 	}
 
@@ -127,7 +139,7 @@ export class ProjectWatcher {
 	 * Follows 5-rule priority:
 	 * 0. Public directory match? -> copy file and reload
 	 * 1. additionalWatchPaths match? -> reload
-	 * 2. Include template source? -> reload after processor notifications
+	 * 2. Include template source? -> current-page refresh via HMR after processor notifications are deferred
 	 * 3. Processor-owned asset? -> processor already handled it via notification, skip HMR
 	 * 4. Otherwise -> HMR strategies
 	 *
@@ -166,17 +178,21 @@ export class ProjectWatcher {
 				await this.refreshRouterRoutesCallback();
 			}
 
-			if (plan.category === 'additional-watch') {
-				this.bridge.reload();
+			if (plan.reloadBrowser) {
+				this.requestBrowserReload();
+				return;
+			}
+
+			const deferProcessorNotifications =
+				plan.category === 'include-source' || plan.category === 'explicit-server-view';
+
+			if (deferProcessorNotifications && plan.delegateToHmr) {
+				await this.hmrManager.handleFileChange(filePath);
+				void this.notifyProcessors(filePath, event);
 				return;
 			}
 
 			await this.notifyProcessors(filePath, event);
-
-			if (plan.category === 'include-source') {
-				this.bridge.reload();
-				return;
-			}
 
 			if (plan.processorHandledAsset) {
 				return;
@@ -301,36 +317,42 @@ export class ProjectWatcher {
 			return this.watcher;
 		}
 
-		const processorPaths: string[] = [];
+		const processorPaths = new Set<string>();
 		for (const processor of this.appConfig.processors.values()) {
 			const watchConfig = processor.getWatchConfig();
 			if (!watchConfig) continue;
-			processorPaths.push(...watchConfig.paths);
+			for (const watchPath of watchConfig.paths) {
+				processorPaths.add(watchPath);
+			}
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.includesDir);
+			processorPaths.add(this.appConfig.absolutePaths.includesDir);
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.srcDir);
-		}
-
-		if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.pagesDir);
+			processorPaths.add(this.appConfig.absolutePaths.srcDir);
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
-			processorPaths.push(this.appConfig.absolutePaths.publicDir);
+			processorPaths.add(this.appConfig.absolutePaths.publicDir);
 		}
 
-		if (this.appConfig.additionalWatchPaths.length) {
-			processorPaths.push(...this.appConfig.additionalWatchPaths);
+		for (const watchPath of this.appConfig.additionalWatchPaths) {
+			processorPaths.add(watchPath);
 		}
 
-		this.watcher = chokidar.watch(processorPaths, {
+		const ignored = [
+			'**/node_modules/**',
+			'**/.git/**',
+			path.join(this.appConfig.absolutePaths.workDir, '**'),
+			path.join(this.appConfig.absolutePaths.distDir, '**'),
+		];
+
+		this.watcher = chokidar.watch(Array.from(processorPaths), {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
+			ignored,
 			awaitWriteFinish: {
 				stabilityThreshold: 50,
 				pollInterval: 50,
@@ -353,5 +375,21 @@ export class ProjectWatcher {
 		}
 
 		return this.watcher;
+	}
+
+	/**
+	 * Closes the active filesystem watcher subscription.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Used when tearing down dev servers in tests
+	 * and other short-lived Ecopages runtimes.
+	 */
+	public async close(): Promise<void> {
+		if (!this.watcher) {
+			return;
+		}
+
+		await this.watcher.close();
+		this.watcher = null;
 	}
 }

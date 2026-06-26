@@ -1,17 +1,20 @@
+/**
+ * Root Vitest config: `shared-core` (node), `browser`, optional `bun-adapter`,
+ * and `bench` (inactive unless `--project bench`).
+ *
+ * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
+ */
 import { defineConfig, configDefaults } from 'vitest/config';
+import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes';
 
 const isBunRuntime = typeof process.versions.bun === 'string';
-
-const isBenchMode = process.env.ECOPAGES_BENCH === '1' || process.argv.includes('bench');
 
 export default defineConfig({
 	test: {
 		silent: 'passed-only',
-		benchmark: {
-			include: ['playground/kitchen-sink/bench/**/*.bench.ts'],
-		},
 		projects: [
 			'vitest.browser.config.ts',
+			'vitest.bench.config.ts',
 			{
 				test: {
 					name: 'shared-core',
@@ -30,18 +33,17 @@ export default defineConfig({
 						'packages/loaders/**/*.test.ts',
 						'packages/file-system/**/*.test.ts',
 						'packages/vite-plugin/**/*.test.ts',
+						'packages/react-router/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
-						...(isBenchMode ? ['playground/kitchen-sink/bench/**/*.bench.ts'] : []),
-						...(process.env.ECOPAGES_BENCH_E2E === '1'
-							? ['playground/kitchen-sink/bench/e2e-hmr-bench.test.ts']
-							: []),
+						'playground/kitchen-sink/bench/_*.test.ts',
+						...getOptionalVitestIncludes(),
 					],
 					exclude: [
 						...configDefaults.exclude,
 						'packages/**/*.test.node.ts',
 						'packages/**/*.test.bun.ts',
-						'playground/kitchen-sink/bench/**/*',
+						'playground/kitchen-sink/bench/**/*.bench.ts',
 					],
 				},
 			},

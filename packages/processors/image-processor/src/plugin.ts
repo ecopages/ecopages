@@ -178,6 +178,13 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			return;
 		}
 
+		// Lit SSR workers import eco.config in an isolated thread; image outputs are
+		// already prepared on the main dev server thread.
+		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+			this.buildContributionsPrepared = true;
+			return;
+		}
+
 		if (!this.context) {
 			throw new Error('ImageProcessor requires context to be set');
 		}
@@ -253,6 +260,16 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		});
 	}
 
+	private writeGeneratedFile(filePath: string, content: string): void {
+		fileSystem.ensureDir(path.dirname(filePath));
+
+		if (fileSystem.exists(filePath) && fileSystem.readFileSync(filePath) === content) {
+			return;
+		}
+
+		fileSystem.write(filePath, content);
+	}
+
 	private async rehydrateGeneratedOutputs(): Promise<void> {
 		if (!this.processor) {
 			throw new Error('ImageProcessor not initialized');
@@ -297,6 +314,10 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	 * Prepares build contributions if not already done and rehydrates previously generated image outputs.
 	 */
 	async setup(): Promise<void> {
+		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+			return;
+		}
+
 		await this.prepareBuildContributions();
 		await this.rehydrateGeneratedOutputs();
 	}
@@ -406,8 +427,7 @@ declare module "ecopages:images" {
 			subPath: 'virtual-module.d.ts',
 		});
 
-		fileSystem.ensureDir(path.dirname(typesDir));
-		fileSystem.write(typesDir, content);
+		this.writeGeneratedFile(typesDir, content);
 		logger.debug('Generated types for virtual module', { typesDir });
 
 		const indexTypesDir = resolveGeneratedPath('types', {
@@ -418,7 +438,7 @@ declare module "ecopages:images" {
 
 		const indexContent = 'import "./virtual-module.d.ts";';
 
-		fileSystem.write(indexTypesDir, indexContent);
+		this.writeGeneratedFile(indexTypesDir, indexContent);
 		logger.debug('Generated index types for virtual module', { indexTypesDir });
 
 		const runtimeVirtualModulePath = resolveGeneratedPath('cache', {
@@ -433,8 +453,7 @@ declare module "ecopages:images" {
 			})
 			.join('\n\n');
 
-		fileSystem.ensureDir(path.dirname(runtimeVirtualModulePath));
-		fileSystem.write(runtimeVirtualModulePath, runtimeModuleContent);
+		this.writeGeneratedFile(runtimeVirtualModulePath, runtimeModuleContent);
 		logger.debug('Generated runtime virtual module for images', { runtimeVirtualModulePath });
 	}
 

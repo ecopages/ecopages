@@ -125,4 +125,33 @@ describe('ecopagesConfig', () => {
 
 		expect(result?.ssr?.noExternal).toEqual([/^lit/, 'react', '@ecopages/core']);
 	});
+
+	it('syncs appConfig.baseUrl to the resolved Vite dev-server origin', () => {
+		const appConfig = {
+			rootDir: '/app',
+			baseUrl: 'http://localhost:3000',
+			runtime: {},
+			integrations: [],
+			sourceTransforms: new Map(),
+			absolutePaths: {
+				pagesDir: '/app/src/pages',
+				layoutsDir: '/app/src/layouts',
+			},
+		} as any;
+		const api = createEcopagesPluginApi({ appConfig });
+		const plugin = ecopagesConfig(api);
+
+		(plugin.configResolved as Function).call(
+			{ name: 'ecopages:config' },
+			{
+				server: {
+					host: 'localhost',
+					port: 4012,
+				},
+			},
+		);
+
+		expect(api.getDevServerOrigin()).toBe('http://localhost:4012');
+		expect(appConfig.baseUrl).toBe('http://localhost:4012');
+	});
 });

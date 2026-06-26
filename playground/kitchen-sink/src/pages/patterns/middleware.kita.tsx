@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import { requestInfoMiddleware } from '@/handlers/demo-middleware';
+import { getPageTestId } from '@/data/primary-links';
 
 export default eco.page({
 	dependencies: {
@@ -17,7 +18,7 @@ export default eco.page({
 	}),
 	render: ({ locals }) => {
 		return (
-			<div class="section--split">
+			<div class="section--split" data-testid={getPageTestId('/patterns/middleware')}>
 				<section class="card">
 					<p class="text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">Page middleware</p>
 					<h1 class="mt-3 font-display text-4xl font-semibold tracking-tight">

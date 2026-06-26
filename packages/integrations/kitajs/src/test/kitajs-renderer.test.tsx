@@ -12,6 +12,7 @@ import {
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
@@ -156,10 +157,12 @@ describe('KitaRenderer', () => {
 	it('should expose the compatibility foreign-subtree payload contract', async () => {
 		const Component = createTestComponent(async () => '<section>Kita Foreign Subtree</section>');
 
-		const result = await renderer.renderForeignSubtree({
-			component: Component,
-			props: {},
-		});
+		const result = toForeignSubtreeRenderPayload(
+			await renderer.renderComponentWithForeignChildren({
+				component: Component,
+				props: {},
+			}),
+		);
 
 		expect(result).toEqual<ForeignSubtreeRenderPayload>({
 			html: '<section>Kita Foreign Subtree</section>',

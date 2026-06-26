@@ -37,13 +37,13 @@ import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
-import type { EcoInjectedMeta } from '@ecopages/core';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
+import { clearLayoutCache, resolvePersistedLayout, type LayoutComponent } from './layout-cache.ts';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -67,12 +67,6 @@ type PageContextValue = RouterPageState | null;
 const PageContext = createContext<PageContextValue>(null);
 
 const PersistLayoutsContext = createContext<boolean>(false);
-
-type LayoutComponent = ComponentType<Record<string, unknown>>;
-
-type LayoutComponentWithMeta = LayoutComponent & {
-	config?: { __eco?: EcoInjectedMeta };
-};
 
 /**
  * Reads the optional layout assigned to a page component.
@@ -104,77 +98,7 @@ export interface EcoRouterProps {
 	children: ReactNode;
 }
 
-/**
- * Cache for layout components to ensure same reference across navigations.
- * When different pages import the same layout, they get different function
- * references. This cache ensures we reuse the first one seen for each displayName.
- *
- * Stored on window to persist across module reloads during HMR/SPA navigation.
- */
-function getLayoutCache(): Map<string, LayoutComponent> {
-	if (typeof window === 'undefined') {
-		return new Map();
-	}
-	const win = window as typeof window & { __ecoLayoutCache?: Map<string, LayoutComponent> };
-	if (!win.__ecoLayoutCache) {
-		win.__ecoLayoutCache = new Map();
-	}
-	return win.__ecoLayoutCache;
-}
-
-/**
- * Normalizes a layout cache key so logically identical layouts reuse the same
- * persistent instance across SPA navigations and HMR cycles.
- *
- * @param value - Raw layout identifier, display name, or injected module id.
- * @returns Stable cache key.
- */
-function normalizeLayoutKey(value: string): string {
-	const trimmed = value.trim();
-	if (!trimmed) return 'layout';
-
-	try {
-		const asUrl = new URL(trimmed);
-		return asUrl.pathname.replace(/\/$/, '') || 'layout';
-	} catch {
-		return trimmed.split('#')[0]?.split('?')[0]?.replace(/\/$/, '') || 'layout';
-	}
-}
-
-function hashString(value: string): string {
-	let hash = 2166136261;
-
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-
-	return (hash >>> 0).toString(36);
-}
-
-function getLayoutSourceSignature(Layout: LayoutComponent): string {
-	const source = Function.prototype.toString.call(Layout).replace(/\s+/g, ' ').trim();
-	return hashString(source);
-}
-
-function getLayoutCacheKey(Layout: LayoutComponent): string {
-	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
-	const layoutMetaKey = layoutConfig?.__eco?.file || layoutConfig?.__eco?.id;
-
-	if (layoutMetaKey) {
-		return normalizeLayoutKey(layoutMetaKey);
-	}
-
-	const layoutNameKey = Layout.displayName || Layout.name || 'layout';
-	return `${normalizeLayoutKey(layoutNameKey)}:${getLayoutSourceSignature(Layout)}`;
-}
-
-/**
- * Clears the layout cache. Called during HMR to ensure fresh layouts are used.
- */
-export function clearLayoutCache(): void {
-	getLayoutCache().clear();
-}
+export { clearLayoutCache } from './layout-cache.ts';
 
 /**
  * Renders the current page with its layout.
@@ -214,13 +138,10 @@ export const PageContent: FC = () => {
 	}
 
 	if (persistLayouts) {
-		const layoutCache = getLayoutCache();
-		const layoutKey = getLayoutCacheKey(Layout);
-
-		if (!layoutCache.has(layoutKey) || (refreshPersistedLayout && layoutCache.get(layoutKey) !== Layout)) {
-			layoutCache.set(layoutKey, Layout);
-		}
-		const CachedLayout = layoutCache.get(layoutKey)!;
+		const { layout: CachedLayout, key: layoutKey } = resolvePersistedLayout(
+			Layout,
+			Boolean(refreshPersistedLayout),
+		);
 
 		return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, pageElement);
 	}
@@ -267,7 +188,7 @@ function useNavigationCoordinator(
 
 	const handleCoordinatorReload = useEffectEvent(async (request?: EcoReloadRequest) => {
 		if (activeNavigationRef.current || isNavigatingRef.current) {
-			return;
+			return false;
 		}
 
 		if (request?.clearCache) {
@@ -276,6 +197,7 @@ function useNavigationCoordinator(
 
 		const currentUrl = window.location.pathname + window.location.search;
 		await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
+		return true;
 	});
 
 	const handleCleanupBeforeHandoff = useEffectEvent(async () => {
@@ -352,7 +274,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const isNavigatingRef = useRef(false);
 	const runtimeActiveRef = useRef(true);
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
-	const pendingHoverNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
 	const committedPathRef = useRef<string>(
 		typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
@@ -606,42 +527,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		return href;
 	});
 
-	const getRecoveredHoverHref = useEffectEvent(() => {
-		const href = recoverPendingNavigationHref(
-			pendingHoverNavigationRef.current,
-			!!activeNavigationRef.current || isNavigatingRef.current,
-			performance.now(),
-		);
-
-		if (!href) {
-			pendingHoverNavigationRef.current = null;
-		}
-
-		return href;
-	});
-
-	const handleHoverIntent = useEffectEvent((event: MouseEvent | PointerEvent) => {
-		if (!runtimeActiveRef.current) {
-			return;
-		}
-
-		const link = getLinkFromEvent(event);
-		if (!link) {
-			return;
-		}
-
-		const decision = getInterceptDecision(event, link, options);
-		if (!decision.shouldIntercept) {
-			return;
-		}
-
-		pendingHoverNavigationRef.current = {
-			href: link.getAttribute('href')!,
-			timestamp: performance.now(),
-		};
-		queuedNavigationHrefRef.current = link.getAttribute('href')!;
-	});
-
 	const handlePointerDown = useEffectEvent((event: PointerEvent) => {
 		if (!runtimeActiveRef.current) {
 			pendingPointerNavigationRef.current = null;
@@ -670,15 +555,13 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const handleClick = useEffectEvent((event: MouseEvent) => {
 		if (!runtimeActiveRef.current) {
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			return;
 		}
 
 		const link = getLinkFromEvent(event);
 		if (!link) {
-			const recoveredHref = getRecoveredPointerHref() ?? getRecoveredHoverHref();
+			const recoveredHref = getRecoveredPointerHref();
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			if (!recoveredHref) {
 				return;
 			}
@@ -703,12 +586,10 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				}
 			}
 			pendingPointerNavigationRef.current = null;
-			pendingHoverNavigationRef.current = null;
 			return;
 		}
 
 		pendingPointerNavigationRef.current = null;
-		pendingHoverNavigationRef.current = null;
 		event.preventDefault();
 		queuedNavigationHrefRef.current = null;
 		const href = link.getAttribute('href')!;
@@ -730,10 +611,6 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	});
 
 	useEffect(() => {
-		const onHoverIntent = (event: Event) => {
-			handleHoverIntent(event as MouseEvent | PointerEvent);
-		};
-
 		const onPointerDown = (event: Event) => {
 			handlePointerDown(event as PointerEvent);
 		};
@@ -746,19 +623,11 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			handlePopState();
 		};
 
-		document.addEventListener('mouseover', onHoverIntent, true);
-		document.addEventListener('pointerover', onHoverIntent, true);
-		document.addEventListener('mousemove', onHoverIntent, true);
-		document.addEventListener('pointermove', onHoverIntent, true);
 		document.addEventListener('pointerdown', onPointerDown, true);
 		document.addEventListener('click', onClick, true);
 		window.addEventListener('popstate', onPopState);
 
 		return () => {
-			document.removeEventListener('mouseover', onHoverIntent, true);
-			document.removeEventListener('pointerover', onHoverIntent, true);
-			document.removeEventListener('mousemove', onHoverIntent, true);
-			document.removeEventListener('pointermove', onHoverIntent, true);
 			document.removeEventListener('pointerdown', onPointerDown, true);
 			document.removeEventListener('click', onClick, true);
 			window.removeEventListener('popstate', onPopState);

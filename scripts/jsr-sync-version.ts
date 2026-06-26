@@ -49,7 +49,7 @@ for (const jsrJson of jsrFiles) {
 	const previousVersion = modifiedJsrConfig.version;
 	modifiedJsrConfig.version = rootPackage.version;
 
-	writeFileSync(packageJson, JSON.stringify(modifiedPackageJsonConfig, null, 2), 'utf-8');
+	writeFileSync(packageJson, JSON.stringify(modifiedPackageJsonConfig, null, 2) + '\n', 'utf-8');
 	writeFileSync(jsrJson, JSON.stringify(modifiedJsrConfig, null, 2), 'utf-8');
 
 	appLogger.info(`${modifiedJsrConfig.name}: ${previousVersion} > ${rootPackage.version}`);

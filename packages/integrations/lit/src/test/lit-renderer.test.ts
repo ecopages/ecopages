@@ -8,6 +8,7 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
@@ -324,10 +325,12 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const Component = (async () => '<section>Lit Foreign Subtree</section>') as unknown as EcoComponent<object>;
 
-			const result = await testRenderer.renderForeignSubtree({
-				component: Component,
-				props: {},
-			});
+			const result = toForeignSubtreeRenderPayload(
+				await testRenderer.renderComponentWithForeignChildren({
+					component: Component,
+					props: {},
+				}),
+			);
 
 			expect(result).toEqual<ForeignSubtreeRenderPayload>({
 				html: expect.stringContaining('<section>Lit Foreign Subtree</section>') as unknown as string,

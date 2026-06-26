@@ -59,4 +59,8 @@ export class ClientBridge implements IClientBridge {
 	get subscriberCount(): number {
 		return this.subscribers.size;
 	}
+
+	destroy(): void {
+		this.subscribers.clear();
+	}
 }

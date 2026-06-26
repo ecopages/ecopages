@@ -6,17 +6,31 @@ import { SharedApplicationAdapter } from './shared/application-adapter.ts';
 import { createApp as createBunApp } from './bun/create-app.ts';
 import { createNodeApp } from './node/create-app.ts';
 
+export type EcopagesRuntimeAdapter = 'auto' | 'node' | 'bun';
+
 export interface EcopagesAppOptions extends ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
+	/**
+	 * Selects the runtime adapter used by the universal `createApp()` entrypoint.
+	 *
+	 * @default 'auto'
+	 *
+	 * @remarks
+	 * This is separate from `runtime`, which configures embedded host behavior.
+	 * Use `auto` to select Bun when the current process exposes `globalThis.Bun`
+	 * and Node otherwise.
+	 */
+	adapter?: EcopagesRuntimeAdapter;
 	serverOptions?: Record<string, any>;
 }
 
 export type UniversalEcopagesApp = AbstractApplicationAdapter<EcopagesAppOptions, unknown, Request>;
 
 async function createRuntimeApp<WebSocketData = undefined>(options: EcopagesAppOptions): Promise<UniversalEcopagesApp> {
+	const adapter = options.adapter ?? 'auto';
 	const bun = (globalThis as { Bun?: unknown }).Bun;
 
-	if (bun) {
+	if (adapter === 'bun' || (adapter === 'auto' && bun)) {
 		return (await createBunApp<WebSocketData>(options)) as unknown as UniversalEcopagesApp;
 	}
 
@@ -87,5 +101,16 @@ export class EcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, un
 		}
 
 		return candidate.fetch(request);
+	}
+
+	public override async stop(force = true): Promise<void> {
+		const runtimeApp = this.runtimeApp ?? (this.runtimeAppPromise ? await this.runtimeAppPromise : null);
+
+		if (runtimeApp) {
+			await runtimeApp.stop(force);
+		}
+
+		this.runtimeApp = null;
+		this.runtimeAppPromise = null;
 	}
 }

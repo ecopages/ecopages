@@ -20,6 +20,7 @@ import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
@@ -50,6 +51,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 > {
 	serverAdapter: BunServerAdapterResult | undefined;
 	private server: Server<WebSocketData> | null = null;
+	private stopped = false;
 	private readonly runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 	private readonly previewHost: StaticPreviewHost;
 
@@ -72,6 +74,17 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		await this.serverAdapter.completeInitialization(this.server);
 		return this.serverAdapter.handleRequest(request);
+	}
+
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: { passthroughUnmatched?: boolean },
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
 	}
 
 	/**
@@ -106,14 +119,16 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			composedUrl: binding.runtimeOrigin,
 		});
 
-		return await createBunServerAdapter({
+		return createBunServerAdapter({
 			runtimeOrigin: binding.runtimeOrigin,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
 			errorHandler: this.errorHandler,
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 		});
 	}
 
@@ -123,11 +138,16 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
 	 */
 	public async start(): Promise<Server<WebSocketData> | void> {
+		if (this.stopped) {
+			this.serverAdapter = undefined;
+			this.stopped = false;
+		}
+
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
-		const { dev, preview, build } = this.cliArgs;
+		const { dev, preview, build, force } = this.cliArgs;
 		const staticRuntimeMode = resolveStaticRuntimeMode({
 			appConfig: this.appConfig,
 			cliArgs: this.cliArgs,
@@ -135,7 +155,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		if (staticRuntimeMode.canBuildWithoutRuntimeServer) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview });
+			await this.serverAdapter.buildStatic({ preview, force });
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (build) {
@@ -149,13 +169,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 		const configuredHostname = String(serverOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
 		const configuredPort = Number(serverOptions.port ?? DEFAULT_ECOPAGES_PORT);
-		const runtimeServerOptions =
-			(preview || build) && staticRuntimeMode.requiresFetchRuntime
-				? {
-						...serverOptions,
-						port: 0,
-					}
-				: serverOptions;
+		const runtimeServerOptions = serverOptions;
 		this.server = await this.runtimeHost.start({
 			serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
 			handleRequest: async () => new Response(null, { status: 500 }),
@@ -175,8 +189,10 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview: false });
-			await this.runtimeHost.stop(this.server, { force: true });
+			await this.serverAdapter.buildStatic({ preview: false, force });
+			const buildRuntimeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(buildRuntimeServer, { force: true });
 
 			if (preview) {
 				const previewPort = await this.previewHost.start({
@@ -197,7 +213,27 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			}
 		}
 
-		return this.server;
+		return this.server ?? undefined;
+	}
+
+	public override async stop(force = true): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
+
+		if (this.server) {
+			const activeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(activeServer, { force });
+		}
+
+		await this.previewHost.stop();
+
+		if (this.serverAdapter) {
+			await this.serverAdapter.dispose();
+		}
+
+		this.stopped = true;
 	}
 }
 

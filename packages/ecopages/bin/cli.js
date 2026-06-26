@@ -36,6 +36,10 @@ const sharedServerOptionDefinitions = {
 	runtime: {
 		type: 'string',
 	},
+	'entry-file': {
+		type: 'string',
+		short: 'e',
+	},
 	help: {
 		type: 'boolean',
 		short: 'h',
@@ -63,14 +67,15 @@ function getMainHelpText() {
 		'',
 		'Commands:',
 		'  init <dir>              Initialize a new project from a template',
-		'  dev [entry]             Start the development server',
-		'  dev:watch [entry]       Start the development server with watch mode',
-		'  dev:hot [entry]         Start the development server with hot reload',
-		'  build [entry]           Build the project for production',
-		'  start [entry]           Start the production server',
-		'  preview [entry]         Preview the production build',
+		'  dev                     Start the development server',
+		'  dev:watch               Start the development server with watch mode',
+		'  dev:hot                 Start the development server with hot reload',
+		'  build                   Build the project for production',
+		'  start                   Start the production server',
+		'  preview                 Preview the production build',
 		'',
 		'Global options:',
+		'  -e, --entry-file <file> Entry file (default: app.ts)',
 		'  -h, --help              Show help',
 		'  --version               Show version',
 	].join('\n');
@@ -78,7 +83,7 @@ function getMainHelpText() {
 
 function getServerCommandHelpText(commandName, description) {
 	return [
-		`Usage: ecopages ${commandName} [entry] [options]`,
+		`Usage: ecopages ${commandName} [options]`,
 		'',
 		description,
 		'',
@@ -89,13 +94,14 @@ function getServerCommandHelpText(commandName, description) {
 		'  -d, --debug                             Enable debug logging',
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
+		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
 
 function getBuildCommandHelpText() {
 	return [
-		'Usage: ecopages build [entry] [options]',
+		'Usage: ecopages build [options]',
 		'',
 		'Build the project for production.',
 		'',
@@ -106,6 +112,7 @@ function getBuildCommandHelpText() {
 		'  -d, --debug                             Enable debug logging',
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
+		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -140,12 +147,16 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 		return { help: true };
 	}
 
-	if (positionals.length > 1) {
-		throw new Error(`Too many positional arguments provided for \`${commandName}\`.`);
+	if (positionals.length > 0) {
+		throw new Error(
+			`Positional entry file arguments are not supported for \`${commandName}\`. Use --entry-file <file> instead.`,
+		);
 	}
 
+	const entry = values['entry-file'] ?? 'app.ts';
+
 	return {
-		entry: positionals[0] ?? 'app.ts',
+		entry,
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -215,16 +226,17 @@ function runLaunchPlan(launchPlan) {
  * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
-async function runEntryCommand(args, options = {}, entryFile = 'app.ts') {
+async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
 	let launchPlan;
+	const requiresBuiltBundle = launchMode === 'start';
 
-	if (!existsSync(entryFile)) {
+	if (!requiresBuiltBundle && !existsSync(entryFile)) {
 		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
 		process.exit(1);
 	}
 
 	try {
-		launchPlan = await createLaunchPlan(args, options, entryFile);
+		launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		logger.error(message);
@@ -279,7 +291,12 @@ async function runServerCommand(rawArgs, definition) {
 		return;
 	}
 
-	await runEntryCommand(definition.entryArgs, { ...parsed.options, ...definition.optionOverrides }, parsed.entry);
+	await runEntryCommand(
+		definition.entryArgs,
+		{ ...parsed.options, ...definition.optionOverrides, entryFile: parsed.entry },
+		parsed.entry,
+		definition.launchMode ?? definition.name,
+	);
 }
 
 export async function runCli(rawArgs = process.argv.slice(2)) {
@@ -305,6 +322,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'dev',
 					description: 'Start the development server.',
 					entryArgs: ['--dev'],
+					launchMode: 'dev',
 					optionOverrides: { nodeEnv: 'development' },
 				});
 				return;
@@ -313,6 +331,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'dev:watch',
 					description: 'Start the development server with watch mode.',
 					entryArgs: ['--dev'],
+					launchMode: 'dev',
 					optionOverrides: { watch: true, nodeEnv: 'development' },
 				});
 				return;
@@ -321,6 +340,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'dev:hot',
 					description: 'Start the development server with hot reload.',
 					entryArgs: ['--dev'],
+					launchMode: 'dev',
 					optionOverrides: { hot: true, nodeEnv: 'development' },
 				});
 				return;
@@ -329,6 +349,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'build',
 					description: 'Build the project for production.',
 					entryArgs: ['--build'],
+					launchMode: 'build',
 					optionOverrides: { nodeEnv: 'production' },
 					mode: 'build',
 				});
@@ -338,6 +359,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'start',
 					description: 'Start the production server.',
 					entryArgs: [],
+					launchMode: 'start',
 					optionOverrides: { nodeEnv: 'production' },
 				});
 				return;
@@ -346,6 +368,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 					name: 'preview',
 					description: 'Preview the production build.',
 					entryArgs: ['--preview'],
+					launchMode: 'preview',
 					optionOverrides: { nodeEnv: 'production' },
 				});
 				return;

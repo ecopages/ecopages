@@ -196,6 +196,20 @@ describe('getEcoNavigationRuntime', () => {
 		expect(reloadSpy).toHaveBeenCalledWith({ clearCache: false, source: 'react-router' });
 	});
 
+	it('returns false when the active owner declines the reload', async () => {
+		const windowLike = createWindowLike();
+		const runtime = getEcoNavigationRuntime(windowLike);
+		const reloadSpy = vi.fn(async () => false);
+
+		runtime.register({ owner: 'browser-router', reloadCurrentPage: reloadSpy });
+		runtime.claimOwnership('browser-router');
+
+		const handled = await runtime.reloadCurrentPage({ clearCache: true });
+
+		expect(handled).toBe(false);
+		expect(reloadSpy).toHaveBeenCalledWith({ clearCache: true });
+	});
+
 	it('cleans up an explicit owner via its registration', async () => {
 		const windowLike = createWindowLike();
 		const runtime = getEcoNavigationRuntime(windowLike);

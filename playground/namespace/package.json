@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"start": "ecopages start",
+		"start": "pnpm run build && ecopages start",
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"preview": "ecopages preview"

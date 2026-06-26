@@ -252,3 +252,67 @@ test('createRolldownPluginBridge loads virtual module content with the registere
 	assert.equal(load?.code, 'export const x = 1;');
 	assert.equal(load?.moduleType, 'js');
 });
+
+test('createRolldownPluginBridge applies source transforms after first-wins onLoad rewrites', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'rewrite',
+			setup(build) {
+				build.onLoad({ filter: /.*/ }, () => ({
+					contents: 'export default eco.component({ render: () => null });',
+					loader: 'tsx',
+				}));
+			},
+		},
+	];
+
+	const sourceTransforms = [
+		{
+			name: 'eco-component-meta-plugin',
+			filter: /layout\.tsx$/,
+			transform(code: string, id: string) {
+				return {
+					code: code.replace(
+						'eco.component({',
+						`eco.component({ __eco: { id: "layout", file: "${id}", integration: "react" },`,
+					),
+				};
+			},
+		},
+	];
+
+	const bridge = createRolldownPluginBridge(plugins, '/app', sourceTransforms);
+	const plugin = bridge[0]!;
+	await callBuildStart(plugin);
+	const result = (await callLoad(plugin, '/app/src/layouts/minimal-layout.tsx')) as
+		| { code: string; moduleType: string }
+		| undefined;
+
+	assert.match(result?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
+	assert.equal(result?.moduleType, 'tsx');
+});
+
+test('createRolldownPluginBridge does not multiply onLoad handler registrations across rebuilds', async () => {
+	let loadCalls = 0;
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'counter',
+			setup(build) {
+				build.onLoad({ filter: /counter\.ts$/ }, () => {
+					loadCalls += 1;
+					return { contents: 'export const count = 1;', loader: 'ts' };
+				});
+			},
+		},
+	];
+
+	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const plugin = bridge[0]!;
+
+	for (let rebuild = 0; rebuild < 3; rebuild += 1) {
+		await callBuildStart(plugin);
+		loadCalls = 0;
+		await callLoad(plugin, '/app/counter.ts');
+		assert.equal(loadCalls, 1, `rebuild ${rebuild + 1} should invoke the onLoad handler once`);
+	}
+});

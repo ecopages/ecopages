@@ -76,4 +76,8 @@ export class NodeClientBridge implements IClientBridge {
 		}
 		this.subscribers.clear();
 	}
+
+	[Symbol.dispose]() {
+		this.destroy();
+	}
 }

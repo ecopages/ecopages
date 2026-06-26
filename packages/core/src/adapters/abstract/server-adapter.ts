@@ -30,7 +30,8 @@ export interface ServerAdapterOptions {
  */
 export interface ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => any;
-	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<void>;
+	dispose(): Promise<void>;
 }
 
 /**
@@ -65,7 +66,7 @@ export abstract class AbstractServerAdapter<
 	/**
 	 * Build static files for the application
 	 */
-	public abstract buildStatic(options?: { preview?: boolean }): Promise<void>;
+	public abstract buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void>;
 
 	/**
 	 * Factory method to create a server adapter with runtime-specific functionality

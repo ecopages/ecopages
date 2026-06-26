@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
-import { getAppBuildExecutor } from '../../build/build-adapter.ts';
+import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
+import { ServerRenderedTemplateHmrStrategy } from '../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
+import { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { HmrEntrypointRegistrar } from './hmr-entrypoint-registrar.ts';
@@ -25,6 +27,35 @@ import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils
 type HandleFileChangeOptions = {
 	broadcast?: boolean;
 };
+
+/** Dev-only guardrail when a queued HMR build never produces output. */
+const DEFAULT_HMR_REGISTRATION_TIMEOUT_MS = 4_000;
+
+/**
+ * Cold dev servers can enqueue many first-time entrypoint builds behind the
+ * serialized build executor; four seconds is too tight under parallel page load.
+ */
+const DEVELOPMENT_HMR_REGISTRATION_TIMEOUT_MS = 15_000;
+
+export function resolveHmrRegistrationTimeoutMs(explicitTimeoutMs?: number): number {
+	if (explicitTimeoutMs !== undefined) {
+		return explicitTimeoutMs;
+	}
+
+	const envTimeoutMs = process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS;
+	if (envTimeoutMs !== undefined && envTimeoutMs !== '') {
+		const parsedTimeoutMs = Number(envTimeoutMs);
+		if (Number.isFinite(parsedTimeoutMs) && parsedTimeoutMs > 0) {
+			return parsedTimeoutMs;
+		}
+	}
+
+	if (process.env.NODE_ENV === 'development') {
+		return DEVELOPMENT_HMR_REGISTRATION_TIMEOUT_MS;
+	}
+
+	return DEFAULT_HMR_REGISTRATION_TIMEOUT_MS;
+}
 
 type SharedHmrManagerParams = {
 	appConfig: EcoPagesAppConfig;
@@ -47,7 +78,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
 
-	constructor({ appConfig, bridge, registrationTimeoutMs = 4000 }: SharedHmrManagerParams) {
+	constructor({ appConfig, bridge, registrationTimeoutMs }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
@@ -57,7 +88,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			entrypointRegistrations: this.entrypointRegistrations,
 			watchedFiles: this.watchedFiles,
 			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
-			registrationTimeoutMs,
+			registrationTimeoutMs: resolveHmrRegistrationTimeoutMs(registrationTimeoutMs),
 		});
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(
@@ -114,7 +145,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 		};
 
-		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
+		const invalidationService = new DevelopmentInvalidationService(this.appConfig);
+
+		this.strategies = [
+			new JsHmrStrategy(jsContext),
+			new ServerRenderedTemplateHmrStrategy(invalidationService),
+			new DefaultHmrStrategy(),
+		];
 	}
 
 	public registerStrategy(strategy: HmrStrategy): void {
@@ -203,6 +240,30 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return this.watchedFiles.get(entrypointPath);
 	}
 
+	/**
+	 * Returns the emitted HMR script output when the artifact already exists on disk.
+	 *
+	 * SSR must not block on entrypoint registration when a previous build already
+	 * produced the browser bundle.
+	 */
+	public getResolvedScriptOutput(entrypointPath: string): { outputUrl: string; outputPath: string } | undefined {
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		const relativePath = path.relative(this.appConfig.absolutePaths.srcDir, normalizedEntrypoint);
+		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js').replace(/\[([^\]]+)\]/g, '_$1_');
+		const urlPath = relativePathJs.split(path.sep).join('/');
+		const outputPath = path.join(this.distDir, urlPath);
+
+		if (!fileSystem.exists(outputPath)) {
+			return undefined;
+		}
+
+		const outputUrl =
+			this.watchedFiles.get(normalizedEntrypoint) ??
+			`/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath).split(path.sep).join('/')}`;
+
+		return { outputUrl, outputPath };
+	}
+
 	public getWatchedFiles(): Map<string, string> {
 		return this.watchedFiles;
 	}
@@ -223,7 +284,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-			getBuildExecutor: () => getAppBuildExecutor(this.appConfig),
+			getBuildExecutor: () => requireBuildRuntime(this.appConfig).getProfile('browser-hmr'),
 			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			importServerModule: async <T>(filePath: string) =>
@@ -279,6 +340,20 @@ export abstract class SharedHmrManager implements IHmrManager {
 			return;
 		}
 
+		if (!fileSystem.exists(outputPath) && buildResult.outputs.length > 0) {
+			const resolvedOutputPath = path.resolve(outputPath);
+			const emittedOutput =
+				buildResult.outputs.find((output) => path.resolve(output.path) === resolvedOutputPath)?.path ??
+				buildResult.outputs.find((output) => path.basename(output.path) === path.basename(outputPath))?.path;
+
+			if (emittedOutput && fileSystem.exists(emittedOutput)) {
+				fileSystem.ensureDir(path.dirname(outputPath));
+				if (path.resolve(emittedOutput) !== resolvedOutputPath) {
+					fileSystem.copyFile(emittedOutput, outputPath);
+				}
+			}
+		}
+
 		const entrypointDependencies = buildResult.dependencyGraph?.entrypoints?.[entrypointPath];
 		if (entrypointDependencies) {
 			this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, entrypointDependencies);
@@ -294,5 +369,9 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.watchedFiles.clear();
 		this.entrypointDependencyGraph.reset();
 		this.plugins = [];
+	}
+
+	[Symbol.dispose]() {
+		this.stop();
 	}
 }

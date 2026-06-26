@@ -2,8 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import type { ConsoleMessage, Frame, Page } from 'playwright';
-import { gotoAndWait, trackRuntimeErrors } from './helpers';
+import {
+	createHmrPhaseTimer,
+	startEcopagesHmrConnectionWatch,
+	installFullDocumentReloadWatcher,
+	assertNoMainFrameNavigation,
+	watchForMainFrameNavigation,
+	gotoPath,
+	trackRuntimeErrors,
+} from './test-support';
 
 const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
 const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
@@ -41,26 +48,7 @@ function patchExplicitRouteHeading(content: string, suffix: string) {
 	);
 }
 
-async function waitForViteClientConnection(page: Page) {
-	const connected = page.waitForEvent('console', {
-		predicate: (message: ConsoleMessage) => message.type() === 'debug' && message.text() === '[vite] connected.',
-		timeout: 10000,
-	});
-
-	await connected;
-}
-
-async function waitForEcopagesHmrConnection(page: Page) {
-	const connected = page.waitForEvent('console', {
-		predicate: (message: ConsoleMessage) =>
-			message.type() === 'log' && message.text() === '[ecopages] HMR Connected',
-		timeout: 10000,
-	});
-
-	await connected;
-}
-
-test.describe('Kitchen Sink Playground Includes HMR', () => {
+test.describe('Source mutation HMR @hmr', () => {
 	let originalSeoInclude = '';
 	let seoIncludeFile = SEO_INCLUDE_FILE;
 	let originalExplicitTeamView = '';
@@ -71,11 +59,11 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 	// oxlint-disable-next-line no-empty-pattern
 	test.beforeAll(async ({}, testInfo) => {
 		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
-		originalSeoInclude = fs.readFileSync(seoIncludeFile, 'utf-8');
+		originalSeoInclude = fs.readFileSync(SEO_INCLUDE_FILE, 'utf-8');
 		explicitTeamViewFile = getExplicitTeamViewFile(
 			testInfo.project.metadata as Record<string, unknown> | undefined,
 		);
-		originalExplicitTeamView = fs.readFileSync(explicitTeamViewFile, 'utf-8');
+		originalExplicitTeamView = fs.readFileSync(EXPLICIT_TEAM_VIEW_FILE, 'utf-8');
 	});
 
 	test.afterAll(() => {
@@ -83,58 +71,67 @@ test.describe('Kitchen Sink Playground Includes HMR', () => {
 		fs.writeFileSync(explicitTeamViewFile, originalExplicitTeamView, 'utf-8');
 	});
 
-	test('reloads the page when a shared include template changes', async ({ page }, testInfo) => {
+	test('refreshes the current page when a shared include template changes', async ({ page }, testInfo) => {
+		const timer = createHmrPhaseTimer(`${testInfo.project.name} :: include template`);
 		const runtime = trackRuntimeErrors(page);
-		const waitsForViteReload = testInfo.project.name.includes('vite');
-		const viteClientConnected = waitsForViteReload ? waitForViteClientConnection(page) : undefined;
-		const ecopagesHmrConnected = waitsForViteReload ? undefined : waitForEcopagesHmrConnection(page);
+		const hmrReady = startEcopagesHmrConnectionWatch(page);
 
-		await gotoAndWait(page, '/docs');
-		await viteClientConnected;
-		await ecopagesHmrConnected;
-		const initialTitle = await page.title();
-		const reloaded = waitsForViteReload
-			? page.waitForEvent('framenavigated', {
-					predicate: (frame: Frame) => frame === page.mainFrame(),
-					timeout: 10000,
-				})
-			: undefined;
+		await installFullDocumentReloadWatcher(page);
+		await gotoPath(page, '/docs');
+		timer.mark('navigation-ready');
+		await hmrReady;
+		timer.mark('hmr-connected');
+		const titleReadyTimeout = testInfo.project.name.includes('vite') ? 45_000 : 10_000;
+		let initialTitle = '';
+		await expect
+			.poll(
+				async () => {
+					const title = await page.title();
+					if (title.length > 0 && !title.startsWith('Loading ')) {
+						initialTitle = title;
+						return true;
+					}
+
+					return false;
+				},
+				{ timeout: titleReadyTimeout },
+			)
+			.toBe(true);
+		const navigationWatch = watchForMainFrameNavigation(page);
 
 		fs.writeFileSync(seoIncludeFile, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
-		await reloaded;
-		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10000 });
+		timer.mark('mutation-applied');
+		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10_000 });
+		timer.mark('title-updated');
+		await assertNoMainFrameNavigation(navigationWatch);
 
 		runtime.assertClean();
 	});
 
-	test('reloads an explicit route when its view module changes', async ({ page }, testInfo) => {
+	test('refreshes an explicit route when its view module changes', async ({ page }, testInfo) => {
+		const timer = createHmrPhaseTimer(`${testInfo.project.name} :: explicit route view`);
 		const runtime = trackRuntimeErrors(page);
-		const waitsForViteReload = testInfo.project.name.includes('vite');
-		const viteClientConnected = waitsForViteReload ? waitForViteClientConnection(page) : undefined;
-		const ecopagesHmrConnected = waitsForViteReload ? undefined : waitForEcopagesHmrConnection(page);
+		const hmrReady = startEcopagesHmrConnectionWatch(page);
 
-		await gotoAndWait(page, '/explicit/team');
-		await viteClientConnected;
-		await ecopagesHmrConnected;
+		await installFullDocumentReloadWatcher(page);
+		await gotoPath(page, '/explicit/team');
+		timer.mark('navigation-ready');
+		await hmrReady;
+		timer.mark('hmr-connected');
 		await expect(page.getByRole('heading', { name: 'Explicit routes can still feel native.' })).toBeVisible();
 
-		const reloaded = waitsForViteReload
-			? page.waitForEvent('framenavigated', {
-					predicate: (frame: Frame) => frame === page.mainFrame(),
-					timeout: 10000,
-				})
-			: undefined;
-
+		const navigationWatch = watchForMainFrameNavigation(page);
 		fs.writeFileSync(
 			explicitTeamViewFile,
 			patchExplicitRouteHeading(originalExplicitTeamView, EXPLICIT_TEAM_SUFFIX),
 			'utf-8',
 		);
-
-		await reloaded;
+		timer.mark('mutation-applied');
 		await expect(
 			page.getByRole('heading', { name: `Explicit routes can still feel native. ${EXPLICIT_TEAM_SUFFIX}` }),
-		).toBeVisible({ timeout: 10000 });
+		).toBeVisible({ timeout: 10_000 });
+		timer.mark('heading-updated');
+		await assertNoMainFrameNavigation(navigationWatch);
 
 		runtime.assertClean();
 	});

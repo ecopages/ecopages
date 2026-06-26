@@ -66,8 +66,15 @@ function normalizePath(href: string): string {
 	return href.startsWith('/') ? href : `/${href}`;
 }
 
-/** Document navigation for kitchen-sink e2e hosts. */
-export async function gotoPath(page: Page, href: string) {
+/** Plain document navigation without morph-transaction machinery. */
+export async function gotoPathSimple(page: Page, href: string) {
+	const targetPath = normalizePath(href);
+	await page.goto(targetPath, { waitUntil: 'commit', timeout: NAVIGATION_TIMEOUT });
+	await page.waitForLoadState('domcontentloaded', { timeout: 15_000 }).catch(() => undefined);
+}
+
+/** Document navigation with morph-transaction settling (rapid-navigation stress specs only). */
+export async function gotoPathWithMorphSettling(page: Page, href: string) {
 	const targetPath = normalizePath(href);
 
 	await cancelPendingNavigation(page);
@@ -77,20 +84,19 @@ export async function gotoPath(page: Page, href: string) {
 	await waitForNavigationIdle(page, 5_000);
 }
 
+/** Document navigation for kitchen-sink e2e hosts. */
+export async function gotoPath(page: Page, href: string) {
+	await gotoPathSimple(page, href);
+}
+
 /** Recover document state after rapid in-app hops before content assertions. */
 export async function recoverToPath(page: Page, href: string) {
-	await gotoPath(page, href);
+	await gotoPathSimple(page, href);
 }
 
 /** DOM click that bypasses Playwright's navigation-gate actionability checks. */
 export async function clickByTestId(page: Page, testId: string) {
-	await waitForNavigationIdle(page, 5_000);
-	await page.evaluate((id: string) => {
-		const target = document.querySelector(`[data-testid="${id}"]`);
-		if (target instanceof HTMLElement) {
-			target.click();
-		}
-	}, testId);
+	await page.getByTestId(testId).click();
 }
 
 /**

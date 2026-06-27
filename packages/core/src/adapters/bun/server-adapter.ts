@@ -137,6 +137,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
+	private registerBunRuntimePlugin(plugin: EcoBuildPlugin): void {
+		Bun.plugin(plugin as any);
+	}
+
 	private adaptBunWebSocket<TContext, TParams extends Record<string, string>>(
 		ws: ServerWebSocket<WsKindData>,
 		kind: string,
@@ -278,7 +282,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			apiHandlers: this.apiHandlers,
 			hmrManager: this.hmrManager,
 			onRuntimePlugin: (plugin: EcoBuildPlugin) => {
-				Bun.plugin(plugin as any);
+				this.registerBunRuntimePlugin(plugin);
 			},
 		};
 
@@ -307,7 +311,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				runtimeOrigin: this.runtimeOrigin,
 				hmrManager: this.hmrManager,
 				onRuntimePlugin: (plugin: EcoBuildPlugin) => {
-					Bun.plugin(plugin as any);
+					this.registerBunRuntimePlugin(plugin);
 				},
 			});
 

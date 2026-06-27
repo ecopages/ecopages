@@ -2,7 +2,6 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
-import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { GENERATED_BASE_PATHS } from '../config/constants.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
@@ -95,7 +94,6 @@ export interface ProcessorContext {
  */
 export abstract class Processor<TOptions = Record<string, unknown>> {
 	readonly name: string;
-	protected dependencies: AssetDefinition[] = [];
 	protected context?: ProcessorContext;
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
@@ -149,14 +147,28 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	/**
 	 * Reports whether this processor's build inputs changed since the last
 	 * incremental static build.
+	 *
+	 * @remarks
+	 * No shipped processor overrides this today. Integrations and processors can
+	 * opt in when they own build inputs that should invalidate incremental static
+	 * exports without a full rebuild.
 	 */
 	didChange(): boolean {
 		return false;
 	}
 
 	abstract setup(): Promise<void>;
-	abstract teardown(): Promise<void>;
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;
+
+	/**
+	 * Releases runtime resources owned by the processor.
+	 *
+	 * @remarks
+	 * Core does not call this hook today. Override only when a processor owns
+	 * watchers, compiler handles, or other resources that outlive individual
+	 * requests.
+	 */
+	async teardown(): Promise<void> {}
 
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;
@@ -183,10 +195,6 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
 	getWatchConfig(): ProcessorWatchConfig | undefined {
 		return this.watchConfig;
-	}
-
-	getDependencies(): AssetDefinition[] {
-		return this.dependencies;
 	}
 
 	getName(): string {

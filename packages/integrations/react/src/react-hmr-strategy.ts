@@ -506,6 +506,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 		const requiresLayoutRefresh = isLayout || hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
 
+		await this.clearOutdirsForTargets(pageTargets, nonPageTargets);
+
 		const updates: string[] = [];
 		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
 		if (pageTargets.length > 1) {
@@ -567,6 +569,92 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
+	 * Clears stale HMR output once per outdir before any rebuild pass in `process()`.
+	 *
+	 * @remarks
+	 * Grouped page builds share `getDistDir()`; single page and non-page targets use
+	 * per-entrypoint temp directories. Clearing here avoids redundant work when both
+	 * page and non-page targets land in the same outdir.
+	 */
+	private async clearOutdirsForTargets(
+		pageTargets: ReactHmrBuildTarget[],
+		nonPageTargets: ReactHmrBuildTarget[],
+	): Promise<void> {
+		const outdirs = new Set<string>();
+
+		if (pageTargets.length > 1) {
+			outdirs.add(this.context.getDistDir());
+		} else {
+			for (const { entrypointPath } of pageTargets) {
+				outdirs.add(path.dirname(this.getEntrypointOutput(entrypointPath).outputPath));
+			}
+		}
+
+		for (const { entrypointPath } of nonPageTargets) {
+			outdirs.add(path.dirname(this.getEntrypointOutput(entrypointPath).outputPath));
+		}
+
+		await Promise.all([...outdirs].map((outdir) => this.clearHmrOutdir(outdir)));
+	}
+
+	private async resolveDeclaredModulesForEntrypoint(entrypointPath: string): Promise<readonly string[]> {
+		const cached = this.pageMetadataCache.getDeclaredModules(entrypointPath);
+		if (cached) {
+			return cached;
+		}
+
+		const declaredModules = entrypointPath.endsWith('.mdx')
+			? await collectPageDeclaredModules(entrypointPath)
+			: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
+		this.pageMetadataCache.setDeclaredModules(entrypointPath, declaredModules);
+		return declaredModules;
+	}
+
+	private async collectDeclaredModulesForTargets(
+		targets: ReactHmrBuildTarget[],
+	): Promise<{ declaredModules: string[]; shouldEnableMdx: boolean }> {
+		const declaredModules = new Set<string>();
+		let shouldEnableMdx = false;
+
+		for (const { entrypointPath } of targets) {
+			const entrypointDeclaredModules = await this.resolveDeclaredModulesForEntrypoint(entrypointPath);
+			for (const declaredModule of entrypointDeclaredModules) {
+				declaredModules.add(declaredModule);
+			}
+
+			if (entrypointPath.endsWith('.mdx')) {
+				shouldEnableMdx = true;
+			}
+		}
+
+		return { declaredModules: [...declaredModules], shouldEnableMdx };
+	}
+
+	private buildPluginsForDeclaredModules(
+		declaredModules: readonly string[],
+		shouldEnableMdx: boolean,
+	): ReturnType<ReactHmrStrategy['getBuildPlugins']> {
+		const plugins = this.getBuildPlugins(declaredModules);
+
+		if (shouldEnableMdx && this.mdxCompilerOptions) {
+			plugins.unshift(createReactMdxLoaderPlugin(this.mdxCompilerOptions));
+		}
+
+		return plugins;
+	}
+
+	private recordBuildDependencyGraph(result: { dependencyGraph?: { entrypoints?: Record<string, string[]> } }): void {
+		if (!result.dependencyGraph?.entrypoints) {
+			return;
+		}
+
+		const dependencyGraph = this.context.getEntrypointDependencyGraph();
+		for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
+			dependencyGraph.setEntrypointDependencies(entrypoint, deps);
+		}
+	}
+
+	/**
 	 * Bundles a single React/MDX entrypoint with HMR support.
 	 *
 	 * After successful bundling, populates the entrypoint dependency graph with
@@ -579,73 +667,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * @returns True if bundling was successful
 	 */
 	private async bundleReactEntrypoint(entrypointPath: string, outputUrl: string): Promise<boolean> {
-		try {
-			const isMdx = entrypointPath.endsWith('.mdx');
-			const { outputPath } = this.getEntrypointOutput(entrypointPath);
-			const tempDir = path.dirname(outputPath);
-
-			const cachedDeclared = this.pageMetadataCache.getDeclaredModules(entrypointPath);
-			let entrypointDeclaredModules: readonly string[];
-			let declaredModules: readonly string[];
-			if (cachedDeclared) {
-				entrypointDeclaredModules = cachedDeclared;
-				declaredModules = cachedDeclared;
-			} else {
-				entrypointDeclaredModules = isMdx
-					? await collectPageDeclaredModules(entrypointPath)
-					: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
-				// Populate the cache so subsequent rebuilds (single or grouped)
-				// don't re-import the page module on the Node side.
-				this.pageMetadataCache.setDeclaredModules(entrypointPath, entrypointDeclaredModules);
-				declaredModules = entrypointDeclaredModules;
-			}
-			const plugins = this.getBuildPlugins(declaredModules);
-
-			if (isMdx && this.mdxCompilerOptions) {
-				const mdxPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
-				plugins.unshift(mdxPlugin);
-			}
-
-			await this.clearHmrOutdir(tempDir);
-			const result = await this.context.getBrowserBundleService().bundle({
-				profile: 'hmr-entrypoint',
-				entrypoints: [entrypointPath],
-				outdir: tempDir,
-				naming: `[name].[hash].tmp`,
-				plugins,
-				minify: false,
-			});
-
-			if (!result.success) {
-				appLogger.error(`Failed to build ${entrypointPath}:`, result.logs);
-				return false;
-			}
-
-			if (result.dependencyGraph?.entrypoints) {
-				const dependencyGraph = this.context.getEntrypointDependencyGraph();
-				for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
-					dependencyGraph.setEntrypointDependencies(entrypoint, deps);
-				}
-			}
-
-			const tempFile = result.outputs[0]?.path;
-			if (!tempFile) {
-				appLogger.error(`No output file generated for ${entrypointPath}`);
-				return false;
-			}
-
-			const resolvedTempFile = await this.resolveTempOutputPath(tempFile);
-			if (!resolvedTempFile) {
-				appLogger.debug(`Skipping stale temp output for ${outputUrl}: ${tempFile}`);
-				return false;
-			}
-
-			const processed = await this.processOutput(resolvedTempFile, outputPath, outputUrl);
-			return processed;
-		} catch (error) {
-			appLogger.error(`Error bundling ${entrypointPath}:`, error as Error);
-			return false;
-		}
+		const rebuiltOutputs = await this.bundleReactBuildTargets([{ entrypointPath, outputUrl }], { grouped: false });
+		return rebuiltOutputs.length > 0;
 	}
 
 	/**
@@ -659,95 +682,117 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * @returns Array of output URLs that were successfully built
 	 */
 	private async bundleReactEntrypoints(entrypoints: ReactHmrBuildTarget[]): Promise<string[]> {
+		return this.bundleReactBuildTargets(entrypoints, { grouped: true });
+	}
+
+	private async bundleReactBuildTargets(
+		targets: ReactHmrBuildTarget[],
+		options: { grouped: boolean },
+	): Promise<string[]> {
+		if (targets.length === 0) {
+			return [];
+		}
+
 		try {
-			const declaredModules = new Set<string>();
-			let shouldEnableMdx = false;
+			const { declaredModules, shouldEnableMdx } = await this.collectDeclaredModulesForTargets(targets);
+			const plugins = this.buildPluginsForDeclaredModules(declaredModules, shouldEnableMdx);
 
-			for (const { entrypointPath } of entrypoints) {
-				const entrypointDeclaredModules = this.pageMetadataCache.getDeclaredModules(entrypointPath)
-					? this.pageMetadataCache.getDeclaredModules(entrypointPath)!
-					: entrypointPath.endsWith('.mdx')
-						? await collectPageDeclaredModules(entrypointPath)
-						: collectPageDeclaredModulesFromModule(await this.importNodePageModule(entrypointPath));
-
-				this.pageMetadataCache.setDeclaredModules(entrypointPath, entrypointDeclaredModules);
-				for (const declaredModule of entrypointDeclaredModules) {
-					declaredModules.add(declaredModule);
+			if (options.grouped) {
+				const entryNameByPath = new Map<string, { key: string; basename: string }>();
+				for (const { entrypointPath } of targets) {
+					entryNameByPath.set(entrypointPath, {
+						key: this.getRolldownEntryKey(entrypointPath),
+						basename: this.getTempFileBasename(entrypointPath),
+					});
 				}
 
-				if (entrypointPath.endsWith('.mdx')) {
-					shouldEnableMdx = true;
-				}
-			}
-
-			const plugins = this.getBuildPlugins([...declaredModules]);
-			if (shouldEnableMdx && this.mdxCompilerOptions) {
-				plugins.unshift(createReactMdxLoaderPlugin(this.mdxCompilerOptions));
-			}
-
-			await this.clearHmrOutdir(this.context.getDistDir());
-			const entryNameByPath = new Map<string, { key: string; basename: string }>();
-			for (const { entrypointPath } of entrypoints) {
-				entryNameByPath.set(entrypointPath, {
-					key: this.getRolldownEntryKey(entrypointPath),
-					basename: this.getTempFileBasename(entrypointPath),
+				const result = await this.context.getBrowserBundleService().bundle({
+					profile: 'hmr-entrypoint',
+					entrypoints: Object.fromEntries(
+						targets.map(({ entrypointPath }) => [entryNameByPath.get(entrypointPath)!.key, entrypointPath]),
+					),
+					outdir: this.context.getDistDir(),
+					naming: '[name].[hash].tmp',
+					splitting: true,
+					plugins,
+					minify: false,
 				});
+
+				if (!result.success) {
+					appLogger.error(`Failed to build grouped React entrypoints:`, result.logs);
+					return [];
+				}
+
+				this.recordBuildDependencyGraph(result);
+
+				const updatedOutputs: string[] = [];
+				for (const { entrypointPath, outputUrl } of targets) {
+					const { outputPath } = this.getEntrypointOutput(entrypointPath);
+					const { basename: tempBasename, key: entryKey } = entryNameByPath.get(entrypointPath)!;
+					const expectedSubdir = path.join(this.context.getDistDir(), path.dirname(entryKey));
+					const tempOutput = result.outputs.find((output) => {
+						return (
+							path.dirname(output.path) === expectedSubdir &&
+							path.basename(output.path).startsWith(`${tempBasename}.`) &&
+							path.basename(output.path).includes('.tmp')
+						);
+					})?.path;
+
+					const resolvedTempOutput = tempOutput
+						? await this.resolveTempOutputPath(tempOutput)
+						: await this.resolveTempOutputPath(path.join(expectedSubdir, `${tempBasename}.[hash].tmp.js`));
+
+					if (!resolvedTempOutput) {
+						appLogger.debug(`Missing grouped temp output for ${outputUrl}`);
+						continue;
+					}
+
+					const processed = await this.processOutput(resolvedTempOutput, outputPath, outputUrl);
+					if (processed) {
+						updatedOutputs.push(outputUrl);
+					}
+				}
+
+				return updatedOutputs;
 			}
+
+			const { entrypointPath, outputUrl } = targets[0]!;
+			const { outputPath } = this.getEntrypointOutput(entrypointPath);
+			const tempDir = path.dirname(outputPath);
+
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
-				entrypoints: Object.fromEntries(
-					entrypoints.map(({ entrypointPath }) => [entryNameByPath.get(entrypointPath)!.key, entrypointPath]),
-				),
-				outdir: this.context.getDistDir(),
-				naming: '[name].[hash].tmp',
-				splitting: true,
+				entrypoints: [entrypointPath],
+				outdir: tempDir,
+				naming: `[name].[hash].tmp`,
 				plugins,
 				minify: false,
 			});
 
 			if (!result.success) {
-				appLogger.error(`Failed to build grouped React entrypoints:`, result.logs);
+				appLogger.error(`Failed to build ${entrypointPath}:`, result.logs);
 				return [];
 			}
 
-			if (result.dependencyGraph?.entrypoints) {
-				const dependencyGraph = this.context.getEntrypointDependencyGraph();
-				for (const [entrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
-					dependencyGraph.setEntrypointDependencies(entrypoint, deps);
-				}
+			this.recordBuildDependencyGraph(result);
+
+			const tempFile = result.outputs[0]?.path;
+			if (!tempFile) {
+				appLogger.error(`No output file generated for ${entrypointPath}`);
+				return [];
 			}
 
-			const updatedOutputs: string[] = [];
-			for (const { entrypointPath, outputUrl } of entrypoints) {
-				const { outputPath } = this.getEntrypointOutput(entrypointPath);
-				const { basename: tempBasename, key: entryKey } = entryNameByPath.get(entrypointPath)!;
-				const expectedSubdir = path.join(this.context.getDistDir(), path.dirname(entryKey));
-				const tempOutput = result.outputs.find((output) => {
-					return (
-						path.dirname(output.path) === expectedSubdir &&
-						path.basename(output.path).startsWith(`${tempBasename}.`) &&
-						path.basename(output.path).includes('.tmp')
-					);
-				})?.path;
-
-				const resolvedTempOutput = tempOutput
-					? await this.resolveTempOutputPath(tempOutput)
-					: await this.resolveTempOutputPath(path.join(expectedSubdir, `${tempBasename}.[hash].tmp.js`));
-
-				if (!resolvedTempOutput) {
-					appLogger.debug(`Missing grouped temp output for ${outputUrl}`);
-					continue;
-				}
-
-				const processed = await this.processOutput(resolvedTempOutput, outputPath, outputUrl);
-				if (processed) {
-					updatedOutputs.push(outputUrl);
-				}
+			const resolvedTempFile = await this.resolveTempOutputPath(tempFile);
+			if (!resolvedTempFile) {
+				appLogger.debug(`Skipping stale temp output for ${outputUrl}: ${tempFile}`);
+				return [];
 			}
 
-			return updatedOutputs;
+			const processed = await this.processOutput(resolvedTempFile, outputPath, outputUrl);
+			return processed ? [outputUrl] : [];
 		} catch (error) {
-			appLogger.error(`Error bundling grouped React entrypoints:`, error as Error);
+			const label = options.grouped ? 'grouped React entrypoints' : targets[0]?.entrypointPath ?? 'React entrypoint';
+			appLogger.error(`Error bundling ${label}:`, error as Error);
 			return [];
 		}
 	}

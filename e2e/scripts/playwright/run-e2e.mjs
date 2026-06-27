@@ -13,25 +13,26 @@ const playwrightCliPath = require.resolve('@playwright/test/cli');
 const e2eTempDir = path.join(repoRoot, '.e2e-tmp');
 const maxBatchConcurrency = Math.max(1, availableParallelism());
 
-function resolveServerConcurrency() {
-	const configured = Number(process.env.ECOPAGES_E2E_SERVER_CONCURRENCY);
+function resolveBatchConcurrency(envName, fallback) {
+	const configured = Number(process.env[envName]);
 	if (Number.isInteger(configured) && configured > 0) {
-		return configured;
+		return Math.min(configured, maxBatchConcurrency);
 	}
 
-	return Math.max(1, Math.min(maxBatchConcurrency, Math.floor(maxBatchConcurrency / 2) || 1));
+	return Math.min(fallback, maxBatchConcurrency);
+}
+
+function resolveServerConcurrency() {
+	return resolveBatchConcurrency('ECOPAGES_E2E_SERVER_CONCURRENCY', maxBatchConcurrency);
 }
 
 const maxServerConcurrency = resolveServerConcurrency();
 const kitchenSinkPreviewConcurrency = maxServerConcurrency;
-const kitchenSinkDevConcurrency = Math.max(
-	1,
-	Math.min(
-		Number(process.env.ECOPAGES_E2E_DEV_CONCURRENCY) > 0 ? Number(process.env.ECOPAGES_E2E_DEV_CONCURRENCY) : 1,
-		maxServerConcurrency,
-	),
+const kitchenSinkDevConcurrency = resolveBatchConcurrency(
+	'ECOPAGES_E2E_DEV_CONCURRENCY',
+	Math.min(2, maxServerConcurrency),
 );
-const kitchenSinkHmrConcurrency = 1;
+const kitchenSinkHmrConcurrency = resolveBatchConcurrency('ECOPAGES_E2E_HMR_CONCURRENCY', 1);
 const e2eTimingEnabled = process.env.ECOPAGES_E2E_TIMING === 'true';
 const e2eTimingEntries = [];
 

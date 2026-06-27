@@ -128,8 +128,13 @@ describe('run-e2e wrapper planning', () => {
 		}
 	});
 
-	it('defaults kitchen-sink dev concurrency to one shared-workspace server at a time', () => {
-		expect(kitchenSinkCapabilityGroups[1]?.concurrency).toBe(1);
+	it('defaults kitchen-sink dev batch concurrency to min(2, server cap)', () => {
+		expect(kitchenSinkCapabilityGroups[1]?.concurrency).toBeLessThanOrEqual(2);
+		expect(kitchenSinkCapabilityGroups[1]?.concurrency).toBeGreaterThan(0);
+	});
+
+	it('keeps kitchen-sink hmr batch concurrency serial by default', () => {
+		expect(kitchenSinkCapabilityGroups[2]?.concurrency).toBe(1);
 	});
 
 	it('maps each kitchen-sink HMR project to a unique workspace while sharing read-only workspaces', () => {

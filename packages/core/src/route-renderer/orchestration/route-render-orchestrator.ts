@@ -4,9 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderResult,
-	DependencyAttributes,
 	EcoComponent,
-	EcoComponentConfig,
 	EcoPageComponent,
 	EcoPageFile,
 	HtmlTemplateProps,
@@ -35,6 +33,11 @@ import { appLogger } from '../../global/app-logger.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
 import { OwnershipValidationService, throwIfOwnershipInvalid } from './ownership-validation.service.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
+import {
+	collectEagerSsrLazyScriptDefinitions,
+	collectIntegrationNamesFromGraph,
+	collectResolvedLazyTriggersFromGraph,
+} from './component-graph-collectors.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -223,35 +226,37 @@ export class RouteRenderOrchestrator {
 		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
-		const { resolvedDependencies } = await adapter.resolveRouteDependencies({
-			components: componentsToResolve,
-		});
-		const pageBrowserGraph = await this.resolvePageBrowserGraph({
-			routeFile: routeOptions.file,
-			integrationName: adapter.name,
-			collectContribution: async (routeFile) => await adapter.collectPageBrowserGraphContribution(routeFile),
-		});
+		const [{ resolvedDependencies }, pageBrowserGraph, componentRender] = await Promise.all([
+			adapter.resolveRouteDependencies({
+				components: componentsToResolve,
+			}),
+			this.resolvePageBrowserGraph({
+				routeFile: routeOptions.file,
+				integrationName: adapter.name,
+				collectContribution: async (routeFile) => await adapter.collectPageBrowserGraphContribution(routeFile),
+			}),
+			adapter.resolveRoutePageComponentRender({
+				Page: Page as EcoComponent,
+				Layout,
+				props,
+				routeOptions,
+			}),
+		]);
 		const usedIntegrationDependencies = this.collectUsedIntegrationDependencies(componentsToResolve, adapter.name);
 		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies];
-
-		const componentRender = await adapter.resolveRoutePageComponentRender({
-			Page: Page as EcoComponent,
-			Layout,
-			props,
-			routeOptions,
-		});
 
 		if (componentRender?.assets?.length) {
 			allDependencies.push(...componentRender.assets);
 		}
 
-		const triggers = this.collectResolvedTriggers(componentsToResolve);
-		if (triggers.length > 0) {
-			const globalAssets = await this.buildGlobalInjectorAssets(triggers, adapter.name);
+		const triggers = collectResolvedLazyTriggersFromGraph(componentsToResolve, adapter.name);
+		const [globalAssets, eagerSsrLazyAssets] = await Promise.all([
+			triggers.length > 0 ? this.buildGlobalInjectorAssets(triggers, adapter.name) : Promise.resolve([]),
+			this.buildEagerSsrLazyAssets(componentsToResolve, adapter.name),
+		]);
+		if (globalAssets.length > 0) {
 			allDependencies.push(...globalAssets);
 		}
-
-		const eagerSsrLazyAssets = await this.buildEagerSsrLazyAssets(componentsToResolve, adapter.name);
 		if (eagerSsrLazyAssets.length > 0) {
 			allDependencies.push(...eagerSsrLazyAssets);
 		}
@@ -647,38 +652,11 @@ export class RouteRenderOrchestrator {
 		};
 	}
 
-	private collectResolvedTriggers(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		seen = new Set<object>(),
-	): ResolvedLazyTrigger[] {
-		const triggers: ResolvedLazyTrigger[] = [];
-		for (const comp of components) {
-			if (!comp) {
-				continue;
-			}
-
-			const ecoComp = comp as EcoComponent;
-			if (seen.has(ecoComp)) {
-				continue;
-			}
-			seen.add(ecoComp);
-			const ownTriggers = ecoComp.config?._resolvedLazyTriggers;
-			if (ownTriggers?.length) {
-				triggers.push(...ownTriggers);
-			}
-			const nested = ecoComp.config?.dependencies?.components;
-			if (nested?.length) {
-				triggers.push(...this.collectResolvedTriggers(nested, seen));
-			}
-		}
-		return triggers;
-	}
-
 	private collectUsedIntegrationDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		currentIntegrationName: string,
 	): ProcessedAsset[] {
-		const integrationNames = this.collectIntegrationNames(components);
+		const integrationNames = collectIntegrationNamesFromGraph(components, currentIntegrationName);
 		const dependencies: ProcessedAsset[] = [];
 
 		for (const integrationName of integrationNames) {
@@ -697,40 +675,6 @@ export class RouteRenderOrchestrator {
 		}
 
 		return dependencies;
-	}
-
-	private collectIntegrationNames(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		seen = new Set<object>(),
-	): Set<string> {
-		const integrationNames = new Set<string>();
-
-		for (const comp of components) {
-			if (!comp) {
-				continue;
-			}
-
-			const ecoComp = comp as EcoComponent;
-			if (seen.has(ecoComp)) {
-				continue;
-			}
-			seen.add(ecoComp);
-
-			const integrationName = ecoComp.config?.integration ?? ecoComp.config?.__eco?.integration;
-			if (integrationName) {
-				integrationNames.add(integrationName);
-			}
-
-			const nested = ecoComp.config?.dependencies?.components;
-			if (nested?.length) {
-				const nestedNames = this.collectIntegrationNames(nested, seen);
-				for (const nestedName of nestedNames) {
-					integrationNames.add(nestedName);
-				}
-			}
-		}
-
-		return integrationNames;
 	}
 
 	private async buildGlobalInjectorAssets(
@@ -771,99 +715,11 @@ export class RouteRenderOrchestrator {
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		currentIntegrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const dependencies = this.collectEagerSsrLazyDependencies(components);
+		const dependencies = collectEagerSsrLazyScriptDefinitions(components);
 		if (dependencies.length === 0) {
 			return [];
 		}
 
 		return this.assetProcessingService.processDependencies(dependencies, `${currentIntegrationName}:ssr-lazy`);
-	}
-
-	private collectEagerSsrLazyDependencies(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-	): ReturnType<AssetProcessingService['processDependencies']> extends Promise<infer _>
-		? Parameters<AssetProcessingService['processDependencies']>[0]
-		: never {
-		const dependencies = [] as Parameters<AssetProcessingService['processDependencies']>[0];
-		const visitedConfigs = new Set<EcoComponentConfig>();
-		const seenKeys = new Set<string>();
-
-		const normalizeAttributes = (attributes?: DependencyAttributes) => ({
-			type: 'module',
-			defer: '',
-			...(attributes ?? {}),
-		});
-
-		const collect = (config?: EcoComponentConfig) => {
-			if (!config || visitedConfigs.has(config)) {
-				return;
-			}
-
-			visitedConfigs.add(config);
-
-			const componentFile = config.__eco?.file;
-			if (componentFile) {
-				const componentDir = path.dirname(componentFile);
-				for (const script of config.dependencies?.scripts ?? []) {
-					if (typeof script === 'string' || !script.lazy || script.ssr !== true) {
-						continue;
-					}
-
-					const attributes = normalizeAttributes(script.attributes);
-
-					if (script.content) {
-						const key = `content:${script.content}:${JSON.stringify(attributes)}`;
-						if (seenKeys.has(key)) {
-							continue;
-						}
-
-						seenKeys.add(key);
-						dependencies.push(
-							AssetFactory.createContentScript({
-								position: 'head',
-								content: script.content,
-								attributes,
-								packageRole: 'dynamic-chunk',
-							}),
-						);
-						continue;
-					}
-
-					if (!script.src) {
-						continue;
-					}
-
-					const resolvedPath = path.resolve(componentDir, script.src);
-					const key = `file:${resolvedPath}:${JSON.stringify(attributes)}`;
-					if (seenKeys.has(key)) {
-						continue;
-					}
-
-					seenKeys.add(key);
-					dependencies.push(
-						AssetFactory.createFileScript({
-							filepath: resolvedPath,
-							position: 'head',
-							attributes,
-							packageRole: 'dynamic-chunk',
-						}),
-					);
-				}
-			}
-
-			if (config.layout?.config) {
-				collect(config.layout.config);
-			}
-
-			for (const nestedComponent of config.dependencies?.components ?? []) {
-				collect(nestedComponent?.config);
-			}
-		};
-
-		for (const component of components) {
-			collect(component.config);
-		}
-
-		return dependencies;
 	}
 }

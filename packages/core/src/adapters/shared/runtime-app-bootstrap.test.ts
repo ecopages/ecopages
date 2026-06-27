@@ -48,7 +48,7 @@ describe('runtime app bootstrap', () => {
 
 		assert.equal(binding.preferredPort, 4321);
 		assert.equal(binding.preferredHostname, '127.0.0.1');
-		assert.equal(binding.previewPortExplicitlyConfigured, true);
+		assert.equal(binding.allowPortFallback, false);
 		assert.equal(binding.runtimeOrigin, 'http://127.0.0.1:4321');
 		assert.deepEqual(binding.serveOptions, {
 			port: 4321,
@@ -74,7 +74,7 @@ describe('runtime app bootstrap', () => {
 		});
 
 		assert.equal(binding.preferredPort, 3000);
-		assert.equal(binding.previewPortExplicitlyConfigured, false);
+		assert.equal(binding.allowPortFallback, true);
 	});
 
 	it('marks ECOPAGES_PORT as an explicit preview binding', () => {
@@ -95,7 +95,7 @@ describe('runtime app bootstrap', () => {
 		});
 
 		assert.equal(binding.preferredPort, 3000);
-		assert.equal(binding.previewPortExplicitlyConfigured, true);
+		assert.equal(binding.allowPortFallback, false);
 	});
 
 	it('builds static pages directly for build and preview commands', () => {

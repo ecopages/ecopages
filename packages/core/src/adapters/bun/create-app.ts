@@ -101,19 +101,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
 		});
-		this.previewPortExplicitlyConfigured = binding.previewPortExplicitlyConfigured;
-
-		appLogger.debug('initializeServerAdapter', {
-			dev: this.cliArgs.dev,
-			cliPort: this.cliArgs.port,
-			cliHostname: this.cliArgs.hostname,
-			envPort: process.env.ECOPAGES_PORT,
-			envHostname: process.env.ECOPAGES_HOSTNAME,
-			preferredPort: binding.preferredPort,
-			preferredHostname: binding.preferredHostname,
-			composedUrl: binding.runtimeOrigin,
-		});
-
 		return createBunServerAdapter({
 			runtimeOrigin: binding.runtimeOrigin,
 			appConfig: this.appConfig,
@@ -128,7 +115,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 				appConfig: this.appConfig,
 				cliArgs: this.cliArgs,
 			}).canBuildWithoutRuntimeServer,
-			previewPortExplicitlyConfigured: binding.previewPortExplicitlyConfigured,
+			allowPortFallback: binding.allowPortFallback,
 		});
 	}
 

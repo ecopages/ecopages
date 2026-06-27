@@ -82,7 +82,7 @@ export interface BunServerAdapterParams {
 	delegateBrowserReloadToHost?: boolean;
 	hostOwnsDevClient?: boolean;
 	deferRuntimeAssetSetup?: boolean;
-	previewPortExplicitlyConfigured?: boolean;
+	allowPortFallback?: boolean;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
 	previewHost?: StaticPreviewHost;
@@ -124,7 +124,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private projectWatcher: ProjectWatcher | null = null;
 	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
-	private readonly previewPortExplicitlyConfigured: boolean;
+	private readonly allowPortFallback: boolean;
 	private readonly previewHost: StaticPreviewHost;
 
 	/**
@@ -211,7 +211,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		options,
 		hostOwnsDevClient,
 		deferRuntimeAssetSetup,
-		previewPortExplicitlyConfigured,
+		allowPortFallback,
 		hmrManager,
 		bridge,
 		previewHost,
@@ -222,7 +222,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}) {
 		super({ appConfig, runtimeOrigin, serveOptions, options });
 		this.deferRuntimeAssetSetup = deferRuntimeAssetSetup === true;
-		this.previewPortExplicitlyConfigured = previewPortExplicitlyConfigured === true;
+		this.allowPortFallback = allowPortFallback !== false;
 		this.apiHandlers = apiHandlers || [];
 		this.staticRoutes = staticRoutes || [];
 		this.errorHandler = errorHandler;
@@ -601,7 +601,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			appConfig: this.appConfig,
 			hostname: String(previewHostname),
 			port: previewPort,
-			allowPortFallback: !this.previewPortExplicitlyConfigured,
+			allowPortFallback: this.allowPortFallback,
 		});
 
 		if (activePreviewPort) {

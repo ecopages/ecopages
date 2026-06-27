@@ -61,8 +61,7 @@ export function hasForeignChildDescendantsInGraph(component: EcoComponent, curre
 				return false;
 			}
 
-			const integrationName =
-				currentComponent.config?.integration ?? currentComponent.config?.__eco?.integration;
+			const integrationName = currentComponent.config?.integration ?? currentComponent.config?.__eco?.integration;
 			if (integrationName && integrationName !== currentIntegrationName) {
 				foundForeign = true;
 				return false;

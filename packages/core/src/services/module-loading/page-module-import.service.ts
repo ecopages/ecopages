@@ -1,12 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import {
-	build,
-	type BuildExecutor,
-	type BuildOptions,
-	type BuildResult,
-} from '../../build/build-adapter.ts';
+import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
 import {

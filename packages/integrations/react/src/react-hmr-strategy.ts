@@ -791,7 +791,9 @@ export class ReactHmrStrategy extends HmrStrategy {
 			const processed = await this.processOutput(resolvedTempFile, outputPath, outputUrl);
 			return processed ? [outputUrl] : [];
 		} catch (error) {
-			const label = options.grouped ? 'grouped React entrypoints' : targets[0]?.entrypointPath ?? 'React entrypoint';
+			const label = options.grouped
+				? 'grouped React entrypoints'
+				: (targets[0]?.entrypointPath ?? 'React entrypoint');
 			appLogger.error(`Error bundling ${label}:`, error as Error);
 			return [];
 		}

@@ -7,11 +7,7 @@ import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
-import {
-	injectHmrRuntimeIntoHtmlResponse,
-	isHtmlResponse,
-	shouldInjectHmrHtmlResponse,
-} from './hmr-html-response.ts';
+import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlResponse } from './hmr-html-response.ts';
 
 /**
  * Copies source `public/` into dist and ensures the resolved assets directory exists.

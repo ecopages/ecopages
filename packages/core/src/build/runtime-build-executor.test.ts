@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { createAppBuildManifest } from './build-manifest.ts';
-import {
-	setAppBuildAdapter,
-	setAppBuildManifest,
-	ViteHostBuildAdapter,
-} from './build-adapter.ts';
+import { setAppBuildAdapter, setAppBuildManifest, ViteHostBuildAdapter } from './build-adapter.ts';
 import { getBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';

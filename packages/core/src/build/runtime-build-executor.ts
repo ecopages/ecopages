@@ -1,9 +1,6 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { BuildExecutor } from './build-adapter.ts';
-import {
-	installBuildRuntime,
-	requireBuildRuntime,
-} from './build-runtime.ts';
+import { installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 
 export type { BuildProfile, BuildRuntime } from './build-runtime.ts';
 export { disposeAppBuildRuntime, getBuildRuntime, installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';

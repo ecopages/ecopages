@@ -108,7 +108,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		};
 	}
 
-
 	protected override createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
@@ -229,15 +228,9 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 					const rendered = await this.renderJsx(content);
 					const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(
 						rendered.html,
-						this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(
-							input,
-						),
+						this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(input),
 						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-							this.renderQueuedForeignSubtreeChildren(
-								children,
-								queuedResolutionsByToken,
-								resolveToken,
-							),
+							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 						'Ecopages JSX',
 					);
 					const componentAssets =

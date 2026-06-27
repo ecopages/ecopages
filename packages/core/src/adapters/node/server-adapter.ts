@@ -49,6 +49,8 @@ export interface NodeServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
+	deferRuntimeAssetSetup?: boolean;
+	previewPortExplicitlyConfigured?: boolean;
 	previewHost?: StaticPreviewHost;
 	requestBridge?: NodeHttpRequestBridge;
 	devRuntimeFactory?: NodeServerDevRuntimeFactory;
@@ -91,6 +93,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private hmrManager: NodeHmrManager | null = null;
 	private projectWatcher: ProjectWatcher | null = null;
 	private adapterDisposed = false;
+	private readonly deferRuntimeAssetSetup: boolean;
+	private readonly previewPortExplicitlyConfigured: boolean;
 	private readonly previewHost: StaticPreviewHost;
 	private readonly requestBridge: NodeHttpRequestBridge;
 	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
@@ -152,6 +156,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		},
 	) {
 		super(options);
+		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
+		this.previewPortExplicitlyConfigured = options.previewPortExplicitlyConfigured === true;
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
@@ -181,11 +187,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		installAppRuntimeBuildExecutor(this.appConfig);
 
 		prepareRuntimePublicDir(this.appConfig);
-		await setupAppRuntimePlugins({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-			hmrManager: this.hmrManager ?? undefined,
-		});
+		if (!this.deferRuntimeAssetSetup) {
+			await setupAppRuntimePlugins({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+				hmrManager: this.hmrManager ?? undefined,
+			});
+		}
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
 			hmrManager: this.hmrManager ?? undefined,
@@ -195,7 +203,9 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
+			runtimeOrigin: this.runtimeOrigin,
 			apiHandlers: this.apiHandlers,
+			hmrManager: this.hmrManager ?? undefined,
 		});
 		this.initialized = true;
 	}
@@ -225,15 +235,19 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			return;
 		}
 
-		await this.previewHost.start({
+		const activePreviewPort = await this.previewHost.start({
 			appConfig: this.appConfig,
 			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
+			allowPortFallback: !this.previewPortExplicitlyConfigured,
 		});
 
+		if (!activePreviewPort) {
+			return;
+		}
+
 		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
-		const previewPort = this.serveOptions.port || DEFAULT_ECOPAGES_PORT;
-		appLogger.info(`Preview running at http://${previewHostname}:${previewPort}`);
+		appLogger.info(`Preview running at http://${previewHostname}:${activePreviewPort}`);
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {

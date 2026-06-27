@@ -46,16 +46,24 @@ function createMockDependencies() {
 	} as unknown as StaticSiteGenerator;
 
 	const mockIntegration = {
+		setConfig: () => {},
+		setRuntimeOrigin: () => {},
+		setHmrManager: () => {},
+		plugins: [],
 		setup: async () => {
 			calls.integrationSetup += 1;
 		},
 	} as any;
 
 	const mockProcessor = {
+		plugins: [],
 		setup: async () => {
 			calls.processorSetup += 1;
 			fs.mkdirSync(path.join(TMP_DIR, 'dist', 'images'), { recursive: true });
 			fs.writeFileSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'), 'processor-output');
+		},
+		areRuntimeAssetsPresent: async () => {
+			return fs.existsSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'));
 		},
 	} as any;
 
@@ -66,6 +74,7 @@ function createMockDependencies() {
 		distDir: 'dist',
 		integrations: [mockIntegration],
 		processors: new Map([['image-processor', mockProcessor]]),
+		loaders: new Map(),
 		absolutePaths: {
 			distDir: path.join(TMP_DIR, 'dist'),
 			workDir: path.join(TMP_DIR, '.eco'),
@@ -282,6 +291,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 				previewServerFactory,
 			});
@@ -305,6 +315,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -338,6 +349,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 				});
 
@@ -361,6 +373,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -394,6 +407,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
+				runtimeOrigin: 'http://0.0.0.0:8080',
 				logger,
 			});
 
@@ -413,6 +427,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -443,6 +458,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 				previewServerFactory,
 			});
@@ -471,6 +487,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -490,6 +507,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -520,6 +538,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -554,6 +573,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 				});
 
@@ -582,6 +602,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'nonexistent.ts',
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
@@ -611,6 +632,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 				});
@@ -644,6 +666,7 @@ describe('ServerStaticBuilder', () => {
 						appConfig,
 						staticSiteGenerator: StaticSiteGenerator,
 						serveOptions: ServeOptions,
+						runtimeOrigin: 'http://127.0.0.1:3000',
 						logger,
 						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 					});
@@ -681,6 +704,7 @@ describe('ServerStaticBuilder', () => {
 						appConfig,
 						staticSiteGenerator: StaticSiteGenerator,
 						serveOptions: ServeOptions,
+						runtimeOrigin: 'http://127.0.0.1:3000',
 						logger,
 						entryFile: 'app.ts',
 						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
@@ -731,6 +755,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 				});

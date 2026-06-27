@@ -116,6 +116,7 @@ export abstract class AbstractApplicationAdapter<
 	protected appConfig: EcoPagesAppConfig;
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
+	protected previewPortExplicitlyConfigured = false;
 	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];

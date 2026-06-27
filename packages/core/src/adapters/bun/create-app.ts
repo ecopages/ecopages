@@ -107,6 +107,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
 		});
+		this.previewPortExplicitlyConfigured = binding.previewPortExplicitlyConfigured;
 
 		appLogger.debug('initializeServerAdapter', {
 			dev: this.cliArgs.dev,
@@ -129,6 +130,11 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
+			deferRuntimeAssetSetup: resolveStaticRuntimeMode({
+				appConfig: this.appConfig,
+				cliArgs: this.cliArgs,
+			}).canBuildWithoutRuntimeServer,
+			previewPortExplicitlyConfigured: binding.previewPortExplicitlyConfigured,
 		});
 	}
 
@@ -199,6 +205,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 					appConfig: this.appConfig,
 					hostname: configuredHostname,
 					port: configuredPort,
+					allowPortFallback: !this.previewPortExplicitlyConfigured,
 				});
 
 				if (previewPort) {

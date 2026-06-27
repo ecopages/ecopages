@@ -1,7 +1,7 @@
 import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
-import { resolveRuntimeBinding } from '../shared/runtime-app-bootstrap.ts';
+import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
 import type { RuntimeHost } from '../shared/runtime-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
@@ -56,6 +56,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
 		});
+		this.previewPortExplicitlyConfigured = binding.previewPortExplicitlyConfigured;
 		this.runtimeOrigin = binding.runtimeOrigin;
 
 		return this.createServerAdapter({
@@ -68,6 +69,11 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
+			deferRuntimeAssetSetup: resolveStaticRuntimeMode({
+				appConfig: this.appConfig,
+				cliArgs: this.cliArgs,
+			}).canBuildWithoutRuntimeServer,
+			previewPortExplicitlyConfigured: binding.previewPortExplicitlyConfigured,
 		});
 	}
 

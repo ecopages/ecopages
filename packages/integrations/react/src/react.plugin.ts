@@ -22,6 +22,7 @@ import type { ReactRouterAdapter } from './router-adapter.ts';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
+import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx-core';
 import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
@@ -42,44 +43,8 @@ type ResolvedReactPluginConfig = Omit<
  */
 export const PLUGIN_NAME = REACT_PLUGIN_NAME;
 
-const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
-	const merged = lists.flatMap((list) => (list ? [...list] : []));
-	return merged.length > 0 ? merged : undefined;
-};
-
-const appendMdxExtensions = (target: string[], mdxExtensions: string[]): void => {
-	for (const extension of mdxExtensions) {
-		if (!target.includes(extension)) {
-			target.push(extension);
-		}
-	}
-};
-
-/**
- * Resolves MDX compiler options for the React integration.
- *
- * React owns the JSX runtime fields for MDX route compilation so mixed route
- * graphs keep the same runtime contract as authored React page modules.
- */
-const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOptions => {
-	const { compilerOptions, remarkPlugins, rehypePlugins, recmaPlugins } = mdxOptions;
-	const resolved: CompileOptions = {
-		...compilerOptions,
-		jsxImportSource: 'react',
-		jsxRuntime: 'automatic',
-		development: process.env.NODE_ENV === 'development',
-	};
-
-	const mergedRemark = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
-	const mergedRehype = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
-	const mergedRecma = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
-
-	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
-	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
-	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
-
-	return resolved;
-};
+const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOptions =>
+	resolveMdxCompilerOptions(mdxOptions, { jsxImportSource: 'react' });
 
 /**
  * Resolves user-facing React plugin options into the internal plugin config.

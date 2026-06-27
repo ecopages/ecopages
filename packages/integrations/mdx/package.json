@@ -43,6 +43,7 @@
 	},
 	"dependencies": {
 		"@ecopages/logger": "^0.2.3",
+		"@ecopages/mdx-core": "workspace:*",
 		"source-map": "^0.7.6",
 		"vfile": "^6.0.3"
 	},

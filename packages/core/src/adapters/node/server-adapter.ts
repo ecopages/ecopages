@@ -223,7 +223,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
 		await this.staticBuilder.build(
-			{ preview: false, baseUrl, force: options?.force },
+			{ baseUrl, force: options?.force },
 			{
 				router: this.router,
 				routeRendererFactory: this.routeRendererFactory,

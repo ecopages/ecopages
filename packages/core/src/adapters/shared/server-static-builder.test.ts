@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
 import * as staticBuildInvalidation from '../../static-site-generator/static-build-invalidation.ts';
-import {
-	ServerStaticBuilder,
-	type ServeOptions,
-	type ServerStaticBuilderLogger,
-	type ServerStaticPreviewServerFactory,
-} from './server-static-builder';
+import { ServerStaticBuilder, type ServeOptions, type ServerStaticBuilderLogger } from './server-static-builder';
 import {
 	resolveEntryFile,
 	DEFAULT_ENTRY_FILE,
@@ -33,10 +28,6 @@ function createMockDependencies() {
 		warn: [] as Array<[string, string | undefined]>,
 		info: [] as string[],
 		error: [] as string[],
-		createServer: [] as Array<{
-			appConfig: EcoPagesAppConfig;
-			options: { port: number };
-		}>,
 	};
 
 	const StaticSiteGenerator = {
@@ -114,14 +105,6 @@ function createMockDependencies() {
 			calls.error.push(message);
 		},
 	};
-	const previewServerFactory: ServerStaticPreviewServerFactory = {
-		createServer: ({ appConfig, options }) => {
-			calls.createServer.push({ appConfig, options });
-			return {
-				server: { port: 3000 },
-			};
-		},
-	};
 
 	return {
 		calls,
@@ -130,7 +113,6 @@ function createMockDependencies() {
 		mockIntegration,
 		mockProcessor,
 		logger,
-		previewServerFactory,
 		ServeOptions,
 		Router,
 		RouteRendererFactory,
@@ -285,15 +267,13 @@ describe('ServerStaticBuilder', () => {
 
 	describe('constructor', () => {
 		it('should create instance with provided options', () => {
-			const { AppConfig, StaticSiteGenerator, ServeOptions, logger, previewServerFactory } =
-				createMockDependencies();
+			const { AppConfig, StaticSiteGenerator, ServeOptions, logger } = createMockDependencies();
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
-				previewServerFactory,
 			});
 			expect(builder).toBeDefined();
 		});
@@ -440,43 +420,6 @@ describe('ServerStaticBuilder', () => {
 			);
 
 			assert.equal((calls.staticSiteGeneratorRun[0] as { baseUrl: string }).baseUrl, 'http://localhost:41731');
-		});
-
-		it('should start preview server when preview option is true', async () => {
-			const {
-				AppConfig,
-				StaticSiteGenerator,
-				ServeOptions,
-				Router,
-				RouteRendererFactory,
-				logger,
-				previewServerFactory,
-				calls,
-			} = createMockDependencies();
-
-			const builder = new ServerStaticBuilder({
-				appConfig: AppConfig,
-				staticSiteGenerator: StaticSiteGenerator,
-				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
-				logger,
-				previewServerFactory,
-			});
-
-			await builder.build(
-				{ preview: true },
-				{
-					router: Router,
-					routeRendererFactory: RouteRendererFactory,
-				},
-			);
-
-			assert.deepEqual(calls.createServer, [
-				{
-					appConfig: AppConfig,
-					options: { port: 3000 },
-				},
-			]);
 		});
 
 		it('should rebuild integration runtime assets after resetting the export directory', async () => {

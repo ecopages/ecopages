@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
-import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { build, getAppBuildAdapter, setupAppRuntimePlugins, type BuildOptions } from '../../build/build-adapter.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
@@ -25,7 +24,6 @@ import type { StaticSiteGenerator } from '../../static-site-generator/static-sit
 import type { StaticGenerationRendererResolver } from '../../route-renderer/route-renderer.ts';
 
 export interface StaticBuildOptions {
-	preview?: boolean;
 	baseUrl?: string;
 	force?: boolean;
 }
@@ -42,7 +40,6 @@ export interface ServerStaticBuilderParams {
 	runtimeOrigin: string;
 	apiHandlers?: ApiHandler[];
 	logger?: ServerStaticBuilderLogger;
-	previewServerFactory?: ServerStaticPreviewServerFactory;
 	entryFile?: string;
 	hmrManager?: IHmrManager;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
@@ -58,18 +55,7 @@ export interface ServerStaticBuilderLogger {
 }
 
 /**
- * Preview server factory dependency used when static preview mode is enabled.
- */
-export interface ServerStaticPreviewServerFactory {
-	createServer(args: { appConfig: EcoPagesAppConfig; options: { port: number } }): {
-		server?: {
-			port?: number;
-		} | null;
-	};
-}
-
-/**
- * Handles static site generation and previews.
+ * Handles static site generation.
  */
 export class ServerStaticBuilder {
 	private readonly appConfig: EcoPagesAppConfig;
@@ -78,7 +64,6 @@ export class ServerStaticBuilder {
 	private readonly runtimeOrigin: string;
 	private readonly apiHandlers: ApiHandler[];
 	private readonly logger: ServerStaticBuilderLogger;
-	private readonly previewServerFactory: ServerStaticPreviewServerFactory;
 	private readonly entryFile: string;
 	private readonly hmrManager?: IHmrManager;
 	private readonly onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
@@ -90,7 +75,6 @@ export class ServerStaticBuilder {
 		runtimeOrigin,
 		apiHandlers,
 		logger,
-		previewServerFactory,
 		entryFile,
 		hmrManager,
 		onRuntimePlugin,
@@ -101,7 +85,6 @@ export class ServerStaticBuilder {
 		this.runtimeOrigin = runtimeOrigin;
 		this.apiHandlers = apiHandlers ?? [];
 		this.logger = logger ?? appLogger;
-		this.previewServerFactory = previewServerFactory ?? StaticContentServer;
 		this.entryFile = resolveEntryFile({ entryFile });
 		this.hmrManager = hmrManager;
 		this.onRuntimePlugin = onRuntimePlugin;
@@ -244,7 +227,6 @@ export class ServerStaticBuilder {
 
 	/**
 	 * Generates a static build of the site for deployment.
-	 * @param options.preview - If true, starts a preview server after build
 	 * @param dependencies.router - The initialized router
 	 * @param dependencies.routeRendererFactory - The route renderer factory
 	 * @param dependencies.staticRoutes - Explicit static routes registered via app.static()
@@ -257,7 +239,7 @@ export class ServerStaticBuilder {
 			staticRoutes?: StaticRoute[];
 		},
 	): Promise<void> {
-		const { preview = false, baseUrl: explicitBaseUrl, force = false } = options ?? {};
+		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
 
 		const baseUrl =
 			explicitBaseUrl ??
@@ -276,22 +258,6 @@ export class ServerStaticBuilder {
 			preserveExportDirectory,
 		});
 
-		if (!preview) {
-			this.logger.info('Build completed');
-			return;
-		}
-
-		const previewPort = this.serveOptions.port || DEFAULT_ECOPAGES_PORT;
-
-		const { server } = this.previewServerFactory.createServer({
-			appConfig: this.appConfig,
-			options: { port: Number(previewPort) },
-		});
-
-		if (server?.port) {
-			this.logger.info(`Preview running at http://localhost:${server.port}`);
-		} else {
-			this.logger.error('Failed to start preview server');
-		}
+		this.logger.info('Build completed');
 	}
 }

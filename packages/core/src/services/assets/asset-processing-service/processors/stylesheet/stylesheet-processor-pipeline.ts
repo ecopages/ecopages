@@ -12,10 +12,7 @@ function isProcessableStylesheet(filepath: string): boolean {
  * Legacy fallback for processors that transform stylesheets without declaring
  * capabilities (notably PostCSS before capability metadata was required).
  */
-function shouldRunStylesheetProcessor(
-	processor: Processor,
-	filepath: string,
-): boolean {
+function shouldRunStylesheetProcessor(processor: Processor, filepath: string): boolean {
 	const hasCapabilities = processor.getAssetCapabilities().length > 0;
 	const canProcessStylesheet = processor.canProcessAsset('stylesheet', filepath);
 

@@ -88,29 +88,17 @@ function buildEnvPrefix(options: { port: number; env?: Record<string, string>; n
 	].join(' ');
 }
 
-function buildDevServerCommand(options: {
-	cwd: string;
-	port: number;
-	env?: Record<string, string>;
-}): string {
+function buildDevServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
 	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=development' });
 	return `${envPrefix} bun run app.ts --dev`;
 }
 
-function buildStaticServerCommand(options: {
-	cwd: string;
-	port: number;
-	env?: Record<string, string>;
-}): string {
+function buildStaticServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
 	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
 	return `${envPrefix} bun run app.ts --build && ${envPrefix} bun run app.ts --preview`;
 }
 
-function buildProductionServerCommand(options: {
-	cwd: string;
-	port: number;
-	env?: Record<string, string>;
-}): string {
+function buildProductionServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
 	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
 	return `${envPrefix} bun run app.ts`;
 }
@@ -262,9 +250,7 @@ function buildWebServersFromSpecs(
 		reuseExistingServer: options.reuseExistingServer,
 		stdout: 'pipe',
 		stderr: 'pipe',
-		...(spec.mode === 'dev'
-			? { url: `http://localhost:${spec.port}/` }
-			: { port: spec.port }),
+		...(spec.mode === 'dev' ? { url: `http://localhost:${spec.port}/` } : { port: spec.port }),
 	}));
 }
 

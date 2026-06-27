@@ -14,8 +14,6 @@ class TestProcessor extends Processor {
 	override async process(input: unknown, _filePath?: string): Promise<unknown> {
 		return input;
 	}
-
-	override async teardown(): Promise<void> {}
 }
 
 describe('Processor', () => {

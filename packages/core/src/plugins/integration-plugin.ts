@@ -291,7 +291,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Renderers are cheap runtime objects. They receive the finalized app config,
 	 * a fresh asset-processing service, integration-global processed assets, and
 	 * any renderer module context supplied by the active runtime.
-			renderer.name ||= this.name;
 	 */
 	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions(options));
@@ -343,8 +342,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			this.integrationDependencies,
 			this.name,
 		);
-
-		this.initializeRenderer();
 	}
 
 	/**

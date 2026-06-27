@@ -13,7 +13,6 @@ import {
 	type ProcessorConfig,
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
@@ -217,7 +216,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			this.watchConfig.paths = [config.sourceDir];
 		}
 
-		this.dependencies = this.generateDependencies();
 		this.generateTypes();
 		this.buildContributionsPrepared = true;
 	}
@@ -280,34 +278,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		}
 
 		this.replaceProcessedImages(await this.processor.processDirectory());
-		this.dependencies = this.generateDependencies();
 		this.generateTypes();
-	}
-
-	/**
-	 * Generate dependencies for processor.
-	 * It is ossible to define which one should be included in the final bundle based on the environment.
-	 * @returns
-	 */
-	private generateDependencies(): AssetDefinition[] {
-		const deps: AssetDefinition[] = [];
-
-		if (process.env.NODE_ENV === 'development') {
-			/**
-			 * Here we can define the dependencies for the development environment
-			 * @example
-			 * deps.push(
-			 *   AssetFactory.createInlineScriptAsset({
-			 *     content: `document.addEventListener("DOMContentLoaded",() => console.log("[@ecopages/image-processor] Processor is loaded"));`,
-			 *     attributes: {
-			 *       type: 'module',
-			 *     },
-			 *   }),
-			 * );
-			 */
-		}
-
-		return deps;
 	}
 
 	/**

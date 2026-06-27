@@ -14,6 +14,20 @@ function patchAppRuntime(
 	};
 }
 
+async function areProcessorRuntimeAssetsPresent(appConfig: EcoPagesAppConfig): Promise<boolean> {
+	for (const processor of appConfig.processors.values()) {
+		if (typeof processor.areRuntimeAssetsPresent !== 'function') {
+			continue;
+		}
+
+		if (!(await processor.areRuntimeAssetsPresent())) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
 ): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {
@@ -55,23 +69,27 @@ export async function setupAppRuntimePlugins(options: {
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
-		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
-		for (const loader of options.appConfig.loaders.values()) {
-			options.onRuntimePlugin?.(loader);
-		}
-		for (const processor of options.appConfig.processors.values()) {
-			if (processor.plugins) {
-				for (const plugin of processor.plugins) {
+		if (!(await areProcessorRuntimeAssetsPresent(options.appConfig))) {
+			patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: false });
+		} else {
+			appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
+			for (const loader of options.appConfig.loaders.values()) {
+				options.onRuntimePlugin?.(loader);
+			}
+			for (const processor of options.appConfig.processors.values()) {
+				if (processor.plugins) {
+					for (const plugin of processor.plugins) {
+						options.onRuntimePlugin?.(plugin);
+					}
+				}
+			}
+			for (const integration of options.appConfig.integrations) {
+				for (const plugin of integration.plugins) {
 					options.onRuntimePlugin?.(plugin);
 				}
 			}
+			return;
 		}
-		for (const integration of options.appConfig.integrations) {
-			for (const plugin of integration.plugins) {
-				options.onRuntimePlugin?.(plugin);
-			}
-		}
-		return;
 	}
 
 	appLogger.debugTime('setupAppRuntimePlugins');

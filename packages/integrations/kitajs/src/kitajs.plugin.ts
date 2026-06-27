@@ -1,4 +1,4 @@
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { KitaRenderer } from './kitajs-renderer.ts';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
@@ -7,28 +7,12 @@ import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
  */
 export const PLUGIN_NAME = KITAJS_PLUGIN_NAME;
 
-/**
- * The Kita.js plugin class
- * This plugin provides support for Kita.js components in Ecopages
- */
-export class KitaHtmlPlugin extends IntegrationPlugin {
-	renderer = KitaRenderer;
+export const kitajsPlugin = defineIntegration({
+	name: PLUGIN_NAME,
+	extensions: ['.kita.tsx'],
+	jsxImportSource: '@kitajs/html',
+	renderer: KitaRenderer,
+});
 
-	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
-		super({
-			name: PLUGIN_NAME,
-			extensions: ['.kita.tsx'],
-			jsxImportSource: '@kitajs/html',
-			...options,
-		});
-	}
-}
-
-/**
- * Factory function to create a Kita.js plugin instance.
- * @param options Configuration options for the Kita.js plugin
- * @returns A new KitaHtmlPlugin instance
- */
-export function kitajsPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): KitaHtmlPlugin {
-	return new KitaHtmlPlugin(options);
-}
+/** @deprecated Use {@link kitajsPlugin.Plugin} or {@link kitajsPlugin} instead. */
+export const KitaHtmlPlugin = kitajsPlugin.Plugin;

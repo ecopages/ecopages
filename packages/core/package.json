@@ -140,6 +140,10 @@
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
 		},
+		"./plugins/define-integration": {
+			"types": "./src/plugins/define-integration.ts",
+			"default": "./src/plugins/define-integration.ts"
+		},
 		"./plugins/source-transform": {
 			"types": "./src/plugins/source-transform.ts",
 			"default": "./src/plugins/source-transform.ts"

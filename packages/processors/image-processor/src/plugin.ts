@@ -16,6 +16,7 @@ import {
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
+import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
 import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
@@ -106,7 +107,7 @@ export interface ImageProcessorConfig {
  * ImageMap
  * This is the representation of the image map in the virtual module
  */
-export type ImageMap = Record<string, ImageSpecifications>;
+export type { ImageMap } from './image-runtime-state.ts';
 
 /**
  * ImageProcessorPlugin
@@ -251,82 +252,21 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		return path.join(this.resolvedConfig.outputDir, path.basename(src));
 	}
 
-	private parseVirtualModuleExports(content: string): Record<string, ImageSpecifications> | null {
-		const exports: Record<string, ImageSpecifications> = {};
-		const pattern = /export const (\w+) = ([\s\S]*?) as const;/g;
-		let match: RegExpExecArray | null;
-
-		while ((match = pattern.exec(content)) !== null) {
-			try {
-				exports[match[1]] = JSON.parse(match[2]) as ImageSpecifications;
-			} catch {
-				return null;
-			}
-		}
-
-		return exports;
-	}
-
-	private async getSourceImagePaths(): Promise<string[]> {
-		if (!this.resolvedConfig) {
-			return [];
-		}
-
-		const acceptedFormats = this.resolvedConfig.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
-		return fileSystem.glob([`${this.resolvedConfig.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
-	}
-
-	private async loadProcessedImagesFromVirtualModule(): Promise<ImageMap | null> {
-		if (!this.resolvedConfig) {
-			return null;
-		}
-
-		const sourceImages = await this.getSourceImagePaths();
-
-		if (sourceImages.length === 0) {
-			return {};
-		}
-
-		const runtimeVirtualModulePath = this.getRuntimeVirtualModulePath();
-		if (!fileSystem.exists(runtimeVirtualModulePath)) {
-			return null;
-		}
-
-		const exportsByName = this.parseVirtualModuleExports(fileSystem.readFileSync(runtimeVirtualModulePath));
-		if (!exportsByName) {
-			return null;
-		}
-
-		const imageMap: ImageMap = {};
-
-		for (const file of sourceImages) {
-			const basename = path.basename(file);
-			const exportName = anyCaseToCamelCase(basename);
-			const spec = exportsByName[exportName];
-
-			if (!spec) {
-				return null;
-			}
-
-			const outputPaths = [spec.attributes.src, ...spec.variants.map((variant) => variant.src)];
-			if (!outputPaths.every((src) => fileSystem.exists(this.getGeneratedOutputPath(src)))) {
-				return null;
-			}
-
-			imageMap[basename] = spec;
-		}
-
-		return imageMap;
-	}
-
 	/**
 	 * Restores in-memory image state from previously generated dist artifacts.
 	 *
 	 * @returns `true` when state was restored without invoking sharp.
 	 */
 	private async syncProcessedImagesFromDisk(): Promise<boolean> {
-		const sourceImages = await this.getSourceImagePaths();
-		const imageMap = await this.loadProcessedImagesFromVirtualModule();
+		if (!this.resolvedConfig) {
+			return false;
+		}
+
+		const sourceImages = await getSourceImagePaths(this.resolvedConfig);
+		const imageMap = await loadProcessedImagesFromDisk({
+			resolvedConfig: this.resolvedConfig,
+			runtimeVirtualModulePath: this.getRuntimeVirtualModulePath(),
+		});
 		if (imageMap === null) {
 			return false;
 		}

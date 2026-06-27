@@ -39,11 +39,12 @@ import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
 import { hasForeignChildDescendantsInGraph } from './component-graph-collectors.ts';
 import {
-	type RouteHtmlFinalization,
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-render-orchestrator.ts';
+import { createIntegrationRouteRenderAdapter } from './integration-route-render-adapter.ts';
+import { loadPageBrowserGraphContribution } from './page-browser-graph-contribution.loader.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './render-output.utils.ts';
 import {
@@ -244,10 +245,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
 			routeFile: filePath,
 			integrationName: this.name,
-			collectContribution: async (routeFile) => {
-				const pageModule = await this.importPageFile(routeFile);
-				return await this.collectPageBrowserGraphContribution({ file: routeFile, pageModule });
-			},
+			collectContribution: (routeFile) =>
+				loadPageBrowserGraphContribution(
+					routeFile,
+					(targetFile) => this.importPageFile(targetFile),
+					(context) => this.collectPageBrowserGraphContribution(context),
+				),
 		});
 	}
 
@@ -809,20 +812,22 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * subclasses continue to override protected renderer behavior directly.
 	 */
 	protected createRouteRenderOrchestratorAdapter(): RouteRenderOrchestratorAdapter<C> {
-		return {
+		return createIntegrationRouteRenderAdapter({
 			name: this.name,
 			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
-			collectPageBrowserGraphContribution: async (routeFile) => {
-				const pageModule = await this.importPageFile(routeFile);
-				return await this.collectPageBrowserGraphContribution({ file: routeFile, pageModule });
-			},
+			importPageFile: (file) => this.importPageFile(file),
+			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
 			resolveRoutePageComponentRender: (input) => this.resolveRoutePageComponentRender(input),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
-			getRouteHtmlFinalization: (renderOptions) => this.getRouteHtmlFinalization(renderOptions),
+			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
+			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
+			applyAttributesToFirstBodyElement: (html, attributes) =>
+				this.applyAttributesToFirstBodyElement(html, attributes),
+			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: (response, htmlContributions, pagePackage) =>
 				this.transformRouteResponse(response, htmlContributions, pagePackage),
-		};
+		});
 	}
 
 	protected async resolveRouteRenderInputs(
@@ -883,44 +888,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		return this.render(renderOptions);
-	}
-
-	protected getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
-		const componentRootAttributes =
-			renderOptions.componentRender?.canAttachAttributes &&
-			renderOptions.componentRender.rootAttributes &&
-			Object.keys(renderOptions.componentRender.rootAttributes).length > 0
-				? (renderOptions.componentRender.rootAttributes as Record<string, string>)
-				: undefined;
-		const documentAttributes = this.getDocumentAttributes(renderOptions);
-		const htmlContributions = this.getHtmlDocumentContributions({ renderOptions, partial: false });
-		const hasStructuralFinalization =
-			(componentRootAttributes && Object.keys(componentRootAttributes).length > 0) ||
-			(documentAttributes && Object.keys(documentAttributes).length > 0);
-
-		if (!hasStructuralFinalization && (!htmlContributions || htmlContributions.length === 0)) {
-			return {};
-		}
-
-		return {
-			htmlContributions,
-			finalizeHtml: (html) => {
-				let renderedHtml = html;
-
-				if (componentRootAttributes) {
-					renderedHtml = this.htmlTransformer.applyAttributesToFirstBodyElement(
-						renderedHtml,
-						componentRootAttributes,
-					);
-				}
-
-				if (documentAttributes) {
-					renderedHtml = this.htmlTransformer.applyAttributesToHtmlElement(renderedHtml, documentAttributes);
-				}
-
-				return renderedHtml;
-			},
-		};
 	}
 
 	protected async transformRouteResponse(
@@ -1060,6 +1027,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		_renderOptions: IntegrationRendererRenderOptions<C>,
 	): Record<string, string> | undefined {
 		return undefined;
+	}
+
+	protected applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
+		return this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes);
+	}
+
+	protected applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
+		return this.htmlTransformer.applyAttributesToHtmlElement(html, attributes);
 	}
 
 	/**

@@ -225,14 +225,7 @@ export class PortManager {
 		}
 
 		// firstAttempt.status === 'port-in-use'
-		const decideToFallback = await this.shouldFallback(
-			preferredPort,
-			options.allowPortFallback,
-			firstAttempt.error,
-		);
-		if (!decideToFallback) {
-			return null;
-		}
+		await this.shouldFallback(preferredPort, options.allowPortFallback, firstAttempt.error);
 
 		return await this.fallForward(preferredPort);
 	}

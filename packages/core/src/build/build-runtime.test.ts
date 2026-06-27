@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createAppBuildManifest } from './build-manifest.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
+import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 import { setAppBuildAdapter, setAppBuildManifest } from './build-adapter.ts';
@@ -30,8 +31,11 @@ test('installBuildRuntime uses parallel executors for route-module and browser-h
 
 	const buildRuntime = installBuildRuntime(appConfig);
 
-	assert.ok(buildRuntime.getProfile('route-module') instanceof ParallelBuildExecutor);
-	assert.ok(buildRuntime.getProfile('browser-hmr') instanceof ParallelBuildExecutor);
+	assert.ok(buildRuntime.getProfile('route-module') instanceof DedupingBuildExecutor);
+	assert.ok(buildRuntime.getProfile('browser-hmr') instanceof DedupingBuildExecutor);
+	assert.ok(
+		(buildRuntime.getProfile('route-module') as DedupingBuildExecutor).unwrap() instanceof ParallelBuildExecutor,
+	);
 	assert.ok(buildRuntime.getProfile('server-entry') instanceof SerializedBuildExecutor);
 	assert.notEqual(
 		buildRuntime.getProfile('route-module'),
@@ -46,5 +50,5 @@ test('requireBuildRuntime installs the runtime when missing', () => {
 	const buildRuntime = requireBuildRuntime(appConfig);
 
 	assert.equal(appConfig.runtime?.buildRuntime, buildRuntime);
-	assert.ok(buildRuntime.getProfile('route-module') instanceof ParallelBuildExecutor);
+	assert.ok(buildRuntime.getProfile('route-module') instanceof DedupingBuildExecutor);
 });

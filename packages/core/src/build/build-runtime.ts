@@ -8,6 +8,7 @@ import {
 	type BuildExecutor,
 } from './build-adapter.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
+import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
 export type BuildProfile = 'server-entry' | 'route-module' | 'browser-hmr';
@@ -43,8 +44,8 @@ class AppBuildRuntime implements BuildRuntime {
 		const limit = resolveParallelismLimit();
 
 		this.serverEntryExecutor = new SerializedBuildExecutor(serverPlugins);
-		this.routeModuleExecutor = new ParallelBuildExecutor(serverPlugins, limit);
-		this.hmrExecutor = new ParallelBuildExecutor(browserPlugins, Math.min(3, limit));
+		this.routeModuleExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(serverPlugins, limit));
+		this.hmrExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(browserPlugins, Math.min(3, limit)));
 	}
 
 	getProfile(profile: BuildProfile): BuildExecutor {

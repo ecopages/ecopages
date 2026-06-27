@@ -14,18 +14,27 @@ function patchAppRuntime(
 	};
 }
 
-async function areProcessorRuntimeAssetsPresent(appConfig: EcoPagesAppConfig): Promise<boolean> {
-	for (const processor of appConfig.processors.values()) {
-		if (typeof processor.areRuntimeAssetsPresent !== 'function') {
-			continue;
-		}
+function registerRuntimePlugins(
+	appConfig: EcoPagesAppConfig,
+	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
+): void {
+	for (const loader of appConfig.loaders.values()) {
+		onRuntimePlugin?.(loader);
+	}
 
-		if (!(await processor.areRuntimeAssetsPresent())) {
-			return false;
+	for (const processor of appConfig.processors.values()) {
+		if (processor.plugins) {
+			for (const plugin of processor.plugins) {
+				onRuntimePlugin?.(plugin);
+			}
 		}
 	}
 
-	return true;
+	for (const integration of appConfig.integrations) {
+		for (const plugin of integration.plugins) {
+			onRuntimePlugin?.(plugin);
+		}
+	}
 }
 
 export async function collectConfiguredAppBuildManifestContributions(
@@ -69,27 +78,9 @@ export async function setupAppRuntimePlugins(options: {
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
-		if (!(await areProcessorRuntimeAssetsPresent(options.appConfig))) {
-			patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: false });
-		} else {
-			appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
-			for (const loader of options.appConfig.loaders.values()) {
-				options.onRuntimePlugin?.(loader);
-			}
-			for (const processor of options.appConfig.processors.values()) {
-				if (processor.plugins) {
-					for (const plugin of processor.plugins) {
-						options.onRuntimePlugin?.(plugin);
-					}
-				}
-			}
-			for (const integration of options.appConfig.integrations) {
-				for (const plugin of integration.plugins) {
-					options.onRuntimePlugin?.(plugin);
-				}
-			}
-			return;
-		}
+		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
+		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
+		return;
 	}
 
 	appLogger.debugTime('setupAppRuntimePlugins');

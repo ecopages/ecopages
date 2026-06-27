@@ -8,6 +8,8 @@ export type RuntimeBinding = {
 	runtimeOrigin: string;
 	serveOptions: Record<string, unknown>;
 	watch: boolean;
+	/** Whether preview may bind to the next free port when the preferred port is busy. */
+	allowPortFallback: boolean;
 };
 
 export type StaticRuntimeMode = {
@@ -35,6 +37,8 @@ export function resolveRuntimeBinding(options: {
 	env?: NodeJS.ProcessEnv;
 }): RuntimeBinding {
 	const env = options.env ?? process.env;
+	const portExplicitlyConfigured =
+		options.cliArgs.port !== undefined || Boolean(env.ECOPAGES_PORT) || options.serverOptions?.port !== undefined;
 	const preferredPort =
 		options.cliArgs.port ?? (env.ECOPAGES_PORT ? Number(env.ECOPAGES_PORT) : undefined) ?? DEFAULT_ECOPAGES_PORT;
 	const preferredHostname = options.cliArgs.hostname ?? env.ECOPAGES_HOSTNAME ?? DEFAULT_ECOPAGES_HOSTNAME;
@@ -42,6 +46,7 @@ export function resolveRuntimeBinding(options: {
 	return {
 		preferredPort,
 		preferredHostname,
+		allowPortFallback: !portExplicitlyConfigured,
 		runtimeOrigin: resolveServeRuntimeOrigin({
 			hostname: preferredHostname,
 			port: preferredPort,

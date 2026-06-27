@@ -16,6 +16,7 @@ import {
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
+import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
 import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
@@ -106,7 +107,7 @@ export interface ImageProcessorConfig {
  * ImageMap
  * This is the representation of the image map in the virtual module
  */
-export type ImageMap = Record<string, ImageSpecifications>;
+export type { ImageMap } from './image-runtime-state.ts';
 
 /**
  * ImageProcessorPlugin
@@ -169,18 +170,10 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	}
 
 	/**
-	 * Prepares the image virtual-module state before config build seals the app
-	 * manifest.
+	 * Resolves processor config and creates the sharp-backed worker instance.
 	 */
-	override async prepareBuildContributions(): Promise<void> {
-		if (this.buildContributionsPrepared) {
-			return;
-		}
-
-		// Lit SSR workers import eco.config in an isolated thread; image outputs are
-		// already prepared on the main dev server thread.
-		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
-			this.buildContributionsPrepared = true;
+	private initializeProcessor(): void {
+		if (this.processor && this.resolvedConfig) {
 			return;
 		}
 
@@ -210,13 +203,32 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			writeCache: (key, data) => this.writeCache(key, data),
 		});
 
-		this.replaceProcessedImages(await this.processor.processDirectory());
-
 		if (this.watchConfig) {
 			this.watchConfig.paths = [config.sourceDir];
 		}
+	}
 
-		this.generateTypes();
+	/**
+	 * Prepares build-facing processor state before config build seals the app manifest.
+	 *
+	 * @remarks
+	 * Image processing stays in {@link setup}; this hook only initializes config and
+	 * restores any previously generated virtual-module state from disk.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		if (this.buildContributionsPrepared) {
+			return;
+		}
+
+		// Lit SSR workers import eco.config in an isolated thread; image outputs are
+		// already prepared on the main dev server thread.
+		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+			this.buildContributionsPrepared = true;
+			return;
+		}
+
+		this.initializeProcessor();
+		await this.syncProcessedImagesFromDisk();
 		this.buildContributionsPrepared = true;
 	}
 
@@ -240,22 +252,49 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		return path.join(this.resolvedConfig.outputDir, path.basename(src));
 	}
 
-	private hasGeneratedOutputs(): boolean {
+	/**
+	 * Restores in-memory image state from previously generated dist artifacts.
+	 *
+	 * @returns `true` when state was restored without invoking sharp.
+	 */
+	private async syncProcessedImagesFromDisk(): Promise<boolean> {
 		if (!this.resolvedConfig) {
 			return false;
 		}
 
-		if (
-			!fileSystem.exists(this.resolvedConfig.outputDir) ||
-			!fileSystem.exists(this.getRuntimeVirtualModulePath())
-		) {
+		const sourceImages = await getSourceImagePaths(this.resolvedConfig);
+		const imageMap = await loadProcessedImagesFromDisk({
+			resolvedConfig: this.resolvedConfig,
+			runtimeVirtualModulePath: this.getRuntimeVirtualModulePath(),
+		});
+		if (imageMap === null) {
 			return false;
 		}
 
-		return Object.values(this.processedImages).every((image) => {
-			const outputPaths = [image.attributes.src, ...image.variants.map((variant) => variant.src)];
-			return outputPaths.every((src) => fileSystem.exists(this.getGeneratedOutputPath(src)));
-		});
+		if (sourceImages.length > 0 && Object.keys(imageMap).length !== sourceImages.length) {
+			return false;
+		}
+
+		this.replaceProcessedImages(imageMap);
+
+		if (Object.keys(imageMap).length > 0) {
+			this.generateTypes();
+		}
+
+		return true;
+	}
+
+	private async ensureGeneratedOutputs(): Promise<void> {
+		if (!this.processor) {
+			throw new Error('ImageProcessor not initialized');
+		}
+
+		if (await this.syncProcessedImagesFromDisk()) {
+			return;
+		}
+
+		this.replaceProcessedImages(await this.processor.processDirectory());
+		this.generateTypes();
 	}
 
 	private writeGeneratedFile(filePath: string, content: string): void {
@@ -268,29 +307,16 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		fileSystem.write(filePath, content);
 	}
 
-	private async rehydrateGeneratedOutputs(): Promise<void> {
-		if (!this.processor) {
-			throw new Error('ImageProcessor not initialized');
-		}
-
-		if (this.hasGeneratedOutputs()) {
-			return;
-		}
-
-		this.replaceProcessedImages(await this.processor.processDirectory());
-		this.generateTypes();
-	}
-
 	/**
-	 * Prepares build contributions if not already done and rehydrates previously generated image outputs.
+	 * Ensures optimized image outputs and virtual-module state exist on disk.
 	 */
 	async setup(): Promise<void> {
 		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
 			return;
 		}
 
-		await this.prepareBuildContributions();
-		await this.rehydrateGeneratedOutputs();
+		this.initializeProcessor();
+		await this.ensureGeneratedOutputs();
 	}
 
 	/**

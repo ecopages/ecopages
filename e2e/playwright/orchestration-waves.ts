@@ -1,9 +1,12 @@
 /**
- * Five sequential orchestration waves — one Playwright subprocess each.
+ * Eight sequential orchestration waves — one Playwright subprocess each.
  *
  * Waves replace per-fixture `batchGroups` + flat cross-integration batches.
  * The orchestrator (`run-e2e.ts`) runs these sequentially; in-wave parallelism
  * is handled by Playwright's per-project `workers` setting.
+ *
+ * Static/preview projects share wave 1 so they can run with `workers: N`.
+ * Dev/HMR projects each get their own wave because they mutate shared source.
  *
  * `assertWaveCoverage` is the drift guard: every registered project must appear
  * in exactly one wave. Adding a fixture without a wave fails loudly.
@@ -30,15 +33,27 @@ export const FULL_GATE_WAVES: Wave[] = [
 	},
 	{
 		name: 'core-hmr-dev',
-		projects: ['core-hmr-dev-e2e', 'core-hmr-postcss-dev-e2e'],
+		projects: ['core-hmr-dev-e2e'],
 	},
 	{
-		name: 'fixture-dev',
-		projects: ['react-dev-e2e', 'react-router-persist-layouts-dev-e2e'],
+		name: 'core-hmr-postcss-dev',
+		projects: ['core-hmr-postcss-dev-e2e'],
+	},
+	{
+		name: 'react-dev',
+		projects: ['react-dev-e2e'],
+	},
+	{
+		name: 'react-router-persist-layouts-dev',
+		projects: ['react-router-persist-layouts-dev-e2e'],
 	},
 	{
 		name: 'cross-integration-dev',
-		projects: ['cross-integration-dev-e2e', 'cross-integration-vite-dev-e2e'],
+		projects: ['cross-integration-dev-e2e'],
+	},
+	{
+		name: 'cross-integration-vite-dev',
+		projects: ['cross-integration-vite-dev-e2e'],
 	},
 	{
 		name: 'cross-integration-hmr',

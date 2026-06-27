@@ -315,6 +315,11 @@ export interface IHmrManager {
 	setEnabled(enabled: boolean): void;
 
 	/**
+	 * Stops active HMR watchers and releases dev-time resources.
+	 */
+	stop(): void;
+
+	/**
 	 * Returns whether HMR is enabled.
 	 */
 	isEnabled(): boolean;

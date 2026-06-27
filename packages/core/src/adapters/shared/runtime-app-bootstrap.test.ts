@@ -48,6 +48,7 @@ describe('runtime app bootstrap', () => {
 
 		assert.equal(binding.preferredPort, 4321);
 		assert.equal(binding.preferredHostname, '127.0.0.1');
+		assert.equal(binding.allowPortFallback, false);
 		assert.equal(binding.runtimeOrigin, 'http://127.0.0.1:4321');
 		assert.deepEqual(binding.serveOptions, {
 			port: 4321,
@@ -55,6 +56,46 @@ describe('runtime app bootstrap', () => {
 			custom: true,
 		});
 		assert.equal(binding.watch, true);
+	});
+
+	it('marks the default preview port as implicit when no binding override is provided', () => {
+		const binding = resolveRuntimeBinding({
+			cliArgs: {
+				preview: true,
+				build: false,
+				start: false,
+				dev: false,
+				force: false,
+				port: undefined,
+				hostname: undefined,
+				reactFastRefresh: undefined,
+			},
+			env: {} as NodeJS.ProcessEnv,
+		});
+
+		assert.equal(binding.preferredPort, 3000);
+		assert.equal(binding.allowPortFallback, true);
+	});
+
+	it('marks ECOPAGES_PORT as an explicit preview binding', () => {
+		const binding = resolveRuntimeBinding({
+			cliArgs: {
+				preview: true,
+				build: false,
+				start: false,
+				dev: false,
+				force: false,
+				port: undefined,
+				hostname: undefined,
+				reactFastRefresh: undefined,
+			},
+			env: {
+				ECOPAGES_PORT: '3000',
+			} as NodeJS.ProcessEnv,
+		});
+
+		assert.equal(binding.preferredPort, 3000);
+		assert.equal(binding.allowPortFallback, false);
 	});
 
 	it('builds static pages directly for build and preview commands', () => {

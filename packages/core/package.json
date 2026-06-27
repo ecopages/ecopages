@@ -60,6 +60,10 @@
 			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
 			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
 		},
+		"./route-renderer/string-markup-renderer": {
+			"types": "./src/route-renderer/orchestration/string-markup-renderer.ts",
+			"default": "./src/route-renderer/orchestration/string-markup-renderer.ts"
+		},
 		"./route-renderer/route-renderer": {
 			"types": "./src/route-renderer/route-renderer.ts",
 			"default": "./src/route-renderer/route-renderer.ts"

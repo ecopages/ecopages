@@ -1,52 +1,74 @@
 # E2E testing
 
-Playwright coverage is orchestrated by `e2e/scripts/playwright/run-e2e.mjs`. Root `playwright.config.ts` is a thin entrypoint; shared wiring lives in `e2e/playwright/`.
+Playwright coverage is orchestrated by `e2e/scripts/playwright/run-e2e.ts`. Root `playwright.config.ts` composes self-describing capability fixtures from `e2e/fixtures/*/fixture.e2e.ts`; shared wiring lives in `e2e/playwright/`.
 
 Full policy and project matrix: [`docs/e2e-test-plan.md`](../docs/e2e-test-plan.md).
 
+## Capability fixtures
+
+Each integration block lives under `e2e/fixtures/<block>/` with:
+
+- `app.ts`, `eco.config.ts`, `package.json` — the fixture app (when in-repo)
+- `fixture.e2e.ts` — declares Playwright projects plus web servers
+- `*.test.e2e.ts` — tests co-located with the app
+
+After adding a fixture, register it in `e2e/playwright/capability-fixture-registry.ts` and add its projects to a wave in `e2e/playwright/orchestration-waves.ts` (coverage guarded by `assertWaveCoverage()`).
+
+Run one project locally:
+
+```bash
+pnpm test:e2e --project core-hmr-dev-e2e
+pnpm test:e2e --project browser-router-e2e
+pnpm test:e2e --project cross-integration-dev-e2e
+```
+
 ## Commands
 
-| Command                  | Purpose                                            |
-| ------------------------ | -------------------------------------------------- |
-| `pnpm test:e2e`          | Full gate (all batches)                            |
-| `pnpm test:e2e:smoke`    | Cross-host stress subset (`@stress`)               |
-| `pnpm test:e2e:stress`   | Kitchen-sink rapid stress only                     |
-| `pnpm test:e2e:kitchen`  | Full kitchen-sink matrix                           |
-| `pnpm test:e2e:timing`   | Stress subset with `[e2e-timing]` logs             |
-| `pnpm test:e2e:baseline` | Full gate with timing logs                         |
-| `pnpm test:e2e:ui`       | Playwright UI (debug; bypasses batch orchestrator) |
+| Command                          | Purpose                                            |
+| -------------------------------- | -------------------------------------------------- |
+| `pnpm test:e2e`                  | Full gate (5 sequential waves)                     |
+| `pnpm test:gate`                 | Fast local loop: vitest + stress smoke             |
+| `pnpm test:all`                  | Vitest + full e2e (CI, pre-commit, publish)        |
+| `pnpm test:e2e --project <name>` | Single project (bypasses waves)                    |
+| `pnpm test:e2e:ui`               | Playwright UI (debug; bypasses waves)              |
+
+## Orchestration waves
+
+Five sequential waves — one Playwright subprocess each. Definitions in `e2e/playwright/orchestration-waves.ts`:
+
+```
+1. static-wave:           7 static/preview projects (N workers each)
+2. core-hmr-dev:          2 dev projects (1 worker each)
+3. fixture-dev:           2 dev projects (1 worker each)
+4. cross-integration-dev: 2 dev projects (1 worker each, shared workspace)
+5. cross-integration-hmr: 1 hmr project (1 worker, isolated workspace)
+```
+
+`--project` bypasses waves and runs a single Playwright invocation. `--grep` passes through to Playwright native.
 
 ## Environment variables
 
-Only set these when debugging or tuning CI. Normal `pnpm test:e2e` does not require any of them.
+Only set these when debugging. Normal `pnpm test:e2e` does not require any of them.
 
-### Orchestration (`run-e2e.mjs`)
-
-| Variable                          | Values           | Effect                                                                                    |
-| --------------------------------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| `ECOPAGES_E2E_TIMING`             | `true`           | Log per-batch wall-clock as `[e2e-timing]`                                                |
-| `ECOPAGES_E2E_SERVER_CONCURRENCY` | positive integer | Cap parallel kitchen-sink **preview** isolated servers (default `availableParallelism()`) |
-| `ECOPAGES_E2E_DEV_CONCURRENCY`    | positive integer | Cap parallel kitchen-sink **dev** processes (default `min(2, availableParallelism())`)    |
-| `ECOPAGES_E2E_HMR_CONCURRENCY`    | positive integer | Cap parallel kitchen-sink **HMR** processes (default `1` — parallel boot is unstable)     |
-
-### Local debugging
+### Debugging
 
 | Variable                       | Values                        | Effect                                                                                                                                                           |
 | ------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ECOPAGES_E2E_TIMING`          | `true`                        | Log per-wave wall-clock as `[e2e-timing]`                                                                                                                        |
 | `ECOPAGES_REUSE_TEST_SERVERS`  | `true`                        | Reuse already-running web servers (`playwright.config.ts`)                                                                                                       |
 | `ECOPAGES_KEEP_E2E_TMP`        | `true`                        | Keep `.e2e-tmp/` workspace copies after a run (`run-isolated-app.mjs`)                                                                                           |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS` | comma-separated project names | Limit which Playwright projects (and web servers) start. `run-e2e.mjs` sets this when you pass `--project`; only needed when invoking `playwright test` directly |
+| `ECOPAGES_PLAYWRIGHT_PROJECTS` | comma-separated project names | Limit which Playwright projects start. `run-e2e.ts` sets this when you pass `--project`; only needed when invoking `playwright test` directly                    |
 
 ### Internal (set by harness — do not set manually)
 
-These are written by `run-isolated-app.mjs` / `playwright.config.ts` so kitchen-sink variants stay isolated. Documented here so env dumps are interpretable.
+These are written by `run-isolated-app.mjs` / `playwright.config.ts` so cross-integration variants stay isolated. Documented here so env dumps are interpretable.
 
 | Variable                              | Set by                          | Purpose                                                                  |
 | ------------------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES` | shared kitchen-sink web servers | Coordinate cleanup when multiple projects share one `.e2e-tmp` workspace |
-| `ECOPAGES_E2E_ARTIFACT_SCOPE`         | isolated app launcher           | Scope `dist-*` / `.eco-*` dirs per parallel project                      |
-| `ECOPAGES_KITCHEN_SINK_HOST`          | isolated app launcher           | `vite` when the vite-host matrix row is under test                       |
-| `ECOPAGES_KITCHEN_SINK_E2E`           | isolated app launcher           | `true` for ecopages-hosted kitchen-sink runs (Bun idle timeout)          |
+| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES` | run-e2e.ts                      | Coordinate cleanup when multiple projects share one `.e2e-tmp` workspace |
+| `ECOPAGES_E2E_ARTIFACT_SCOPE`         | define-fixture.ts + isolated app launcher | Scope `dist-*` / `.eco-*` dirs per parallel project              |
+| `ECOPAGES_CROSS_INTEGRATION_HOST`     | isolated app launcher           | `vite` when the vite-host row is under test                              |
+| `ECOPAGES_CROSS_INTEGRATION_E2E`      | isolated app launcher           | `true` for ecopages-hosted cross-integration runs (Bun idle timeout)     |
 
 ### Fixture / app runtime (not e2e-specific)
 
@@ -56,7 +78,7 @@ Used inside fixture `eco.config.ts` or server commands started by Playwright:
 | -------------------------------- | ------------------------------------- |
 | `ECOPAGES_PORT`                  | Server port for a fixture             |
 | `ECOPAGES_PERSIST_LAYOUTS`       | React-router persist-layouts fixtures |
-| `ECOPAGES_USE_POSTCSS_PROCESSOR` | Core PostCSS e2e fixture              |
+| `ECOPAGES_USE_POSTCSS_PROCESSOR` | Core HMR fixture (`e2e/fixtures/core-hmr`) |
 
 ## Vitest opt-in suites
 

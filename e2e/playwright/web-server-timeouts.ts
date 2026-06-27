@@ -6,23 +6,27 @@ export type PlaywrightWebServerConfig = {
 /**
  * Playwright `webServer.timeout` per server entry.
  *
- * Kitchen-sink preview must wait for `ecopages build` + full static generation
+ * Cross-integration preview must wait for `ecopages build` + full static generation
  * inside the isolated copy before the port opens — 300s is empirical headroom.
  * Dev/HMR rows get 180s for cold SSR startup; lightweight fixtures use 120s.
  */
 export function getWebServerTimeout(server: PlaywrightWebServerConfig): number {
-	const isKitchenSink = server.projects.some((project) => project.startsWith('kitchen-sink-'));
+	const isCrossIntegration = server.projects.some((project) => project.startsWith('cross-integration-'));
 	const isPreviewBuild = server.command.includes('--mode preview') || server.command.includes('--preview');
 
-	if (isKitchenSink && isPreviewBuild) {
+	if (isCrossIntegration && isPreviewBuild) {
 		return 300_000;
 	}
 
-	if (isKitchenSink) {
+	if (isCrossIntegration) {
 		return 180_000;
 	}
 
-	if (server.command.includes(' run build ')) {
+	if (
+		server.command.includes('--build') ||
+		server.command.includes(' run build ') ||
+		server.command.includes('start-docs-e2e-server')
+	) {
 		return 180_000;
 	}
 

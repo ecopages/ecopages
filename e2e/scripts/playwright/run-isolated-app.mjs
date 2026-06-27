@@ -281,8 +281,8 @@ export function buildEnv(options) {
 	return createPlaywrightSubprocessEnv({
 		ECOPAGES_E2E_ARTIFACT_SCOPE: options.artifactScope,
 		...(viteBaseUrl ? { ECOPAGES_BASE_URL: viteBaseUrl } : {}),
-		...(options.host === 'vite' ? { ECOPAGES_KITCHEN_SINK_HOST: 'vite' } : {}),
-		...(options.host === 'ecopages' ? { ECOPAGES_KITCHEN_SINK_E2E: 'true' } : {}),
+		...(options.host === 'vite' ? { ECOPAGES_CROSS_INTEGRATION_HOST: 'vite' } : {}),
+		...(options.host === 'ecopages' ? { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } : {}),
 		NODE_ENV: options.mode === 'preview' ? 'production' : 'development',
 		...(options.mode === 'dev'
 			? { ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS: process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS ?? '30000' }

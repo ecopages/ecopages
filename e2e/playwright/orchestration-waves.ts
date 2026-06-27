@@ -17,28 +17,56 @@ export type Wave = {
 
 export const FULL_GATE_WAVES: Wave[] = [
 	{
-		name: 'static-wave',
-		projects: [
-			'browser-router-e2e',
-			'cache-e2e',
-			'core-hmr-static-e2e',
-			'docs-e2e',
-			'react-router-e2e',
-			'react-router-persist-layouts-e2e',
-			'cross-integration-preview-e2e',
-		],
+		name: 'browser-router',
+		projects: ['browser-router-e2e'],
+	},
+	{
+		name: 'cache',
+		projects: ['cache-e2e'],
+	},
+	{
+		name: 'core-hmr-static',
+		projects: ['core-hmr-static-e2e'],
+	},
+	{
+		name: 'docs',
+		projects: ['docs-e2e'],
+	},
+	{
+		name: 'react-router',
+		projects: ['react-router-e2e'],
+	},
+	{
+		name: 'react-router-persist-layouts',
+		projects: ['react-router-persist-layouts-e2e'],
+	},
+	{
+		name: 'cross-integration-preview',
+		projects: ['cross-integration-preview-e2e'],
 	},
 	{
 		name: 'core-hmr-dev',
-		projects: ['core-hmr-dev-e2e', 'core-hmr-postcss-dev-e2e'],
+		projects: ['core-hmr-dev-e2e'],
 	},
 	{
-		name: 'fixture-dev',
-		projects: ['react-dev-e2e', 'react-router-persist-layouts-dev-e2e'],
+		name: 'core-hmr-postcss-dev',
+		projects: ['core-hmr-postcss-dev-e2e'],
+	},
+	{
+		name: 'react-dev',
+		projects: ['react-dev-e2e'],
+	},
+	{
+		name: 'react-router-persist-layouts-dev',
+		projects: ['react-router-persist-layouts-dev-e2e'],
 	},
 	{
 		name: 'cross-integration-dev',
-		projects: ['cross-integration-dev-e2e', 'cross-integration-vite-dev-e2e'],
+		projects: ['cross-integration-dev-e2e'],
+	},
+	{
+		name: 'cross-integration-vite-dev',
+		projects: ['cross-integration-vite-dev-e2e'],
 	},
 	{
 		name: 'cross-integration-hmr',

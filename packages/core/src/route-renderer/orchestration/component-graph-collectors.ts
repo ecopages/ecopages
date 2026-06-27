@@ -1,12 +1,9 @@
 import path from 'node:path';
-import type {
-	DependencyAttributes,
-	EcoComponent,
-	EcoComponentConfig,
-	ResolvedLazyTrigger,
-} from '../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { DependencyAttributes, EcoComponent, ResolvedLazyTrigger } from '../../types/public-types.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import { walkComponentGraph, type ComponentGraphRoot } from './component-graph.ts';
 
 function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
@@ -148,4 +145,41 @@ export function collectEagerSsrLazyScriptDefinitions(
 	});
 
 	return dependencies;
+}
+
+export function collectUsedIntegrationDependenciesFromGraph(
+	appConfig: EcoPagesAppConfig,
+	components: (EcoComponent | Partial<EcoComponent>)[],
+	currentIntegrationName: string,
+): ProcessedAsset[] {
+	const integrationNames = collectIntegrationNamesFromGraph(components, currentIntegrationName);
+	const dependencies: ProcessedAsset[] = [];
+
+	for (const integrationName of integrationNames) {
+		if (integrationName === currentIntegrationName) {
+			continue;
+		}
+
+		const integrationPlugin = appConfig.integrations.find((integration) => integration.name === integrationName);
+		if (!integrationPlugin || typeof integrationPlugin.getResolvedIntegrationDependencies !== 'function') {
+			continue;
+		}
+
+		dependencies.push(...integrationPlugin.getResolvedIntegrationDependencies());
+	}
+
+	return dependencies;
+}
+
+export async function buildEagerSsrLazyAssetsFromGraph(
+	assetProcessingService: AssetProcessingService,
+	components: (EcoComponent | Partial<EcoComponent>)[],
+	currentIntegrationName: string,
+): Promise<ProcessedAsset[]> {
+	const dependencies = collectEagerSsrLazyScriptDefinitions(components);
+	if (dependencies.length === 0) {
+		return [];
+	}
+
+	return assetProcessingService.processDependencies(dependencies, `${currentIntegrationName}:ssr-lazy`);
 }

@@ -32,7 +32,7 @@ Pre-commit: `pnpm test:all`, then lint, lint-staged, typecheck.
 
 ## Playwright projects (14 total)
 
-Defined in `playwright.config.ts` (composes self-describing capability fixtures + cross-integration), executed via 5 sequential waves in `run-e2e.ts`.
+Defined in `playwright.config.ts` (composes self-describing capability fixtures + cross-integration), executed via 8 sequential waves in `run-e2e.ts`.
 
 | Project                                | Fixture / app                           | In-project workers |
 | -------------------------------------- | --------------------------------------- | ------------------ |
@@ -96,16 +96,25 @@ Wave 1 — static-wave (7 projects, workers: N):
   browser-router-e2e, cache-e2e, core-hmr-static-e2e, docs-e2e,
   react-router-e2e, react-router-persist-layouts-e2e, cross-integration-preview-e2e
 
-Wave 2 — core-hmr-dev (2 projects, workers: 1):
-  core-hmr-dev-e2e, core-hmr-postcss-dev-e2e
+Wave 2 — core-hmr-dev (1 project, workers: 1):
+  core-hmr-dev-e2e
 
-Wave 3 — fixture-dev (2 projects, workers: 1):
-  react-dev-e2e, react-router-persist-layouts-dev-e2e
+Wave 3 — core-hmr-postcss-dev (1 project, workers: 1):
+  core-hmr-postcss-dev-e2e
 
-Wave 4 — cross-integration-dev (2 projects, workers: 1):
-  cross-integration-dev-e2e, cross-integration-vite-dev-e2e
+Wave 4 — react-dev (1 project, workers: 1):
+  react-dev-e2e
 
-Wave 5 — cross-integration-hmr (1 project, workers: 1):
+Wave 5 — react-router-persist-layouts-dev (1 project, workers: 1):
+  react-router-persist-layouts-dev-e2e
+
+Wave 6 — cross-integration-dev (1 project, workers: 1):
+  cross-integration-dev-e2e
+
+Wave 7 — cross-integration-vite-dev (1 project, workers: 1):
+  cross-integration-vite-dev-e2e
+
+Wave 8 — cross-integration-hmr (1 project, workers: 1):
   cross-integration-hmr-e2e
 ```
 
@@ -341,4 +350,4 @@ Not substitutes for `test:all`. Full env-var reference: [`e2e/README.md`](../e2e
 
 ## Summary
 
-`pnpm test:all` = Vitest + 14 Playwright projects in 5 sequential waves. Static-wave runs with `N` workers per project; dev/HMR waves run with `1` worker. See [Orchestration waves](#orchestration-waves-run-e2ets).
+`pnpm test:all` = Vitest + 14 Playwright projects in 8 sequential waves. Static-wave runs with `N` workers per project; dev/HMR waves run with `1` worker. See [Orchestration waves](#orchestration-waves-run-e2ets).

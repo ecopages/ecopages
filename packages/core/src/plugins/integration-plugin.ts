@@ -36,8 +36,6 @@ export type {
  */
 export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
 
-export { defineIntegration, type DefinedIntegration, type DefineIntegrationDefinition } from './define-integration.ts';
-
 export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
 	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',

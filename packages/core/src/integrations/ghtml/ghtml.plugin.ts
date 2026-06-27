@@ -1,28 +1,12 @@
-import { IntegrationPlugin, type IntegrationPluginConfig } from '../../plugins/integration-plugin.ts';
+import { defineIntegration } from '../../plugins/define-integration.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 import { GHTML_PLUGIN_NAME } from './ghtml.constants.ts';
 
-/**
- * The Ghtml plugin class
- * This plugin provides support for ghtml components in Ecopages
- */
-export class GhtmlPlugin extends IntegrationPlugin {
-	renderer = GhtmlRenderer;
+export const ghtmlPlugin = defineIntegration({
+	name: GHTML_PLUGIN_NAME,
+	extensions: ['.ghtml.ts', '.ghtml.tsx', '.ghtml'],
+	renderer: GhtmlRenderer,
+});
 
-	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
-		super({
-			name: GHTML_PLUGIN_NAME,
-			extensions: ['.ghtml.ts', '.ghtml.tsx', '.ghtml'],
-			...options,
-		});
-	}
-}
-
-/**
- * Factory function to create a Ghtml plugin instance
- * @param options Configuration options for the Ghtml plugin
- * @returns A new GhtmlPlugin instance
- */
-export function ghtmlPlugin(options?: Omit<IntegrationPluginConfig, 'name'>): GhtmlPlugin {
-	return new GhtmlPlugin(options);
-}
+/** @deprecated Use {@link ghtmlPlugin.Plugin} or {@link ghtmlPlugin} instead. */
+export const GhtmlPlugin = ghtmlPlugin.Plugin;

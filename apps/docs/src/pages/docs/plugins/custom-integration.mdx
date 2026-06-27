@@ -20,6 +20,29 @@ Integrations in Ecopages add support for new templating engines or frameworks. A
 
 Core still owns lifecycle ordering. Integration plugins declare contributions; `ConfigBuilder.build()` and app startup decide when those hooks run.
 
+## Minimal Integrations
+
+For string-markup integrations that only need declarative config and a renderer class, use `defineIntegration()` instead of writing a plugin class by hand:
+
+```typescript
+import { defineIntegration } from '@ecopages/core/plugins/define-integration';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+
+class CustomRenderer extends StringMarkupRenderer {
+	name = 'custom-integration';
+}
+
+export const customPlugin = defineIntegration({
+	name: 'custom-integration',
+	extensions: ['.custom'],
+	renderer: CustomRenderer,
+});
+```
+
+`customPlugin()` returns a configured integration instance. `customPlugin.Plugin` exposes the generated class when you need an explicit constructor.
+
+For integrations with runtime services, HMR strategies, or build loaders, continue using the class-based pattern below.
+
 ## Basic Structure
 
 An integration extends `IntegrationPlugin` and provides a renderer class. Keep the constructor declarative: use it to describe ownership, not to perform runtime side effects.

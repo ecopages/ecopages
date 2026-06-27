@@ -25,8 +25,9 @@ Only set these when debugging or tuning CI. Normal `pnpm test:e2e` does not requ
 | Variable                          | Values           | Effect                                                                                |
 | --------------------------------- | ---------------- | ------------------------------------------------------------------------------------- |
 | `ECOPAGES_E2E_TIMING`             | `true`           | Log per-batch wall-clock as `[e2e-timing]`                                            |
-| `ECOPAGES_E2E_SERVER_CONCURRENCY` | positive integer | Cap parallel kitchen-sink **preview** isolated servers (default `min(N, floor(N/2))`) |
-| `ECOPAGES_E2E_DEV_CONCURRENCY`    | positive integer | Cap parallel kitchen-sink **dev** processes (default `1`)                             |
+| `ECOPAGES_E2E_SERVER_CONCURRENCY` | positive integer | Cap parallel kitchen-sink **preview** isolated servers (default `availableParallelism()`) |
+| `ECOPAGES_E2E_DEV_CONCURRENCY`    | positive integer | Cap parallel kitchen-sink **dev** processes (default `min(2, availableParallelism())`)    |
+| `ECOPAGES_E2E_HMR_CONCURRENCY`      | positive integer | Cap parallel kitchen-sink **HMR** processes (default `1` — parallel boot is unstable)     |
 
 ### Local debugging
 

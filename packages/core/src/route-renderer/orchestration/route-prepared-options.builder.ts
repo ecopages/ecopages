@@ -1,0 +1,89 @@
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type {
+	ComponentRenderResult,
+	EcoComponent,
+	EcoPageComponent,
+	EcoPageFile,
+	HtmlTemplateProps,
+	IntegrationRendererRenderOptions,
+	PageBrowserGraphResult,
+	PageMetadataProps,
+	PageProps,
+	RouteRendererOptions,
+} from '../../types/public-types.ts';
+import { createPagePackage, type ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
+import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
+
+type PreparedRenderInputs = {
+	Page: EcoPageFile['default'] | EcoPageComponent<any>;
+	HtmlTemplate: EcoComponent<HtmlTemplateProps>;
+	Layout?: EcoComponent;
+	props: Record<string, unknown>;
+	metadata: PageMetadataProps;
+	integrationSpecificProps: Record<string, unknown>;
+};
+
+/**
+ * Assembles the final integration render options after route prep dependencies resolve.
+ */
+export function buildPreparedRenderOptions<C = unknown>(input: {
+	routeOptions: RouteRendererOptions;
+	resolvedInputs: PreparedRenderInputs;
+	resolvedDependencies: ProcessedAsset[];
+	allDependencies: ProcessedAsset[];
+	pageBrowserGraph?: PageBrowserGraphResult;
+	componentRender?: ComponentRenderResult;
+	appConfig: EcoPagesAppConfig;
+}): IntegrationRendererRenderOptions<C> {
+	const {
+		routeOptions,
+		resolvedInputs,
+		resolvedDependencies,
+		allDependencies,
+		pageBrowserGraph,
+		componentRender,
+		appConfig,
+	} = input;
+	const { Page, HtmlTemplate, Layout, props, metadata, integrationSpecificProps } = resolvedInputs;
+
+	const dedupedDependencies = dedupeProcessedAssets(allDependencies);
+	const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
+	const pageProps = {
+		...props,
+		params: routeOptions.params || {},
+		query: routeOptions.query || {},
+	};
+	const cacheStrategy = (Page as EcoPageComponent<any>).cache;
+	const defaultCacheStrategy = appConfig.cache?.defaultStrategy ?? 'static';
+	const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
+	const localsAvailable = effectiveCacheStrategy === 'dynamic' && routeOptions.locals !== undefined;
+
+	const pageLocals = localsAvailable
+		? routeOptions.locals!
+		: (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
+
+	const locals = localsAvailable ? routeOptions.locals : undefined;
+	const preparedOptions: IntegrationRendererRenderOptions<C> = {
+		...routeOptions,
+		resolvedDependencies,
+		pagePackage,
+		componentRender,
+		HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
+		Layout,
+		props,
+		Page: Page as EcoComponent<PageProps, C>,
+		metadata,
+		params: routeOptions.params || {},
+		query: routeOptions.query || {},
+		pageProps,
+		locals,
+		pageLocals,
+		cacheStrategy,
+	};
+
+	return {
+		...integrationSpecificProps,
+		...preparedOptions,
+	};
+}

@@ -40,14 +40,11 @@
 		"test:bench:baseline": "pnpm exec tsx playground/kitchen-sink/bench/_consolidate.ts",
 		"test:bench:compare": "ECOPAGES_BENCH=1 vitest bench --project bench --compare playground/kitchen-sink/bench/results/bench-baseline.json --outputJson playground/kitchen-sink/bench/results/vitest-bench.json",
 		"test:vitest:static-parity": "ECOPAGES_TEST_STATIC_BUILD_PARITY=1 pnpm run test:vitest",
-		"test:e2e": "node e2e/scripts/playwright/run-e2e.mjs",
-		"test:e2e:smoke": "node e2e/scripts/playwright/run-e2e.mjs --project kitchen-sink-bun-e2e --project kitchen-sink-vite-node-e2e --grep @stress",
-		"test:e2e:stress": "node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only --grep @stress",
-		"test:e2e:kitchen": "node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only",
-		"test:e2e:timing": "ECOPAGES_E2E_TIMING=true node e2e/scripts/playwright/run-e2e.mjs --kitchen-sink-only --grep @stress",
-		"test:e2e:baseline": "ECOPAGES_E2E_TIMING=true node e2e/scripts/playwright/run-e2e.mjs",
+		"test:e2e": "bun e2e/scripts/playwright/run-e2e.ts",
 		"test:e2e:ui": "playwright test --ui",
-		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck"
+		"test:gate": "pnpm run test:vitest && pnpm test:e2e --project cross-integration-dev-e2e --grep @stress",
+		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck",
+		"typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json"
 	},
 	"devDependencies": {
 		"@ecopages/logger": "^0.2.3",

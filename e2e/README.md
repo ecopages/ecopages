@@ -26,7 +26,7 @@ pnpm test:e2e --project cross-integration-dev-e2e
 
 | Command                          | Purpose                                     |
 | -------------------------------- | ------------------------------------------- |
-| `pnpm test:e2e`                  | Full gate (5 sequential waves)              |
+| `pnpm test:e2e`                  | Full gate (8 sequential waves)              |
 | `pnpm test:gate`                 | Fast local loop: vitest + stress smoke      |
 | `pnpm test:all`                  | Vitest + full e2e (CI, pre-commit, publish) |
 | `pnpm test:e2e --project <name>` | Single project (bypasses waves)             |

@@ -241,13 +241,5 @@ export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown
 		| Promise<{ router: RouteRegistry; server: unknown }>;
 }
 
-export interface ProcessorPlugin {
-	name: string;
-	description?: string;
-	setup(): Promise<void>;
-	process<T = unknown>(input: T): Promise<T>;
-	teardown?(): Promise<void>;
-}
-
 // Re-export HMR types from public-types for internal use
 export type { ClientBridgeEvent, DefaultHmrContext, IHmrManager, IClientBridge } from './public-types.ts';

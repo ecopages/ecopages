@@ -8,8 +8,8 @@ export type RuntimeBinding = {
 	runtimeOrigin: string;
 	serveOptions: Record<string, unknown>;
 	watch: boolean;
-	/** True when the preview/dev port came from CLI, env, or server options rather than the default. */
-	previewPortExplicitlyConfigured: boolean;
+	/** Whether preview may bind to the next free port when the preferred port is busy. */
+	allowPortFallback: boolean;
 };
 
 export type StaticRuntimeMode = {
@@ -37,7 +37,7 @@ export function resolveRuntimeBinding(options: {
 	env?: NodeJS.ProcessEnv;
 }): RuntimeBinding {
 	const env = options.env ?? process.env;
-	const previewPortExplicitlyConfigured =
+	const portExplicitlyConfigured =
 		options.cliArgs.port !== undefined || Boolean(env.ECOPAGES_PORT) || options.serverOptions?.port !== undefined;
 	const preferredPort =
 		options.cliArgs.port ?? (env.ECOPAGES_PORT ? Number(env.ECOPAGES_PORT) : undefined) ?? DEFAULT_ECOPAGES_PORT;
@@ -46,7 +46,7 @@ export function resolveRuntimeBinding(options: {
 	return {
 		preferredPort,
 		preferredHostname,
-		previewPortExplicitlyConfigured,
+		allowPortFallback: !portExplicitlyConfigured,
 		runtimeOrigin: resolveServeRuntimeOrigin({
 			hostname: preferredHostname,
 			port: preferredPort,

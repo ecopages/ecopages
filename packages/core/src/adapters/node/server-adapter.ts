@@ -50,7 +50,7 @@ export interface NodeServerAdapterParams {
 		watch?: boolean;
 	};
 	deferRuntimeAssetSetup?: boolean;
-	previewPortExplicitlyConfigured?: boolean;
+	allowPortFallback?: boolean;
 	previewHost?: StaticPreviewHost;
 	requestBridge?: NodeHttpRequestBridge;
 	devRuntimeFactory?: NodeServerDevRuntimeFactory;
@@ -94,7 +94,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private projectWatcher: ProjectWatcher | null = null;
 	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
-	private readonly previewPortExplicitlyConfigured: boolean;
+	private readonly allowPortFallback: boolean;
 	private readonly previewHost: StaticPreviewHost;
 	private readonly requestBridge: NodeHttpRequestBridge;
 	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
@@ -157,7 +157,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	) {
 		super(options);
 		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
-		this.previewPortExplicitlyConfigured = options.previewPortExplicitlyConfigured === true;
+		this.allowPortFallback = options.allowPortFallback !== false;
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
@@ -239,7 +239,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
 			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
-			allowPortFallback: !this.previewPortExplicitlyConfigured,
+			allowPortFallback: this.allowPortFallback,
 		});
 
 		if (!activePreviewPort) {

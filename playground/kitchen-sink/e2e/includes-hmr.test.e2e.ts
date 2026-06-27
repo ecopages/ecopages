@@ -6,8 +6,7 @@ import {
 	createHmrPhaseTimer,
 	startEcopagesHmrConnectionWatch,
 	installFullDocumentReloadWatcher,
-	assertNoMainFrameNavigation,
-	watchForMainFrameNavigation,
+	assertNoMainFrameNavigationAfterHmr,
 	gotoPath,
 	trackRuntimeErrors,
 } from './test-support';
@@ -16,6 +15,8 @@ const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', i
 const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
 const SEO_SUFFIX = '[include-hmr]';
 const EXPLICIT_TEAM_SUFFIX = '[explicit-route-hmr]';
+const INCLUDE_HMR_TIMEOUT_MS = 8_000;
+const VIEW_HMR_TIMEOUT_MS = 5_000;
 
 function getSeoIncludeFile(projectMetadata: Record<string, unknown> | undefined) {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
@@ -81,29 +82,15 @@ test.describe('Source mutation HMR @hmr', () => {
 		timer.mark('navigation-ready');
 		await hmrReady;
 		timer.mark('hmr-connected');
-		const titleReadyTimeout = testInfo.project.name.includes('vite') ? 45_000 : 10_000;
-		let initialTitle = '';
-		await expect
-			.poll(
-				async () => {
-					const title = await page.title();
-					if (title.length > 0 && !title.startsWith('Loading ')) {
-						initialTitle = title;
-						return true;
-					}
-
-					return false;
-				},
-				{ timeout: titleReadyTimeout },
-			)
-			.toBe(true);
-		const navigationWatch = watchForMainFrameNavigation(page);
+		await expect(page.getByTestId('page-docs')).toBeVisible();
+		const initialTitle = await page.title();
+		expect(initialTitle.length).toBeGreaterThan(0);
 
 		fs.writeFileSync(seoIncludeFile, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
 		timer.mark('mutation-applied');
-		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: 10_000 });
+		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: INCLUDE_HMR_TIMEOUT_MS });
 		timer.mark('title-updated');
-		await assertNoMainFrameNavigation(navigationWatch);
+		await assertNoMainFrameNavigationAfterHmr(page);
 
 		runtime.assertClean();
 	});
@@ -120,7 +107,6 @@ test.describe('Source mutation HMR @hmr', () => {
 		timer.mark('hmr-connected');
 		await expect(page.getByRole('heading', { name: 'Explicit routes can still feel native.' })).toBeVisible();
 
-		const navigationWatch = watchForMainFrameNavigation(page);
 		fs.writeFileSync(
 			explicitTeamViewFile,
 			patchExplicitRouteHeading(originalExplicitTeamView, EXPLICIT_TEAM_SUFFIX),
@@ -129,9 +115,9 @@ test.describe('Source mutation HMR @hmr', () => {
 		timer.mark('mutation-applied');
 		await expect(
 			page.getByRole('heading', { name: `Explicit routes can still feel native. ${EXPLICIT_TEAM_SUFFIX}` }),
-		).toBeVisible({ timeout: 10_000 });
+		).toBeVisible({ timeout: VIEW_HMR_TIMEOUT_MS });
 		timer.mark('heading-updated');
-		await assertNoMainFrameNavigation(navigationWatch);
+		await assertNoMainFrameNavigationAfterHmr(page);
 
 		runtime.assertClean();
 	});

@@ -203,9 +203,13 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
-			runtimeOrigin: this.runtimeOrigin,
 			apiHandlers: this.apiHandlers,
-			hmrManager: this.hmrManager ?? undefined,
+			prepareRuntimeAssets: () =>
+				setupAppRuntimePlugins({
+					appConfig: this.appConfig,
+					runtimeOrigin: this.runtimeOrigin,
+					hmrManager: this.hmrManager ?? undefined,
+				}),
 		});
 		this.initialized = true;
 	}

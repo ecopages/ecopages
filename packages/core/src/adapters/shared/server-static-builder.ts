@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { build, getAppBuildAdapter, setupAppRuntimePlugins, type BuildOptions } from '../../build/build-adapter.ts';
+import { build, getAppBuildAdapter, type BuildOptions } from '../../build/build-adapter.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import {
 	getServerBundleOutputPaths,
@@ -16,8 +16,7 @@ import {
 	shouldResetStaticExportDirectory,
 } from '../../static-site-generator/static-build-invalidation.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler, StaticRoute } from '../../types/public-types.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
@@ -37,12 +36,11 @@ export interface ServerStaticBuilderParams {
 	appConfig: EcoPagesAppConfig;
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
-	runtimeOrigin: string;
 	apiHandlers?: ApiHandler[];
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
-	hmrManager?: IHmrManager;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
+	/** Prepares processor/integration runtime assets before static generation. */
+	prepareRuntimeAssets: () => Promise<void>;
 }
 
 /**
@@ -61,33 +59,27 @@ export class ServerStaticBuilder {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private readonly serveOptions: ServeOptions;
-	private readonly runtimeOrigin: string;
 	private readonly apiHandlers: ApiHandler[];
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
-	private readonly hmrManager?: IHmrManager;
-	private readonly onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
+	private readonly prepareRuntimeAssets: () => Promise<void>;
 
 	constructor({
 		appConfig,
 		staticSiteGenerator,
 		serveOptions,
-		runtimeOrigin,
 		apiHandlers,
 		logger,
 		entryFile,
-		hmrManager,
-		onRuntimePlugin,
+		prepareRuntimeAssets,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
-		this.runtimeOrigin = runtimeOrigin;
 		this.apiHandlers = apiHandlers ?? [];
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
-		this.hmrManager = hmrManager;
-		this.onRuntimePlugin = onRuntimePlugin;
+		this.prepareRuntimeAssets = prepareRuntimeAssets;
 	}
 
 	private prepareExportDirectory(force: boolean): boolean {
@@ -122,12 +114,7 @@ export class ServerStaticBuilder {
 	private async refreshRuntimeAssets(): Promise<void> {
 		appLogger.debugTime('refreshRuntimeAssets');
 		try {
-			await setupAppRuntimePlugins({
-				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
-				hmrManager: this.hmrManager,
-				onRuntimePlugin: this.onRuntimePlugin,
-			});
+			await this.prepareRuntimeAssets();
 		} finally {
 			appLogger.debugTimeEnd('refreshRuntimeAssets');
 		}

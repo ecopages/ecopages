@@ -274,19 +274,21 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		}
 		prepareRuntimePublicDir(this.appConfig);
 
-		const staticBuilderOptions = {
+		this.staticBuilder = new ServerStaticBuilder({
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
-			runtimeOrigin: this.runtimeOrigin,
 			apiHandlers: this.apiHandlers,
-			hmrManager: this.hmrManager,
-			onRuntimePlugin: (plugin: EcoBuildPlugin) => {
-				this.registerBunRuntimePlugin(plugin);
-			},
-		};
-
-		this.staticBuilder = new ServerStaticBuilder(staticBuilderOptions);
+			prepareRuntimeAssets: () =>
+				setupAppRuntimePlugins({
+					appConfig: this.appConfig,
+					runtimeOrigin: this.runtimeOrigin,
+					hmrManager: this.hmrManager,
+					onRuntimePlugin: (plugin: EcoBuildPlugin) => {
+						this.registerBunRuntimePlugin(plugin);
+					},
+				}),
+		});
 
 		if (!this.deferRuntimeAssetSetup) {
 			await this.initializeRuntimePlugins({ watch: this.options?.watch });

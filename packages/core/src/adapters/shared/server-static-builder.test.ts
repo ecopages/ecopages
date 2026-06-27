@@ -9,7 +9,13 @@ import {
 	SERVER_BUNDLE_DIR,
 	SERVER_BUNDLE_FILENAME,
 } from '../../utils/resolve-entry-file';
-import { setAppBuildAdapter, type BuildAdapter, type BuildOptions, type BuildResult } from '../../build/build-adapter';
+import {
+	setAppBuildAdapter,
+	setupAppRuntimePlugins,
+	type BuildAdapter,
+	type BuildOptions,
+	type BuildResult,
+} from '../../build/build-adapter';
 import type { EcoPagesAppConfig } from '../../types/internal-types';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../router/server/route-registry';
@@ -19,6 +25,17 @@ import path from 'node:path';
 import os from 'node:os';
 
 const TMP_DIR = path.join(os.tmpdir(), 'server-static-builder-test');
+
+function createPrepareRuntimeAssets(
+	appConfig: EcoPagesAppConfig,
+	runtimeOrigin = 'http://127.0.0.1:3000',
+): () => Promise<void> {
+	return () =>
+		setupAppRuntimePlugins({
+			appConfig,
+			runtimeOrigin,
+		});
+}
 
 function createMockDependencies() {
 	const calls = {
@@ -269,7 +286,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 			expect(builder).toBeDefined();
@@ -292,7 +309,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 				logger,
 			});
 
@@ -326,7 +343,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
+					prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 					logger,
 				});
 
@@ -350,7 +367,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 
@@ -384,7 +401,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
-				runtimeOrigin: 'http://0.0.0.0:8080',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig, 'http://0.0.0.0:8080'),
 				logger,
 			});
 
@@ -404,7 +421,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 
@@ -427,7 +444,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 
@@ -447,7 +464,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 
@@ -478,7 +495,7 @@ describe('ServerStaticBuilder', () => {
 				appConfig: AppConfig,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
+				prepareRuntimeAssets: createPrepareRuntimeAssets(AppConfig),
 				logger,
 			});
 
@@ -513,7 +530,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
+					prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 					logger,
 				});
 
@@ -542,7 +559,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
+					prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 					logger,
 					entryFile: 'nonexistent.ts',
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
@@ -572,7 +589,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
+					prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 					logger,
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 				});
@@ -606,7 +623,7 @@ describe('ServerStaticBuilder', () => {
 						appConfig,
 						staticSiteGenerator: StaticSiteGenerator,
 						serveOptions: ServeOptions,
-						runtimeOrigin: 'http://127.0.0.1:3000',
+						prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 						logger,
 						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 					});
@@ -644,7 +661,7 @@ describe('ServerStaticBuilder', () => {
 						appConfig,
 						staticSiteGenerator: StaticSiteGenerator,
 						serveOptions: ServeOptions,
-						runtimeOrigin: 'http://127.0.0.1:3000',
+						prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 						logger,
 						entryFile: 'app.ts',
 						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
@@ -695,7 +712,7 @@ describe('ServerStaticBuilder', () => {
 					appConfig,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
+					prepareRuntimeAssets: createPrepareRuntimeAssets(appConfig),
 					logger,
 					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
 				});

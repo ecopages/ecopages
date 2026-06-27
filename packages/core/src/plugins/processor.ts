@@ -161,6 +161,17 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;
 
 	/**
+	 * Reports whether this processor's generated runtime artifacts are present on disk.
+	 *
+	 * @remarks
+	 * Used before skipping {@link setupAppRuntimePlugins} / refresh paths when
+	 * `runtimeAssetsPrepared` is already true.
+	 */
+	async areRuntimeAssetsPresent(): Promise<boolean> {
+		return true;
+	}
+
+	/**
 	 * Releases runtime resources owned by the processor.
 	 *
 	 * @remarks

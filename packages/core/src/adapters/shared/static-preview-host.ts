@@ -9,4 +9,9 @@ export interface StaticPreviewHostStartOptions {
 	appConfig: EcoPagesAppConfig;
 	hostname: string;
 	port: number;
+	/**
+	 * When true, bind to the next available port if the preferred one is busy.
+	 * Should remain false when the port was explicitly configured.
+	 */
+	allowPortFallback?: boolean;
 }

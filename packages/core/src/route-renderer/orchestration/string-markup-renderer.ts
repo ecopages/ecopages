@@ -27,10 +27,7 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 			throw new TypeError(`${this.name} renderer expected a callable component.`);
 		}
 
-		return this.renderStringComponentWithQueuedForeignSubtrees(
-			input,
-			input.component as StringMarkupViewFn,
-		);
+		return this.renderStringComponentWithQueuedForeignSubtrees(input, input.component as StringMarkupViewFn);
 	}
 
 	async render({

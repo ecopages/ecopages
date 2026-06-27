@@ -3,9 +3,7 @@ import type { IsolatedFixtureModule } from './define-isolated-fixture.ts';
 import { capabilityFixtures, isolatedFixtures } from './capability-fixture-registry.ts';
 
 export function loadCapabilityFixtures(): FixtureModule[] {
-	return [...capabilityFixtures].sort((left, right) =>
-		getFixtureBlock(left).localeCompare(getFixtureBlock(right)),
-	);
+	return [...capabilityFixtures].sort((left, right) => getFixtureBlock(left).localeCompare(getFixtureBlock(right)));
 }
 
 export function loadIsolatedFixtures(): IsolatedFixtureModule[] {

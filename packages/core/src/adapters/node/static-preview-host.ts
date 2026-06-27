@@ -1,5 +1,7 @@
 import type { AddressInfo } from 'node:net';
+import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { PortManager } from '../shared/port-manager.ts';
 import type { StaticPreviewHost, StaticPreviewHostStartOptions } from '../shared/static-preview-host.ts';
 import { NodeStaticContentServer } from './static-content-server.ts';
 
@@ -46,23 +48,39 @@ export class NodeStaticPreviewHost implements StaticPreviewHost {
 	public async start(options: StaticPreviewHostStartOptions): Promise<number | null> {
 		await this.stop();
 
-		const previewServer = new this.previewServerFactory({
-			appConfig: options.appConfig,
-			options: {
-				hostname: options.hostname,
-				port: options.port,
+		const portManager = new PortManager({
+			startOnPort: async (port) => {
+				const previewServer = new this.previewServerFactory({
+					appConfig: options.appConfig,
+					options: {
+						hostname: options.hostname,
+						port,
+					},
+				});
+
+				const server = await previewServer.start();
+				this.previewServer = previewServer;
+				const address = server.address();
+
+				if (address && typeof address === 'object') {
+					return address.port;
+				}
+
+				return port;
 			},
+			warn: (message) => appLogger.warn(message),
 		});
 
-		const server = await previewServer.start();
-		this.previewServer = previewServer;
-		const address = server.address();
+		const previewPort = await portManager.bind({
+			preferredPort: options.port,
+			allowPortFallback: options.allowPortFallback === true,
+		});
 
-		if (address && typeof address === 'object') {
-			return address.port;
+		if (!previewPort) {
+			this.previewServer = null;
 		}
 
-		return options.port;
+		return previewPort;
 	}
 
 	/**

@@ -579,7 +579,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		const buildRuntimeOrigin = resolveServeRuntimeOrigin(this.serveOptions);
 
 		await this.staticBuilder.build(
-			{ ...options, preview: false, baseUrl: buildRuntimeOrigin },
+			{ baseUrl: buildRuntimeOrigin, force: options?.force },
 			{
 				router: this.router,
 				routeRendererFactory: this.routeRendererFactory,

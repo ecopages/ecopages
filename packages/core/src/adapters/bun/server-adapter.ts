@@ -1,8 +1,6 @@
 import type { Server as NodeHttpServer } from 'node:http';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
-import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
@@ -18,9 +16,8 @@ import { createRequire } from '../../utils/locals-utils.ts';
 import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 
 import { fileSystem } from '@ecopages/file-system';
-import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
-import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -29,16 +26,16 @@ import { ApiResponseBuilder } from '../shared/api-response.ts';
 import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
 
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
-import {
-	injectHmrRuntimeIntoHtmlResponse,
-	isHtmlResponse,
-	shouldInjectHmrHtmlResponse,
-} from '../shared/hmr-html-response.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
 import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
 import { createEcopagesSocket } from '../shared/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
-import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
+import {
+	disposeDevResources,
+	maybeInjectAdapterHmrHtmlResponse,
+	prepareRuntimePublicDir,
+	wireIntegrationHmrManagers,
+} from '../shared/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
 import { HmrManager } from './hmr-manager.ts';
@@ -245,13 +242,11 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * would otherwise bypass the route wrapper entirely.
 	 */
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch === true, this.hmrManager, this.hostOwnsDevClient) &&
-			isHtmlResponse(response)
-		) {
-			return injectHmrRuntimeIntoHtmlResponse(response);
-		}
-		return response;
+		return maybeInjectAdapterHmrHtmlResponse(response, {
+			watch: this.options?.watch === true,
+			hmrManager: this.hmrManager,
+			hostOwnsDevClient: this.hostOwnsDevClient,
+		});
 	}
 
 	/**
@@ -264,7 +259,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		if (this.options?.watch) {
 			await this.hmrManager.buildRuntime();
 		}
-		this.prepareRuntimePublicDir();
+		prepareRuntimePublicDir(this.appConfig);
 
 		const staticBuilderOptions = {
 			appConfig: this.appConfig,
@@ -276,20 +271,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.staticBuilder = new ServerStaticBuilder(staticBuilderOptions);
 
 		await this.initializeRuntimePlugins({ watch: this.options?.watch });
-	}
-
-	/**
-	 * Copies the source `public` directory into the runtime output and ensures the
-	 * HMR assets directory exists before any runtime bundles are emitted.
-	 */
-	private prepareRuntimePublicDir(): void {
-		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
-
-		if (fileSystem.exists(srcPublicDir)) {
-			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
-		}
-
-		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
 	/**
@@ -314,12 +295,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				},
 			});
 
-			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
-			this.hmrManager.setPlugins(browserBuildPlugins);
-
-			for (const integration of this.appConfig.integrations) {
-				integration.setHmrManager(this.hmrManager);
-			}
+			wireIntegrationHmrManagers(this.appConfig, this.hmrManager);
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;
@@ -692,16 +668,15 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		this.adapterDisposed = true;
 
-		await this.projectWatcher?.close();
+		await disposeDevResources({
+			projectWatcher: this.projectWatcher,
+			appConfig: this.appConfig,
+			hmrManager: this.hmrManager,
+			bridge: this.bridge,
+			previewHost: this.previewHost,
+		});
+
 		this.projectWatcher = null;
-
-		await disposeAppBuildRuntime(this.appConfig);
-
-		this.hmrManager?.stop();
-
-		this.bridge?.destroy();
-
-		await this.previewHost.stop();
 	}
 
 	/**

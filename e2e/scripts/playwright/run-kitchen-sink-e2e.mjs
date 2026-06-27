@@ -2,6 +2,9 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { configurePlaywrightColorEnv, createPlaywrightSubprocessEnv } from '../../playwright/playwright-color-env.mjs';
+
+configurePlaywrightColorEnv(process.env);
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
@@ -116,6 +119,7 @@ async function main() {
 	const { group, forwardedArgs } = parseArgs(process.argv.slice(2));
 	const child = spawn(process.execPath, [runE2eScriptPath, ...buildPlaywrightArgs(group, forwardedArgs)], {
 		cwd: process.cwd(),
+		env: createPlaywrightSubprocessEnv(),
 		stdio: 'inherit',
 	});
 

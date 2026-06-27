@@ -19,6 +19,9 @@ import {
 } from './e2e/playwright/kitchen-sink';
 import { getWebServerTimeout } from './e2e/playwright/web-server-timeouts';
 import { getDefaultWorkerCount } from './e2e/playwright/workers';
+import { configurePlaywrightColorEnv } from './e2e/playwright/playwright-color-env.mjs';
+
+configurePlaywrightColorEnv(process.env);
 
 const repoRootDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopChrome = devices['Desktop Chrome'];

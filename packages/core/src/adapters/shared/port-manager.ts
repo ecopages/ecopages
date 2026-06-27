@@ -230,7 +230,7 @@ export class PortManager {
 		return await this.fallForward(preferredPort);
 	}
 
-	private async shouldFallback(preferredPort: number, allowPortFallback: boolean, error: unknown): Promise<boolean> {
+	private async shouldFallback(preferredPort: number, allowPortFallback: boolean, error: unknown): Promise<void> {
 		if (this.interactive && this.prompt) {
 			const nextFree = await this.findNextFreePort(preferredPort);
 			const nextFreeSuffix = typeof nextFree === 'number' ? ` (next free: ${nextFree})` : '';
@@ -242,14 +242,12 @@ export class PortManager {
 				throw error;
 			}
 
-			return true;
+			return;
 		}
 
 		if (!allowPortFallback) {
 			throw error;
 		}
-
-		return true;
 	}
 
 	private async fallForward(preferredPort: number): Promise<number | null> {

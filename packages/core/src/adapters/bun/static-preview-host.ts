@@ -30,14 +30,23 @@ export class BunStaticPreviewHost implements StaticPreviewHost {
 	public async start(options: StaticPreviewHostStartOptions): Promise<number | null> {
 		await this.stop();
 
+		let previewServer: BunStaticPreviewServer | null = null;
+
 		const portManager = new PortManager({
 			startOnPort: async (port) => {
-				this.previewServer = this.previewServerFactory.createServer({
+				const candidate = this.previewServerFactory.createServer({
 					appConfig: options.appConfig,
 					options: { port },
 				});
 
-				return this.previewServer.server?.port ?? null;
+				const boundPort = candidate.server?.port ?? null;
+				if (!boundPort) {
+					candidate.stop();
+					return null;
+				}
+
+				previewServer = candidate;
+				return boundPort;
 			},
 			warn: (message) => appLogger.warn(message),
 		});
@@ -48,9 +57,12 @@ export class BunStaticPreviewHost implements StaticPreviewHost {
 		});
 
 		if (!previewPort) {
+			this.previewServer = null;
 			this.logger.error('Failed to start preview server');
+			return null;
 		}
 
+		this.previewServer = previewServer;
 		return previewPort;
 	}
 

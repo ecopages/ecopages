@@ -9,16 +9,13 @@
  */
 
 import type { Server } from 'bun';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
 import type { RuntimeHost } from '../shared/runtime-host.ts';
-import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
-import { BunStaticPreviewHost } from './static-preview-host.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 
@@ -53,18 +50,15 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 	private server: Server<WebSocketData> | null = null;
 	private stopped = false;
 	private readonly runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
-	private readonly previewHost: StaticPreviewHost;
 
 	constructor(
 		options: EcopagesAppOptions,
 		dependencies: {
 			runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
-			previewHost: StaticPreviewHost;
 		},
 	) {
 		super(options);
 		this.runtimeHost = dependencies.runtimeHost;
-		this.previewHost = dependencies.previewHost;
 	}
 
 	public async fetch(request: Request): Promise<Response> {
@@ -173,8 +167,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
-		const configuredHostname = String(serverOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
-		const configuredPort = Number(serverOptions.port ?? DEFAULT_ECOPAGES_PORT);
 		const runtimeServerOptions = serverOptions;
 		this.server = await this.runtimeHost.start({
 			serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
@@ -195,24 +187,10 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview: false, force });
+			await this.serverAdapter.buildStatic({ preview, force });
 			const buildRuntimeServer = this.server;
 			this.server = null;
 			await this.runtimeHost.stop(buildRuntimeServer, { force: true });
-
-			if (preview) {
-				const previewPort = await this.previewHost.start({
-					appConfig: this.appConfig,
-					hostname: configuredHostname,
-					port: configuredPort,
-					allowPortFallback: !this.previewPortExplicitlyConfigured,
-				});
-
-				if (previewPort) {
-					appLogger.info(`Preview running at http://${configuredHostname}:${previewPort}`);
-				}
-			}
-
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (build) {
@@ -234,8 +212,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			await this.runtimeHost.stop(activeServer, { force });
 		}
 
-		await this.previewHost.stop();
-
 		if (this.serverAdapter) {
 			await this.serverAdapter.dispose();
 		}
@@ -252,6 +228,5 @@ export async function createApp<WebSocketData = undefined>(
 ): Promise<BunEcopagesApp<WebSocketData>> {
 	return new BunEcopagesApp(options, {
 		runtimeHost: new BunRuntimeHost<WebSocketData>(),
-		previewHost: new BunStaticPreviewHost(),
 	});
 }

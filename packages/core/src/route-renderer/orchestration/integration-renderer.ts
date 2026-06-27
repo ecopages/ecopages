@@ -37,6 +37,7 @@ import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
+import { hasForeignChildDescendantsInGraph } from './component-graph-collectors.ts';
 import {
 	type RouteHtmlFinalization,
 	RouteRenderOrchestrator,
@@ -1167,25 +1168,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * directly without paying the queue orchestration cost.
 	 */
 	protected hasForeignChildDescendants(component: EcoComponent): boolean {
-		const stack = [component];
-		const seen = new Set<EcoComponent>();
-
-		while (stack.length > 0) {
-			const current = stack.pop();
-			if (!current || seen.has(current)) {
-				continue;
-			}
-
-			seen.add(current);
-			const integrationName = current.config?.integration ?? current.config?.__eco?.integration;
-			if (integrationName && integrationName !== this.name) {
-				return true;
-			}
-
-			stack.push(...(current.config?.dependencies?.components ?? []));
-		}
-
-		return false;
+		return hasForeignChildDescendantsInGraph(component, this.name);
 	}
 
 	/**

@@ -54,11 +54,11 @@ class TestStylesheetProcessor extends Processor {
 		});
 	}
 
-	async setup(): Promise<void> {}
+	override async setup(): Promise<void> {}
 
-	async teardown(): Promise<void> {}
+	override async teardown(): Promise<void> {}
 
-	async process(input: unknown): Promise<unknown> {
+	override async process(input: unknown): Promise<unknown> {
 		return typeof input === 'string' ? input.replace('red', 'green') : input;
 	}
 }

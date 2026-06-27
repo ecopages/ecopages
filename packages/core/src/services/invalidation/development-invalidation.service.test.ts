@@ -19,11 +19,11 @@ class StylesheetProcessor extends Processor {
 		});
 	}
 
-	async setup(): Promise<void> {}
+	override async setup(): Promise<void> {}
 
-	async teardown(): Promise<void> {}
+	override async teardown(): Promise<void> {}
 
-	async process<T>(input: T): Promise<T> {
+	override async process<T>(input: T): Promise<T> {
 		return input;
 	}
 }

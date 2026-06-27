@@ -45,15 +45,9 @@ describe('run-e2e wave orchestration', () => {
 		expect(() => cleanupE2eTempDir()).not.toThrow();
 	});
 
-	it('defines exactly 5 sequential waves', () => {
-		expect(FULL_GATE_WAVES).toHaveLength(5);
-		expect(FULL_GATE_WAVES.map((wave) => wave.name)).toEqual([
-			'static-wave',
-			'core-hmr-dev',
-			'fixture-dev',
-			'cross-integration-dev',
-			'cross-integration-hmr',
-		]);
+	it('defines one wave per registered project (sequential single-server waves)', () => {
+		expect(FULL_GATE_WAVES).toHaveLength(14);
+		expect(FULL_GATE_WAVES.every((wave) => wave.projects.length === 1)).toBe(true);
 	});
 
 	it('covers all 14 registered projects exactly once', () => {
@@ -70,19 +64,31 @@ describe('run-e2e wave orchestration', () => {
 
 	it('getFullGateBatches returns one batch per wave', () => {
 		const batches = getFullGateBatches();
-		expect(batches).toHaveLength(5);
+		expect(batches).toHaveLength(14);
 		expect(batches).toEqual(FULL_GATE_WAVES.map((wave) => wave.projects));
 	});
 
-	it('groups cross-integration dev and vite-dev in one wave', () => {
-		const devWave = FULL_GATE_WAVES.find((wave) => wave.name === 'cross-integration-dev');
-		expect(devWave?.projects).toEqual(['cross-integration-dev-e2e', 'cross-integration-vite-dev-e2e']);
-	});
+	it('keeps static projects separate from dev projects', () => {
+		const staticProjects = [
+			'browser-router-e2e',
+			'cache-e2e',
+			'core-hmr-static-e2e',
+			'docs-e2e',
+			'react-router-e2e',
+			'react-router-persist-layouts-e2e',
+			'cross-integration-preview-e2e',
+		];
+		const devProjects = ['core-hmr-dev-e2e', 'react-router-persist-layouts-dev-e2e'];
 
-	it('keeps static-wave separate from dev waves', () => {
-		const staticWave = FULL_GATE_WAVES.find((wave) => wave.name === 'static-wave');
-		expect(staticWave?.projects).not.toContain('core-hmr-dev-e2e');
-		expect(staticWave?.projects).not.toContain('react-router-persist-layouts-dev-e2e');
+		for (const staticProject of staticProjects) {
+			const staticWave = FULL_GATE_WAVES.find((wave) => wave.projects.includes(staticProject));
+			expect(staticWave?.projects).toEqual([staticProject]);
+		}
+
+		for (const devProject of devProjects) {
+			const devWave = FULL_GATE_WAVES.find((wave) => wave.projects.includes(devProject));
+			expect(devWave?.projects).toEqual([devProject]);
+		}
 	});
 
 	it('assigns HMR projects a unique workspace while sharing read-only workspaces', () => {

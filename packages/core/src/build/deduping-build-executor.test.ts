@@ -52,10 +52,7 @@ test('DedupingBuildExecutor does not coalesce different build options', async ()
 	};
 	const deduping = new DedupingBuildExecutor(inner);
 
-	await Promise.all([
-		deduping.build(buildOptions),
-		deduping.build({ ...buildOptions, outdir: '/other-out' }),
-	]);
+	await Promise.all([deduping.build(buildOptions), deduping.build({ ...buildOptions, outdir: '/other-out' })]);
 
 	assert.equal(innerBuildCount, 2);
 });

@@ -215,10 +215,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		}),
 		entrypoints: entryRecord,
 	};
-	const buildResult = await build(
-		buildOptions,
-		requireBuildRuntime(options.appConfig).getProfile('route-module'),
-	);
+	const buildResult = await build(buildOptions, requireBuildRuntime(options.appConfig).getProfile('route-module'));
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
 
 	if (!buildResult.success) {

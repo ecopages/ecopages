@@ -1,9 +1,6 @@
 import path from 'node:path';
 import type { BuildExecutor, BuildOptions, BuildResult } from './build-adapter.ts';
-import {
-	createJsxCacheKey,
-	createPluginCacheKey,
-} from '../services/module-loading/route-module-build-manifest.ts';
+import { createJsxCacheKey, createPluginCacheKey } from '../services/module-loading/route-module-build-manifest.ts';
 
 /**
  * Stable cache key for coalescing concurrent identical build requests.
@@ -32,7 +29,10 @@ export function createBuildOptionsDedupeKey(options: BuildOptions): string {
 
 function normalizeEntrypoints(entrypoints: BuildOptions['entrypoints']): string {
 	if (Array.isArray(entrypoints)) {
-		return entrypoints.map((entrypoint) => path.resolve(entrypoint)).sort().join('|');
+		return entrypoints
+			.map((entrypoint) => path.resolve(entrypoint))
+			.sort()
+			.join('|');
 	}
 
 	return Object.entries(entrypoints)

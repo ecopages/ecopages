@@ -7,6 +7,7 @@ import {
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { getBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
+import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
@@ -35,7 +36,8 @@ test('installAppRuntimeBuildExecutor wraps the active adapter in a ParallelBuild
 	const executor = installAppRuntimeBuildExecutor(appConfig);
 
 	assert.notEqual(executor, staleExecutor);
-	assert.ok(executor instanceof ParallelBuildExecutor, 'wraps the executor in a parallel route-module layer');
+	assert.ok(executor instanceof DedupingBuildExecutor, 'wraps the executor in a deduping route-module layer');
+	assert.ok(executor.unwrap() instanceof ParallelBuildExecutor, 'deduping layer wraps a parallel executor');
 });
 
 test('installAppRuntimeBuildExecutor rejects when the app-owned adapter is a Vite-host boundary', async () => {
@@ -134,8 +136,10 @@ test('installAppRuntimeBuildExecutor installs separate executors for route modul
 	const routeExecutor = buildRuntime.getProfile('route-module');
 	const hmrExecutor = buildRuntime.getProfile('browser-hmr');
 
-	assert.ok(routeExecutor instanceof ParallelBuildExecutor);
-	assert.ok(hmrExecutor instanceof ParallelBuildExecutor);
+	assert.ok(routeExecutor instanceof DedupingBuildExecutor);
+	assert.ok(hmrExecutor instanceof DedupingBuildExecutor);
+	assert.ok(routeExecutor.unwrap() instanceof ParallelBuildExecutor);
+	assert.ok(hmrExecutor.unwrap() instanceof ParallelBuildExecutor);
 	assert.notEqual(routeExecutor, hmrExecutor);
 });
 

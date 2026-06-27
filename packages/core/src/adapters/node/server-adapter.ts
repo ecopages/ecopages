@@ -1,10 +1,6 @@
 import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
-import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
-import { getAppBrowserBuildPlugins, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
-import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
@@ -22,11 +18,11 @@ import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import {
-	injectHmrRuntimeIntoHtmlResponse,
-	isHtmlResponse,
-	shouldInjectHmrHtmlResponse,
-} from '../shared/hmr-html-response.ts';
-import { copyRuntimePublicDirIfChanged } from '../shared/copy-runtime-public-dir.ts';
+	maybeInjectAdapterHmrHtmlResponse,
+	prepareRuntimePublicDir,
+	wireIntegrationHmrManagers,
+	disposeDevResources,
+} from '../shared/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
@@ -131,23 +127,12 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 	}
 
-	private isHtmlResponse(response: Response): boolean {
-		return isHtmlResponse(response);
-	}
-
 	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		if (
-			shouldInjectHmrHtmlResponse(
-				this.options?.watch === true,
-				this.hmrManager ?? undefined,
-				this.hostOwnsDevClient,
-			) &&
-			this.isHtmlResponse(response)
-		) {
-			return injectHmrRuntimeIntoHtmlResponse(response);
-		}
-
-		return response;
+		return maybeInjectAdapterHmrHtmlResponse(response, {
+			watch: this.options?.watch === true,
+			hmrManager: this.hmrManager ?? undefined,
+			hostOwnsDevClient: this.hostOwnsDevClient,
+		});
 	}
 
 	/**
@@ -195,7 +180,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	public async initialize(): Promise<void> {
 		installAppRuntimeBuildExecutor(this.appConfig);
 
-		this.prepareRuntimePublicDir();
+		prepareRuntimePublicDir(this.appConfig);
 		await setupAppRuntimePlugins({
 			appConfig: this.appConfig,
 			runtimeOrigin: this.runtimeOrigin,
@@ -213,16 +198,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			apiHandlers: this.apiHandlers,
 		});
 		this.initialized = true;
-	}
-
-	private prepareRuntimePublicDir(): void {
-		const srcPublicDir = path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.publicDir);
-
-		if (fileSystem.exists(srcPublicDir)) {
-			copyRuntimePublicDirIfChanged(srcPublicDir, path.join(this.appConfig.rootDir, this.appConfig.distDir));
-		}
-
-		fileSystem.ensureDir(path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 	}
 
 	public getServerOptions(): NodeServeAdapterServerOptions {
@@ -288,18 +263,17 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 		this.adapterDisposed = true;
 
-		await this.projectWatcher?.close();
+		await disposeDevResources({
+			projectWatcher: this.projectWatcher,
+			appConfig: this.appConfig,
+			hmrManager: this.hmrManager,
+			bridge: this.bridge,
+			previewHost: this.previewHost,
+		});
+
 		this.projectWatcher = null;
-
-		await disposeAppBuildRuntime(this.appConfig);
-
-		this.hmrManager?.stop();
 		this.hmrManager = null;
-
-		this.bridge?.destroy();
 		this.bridge = null;
-
-		await this.previewHost.stop();
 	}
 
 	/**
@@ -394,12 +368,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				});
 			}
 
-			const browserBuildPlugins = getAppBrowserBuildPlugins(this.appConfig);
-			this.hmrManager.setPlugins(browserBuildPlugins);
-
-			for (const integration of this.appConfig.integrations) {
-				integration.setHmrManager(this.hmrManager);
-			}
+			wireIntegrationHmrManagers(this.appConfig, this.hmrManager);
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

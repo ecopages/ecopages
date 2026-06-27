@@ -35,7 +35,10 @@ test('collectIntegrationNamesFromGraph walks nested dependency components', () =
 });
 
 test('collectResolvedLazyTriggersFromGraph collects triggers from nested components', () => {
-	const trigger = { id: 'lazy-a' } as ResolvedLazyTrigger;
+	const trigger: ResolvedLazyTrigger = {
+		triggerId: 'lazy-a',
+		rules: [{ 'on:idle': { scripts: ['/lazy-a.js'] } }],
+	};
 	const root = createComponent({
 		children: [createComponent({ triggers: [trigger] })],
 	});

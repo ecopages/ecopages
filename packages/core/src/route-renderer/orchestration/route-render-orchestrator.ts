@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderResult,
@@ -12,32 +9,23 @@ import type {
 	PageBrowserGraphContribution,
 	PageBrowserGraphResult,
 	PageMetadataProps,
-	PagePackageResult,
 	PageProps,
-	ResolvedLazyTrigger,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
 } from '../../types/public-types.ts';
-import {
-	type AssetDefinition,
-	type AssetProcessingService,
-	AssetFactory,
-	createPagePackage,
-	type ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
-import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../eco/global-injector-map.ts';
-import { LocalsAccessError } from '../../errors/locals-access-error.ts';
-import { appLogger } from '../../global/app-logger.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './render-output.utils.ts';
 import { OwnershipValidationService, throwIfOwnershipInvalid } from './ownership-validation.service.ts';
-import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 import {
-	collectEagerSsrLazyScriptDefinitions,
-	collectIntegrationNamesFromGraph,
+	buildEagerSsrLazyAssetsFromGraph,
 	collectResolvedLazyTriggersFromGraph,
+	collectUsedIntegrationDependenciesFromGraph,
 } from './component-graph-collectors.ts';
+import { buildGlobalInjectorAssets } from './global-injector-assets.service.ts';
+import { PageBrowserGraphService } from './page-browser-graph.service.ts';
+import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -61,58 +49,6 @@ export type RouteRenderOrchestratorResolvedDependencies = {
 export type RouteHtmlFinalization = {
 	finalizeHtml?(html: string): string;
 	htmlContributions?: HtmlDocumentContribution[];
-};
-
-function createPageLocalsProxy(filePath: string): Record<string, never> {
-	const errorMessage = `[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: ${filePath}. If you meant to use locals here, set cache: 'dynamic' and provide locals from route middleware/handlers.`;
-
-	return new Proxy(
-		{},
-		{
-			get: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			set: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			has: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			ownKeys: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			deleteProperty: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			defineProperty: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-			getOwnPropertyDescriptor: () => {
-				throw new LocalsAccessError(errorMessage);
-			},
-		},
-	);
-}
-
-function isGroupedContentScriptAsset(asset: AssetDefinition): asset is Extract<
-	AssetDefinition,
-	{ kind: 'script'; source: 'content' }
-> & {
-	groupedBundle: {
-		id: string;
-		entryName: string;
-	};
-} {
-	return asset.kind === 'script' && asset.source === 'content' && Boolean(asset.groupedBundle?.id);
-}
-
-function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string }): string {
-	return `${groupedBundle.id}:${groupedBundle.entryName}`;
-}
-
-type GroupedPageBrowserAssetsResult = {
-	assetsByRoute: Map<string, ProcessedAsset[]>;
-	hasCollectionFailures: boolean;
 };
 
 export interface RouteRenderOrchestratorAdapter<C> {
@@ -157,7 +93,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	transformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
-		pagePackage?: PagePackageResult,
+		pagePackage?: IntegrationRendererRenderOptions<C>['pagePackage'],
 	): Promise<RouteRendererBody>;
 }
 
@@ -174,6 +110,7 @@ export interface CapturedHtmlRenderResult {
  */
 export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
+	pageBrowserGraphService?: PageBrowserGraphService;
 }
 
 /**
@@ -188,8 +125,7 @@ export class RouteRenderOrchestrator {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
 	private readonly ownershipValidationService: OwnershipValidationService;
-	private readonly pageBrowserGraphCache = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
-	private readonly groupedPageBrowserGraphCache = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
+	private readonly pageBrowserGraphService: PageBrowserGraphService;
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -200,6 +136,8 @@ export class RouteRenderOrchestrator {
 		this.assetProcessingService = assetProcessingService;
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
+		this.pageBrowserGraphService =
+			dependencies.pageBrowserGraphService ?? new PageBrowserGraphService(appConfig, assetProcessingService);
 	}
 
 	/**
@@ -214,7 +152,7 @@ export class RouteRenderOrchestrator {
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
-		const { Page, HtmlTemplate, Layout, props, metadata, integrationSpecificProps } = resolvedInputs;
+		const { Page, HtmlTemplate, Layout } = resolvedInputs;
 		const validationErrors = this.ownershipValidationService.validate({
 			currentIntegrationName: adapter.name,
 			roots: [
@@ -230,7 +168,7 @@ export class RouteRenderOrchestrator {
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,
 			}),
-			this.resolvePageBrowserGraph({
+			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
 				integrationName: adapter.name,
 				collectContribution: async (routeFile) => await adapter.collectPageBrowserGraphContribution(routeFile),
@@ -238,12 +176,15 @@ export class RouteRenderOrchestrator {
 			adapter.resolveRoutePageComponentRender({
 				Page: Page as EcoComponent,
 				Layout,
-				props,
+				props: resolvedInputs.props,
 				routeOptions,
 			}),
 		]);
-		const usedIntegrationDependencies = this.collectUsedIntegrationDependencies(componentsToResolve, adapter.name);
-		const allDependencies = [...resolvedDependencies, ...usedIntegrationDependencies];
+
+		const allDependencies = [
+			...resolvedDependencies,
+			...collectUsedIntegrationDependenciesFromGraph(this.appConfig, componentsToResolve, adapter.name),
+		];
 
 		if (componentRender?.assets?.length) {
 			allDependencies.push(...componentRender.assets);
@@ -251,55 +192,22 @@ export class RouteRenderOrchestrator {
 
 		const triggers = collectResolvedLazyTriggersFromGraph(componentsToResolve, adapter.name);
 		const [globalAssets, eagerSsrLazyAssets] = await Promise.all([
-			triggers.length > 0 ? this.buildGlobalInjectorAssets(triggers, adapter.name) : Promise.resolve([]),
-			this.buildEagerSsrLazyAssets(componentsToResolve, adapter.name),
+			triggers.length > 0
+				? buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)
+				: Promise.resolve([]),
+			buildEagerSsrLazyAssetsFromGraph(this.assetProcessingService, componentsToResolve, adapter.name),
 		]);
-		if (globalAssets.length > 0) {
-			allDependencies.push(...globalAssets);
-		}
-		if (eagerSsrLazyAssets.length > 0) {
-			allDependencies.push(...eagerSsrLazyAssets);
-		}
+		allDependencies.push(...globalAssets, ...eagerSsrLazyAssets);
 
-		const dedupedDependencies = dedupeProcessedAssets(allDependencies);
-		const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
-		const pageProps = {
-			...props,
-			params: routeOptions.params || {},
-			query: routeOptions.query || {},
-		};
-		const cacheStrategy = (Page as EcoPageComponent<any>).cache;
-		const defaultCacheStrategy = this.appConfig.cache?.defaultStrategy ?? 'static';
-		const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
-		const localsAvailable = effectiveCacheStrategy === 'dynamic' && routeOptions.locals !== undefined;
-
-		const pageLocals = localsAvailable
-			? routeOptions.locals!
-			: (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
-
-		const locals = localsAvailable ? routeOptions.locals : undefined;
-		const preparedOptions: IntegrationRendererRenderOptions<C> = {
-			...routeOptions,
+		return buildPreparedRenderOptions<C>({
+			routeOptions,
+			resolvedInputs,
 			resolvedDependencies,
-			pagePackage,
+			allDependencies,
+			pageBrowserGraph,
 			componentRender,
-			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
-			Layout,
-			props,
-			Page: Page as EcoComponent<PageProps, C>,
-			metadata,
-			params: routeOptions.params || {},
-			query: routeOptions.query || {},
-			pageProps,
-			locals,
-			pageLocals,
-			cacheStrategy,
-		};
-
-		return {
-			...integrationSpecificProps,
-			...preparedOptions,
-		};
+			appConfig: this.appConfig,
+		});
 	}
 
 	async resolveDeclaredPageBrowserGraph(input: {
@@ -307,243 +215,7 @@ export class RouteRenderOrchestrator {
 		integrationName: string;
 		collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
 	}): Promise<PageBrowserGraphResult | undefined> {
-		return await this.resolvePageBrowserGraph(input);
-	}
-
-	private async resolvePageBrowserGraph(input: {
-		routeFile: string;
-		integrationName: string;
-		collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-	}): Promise<PageBrowserGraphResult | undefined> {
-		if (this.isHmrEnabled()) {
-			return await this.buildPageBrowserGraph(input);
-		}
-
-		const cacheKey = `${input.integrationName}:${input.routeFile}`;
-		const cachedGraph = this.pageBrowserGraphCache.get(cacheKey);
-
-		if (cachedGraph) {
-			return await cachedGraph;
-		}
-
-		const pendingGraph = this.buildPageBrowserGraph(input).catch((error) => {
-			this.pageBrowserGraphCache.delete(cacheKey);
-			throw error;
-		});
-		this.pageBrowserGraphCache.set(cacheKey, pendingGraph);
-
-		return await pendingGraph;
-	}
-
-	private isHmrEnabled(): boolean {
-		return (
-			typeof this.assetProcessingService.getHmrManager === 'function' &&
-			this.assetProcessingService.getHmrManager()?.isEnabled() === true
-		);
-	}
-
-	private async buildPageBrowserGraph(input: {
-		routeFile: string;
-		integrationName: string;
-		collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-	}): Promise<PageBrowserGraphResult | undefined> {
-		const contribution = await input.collectContribution(input.routeFile);
-
-		if (!contribution) {
-			return undefined;
-		}
-
-		const groupedDependencies = (contribution.dependencies ?? []).filter((dep) => isGroupedContentScriptAsset(dep));
-		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
-			(dep) => !isGroupedContentScriptAsset(dep),
-		);
-
-		const groupedAssets = groupedDependencies.length
-			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).get(input.routeFile) ?? [])
-			: [];
-
-		const processedDependencies = ungroupedDependencies.length
-			? await this.assetProcessingService.processDependencies(
-					ungroupedDependencies,
-					`${input.integrationName}:${input.routeFile}`,
-				)
-			: [];
-		const resolvedAssets = [...processedDependencies, ...groupedAssets, ...(contribution.assets ?? [])];
-
-		return this.partitionPageBrowserGraphAssets(resolvedAssets);
-	}
-
-	/**
-	 * Resolves grouped page-browser assets for all routes owned by one integration.
-	 *
-	 * @remarks
-	 * This keeps one shared browser-build result available across sibling routes so
-	 * navigation can reuse the same emitted client graph instead of rebuilding one
-	 * page entry at a time. HMR bypasses this cache because the grouped build must
-	 * reflect the latest source on every request.
-	 */
-	private async resolveGroupedPageBrowserAssets(
-		input: {
-			routeFile: string;
-			integrationName: string;
-			collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-		},
-		currentContribution: PageBrowserGraphContribution,
-	): Promise<Map<string, ProcessedAsset[]>> {
-		if (this.isHmrEnabled()) {
-			const result = await this.buildGroupedPageBrowserAssets(input, currentContribution);
-			return result.assetsByRoute;
-		}
-
-		const cacheKey = input.integrationName;
-		let pending = this.groupedPageBrowserGraphCache.get(cacheKey);
-		if (!pending) {
-			pending = this.buildGroupedPageBrowserAssets(input, currentContribution)
-				.then((result) => {
-					if (result.hasCollectionFailures) {
-						this.groupedPageBrowserGraphCache.delete(cacheKey);
-					}
-
-					return result.assetsByRoute;
-				})
-				.catch((error) => {
-					this.groupedPageBrowserGraphCache.delete(cacheKey);
-					throw error;
-				});
-			this.groupedPageBrowserGraphCache.set(cacheKey, pending);
-		}
-
-		return await pending;
-	}
-
-	/**
-	 * Builds the shared grouped page-browser asset map for one integration.
-	 *
-	 * @remarks
-	 * Each route can declare grouped content-script dependencies that should be
-	 * emitted together. This method collects those declarations across the owning
-	 * integration, runs the grouped processor once, and then maps the emitted
-	 * assets back onto the routes that reference them.
-	 */
-	private async buildGroupedPageBrowserAssets(
-		input: {
-			routeFile: string;
-			integrationName: string;
-			collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-		},
-		currentContribution: PageBrowserGraphContribution,
-	): Promise<GroupedPageBrowserAssetsResult> {
-		const routeFiles = await this.listIntegrationRouteFiles(input.integrationName);
-		const currentRouteGroupedDependencies = (currentContribution.dependencies ?? []).filter((dep) =>
-			isGroupedContentScriptAsset(dep),
-		);
-		const groupedDependencies: AssetDefinition[] = [...currentRouteGroupedDependencies];
-		const groupedAssetKeysByRoute = new Map<string, Set<string>>();
-		let hasCollectionFailures = false;
-		if (currentRouteGroupedDependencies.length > 0) {
-			groupedAssetKeysByRoute.set(
-				input.routeFile,
-				new Set(currentRouteGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
-			);
-		}
-
-		for (const routeFile of routeFiles) {
-			if (routeFile === input.routeFile) {
-				continue;
-			}
-
-			let contribution: PageBrowserGraphContribution | undefined;
-			try {
-				contribution = await input.collectContribution(routeFile);
-			} catch (error) {
-				hasCollectionFailures = true;
-				appLogger.warn(
-					`Skipping grouped page-browser contribution for ${routeFile}: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				continue;
-			}
-
-			if (!contribution?.dependencies?.length) {
-				continue;
-			}
-
-			const routeGroupedDependencies = contribution.dependencies.filter((dep) =>
-				isGroupedContentScriptAsset(dep),
-			);
-			if (routeGroupedDependencies.length === 0) {
-				continue;
-			}
-
-			groupedDependencies.push(...routeGroupedDependencies);
-			groupedAssetKeysByRoute.set(
-				routeFile,
-				new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
-			);
-		}
-
-		if (groupedDependencies.length === 0) {
-			return {
-				assetsByRoute: new Map(),
-				hasCollectionFailures,
-			};
-		}
-
-		const processedGroupedDependencies = await this.assetProcessingService.processDependencies(
-			groupedDependencies,
-			`${input.integrationName}:grouped-page-browser-graph`,
-		);
-		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
-
-		for (const [routeFile, groupedAssetKeys] of groupedAssetKeysByRoute) {
-			groupedAssetsByRoute.set(
-				routeFile,
-				processedGroupedDependencies.filter((asset) => {
-					if (!asset.groupedBundle) {
-						return false;
-					}
-
-					return groupedAssetKeys.has(getGroupedBundleAssetKey(asset.groupedBundle));
-				}),
-			);
-		}
-
-		return {
-			assetsByRoute: groupedAssetsByRoute,
-			hasCollectionFailures,
-		};
-	}
-
-	private async listIntegrationRouteFiles(integrationName: string): Promise<string[]> {
-		const integration = this.appConfig.integrations.find((plugin) => plugin.name === integrationName);
-		if (!integration) {
-			return [];
-		}
-
-		const scannedFiles = await fileSystem.glob(
-			integration.extensions.map((extension) => `**/*${extension}`),
-			{ cwd: this.appConfig.absolutePaths.pagesDir },
-		);
-
-		return scannedFiles
-			.filter((file) => !file.includes('.ecopages-node.'))
-			.map((file) => path.join(this.appConfig.absolutePaths.pagesDir, file))
-			.sort((left, right) => left.localeCompare(right));
-	}
-
-	private partitionPageBrowserGraphAssets(assets: ProcessedAsset[]): PageBrowserGraphResult {
-		const entryAssets: ProcessedAsset[] = [];
-		const chunkAssets: ProcessedAsset[] = [];
-
-		for (const asset of assets) {
-			if (asset.packageRole === 'dynamic-chunk') {
-				chunkAssets.push(asset);
-				continue;
-			}
-
-			entryAssets.push(asset);
-		}
-
-		return { entryAssets, chunkAssets };
+		return await this.pageBrowserGraphService.resolvePageBrowserGraph(input);
 	}
 
 	/**
@@ -650,76 +322,5 @@ export class RouteRenderOrchestrator {
 			body: replayBody,
 			html: await new Response(capturedBody).text(),
 		};
-	}
-
-	private collectUsedIntegrationDependencies(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		currentIntegrationName: string,
-	): ProcessedAsset[] {
-		const integrationNames = collectIntegrationNamesFromGraph(components, currentIntegrationName);
-		const dependencies: ProcessedAsset[] = [];
-
-		for (const integrationName of integrationNames) {
-			if (integrationName === currentIntegrationName) {
-				continue;
-			}
-
-			const integrationPlugin = this.appConfig.integrations.find(
-				(integration) => integration.name === integrationName,
-			);
-			if (!integrationPlugin || typeof integrationPlugin.getResolvedIntegrationDependencies !== 'function') {
-				continue;
-			}
-
-			dependencies.push(...integrationPlugin.getResolvedIntegrationDependencies());
-		}
-
-		return dependencies;
-	}
-
-	private async buildGlobalInjectorAssets(
-		triggers: ResolvedLazyTrigger[],
-		currentIntegrationName: string,
-	): Promise<ProcessedAsset[]> {
-		const appProjectDir = this.appConfig.rootDir ?? this.appConfig.absolutePaths?.projectDir ?? process.cwd();
-		const appPackageRequire = createRequire(path.join(appProjectDir, 'package.json'));
-		const corePackageEntryPath = appPackageRequire.resolve('@ecopages/core');
-		const globalInjectorImportPath = createRequire(corePackageEntryPath).resolve(
-			'@ecopages/scripts-injector/global',
-		);
-
-		const mapScript = AssetFactory.createInlineContentScript({
-			position: 'head',
-			name: 'ecopages-global-injector-map',
-			content: buildGlobalInjectorMapScript(triggers),
-			attributes: { type: 'ecopages/global-injector-map' },
-			packageRole: 'keep-separate',
-			bundle: false,
-		});
-		const bootstrapInlineScript = AssetFactory.createInlineContentScript({
-			position: 'head',
-			name: 'ecopages-global-injector-bootstrap',
-			content: buildGlobalInjectorBootstrapContent(globalInjectorImportPath),
-			attributes: { type: 'module' },
-			packageRole: 'keep-separate',
-			bundle: true,
-		});
-
-		return this.assetProcessingService.processDependencies(
-			[mapScript, bootstrapInlineScript],
-			currentIntegrationName,
-		);
-	}
-
-	private async buildEagerSsrLazyAssets(
-		components: (EcoComponent | Partial<EcoComponent>)[],
-		currentIntegrationName: string,
-	): Promise<ProcessedAsset[]> {
-		const dependencies = collectEagerSsrLazyScriptDefinitions(components);
-		if (dependencies.length === 0) {
-			return [];
-		}
-
-		return this.assetProcessingService.processDependencies(dependencies, `${currentIntegrationName}:ssr-lazy`);
 	}
 }

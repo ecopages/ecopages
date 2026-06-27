@@ -379,21 +379,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		await this.ensureGeneratedOutputs();
 	}
 
-	override async areRuntimeAssetsPresent(): Promise<boolean> {
-		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
-			return true;
-		}
-
-		this.initializeProcessor();
-		const sourceImages = await this.getSourceImagePaths();
-
-		if (sourceImages.length === 0) {
-			return true;
-		}
-
-		return (await this.loadProcessedImagesFromVirtualModule()) !== null;
-	}
-
 	/**
 	 * Process images.
 	 * @param images

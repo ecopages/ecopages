@@ -53,9 +53,6 @@ function createMockDependencies() {
 			fs.mkdirSync(path.join(TMP_DIR, 'dist', 'images'), { recursive: true });
 			fs.writeFileSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'), 'processor-output');
 		},
-		areRuntimeAssetsPresent: async () => {
-			return fs.existsSync(path.join(TMP_DIR, 'dist', 'images', 'processor.webp'));
-		},
 	} as any;
 
 	const AppConfig = {

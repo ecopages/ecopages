@@ -201,8 +201,6 @@ describe('ImageProcessorPlugin', () => {
 			}
 		}
 
-		expect(await plugin.areRuntimeAssetsPresent()).toBe(false);
-
 		await plugin.setup();
 
 		expect(processDirectorySpy).toHaveBeenCalledTimes(2);

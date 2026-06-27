@@ -262,22 +262,20 @@ export function createHmrPhaseTimer(testName: string) {
 }
 
 /** Installs a reload detector before navigation so it survives document replacements. */
-export async function installFullDocumentReloadWatcher(page: Page, timeout = 10_000) {
-	await page.addInitScript((timeoutMs) => {
+export async function installFullDocumentReloadWatcher(page: Page) {
+	await page.addInitScript(() => {
 		const state = { detected: false, done: false };
 		(window as EcoNavigationWindow & { __ecopagesReloadWatch?: typeof state }).__ecopagesReloadWatch = state;
 		const initialNavigationCount = performance.getEntriesByType('navigation').length;
-		const startedAt = performance.now();
 
 		const poll = () => {
-			const entries = performance.getEntriesByType('navigation');
-			if (entries.slice(initialNavigationCount).some((entry) => entry.type === 'reload')) {
-				state.detected = true;
-				state.done = true;
+			if (state.done) {
 				return;
 			}
 
-			if (performance.now() - startedAt >= timeoutMs) {
+			const entries = performance.getEntriesByType('navigation');
+			if (entries.slice(initialNavigationCount).some((entry) => entry.type === 'reload')) {
+				state.detected = true;
 				state.done = true;
 				return;
 			}
@@ -286,10 +284,56 @@ export async function installFullDocumentReloadWatcher(page: Page, timeout = 10_
 		};
 
 		poll();
-	}, timeout);
+	});
 }
 
-/** Tracks whether the main document performs a full reload during an HMR update. */
+/** Ends reload observation early and returns whether a full document reload was detected. */
+export async function finalizeMainFrameNavigationWatch(page: Page): Promise<boolean> {
+	return page.evaluate(() => {
+		const state = (
+			window as EcoNavigationWindow & {
+				__ecopagesReloadWatch?: { detected?: boolean; done?: boolean };
+			}
+		).__ecopagesReloadWatch;
+
+		if (state) {
+			state.done = true;
+		}
+
+		return state?.detected === true;
+	});
+}
+
+/**
+ * Asserts HMR refreshed in-place without a full reload.
+ *
+ * Finalizes the reload watcher immediately after the content assertion instead of
+ * waiting for the legacy 10s observation window to expire.
+ */
+export async function assertNoMainFrameNavigationAfterHmr(page: Page, settleMs = 250) {
+	await expect
+		.poll(
+			async () =>
+				page.evaluate(() => {
+					const state = (
+						window as EcoNavigationWindow & {
+							__ecopagesReloadWatch?: { detected?: boolean };
+						}
+					).__ecopagesReloadWatch;
+					return state?.detected === true;
+				}),
+			{
+				timeout: settleMs,
+				intervals: [25, 50, 100],
+			},
+		)
+		.toBe(false);
+
+	const reloaded = await finalizeMainFrameNavigationWatch(page);
+	expect(reloaded, 'expected current-page refresh without a full document reload').toBe(false);
+}
+
+/** @deprecated Prefer {@link assertNoMainFrameNavigationAfterHmr} — this waits until the reload watch times out when no reload occurs. */
 export function watchForMainFrameNavigation(page: Page, timeout = 10_000) {
 	return page
 		.waitForFunction(

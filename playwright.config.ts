@@ -1,6 +1,6 @@
 /**
- * Playwright entrypoint. Project and web-server tables live in `e2e/playwright/`.
- * Batch orchestration and env vars: `e2e/scripts/playwright/run-e2e.mjs`, `e2e/README.md`.
+ * Playwright entrypoint. Capability fixtures self-describe via `e2e/fixtures/<block>/fixture.e2e.ts`.
+ * Batch orchestration: `e2e/scripts/playwright/run-e2e.ts`, `e2e/README.md`.
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,13 +10,7 @@ import {
 	includeWebServerForProjects,
 	shouldReuseExistingTestServers,
 } from './e2e/playwright/config-env';
-import { createFixturePlaywrightProjects } from './e2e/playwright/fixture-projects';
-import { createFixtureWebServers } from './e2e/playwright/fixture-web-servers';
-import {
-	createKitchenSinkPlaywrightProjects,
-	createKitchenSinkProjects,
-	createKitchenSinkWebServers,
-} from './e2e/playwright/kitchen-sink';
+import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
 import { getWebServerTimeout } from './e2e/playwright/web-server-timeouts';
 import { getDefaultWorkerCount } from './e2e/playwright/workers';
 import { configurePlaywrightColorEnv } from './e2e/playwright/playwright-color-env.mjs';
@@ -28,11 +22,12 @@ const desktopChrome = devices['Desktop Chrome'];
 const defaultWorkerCount = getDefaultWorkerCount();
 const reuseExistingServer = shouldReuseExistingTestServers();
 const selectedProjects = getSelectedPlaywrightProjects();
-const kitchenSinkProjects = createKitchenSinkProjects(defaultWorkerCount);
+const capabilityFixtures = loadCapabilityFixtures();
+const isolatedFixtures = loadIsolatedFixtures();
 
 const webServers = [
-	...createFixtureWebServers(reuseExistingServer),
-	...createKitchenSinkWebServers(kitchenSinkProjects, reuseExistingServer),
+	...capabilityFixtures.flatMap((fixture) => fixture.webServers),
+	...isolatedFixtures.flatMap((fixture) => fixture.webServers),
 ];
 
 export default defineConfig({
@@ -47,8 +42,8 @@ export default defineConfig({
 		trace: 'on-first-retry',
 	},
 	projects: [
-		...createFixturePlaywrightProjects(desktopChrome),
-		...createKitchenSinkPlaywrightProjects(repoRootDir, kitchenSinkProjects, desktopChrome),
+		...capabilityFixtures.flatMap((fixture) => fixture.projects),
+		...isolatedFixtures.flatMap((fixture) => fixture.projects),
 	],
 	webServer: webServers
 		.filter((server) => includeWebServerForProjects(selectedProjects, server.projects))

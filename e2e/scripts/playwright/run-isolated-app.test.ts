@@ -44,7 +44,7 @@ describe('run-isolated-app launcher', () => {
 				host: 'vite',
 				mode: 'dev',
 				port: 4012,
-				artifactScope: 'kitchen-sink-vite-node-dev',
+				artifactScope: 'cross-integration-vite-dev',
 			}).ECOPAGES_BASE_URL,
 		).toBe('http://localhost:4012');
 	});

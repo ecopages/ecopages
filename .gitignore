@@ -6,11 +6,13 @@ node_modules
 
 # ecopages
 .eco
+.eco-*
 .examples
 
 # build
 public/js
 **/dist
+**/dist-*
 
 # misc
 .DS_Store

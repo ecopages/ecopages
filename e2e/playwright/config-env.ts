@@ -1,7 +1,7 @@
 /**
  * Playwright config env parsing shared by `playwright.config.ts`.
  *
- * `run-e2e.mjs` sets `ECOPAGES_PLAYWRIGHT_PROJECTS` when you pass `--project`.
+ * `run-e2e.ts` sets `ECOPAGES_PLAYWRIGHT_PROJECTS` when you pass `--project`.
  * When invoking `playwright test` directly, export the same variable to limit
  * which web servers start.
  */
@@ -28,7 +28,7 @@ export function shouldReuseExistingTestServers(): boolean {
  *
  * When no project filter is active, every server is included. With a filter,
  * only servers that back at least one selected project are started — this keeps
- * `playwright test --project foo` from booting the full kitchen-sink matrix.
+ * `playwright test --project foo` from booting the full cross-integration matrix.
  */
 export function includeWebServerForProjects(selectedProjects: Set<string>, serverProjects: string[]): boolean {
 	return selectedProjects.size === 0 || serverProjects.some((project) => selectedProjects.has(project));

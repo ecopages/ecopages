@@ -46,6 +46,7 @@ import {
 	type AppBuildManifest,
 } from './build-manifest.ts';
 import { getAppSourceTransforms } from '../plugins/source-transform.ts';
+import { createAliasResolverPlugin } from '../plugins/alias-resolver-plugin.ts';
 import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
 import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
@@ -332,7 +333,9 @@ export {
  * bundle.
  */
 export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	return getServerBuildPlugins(getAppBuildManifest(appConfig));
+	const srcDir = appConfig.absolutePaths?.srcDir;
+	const aliasPlugin = srcDir ? [createAliasResolverPlugin(srcDir)] : [];
+	return [...aliasPlugin, ...getServerBuildPlugins(getAppBuildManifest(appConfig))];
 }
 
 /**
@@ -351,7 +354,9 @@ export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuil
 	const manifest = getAppBuildManifest(appConfig);
 	const sourceTransformNames = new Set(getAppSourceTransforms(appConfig).map((transform) => transform.name));
 	const browserPlugins = getBrowserBuildPlugins(manifest).filter((plugin) => !sourceTransformNames.has(plugin.name));
-	return [...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
+	const srcDir = appConfig.absolutePaths?.srcDir;
+	const aliasPlugin = srcDir ? [createAliasResolverPlugin(srcDir)] : [];
+	return [...aliasPlugin, ...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
 }
 
 /**

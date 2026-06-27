@@ -1,39 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
-	assertKitchenSinkWorkspaceIsolation,
-	buildKitchenSinkBatches,
+	FULL_GATE_WAVES,
+	assertWaveCoverage,
+	getAllRegisteredProjectNames,
+	getFullGateBatches,
+} from '../../playwright/orchestration-waves.ts';
+import {
 	buildProjectArgs,
 	cleanupE2eTempDir,
-	defaultProjectBatches,
-	fixtureProjectBatches,
-	getKitchenSinkProjectWorkspaces,
-	getKitchenSinkWorkspaceForProject,
 	getSelectedProjects,
 	hasInteractivePassThroughFlags,
-	hasKitchenSinkOnlyFlag,
-	isKitchenSinkBatch,
-	kitchenSinkCapabilityGroups,
-	partitionBatches,
-	resolveKitchenSinkCapabilityGroups,
-	resolveProjectBatches,
-	stripKitchenSinkOrchestratorFlags,
-} from './run-e2e.mjs';
+	stripBatchIncompatibleFlags,
+} from './run-e2e.ts';
+import { createCrossIntegrationProjects } from '../../playwright/define-isolated-fixture.ts';
+import { getDefaultWorkerCount } from '../../playwright/workers.ts';
 
-describe('run-e2e wrapper planning', () => {
-	it('keeps list-mode selections inside wrapper planning', () => {
-		expect(hasInteractivePassThroughFlags(['--list'])).toBe(false);
-		expect(hasInteractivePassThroughFlags(['--ui'])).toBe(true);
-	});
-
+describe('run-e2e wave orchestration', () => {
 	it('extracts selected projects from playwright arguments', () => {
-		expect(getSelectedProjects(['--project', 'kitchen-sink-node-e2e', '--project=docs-e2e'])).toEqual([
-			'kitchen-sink-node-e2e',
+		expect(getSelectedProjects(['--project', 'cross-integration-dev-e2e', '--project=docs-e2e'])).toEqual([
+			'cross-integration-dev-e2e',
 			'docs-e2e',
 		]);
-	});
-
-	it('cleans the shared e2e temp directory without throwing', () => {
-		expect(() => cleanupE2eTempDir()).not.toThrow();
 	});
 
 	it('builds repeated playwright --project flags for a batch', () => {
@@ -45,106 +32,75 @@ describe('run-e2e wrapper planning', () => {
 		]);
 	});
 
-	it('groups kitchen-sink projects by capability instead of one long serial list', () => {
-		expect(kitchenSinkCapabilityGroups).toEqual([
-			{
-				name: 'kitchen-sink-preview',
-				projects: ['kitchen-sink-bun-preview-e2e', 'kitchen-sink-node-preview-e2e'],
-				concurrency: expect.any(Number),
-			},
-			{
-				name: 'kitchen-sink-dev',
-				projects: [
-					'kitchen-sink-bun-e2e',
-					'kitchen-sink-node-e2e',
-					'kitchen-sink-vite-node-e2e',
-					'kitchen-sink-vite-bun-e2e',
-				],
-				concurrency: expect.any(Number),
-			},
-			{
-				name: 'kitchen-sink-hmr',
-				projects: [
-					'kitchen-sink-bun-hmr-e2e',
-					'kitchen-sink-node-hmr-e2e',
-					'kitchen-sink-vite-node-hmr-e2e',
-					'kitchen-sink-vite-bun-hmr-e2e',
-				],
-				concurrency: 1,
-			},
+	it('detects interactive pass-through flags', () => {
+		expect(hasInteractivePassThroughFlags(['--list'])).toBe(false);
+		expect(hasInteractivePassThroughFlags(['--ui'])).toBe(true);
+	});
+
+	it('strips --debug from batch args', () => {
+		expect(stripBatchIncompatibleFlags(['--debug', '--grep', '@stress'])).toEqual(['--grep', '@stress']);
+	});
+
+	it('cleans the shared e2e temp directory without throwing', () => {
+		expect(() => cleanupE2eTempDir()).not.toThrow();
+	});
+
+	it('defines exactly 5 sequential waves', () => {
+		expect(FULL_GATE_WAVES).toHaveLength(5);
+		expect(FULL_GATE_WAVES.map((wave) => wave.name)).toEqual([
+			'static-wave',
+			'core-hmr-dev',
+			'fixture-dev',
+			'cross-integration-dev',
+			'cross-integration-hmr',
 		]);
 	});
 
-	it('assigns each kitchen-sink project its own batch entry', () => {
-		const kitchenSinkBatches = buildKitchenSinkBatches();
+	it('covers all 14 registered projects exactly once', () => {
+		assertWaveCoverage();
 
-		expect(kitchenSinkBatches).toHaveLength(10);
-		expect(new Set(kitchenSinkBatches.map((batch) => batch[0])).size).toBe(10);
+		const waved = FULL_GATE_WAVES.flatMap((wave) => wave.projects);
+		const registered = getAllRegisteredProjectNames();
+
+		expect(waved).toHaveLength(14);
+		expect(registered).toHaveLength(14);
+		expect(new Set(waved).size).toBe(14);
+		expect(new Set(registered).size).toBe(14);
 	});
 
-	it('keeps fixture batches separate from kitchen-sink batches', () => {
-		const { batches } = resolveProjectBatches([]);
-		const { fixtureBatches, kitchenSinkBatches } = partitionBatches(batches);
-
-		expect(fixtureBatches).toEqual(fixtureProjectBatches);
-		expect(fixtureBatches).toHaveLength(3);
-		expect(kitchenSinkBatches).toHaveLength(10);
-		expect(batches).toEqual(defaultProjectBatches);
-		expect(isKitchenSinkBatch(['kitchen-sink-bun-e2e'])).toBe(true);
-		expect(isKitchenSinkBatch(['docs-e2e'])).toBe(false);
+	it('getFullGateBatches returns one batch per wave', () => {
+		const batches = getFullGateBatches();
+		expect(batches).toHaveLength(5);
+		expect(batches).toEqual(FULL_GATE_WAVES.map((wave) => wave.projects));
 	});
 
-	it('supports kitchen-sink-only mode without fixture batches', () => {
-		expect(hasKitchenSinkOnlyFlag(['--kitchen-sink-only', '--grep', '@stress'])).toBe(true);
-		expect(stripKitchenSinkOrchestratorFlags(['--kitchen-sink-only', '--grep', '@stress'])).toEqual([
-			'--grep',
-			'@stress',
-		]);
-
-		const { batches, playwrightArgs, kitchenSinkOnly, kitchenSinkGroups } = resolveProjectBatches([
-			'--kitchen-sink-only',
-			'--grep',
-			'@stress',
-		]);
-
-		expect(kitchenSinkOnly).toBe(true);
-		expect(playwrightArgs).toEqual(['--grep', '@stress']);
-		expect(kitchenSinkGroups).toEqual([kitchenSinkCapabilityGroups[1]]);
-		expect(batches).toHaveLength(4);
-		expect(batches.every((batch) => isKitchenSinkBatch(batch))).toBe(true);
+	it('groups cross-integration dev and vite-dev in one wave', () => {
+		const devWave = FULL_GATE_WAVES.find((wave) => wave.name === 'cross-integration-dev');
+		expect(devWave?.projects).toEqual(['cross-integration-dev-e2e', 'cross-integration-vite-dev-e2e']);
 	});
 
-	it('maps behavior grep tags to kitchen-sink capability groups', () => {
-		expect(resolveKitchenSinkCapabilityGroups(['--grep', '@preview'])).toEqual([kitchenSinkCapabilityGroups[0]]);
-		expect(resolveKitchenSinkCapabilityGroups(['--grep', '@hmr'])).toEqual([kitchenSinkCapabilityGroups[2]]);
-		expect(resolveKitchenSinkCapabilityGroups(['--kitchen-sink-capability=dev'])).toEqual([
-			kitchenSinkCapabilityGroups[1],
-		]);
+	it('keeps static-wave separate from dev waves', () => {
+		const staticWave = FULL_GATE_WAVES.find((wave) => wave.name === 'static-wave');
+		expect(staticWave?.projects).not.toContain('core-hmr-dev-e2e');
+		expect(staticWave?.projects).not.toContain('react-router-persist-layouts-dev-e2e');
 	});
 
-	it('gives each kitchen-sink capability group a positive concurrency cap', () => {
-		for (const group of kitchenSinkCapabilityGroups) {
-			expect(group.concurrency).toBeGreaterThan(0);
+	it('assigns HMR projects a unique workspace while sharing read-only workspaces', () => {
+		const projects = createCrossIntegrationProjects(getDefaultWorkerCount());
+		const hmrProjects = projects.filter((project) => project.name.includes('-hmr-'));
+		const nonHmrProjects = projects.filter((project) => !project.name.includes('-hmr-'));
+
+		expect(hmrProjects).toHaveLength(1);
+		expect(nonHmrProjects).toHaveLength(3);
+
+		const hmrWorkspaces = new Set(hmrProjects.map((project) => project.workspace));
+		expect(hmrWorkspaces.size).toBe(1);
+
+		const nonHmrWorkspaces = new Set(nonHmrProjects.map((project) => project.workspace));
+		expect(nonHmrWorkspaces.size).toBe(1);
+
+		for (const hmr of hmrProjects) {
+			expect(nonHmrProjects.every((project) => project.workspace !== hmr.workspace)).toBe(true);
 		}
-	});
-
-	it('defaults kitchen-sink dev batch concurrency to min(2, server cap)', () => {
-		expect(kitchenSinkCapabilityGroups[1]?.concurrency).toBeLessThanOrEqual(2);
-		expect(kitchenSinkCapabilityGroups[1]?.concurrency).toBeGreaterThan(0);
-	});
-
-	it('keeps kitchen-sink hmr batch concurrency serial by default', () => {
-		expect(kitchenSinkCapabilityGroups[2]?.concurrency).toBe(1);
-	});
-
-	it('maps each kitchen-sink HMR project to a unique workspace while sharing read-only workspaces', () => {
-		expect(getKitchenSinkWorkspaceForProject('kitchen-sink-bun-e2e')).toBe('kitchen-sink-shared');
-		expect(getKitchenSinkWorkspaceForProject('kitchen-sink-bun-preview-e2e')).toBe('kitchen-sink-shared');
-		expect(getKitchenSinkWorkspaceForProject('kitchen-sink-bun-hmr-e2e')).toBe('kitchen-sink-bun-hmr');
-
-		const workspaces = assertKitchenSinkWorkspaceIsolation();
-		expect(Object.keys(workspaces)).toHaveLength(10);
-		expect(new Set(Object.values(workspaces)).size).toBe(5);
-		expect(getKitchenSinkProjectWorkspaces()).toEqual(workspaces);
 	});
 });

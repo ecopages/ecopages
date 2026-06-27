@@ -14,6 +14,29 @@ function patchAppRuntime(
 	};
 }
 
+function registerRuntimePlugins(
+	appConfig: EcoPagesAppConfig,
+	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
+): void {
+	for (const loader of appConfig.loaders.values()) {
+		onRuntimePlugin?.(loader);
+	}
+
+	for (const processor of appConfig.processors.values()) {
+		if (processor.plugins) {
+			for (const plugin of processor.plugins) {
+				onRuntimePlugin?.(plugin);
+			}
+		}
+	}
+
+	for (const integration of appConfig.integrations) {
+		for (const plugin of integration.plugins) {
+			onRuntimePlugin?.(plugin);
+		}
+	}
+}
+
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
 ): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {
@@ -56,21 +79,7 @@ export async function setupAppRuntimePlugins(options: {
 }): Promise<void> {
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
-		for (const loader of options.appConfig.loaders.values()) {
-			options.onRuntimePlugin?.(loader);
-		}
-		for (const processor of options.appConfig.processors.values()) {
-			if (processor.plugins) {
-				for (const plugin of processor.plugins) {
-					options.onRuntimePlugin?.(plugin);
-				}
-			}
-		}
-		for (const integration of options.appConfig.integrations) {
-			for (const plugin of integration.plugins) {
-				options.onRuntimePlugin?.(plugin);
-			}
-		}
+		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
 		return;
 	}
 

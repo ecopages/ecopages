@@ -3,11 +3,7 @@
  * @module
  */
 
-import type {
-	EcoComponent,
-	EcoComponentConfig,
-	EcoPageFile,
-} from '@ecopages/core';
+import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import { assertIntegrationInvariant } from '@ecopages/core/plugins/integration-plugin';
 import {
 	type PageBrowserGraphContribution,

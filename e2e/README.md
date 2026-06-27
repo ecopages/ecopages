@@ -24,13 +24,13 @@ pnpm test:e2e --project cross-integration-dev-e2e
 
 ## Commands
 
-| Command                          | Purpose                                            |
-| -------------------------------- | -------------------------------------------------- |
-| `pnpm test:e2e`                  | Full gate (5 sequential waves)                     |
-| `pnpm test:gate`                 | Fast local loop: vitest + stress smoke             |
-| `pnpm test:all`                  | Vitest + full e2e (CI, pre-commit, publish)        |
-| `pnpm test:e2e --project <name>` | Single project (bypasses waves)                    |
-| `pnpm test:e2e:ui`               | Playwright UI (debug; bypasses waves)              |
+| Command                          | Purpose                                     |
+| -------------------------------- | ------------------------------------------- |
+| `pnpm test:e2e`                  | Full gate (8 sequential waves)              |
+| `pnpm test:gate`                 | Fast local loop: vitest + stress smoke      |
+| `pnpm test:all`                  | Vitest + full e2e (CI, pre-commit, publish) |
+| `pnpm test:e2e --project <name>` | Single project (bypasses waves)             |
+| `pnpm test:e2e:ui`               | Playwright UI (debug; bypasses waves)       |
 
 ## Orchestration waves
 
@@ -52,32 +52,32 @@ Only set these when debugging. Normal `pnpm test:e2e` does not require any of th
 
 ### Debugging
 
-| Variable                       | Values                        | Effect                                                                                                                                                           |
-| ------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ECOPAGES_E2E_TIMING`          | `true`                        | Log per-wave wall-clock as `[e2e-timing]`                                                                                                                        |
-| `ECOPAGES_REUSE_TEST_SERVERS`  | `true`                        | Reuse already-running web servers (`playwright.config.ts`)                                                                                                       |
-| `ECOPAGES_KEEP_E2E_TMP`        | `true`                        | Keep `.e2e-tmp/` workspace copies after a run (`run-isolated-app.mjs`)                                                                                           |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS` | comma-separated project names | Limit which Playwright projects start. `run-e2e.ts` sets this when you pass `--project`; only needed when invoking `playwright test` directly                    |
+| Variable                       | Values                        | Effect                                                                                                                                        |
+| ------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ECOPAGES_E2E_TIMING`          | `true`                        | Log per-wave wall-clock as `[e2e-timing]`                                                                                                     |
+| `ECOPAGES_REUSE_TEST_SERVERS`  | `true`                        | Reuse already-running web servers (`playwright.config.ts`)                                                                                    |
+| `ECOPAGES_KEEP_E2E_TMP`        | `true`                        | Keep `.e2e-tmp/` workspace copies after a run (`run-isolated-app.mjs`)                                                                        |
+| `ECOPAGES_PLAYWRIGHT_PROJECTS` | comma-separated project names | Limit which Playwright projects start. `run-e2e.ts` sets this when you pass `--project`; only needed when invoking `playwright test` directly |
 
 ### Internal (set by harness — do not set manually)
 
 These are written by `run-isolated-app.mjs` / `playwright.config.ts` so cross-integration variants stay isolated. Documented here so env dumps are interpretable.
 
-| Variable                              | Set by                          | Purpose                                                                  |
-| ------------------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES` | run-e2e.ts                      | Coordinate cleanup when multiple projects share one `.e2e-tmp` workspace |
-| `ECOPAGES_E2E_ARTIFACT_SCOPE`         | define-fixture.ts + isolated app launcher | Scope `dist-*` / `.eco-*` dirs per parallel project              |
-| `ECOPAGES_CROSS_INTEGRATION_HOST`     | isolated app launcher           | `vite` when the vite-host row is under test                              |
-| `ECOPAGES_CROSS_INTEGRATION_E2E`      | isolated app launcher           | `true` for ecopages-hosted cross-integration runs (Bun idle timeout)     |
+| Variable                              | Set by                                    | Purpose                                                                  |
+| ------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES` | run-e2e.ts                                | Coordinate cleanup when multiple projects share one `.e2e-tmp` workspace |
+| `ECOPAGES_E2E_ARTIFACT_SCOPE`         | define-fixture.ts + isolated app launcher | Scope `dist-*` / `.eco-*` dirs per parallel project                      |
+| `ECOPAGES_CROSS_INTEGRATION_HOST`     | isolated app launcher                     | `vite` when the vite-host row is under test                              |
+| `ECOPAGES_CROSS_INTEGRATION_E2E`      | isolated app launcher                     | `true` for ecopages-hosted cross-integration runs (Bun idle timeout)     |
 
 ### Fixture / app runtime (not e2e-specific)
 
 Used inside fixture `eco.config.ts` or server commands started by Playwright:
 
-| Variable                         | Typical use                           |
-| -------------------------------- | ------------------------------------- |
-| `ECOPAGES_PORT`                  | Server port for a fixture             |
-| `ECOPAGES_PERSIST_LAYOUTS`       | React-router persist-layouts fixtures |
+| Variable                         | Typical use                                |
+| -------------------------------- | ------------------------------------------ |
+| `ECOPAGES_PORT`                  | Server port for a fixture                  |
+| `ECOPAGES_PERSIST_LAYOUTS`       | React-router persist-layouts fixtures      |
 | `ECOPAGES_USE_POSTCSS_PROCESSOR` | Core HMR fixture (`e2e/fixtures/core-hmr`) |
 
 ## Vitest opt-in suites

@@ -45,15 +45,20 @@ describe('run-e2e wave orchestration', () => {
 		expect(() => cleanupE2eTempDir()).not.toThrow();
 	});
 
-	it('defines exactly 5 sequential waves', () => {
-		expect(FULL_GATE_WAVES).toHaveLength(5);
-		expect(FULL_GATE_WAVES.map((wave) => wave.name)).toEqual([
-			'static-wave',
-			'core-hmr-dev',
-			'fixture-dev',
-			'cross-integration-dev',
-			'cross-integration-hmr',
-		]);
+	it('defines eight orchestration waves with a batched static wave', () => {
+		expect(FULL_GATE_WAVES).toHaveLength(8);
+		expect(FULL_GATE_WAVES[0]).toEqual({
+			name: 'static-wave',
+			projects: [
+				'browser-router-e2e',
+				'cache-e2e',
+				'core-hmr-static-e2e',
+				'docs-e2e',
+				'react-router-e2e',
+				'react-router-persist-layouts-e2e',
+				'cross-integration-preview-e2e',
+			],
+		});
 	});
 
 	it('covers all 14 registered projects exactly once', () => {
@@ -70,19 +75,29 @@ describe('run-e2e wave orchestration', () => {
 
 	it('getFullGateBatches returns one batch per wave', () => {
 		const batches = getFullGateBatches();
-		expect(batches).toHaveLength(5);
+		expect(batches).toHaveLength(8);
 		expect(batches).toEqual(FULL_GATE_WAVES.map((wave) => wave.projects));
 	});
 
-	it('groups cross-integration dev and vite-dev in one wave', () => {
-		const devWave = FULL_GATE_WAVES.find((wave) => wave.name === 'cross-integration-dev');
-		expect(devWave?.projects).toEqual(['cross-integration-dev-e2e', 'cross-integration-vite-dev-e2e']);
-	});
+	it('keeps static projects batched while dev projects run in isolated waves', () => {
+		const staticProjects = [
+			'browser-router-e2e',
+			'cache-e2e',
+			'core-hmr-static-e2e',
+			'docs-e2e',
+			'react-router-e2e',
+			'react-router-persist-layouts-e2e',
+			'cross-integration-preview-e2e',
+		];
+		const devProjects = ['core-hmr-dev-e2e', 'react-router-persist-layouts-dev-e2e'];
 
-	it('keeps static-wave separate from dev waves', () => {
 		const staticWave = FULL_GATE_WAVES.find((wave) => wave.name === 'static-wave');
-		expect(staticWave?.projects).not.toContain('core-hmr-dev-e2e');
-		expect(staticWave?.projects).not.toContain('react-router-persist-layouts-dev-e2e');
+		expect(staticWave?.projects).toEqual(staticProjects);
+
+		for (const devProject of devProjects) {
+			const devWave = FULL_GATE_WAVES.find((wave) => wave.projects.includes(devProject));
+			expect(devWave?.projects).toEqual([devProject]);
+		}
 	});
 
 	it('assigns HMR projects a unique workspace while sharing read-only workspaces', () => {

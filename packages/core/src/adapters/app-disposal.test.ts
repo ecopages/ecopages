@@ -7,7 +7,6 @@ import { NodeEcopagesApp } from './node/create-app.ts';
 import type { NodeServerAdapterResult } from './node/server-adapter.ts';
 import type { NodeServerAdapterParams } from './node/server-adapter.ts';
 import type { RuntimeHost } from './shared/runtime-host.ts';
-import type { StaticPreviewHost } from './shared/static-preview-host.ts';
 
 function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undefined)) {
 	return {
@@ -69,11 +68,9 @@ class TestBunEcopagesApp extends BunEcopagesApp {
 	constructor(
 		options: ConstructorParameters<typeof BunEcopagesApp>[0],
 		runtimeHost: RuntimeHost<unknown, { port?: number; hostname?: string }>,
-		previewHost: StaticPreviewHost,
 	) {
 		super(options, {
 			runtimeHost: runtimeHost as never,
-			previewHost,
 		});
 	}
 
@@ -217,17 +214,13 @@ describe('BunEcopagesApp disposal', () => {
 	it('stops the runtime host once and disposes adapter resources', async () => {
 		const server = { id: 'bun-server', stop: vi.fn() };
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const previewHost = {
-			start: vi.fn().mockResolvedValue(4173),
-			stop: vi.fn().mockResolvedValue(undefined),
-		};
 		const runtimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: runtimeStop,
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestBunEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost, previewHost);
+		const app = new TestBunEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
 		app.setServerForTest(server);
 		await app.bindServerAdapterForTest();
 
@@ -236,24 +229,19 @@ describe('BunEcopagesApp disposal', () => {
 
 		expect(runtimeStop).toHaveBeenCalledTimes(1);
 		expect(runtimeStop).toHaveBeenCalledWith(server, { force: true });
-		expect(previewHost.stop).toHaveBeenCalledTimes(1);
 		expect(app.dispose).toHaveBeenCalledTimes(1);
 	});
 
 	it('cleans up with await using', async () => {
 		const server = { id: 'bun-server', stop: vi.fn() };
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const previewHost = {
-			start: vi.fn().mockResolvedValue(4173),
-			stop: vi.fn().mockResolvedValue(undefined),
-		};
 		const runtimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: runtimeStop,
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestBunEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost, previewHost);
+		const app = new TestBunEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
 		app.setServerForTest(server);
 		await app.bindServerAdapterForTest();
 
@@ -263,16 +251,11 @@ describe('BunEcopagesApp disposal', () => {
 		})();
 
 		expect(runtimeStop).toHaveBeenCalledTimes(1);
-		expect(previewHost.stop).toHaveBeenCalledTimes(1);
 		expect(app.dispose).toHaveBeenCalledTimes(1);
 	});
 
 	it('builds preview without starting a temporary runtime server', async () => {
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const previewHost = {
-			start: vi.fn().mockResolvedValue(4173),
-			stop: vi.fn().mockResolvedValue(undefined),
-		};
 		const runtimeHost = {
 			start: vi.fn().mockResolvedValue({ id: 'bun-preview-runtime', stop: vi.fn() }),
 			stop: runtimeStop,
@@ -282,7 +265,6 @@ describe('BunEcopagesApp disposal', () => {
 		const app = new TestBunEcopagesApp(
 			{ appConfig: { runtime: {}, integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }] } as never },
 			runtimeHost,
-			previewHost,
 		);
 		app.setCliArgsForTest({ preview: true });
 

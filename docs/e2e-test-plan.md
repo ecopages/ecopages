@@ -17,14 +17,14 @@
 
 ## Commands
 
-| Command                          | Runs                                               |
-| -------------------------------- | -------------------------------------------------- |
-| `pnpm test:all`                  | `test:vitest` + full `test:e2e` (5 waves)          |
+| Command                          | Runs                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm test:all`                  | `test:vitest` + full `test:e2e` (5 waves)                                           |
 | `pnpm test:gate`                 | `test:vitest` + stress smoke (`--project cross-integration-dev-e2e --grep @stress`) |
-| `pnpm test:vitest`               | Vitest `shared-core` + `browser`                   |
-| `pnpm test:e2e`                  | All 5 waves sequentially                           |
-| `pnpm test:e2e --project <name>` | Single project — debug only                        |
-| `pnpm test:e2e:ui`               | Playwright UI mode                                 |
+| `pnpm test:vitest`               | Vitest `shared-core` + `browser`                                                    |
+| `pnpm test:e2e`                  | All 5 waves sequentially                                                            |
+| `pnpm test:e2e --project <name>` | Single project — debug only                                                         |
+| `pnpm test:e2e:ui`               | Playwright UI mode                                                                  |
 
 Pre-commit: `pnpm test:all`, then lint, lint-staged, typecheck.
 
@@ -32,24 +32,24 @@ Pre-commit: `pnpm test:all`, then lint, lint-staged, typecheck.
 
 ## Playwright projects (14 total)
 
-Defined in `playwright.config.ts` (composes self-describing capability fixtures + cross-integration), executed via 5 sequential waves in `run-e2e.ts`.
+Defined in `playwright.config.ts` (composes self-describing capability fixtures + cross-integration), executed via 8 sequential waves in `run-e2e.ts`.
 
-| Project                                | Fixture / app                             | In-project workers |
-| -------------------------------------- | ----------------------------------------- | ------------------ |
-| `core-hmr-dev-e2e`                     | `e2e/fixtures/core-hmr` (dev)             | **`1`**            |
-| `core-hmr-postcss-dev-e2e`             | `e2e/fixtures/core-hmr` (dev + PostCSS)   | **`1`**            |
-| `core-hmr-static-e2e`                  | `e2e/fixtures/core-hmr` (build+preview)   | `N`                |
-| `browser-router-e2e`                   | `e2e/fixtures/browser-router` (preview)   | `N`                |
-| `docs-e2e`                             | `@ecopages/docs`                          | `N`                |
-| `react-router-e2e`                     | `e2e/fixtures/react-router` (preview)     | `N`                |
-| `react-router-persist-layouts-e2e`     | same (preview, persist layouts)           | `N`                |
-| `react-router-persist-layouts-dev-e2e` | same (dev, persist layouts)               | **`1`**            |
-| `cache-e2e`                            | `e2e/fixtures/cache`                      | `N`                |
-| `react-dev-e2e`                        | `playground/react`                        | `N`                |
-| `cross-integration-preview-e2e`        | `playground/kitchen-sink` (preview)       | `N`                |
-| `cross-integration-dev-e2e`            | `playground/kitchen-sink` (dev)           | **`1`**            |
-| `cross-integration-hmr-e2e`            | `playground/kitchen-sink` (HMR)           | **`1`**            |
-| `cross-integration-vite-dev-e2e`       | `playground/kitchen-sink` (vite dev)      | **`1`**            |
+| Project                                | Fixture / app                           | In-project workers |
+| -------------------------------------- | --------------------------------------- | ------------------ |
+| `core-hmr-dev-e2e`                     | `e2e/fixtures/core-hmr` (dev)           | **`1`**            |
+| `core-hmr-postcss-dev-e2e`             | `e2e/fixtures/core-hmr` (dev + PostCSS) | **`1`**            |
+| `core-hmr-static-e2e`                  | `e2e/fixtures/core-hmr` (build+preview) | `N`                |
+| `browser-router-e2e`                   | `e2e/fixtures/browser-router` (preview) | `N`                |
+| `docs-e2e`                             | `@ecopages/docs`                        | `N`                |
+| `react-router-e2e`                     | `e2e/fixtures/react-router` (preview)   | `N`                |
+| `react-router-persist-layouts-e2e`     | same (preview, persist layouts)         | `N`                |
+| `react-router-persist-layouts-dev-e2e` | same (dev, persist layouts)             | **`1`**            |
+| `cache-e2e`                            | `e2e/fixtures/cache`                    | `N`                |
+| `react-dev-e2e`                        | `playground/react`                      | `N`                |
+| `cross-integration-preview-e2e`        | `playground/kitchen-sink` (preview)     | `N`                |
+| `cross-integration-dev-e2e`            | `playground/kitchen-sink` (dev)         | **`1`**            |
+| `cross-integration-hmr-e2e`            | `playground/kitchen-sink` (HMR)         | **`1`**            |
+| `cross-integration-vite-dev-e2e`       | `playground/kitchen-sink` (vite dev)    | **`1`**            |
 
 `N` = `os.availableParallelism()`. Wave definitions: [Orchestration waves](#orchestration-waves).
 
@@ -63,27 +63,27 @@ Register each fixture in `e2e/playwright/capability-fixture-registry.ts`. Wave c
 
 Test filename suffixes select the mode where applicable:
 
-| Pattern                    | Runs on   |
-| -------------------------- | --------- |
-| `*.dev.test.e2e.ts`        | dev only  |
-| `*.static.test.e2e.ts`     | static only |
-| `*.postcss.dev.test.e2e.ts`| PostCSS dev only |
-| `*.test.e2e.ts`            | per project `testMatch` / `testIgnore` |
+| Pattern                     | Runs on                                |
+| --------------------------- | -------------------------------------- |
+| `*.dev.test.e2e.ts`         | dev only                               |
+| `*.static.test.e2e.ts`      | static only                            |
+| `*.postcss.dev.test.e2e.ts` | PostCSS dev only                       |
+| `*.test.e2e.ts`             | per project `testMatch` / `testIgnore` |
 
 ### Block map
 
-| Block              | Fixture dir                 | Status        |
-| ------------------ | --------------------------- | ------------- |
-| core-hmr           | `e2e/fixtures/core-hmr`     | **done**      |
-| browser-router     | `e2e/fixtures/browser-router` | **done**    |
-| react-router       | `e2e/fixtures/react-router` | **done**      |
-| cache              | `e2e/fixtures/cache`        | **done**      |
-| react              | `e2e/fixtures/react`        | **done**      |
-| docs               | `e2e/fixtures/docs`         | **done**      |
-| cross-integration  | `e2e/fixtures/cross-integration` | **done** (replaces kitchen-sink matrix) |
-| css                | `e2e/fixtures/css`          | planned       |
-| lit                | `e2e/fixtures/lit`          | planned       |
-| images-mdx         | `e2e/fixtures/images-mdx`   | planned       |
+| Block             | Fixture dir                      | Status                                  |
+| ----------------- | -------------------------------- | --------------------------------------- |
+| core-hmr          | `e2e/fixtures/core-hmr`          | **done**                                |
+| browser-router    | `e2e/fixtures/browser-router`    | **done**                                |
+| react-router      | `e2e/fixtures/react-router`      | **done**                                |
+| cache             | `e2e/fixtures/cache`             | **done**                                |
+| react             | `e2e/fixtures/react`             | **done**                                |
+| docs              | `e2e/fixtures/docs`              | **done**                                |
+| cross-integration | `e2e/fixtures/cross-integration` | **done** (replaces kitchen-sink matrix) |
+| css               | `e2e/fixtures/css`               | planned                                 |
+| lit               | `e2e/fixtures/lit`               | planned                                 |
+| images-mdx        | `e2e/fixtures/images-mdx`        | planned                                 |
 
 ---
 
@@ -96,16 +96,25 @@ Wave 1 — static-wave (7 projects, workers: N):
   browser-router-e2e, cache-e2e, core-hmr-static-e2e, docs-e2e,
   react-router-e2e, react-router-persist-layouts-e2e, cross-integration-preview-e2e
 
-Wave 2 — core-hmr-dev (2 projects, workers: 1):
-  core-hmr-dev-e2e, core-hmr-postcss-dev-e2e
+Wave 2 — core-hmr-dev (1 project, workers: 1):
+  core-hmr-dev-e2e
 
-Wave 3 — fixture-dev (2 projects, workers: 1):
-  react-dev-e2e, react-router-persist-layouts-dev-e2e
+Wave 3 — core-hmr-postcss-dev (1 project, workers: 1):
+  core-hmr-postcss-dev-e2e
 
-Wave 4 — cross-integration-dev (2 projects, workers: 1):
-  cross-integration-dev-e2e, cross-integration-vite-dev-e2e
+Wave 4 — react-dev (1 project, workers: 1):
+  react-dev-e2e
 
-Wave 5 — cross-integration-hmr (1 project, workers: 1):
+Wave 5 — react-router-persist-layouts-dev (1 project, workers: 1):
+  react-router-persist-layouts-dev-e2e
+
+Wave 6 — cross-integration-dev (1 project, workers: 1):
+  cross-integration-dev-e2e
+
+Wave 7 — cross-integration-vite-dev (1 project, workers: 1):
+  cross-integration-vite-dev-e2e
+
+Wave 8 — cross-integration-hmr (1 project, workers: 1):
   cross-integration-hmr-e2e
 ```
 
@@ -115,15 +124,15 @@ Cleanup of `.e2e-tmp` runs **once** at the start of the first wave, not between 
 
 ### In-project workers (`playwright.config.ts`)
 
-| Project group                                 | `workers` | Rationale                                                 |
-| --------------------------------------------- | --------- | --------------------------------------------------------- |
-| `core-hmr-dev-e2e`, `core-hmr-postcss-dev-e2e` | **`1`**   | Dev HMR mutates source files on disk                      |
-| `core-hmr-static-e2e`                         | `N`       | Static build output                                       |
-| `browser-router-e2e`, `docs-e2e`, `cache-e2e` | `N`       | Preview/static or low-contention servers                  |
-| `react-router-*`, `react-dev-e2e`              | `N` or **`1`** | Static = `N`; dev = **`1`**                          |
-| `cross-integration-preview-e2e`               | `N`       | Static build; no per-request SSR queue                    |
-| `cross-integration-dev-e2e`, `cross-integration-vite-dev-e2e` | **`1`** | One shared dev server per project                   |
-| `cross-integration-hmr-e2e`                   | **`1`**   | Serial describe; mutates shared source files on disk      |
+| Project group                                                 | `workers`      | Rationale                                            |
+| ------------------------------------------------------------- | -------------- | ---------------------------------------------------- |
+| `core-hmr-dev-e2e`, `core-hmr-postcss-dev-e2e`                | **`1`**        | Dev HMR mutates source files on disk                 |
+| `core-hmr-static-e2e`                                         | `N`            | Static build output                                  |
+| `browser-router-e2e`, `docs-e2e`, `cache-e2e`                 | `N`            | Preview/static or low-contention servers             |
+| `react-router-*`, `react-dev-e2e`                             | `N` or **`1`** | Static = `N`; dev = **`1`**                          |
+| `cross-integration-preview-e2e`                               | `N`            | Static build; no per-request SSR queue               |
+| `cross-integration-dev-e2e`, `cross-integration-vite-dev-e2e` | **`1`**        | One shared dev server per project                    |
+| `cross-integration-hmr-e2e`                                   | **`1`**        | Serial describe; mutates shared source files on disk |
 
 ### Verification (do not regress)
 
@@ -152,11 +161,11 @@ Waves 2–5 (dev/hmr)             → 1 Playwright process each, 1 worker per pr
 
 ### When to revisit
 
-| Trigger                                                                                                      | Action                                                   |
-| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Dev SSR route cache enabled for **dev** mode (`shouldPersistRouteModuleBuildCache` is production-only today) | Re-test dev workers at `N`                               |
-| Per-test isolated cross-integration workspaces                                                               | Done — re-test HMR at `N` workers when dev cache lands   |
-| Vite preview ports added                                                                                     | Add preview to static-wave; preview uses `N` workers     |
+| Trigger                                                                                                      | Action                                                 |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Dev SSR route cache enabled for **dev** mode (`shouldPersistRouteModuleBuildCache` is production-only today) | Re-test dev workers at `N`                             |
+| Per-test isolated cross-integration workspaces                                                               | Done — re-test HMR at `N` workers when dev cache lands |
+| Vite preview ports added                                                                                     | Add preview to static-wave; preview uses `N` workers   |
 
 ---
 
@@ -316,13 +325,13 @@ Empirical dev-worker ceiling (do not regress): `workers: N` on cross-integration
 
 Not substitutes for `test:all`. Full env-var reference: [`e2e/README.md`](../e2e/README.md).
 
-| Shortcut                                                        | Effect                                           |
-| --------------------------------------------------------------- | ------------------------------------------------ |
-| `pnpm test:e2e --project <name>`                                | One Playwright project — bypasses waves          |
-| `pnpm test:e2e --grep @stress`                                  | Filter by behavior tag (passes through to PW)    |
-| `pnpm test:e2e:ui`                                              | Interactive mode                                 |
-| `ECOPAGES_E2E_TIMING=true pnpm test:e2e`                        | Full gate with `[e2e-timing]` per-wave logs      |
-| `ECOPAGES_REUSE_TEST_SERVERS=true pnpm test:e2e --project <name>` | Reuse already-running servers                  |
+| Shortcut                                                          | Effect                                        |
+| ----------------------------------------------------------------- | --------------------------------------------- |
+| `pnpm test:e2e --project <name>`                                  | One Playwright project — bypasses waves       |
+| `pnpm test:e2e --grep @stress`                                    | Filter by behavior tag (passes through to PW) |
+| `pnpm test:e2e:ui`                                                | Interactive mode                              |
+| `ECOPAGES_E2E_TIMING=true pnpm test:e2e`                          | Full gate with `[e2e-timing]` per-wave logs   |
+| `ECOPAGES_REUSE_TEST_SERVERS=true pnpm test:e2e --project <name>` | Reuse already-running servers                 |
 
 ---
 
@@ -331,7 +340,7 @@ Not substitutes for `test:all`. Full env-var reference: [`e2e/README.md`](../e2e
 | Symptom                                       | Likely cause                                                                                  |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | "browser has been closed" cascade             | One test hit the project timeout                                                              |
-| `ENOENT` on `.tmp.js`                         | Too many dev workers or multiple cross-integration servers at once                           |
+| `ENOENT` on `.tmp.js`                         | Too many dev workers or multiple cross-integration servers at once                            |
 | HMR connect timeout                           | Server not ready; verify single-project wave                                                  |
 | Preview API returns HTML                      | Test belongs on dev, not `*.preview.test.e2e.ts`                                              |
 | Slow rapid-navigation                         | Accidentally awaiting content on every stress hop                                             |
@@ -341,4 +350,4 @@ Not substitutes for `test:all`. Full env-var reference: [`e2e/README.md`](../e2e
 
 ## Summary
 
-`pnpm test:all` = Vitest + 14 Playwright projects in 5 sequential waves. Static-wave runs with `N` workers per project; dev/HMR waves run with `1` worker. See [Orchestration waves](#orchestration-waves-run-e2ets).
+`pnpm test:all` = Vitest + 14 Playwright projects in 8 sequential waves. Static-wave runs with `N` workers per project; dev/HMR waves run with `1` worker. See [Orchestration waves](#orchestration-waves-run-e2ets).

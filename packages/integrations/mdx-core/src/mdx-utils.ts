@@ -46,10 +46,7 @@ export function resolveLoaderExtensions(
  * mode would treat `.md` files as plain markdown, causing top-level ESM such as
  * `import` and `export` to render as text instead of being compiled.
  */
-export function resolveCompileFormat(
-	filePath: string,
-	compilerOptions?: CompileOptions,
-): CompileOptions['format'] {
+export function resolveCompileFormat(filePath: string, compilerOptions?: CompileOptions): CompileOptions['format'] {
 	const configuredFormat = compilerOptions?.format;
 
 	if (configuredFormat && configuredFormat !== 'detect') {

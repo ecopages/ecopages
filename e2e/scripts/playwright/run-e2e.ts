@@ -101,9 +101,7 @@ function runPlaywright(
 			cwd: process.cwd(),
 			env: createPlaywrightSubprocessEnv({
 				ECOPAGES_MANAGE_ISOLATED_WORKSPACES: 'true',
-				...(selectedProjects.length > 0
-					? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') }
-					: {}),
+				...(selectedProjects.length > 0 ? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') } : {}),
 			}),
 			stdio: 'inherit',
 		});
@@ -145,11 +143,7 @@ async function main(): Promise<void> {
 
 	if (hasInteractivePassThroughFlags(forwardedArgs)) {
 		process.exitCode = await runPlaywright(forwardedArgs, selectedProjects);
-		logE2eTiming(
-			'gate-total',
-			selectedProjects.length > 0 ? selectedProjects : ['ui'],
-			Date.now() - gateStartedAt,
-		);
+		logE2eTiming('gate-total', selectedProjects.length > 0 ? selectedProjects : ['ui'], Date.now() - gateStartedAt);
 		return;
 	}
 

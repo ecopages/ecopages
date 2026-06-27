@@ -203,8 +203,13 @@ export class NodeStaticContentServer {
 		const hostname = this.options.hostname ?? DEFAULT_ECOPAGES_HOSTNAME;
 		const port = this.options.port ?? DEFAULT_ECOPAGES_PORT;
 
-		await new Promise<void>((resolve) => {
-			this.server!.listen(port, hostname, () => resolve());
+		await new Promise<void>((resolve, reject) => {
+			const activeServer = this.server!;
+			activeServer.once('error', reject);
+			activeServer.listen(port, hostname, () => {
+				activeServer.off('error', reject);
+				resolve();
+			});
 		});
 
 		return this.server;

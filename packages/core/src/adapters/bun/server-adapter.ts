@@ -17,6 +17,7 @@ import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -80,6 +81,8 @@ export interface BunServerAdapterParams {
 	};
 	delegateBrowserReloadToHost?: boolean;
 	hostOwnsDevClient?: boolean;
+	deferRuntimeAssetSetup?: boolean;
+	allowPortFallback?: boolean;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
 	previewHost?: StaticPreviewHost;
@@ -120,6 +123,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	declare serverInstance: BunServerInstance | null;
 	private projectWatcher: ProjectWatcher | null = null;
 	private adapterDisposed = false;
+	private readonly deferRuntimeAssetSetup: boolean;
+	private readonly allowPortFallback: boolean;
 	private readonly previewHost: StaticPreviewHost;
 
 	/**
@@ -131,6 +136,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * WebSocket upgrades for user-registered patterns.
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+
+	private registerBunRuntimePlugin(plugin: EcoBuildPlugin): void {
+		Bun.plugin(plugin as any);
+	}
 
 	private adaptBunWebSocket<TContext, TParams extends Record<string, string>>(
 		ws: ServerWebSocket<WsKindData>,
@@ -201,6 +210,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		websocketHandlers,
 		options,
 		hostOwnsDevClient,
+		deferRuntimeAssetSetup,
+		allowPortFallback,
 		hmrManager,
 		bridge,
 		previewHost,
@@ -210,6 +221,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		previewHost: StaticPreviewHost;
 	}) {
 		super({ appConfig, runtimeOrigin, serveOptions, options });
+		this.deferRuntimeAssetSetup = deferRuntimeAssetSetup === true;
+		this.allowPortFallback = allowPortFallback !== false;
 		this.apiHandlers = apiHandlers || [];
 		this.staticRoutes = staticRoutes || [];
 		this.errorHandler = errorHandler;
@@ -265,12 +278,19 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			appConfig: this.appConfig,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
+			runtimeOrigin: this.runtimeOrigin,
 			apiHandlers: this.apiHandlers,
+			hmrManager: this.hmrManager,
+			onRuntimePlugin: (plugin: EcoBuildPlugin) => {
+				this.registerBunRuntimePlugin(plugin);
+			},
 		};
 
 		this.staticBuilder = new ServerStaticBuilder(staticBuilderOptions);
 
-		await this.initializeRuntimePlugins({ watch: this.options?.watch });
+		if (!this.deferRuntimeAssetSetup) {
+			await this.initializeRuntimePlugins({ watch: this.options?.watch });
+		}
 	}
 
 	/**
@@ -290,8 +310,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 				hmrManager: this.hmrManager,
-				onRuntimePlugin: (plugin) => {
-					Bun.plugin(plugin as any);
+				onRuntimePlugin: (plugin: EcoBuildPlugin) => {
+					this.registerBunRuntimePlugin(plugin);
 				},
 			});
 
@@ -563,7 +583,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		const buildRuntimeOrigin = resolveServeRuntimeOrigin(this.serveOptions);
 
 		await this.staticBuilder.build(
-			{ ...options, preview: false, baseUrl: buildRuntimeOrigin },
+			{ baseUrl: buildRuntimeOrigin, force: options?.force },
 			{
 				router: this.router,
 				routeRendererFactory: this.routeRendererFactory,
@@ -581,6 +601,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			appConfig: this.appConfig,
 			hostname: String(previewHostname),
 			port: previewPort,
+			allowPortFallback: this.allowPortFallback,
 		});
 
 		if (activePreviewPort) {

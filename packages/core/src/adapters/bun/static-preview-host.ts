@@ -1,6 +1,7 @@
 import { StaticContentServer } from '../../dev/sc-server.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { PortManager } from '../shared/port-manager.ts';
 import type { StaticPreviewHost, StaticPreviewHostStartOptions } from '../shared/static-preview-host.ts';
 
 type BunStaticPreviewServer = {
@@ -28,39 +29,41 @@ export class BunStaticPreviewHost implements StaticPreviewHost {
 
 	public async start(options: StaticPreviewHostStartOptions): Promise<number | null> {
 		await this.stop();
-		await new Promise((resolve) => setTimeout(resolve, 100));
 
-		for (let attempt = 0; attempt < 20; attempt += 1) {
-			try {
-				this.previewServer = this.previewServerFactory.createServer({
+		let previewServer: BunStaticPreviewServer | null = null;
+
+		const portManager = new PortManager({
+			startOnPort: async (port) => {
+				const candidate = this.previewServerFactory.createServer({
 					appConfig: options.appConfig,
-					options: { port: options.port },
+					options: { port },
 				});
 
-				const previewPort = this.previewServer.server?.port;
-				if (previewPort) {
-					return previewPort;
+				const boundPort = candidate.server?.port ?? null;
+				if (!boundPort) {
+					candidate.stop();
+					return null;
 				}
 
-				break;
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				const errorCode =
-					typeof error === 'object' && error !== null && 'code' in error
-						? String((error as { code?: unknown }).code)
-						: undefined;
-				const isPortReleaseRace = errorCode === 'EADDRINUSE' || errorMessage.includes('EADDRINUSE');
+				previewServer = candidate;
+				return boundPort;
+			},
+			warn: (message) => appLogger.warn(message),
+		});
 
-				if (!isPortReleaseRace || attempt === 19) {
-					throw error;
-				}
+		const previewPort = await portManager.bind({
+			preferredPort: options.port,
+			allowPortFallback: options.allowPortFallback === true,
+		});
 
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
+		if (!previewPort) {
+			this.previewServer = null;
+			this.logger.error('Failed to start preview server');
+			return null;
 		}
 
-		this.logger.error('Failed to start preview server');
-		return null;
+		this.previewServer = previewServer;
+		return previewPort;
 	}
 
 	public async stop(): Promise<void> {

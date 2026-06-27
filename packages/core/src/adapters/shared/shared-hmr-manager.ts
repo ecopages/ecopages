@@ -71,7 +71,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected entrypointRegistrations = new Map<string, Promise<string>>();
 	protected distDir: string;
 	protected plugins: EcoBuildPlugin[] = [];
-	protected enabled = true;
+	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
 	protected readonly entrypointRegistrar: HmrEntrypointRegistrar;
 	protected readonly browserBundleService: BrowserBundleService;

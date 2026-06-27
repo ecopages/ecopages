@@ -5,6 +5,9 @@ import process from 'node:process';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { configurePlaywrightColorEnv, createPlaywrightSubprocessEnv } from '../../playwright/playwright-color-env.mjs';
+
+configurePlaywrightColorEnv(process.env);
 
 const require = createRequire(import.meta.url);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -342,11 +345,10 @@ function runPlaywright(args, selectedProjects = getSelectedProjects(args), optio
 	return new Promise((resolve, reject) => {
 		const child = spawn(process.execPath, [playwrightCliPath, 'test', ...args], {
 			cwd: process.cwd(),
-			env: {
-				...process.env,
+			env: createPlaywrightSubprocessEnv({
 				ECOPAGES_MANAGE_ISOLATED_WORKSPACES: 'true',
 				...(selectedProjects.length > 0 ? { ECOPAGES_PLAYWRIGHT_PROJECTS: selectedProjects.join(',') } : {}),
-			},
+			}),
 			stdio: 'inherit',
 		});
 

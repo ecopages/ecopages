@@ -3,6 +3,7 @@ import { closeSync, cpSync, existsSync, mkdirSync, openSync, rmSync, symlinkSync
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createPlaywrightSubprocessEnv } from '../../playwright/playwright-color-env.mjs';
 
 const REMOVE_DIRECTORY_OPTIONS = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 };
 const WORKSPACE_PREPARE_TIMEOUT_MS = 120_000;
@@ -277,8 +278,7 @@ export function buildCommand(options) {
 export function buildEnv(options) {
 	const viteBaseUrl = options.host === 'vite' ? `http://localhost:${options.port}` : process.env.ECOPAGES_BASE_URL;
 
-	return {
-		...process.env,
+	return createPlaywrightSubprocessEnv({
 		ECOPAGES_E2E_ARTIFACT_SCOPE: options.artifactScope,
 		...(viteBaseUrl ? { ECOPAGES_BASE_URL: viteBaseUrl } : {}),
 		...(options.host === 'vite' ? { ECOPAGES_KITCHEN_SINK_HOST: 'vite' } : {}),
@@ -287,7 +287,7 @@ export function buildEnv(options) {
 		...(options.mode === 'dev'
 			? { ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS: process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS ?? '30000' }
 			: {}),
-	};
+	});
 }
 
 function main() {

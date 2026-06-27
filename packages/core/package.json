@@ -60,6 +60,10 @@
 			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
 			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
 		},
+		"./route-renderer/string-markup-renderer": {
+			"types": "./src/route-renderer/orchestration/string-markup-renderer.ts",
+			"default": "./src/route-renderer/orchestration/string-markup-renderer.ts"
+		},
 		"./route-renderer/route-renderer": {
 			"types": "./src/route-renderer/route-renderer.ts",
 			"default": "./src/route-renderer/route-renderer.ts"
@@ -135,6 +139,10 @@
 		"./plugins/integration-plugin": {
 			"types": "./src/plugins/integration-plugin.ts",
 			"default": "./src/plugins/integration-plugin.ts"
+		},
+		"./plugins/define-integration": {
+			"types": "./src/plugins/define-integration.ts",
+			"default": "./src/plugins/define-integration.ts"
 		},
 		"./plugins/source-transform": {
 			"types": "./src/plugins/source-transform.ts",

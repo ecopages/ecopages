@@ -5,7 +5,13 @@ import {
 	createPluginCacheKey,
 } from '../services/module-loading/route-module-build-manifest.ts';
 
-/** Stable cache key for coalescing concurrent identical build requests. */
+/**
+ * Stable cache key for coalescing concurrent identical build requests.
+ *
+ * @remarks
+ * Reuses the same material as route-module disk cache keys: normalized entrypoints,
+ * outdir, splitting, JSX, and plugin setup fingerprints.
+ */
 export function createBuildOptionsDedupeKey(options: BuildOptions): string {
 	return [
 		normalizeEntrypoints(options.entrypoints),
@@ -36,7 +42,15 @@ function normalizeEntrypoints(entrypoints: BuildOptions['entrypoints']): string 
 }
 
 /**
- * Coalesces concurrent builds with identical options into one in-flight promise.
+ * In-flight build coalescing wrapper.
+ *
+ * @remarks
+ * `ParallelBuildExecutor` allows concurrent builds but does not dedupe identical
+ * options. Multiple callers (route import, browser bundles, HMR) can hit the
+ * same Rolldown request before disk or import caches warm. This wrapper shares
+ * one inner `build()` promise per dedupe key until it settles.
+ *
+ * Wrap route-module and browser-hmr profiles only; server-entry stays serialized.
  */
 export class DedupingBuildExecutor implements BuildExecutor {
 	private readonly inner: BuildExecutor;

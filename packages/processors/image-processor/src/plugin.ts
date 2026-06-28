@@ -457,7 +457,7 @@ declare module "ecopages:images" {
 	/**
 	 * Teardown the image processor.
 	 */
-	async teardown(): Promise<void> {
+	override async teardown(): Promise<void> {
 		logger.debug('Tearing down image processor');
 	}
 

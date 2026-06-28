@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.2.0-beta.9",
+	"version": "0.2.0-beta.11",
 	"description": "React integration for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -38,7 +38,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"release:jsr": "node ../../../scripts/prepare-jsr-publish.ts . --publish"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
@@ -47,6 +47,9 @@
 		"react": "^19",
 		"react-dom": "^19"
 	},
+	"bundleDependencies": [
+		"@ecopages/mdx-core"
+	],
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",

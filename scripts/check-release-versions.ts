@@ -1,6 +1,7 @@
 import path from 'node:path';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { Logger } from '@ecopages/logger';
+import { readJsonFile } from './package-utils.ts';
 
 type PackageManifest = {
 	name: string;
@@ -43,10 +44,6 @@ const dependencyFields: DependencyField[] = [
 	'optionalDependencies',
 	'devDependencies',
 ];
-
-function readJsonFile<T>(filePath: string): T {
-	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
-}
 
 function isPublishablePackageManifest(packageJsonPath: string): boolean {
 	if (packageJsonPath.includes(`${path.sep}__fixtures__${path.sep}`)) {

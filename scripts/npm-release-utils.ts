@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
+import { readJsonFile, type PackageNameManifest } from './package-utils.ts';
 
-export type PackageManifest = {
-	name: string;
+export type PackageManifest = PackageNameManifest & {
 	version?: string;
 };
 
@@ -10,15 +10,13 @@ export type VersionedPackageManifest = PackageManifest & {
 	version: string;
 };
 
+export { readJsonFile } from './package-utils.ts';
+
 type RegistryPackageMetadata = {
 	versions?: Record<string, unknown>;
 };
 
 export const repoRoot = path.resolve(import.meta.dirname, '..');
-
-export function readJsonFile<T>(filePath: string): T {
-	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
-}
 
 export function resolveManifestPath(inputPath: string): string {
 	const absolutePath = path.resolve(repoRoot, inputPath);

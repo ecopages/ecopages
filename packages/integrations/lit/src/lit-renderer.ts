@@ -58,7 +58,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 	private async resolveQueuedForeignSubtreeChildren(
 		children: unknown,
-		queuedResolutionsByToken: Map<string, LitForeignSubtreeResolutionContext['queuedResolutions'][number]>,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<string | unknown | undefined> {
 		if (children === undefined) {

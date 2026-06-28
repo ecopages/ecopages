@@ -103,6 +103,7 @@ describe('IntegrationPlugin', () => {
 			registerScriptEntrypoint: vi.fn(),
 			setPlugins: vi.fn(),
 			setEnabled: vi.fn(),
+			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),
 			broadcast: vi.fn(),
 			getOutputUrl: vi.fn(),

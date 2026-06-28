@@ -635,7 +635,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	/**
 	 * Teardown the PostCSS processor.
 	 */
-	async teardown(): Promise<void> {
+	override async teardown(): Promise<void> {
 		logger.debug('Tearing down PostCSS processor');
 	}
 }

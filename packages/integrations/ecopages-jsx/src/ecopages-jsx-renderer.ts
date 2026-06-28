@@ -79,7 +79,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	 */
 	private async renderQueuedForeignSubtreeChildren(
 		children: unknown,
-		queuedResolutionsByToken: Map<string, EcopagesJsxForeignSubtreeResolutionContext['queuedResolutions'][number]>,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
 	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
 		if (children === undefined) {

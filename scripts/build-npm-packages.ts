@@ -12,13 +12,13 @@ import {
 } from 'node:fs';
 import { transform } from 'esbuild';
 import ts from 'typescript';
-import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils.ts';
+import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils';
 import {
 	assertBundledDependenciesInDist,
 	copyBundledDependenciesToDist,
 	findAllPackageDirs,
 	getBundleDependencyNames,
-} from './bundle-workspace-deps.ts';
+} from './bundle-workspace-deps';
 
 type PackageManifest = WorkspaceDependencyManifest & {
 	private?: boolean;

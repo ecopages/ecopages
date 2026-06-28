@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.2.0-beta.9",
+	"version": "0.2.0-beta.11",
 	"description": "MDX plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -34,13 +34,16 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"release:jsr": "node ../../../scripts/prepare-jsr-publish.ts . --publish"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
 		"@kitajs/html": "^4.1.0",
 		"@mdx-js/mdx": "^3.1.0"
 	},
+	"bundleDependencies": [
+		"@ecopages/mdx-core"
+	],
 	"dependencies": {
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/mdx-core": "workspace:*",

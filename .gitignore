@@ -13,6 +13,7 @@ node_modules
 public/js
 **/dist
 **/dist-*
+**/.jsr-publish
 
 # misc
 .DS_Store

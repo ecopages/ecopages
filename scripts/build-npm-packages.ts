@@ -12,24 +12,31 @@ import {
 } from 'node:fs';
 import { transform } from 'esbuild';
 import ts from 'typescript';
+import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils.ts';
+import {
+	assertBundledDependenciesInDist,
+	copyBundledDependenciesToDist,
+	findAllPackageDirs,
+	getBundleDependencyNames,
+} from './bundle-workspace-deps.ts';
 
-type PackageManifest = {
-	name: string;
+type PackageManifest = WorkspaceDependencyManifest & {
 	private?: boolean;
-	version?: string;
 	files?: string[];
 	main?: string;
 	module?: string;
 	types?: string;
 	exports?: unknown;
 	scripts?: Record<string, string>;
-	dependencies?: Record<string, string>;
-	peerDependencies?: Record<string, string>;
 	peerDependenciesMeta?: Record<string, unknown>;
-	devDependencies?: Record<string, string>;
-	optionalDependencies?: Record<string, string>;
 	overrides?: Record<string, string>;
 	[key: string]: unknown;
+};
+
+type BuildContext = {
+	version: string;
+	packageDirsByName: Map<string, string>;
+	builtPackages: Set<string>;
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -41,13 +48,6 @@ const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
 const tsSourceExtensions = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const supportedManifestFields = ['main', 'module'] as const;
 const runtimeExportConditionPriority = ['default', 'import', 'browser', 'node', 'deno', 'bun', 'worker'] as const;
-function readJsonFile<T>(filePath: string): T {
-	return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
-}
-
-function toPosix(filePath: string): string {
-	return filePath.replaceAll(path.sep, '/');
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -558,21 +558,6 @@ function validateDistManifest(distManifest: PackageManifest, distDir: string): v
 	}
 }
 
-function rewriteWorkspaceRanges(
-	record: Record<string, string> | undefined,
-	version: string,
-): Record<string, string> | undefined {
-	if (!record) {
-		return record;
-	}
-
-	const rewritten = Object.fromEntries(
-		Object.entries(record).map(([name, range]) => [name, range === 'workspace:*' ? version : range]),
-	);
-
-	return rewritten;
-}
-
 function ensureDir(filePath: string): void {
 	mkdirSync(path.dirname(filePath), { recursive: true });
 }
@@ -799,9 +784,25 @@ function matchesRequestedPackage(packageDir: string, manifest: PackageManifest, 
  * untouched assets, then validate and write the final manifest. Keeping those steps
  * separate makes packaging failures easier to diagnose without changing publish output.
  */
-async function buildPackage(packageDir: string, version: string): Promise<void> {
+async function buildPackage(packageDir: string, context: BuildContext): Promise<void> {
 	const packageJsonPath = path.join(packageDir, 'package.json');
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
+
+	if (context.builtPackages.has(manifest.name)) {
+		return;
+	}
+
+	for (const bundledName of getBundleDependencyNames(manifest)) {
+		const bundledPackageDir = context.packageDirsByName.get(bundledName);
+		if (!bundledPackageDir) {
+			throw new Error(
+				`${manifest.name} lists ${bundledName} in bundleDependencies, but no workspace package was found.`,
+			);
+		}
+
+		await buildPackage(bundledPackageDir, context);
+	}
+
 	const roots = collectPackageRoots(packageDir, manifest);
 	const { codeFiles, declarationFiles, assetFiles } = scanPackageFiles(packageDir, roots);
 	const distDir = path.join(packageDir, 'dist');
@@ -821,11 +822,14 @@ async function buildPackage(packageDir: string, version: string): Promise<void> 
 	}
 
 	copyMetadataFiles(packageDir, distDir);
+	copyBundledDependenciesToDist(manifest, distDir, context.packageDirsByName);
 
-	const distManifest = createDistManifest(manifest, version);
+	const distManifest = createDistManifest(manifest, context.version);
+	assertBundledDependenciesInDist(distManifest, distDir);
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 
+	context.builtPackages.add(manifest.name);
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
 }
 
@@ -839,6 +843,7 @@ async function main(): Promise<void> {
 	});
 	const filters = new Set(positionals);
 	const rootPackage = readJsonFile<{ version: string }>(rootPackageJsonPath);
+	const packageDirsByName = findAllPackageDirs(packagesRoot);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
 		.filter((packageDir) =>
 			matchesRequestedPackage(
@@ -853,8 +858,14 @@ async function main(): Promise<void> {
 		throw new Error('No publishable packages matched the requested filters.');
 	}
 
+	const context: BuildContext = {
+		version: rootPackage.version,
+		packageDirsByName,
+		builtPackages: new Set<string>(),
+	};
+
 	for (const packageDir of packageDirs) {
-		await buildPackage(packageDir, rootPackage.version);
+		await buildPackage(packageDir, context);
 	}
 }
 

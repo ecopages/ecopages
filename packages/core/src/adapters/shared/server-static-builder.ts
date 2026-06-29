@@ -18,7 +18,7 @@ import {
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import type { ApiHandler, StaticRoute } from '../../types/public-types.ts';
+import type { StaticRoute } from '../../types/public-types.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../route-renderer/route-renderer.ts';
@@ -38,7 +38,12 @@ export interface ServerStaticBuilderParams {
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
 	runtimeOrigin: string;
-	apiHandlers?: ApiHandler[];
+	/**
+	 * Whether the app requires a server entry bundle for production use.
+	 * When `true`, the build step bundles the server entry file for `ecopages start`.
+	 * Defaults to `false` (static-only build, no server needed).
+	 */
+	needsServerBundle?: boolean;
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
 	hmrManager?: IHmrManager;
@@ -62,7 +67,7 @@ export class ServerStaticBuilder {
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private readonly serveOptions: ServeOptions;
 	private readonly runtimeOrigin: string;
-	private readonly apiHandlers: ApiHandler[];
+	private readonly needsServerBundle: boolean;
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
 	private readonly hmrManager?: IHmrManager;
@@ -73,7 +78,7 @@ export class ServerStaticBuilder {
 		staticSiteGenerator,
 		serveOptions,
 		runtimeOrigin,
-		apiHandlers,
+		needsServerBundle,
 		logger,
 		entryFile,
 		hmrManager,
@@ -83,7 +88,7 @@ export class ServerStaticBuilder {
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
 		this.runtimeOrigin = runtimeOrigin;
-		this.apiHandlers = apiHandlers ?? [];
+		this.needsServerBundle = needsServerBundle ?? false;
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
 		this.hmrManager = hmrManager;
@@ -137,9 +142,10 @@ export class ServerStaticBuilder {
 	 * Bundles the server entry file for production use.
 	 *
 	 * @remarks
-	 * Every production build emits a runnable server entry for `ecopages start`,
-	 * including static-only and websocket-only apps. Incremental builds may skip
-	 * Rolldown when the `.eco/.server-entry` cache is still valid.
+	 * Only invoked when the app requires a runtime server (API handlers,
+	 * websocket handlers, etc.). Static-only apps skip this step entirely.
+	 * Incremental builds may skip Rolldown when the `.eco/.server-entry`
+	 * cache is still valid.
 	 *
 	 * Package imports remain external so native addons and runtime-owned
 	 * dependencies continue to load through the app's installed
@@ -247,7 +253,10 @@ export class ServerStaticBuilder {
 
 		const preserveExportDirectory = this.prepareExportDirectory(force);
 		await this.refreshRuntimeAssets();
-		await this.bundleServerEntry({ force });
+
+		if (this.needsServerBundle) {
+			await this.bundleServerEntry({ force });
+		}
 
 		await this.staticSiteGenerator.run({
 			router: dependencies.router,

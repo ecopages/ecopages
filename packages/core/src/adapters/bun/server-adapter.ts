@@ -279,7 +279,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
 			runtimeOrigin: this.runtimeOrigin,
-			apiHandlers: this.apiHandlers,
+			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
 			hmrManager: this.hmrManager,
 			onRuntimePlugin: (plugin: EcoBuildPlugin) => {
 				this.registerBunRuntimePlugin(plugin);

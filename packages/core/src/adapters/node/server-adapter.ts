@@ -204,7 +204,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
 			runtimeOrigin: this.runtimeOrigin,
-			apiHandlers: this.apiHandlers,
+			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
 			hmrManager: this.hmrManager ?? undefined,
 		});
 		this.initialized = true;

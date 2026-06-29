@@ -113,7 +113,6 @@ function createMockDependencies() {
 		ServeOptions,
 		Router,
 		RouteRendererFactory,
-		ApiHandlers: [],
 	};
 }
 
@@ -498,7 +497,7 @@ describe('ServerStaticBuilder', () => {
 				return distDir;
 			}
 
-			it('bundles server entry even when no API endpoints are registered', async () => {
+			it('skips server entry bundling when needsServerBundle is false', async () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 					createMockDependencies();
 				const distDir = setupBundleFixture('no-endpoints');
@@ -526,7 +525,7 @@ describe('ServerStaticBuilder', () => {
 					calls.info.some(
 						(m) => m === 'Bundling server entry file...' || m === 'Reusing cached server entry bundle',
 					),
-				).toBe(true);
+				).toBe(false);
 			});
 
 			it('throws when entry file does not exist', async () => {
@@ -545,7 +544,7 @@ describe('ServerStaticBuilder', () => {
 					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'nonexistent.ts',
-					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
+					needsServerBundle: true,
 				});
 
 				await assert.rejects(
@@ -574,7 +573,7 @@ describe('ServerStaticBuilder', () => {
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
-					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
+					needsServerBundle: true,
 				});
 
 				await assert.rejects(
@@ -608,7 +607,7 @@ describe('ServerStaticBuilder', () => {
 						serveOptions: ServeOptions,
 						runtimeOrigin: 'http://127.0.0.1:3000',
 						logger,
-						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
+						needsServerBundle: true,
 					});
 
 					await builder.build(undefined, {
@@ -647,7 +646,7 @@ describe('ServerStaticBuilder', () => {
 						runtimeOrigin: 'http://127.0.0.1:3000',
 						logger,
 						entryFile: 'app.ts',
-						apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
+						needsServerBundle: true,
 					});
 
 					await builder.build(undefined, {
@@ -697,7 +696,7 @@ describe('ServerStaticBuilder', () => {
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
-					apiHandlers: [{ method: 'GET', path: '/api/ping', handler: () => undefined } as any],
+					needsServerBundle: true,
 				});
 
 				await builder.build(undefined, {

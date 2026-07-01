@@ -110,6 +110,12 @@ jobs:
             - name: Publish package @ecopages/mdx
               run: pnpm --filter @ecopages/mdx release:jsr
 
+            # @ecopages/react and @ecopages/ecopages-jsx depend on @ecopages/mdx (workspace → registry).
+            # Publish mdx first so JSR consumers resolve the dependency during their publish.
+
+            - name: Publish package @ecopages/ecopages-jsx
+              run: pnpm --filter @ecopages/ecopages-jsx release:jsr
+
             - name: Publish package @ecopages/react
               run: pnpm --filter @ecopages/react release:jsr
 
@@ -169,6 +175,8 @@ jobs:
 
             - name: Publish npm package @ecopages/mdx
               run: pnpm run release:npm -- packages/integrations/mdx/dist
+
+            # @ecopages/react lists @ecopages/mdx in dependencies. Publish mdx first.
 
             - name: Publish npm package @ecopages/react
               run: pnpm run release:npm -- packages/integrations/react/dist

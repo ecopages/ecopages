@@ -1,12 +1,15 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { findAllPackageDirs, getBundleDependencyNames, type BundleManifest } from './bundle-workspace-deps.ts';
-import { readJsonFile, rewriteWorkspaceRanges, writeJsonFile } from './package-utils.ts';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+	readJsonFile,
+	rewriteWorkspaceRanges,
+	writeJsonFile,
+	type WorkspaceDependencyManifest,
+} from './package-utils.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
-const packagesRoot = path.join(repoRoot, 'packages');
 
 const ignoredEntries = new Set(['node_modules', 'dist', '.jsr-publish', '.git']);
 
@@ -30,71 +33,15 @@ function copyPackageTree(sourceRoot: string, destinationRoot: string, relativePa
 	copyFileSync(absoluteSource, path.join(destinationRoot, relativePath));
 }
 
-function copyBundledSourceDependencies(
-	manifest: BundleManifest,
-	publishDir: string,
-	packageDirsByName: Map<string, string>,
-): void {
-	for (const packageName of getBundleDependencyNames(manifest)) {
-		const packageDir = packageDirsByName.get(packageName);
-		if (!packageDir) {
-			throw new Error(
-				`${manifest.name} lists ${packageName} in bundleDependencies, but no workspace package was found.`,
-			);
-		}
-
-		const destination = path.join(publishDir, 'node_modules', ...packageName.split('/'));
-		cpSync(packageDir, destination, {
-			recursive: true,
-			filter: (sourcePath) => {
-				const basename = path.basename(sourcePath);
-				return !ignoredEntries.has(basename);
-			},
-		});
-	}
-}
-
-function patchJsrPublishIncludes(publishDir: string, bundledPackageNames: string[]): void {
-	const jsrJsonPath = path.join(publishDir, 'jsr.json');
-	if (!existsSync(jsrJsonPath)) {
-		return;
-	}
-
-	const jsrConfig = readJsonFile<Record<string, unknown>>(jsrJsonPath);
-	if (!jsrConfig.publish || typeof jsrConfig.publish !== 'object' || Array.isArray(jsrConfig.publish)) {
-		return;
-	}
-
-	const publishConfig = jsrConfig.publish as { include?: string[]; exclude?: string[] };
-	const include = new Set(publishConfig.include ?? []);
-
-	for (const packageName of bundledPackageNames) {
-		const nodeModulesPath = path.posix.join('node_modules', ...packageName.split('/'));
-		include.add(`${nodeModulesPath}/**/*.ts`);
-		include.add(`${nodeModulesPath}/**/*.tsx`);
-		include.add(`${nodeModulesPath}/package.json`);
-	}
-
-	jsrConfig.publish = {
-		...publishConfig,
-		include: Array.from(include).sort(),
-	};
-
-	writeJsonFile(jsrJsonPath, jsrConfig);
-}
-
 export function prepareJsrPublishDirectory(packageDir: string, version: string): string {
 	const publishDir = path.join(packageDir, '.jsr-publish');
-	const manifest = readJsonFile<BundleManifest>(path.join(packageDir, 'package.json'));
-	const packageDirsByName = findAllPackageDirs(packagesRoot);
-	const bundledPackageNames = getBundleDependencyNames(manifest);
+	const manifest = readJsonFile<WorkspaceDependencyManifest>(path.join(packageDir, 'package.json'));
 
 	rmSync(publishDir, { recursive: true, force: true });
 	mkdirSync(publishDir, { recursive: true });
 	copyPackageTree(packageDir, publishDir);
-	copyBundledSourceDependencies(manifest, publishDir, packageDirsByName);
 
-	const stagedManifest: BundleManifest = {
+	const stagedManifest: WorkspaceDependencyManifest = {
 		...manifest,
 		version,
 		dependencies: rewriteWorkspaceRanges(manifest.dependencies, version),
@@ -103,7 +50,6 @@ export function prepareJsrPublishDirectory(packageDir: string, version: string):
 	};
 
 	writeJsonFile(path.join(publishDir, 'package.json'), stagedManifest);
-	patchJsrPublishIncludes(publishDir, bundledPackageNames);
 
 	return publishDir;
 }

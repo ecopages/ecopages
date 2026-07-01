@@ -11,7 +11,6 @@ export type WorkspaceDependencyManifest = PackageNameManifest & {
 	peerDependencies?: Record<string, string>;
 	optionalDependencies?: Record<string, string>;
 	devDependencies?: Record<string, string>;
-	bundleDependencies?: string[] | boolean;
 };
 
 export function readJsonFile<T>(filePath: string): T {

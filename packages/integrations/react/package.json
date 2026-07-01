@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/react",
-	"version": "0.2.0-beta.12",
+	"version": "0.2.0-beta.13",
 	"description": "React integration for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -47,13 +47,10 @@
 		"react": "^19",
 		"react-dom": "^19"
 	},
-	"bundleDependencies": [
-		"@ecopages/mdx-core"
-	],
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
-		"@ecopages/mdx-core": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@mdx-js/mdx": "^3.1.1",
 		"oxc-parser": "^0.124.0",
 		"oxc-transform": "^0.124.0",

@@ -1,5 +1,8 @@
 import path from 'node:path';
 import type { CompileOptions } from '@mdx-js/mdx';
+import type { JsxImportSource } from './jsx-import-source.ts';
+
+export type { JsxImportSource, KnownJsxImportSource } from './jsx-import-source.ts';
 
 export interface MdxCompilerOptionsInput {
 	compilerOptions?: CompileOptions;
@@ -59,7 +62,7 @@ export function resolveCompileFormat(filePath: string, compilerOptions?: Compile
 export function resolveMdxCompilerOptions(
 	mdxOptions: MdxCompilerOptionsInput,
 	options: {
-		jsxImportSource: string;
+		jsxImportSource: JsxImportSource;
 		jsxRuntime?: CompileOptions['jsxRuntime'];
 		defaults?: CompileOptions;
 	},

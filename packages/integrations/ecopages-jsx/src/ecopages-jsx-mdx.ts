@@ -8,7 +8,7 @@ import {
 	createMdxExtensionFilter,
 	createMdxLoaderPlugin as createMdxLoaderPluginCore,
 	resolveMdxCompilerOptions as resolveMdxCompilerOptionsCore,
-} from '@ecopages/mdx-core';
+} from '@ecopages/mdx/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { VFile } from 'vfile';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';

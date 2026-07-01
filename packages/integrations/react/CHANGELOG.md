@@ -4,6 +4,12 @@ All notable changes to `@ecopages/react` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
+## [0.2.0-beta.13] — 2026-07-01
+
+### Breaking
+
+- `@ecopages/mdx` is now a normal runtime dependency (replaces vendored `@ecopages/mdx-core` / `bundleDependencies`). Consumers do not need to add it manually; npm installs it transitively.
+
 ## [UNRELEASED] — TBD
 
 ### Bug Fixes
@@ -62,4 +68,4 @@ All notable changes to `@ecopages/react` are documented here.
 
 ## Migration Notes
 
-- React MDX support is built in and no longer requires installing `@ecopages/mdx` just to enable React MDX routes.
+- React MDX support is built in via `reactPlugin({ mdx: { enabled: true } })`. You do not need to install `@ecopages/mdx` separately — it is installed transitively as a dependency of `@ecopages/react`. The standalone `@ecopages/mdx` plugin is for non-React JSX runtimes only.

@@ -165,3 +165,7 @@ Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integr
 **CSS Shim**: Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
 
 See [docs/rolldown-integration-guide.md](./docs/rolldown-integration-guide.md) for the full guide with API references and benchmarks.
+
+## npm publishing
+
+Workspace dependencies such as `@ecopages/mdx` are rewritten to concrete semver ranges in published `dist/package.json` files during `pnpm run build:npm`. Consumers install them as normal registry dependencies.

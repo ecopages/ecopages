@@ -6,5 +6,8 @@ export {
 	resolveCompileFormat,
 	resolveLoaderExtensions,
 	resolveMdxCompilerOptions,
+	type JsxImportSource,
+	type KnownJsxImportSource,
 	type MdxCompilerOptionsInput,
 } from './mdx-utils.ts';
+export type { ThirdPartyJsxImportSource } from './jsx-import-source.ts';

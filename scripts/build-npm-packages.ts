@@ -13,12 +13,6 @@ import {
 import { transform } from 'esbuild';
 import ts from 'typescript';
 import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils.ts';
-import {
-	assertBundledDependenciesInDist,
-	copyBundledDependenciesToDist,
-	findAllPackageDirs,
-	getBundleDependencyNames,
-} from './bundle-workspace-deps.ts';
 
 type PackageManifest = WorkspaceDependencyManifest & {
 	private?: boolean;
@@ -35,7 +29,6 @@ type PackageManifest = WorkspaceDependencyManifest & {
 
 type BuildContext = {
 	version: string;
-	packageDirsByName: Map<string, string>;
 	builtPackages: Set<string>;
 };
 
@@ -792,17 +785,6 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
 		return;
 	}
 
-	for (const bundledName of getBundleDependencyNames(manifest)) {
-		const bundledPackageDir = context.packageDirsByName.get(bundledName);
-		if (!bundledPackageDir) {
-			throw new Error(
-				`${manifest.name} lists ${bundledName} in bundleDependencies, but no workspace package was found.`,
-			);
-		}
-
-		await buildPackage(bundledPackageDir, context);
-	}
-
 	const roots = collectPackageRoots(packageDir, manifest);
 	const { codeFiles, declarationFiles, assetFiles } = scanPackageFiles(packageDir, roots);
 	const distDir = path.join(packageDir, 'dist');
@@ -822,10 +804,8 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
 	}
 
 	copyMetadataFiles(packageDir, distDir);
-	copyBundledDependenciesToDist(manifest, distDir, context.packageDirsByName);
 
 	const distManifest = createDistManifest(manifest, context.version);
-	assertBundledDependenciesInDist(distManifest, distDir);
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 
@@ -843,7 +823,6 @@ async function main(): Promise<void> {
 	});
 	const filters = new Set(positionals);
 	const rootPackage = readJsonFile<{ version: string }>(rootPackageJsonPath);
-	const packageDirsByName = findAllPackageDirs(packagesRoot);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
 		.filter((packageDir) =>
 			matchesRequestedPackage(
@@ -860,7 +839,6 @@ async function main(): Promise<void> {
 
 	const context: BuildContext = {
 		version: rootPackage.version,
-		packageDirsByName,
 		builtPackages: new Set<string>(),
 	};
 

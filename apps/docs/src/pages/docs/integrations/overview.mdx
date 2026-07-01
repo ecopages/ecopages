@@ -62,6 +62,6 @@ You can combine multiple integrations in your `eco.config.ts`. This allows you t
 <Banner type="info">
 	<Banner.Title>Pro Tip</Banner.Title>
 	<p>
-		Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets non-React JSX runtimes such as KitaJS, while React-backed MDX should be enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>.
+		Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets third-party JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. React-backed MDX should be enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>. Ecopages JSX MDX should use <code>ecopagesJsxPlugin({`{ mdx: { enabled: true } }`})</code>.
 	</p>
 </Banner>

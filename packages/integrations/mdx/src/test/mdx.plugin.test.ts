@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { mdxPlugin } from '../mdx.plugin.ts';
+import type { StandaloneMdxCompilerOptions } from '../mdx.types.ts';
 
 const Config = await new ConfigBuilder()
 	.setRobotsTxt({
@@ -17,6 +18,34 @@ const Config = await new ConfigBuilder()
 	.build();
 
 describe('MDXPlugin', () => {
+	it('throws when jsxImportSource is missing', () => {
+		expect(() =>
+			mdxPlugin({
+				compilerOptions: {} as StandaloneMdxCompilerOptions,
+			}),
+		).toThrow(/requires `compilerOptions\.jsxImportSource`/);
+	});
+
+	it('rejects React jsxImportSource', () => {
+		expect(() =>
+			mdxPlugin({
+				compilerOptions: {
+					jsxImportSource: 'react',
+				} as StandaloneMdxCompilerOptions,
+			}),
+		).toThrow(/reactPlugin/);
+	});
+
+	it('rejects Ecopages JSX jsxImportSource', () => {
+		expect(() =>
+			mdxPlugin({
+				compilerOptions: {
+					jsxImportSource: '@ecopages/jsx',
+				} as StandaloneMdxCompilerOptions,
+			}),
+		).toThrow(/ecopagesJsxPlugin/);
+	});
+
 	it('passes resolved compiler options into renderer instances', () => {
 		const plugin = mdxPlugin({
 			compilerOptions: {

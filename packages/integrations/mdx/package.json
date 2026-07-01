@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/mdx",
-	"version": "0.2.0-beta.12",
+	"version": "0.2.0-beta.13",
 	"description": "MDX plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -22,6 +22,10 @@
 		"./mdx-loader-plugin": {
 			"default": "./src/mdx-loader-plugin.ts",
 			"types": "./src/mdx-loader-plugin.ts"
+		},
+		"./core": {
+			"default": "./src/core/index.ts",
+			"types": "./src/core/index.ts"
 		}
 	},
 	"files": [
@@ -38,15 +42,10 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@kitajs/html": "^4.1.0",
 		"@mdx-js/mdx": "^3.1.0"
 	},
-	"bundleDependencies": [
-		"@ecopages/mdx-core"
-	],
 	"dependencies": {
 		"@ecopages/logger": "^0.2.3",
-		"@ecopages/mdx-core": "workspace:*",
 		"source-map": "^0.7.6",
 		"vfile": "^6.0.3"
 	},

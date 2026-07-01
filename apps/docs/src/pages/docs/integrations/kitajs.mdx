@@ -120,12 +120,16 @@ const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
-		kitajsPlugin(), 
-		mdxPlugin()
+		kitajsPlugin(),
+		mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		}),
 	])
 	.build();
 
 export default config;
 ```
 
-This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Standalone `mdxPlugin()` already defaults to `@kitajs/html`, so no extra JSX runtime override is required for the common KitaJS pairing.
+This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Pair standalone `mdxPlugin()` with `compilerOptions.jsxImportSource: '@kitajs/html'` when MDX should compile against the KitaJS runtime.

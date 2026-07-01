@@ -22,7 +22,7 @@ import type { ReactRouterAdapter } from './router-adapter.ts';
 import { ReactRuntimeBundleService } from './services/react-runtime-bundle.service.ts';
 import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
-import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx-core';
+import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
 import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';

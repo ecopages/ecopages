@@ -1,9 +1,11 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"name": "@ecopages/mdx",
-	"version": "0.2.0-beta.12",
+	"version": "0.2.0-beta.13",
 	"exports": {
-		".": "./src/mdx.plugin.ts"
+		".": "./src/mdx.plugin.ts",
+		"./core": "./src/core/index.ts",
+		"./mdx-loader-plugin": "./src/mdx-loader-plugin.ts"
 	},
 	"exclude": ["**/*.test.ts"],
 	"publish": {

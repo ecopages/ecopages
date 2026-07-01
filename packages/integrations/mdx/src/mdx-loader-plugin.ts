@@ -1,5 +1,5 @@
 import type { CompileOptions } from '@mdx-js/mdx';
-import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from '@ecopages/mdx-core';
+import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from './core/mdx-loader-plugin.ts';
 
 export function createMdxLoaderPlugin(compilerOptions?: CompileOptions) {
 	return createMdxLoaderPluginCore({

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/ecopages-jsx",
-	"version": "0.2.0-beta.12",
+	"version": "0.2.0-beta.13",
 	"description": "JSX integration plugin for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -41,11 +41,8 @@
 		"react": "^19.2.6",
 		"remark-gfm": "^4.0.1"
 	},
-	"bundleDependencies": [
-		"@ecopages/mdx-core"
-	],
 	"dependencies": {
-		"@ecopages/mdx-core": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
 		"@mdx-js/mdx": "^3.1.1",
 		"vfile": "^6.0.3"
 	},

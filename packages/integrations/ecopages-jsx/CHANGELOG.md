@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.0-beta.13] — 2026-07-01
+
+### Refactoring
+
+- MDX loader imports now use `@ecopages/mdx/core` instead of internal `@ecopages/mdx-core`.
+
 ## [UNRELEASED] -- TBD
 
 ### Features

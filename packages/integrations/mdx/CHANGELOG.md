@@ -44,8 +44,8 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ```ts
 mdxPlugin({
-  compilerOptions: {
-    jsxImportSource: '@kitajs/html',
-  },
-})
+	compilerOptions: {
+		jsxImportSource: '@kitajs/html',
+	},
+});
 ```

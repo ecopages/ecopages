@@ -18,6 +18,8 @@ Deploying an Ecopages application depends on whether you are using only static f
 
 Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `dist` directory.
 
+For projects using the [Vite host plugin](/docs/ecosystem/vite-plugin), `ecopages build` still produces the same `dist` output; Vite orchestrates dev and optional build integration only.
+
 ```bash
 pnpm run build
 ```

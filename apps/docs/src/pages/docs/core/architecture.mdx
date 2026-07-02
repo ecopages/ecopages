@@ -48,11 +48,15 @@ The integration and processor lifecycle is split into stable framework-owned pha
 
 See the dedicated [Plugin Lifecycle](/docs/core/plugin-lifecycle) guide for the exact ordering and boundaries.
 
+## Build and bundling
+
+Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Browser and server artifacts are produced through the build adapter; optional [Vite host](/docs/ecosystem/vite-plugin) integration delegates dev-server orchestration to Vite. See [Build and Host](/docs/core/build-and-host).
+
 ## Core Modules
 
 For those wishing to dive deeper, we recommend exploring the source code:
 
-- **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: The runtime-neutral application entry point that selects the active adapter.
+- **[`createApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: Recommended runtime entrypoint; selects Bun or Node adapter.
 - **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
 - **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
 - **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.

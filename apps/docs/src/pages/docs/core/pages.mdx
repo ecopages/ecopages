@@ -6,98 +6,84 @@ export const config = {
 
 export const getMetadata = () => ({
 	title: 'Docs | Creating Pages',
-	description: 'Learn how to create pages in Ecopages using the ghtml integration',
+	description: 'Learn how to create pages in Ecopages using Ecopages JSX',
 });
 
 # Creating Pages in Ecopages
 
-Pages are the core of your Ecopages project. They represent the different routes and content of your website. In this guide, we'll explore how to create pages using the ghtml integration.
+Pages are the core of your Ecopages project. They represent the different routes and content of your website. This guide uses **Ecopages JSX** (`.tsx` routes owned by `@ecopages/ecopages-jsx`), which matches the [Installation](/docs/getting-started/installation) default. Other integrations use the same `eco.page` API with different file extensions.
 
 ## Basic Page Structure
 
-A typical page in Ecopages using the ghtml integration consists of a single TypeScript file. Here's a basic example:
+A typical page is a single `.tsx` file under `src/pages`:
 
-```typescript
+```tsx
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	metadata: () => ({
 		title: 'Home page',
 		description: 'This is the homepage of the website',
-		image: 'public/assets/images/default-og.png',
-		keywords: ['typescript', 'framework', 'static'],
 	}),
 	dependencies: {
 		components: [BaseLayout],
 	},
-	render: () => html`${BaseLayout({
-		class: 'main-content',
-		children: html`<h1>Ecopages</h1><p>Welcome to my Ecopages website!</p>`,
-	})}`,
+	render: () => (
+		<BaseLayout class="main-content">
+			<h1>Ecopages</h1>
+			<p>Welcome to my Ecopages website!</p>
+		</BaseLayout>
+	),
 });
 ```
 
-Let's break down the key elements of a page:
+Key elements:
 
-1. **Imports**: Import necessary components and types from `@ecopages/core` and your project files.
-
-2. **`eco.page`**: Use the `eco.page` factory to create your page component.
-
-3. **Metadata**: Define page-specific metadata in the `metadata` property.
-
-4. **Dependencies**: Declare components, scripts, and stylesheets in the `dependencies` object.
-
-5. **Render**: Implement the `render` function to define your page's structure using the `html` template literal.
-
-6. **Export**: Export the result of `eco.page` as the default export.
+1. **`eco.page`**: Factory for a file-based route page.
+2. **`metadata`**: Page title, description, and social metadata.
+3. **`dependencies`**: Components, scripts, and stylesheets the page needs.
+4. **`render`**: Returns JSX for the page body (wrapped by layout and HTML shell).
 
 ## Using Components in Pages
 
-To use components in your pages, import them and include them in your HTML template:
+Import components and list them in `dependencies.components`:
 
-```typescript
+```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	dependencies: {
 		components: [BaseLayout, RadiantCounter],
 	},
-	render: () => html`${BaseLayout({
-		class: 'main-content',
-		children: html`
+	render: () => (
+		<BaseLayout class="main-content">
 			<h1>Ecopages</h1>
-			${RadiantCounter({ count: 5 })}
-		`,
-	})}`,
+			<RadiantCounter count={5} />
+		</BaseLayout>
+	),
 });
 ```
 
 ## Working with Data
 
-Ecopages provides built-in support for data fetching and metadata management. For a deep dive into how to handle data at build-time and runtime, check out the [Data Fetching Guide](/docs/guides/data-fetching).
+For build-time and request-time data, see [Data Fetching](/docs/core/data-fetching).
 
 ## Lazy Loading Components
 
-Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
+Lazy loading is configured on `dependencies.scripts` entries:
 
-Ecopages provides powerful tools for lazy loading components, which can significantly improve your site's performance.
-
-Lazy loading is handled directly within dependency entries in `dependencies.scripts`.
-
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
 
 export const MyComponent = eco.component({
 	dependencies: {
-		scripts: [{ src: './my-component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }], // Load on interaction
+		scripts: [{ src: './my-component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: (props) => <my-component {...props} />,
 });
 ```
 
-When you define a lazy dependency, Ecopages automatically handles the injection of the required scripts only when the specified interaction occurs or when the component enters the viewport (using `on:visible`). This eliminates the need for manual script injection and keeps your initial bundle size small.
+See [Components](/docs/core/components) for more patterns.

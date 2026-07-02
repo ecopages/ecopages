@@ -49,7 +49,7 @@ Start here for package-level architecture:
 - `packages/core/src/static-site-generator/README.md`: static generation flow
 - `packages/core/src/eco/README.md`: `eco` authoring primitives
 
-Architecture RFC and direction docs live under `refactor/` and explain the current direction and why the core seams are shaped the way they are.
+Architecture notes live in `packages/core/README.md`, `CONTEXT.md`, and the [docs site architecture guide](https://ecopages.app/docs/core/architecture).
 
 The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
 
@@ -159,6 +159,13 @@ pnpm run bump:minor
 pnpm run bump:major
 ```
 
+Promote a prerelease to stable (drops `-alpha`/`-beta` suffix without incrementing):
+
+```bash
+pnpm run bump:stable
+# e.g. 0.2.0-beta.13 → 0.2.0, then pnpm run jsr:sync-version (included in bump:stable)
+```
+
 Prerelease bumps:
 
 ```bash
@@ -172,13 +179,15 @@ pnpm run bump:beta:major
 
 Examples:
 
-- `0.1.105 -> 0.1.106-alpha.0`: `pnpm run bump:alpha`
-- `0.1.105 -> 0.2.0-alpha.0`: `pnpm run bump:alpha:minor`
-- `0.1.105 -> 1.0.0-alpha.0`: `pnpm run bump:alpha:major`
+- `0.2.0-beta.13 -> 0.2.0`: `pnpm run bump:stable` (at publish time; then run `node scripts/stamp-changelogs.ts`)
+- `0.2.0 -> 0.2.1`: `pnpm run bump:patch`
+- `0.2.0 -> 0.3.0`: `pnpm run bump:minor`
+- `0.2.0-beta.12 -> 0.2.0-beta.13`: `pnpm run bump:beta`
 
 The bump script also supports direct usage for previews:
 
 ```bash
+node --experimental-strip-types scripts/bump-version.ts promote --dry-run
 node --experimental-strip-types scripts/bump-version.ts prerelease alpha minor --dry-run
 node --experimental-strip-types scripts/bump-version.ts --help
 ```
@@ -188,6 +197,8 @@ After bumping, sync the package versions if your chosen root script did not alre
 ```bash
 pnpm run jsr:sync-version
 ```
+
+Changelogs: tracking begins at `0.2.0`. Keep release notes under `## [UNRELEASED] — TBD` until publish; run `node scripts/stamp-changelogs.ts` after a stable bump to create the first published entry.
 
 Release pipeline notes:
 

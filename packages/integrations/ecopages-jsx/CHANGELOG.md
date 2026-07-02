@@ -1,12 +1,10 @@
 # Changelog
 
-## [0.2.0-beta.13] — 2026-07-01
+All notable changes to `@ecopages/ecopages-jsx` are documented here.
 
-### Refactoring
+> **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-- MDX loader imports now use `@ecopages/mdx/core` instead of internal `@ecopages/mdx-core`.
-
-## [UNRELEASED] -- TBD
+## [UNRELEASED] — TBD
 
 ### Features
 
@@ -39,6 +37,7 @@
 
 ### Refactoring
 
+- MDX loader imports now use `@ecopages/mdx/core` instead of internal `@ecopages/mdx-core`.
 - Removed the shared JSX runtime bundle service and browser import-map asset in favor of per-script browser entries that prepend `@ecopages/radiant/client/install-hydrator` only when Radiant SSR is enabled.
 - Replaced Ecopages JSX renderer static and post-construction configuration with instance-owned renderer wiring and extracted shared plugin and renderer types into a dedicated module.
 - Extracted JSX renderer SSR asset-frame scope handling into a dedicated render-session module.
@@ -46,5 +45,4 @@
 ### Tests
 
 - Added a kitchen-sink preview e2e regression that asserts Ecopages JSX shell tags stay marker-free while nested Radiant hosts still hydrate and remove their local markers.
-
 - Added renderer-level coverage for the foreign-subtree payload compatibility contract.

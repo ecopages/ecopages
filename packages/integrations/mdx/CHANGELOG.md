@@ -4,7 +4,7 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-## [0.2.0-beta.13] — 2026-07-01
+## [UNRELEASED] — TBD
 
 ### Breaking
 

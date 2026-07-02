@@ -4,13 +4,11 @@ All notable changes to `@ecopages/react` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-## [0.2.0-beta.13] — 2026-07-01
+## [UNRELEASED] — TBD
 
 ### Breaking
 
 - `@ecopages/mdx` is now a normal runtime dependency (replaces vendored `@ecopages/mdx-core` / `bundleDependencies`). Consumers do not need to add it manually; npm installs it transitively.
-
-## [UNRELEASED] — TBD
 
 ### Bug Fixes
 

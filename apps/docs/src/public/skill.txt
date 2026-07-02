@@ -208,10 +208,10 @@ export default config;
 Create `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/create-app";
+import { createApp } from "@ecopages/core/create-app";
 import appConfig from "./eco.config";
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 await app.start();
 ```
@@ -350,7 +350,7 @@ export default eco.page<{ user: User }>({
 
 ```typescript
 // src/handlers/dashboard.ts
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 
 export const dashboardGroup = defineGroupHandler({
   prefix: "/dashboard",
@@ -411,7 +411,7 @@ export function SimpleButton({ label, onClick }) {
 For individual API routes:
 
 ```typescript
-import { defineApiHandler } from "@ecopages/core/bun";
+import { defineApiHandler } from "@ecopages/core";
 import { z } from "zod";
 
 const createPostSchema = {
@@ -437,7 +437,7 @@ export const createPost = defineApiHandler({
 For routes that share a prefix and middleware:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth";
 
 export const adminGroup = defineGroupHandler({
@@ -467,7 +467,7 @@ Register handlers in `app.ts`:
 import * as posts from "./src/handlers/posts";
 import { adminGroup } from "./src/handlers/admin";
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.post(posts.createPost);
 app.group(adminGroup);
@@ -925,12 +925,12 @@ Create `src/handlers/auth.ts`:
 
 ```typescript
 import type { ApiHandlerContext } from "@ecopages/core";
-import type { BunMiddleware } from "@ecopages/core/bun";
+import type { EcoMiddleware } from "@ecopages/core";
 import { auth } from "@/lib/auth";
 
 export type Session = (typeof auth)["$Infer"]["Session"];
 
-export const authMiddleware: BunMiddleware<{ session: Session }> = async (
+export const authMiddleware: EcoMiddleware<{ session: Session }> = async (
   ctx,
   next
 ) => {
@@ -954,11 +954,11 @@ export const authHandler = async (ctx: ApiHandlerContext) => {
 In `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/create-app";
+import { createApp } from "@ecopages/core/create-app";
 import appConfig from "./eco.config";
 import * as auth from "./src/handlers/auth";
 
-new EcopagesApp({ appConfig })
+await createApp({ appConfig })
   .get("/api/auth/*", auth.authHandler)
   .post("/api/auth/*", auth.authHandler)
   .put("/api/auth/*", auth.authHandler)
@@ -1020,7 +1020,7 @@ export const AuthNav = eco.component({
 Use `authMiddleware` with `defineGroupHandler`:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth";
 
 export const protectedGroup = defineGroupHandler({

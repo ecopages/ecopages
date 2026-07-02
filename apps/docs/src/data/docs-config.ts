@@ -38,6 +38,7 @@ export const docsConfig: DocsConfig = {
 			pages: [
 				{ title: 'Concepts', slug: 'concepts' },
 				{ title: 'Architecture', slug: 'architecture' },
+				{ title: 'Build and Host', slug: 'build-and-host' },
 				{ title: 'Pages', slug: 'pages' },
 				{ title: 'Routing', slug: 'routing' },
 				{ title: 'Data Fetching', slug: 'data-fetching' },
@@ -45,6 +46,8 @@ export const docsConfig: DocsConfig = {
 				{ title: 'Layouts', slug: 'layouts' },
 				{ title: 'Components', slug: 'components' },
 				{ title: 'Includes', slug: 'includes' },
+				{ title: 'HMR', slug: 'hmr' },
+				{ title: 'Plugin Lifecycle', slug: 'plugin-lifecycle' },
 			],
 		},
 		{
@@ -64,6 +67,7 @@ export const docsConfig: DocsConfig = {
 			name: 'Integrations',
 			subdirectory: 'integrations',
 			pages: [
+				{ title: 'Overview', slug: 'overview' },
 				{ title: 'Kitajs', slug: 'kitajs' },
 				{ title: 'React', slug: 'react' },
 				{ title: 'Lit', slug: 'lit' },
@@ -77,6 +81,8 @@ export const docsConfig: DocsConfig = {
 			pages: [
 				{ title: 'Ecopages CLI', slug: 'ecopages' },
 				{ title: 'Packages', slug: 'packages' },
+				{ title: 'Vite Plugin', slug: 'vite-plugin' },
+				{ title: 'Radiant', slug: 'radiant' },
 				{ title: 'Browser Router', slug: 'browser-router' },
 				{ title: 'React Router', slug: 'react-router' },
 				{ title: 'File System', slug: 'file-system' },

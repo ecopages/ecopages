@@ -17,7 +17,7 @@ export const getMetadata = () => ({
 <Banner type="alert">
 	<Banner.Title>Beta Notice</Banner.Title>
 	<p>
-		Ecopages is currently in beta. The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
+		Ecopages is currently in beta (`0.2.0` prerelease on the release branch). The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
 	</p>
 </Banner>
 
@@ -50,7 +50,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
 
 4. **Lightweight, Safe Backend**:
-   - **Typed Handlers**: Define API handlers with full type inference using `defineHandlers`.
+   - **Typed Handlers**: Define API handlers with full type inference using `defineApiHandler`.
    - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
    - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
@@ -73,7 +73,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 
 - **Marketing sites** – Static pages with excellent SEO
 - **Documentation** – MDX-powered docs like the one you're reading
-- **Blogs** – Dynamic routes with `getStaticPaths` for each post
+- **Blogs** – Dynamic routes with `staticPaths` for each post
 - **Portfolios** – Beautiful static sites with interactive components
 - **Full-Stack Apps** – Combine static pages with typed API handlers for dynamic features
 - **Dashboards** – React or Lit components with live API data
@@ -131,10 +131,10 @@ Good for simple, quick endpoints.
 
 ```typescript
 // app.ts
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import config from './eco.config';
 
-const app = new EcopagesApp({ appConfig: config });
+const app = await createApp({ appConfig: config });
 
 app.get('/api/hello', async (ctx) => {
   return ctx.response.json({ message: 'Hello world!' });
@@ -146,7 +146,7 @@ For larger apps, define handlers in separate files using `defineApiHandler`. Thi
 
 ```typescript
 // handlers/greet.ts
-import { defineApiHandler } from '@ecopages/core/bun';
+import { defineApiHandler } from '@ecopages/core';
 import { z } from 'zod';
 
 export const greetHandler = defineApiHandler({
@@ -169,7 +169,7 @@ import { greetHandler } from './handlers/greet';
 
 // ... app initialization
 
-app.post(greetHandler.path, greetHandler.handler);
+app.add(greetHandler);
 ```
 
 ## AI Agents & Ecopages

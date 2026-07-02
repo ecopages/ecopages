@@ -21,5 +21,5 @@ All notable changes to `@ecopages/kitajs` are documented here.
 
 ### Tests
 
-- Updated integration coverage for explicit foreign-subtree composition and Node and esbuild compatibility.
+- Updated integration coverage for explicit foreign-subtree composition and Node/Rolldown compatibility.
 - Added renderer-level coverage for the foreign-subtree payload compatibility contract.

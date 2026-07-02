@@ -18,10 +18,10 @@ Ecopages provides a powerful server API that allows you to create endpoints and 
 Create an `app.ts` file in your project root:
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.get('/api/hello', async () => {
 	return new Response('Hello World');
@@ -60,24 +60,16 @@ app.get('/api/users/:id/posts/:postId', async ({ params }) => {
 
 Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
 
-Handlers can be defined directly, but keeping the `params` type aligned with the `path` string requires explicit manual typing. Ecopages provides adapter-specific helper functions to remove that duplication and keep route definitions organized.
-
-### Using `defineApiHandler`
-
-When using the Bun adapter, you can use the `defineApiHandler` helper function. This function automatically infers the parameter types from the `path` string literal, ensuring your `params` object is correctly typed without explicit annotations.
+Handlers can be defined directly, but keeping the `params` type aligned with the `path` string requires explicit manual typing. Use `defineApiHandler` to infer parameter types from the path literal and keep route definitions organized.
 
 ```typescript
-// Import the adapter-specific helper
-import { defineApiHandler } from '@ecopages/core/bun';
+import { defineApiHandler } from '@ecopages/core';
 
-// Define the handler using the helper
 const getUserHandler = defineApiHandler({
 	method: 'GET',
-	path: '/api/users/:id', // Type of 'id' is inferred from here
+	path: '/api/users/:id',
 	handler: async ({ params }) => {
-		// params is automatically typed as { id: string }
 		const { id } = params;
-		// Fetch user logic...
 		const user = { id: id, name: 'Example User' };
 
 		if (!user) {
@@ -87,22 +79,18 @@ const getUserHandler = defineApiHandler({
 	},
 });
 
-// Register the handler with the app
-app.get(getUserHandler.path, getUserHandler.handler);
+app.add(getUserHandler);
 
-// You can define multiple handlers this way and keep them organized
 const updateUserHandler = defineApiHandler({
 	method: 'PUT',
 	path: '/api/users/:id',
 	handler: async ({ params }) => {
 		const { id } = params;
-		// Update user logic...
 		return new Response(JSON.stringify({ id, message: 'User updated' }));
-	}
+	},
 });
 
-app.put(updateUserHandler.path, updateUserHandler.handler);
-
+app.add(updateUserHandler);
 ```
 
 ### Benefits of Using `defineApiHandler`
@@ -154,7 +142,7 @@ export default eco.page({
 
 The development server includes:
 
-- Hot Module Replacement (HMR) (beta)
+- Hot Module Replacement (HMR)
 - Automatic route reloading
 - API endpoint hot reloading
 - Static file serving
@@ -192,7 +180,7 @@ See [WebSockets](/docs/server/websockets) for the full guide.
 Ecopages provides a convenient `request()` method on the app instance that allows you to trigger internal HTTP requests for testing without needing to manage actual network connections.
 
 ```typescript
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 await app.start();
 
 const response = await app.request('/api/hello');

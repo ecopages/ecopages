@@ -25,13 +25,13 @@ For architectural patterns and code organization examples, see [Routing Patterns
 
 ## Basic Routes
 
-Define routes using HTTP method functions on your `EcopagesApp` instance:
+Define routes using HTTP method functions on your app instance:
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.get('/api/users', async (ctx) => {
 	const users = await getUsers();
@@ -142,13 +142,12 @@ const logMiddleware: Middleware = async (ctx, next) => {
 
 ### Extending Context with Middleware
 
-Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `BunMiddleware` helper type to define middleware that adds properties to the context:
+Middleware can extend the request context with additional properties (like session data, user info, etc.). Use the `EcoMiddleware` helper type to define middleware that adds properties to the context:
 
 ```typescript
-import type { BunMiddleware } from '@ecopages/core/create-app';
+import type { EcoMiddleware } from '@ecopages/core';
 
-// Define middleware that extends context with session data
-const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
+const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) {
 		return Response.redirect('/login');
@@ -382,12 +381,14 @@ import { eco } from '@ecopages/core';
 const PostView = eco.page<PostViewProps>({
 	staticPaths: async () => {
 		const posts = await getPosts();
-		return posts.map((post) => ({ slug: post.slug }));
+		return {
+			paths: posts.map((post) => ({ params: { slug: post.slug } })),
+		};
 	},
 
 	staticProps: async ({ params }) => {
 		const post = await getPost(params.slug);
-		return { title: post.title, content: post.content };
+		return { props: { title: post.title, content: post.content } };
 	},
 
 	render: (props) => <article>...</article>
@@ -433,7 +434,7 @@ export default PostView;
 Explicit routes take precedence over file-system routes:
 
 ```typescript
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 // Explicit routes (higher priority)
 app.get('/posts', posts.index);
@@ -449,17 +450,16 @@ await app.start();
 ## Complete Example
 
 ```typescript
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
 import appConfig from './eco.config';
 import { PostView, PostListView } from './src/views';
-import type { BunMiddleware } from '@ecopages/core/create-app';
+import type { EcoMiddleware } from '@ecopages/core';
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
-// Middleware that extends context
-const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
+const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);
 	if (!session) throw HttpError.Unauthorized();
 	ctx.session = session;

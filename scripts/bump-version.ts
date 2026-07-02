@@ -16,7 +16,7 @@ const rootPackage = readRootPackage();
 
 type BumpType = 'major' | 'minor' | 'patch';
 type PrereleaseChannel = 'alpha' | 'beta';
-type Command = BumpType | 'prerelease';
+type Command = BumpType | 'prerelease' | 'promote';
 
 const BUMP_INDEX: Record<BumpType, number> = {
 	major: 0,
@@ -86,6 +86,18 @@ function formatVersion(version: ParsedVersion): string {
 	return `${stable}-${version.prerelease.channel}.${version.prerelease.number}`;
 }
 
+/**
+ * Drops a prerelease suffix without incrementing MAJOR.MINOR.PATCH.
+ * e.g. 0.2.0-beta.13 → 0.2.0
+ */
+function promoteToStable(current: string): string {
+	const parsed = parseVersion(current);
+	if (!parsed.prerelease) {
+		throw new Error(`Version ${current} is already stable; promote is for prerelease versions only.`);
+	}
+	return formatVersion({ ...parsed, prerelease: undefined });
+}
+
 function computeNextPrerelease(current: string, channel: PrereleaseChannel, bump: BumpType = 'patch'): string {
 	const parsed = parseVersion(current);
 
@@ -123,6 +135,7 @@ function isPrereleaseChannel(value: string | undefined): value is PrereleaseChan
 function printUsage(): void {
 	console.log(`Usage:
 	node --experimental-strip-types scripts/bump-version.ts [patch|minor|major]
+	node --experimental-strip-types scripts/bump-version.ts promote
 	node --experimental-strip-types scripts/bump-version.ts prerelease <alpha|beta> [patch|minor|major]
 
 Options:
@@ -164,6 +177,15 @@ if (parsedArgs.values.help) {
 const [commandPositional, channelPositional, bumpPositional] = parsedArgs.positionals;
 const command = (commandPositional ?? 'patch') as Command;
 const dryRun = parsedArgs.values['dry-run'] ?? false;
+
+if (command === 'promote') {
+	const newVersion = promoteToStable(rootPackage.version);
+	appLogger.info(`${dryRun ? 'Would promote' : 'Promoting'} prerelease version to stable v${newVersion}`);
+	if (!dryRun) {
+		writeRootVersion(newVersion);
+	}
+	process.exit(0);
+}
 
 if (command === 'prerelease') {
 	const channel = parsedArgs.values.channel ?? channelPositional;

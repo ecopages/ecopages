@@ -49,6 +49,12 @@ function stampChangelog(filePath: string, version: string, date: string): boolea
  * unreleased placeholder with the given version and today's date.
  */
 export function stampAllChangelogs(version: string, logger: Logger): void {
+	if (version.includes('-')) {
+		throw new Error(
+			`Refusing to stamp changelogs for prerelease version "${version}". Promote to stable first (pnpm run bump:stable), then stamp.`,
+		);
+	}
+
 	const packagesRoot = path.resolve(import.meta.dirname, '../packages');
 	const today = new Date().toISOString().slice(0, 10);
 	let count = 0;

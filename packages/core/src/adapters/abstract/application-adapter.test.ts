@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, it, vi } from 'vitest';
+import { ECOPAGES_SERVER_READY_MARKER } from '../../dev/server-ready-message.ts';
 import {
 	AbstractApplicationAdapter,
 	type ApplicationAdapterOptions,
@@ -216,5 +217,71 @@ describe('application adapter runtime bootstrap', () => {
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('application adapter listening', () => {
+	it('logs a default ready message when no onAppStart callback is registered', () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(logSpy.mock.calls[0]?.[0], `${ECOPAGES_SERVER_READY_MARKER} http://localhost:3000`);
+		logSpy.mockRestore();
+	});
+
+	it('skips the default ready message when an onAppStart callback is registered', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		await adapter.start(({ origin }) => {
+			assert.equal(origin, 'http://localhost:3000');
+		});
+		adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(logSpy.mock.calls.length, 0);
+		logSpy.mockRestore();
+	});
+});
+
+describe('application adapter listening', () => {
+	it('logs a default ready message when no onAppStart callback is registered', () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(logSpy.mock.calls[0]?.[0], `${ECOPAGES_SERVER_READY_MARKER} http://localhost:3000`);
+		logSpy.mockRestore();
+	});
+
+	it('skips the default ready message when an onAppStart callback is registered', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		await adapter.start(({ origin }) => {
+			assert.equal(origin, 'http://localhost:3000');
+		});
+		adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(logSpy.mock.calls.length, 0);
+		logSpy.mockRestore();
 	});
 });

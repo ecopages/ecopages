@@ -1,4 +1,6 @@
 import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
+import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -216,7 +218,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
-	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined> {
 		if (!this.initialized) {
 			await this.initialize();
 		}
@@ -232,9 +234,32 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		);
 
 		if (!options?.preview) {
-			return;
+			return undefined;
 		}
 
+		return this.startPreviewServer();
+	}
+
+	/**
+	 * Serves an existing static export without running SSG. Used by e2e preview
+	 * launchers after a shared prewarm build.
+	 */
+	public async servePreviewOnly(): Promise<string | undefined> {
+		if (!this.initialized) {
+			await this.initialize();
+		}
+
+		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		if (!fileSystem.exists(distPath)) {
+			throw new Error(
+				`Cannot serve preview without building first: dist directory "${this.appConfig.distDir}" not found in "${this.appConfig.rootDir}".`,
+			);
+		}
+
+		return this.startPreviewServer();
+	}
+
+	private async startPreviewServer(): Promise<string | undefined> {
 		const activePreviewPort = await this.previewHost.start({
 			appConfig: this.appConfig,
 			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
@@ -243,11 +268,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 
 		if (!activePreviewPort) {
-			return;
+			return undefined;
 		}
 
 		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
-		appLogger.info(`Preview running at http://${previewHostname}:${activePreviewPort}`);
+		return `http://${previewHostname}:${activePreviewPort}`;
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {
@@ -256,6 +281,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		return {
 			getServerOptions: this.getServerOptions.bind(this),
 			buildStatic: this.buildStatic.bind(this),
+			servePreviewOnly: this.servePreviewOnly.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),

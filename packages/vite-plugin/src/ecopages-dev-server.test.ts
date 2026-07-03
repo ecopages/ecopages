@@ -5,6 +5,7 @@ import { ecopagesDevServer } from './ecopages-dev-server.ts';
 type DevServerModule = {
 	app?: {
 		fetch?: (request: Request) => Promise<Response>;
+		handleListening?: (origin: string) => void;
 		attachWebSocketUpgrades?: (...args: unknown[]) => Promise<void>;
 	};
 };
@@ -89,6 +90,7 @@ async function setupDevServerMiddleware(
 				options?.module ?? {
 					app: {
 						fetch: fetchImpl,
+						handleListening: () => {},
 					},
 				}
 			);
@@ -176,6 +178,7 @@ describe('ecopagesDevServer', () => {
 				return {
 					app: {
 						fetch: async () => new Response('ok'),
+						handleListening: () => {},
 					},
 				};
 			},
@@ -361,6 +364,7 @@ describe('ecopagesDevServer', () => {
 			module: {
 				app: {
 					fetch: async () => new Response('ok'),
+					handleListening: () => {},
 				},
 			},
 		});
@@ -400,6 +404,7 @@ describe('ecopagesDevServer', () => {
 						}
 						return new Response('ok');
 					},
+					handleListening: () => {},
 					attachWebSocketUpgrades: async (...args: unknown[]) => {
 						await (attachWebSocketUpgrades as (...spreadArgs: unknown[]) => Promise<void>)(...args);
 						attachCompleted = true;
@@ -435,6 +440,7 @@ describe('ecopagesDevServer', () => {
 			module: {
 				app: {
 					fetch: async () => new Response('ok'),
+					handleListening: () => {},
 				},
 			},
 		});

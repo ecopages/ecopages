@@ -200,8 +200,18 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 				void (async () => {
 					try {
 						await registerHostModuleLoader(server, api);
-						const app = await loadApp(server, appEntryPath);
+						const appModule = await server.ssrLoadModule(appEntryPath);
+						const app = appModule.app as EcopagesEmbeddedApp;
+						if (!app?.fetch) {
+							throw new Error(
+								`[ecopages] App entry at '${appEntryPath}' must export an app.fetch(request) handler`,
+							);
+						}
 						api.setCachedApp(app);
+						const origin = api.getDevServerOrigin();
+						if (origin) {
+							app.handleListening(origin);
+						}
 						api.markDevHostReady();
 					} catch (error) {
 						api.markDevHostFailed(error);

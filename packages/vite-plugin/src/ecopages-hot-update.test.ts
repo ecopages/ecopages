@@ -140,6 +140,7 @@ describe('ecopagesHotUpdate', () => {
 		const api = createApi();
 		api.setCachedApp({
 			fetch: async () => new Response('ok'),
+			handleListening: () => {},
 		});
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();

@@ -1,8 +1,10 @@
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import appConfig from './eco.config';
 import * as auth from './src/handlers/auth.server';
 
-new EcopagesApp({ appConfig })
+const app = await createApp({ appConfig });
+
+await app
 	.get('/api/auth/*', auth.authHandler)
 	.post('/api/auth/*', auth.authHandler)
 	.put('/api/auth/*', auth.authHandler)

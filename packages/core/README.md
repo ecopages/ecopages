@@ -227,7 +227,7 @@ import { defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
 ```
 
 > [!NOTE]
-> `createApp` is the recommended entrypoint over `EcopagesApp`.
+> Use `createApp()` from `@ecopages/core/create-app` as the application entrypoint.
 
 ### Runtime Escape Hatches
 

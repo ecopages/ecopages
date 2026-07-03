@@ -76,7 +76,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		});
 	}
 
-	public async start(): Promise<NodeServerInstance | void> {
+	protected async bootServer(): Promise<NodeServerInstance | void> {
 		if (this.stopped) {
 			this.serverAdapter = undefined;
 			this.stopped = false;
@@ -90,12 +90,24 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			return this.server;
 		}
 
-		const { build, preview, force } = this.cliArgs;
+		const { build, preview, force, serveOnly } = this.cliArgs;
+
+		if (preview && serveOnly) {
+			const previewOrigin = await this.serverAdapter.servePreviewOnly();
+			if (previewOrigin) {
+				this.notifyListening(previewOrigin);
+			}
+			return;
+		}
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview, force });
+			const previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
 			appLogger.debugTimeEnd('Building static pages');
+
+			if (preview && previewOrigin) {
+				this.notifyListening(previewOrigin);
+			}
 
 			if (build) {
 				process.exit(0);
@@ -112,7 +124,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		this.runtimeOrigin = this.runtimeHost.getOrigin(this.server, serveOptions);
 
 		await this.serverAdapter.completeInitialization(this.server);
-		appLogger.info(`Node server running at ${this.runtimeOrigin}`);
+		this.notifyListening(this.runtimeOrigin);
 
 		return this.server;
 	}

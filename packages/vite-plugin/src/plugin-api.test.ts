@@ -36,7 +36,7 @@ describe('createEcopagesPluginApi', () => {
 
 	it('tracks the warmed app cache across invalidation', () => {
 		const api = createApi();
-		const app = { fetch: async () => new Response('ok') };
+		const app = { fetch: async () => new Response('ok'), handleListening: () => {} };
 
 		expect(api.getCachedApp()).toBeNull();
 

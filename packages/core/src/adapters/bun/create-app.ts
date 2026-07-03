@@ -124,7 +124,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 	 * @param options Optional settings
 	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
 	 */
-	public async start(): Promise<Server<WebSocketData> | void> {
+	protected async bootServer(): Promise<Server<WebSocketData> | void> {
 		if (this.stopped) {
 			this.serverAdapter = undefined;
 			this.stopped = false;
@@ -134,16 +134,28 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
-		const { dev, preview, build, force } = this.cliArgs;
+		const { dev, preview, build, force, serveOnly } = this.cliArgs;
 		const staticRuntimeMode = resolveStaticRuntimeMode({
 			appConfig: this.appConfig,
 			cliArgs: this.cliArgs,
 		});
 
+		if (preview && serveOnly) {
+			const previewOrigin = await this.serverAdapter.servePreviewOnly();
+			if (previewOrigin) {
+				this.notifyListening(previewOrigin);
+			}
+			return;
+		}
+
 		if (staticRuntimeMode.canBuildWithoutRuntimeServer) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview, force });
+			const previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
 			appLogger.debugTimeEnd('Building static pages');
+
+			if (preview && previewOrigin) {
+				this.notifyListening(previewOrigin);
+			}
 
 			if (build) {
 				process.exit(0);
@@ -168,13 +180,15 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		if (!this.server) {
 			throw new Error('Server failed to start');
 		}
-		appLogger.info(
-			`Server running at ${this.runtimeHost.getOrigin(this.server, runtimeServerOptions as Bun.Serve.Options<WebSocketData>)}`,
+		const runtimeOrigin = this.runtimeHost.getOrigin(
+			this.server,
+			runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
 		);
 
+		let previewOrigin: string | undefined;
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview, force });
+			previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
 			const buildRuntimeServer = this.server;
 			this.server = null;
 			await this.runtimeHost.stop(buildRuntimeServer, { force: true });
@@ -183,6 +197,12 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			if (build) {
 				process.exit(0);
 			}
+		} else {
+			this.notifyListening(runtimeOrigin);
+		}
+
+		if (preview && previewOrigin) {
+			this.notifyListening(previewOrigin);
 		}
 
 		return this.server ?? undefined;

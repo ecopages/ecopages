@@ -22,11 +22,11 @@ export function getWebServerTimeout(server: PlaywrightWebServerConfig): number {
 		return 180_000;
 	}
 
-	if (
-		server.command.includes('--build') ||
-		server.command.includes(' run build ') ||
-		server.command.includes('start-docs-e2e-server')
-	) {
+	if (server.command.includes('start-docs-e2e-server')) {
+		return 300_000;
+	}
+
+	if (server.command.includes('--build') || server.command.includes(' run build ')) {
 		return 180_000;
 	}
 

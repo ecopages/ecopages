@@ -9,7 +9,6 @@ import type {
 	PageBrowserGraphContribution,
 	PageBrowserGraphResult,
 	PageMetadataProps,
-	PageProps,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,

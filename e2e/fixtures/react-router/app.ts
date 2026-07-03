@@ -1,6 +1,7 @@
-import { EcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
+import { onAppStartCallback } from '../../playwright/on-app-start';
 import appConfig from './eco.config';
 
-const app = new EcopagesApp({ appConfig });
+export const app = await createApp({ appConfig });
 
-await app.start();
+await app.start(onAppStartCallback);

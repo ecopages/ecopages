@@ -1,9 +1,8 @@
 /**
  * Playwright config env parsing shared by `playwright.config.ts`.
  *
- * `run-e2e.ts` sets `ECOPAGES_PLAYWRIGHT_PROJECTS` when you pass `--project`.
- * When invoking `playwright test` directly, export the same variable to limit
- * which web servers start.
+ * When invoking `playwright test` directly, set `ECOPAGES_PLAYWRIGHT_PROJECTS`
+ * (comma-separated) to limit which web servers start.
  */
 
 /**

@@ -18,8 +18,7 @@
 		"preview:node": "ecopages preview --runtime node",
 		"dev:vite": "pnpm run dev:vite:node",
 		"dev:vite:node": "ECOPAGES_KITCHEN_SINK_HOST=vite pnpm exec vite dev",
-		"dev:vite:bun": "ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev",
-		"test:e2e:review": "playwright test --config ../../playwright.config.ts --project kitchen-sink-bun-review-e2e --project kitchen-sink-node-review-e2e --project kitchen-sink-vite-node-review-e2e --project kitchen-sink-vite-bun-review-e2e"
+		"dev:vite:bun": "ECOPAGES_KITCHEN_SINK_HOST=vite bunx vite dev"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.60.0",

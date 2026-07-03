@@ -16,6 +16,22 @@ const ecopagesCliEntrypoint = path.join(repoRoot, 'packages', 'ecopages', 'bin',
 const keepWorkspace = process.env.ECOPAGES_KEEP_E2E_TMP === 'true';
 const wrapperManagesWorkspaceCleanup = process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES === 'true';
 const excludedTopLevelEntries = new Set(['.e2e', 'node_modules']);
+const timingEnabled = process.env.ECOPAGES_E2E_TIMING === 'true';
+
+/**
+ * Emits a timestamped `[e2e-server]` marker so parity/CI runs can pinpoint slow
+ * server boots (workspace copy vs process spawn) instead of masking them with
+ * larger `webServer.timeout` values. Gated by `ECOPAGES_E2E_TIMING` to keep
+ * normal runs quiet. Playwright itself owns the "server ready" measurement (it
+ * polls the url/port), so this only covers phases this launcher controls.
+ */
+function logServerTiming(phase, scope) {
+	if (!timingEnabled) {
+		return;
+	}
+
+	console.log(`[e2e-server] ${phase} scope=${scope} at=${Date.now()}`);
+}
 
 export function shouldExcludeFromWorkspaceCopy(relativePath) {
 	if (!relativePath) {
@@ -261,14 +277,12 @@ export function prepareWorkspace(sourceDir, workspaceDir) {
 export function buildCommand(options) {
 	if (options.host === 'vite') {
 		const viteRunner = options.runtime === 'bun' ? 'bunx vite' : 'pnpm exec vite';
-		return `${viteRunner} dev --port ${options.port} --logLevel silent`;
+		return `${viteRunner} dev --port ${options.port}`;
 	}
 
 	const ecopagesCli = `node "${ecopagesCliEntrypoint}"`;
 
 	if (options.mode === 'preview') {
-		// Preview already runs the full static build before serving; a separate `build`
-		// invocation only duplicates SSG work and roughly doubles startup time.
 		return `${ecopagesCli} preview --runtime ${options.runtime} --port ${options.port}`;
 	}
 
@@ -284,9 +298,6 @@ export function buildEnv(options) {
 		...(options.host === 'vite' ? { ECOPAGES_CROSS_INTEGRATION_HOST: 'vite' } : {}),
 		...(options.host === 'ecopages' ? { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } : {}),
 		NODE_ENV: options.mode === 'preview' ? 'production' : 'development',
-		...(options.mode === 'dev'
-			? { ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS: process.env.ECOPAGES_HMR_REGISTRATION_TIMEOUT_MS ?? '30000' }
-			: {}),
 	});
 }
 
@@ -294,7 +305,10 @@ function main() {
 	const options = parseArgs(process.argv.slice(2));
 	const sourceDir = getAbsoluteSourceDir(options.sourceDir);
 	const workspaceDir = getWorkspaceDir(options.workspace);
+
+	logServerTiming('workspace-prepare-start', options.artifactScope);
 	prepareWorkspace(sourceDir, workspaceDir);
+	logServerTiming('workspace-prepare-done', options.artifactScope);
 
 	let cleanedUp = false;
 	let childExited = false;
@@ -308,6 +322,7 @@ function main() {
 		removeDirectorySync(workspaceDir);
 	}
 
+	logServerTiming('process-spawn', options.artifactScope);
 	const child = spawn(buildCommand(options), {
 		cwd: workspaceDir,
 		env: buildEnv(options),

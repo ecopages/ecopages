@@ -44,7 +44,7 @@ describe('run-isolated-app launcher', () => {
 				host: 'vite',
 				mode: 'dev',
 				port: 4012,
-				artifactScope: 'cross-integration-vite-dev',
+				artifactScope: 'cross-integration-vite-node-parity',
 			}).ECOPAGES_BASE_URL,
 		).toBe('http://localhost:4012');
 	});

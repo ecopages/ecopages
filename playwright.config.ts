@@ -2,14 +2,8 @@
  * Playwright entrypoint. Fixtures self-describe in e2e/fixtures/<block>/fixture.e2e.ts.
  * Full suite: package.json scripts test:e2e:static, test:e2e:dev, test:e2e:kitchen-sink.
  */
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { defineConfig, devices } from '@playwright/test';
-import {
-	getSelectedPlaywrightProjects,
-	includeWebServerForProjects,
-	shouldReuseExistingTestServers,
-} from './e2e/playwright/config-env';
+import { defineConfig } from '@playwright/test';
+import { getSelectedPlaywrightProjects, includeWebServerForProjects } from './e2e/playwright/config-env';
 import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
 import { getWebServerTimeout } from './e2e/playwright/web-server-timeouts';
 import { getDefaultWorkerCount } from './e2e/playwright/workers';
@@ -17,10 +11,7 @@ import { configurePlaywrightColorEnv } from './e2e/playwright/playwright-color-e
 
 configurePlaywrightColorEnv(process.env);
 
-const repoRootDir = path.dirname(fileURLToPath(import.meta.url));
-const desktopChrome = devices['Desktop Chrome'];
 const defaultWorkerCount = getDefaultWorkerCount();
-const reuseExistingServer = shouldReuseExistingTestServers();
 const selectedProjects = getSelectedPlaywrightProjects();
 const capabilityFixtures = loadCapabilityFixtures();
 const isolatedFixtures = loadIsolatedFixtures();

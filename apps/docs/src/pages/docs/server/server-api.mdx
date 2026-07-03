@@ -32,53 +32,33 @@ await app.start();
 
 ## Starting the server
 
-`app.start()` boots the runtime for the current CLI mode (`dev`, `preview`, `build`, or production `start`). Pass an optional callback to run once the server can accept traffic:
+Call `app.start()` after you register routes. It boots the runtime for the current CLI mode (`dev`, `preview`, `build`, or production `start`). The runtime logs the ready URL by default — you do not need a callback for basic startup logging.
 
 ```typescript
-import { createApp, type OnAppStartCallback } from '@ecopages/core/create-app';
+// filepath: app.ts
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
 
-const onAppStart: OnAppStartCallback = ({ origin }) => {
-	console.log(`Ecopages is ready at ${origin}`);
-};
+const app = await createApp({ appConfig });
 
-await app.start(onAppStart);
-```
-
-The callback receives `{ origin }` — the resolved base URL with no trailing slash (for example `http://localhost:3000`). It runs after the runtime bind completes, not when the process starts.
-
-### Embedded hosts (Vite)
-
-When Ecopages runs inside a host such as the [Vite plugin](/docs/ecosystem/vite-plugin), pass `runtime: { embedded: true }` to `createApp()`. In that mode `app.start()` only registers the callback; the host opens the port and calls `app.handleListening(origin)` when the app is ready to serve requests.
-
-```typescript
-const app = await createApp({
-	appConfig,
-	runtime: {
-		embedded: true,
-		devClientOwner: 'host',
-	},
+app.get('/api/hello', async () => {
+	return new Response('Hello World');
 });
 
+await app.start();
+```
+
+Pass an optional callback when you need custom logic once the runtime can accept traffic. The callback receives `{ origin }` — the resolved base URL with no trailing slash (for example `http://localhost:3000`).
+
+```typescript
 await app.start(({ origin }) => {
-	console.log(`Embedded app ready at ${origin}`);
+	// Run custom readiness work here
 });
 ```
 
-See [Build and Host](/docs/core/build-and-host) for how embedded runtime mode fits the host model.
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app` if you want an explicit annotation.
 
-### Readiness signals for tooling
-
-For test runners or process supervisors that match stdout (for example Playwright `webServer`), log a machine-readable ready line from the callback:
-
-```typescript
-import { formatServerReadyMessage } from '@ecopages/core/dev/server-ready-message';
-
-await app.start(({ origin }) => {
-	console.log(formatServerReadyMessage(origin));
-});
-```
-
-This prints `[@ecopages/ready] http://localhost:3000`. Prefer waiting on that marker over probing `GET /` during boot — the port can open before SSR is warm.
+> **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
 
 ## HTTP Methods
 
@@ -230,7 +210,14 @@ See [WebSockets](/docs/server/websockets) for the full guide.
 Use `app.fetch()` to exercise handlers without a bound network server. This is the same request surface embedded hosts use.
 
 ```typescript
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
 const app = await createApp({ appConfig });
+
+app.get('/api/hello', async ({ response }) => {
+	return response.json({ message: 'Hello World' });
+});
 
 const response = await app.fetch(new Request('http://localhost/api/hello'));
 const data = await response.json();

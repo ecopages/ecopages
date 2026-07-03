@@ -27,6 +27,7 @@ import type {
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { formatServerReadyMessage } from '../../dev/server-ready-message.ts';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
@@ -518,7 +519,13 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	protected notifyListening(origin: string): void {
-		this.onAppStartCallback?.({ origin: origin.replace(/\/$/, '') });
+		const normalizedOrigin = origin.replace(/\/$/, '');
+
+		if (!this.onAppStartCallback) {
+			console.log(formatServerReadyMessage(normalizedOrigin));
+		}
+
+		this.onAppStartCallback?.({ origin: normalizedOrigin });
 	}
 
 	/**

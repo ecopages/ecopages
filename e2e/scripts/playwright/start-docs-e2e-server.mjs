@@ -81,7 +81,7 @@ function runCommand(command) {
 	});
 }
 
-const previewCommand = `NODE_ENV=production ECOPAGES_PORT=${port} pnpm --filter @ecopages/docs run preview`;
+const previewCommand = `NODE_ENV=production ECOPAGES_PORT=${port} ECOPAGES_PREVIEW_SERVE_ONLY=true pnpm --filter @ecopages/docs run preview`;
 
 if (isDistFresh()) {
 	console.log('[docs-e2e] dist is fresh — skipping build');

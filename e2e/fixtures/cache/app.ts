@@ -1,7 +1,8 @@
-import { EcopagesApp } from '../../../packages/core/src/adapters/create-app';
+import { createApp } from '@ecopages/core/create-app';
+import { onAppStartCallback } from '../../playwright/on-app-start';
 import appConfig from './eco.config';
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 interface CacheInvalidationBody {
 	tags?: string[];
@@ -53,4 +54,4 @@ app.get('/api/cache-stats', async ({ services }) => {
 	return Response.json(stats);
 });
 
-await app.start();
+await app.start(onAppStartCallback);

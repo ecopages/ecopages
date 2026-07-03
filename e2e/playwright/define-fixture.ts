@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { PlaywrightTestProject } from '@playwright/test';
 import { getDefaultWorkerCount } from './workers.ts';
+import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
@@ -73,6 +74,7 @@ export type FixtureWebServer = {
 	stdout: 'pipe';
 	stderr: 'pipe';
 	url?: string;
+	wait?: { stdout?: RegExp; stderr?: RegExp };
 	env?: Record<string, string>;
 };
 
@@ -250,7 +252,7 @@ function buildWebServersFromSpecs(
 		reuseExistingServer: options.reuseExistingServer,
 		stdout: 'pipe',
 		stderr: 'pipe',
-		...(spec.mode === 'dev' ? { url: `http://localhost:${spec.port}/` } : { port: spec.port }),
+		...getEcopagesServerReadySignal(),
 	}));
 }
 
@@ -296,9 +298,7 @@ export function defineExternalFixture(
 			{
 				command: definition.command,
 				cwd: definition.cwd,
-				...(definition.command.includes('--dev') || definition.command.includes(' run dev')
-					? { url: `http://localhost:${definition.port}/` }
-					: { port: definition.port }),
+				...getEcopagesServerReadySignal(),
 				projects: [projectName],
 				reuseExistingServer: options.reuseExistingServer,
 				stdout: 'pipe',

@@ -1,102 +1,58 @@
 # E2E testing
 
-Playwright coverage is orchestrated by `e2e/scripts/playwright/run-e2e.ts`. Root `playwright.config.ts` composes self-describing capability fixtures from `e2e/fixtures/*/fixture.e2e.ts`; shared wiring lives in `e2e/playwright/`.
+Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/fixtures/*/fixture.e2e.ts`.
 
-Full policy and project matrix: [`docs/e2e-test-plan.md`](../docs/e2e-test-plan.md).
+Full policy: [`docs/e2e-test-plan.md`](../docs/e2e-test-plan.md).
 
-## Capability fixtures
+## Three runs (full suite)
 
-Each integration block lives under `e2e/fixtures/<block>/` with:
+| Script                        | What                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.            |
+| `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).          |
+| `pnpm test:e2e:dev`           | One `playwright test` — fixture dev servers (core-hmr, react, react-router). |
+| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR          |
+| `pnpm test:e2e`               | Build + all three runs above.                                                |
 
-- `app.ts`, `eco.config.ts`, `package.json` — the fixture app (when in-repo)
-- `fixture.e2e.ts` — declares Playwright projects plus web servers
-- `*.test.e2e.ts` — tests co-located with the app
+PR CI uses `test:e2e:pr` (drops node preview + HMR; greps canonical dev).
 
-After adding a fixture, register it in `e2e/playwright/capability-fixture-registry.ts` and add its projects to a wave in `e2e/playwright/orchestration-waves.ts` (coverage guarded by `assertWaveCoverage()`).
-
-Run one project locally:
+## Single project
 
 ```bash
-pnpm test:e2e --project core-hmr-dev-e2e
-pnpm test:e2e --project browser-router-e2e
-pnpm test:e2e --project cross-integration-dev-e2e
+pnpm run build:e2e:kitchen-sink   # before preview projects
+ECOPAGES_PLAYWRIGHT_PROJECTS=cross-integration-dev-e2e playwright test --project cross-integration-dev-e2e
 ```
 
-## Commands
+Without `ECOPAGES_PLAYWRIGHT_PROJECTS`, `playwright.config.ts` boots **every** webServer in the matrix. Batch scripts set it automatically.
 
-| Command                          | Purpose                                     |
-| -------------------------------- | ------------------------------------------- |
-| `pnpm test:e2e`                  | Full gate (8 sequential waves)              |
-| `pnpm test:gate`                 | Fast local loop: vitest + stress smoke      |
-| `pnpm test:all`                  | Vitest + full e2e (CI, pre-commit, publish) |
-| `pnpm test:e2e --project <name>` | Single project (bypasses waves)             |
-| `pnpm test:e2e:ui`               | Playwright UI (debug; bypasses waves)       |
+Or `pnpm test:e2e:ui` for the Playwright UI.
 
-## Orchestration waves
+## Adding a fixture
 
-Five sequential waves — one Playwright subprocess each. Definitions in `e2e/playwright/orchestration-waves.ts`:
+1. Add `e2e/fixtures/<block>/fixture.e2e.ts`
+2. Register in `e2e/playwright/capability-fixture-registry.ts`
+3. Add the project name to the right `package.json` script (`test:e2e:static`, `test:e2e:dev`, or `run-each-project.mjs` list)
 
-```
-1. static-wave:           7 static/preview projects (N workers each)
-2. core-hmr-dev:          2 dev projects (1 worker each)
-3. fixture-dev:           2 dev projects (1 worker each)
-4. cross-integration-dev: 2 dev projects (1 worker each, shared workspace)
-5. cross-integration-hmr: 1 hmr project (1 worker, isolated workspace)
-```
+## Test tiers
 
-`--project` bypasses waves and runs a single Playwright invocation. `--grep` passes through to Playwright native.
+| Tier       | Command                | Runs                                      |
+| ---------- | ---------------------- | ----------------------------------------- |
+| Pre-commit | `pnpm test:pre-commit` | vitest + lint + typecheck (no Playwright) |
+| PR         | `pnpm test:ci`         | vitest + `test:e2e:pr`                    |
+| Full       | `pnpm test:all`        | vitest + `test:e2e`                       |
+
+## Kitchen-sink cross-integration
+
+- **Preview** — in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
+- **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
+- **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
+- **HMR** — `includes-hmr.test.e2e.ts`, own workspace.
 
 ## Environment variables
 
-Only set these when debugging. Normal `pnpm test:e2e` does not require any of them.
-
-### Debugging
-
-| Variable                       | Values                        | Effect                                                                                                                                        |
-| ------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ECOPAGES_E2E_TIMING`          | `true`                        | Log per-wave wall-clock as `[e2e-timing]`                                                                                                     |
-| `ECOPAGES_REUSE_TEST_SERVERS`  | `true`                        | Reuse already-running web servers (`playwright.config.ts`)                                                                                    |
-| `ECOPAGES_KEEP_E2E_TMP`        | `true`                        | Keep `.e2e-tmp/` workspace copies after a run (`run-isolated-app.mjs`)                                                                        |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS` | comma-separated project names | Limit which Playwright projects start. `run-e2e.ts` sets this when you pass `--project`; only needed when invoking `playwright test` directly |
-
-### Internal (set by harness — do not set manually)
-
-These are written by `run-isolated-app.mjs` / `playwright.config.ts` so cross-integration variants stay isolated. Documented here so env dumps are interpretable.
-
-| Variable                              | Set by                                    | Purpose                                                                  |
-| ------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES` | run-e2e.ts                                | Coordinate cleanup when multiple projects share one `.e2e-tmp` workspace |
-| `ECOPAGES_E2E_ARTIFACT_SCOPE`         | define-fixture.ts + isolated app launcher | Scope `dist-*` / `.eco-*` dirs per parallel project                      |
-| `ECOPAGES_CROSS_INTEGRATION_HOST`     | isolated app launcher                     | `vite` when the vite-host row is under test                              |
-| `ECOPAGES_CROSS_INTEGRATION_E2E`      | isolated app launcher                     | `true` for ecopages-hosted cross-integration runs (Bun idle timeout)     |
-
-### Fixture / app runtime (not e2e-specific)
-
-Used inside fixture `eco.config.ts` or server commands started by Playwright:
-
-| Variable                         | Typical use                                |
-| -------------------------------- | ------------------------------------------ |
-| `ECOPAGES_PORT`                  | Server port for a fixture                  |
-| `ECOPAGES_PERSIST_LAYOUTS`       | React-router persist-layouts fixtures      |
-| `ECOPAGES_USE_POSTCSS_PROCESSOR` | Core HMR fixture (`e2e/fixtures/core-hmr`) |
-
-## Vitest opt-in suites
-
-Slow or specialized Vitest files are **not** in the default `pnpm test:vitest` glob. They are registered in `scripts/vitest-optional-includes.ts` and enabled when their env var is `1`.
-
-| Variable                            | Script                           | Suite                                                                         |
-| ----------------------------------- | -------------------------------- | ----------------------------------------------------------------------------- |
-| `ECOPAGES_TEST_STATIC_BUILD_PARITY` | `pnpm test:vitest:static-parity` | Unified pages graph HTML parity (`static-build-unified-graph-parity.test.ts`) |
-
-To add another opt-in suite: add an entry to `scripts/vitest-optional-includes.ts` and a `package.json` script that exports the env var.
-
-## Benchmark env vars (Vitest bench project)
-
-Kitchen-sink benchmarks use the `bench` Vitest project (`vitest.bench.config.ts`), not Playwright.
-
-| Variable                         | Values | Effect                                                                        |
-| -------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| `ECOPAGES_BENCH`                 | `1`    | Required by bench bodies via `shouldRunBench()` (`pnpm test:bench` sets this) |
-| `ECOPAGES_BENCH_PRODUCTION_DIST` | `1`    | Opt-in extra bench case writing to production `dist/`                         |
-
-See `playground/kitchen-sink/bench/README.md` for baseline workflow.
+| Variable                                   | Effect                                               |
+| ------------------------------------------ | ---------------------------------------------------- |
+| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers                            |
+| `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                 |
+| `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test` |
+| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells |

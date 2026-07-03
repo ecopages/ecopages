@@ -1,10 +1,17 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
-import type { ApiHandler } from '../types/public-types.ts';
 import type { ApplicationAdapterOptions } from './abstract/application-adapter.ts';
-import { SharedApplicationAdapter } from './shared/application-adapter.ts';
 import { createApp as createBunApp } from './bun/create-app.ts';
 import { createNodeApp } from './node/create-app.ts';
+
+export type {
+	OnAppStartCallback,
+	AppStartInfo,
+	StartCallback,
+	ListenCallback,
+	ApplicationListeningCallback,
+	ApplicationListeningInfo,
+} from './abstract/application-adapter.ts';
 
 export type EcopagesRuntimeAdapter = 'auto' | 'node' | 'bun';
 
@@ -39,78 +46,4 @@ async function createRuntimeApp<WebSocketData = undefined>(options: EcopagesAppO
 
 export async function createApp<WebSocketData = undefined>(options: EcopagesAppOptions): Promise<UniversalEcopagesApp> {
 	return createRuntimeApp<WebSocketData>(options);
-}
-
-export class EcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, unknown, Request> {
-	private readonly appOptions: EcopagesAppOptions;
-	private runtimeApp: UniversalEcopagesApp | null = null;
-	private runtimeAppPromise: Promise<UniversalEcopagesApp> | null = null;
-
-	constructor(options: EcopagesAppOptions) {
-		super(options);
-		this.appOptions = options;
-	}
-
-	private async getRuntimeApp(): Promise<UniversalEcopagesApp> {
-		if (this.runtimeApp) {
-			return this.runtimeApp;
-		}
-
-		if (!this.runtimeAppPromise) {
-			this.runtimeAppPromise = createRuntimeApp({
-				...this.appOptions,
-				clearOutput: false,
-			}).then((app) => {
-				for (const handler of this.apiHandlers) {
-					app.add(handler as ApiHandler<string, Request, any>);
-				}
-
-				for (const route of this.staticRoutes) {
-					app.static(route.path, route.loader);
-				}
-
-				if (this.errorHandler) {
-					app.onError(this.errorHandler);
-				}
-
-				this.runtimeApp = app;
-				return app;
-			});
-		}
-
-		return this.runtimeAppPromise;
-	}
-
-	protected async initializeServerAdapter(): Promise<UniversalEcopagesApp> {
-		return this.getRuntimeApp();
-	}
-
-	async start(): Promise<unknown> {
-		const runtimeApp = await this.getRuntimeApp();
-		return runtimeApp.start();
-	}
-
-	async fetch(request: Request): Promise<Response> {
-		const runtimeApp = await this.getRuntimeApp();
-		const candidate = runtimeApp as UniversalEcopagesApp & {
-			fetch?: (request: Request) => Promise<Response>;
-		};
-
-		if (!candidate.fetch) {
-			throw new Error('The selected runtime adapter does not expose fetch()');
-		}
-
-		return candidate.fetch(request);
-	}
-
-	public override async stop(force = true): Promise<void> {
-		const runtimeApp = this.runtimeApp ?? (this.runtimeAppPromise ? await this.runtimeAppPromise : null);
-
-		if (runtimeApp) {
-			await runtimeApp.stop(force);
-		}
-
-		this.runtimeApp = null;
-		this.runtimeAppPromise = null;
-	}
 }

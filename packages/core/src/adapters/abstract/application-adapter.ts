@@ -68,6 +68,24 @@ export interface ApplicationRuntimeOptions {
 	hostModuleLoader?: SourceModuleLoader;
 }
 
+export interface AppStartInfo {
+	origin: string;
+}
+
+export type OnAppStartCallback = (info: AppStartInfo) => void;
+
+/** @deprecated Use {@link AppStartInfo}. */
+export type ApplicationListeningInfo = AppStartInfo;
+
+/** @deprecated Use {@link OnAppStartCallback}. */
+export type StartCallback = OnAppStartCallback;
+
+/** @deprecated Use {@link OnAppStartCallback}. */
+export type ListenCallback = OnAppStartCallback;
+
+/** @deprecated Use {@link OnAppStartCallback}. */
+export type ApplicationListeningCallback = OnAppStartCallback;
+
 /**
  * Configuration options for application adapters
  */
@@ -86,7 +104,10 @@ export interface ApplicationAdapterOptions {
  * Common interface for application adapters
  */
 export interface ApplicationAdapter<T = any> extends AsyncDisposable {
-	start(): Promise<T | void>;
+	/** Boot the server. Pass a callback to run when the runtime is ready (optional). */
+	start(onAppStart?: OnAppStartCallback): Promise<T | void>;
+	/** Invoked by embedded hosts once the app can take traffic. */
+	handleListening(origin: string): void;
 	stop(force?: boolean): Promise<void>;
 }
 
@@ -125,6 +146,7 @@ export abstract class AbstractApplicationAdapter<
 	 * Both Bun and Node adapters read this map to register upgrade routes.
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+	private onAppStartCallback?: OnAppStartCallback;
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
@@ -470,9 +492,34 @@ export abstract class AbstractApplicationAdapter<
 	protected abstract initializeServerAdapter(): Promise<any>;
 
 	/**
-	 * Start the application server
+	 * Boot the server. When `onAppStart` is passed, it runs once the runtime can take traffic.
+	 * Embedded apps only register the callback — the host (for example Vite) boots the port.
 	 */
-	public abstract start(): Promise<TServer | void>;
+	public async start(onAppStart?: OnAppStartCallback): Promise<TServer | void> {
+		if (onAppStart) {
+			this.onAppStartCallback = onAppStart;
+		}
+
+		if (this.runtimeOptions.embedded) {
+			return;
+		}
+
+		return this.bootServer();
+	}
+
+	/** Runtime-specific server boot (dev, preview, build). */
+	protected abstract bootServer(): Promise<TServer | void>;
+
+	/**
+	 * Invoked by embedded hosts (for example Vite) once the app can take traffic.
+	 */
+	public handleListening(origin: string): void {
+		this.notifyListening(origin);
+	}
+
+	protected notifyListening(origin: string): void {
+		this.onAppStartCallback?.({ origin: origin.replace(/\/$/, '') });
+	}
 
 	/**
 	 * Stops the application server and releases runtime resources.

@@ -139,10 +139,10 @@ export default config;
 Create `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core/create-app";
+import { createApp } from "@ecopages/core/create-app";
 import appConfig from "./eco.config";
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 await app.start();
 ```
@@ -398,7 +398,7 @@ Register handlers in `app.ts`:
 import * as posts from "./src/handlers/posts";
 import { adminGroup } from "./src/handlers/admin";
 
-const app = new EcopagesApp({ appConfig });
+const app = await createApp({ appConfig });
 
 app.post(posts.createPost);
 app.group(adminGroup);
@@ -918,11 +918,11 @@ export const authHandler = async (ctx: ApiHandlerContext) => {
 In `app.ts`:
 
 ```typescript
-import { EcopagesApp } from "@ecopages/core";
+import { createApp } from "@ecopages/core";
 import appConfig from "./eco.config";
 import * as auth from "./src/handlers/auth.server";
 
-new EcopagesApp({ appConfig })
+await createApp({ appConfig })
   .get("/api/auth/*", auth.authHandler)
   .post("/api/auth/*", auth.authHandler)
   .put("/api/auth/*", auth.authHandler)

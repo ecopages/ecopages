@@ -5,6 +5,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
 import { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
+import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -342,12 +343,7 @@ export class ProjectWatcher {
 			processorPaths.add(watchPath);
 		}
 
-		const ignored = [
-			'**/node_modules/**',
-			'**/.git/**',
-			path.join(this.appConfig.absolutePaths.workDir, '**'),
-			path.join(this.appConfig.absolutePaths.distDir, '**'),
-		];
+		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
 
 		this.watcher = chokidar.watch(Array.from(processorPaths), {
 			ignoreInitial: true,

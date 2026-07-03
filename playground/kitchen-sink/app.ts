@@ -1,5 +1,6 @@
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
+import { formatServerReadyMessage } from '@ecopages/core/dev/server-ready-message';
 import appConfig from './eco.config';
 import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
@@ -57,6 +58,6 @@ app.onError((error, ctx) => {
 	return ctx.json({ error: 'Internal Server Error' }, { status: 500 });
 });
 
-if (!isViteHosted) {
-	await app.start();
-}
+await app.start(({ origin }) => {
+	console.log(formatServerReadyMessage(origin));
+});

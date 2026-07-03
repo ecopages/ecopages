@@ -179,20 +179,23 @@ Using the `ApiResponseBuilder` makes your API handler code cleaner, more readabl
 
 ## WebSocket Handlers
 
-If your application requires real-time bidirectional communication, you can define WebSocket handlers when starting your application. Ecopages provides a runtime-agnostic WebSocket API (see [WebSockets](/docs/server/websockets)).
+Register WebSocket routes on the app before calling `start()`. Ecopages provides a runtime-agnostic WebSocket API (see [WebSockets](/docs/server/websockets)).
 
 ```typescript
-await app.start({
-    websocket: {
-        open(ws) {
-            console.log('Client connected');
-        },
-        message(ws, message) {
-            console.log('Received:', message);
-            ws.send(`Server received: ${message}`);
-        },
-    },
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.websocket('/ws/echo', {
+	onMessage(socket, message) {
+		if (message.kind === 'text') {
+			socket.send(message.text);
+		}
+	},
 });
+
+await app.start();
 ```
 
 ## Route Groups

@@ -35,6 +35,17 @@ Development uses one-shot Rolldown builds with shared HMR and invalidation servi
 
 Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bun when available and falls back to Node. Vite/Nitro hosts still use the same app config and `app.fetch()` contract.
 
+### Boot vs embed
+
+| Mode | `createApp()` options | What `app.start()` does |
+|------|----------------------|-------------------------|
+| **Standalone** (CLI, Bun/Node) | default | Binds the port and serves traffic |
+| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port |
+
+In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, and invokes the callback you pass to `app.start()` when the app can serve requests.
+
+See [Starting the server](/docs/server/server-api#starting-the-server) for a full `app.ts` example and the callback signature.
+
 ## Further reading
 
 - [Architecture](/docs/core/architecture)

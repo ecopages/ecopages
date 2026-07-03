@@ -1,6 +1,6 @@
 /**
- * Playwright entrypoint. Capability fixtures self-describe via `e2e/fixtures/<block>/fixture.e2e.ts`.
- * Batch orchestration: `e2e/scripts/playwright/run-e2e.ts`, `e2e/README.md`.
+ * Playwright entrypoint. Fixtures self-describe in e2e/fixtures/<block>/fixture.e2e.ts.
+ * Full suite: package.json scripts test:e2e:static, test:e2e:dev, test:e2e:kitchen-sink.
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

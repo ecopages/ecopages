@@ -103,8 +103,8 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 		return new Response(null, { status: 204 });
 	}
 
-	start(): Promise<void> {
-		return Promise.resolve();
+	protected async bootServer(): Promise<void> {
+		return;
 	}
 }
 
@@ -131,6 +131,7 @@ describe('application adapter runtime bootstrap', () => {
 			start: false,
 			dev: true,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,

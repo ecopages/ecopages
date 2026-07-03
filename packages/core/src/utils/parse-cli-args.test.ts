@@ -32,6 +32,7 @@ describe('parseCliArgs', () => {
 			start: false,
 			dev: true,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
@@ -48,6 +49,7 @@ describe('parseCliArgs', () => {
 			start: true,
 			dev: false,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
@@ -64,9 +66,22 @@ describe('parseCliArgs', () => {
 			start: false,
 			dev: true,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
+		});
+	});
+
+	it('parses preview serve-only from env', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		delete process.env.NODE_ENV;
+		process.env.ECOPAGES_PREVIEW_SERVE_ONLY = 'true';
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview'];
+
+		expect(parseCliArgs()).toMatchObject({
+			preview: true,
+			serveOnly: true,
 		});
 	});
 

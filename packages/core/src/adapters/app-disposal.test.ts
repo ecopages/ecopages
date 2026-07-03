@@ -14,6 +14,7 @@ function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undef
 		completeInitialization: async () => {},
 		handleRequest: async () => new Response(null, { status: 204 }),
 		buildStatic: async () => {},
+		servePreviewOnly: async () => {},
 		attachUserWebSocketUpgrades: () => {},
 		dispose,
 	};
@@ -48,6 +49,7 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			start: false,
 			dev: false,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,
@@ -92,6 +94,7 @@ class TestBunEcopagesApp extends BunEcopagesApp {
 			start: false,
 			dev: false,
 			force: false,
+			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
 			reactFastRefresh: undefined,

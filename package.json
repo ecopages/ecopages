@@ -18,6 +18,7 @@
 		"clean": "clear && pnpx npkill -D -y && rm -rf pnpm-lock.yaml node_modules .examples && pnpm install",
 		"check:portability": "node scripts/check-portability.ts",
 		"format": "prettier --write .",
+		"format:check": "prettier --check .",
 		"lint": "oxlint . --fix",
 		"lint-staged": "lint-staged",
 		"jsr:sync-version": "node scripts/jsr-sync-version.ts",

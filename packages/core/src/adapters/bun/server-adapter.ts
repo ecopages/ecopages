@@ -1,4 +1,5 @@
 import type { Server as NodeHttpServer } from 'node:http';
+import path from 'node:path';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -90,7 +91,8 @@ export interface BunServerAdapterParams {
 
 export interface BunServerAdapterResult extends ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => BunServeOptions;
-	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<void>;
+	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<string | undefined>;
+	servePreviewOnly: () => Promise<string | undefined>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
 	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }) => void;
@@ -572,7 +574,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Generates a static build of the site for deployment.
 	 * @param options.preview - If true, starts a preview server after build
 	 */
-	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<void> {
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined> {
 		if (!this.fullyInitialized) {
 			await this.initializeSharedRouteHandling({
 				staticRoutes: this.staticRoutes,
@@ -592,9 +594,35 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		);
 
 		if (!options?.preview) {
-			return;
+			return undefined;
 		}
 
+		return this.startPreviewServer();
+	}
+
+	/**
+	 * Serves an existing static export without running SSG. Used by e2e preview
+	 * launchers after a shared prewarm build.
+	 */
+	public async servePreviewOnly(): Promise<string | undefined> {
+		if (!this.fullyInitialized) {
+			await this.initializeSharedRouteHandling({
+				staticRoutes: this.staticRoutes,
+				hmrManager: this.hmrManager,
+			});
+		}
+
+		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		if (!fileSystem.exists(distPath)) {
+			throw new Error(
+				`Cannot serve preview without building first: dist directory "${this.appConfig.distDir}" not found in "${this.appConfig.rootDir}".`,
+			);
+		}
+
+		return this.startPreviewServer();
+	}
+
+	private async startPreviewServer(): Promise<string | undefined> {
 		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
 		const previewPort = Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT);
 		const activePreviewPort = await this.previewHost.start({
@@ -604,10 +632,11 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			allowPortFallback: this.allowPortFallback,
 		});
 
-		if (activePreviewPort) {
-			appLogger.info(`Preview running at http://${previewHostname}:${activePreviewPort}`);
-			return;
+		if (!activePreviewPort) {
+			return undefined;
 		}
+
+		return `http://${previewHostname}:${activePreviewPort}`;
 	}
 
 	/**
@@ -668,6 +697,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		return {
 			getServerOptions: this.getServerOptions.bind(this),
 			buildStatic: this.buildStatic.bind(this),
+			servePreviewOnly: this.servePreviewOnly.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),

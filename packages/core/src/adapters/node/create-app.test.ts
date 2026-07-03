@@ -20,7 +20,8 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			getServerOptions: () => params.serveOptions,
 			completeInitialization: async () => {},
 			handleRequest: async () => new Response(null, { status: 204 }),
-			buildStatic: async () => {},
+			buildStatic: async () => undefined,
+			servePreviewOnly: async () => undefined,
 			attachUserWebSocketUpgrades: () => {},
 			dispose: async () => {},
 		};

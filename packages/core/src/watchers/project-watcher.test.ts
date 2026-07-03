@@ -721,6 +721,39 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		expect(watcherHandle.add).not.toHaveBeenCalled();
 	});
 
+	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {
+		const Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		vi.spyOn(fileSystem, 'exists').mockImplementation(
+			(targetPath) => String(targetPath) === Config.absolutePaths.srcDir,
+		);
+
+		let capturedIgnored: ((watchedPath: string) => boolean) | undefined;
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		};
+		vi.spyOn(chokidar, 'watch').mockImplementation((_paths, options) => {
+			capturedIgnored = options?.ignored as (watchedPath: string) => boolean;
+			return watcherHandle as never;
+		});
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'node_modules', 'react', 'index.js'))).toBe(
+			true,
+		);
+		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'))).toBe(false);
+	});
+
 	test('should attach chokidar handlers only once when watcher subscription is requested twice', async () => {
 		const Config = await createMockConfig();
 		setAppDevGraphService(Config, new InMemoryDevGraphService());

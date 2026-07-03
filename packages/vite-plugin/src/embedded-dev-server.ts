@@ -4,6 +4,7 @@ import type { EcopagesPluginApi } from './plugin-api.ts';
 
 export type EcopagesEmbeddedApp = {
 	fetch: (request: Request) => Promise<Response>;
+	handleListening: (origin: string) => void;
 	attachWebSocketUpgrades?: (
 		httpServer: NonNullable<ViteDevServer['httpServer']>,
 		options?: { passthroughUnmatched?: boolean },

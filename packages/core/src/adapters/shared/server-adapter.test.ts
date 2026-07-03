@@ -27,11 +27,14 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	public getServerOptions(): Record<string, never> {
 		return {};
 	}
-	public async buildStatic(): Promise<void> {}
+	public async buildStatic(): Promise<string | undefined> {
+		return undefined;
+	}
 	public async createAdapter(): Promise<ServerAdapterResult> {
 		return {
 			getServerOptions: () => ({}),
-			buildStatic: async () => {},
+			buildStatic: async () => undefined,
+			servePreviewOnly: async () => undefined,
 			dispose: async () => {},
 		};
 	}

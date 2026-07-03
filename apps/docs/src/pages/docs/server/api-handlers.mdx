@@ -182,6 +182,11 @@ Using the `ApiResponseBuilder` makes your API handler code cleaner, more readabl
 Register WebSocket routes on the app before calling `start()`. Ecopages provides a runtime-agnostic WebSocket API (see [WebSockets](/docs/server/websockets)).
 
 ```typescript
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
 app.websocket('/ws/echo', {
 	onMessage(socket, message) {
 		if (message.kind === 'text') {

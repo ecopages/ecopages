@@ -40,24 +40,11 @@ Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bu
 | Mode | `createApp()` options | What `app.start()` does |
 |------|----------------------|-------------------------|
 | **Standalone** (CLI, Bun/Node) | default | Binds the port and serves traffic |
-| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional `onAppStart` callback only; the host owns the port |
+| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port |
 
-In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, then calls `app.handleListening(origin)` when the app is ready. Register readiness work through the same callback you would pass to standalone `app.start()`:
+In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, and invokes the callback you pass to `app.start()` when the app can serve requests.
 
-```typescript
-import { createApp } from '@ecopages/core/create-app';
-
-export const app = await createApp({
-	appConfig,
-	runtime: { embedded: true, devClientOwner: 'host' },
-});
-
-await app.start(({ origin }) => {
-	console.log(`Ready at ${origin}`);
-});
-```
-
-See [Starting the server](/docs/server/server-api#starting-the-server) for callback typing and readiness helpers.
+See [Starting the server](/docs/server/server-api#starting-the-server) for a full `app.ts` example and the callback signature.
 
 ## Further reading
 

@@ -15,16 +15,16 @@ jobs:
             contents: read
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@v4
+              uses: pnpm/action-setup@v6
 
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
 
             - name: Setup Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 24
 
@@ -49,7 +49,7 @@ jobs:
             - name: Upload npm build artifacts
               # Stores the built dist folders in GitHub Actions artifact storage.
               # They are not kept in this runner's filesystem for the next job.
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
                   name: npm-build-artifacts
                   path: |
@@ -73,16 +73,16 @@ jobs:
             id-token: write # Required for OIDC authentication
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@v4
+              uses: pnpm/action-setup@v6
 
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
 
             - name: Setup Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 24
 
@@ -133,13 +133,13 @@ jobs:
             id-token: write # Required for OIDC authentication
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@v4
+              uses: pnpm/action-setup@v6
 
             - name: Setup Node.js for NPM Publish
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: '24'
                   registry-url: 'https://registry.npmjs.org'
@@ -150,7 +150,7 @@ jobs:
             - name: Download npm build artifacts
               # Restores the uploaded artifact into this job's workspace at '.'.
               # After download, the dist folders exist again under their original paths.
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v6
               with:
                   name: npm-build-artifacts
                   path: .

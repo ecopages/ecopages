@@ -49,6 +49,32 @@ export function resolveLayoutContext(pageProps: Record<string, unknown>): Layout
 }
 
 /**
+ * Builds layout prop factory context from document-shell layout entries.
+ *
+ * @remarks
+ * Route-scoped `locals` come from shell layout props, not `pageProps.locals` (pageLocals).
+ */
+export function resolveLayoutContextFromShell(
+	pageProps: Record<string, unknown>,
+	shellLayouts: LayoutShellEntry[],
+): LayoutComposeContext {
+	const context: LayoutComposeContext = {};
+	if (pageProps.params !== undefined) {
+		context.params = pageProps.params as Record<string, string>;
+	}
+	if (pageProps.query !== undefined) {
+		context.query = pageProps.query as Record<string, string>;
+	}
+	for (const entry of shellLayouts) {
+		if (entry.props !== undefined && Object.prototype.hasOwnProperty.call(entry.props, 'locals')) {
+			context.locals = entry.props.locals as RequestLocals;
+			break;
+		}
+	}
+	return context;
+}
+
+/**
  * Resolves props for one layout entry, merging shell locals with an optional factory.
  */
 export function resolveLayoutEntryProps(
@@ -80,6 +106,10 @@ export function assertComposablePage(Page: unknown): ComposablePage {
 
 /**
  * Builds the client or SSR React tree for a page and its outer→inner layout stack.
+ *
+ * @remarks
+ * Layout prop factories receive `LayoutPropsContext`. For SSR, pass `options.context` with
+ * route-scoped `locals` when they differ from `pageProps.locals`.
  */
 export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	Page: ComposablePage<P>,
@@ -118,7 +148,11 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 }
 
 /**
- * Builds a layout tree from explicit shell entries when page config is not normalized yet.
+ * Builds a layout tree from explicit document-shell layout entries.
+ *
+ * @remarks
+ * Use when the route renderer passes per-tier props (e.g. route `locals` on the layout tier).
+ * Shell `entry.props` are authoritative; page config normalization is not required.
  */
 export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>>(
 	Page: ComposablePage<P>,

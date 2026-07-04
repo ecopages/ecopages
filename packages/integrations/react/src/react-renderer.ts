@@ -49,7 +49,9 @@ import {
 	composeLayoutPageTree,
 	composeLayoutPageTreeFromShell,
 	assertComposablePage,
+	resolveLayoutContextFromShell,
 	type ComposablePage,
+	type LayoutComposeContext,
 } from './layout-compose.ts';
 
 export type { ReactRendererConfig } from './react.types.ts';
@@ -726,7 +728,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		context: DocumentShellComposeChildrenContext,
 	): Promise<DocumentShellComposeChildrenResult> {
 		const pageComponent = assertComposablePage(page.component);
-		const tree = this.resolveReactLayoutPageTree(pageComponent, page.props, context.layouts);
+		const shellEntries = context.layouts.map((layout) => ({
+			component: layout.component,
+			props: layout.props,
+		}));
+		const layoutContext = resolveLayoutContextFromShell(page.props, shellEntries);
+		const tree = this.resolveReactLayoutPageTree(pageComponent, page.props, context.layouts, layoutContext);
 		const { reactDomServer } = this.getReactRuntimeModules();
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
@@ -759,6 +766,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		Page: ComposablePage,
 		pageProps: Record<string, unknown>,
 		shellLayouts: DocumentShellLayoutInput[],
+		layoutContext: LayoutComposeContext,
 	): ReactElement {
 		const shellEntries = shellLayouts.map((layout) => ({
 			component: layout.component,
@@ -770,7 +778,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			Boolean(Page.config?.layout);
 
 		if (hasNormalizedLayouts) {
-			return composeLayoutPageTree(Page, pageProps);
+			return composeLayoutPageTree(Page, pageProps, { context: layoutContext });
 		}
 
 		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries);

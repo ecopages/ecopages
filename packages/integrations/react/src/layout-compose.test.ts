@@ -1,10 +1,19 @@
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { eco, type EcoPageComponent } from '@ecopages/core';
-import { composeLayoutPageTree, normalizePageLayoutComponents, resolveLayoutEntryProps } from './layout-compose.ts';
+import { eco } from '@ecopages/core';
+import {
+	composeLayoutPageTree,
+	composeLayoutPageTreeFromShell,
+	normalizePageLayoutComponents,
+	resolveLayoutEntryProps,
+	type ComposablePage,
+} from './layout-compose.ts';
 
-function asLayoutPage(Page: EcoPageComponent<Record<string, unknown>>) {
-	return Page as Parameters<typeof composeLayoutPageTree>[0];
+function pageComponent<P extends Record<string, unknown>>(Page: ComposablePage<P>): ComposablePage<P> {
+	if (typeof Page !== 'function') {
+		throw new TypeError('Expected function page component.');
+	}
+	return Page;
 }
 
 describe('layout-compose', () => {
@@ -15,7 +24,7 @@ describe('layout-compose', () => {
 			render: () => 'page',
 		});
 
-		const tree = composeLayoutPageTree(asLayoutPage(Page), { title: 'Hello' });
+		const tree = composeLayoutPageTree(pageComponent(Page), { title: 'Hello' } as Record<string, unknown>);
 		expect(tree.type).toBe(Layout);
 		expect((tree.props as { children?: { type: typeof Page; props?: { title: string } } }).children?.type).toBe(
 			Page,
@@ -33,7 +42,7 @@ describe('layout-compose', () => {
 			render: () => 'page',
 		});
 
-		const tree = composeLayoutPageTree(asLayoutPage(Page), {});
+		const tree = composeLayoutPageTree(pageComponent(Page), {});
 		expect(tree.type).toBe(Outer);
 		expect((tree.props as { children?: { type: typeof Inner } }).children?.type).toBe(Inner);
 		expect(
@@ -56,7 +65,7 @@ describe('layout-compose', () => {
 			}),
 		).toEqual({ section: 'docs' });
 
-		const tree = composeLayoutPageTree(asLayoutPage(Page), { params: { slug: 'docs' } });
+		const tree = composeLayoutPageTree(pageComponent(Page), { params: { slug: 'docs' } });
 		expect(tree.props).toEqual({ section: 'docs', children: expect.any(Object) });
 	});
 
@@ -69,5 +78,13 @@ describe('layout-compose', () => {
 		});
 
 		expect(normalizePageLayoutComponents(Page.config?.layouts, Page.config?.layout)).toEqual([Outer, Inner]);
+	});
+
+	it('should compose explicit shell layouts outer to inner', () => {
+		const Outer = ({ children }: { children?: string }) => createElement('outer', null, children);
+		const Page = eco.page({ render: () => 'page' });
+
+		const tree = composeLayoutPageTreeFromShell(pageComponent(Page), {}, [{ component: Outer }]);
+		expect(tree.type).toBe(Outer);
 	});
 });

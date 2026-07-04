@@ -44,7 +44,7 @@ import {
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
 import { clearLayoutCache, resolvePersistedLayout, type LayoutComponent } from './layout-cache.ts';
-import { composeLayoutPageTree } from '@ecopages/react/layout-compose';
+import { composeLayoutPageTree, assertComposablePage } from '@ecopages/react/layout-compose';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -148,7 +148,11 @@ export const PageContent: FC = () => {
 		return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, pageElement);
 	}
 
-	return composeLayoutPageTree(Page as Parameters<typeof composeLayoutPageTree>[0], props);
+	if (typeof Page !== 'function') {
+		return null;
+	}
+
+	return composeLayoutPageTree(assertComposablePage(Page), props);
 };
 
 function createDeferred<T>() {

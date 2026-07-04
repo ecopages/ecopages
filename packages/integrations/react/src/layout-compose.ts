@@ -1,27 +1,51 @@
-import { createElement, type ComponentType, type ReactElement } from 'react';
+import { createElement, type FunctionComponent, type ReactElement } from 'react';
 import type {
+	EcoComponent,
 	EcoDeclaredComponent,
-	EcoPageComponent,
-	EcoPageLayoutComponent,
 	EcoPageLayoutEntry,
 	LayoutPropsContext,
 	RequestLocals,
 } from '@ecopages/core';
+import type { EcoComponentConfig } from '@ecopages/core';
 
 export type LayoutComposeContext = LayoutPropsContext;
 
-function asReactComponent(
-	component: EcoDeclaredComponent | EcoPageLayoutComponent,
-): ComponentType<Record<string, unknown>> {
-	return component as ComponentType<Record<string, unknown>>;
+export type LayoutShellEntry = {
+	component: EcoComponent;
+	props?: Record<string, unknown>;
+};
+
+export type ComposablePage<P extends Record<string, unknown> = Record<string, unknown>> = FunctionComponent<P> & {
+	config?: Pick<EcoComponentConfig, 'layout' | 'layouts' | 'layoutEntries'>;
+};
+
+/**
+ * @remarks
+ * Eco components are wider than React's `createElement` input; runtime checks narrow callables.
+ */
+function toReactComponent(component: EcoComponent): FunctionComponent<Record<string, unknown>> {
+	if (typeof component !== 'function') {
+		throw new TypeError('[ecopages] Expected a function component for layout composition.');
+	}
+
+	return component as FunctionComponent<Record<string, unknown>>;
 }
 
-function resolveLayoutContext(pageProps: Record<string, unknown>): LayoutComposeContext {
-	return {
-		params: pageProps.params as Record<string, string> | undefined,
-		query: pageProps.query as Record<string, string> | undefined,
-		locals: pageProps.locals as RequestLocals | undefined,
-	};
+/**
+ * Reads request-scoped layout context from serialized page props.
+ */
+export function resolveLayoutContext(pageProps: Record<string, unknown>): LayoutComposeContext {
+	const context: LayoutComposeContext = {};
+	if (pageProps.params !== undefined) {
+		context.params = pageProps.params as Record<string, string>;
+	}
+	if (pageProps.query !== undefined) {
+		context.query = pageProps.query as Record<string, string>;
+	}
+	if (pageProps.locals !== undefined) {
+		context.locals = pageProps.locals as RequestLocals;
+	}
+	return context;
 }
 
 /**
@@ -43,11 +67,23 @@ export function resolveLayoutEntryProps(
 }
 
 /**
+ * @remarks
+ * Eco page components are wider than React layout composition input; runtime checks narrow callables.
+ */
+export function assertComposablePage(Page: unknown): ComposablePage {
+	if (typeof Page !== 'function') {
+		throw new TypeError('[ecopages] Expected a function page component for layout composition.');
+	}
+
+	return Page as ComposablePage;
+}
+
+/**
  * Builds the client or SSR React tree for a page and its outer→inner layout stack.
  */
-export function composeLayoutPageTree(
-	Page: EcoPageComponent<Record<string, unknown>>,
-	pageProps: Record<string, unknown>,
+export function composeLayoutPageTree<P extends Record<string, unknown>>(
+	Page: ComposablePage<P>,
+	pageProps: P,
 	options?: { context?: LayoutComposeContext },
 ): ReactElement {
 	const context = options?.context ?? resolveLayoutContext(pageProps);
@@ -57,7 +93,7 @@ export function composeLayoutPageTree(
 	if (layoutEntries && layoutEntries.length > 0) {
 		return [...layoutEntries].reverse().reduce<ReactElement>((children, entry) => {
 			const layoutProps = resolveLayoutEntryProps(entry, context);
-			return createElement(asReactComponent(entry.component), layoutProps, children);
+			return createElement(toReactComponent(entry.component), layoutProps, children);
 		}, pageElement);
 	}
 
@@ -67,7 +103,7 @@ export function composeLayoutPageTree(
 		return [...layouts]
 			.reverse()
 			.reduce<ReactElement>(
-				(children, Layout) => createElement(asReactComponent(Layout), layoutProps, children),
+				(children, Layout) => createElement(toReactComponent(Layout), layoutProps, children),
 				pageElement,
 			);
 	}
@@ -77,8 +113,28 @@ export function composeLayoutPageTree(
 		return pageElement;
 	}
 
-	const layoutProps = context.locals ? { locals: context.locals } : null;
-	return createElement(asReactComponent(Layout), layoutProps ?? {}, pageElement);
+	const layoutProps = context.locals ? { locals: context.locals } : {};
+	return createElement(toReactComponent(Layout), layoutProps, pageElement);
+}
+
+/**
+ * Builds a layout tree from explicit shell entries when page config is not normalized yet.
+ */
+export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>>(
+	Page: ComposablePage<P>,
+	pageProps: P,
+	shellLayouts: LayoutShellEntry[],
+	options?: { context?: LayoutComposeContext },
+): ReactElement {
+	if (shellLayouts.length === 0) {
+		return composeLayoutPageTree(Page, pageProps, options);
+	}
+
+	const pageElement = createElement(Page, pageProps);
+
+	return [...shellLayouts].reverse().reduce<ReactElement>((children, entry) => {
+		return createElement(toReactComponent(entry.component), entry.props ?? {}, children);
+	}, pageElement);
 }
 
 /**

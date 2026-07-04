@@ -11,6 +11,7 @@ import type {
 	EcoPageFile,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
+	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
 import {
@@ -25,7 +26,8 @@ import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/as
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { FunctionComponent, ReactNode } from 'react';
+import type { FunctionComponent, ReactElement, ReactNode } from 'react';
+import { isValidElement } from 'react';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import type { ReactRendererConfig } from './react.types.ts';
@@ -37,6 +39,18 @@ import { ReactMdxConfigDependencyService } from './services/react-mdx-config-dep
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
 import { ReactPagePayloadService } from './services/react-page-payload.service.ts';
 import { getReactIslandComponentKey, ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
+import {
+	renderPageDocumentShell,
+	type DocumentShellComposeChildrenContext,
+	type DocumentShellComposeChildrenResult,
+	type DocumentShellLayoutInput,
+} from '@ecopages/core/route-renderer/orchestration/document-shell-render.service';
+import {
+	composeLayoutPageTree,
+	composeLayoutPageTreeFromShell,
+	assertComposablePage,
+	type ComposablePage,
+} from './layout-compose.ts';
 
 export type { ReactRendererConfig } from './react.types.ts';
 
@@ -327,6 +341,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		}
 
+		if (isValidElement(input.children)) {
+			return this.normalizeUnresolvedMarkerArtifactHtml(
+				reactDomServer.renderToString(
+					react.createElement(this.asReactComponent(input.component), input.props, input.children),
+				),
+			);
+		}
+
 		const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
 		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
 		if (runtimeContext) {
@@ -339,8 +361,22 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.normalizeUnresolvedMarkerArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
 
+	private toReactNode(children: unknown): ReactNode {
+		if (
+			children === null ||
+			typeof children === 'string' ||
+			typeof children === 'number' ||
+			typeof children === 'boolean' ||
+			isValidElement(children) ||
+			Array.isArray(children)
+		) {
+			return children;
+		}
+
+		throw new TypeError(`[ecopages] ${this.name} renderer expected a React node child.`);
+	}
+
 	/**
-	 * Restores raw child HTML that was temporarily replaced by a token during React SSR.
 	 *
 	 * Queued foreign-subtree resolution may render children through a fragment path before all
 	 * nested integration tokens are resolved. When that happens, React must never see
@@ -380,7 +416,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const { react, reactDomServer } = this.getReactRuntimeModules();
 
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(react.createElement(react.Fragment, null, children as ReactNode)),
+			reactDomServer.renderToString(react.createElement(react.Fragment, null, this.toReactNode(children))),
 		);
 		html = this.restoreRuntimeChildHtml(html, runtimeContext);
 
@@ -680,6 +716,107 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				`Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
+	}
+
+	/**
+	 * Composes page and layout tiers as one React element tree for SSR.
+	 */
+	private async composeReactLayoutPageChildren(
+		page: { component: EcoComponent; props: Record<string, unknown> },
+		context: DocumentShellComposeChildrenContext,
+	): Promise<DocumentShellComposeChildrenResult> {
+		const pageComponent = assertComposablePage(page.component);
+		const tree = this.resolveReactLayoutPageTree(pageComponent, page.props, context.layouts);
+		const { reactDomServer } = this.getReactRuntimeModules();
+		const runtimeInput: ComponentRenderInput = {
+			component: page.component,
+			props: page.props,
+			integrationContext: {
+				rendererCache: context.rendererCache as ReactForeignSubtreeResolutionContext['rendererCache'],
+			},
+		};
+		const runtimeContext = this.getQueuedForeignSubtreeResolutionContext(runtimeInput) as
+			| ReactForeignSubtreeResolutionContext
+			| undefined;
+		let html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
+		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
+		const primaryRender: ComponentRenderResult = {
+			html: resolved.html,
+			canAttachAttributes: hasSingleRootElement(resolved.html),
+			rootTag: this.getRootTagName(resolved.html),
+			integrationName: this.name,
+			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
+		};
+
+		return {
+			children: resolved.html,
+			layoutRenders: [],
+			primaryRender,
+		};
+	}
+
+	private resolveReactLayoutPageTree(
+		Page: ComposablePage,
+		pageProps: Record<string, unknown>,
+		shellLayouts: DocumentShellLayoutInput[],
+	): ReactElement {
+		const shellEntries = shellLayouts.map((layout) => ({
+			component: layout.component,
+			props: layout.props,
+		}));
+		const hasNormalizedLayouts =
+			Boolean(Page.config?.layoutEntries?.length) ||
+			Boolean(Page.config?.layouts?.length) ||
+			Boolean(Page.config?.layout);
+
+		if (hasNormalizedLayouts) {
+			return composeLayoutPageTree(Page, pageProps);
+		}
+
+		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries);
+	}
+
+	private shouldUseUnifiedReactLayoutComposition(
+		page: EcoComponent,
+		shellLayouts: DocumentShellLayoutInput[],
+	): boolean {
+		if (!this.isReactManagedComponent(page)) {
+			return false;
+		}
+
+		return shellLayouts.every((layout) => this.isReactManagedComponent(layout.component));
+	}
+
+	protected override async renderPageWithDocumentShell(input: {
+		page: {
+			component: EcoComponent;
+			props: Record<string, unknown>;
+		};
+		layout?: DocumentShellLayoutInput;
+		layouts?: DocumentShellLayoutInput[];
+		htmlTemplate: EcoComponent;
+		metadata: PageMetadataProps;
+		pageProps: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+		transformDocumentHtml?: (html: string) => string;
+	}): Promise<string> {
+		const shellLayouts = input.layouts ?? (input.layout ? [input.layout] : []);
+		const composeChildren = this.shouldUseUnifiedReactLayoutComposition(input.page.component, shellLayouts)
+			? (context: DocumentShellComposeChildrenContext) => this.composeReactLayoutPageChildren(input.page, context)
+			: undefined;
+
+		return renderPageDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			},
+			{
+				...input,
+				composeChildren,
+			},
+			this.DOC_TYPE,
+		);
 	}
 
 	/**

@@ -59,6 +59,7 @@ import {
 	composeDocumentShell,
 	renderPageDocumentShell,
 } from './document-shell-render.service.ts';
+import { resolvePageLayoutComponents } from './layout-shell-props.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -839,7 +840,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 		const { Page, integrationSpecificProps } = pageModule;
 		const HtmlTemplate = await this.getHtmlTemplate();
-		const Layout = Page.config?.layout;
+		const Layouts = resolvePageLayoutComponents(Page.config?.layouts, Page.config?.layout);
+		const Layout = Layouts[Layouts.length - 1];
 		const { props, metadata } = await this.pageModuleLoaderService.resolvePageData({
 			pageModule,
 			routeOptions,
@@ -848,7 +850,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return {
 			Page,
 			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps>,
+			Layouts,
 			Layout,
+			layoutEntries: Page.config?.layoutEntries,
 			props,
 			metadata,
 			integrationSpecificProps,

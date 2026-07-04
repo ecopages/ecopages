@@ -482,6 +482,15 @@ export type EcoComponentConfig = {
 	 * MyPage.config = { layout: Layout };
 	 * ```
 	 */
+	/** Normalized outer→inner layout stack from `eco.page({ layout: [...] })`. */
+	layouts?: EcoDeclaredComponent[];
+	/** Layout entries retained for per-tier prop factories. */
+	layoutEntries?: EcoPageLayoutEntry[];
+	/**
+	 * Innermost layout alias for legacy call sites.
+	 *
+	 * @deprecated Prefer `layouts` or `layoutEntries`.
+	 */
 	layout?: EcoPageLayoutComponent<any>;
 	dependencies?: EcoComponentDependencies;
 	/**
@@ -621,6 +630,33 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 	headContent?: T;
 	pageProps: Record<string, unknown>;
 }
+
+/**
+ * Request-scoped context available to layout prop factories on `eco.page`.
+ */
+export type LayoutPropsContext = {
+	params?: Record<string, string>;
+	query?: Record<string, string>;
+	locals?: RequestLocals;
+};
+
+/**
+ * One layout tier in a page layout stack (outer→inner).
+ */
+export type EcoPageLayoutEntry<E = EcoPagesElement> = {
+	component: EcoDeclaredComponent<any, E>;
+	props?: (context: LayoutPropsContext) => Record<string, unknown>;
+};
+
+/**
+ * Layout declaration accepted by `eco.page()`.
+ *
+ * @remarks
+ * Array order is outer→inner, matching Next.js App Router segment nesting.
+ */
+export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoDeclaredComponent<any, E> | EcoPageLayoutEntry<E>;
+
+export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
 
 /**
  * Layout components accepted by pages.
@@ -865,7 +901,9 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	metadata: PageMetadataProps;
 	HtmlTemplate: EcoHtmlComponent<C>;
 	Page: EcoComponent<PageProps, C>;
+	Layouts?: EcoDeclaredComponent[];
 	Layout?: EcoPageLayoutComponent<any>;
+	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;

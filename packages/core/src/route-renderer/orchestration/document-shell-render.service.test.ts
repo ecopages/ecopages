@@ -104,10 +104,17 @@ describe('document-shell-render.service', () => {
 	it('should delegate child composition to composeChildren hook', async () => {
 		const composeChildren = vi.fn(async (context: DocumentShellComposeChildrenContext) => {
 			expect(context.layouts).toHaveLength(1);
-			expect(context.primaryRender.html).toBe('<page />');
+			expect(context.primaryComponent).toBeDefined();
 			return {
 				children: '<hooked />',
 				layoutRenders: [],
+				primaryRender: {
+					html: '<hooked />',
+					assets: [],
+					canAttachAttributes: true,
+					rootTag: 'main',
+					integrationName: 'test',
+				},
 			};
 		});
 		const renderComponentWithForeignChildren = vi.fn(async () => ({
@@ -134,7 +141,8 @@ describe('document-shell-render.service', () => {
 		);
 
 		expect(composeChildren).toHaveBeenCalledOnce();
-		expect(renderComponentWithForeignChildren).toHaveBeenLastCalledWith(
+		expect(renderComponentWithForeignChildren).toHaveBeenCalledOnce();
+		expect(renderComponentWithForeignChildren).toHaveBeenCalledWith(
 			expect.objectContaining({
 				children: '<hooked />',
 			}),
@@ -162,6 +170,8 @@ describe('document-shell-render.service', () => {
 
 		const result = await composeSequentialLayoutChildren({
 			primaryRender,
+			primaryComponent: stubComponent('page'),
+			primaryProps: {},
 			layouts: [{ component: Layout, props: { section: 'docs' } }],
 			rendererCache,
 			renderComponentWithForeignChildren,

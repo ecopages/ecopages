@@ -13,7 +13,9 @@ export type DocumentShellLayoutInput = {
 };
 
 export type DocumentShellComposeChildrenContext = {
-	primaryRender: ComponentRenderResult;
+	primaryComponent: EcoComponent;
+	primaryProps: Record<string, unknown>;
+	primaryRender?: ComponentRenderResult;
 	layouts: DocumentShellLayoutInput[];
 	rendererCache: BaseIntegrationContext['rendererCache'];
 	renderComponentWithForeignChildren: DocumentShellRenderDependencies['renderComponentWithForeignChildren'];
@@ -22,6 +24,7 @@ export type DocumentShellComposeChildrenContext = {
 export type DocumentShellComposeChildrenResult = {
 	children: unknown;
 	layoutRenders: ComponentRenderResult[];
+	primaryRender?: ComponentRenderResult;
 };
 
 export type DocumentShellComposeChildrenHook = (
@@ -79,6 +82,10 @@ function resolveDocumentShellLayouts(
 export async function composeSequentialLayoutChildren(
 	context: DocumentShellComposeChildrenContext,
 ): Promise<DocumentShellComposeChildrenResult> {
+	if (!context.primaryRender) {
+		throw new Error('[ecopages] composeSequentialLayoutChildren requires primaryRender.');
+	}
+
 	let children: unknown = context.primaryRender.html;
 	const layoutRenders: ComponentRenderResult[] = [];
 
@@ -111,18 +118,47 @@ export async function composeDocumentShell(
 ): Promise<{ documentHtml: string }> {
 	const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
 	const layouts = resolveDocumentShellLayouts(input);
-	const primaryRender = await dependencies.renderComponentWithForeignChildren({
-		component: input.primaryComponent,
-		props: input.primaryProps,
-		integrationContext: { rendererCache },
-	});
 	const composeChildren = input.composeChildren ?? composeSequentialLayoutChildren;
-	const { children, layoutRenders } = await composeChildren({
-		primaryRender,
-		layouts,
-		rendererCache,
-		renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
-	});
+	const usesCustomComposeChildren = input.composeChildren !== undefined;
+
+	let primaryRender: ComponentRenderResult;
+	let children: unknown;
+	let layoutRenders: ComponentRenderResult[];
+
+	if (usesCustomComposeChildren) {
+		const composed = await composeChildren({
+			primaryComponent: input.primaryComponent,
+			primaryProps: input.primaryProps,
+			layouts,
+			rendererCache,
+			renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
+		});
+		children = composed.children;
+		layoutRenders = composed.layoutRenders;
+		primaryRender = composed.primaryRender ?? {
+			html: typeof composed.children === 'string' ? composed.children : '',
+			assets: [],
+			canAttachAttributes: true,
+			rootTag: 'main',
+			integrationName: 'unknown',
+		};
+	} else {
+		primaryRender = await dependencies.renderComponentWithForeignChildren({
+			component: input.primaryComponent,
+			props: input.primaryProps,
+			integrationContext: { rendererCache },
+		});
+		const composed = await composeChildren({
+			primaryComponent: input.primaryComponent,
+			primaryProps: input.primaryProps,
+			primaryRender,
+			layouts,
+			rendererCache,
+			renderComponentWithForeignChildren: dependencies.renderComponentWithForeignChildren,
+		});
+		children = composed.children;
+		layoutRenders = composed.layoutRenders;
+	}
 	const documentRender = await dependencies.renderComponentWithForeignChildren({
 		component: input.htmlTemplate,
 		props: input.documentProps,

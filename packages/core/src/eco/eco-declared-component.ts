@@ -17,9 +17,7 @@ export function isEcoDeclaredComponent(component: unknown): component is EcoDecl
 }
 
 /**
- * @remarks
- * Dependency collection and ownership validation call this instead of silently
- * skipping entries that lack `config.__eco`.
+ * @throws {UndeclaredComponentDependencyError} When the value lacks `config.__eco`.
  */
 export function assertEcoDeclaredComponent(
 	component: unknown,

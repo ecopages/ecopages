@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
-import { OwnershipValidationService, throwIfOwnershipInvalid } from './ownership-validation.service.ts';
+import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
+import { OwnershipValidationService } from './ownership-validation.service.ts';
 
 describe('OwnershipValidationService', () => {
 	const appConfig = {
 		integrations: [{ name: 'kitajs' }, { name: 'react' }],
 	} as EcoPagesAppConfig;
 
-	it('should reject plain functions in dependencies.components', () => {
+	it('should throw when dependencies.components contains a plain function', () => {
 		const plainChild = (() => '<child />') as EcoComponent;
 		const page = (() => '<page />') as EcoComponent;
 		page.config = {
@@ -23,18 +24,12 @@ describe('OwnershipValidationService', () => {
 		};
 
 		const service = new OwnershipValidationService(appConfig);
-		const errors = service.validate({
-			currentIntegrationName: 'kitajs',
-			roots: [{ component: page, source: 'page' }],
-		});
 
-		expect(errors).toEqual([
-			expect.objectContaining({
-				code: 'UNDECLARED_COMPONENT_DEPENDENCY',
+		expect(() =>
+			service.validate({
+				currentIntegrationName: 'kitajs',
+				roots: [{ component: page, source: 'page' }],
 			}),
-		]);
-		expect(() => throwIfOwnershipInvalid(errors)).toThrow(
-			/dependencies\.components entries must be eco\.component\(\)/,
-		);
+		).toThrow(UndeclaredComponentDependencyError);
 	});
 });

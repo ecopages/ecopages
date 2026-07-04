@@ -10,6 +10,7 @@ export function getUndeclaredComponentDependencyMessage(parentComponentFile?: st
 export class UndeclaredComponentDependencyError extends Error {
 	override name = 'UndeclaredComponentDependencyError';
 
+	/** Parent component file path when the invalid entry was declared. */
 	readonly parentComponentFile?: string;
 
 	constructor(parentComponentFile?: string) {

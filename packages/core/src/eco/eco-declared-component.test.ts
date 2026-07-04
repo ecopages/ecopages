@@ -5,6 +5,7 @@ import {
 	getUndeclaredComponentDependencyMessage,
 	isEcoDeclaredComponent,
 } from './eco-declared-component.ts';
+import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
 
 describe('eco-declared-component', () => {
 	it('should accept eco.component results with __eco metadata', () => {
@@ -25,6 +26,6 @@ describe('eco-declared-component', () => {
 		const plainFunction = () => '<div />';
 
 		expect(isEcoDeclaredComponent(plainFunction)).toBe(false);
-		expect(() => assertEcoDeclaredComponent(plainFunction)).toThrow(getUndeclaredComponentDependencyMessage());
+		expect(() => assertEcoDeclaredComponent(plainFunction)).toThrow(UndeclaredComponentDependencyError);
 	});
 });

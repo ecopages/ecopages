@@ -1,4 +1,7 @@
 import type { EcoComponent, EcoDeclaredComponent } from '../types/public-types.ts';
+import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
+
+export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-component-dependency-error.ts';
 
 /**
  * @remarks
@@ -11,11 +14,6 @@ export function isEcoDeclaredComponent(component: unknown): component is EcoDecl
 		typeof (component as EcoComponent).config?.__eco?.file === 'string' &&
 		typeof (component as EcoComponent).config?.__eco?.integration === 'string'
 	);
-}
-
-export function getUndeclaredComponentDependencyMessage(parentComponentFile?: string): string {
-	const parentHint = parentComponentFile ? ` (declared by ${parentComponentFile})` : '';
-	return `[ecopages] dependencies.components entries must be eco.component(), eco.layout(), or eco.html() components with __eco metadata${parentHint}. Plain functions and untyped components are not valid dependency entries.`;
 }
 
 /**
@@ -31,5 +29,5 @@ export function assertEcoDeclaredComponent(
 		return;
 	}
 
-	throw new Error(getUndeclaredComponentDependencyMessage(context.parentComponentFile));
+	throw new UndeclaredComponentDependencyError(context.parentComponentFile);
 }

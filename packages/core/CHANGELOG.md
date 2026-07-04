@@ -8,6 +8,9 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
+- Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
+- Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
+- Added `EcoDeclaredComponent` validation for `dependencies.components` entries.
 - Added `createApp()` as the recommended runtime entrypoint with Bun-first execution and Node fallback.
 - Added app-owned build and runtime ownership: host module loading, browser-safe `eco` export, `eco.html()`, `eco.layout()`, and published `EcoPagesAppConfig`.
 - Added Page Browser Graph orchestration so integrations declare browser graph contributions and routes share grouped browser assets where appropriate.

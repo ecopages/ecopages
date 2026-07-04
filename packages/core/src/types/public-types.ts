@@ -656,6 +656,13 @@ export type EcoPageLayoutEntry<E = EcoPagesElement> = {
  */
 export type EcoPageLayoutSpec<E = EcoPagesElement> = EcoDeclaredComponent<any, E> | EcoPageLayoutEntry<E>;
 
+/**
+ * One or more layout tiers for `eco.page({ layout })`.
+ *
+ * @remarks
+ * When an array, order is **outer → inner** (outermost layout wraps all inner tiers).
+ * Normalized at factory time to `config.layouts` and `config.layoutEntries`.
+ */
 export type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
 
 /**

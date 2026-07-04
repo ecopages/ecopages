@@ -170,4 +170,35 @@ describe('resolvePersistedLayoutStack', () => {
 			expect(getLayoutCache().size).toBe(2);
 		});
 	});
+
+	it('reuses the same cached parent when stacks share an outer layout key', () => {
+		withLayoutCacheWindow(() => {
+			clearLayoutCache();
+			const parentFirstImport = createLayout({
+				displayName: 'AppShell',
+				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+			});
+			const parentSecondImport = createLayout({
+				displayName: 'AppShell',
+				renderLabel: 'reimported',
+				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+			});
+			const docsInner = createLayout({
+				displayName: 'DocsInner',
+				__eco: { file: '/app/layouts/docs-inner.tsx', id: 'docs-inner', integration: 'react' },
+			});
+			const settingsInner = createLayout({
+				displayName: 'SettingsInner',
+				__eco: { file: '/app/layouts/settings-inner.tsx', id: 'settings-inner', integration: 'react' },
+			});
+
+			const docsStack = resolvePersistedLayoutStack([parentFirstImport, docsInner], false);
+			const settingsStack = resolvePersistedLayoutStack([parentSecondImport, settingsInner], false);
+
+			expect(docsStack[0]?.key).toBe('/app/layouts/app-shell.tsx');
+			expect(settingsStack[0]?.layout).toBe(docsStack[0]?.layout);
+			expect(settingsStack[1]?.layout).not.toBe(docsStack[1]?.layout);
+			expect(getLayoutCache().size).toBe(3);
+		});
+	});
 });

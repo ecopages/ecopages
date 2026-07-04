@@ -758,4 +758,27 @@ describe('DependencyResolverService', () => {
 			}),
 		]);
 	});
+
+	it('should throw when dependencies.components contains a plain function', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const plainChild = (() => '<child />') as EcoComponent;
+		const component = ((_) => '<parent></parent>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'parent',
+				integration: 'kitajs',
+				file: '/app/components/parent.kita.tsx',
+			},
+			dependencies: {
+				components: [plainChild],
+			},
+		};
+
+		await expect(service.processComponentDependencies([component], 'kitajs')).rejects.toThrow(
+			/dependencies\.components entries must be eco\.component\(\)/,
+		);
+	});
 });

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { DependencyLazyTrigger, EcoComponent } from '../../types/public-types.ts';
+import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
@@ -170,9 +171,12 @@ export function collectComponentDependencies(
 
 			if (dependenciesConfig?.components) {
 				for (const nestedComponent of dependenciesConfig.components) {
-					if (nestedComponent?.config) {
-						collect(nestedComponent.config);
+					if (!nestedComponent) {
+						continue;
 					}
+
+					assertEcoDeclaredComponent(nestedComponent, { parentComponentFile: file });
+					collect(nestedComponent.config);
 				}
 			}
 		};

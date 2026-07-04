@@ -378,7 +378,19 @@ export type EcoComponentDependencies = {
 	 * to express explicit module imports for client bundles.
 	 */
 	modules?: string[];
-	components?: EcoComponent[];
+	components?: EcoDeclaredComponent[];
+};
+
+/**
+ * Eco component created through `eco.component()`, `eco.layout()`, or `eco.html()`.
+ *
+ * @remarks
+ * `config.__eco` is injected by the component-meta plugin at build time. The brand
+ * keeps `dependencies.components` narrow at authoring time; use
+ * `isEcoDeclaredComponent()` for runtime checks.
+ */
+export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R> & {
+	readonly __ecoDeclaredBrand?: unique symbol;
 };
 
 export type EcoPagesElement = string | Promise<string>;
@@ -933,7 +945,10 @@ export interface PageBrowserGraphContribution {
 	assets?: ProcessedAsset[];
 }
 
-export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
+export type OwnershipValidationErrorCode =
+	| 'UNKNOWN_INTEGRATION_OWNER'
+	| 'MISSING_COMPONENT_METADATA'
+	| 'UNDECLARED_COMPONENT_DEPENDENCY';
 
 export interface OwnershipValidationError {
 	code: OwnershipValidationErrorCode;

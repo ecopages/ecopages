@@ -12,6 +12,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
+	EcoPageLayoutEntry,
 } from '../../types/public-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
@@ -29,7 +30,9 @@ import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts'
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps>;
+	Layouts: EcoComponent[];
 	Layout?: EcoComponent;
+	layoutEntries?: EcoPageLayoutEntry[];
 	props: Record<string, unknown>;
 	metadata: PageMetadataProps;
 	integrationSpecificProps: Record<string, unknown>;
@@ -151,18 +154,18 @@ export class RouteRenderOrchestrator {
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
-		const { Page, HtmlTemplate, Layout } = resolvedInputs;
+		const { Page, HtmlTemplate, Layouts, Layout } = resolvedInputs;
 		const validationErrors = this.ownershipValidationService.validate({
 			currentIntegrationName: adapter.name,
 			roots: [
 				{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
-				...(Layout ? [{ component: Layout as EcoComponent, source: 'layout' as const }] : []),
+				...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
 				{ component: Page as EcoComponent, source: 'page' },
 			],
 		});
 		throwIfOwnershipInvalid(validationErrors);
 
-		const componentsToResolve = Layout ? [HtmlTemplate, Layout, Page] : [HtmlTemplate, Page];
+		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
 		const [{ resolvedDependencies }, pageBrowserGraph, componentRender] = await Promise.all([
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,

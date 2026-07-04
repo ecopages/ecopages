@@ -10,7 +10,7 @@ import type {
 	EcoHtmlComponent,
 	EcoInjectedMeta,
 	EcoLayoutComponent,
-	EcoPageLayoutComponent,
+	EcoPageLayouts,
 	EcoPagesElement,
 	FileRouteMiddleware,
 	GetMetadata,
@@ -119,7 +119,7 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	__eco?: EcoInjectedMeta;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
-	layout?: EcoPageLayoutComponent<E>;
+	layout?: EcoPageLayouts<E>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).

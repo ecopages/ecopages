@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { DocsLayoutSidebarLink } from './docs-layout-sidebar-link';
 
@@ -23,28 +23,27 @@ const sidebarItems = [
 	{ href: '/docs/examples', label: 'Examples' },
 ];
 
-export const DocsLayout: EcoComponent<DocsLayoutProps, ReactNode> = ({ children }) => {
-	return (
-		<div className="docs-layout" data-testid="docs-layout">
-			<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
-				<nav>
-					<ul>
-						{sidebarItems.map((item) => (
-							<li key={item.href}>
-								<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
-							</li>
-						))}
-					</ul>
-				</nav>
-			</aside>
-			<main className="docs-content">{children}</main>
-		</div>
-	);
-};
-
-DocsLayout.config = {
+export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./docs.css'],
 		components: [DocsLayoutSidebarLink],
 	},
-};
+	render: ({ children }) => {
+		return (
+			<div className="docs-layout" data-testid="docs-layout">
+				<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
+					<nav>
+						<ul>
+							{sidebarItems.map((item) => (
+								<li key={item.href}>
+									<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
+								</li>
+							))}
+						</ul>
+					</nav>
+				</aside>
+				<main className="docs-content">{children}</main>
+			</div>
+		);
+	},
+});

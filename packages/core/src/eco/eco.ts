@@ -5,6 +5,7 @@
 
 import type {
 	EcoComponent,
+	EcoDeclaredComponent,
 	EcoHtmlComponent,
 	EcoLayoutComponent,
 	EcoPagesElement,
@@ -49,9 +50,9 @@ import { isThenable } from '../route-renderer/orchestration/render-output.utils.
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
  */
-function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
+function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
 	const integrationName = options.integration ?? options.__eco?.integration;
-	const comp: EcoComponent<P, E> = ((props: P) => {
+	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
 		const activeRenderContext = getComponentRenderContext();
@@ -91,7 +92,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 		}
 
 		return renderInline();
-	}) as EcoComponent<P, E>;
+	}) as EcoDeclaredComponent<P, E>;
 
 	comp.config = {
 		__eco: options.__eco,
@@ -108,7 +109,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
  * @param options Component definition options.
  * @returns Eco component function.
  */
-function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
+function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
 	return createComponentFactory(options);
 }
 

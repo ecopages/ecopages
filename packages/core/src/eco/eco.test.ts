@@ -630,6 +630,11 @@ describe('eco namespace', () => {
 	describe('integration', () => {
 		test('should work with nested components', () => {
 			const Button = eco.component<{ label: string }>({
+				__eco: {
+					id: 'button',
+					file: '/app/components/button.kita.tsx',
+					integration: 'kitajs',
+				},
 				dependencies: {
 					scripts: [
 						{
@@ -644,8 +649,13 @@ describe('eco namespace', () => {
 			});
 
 			const Card = eco.component<{ title: string; children: string }>({
+				__eco: {
+					id: 'card',
+					file: '/app/components/card.kita.tsx',
+					integration: 'kitajs',
+				},
 				dependencies: {
-					components: [Button as EcoComponent],
+					components: [Button],
 				},
 				render: ({ title, children }) => `<div class="card"><h2>${title}</h2>${children}</div>`,
 			});

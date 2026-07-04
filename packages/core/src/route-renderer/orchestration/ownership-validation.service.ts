@@ -1,6 +1,8 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../types/public-types.ts';
+import { getUndeclaredComponentDependencyMessage, isEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { mapDeclaredOwnershipGraph } from './declared-ownership-graph.ts';
+import { walkComponentGraph } from './component-graph.ts';
 
 type OwnershipValidationInput = {
 	currentIntegrationName: string;
@@ -31,7 +33,8 @@ export class OwnershipValidationService {
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
 	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
-		return mapDeclaredOwnershipGraph<OwnershipValidationError[]>({
+		const declaredDependencyErrors = this.validateDeclaredDependencies(input);
+		const foreignOwnershipErrors = mapDeclaredOwnershipGraph<OwnershipValidationError[]>({
 			roots: input.roots,
 			currentIntegrationName: input.currentIntegrationName,
 			mapNode: ({ component, integrationName, componentId, isForeignToParent }, children) => {
@@ -68,6 +71,33 @@ export class OwnershipValidationService {
 				return errors;
 			},
 		}).flat();
+
+		return [...declaredDependencyErrors, ...foreignOwnershipErrors];
+	}
+
+	private validateDeclaredDependencies(input: OwnershipValidationInput): OwnershipValidationError[] {
+		const errors: OwnershipValidationError[] = [];
+
+		walkComponentGraph({
+			roots: input.roots,
+			currentIntegrationName: input.currentIntegrationName,
+			onComponent: ({ component }) => {
+				const parentFile = component.config?.__eco?.file;
+				for (const child of component.config?.dependencies?.components ?? []) {
+					if (!child || isEcoDeclaredComponent(child)) {
+						continue;
+					}
+
+					errors.push({
+						code: 'UNDECLARED_COMPONENT_DEPENDENCY',
+						message: getUndeclaredComponentDependencyMessage(parentFile),
+						componentFile: parentFile,
+					});
+				}
+			},
+		});
+
+		return errors;
 	}
 
 	private isRegisteredIntegration(integrationName: string, currentIntegrationName: string): boolean {

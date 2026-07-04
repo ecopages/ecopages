@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eco } from './eco.ts';
-import {
-	assertEcoDeclaredComponent,
-	getUndeclaredComponentDependencyMessage,
-	isEcoDeclaredComponent,
-} from './eco-declared-component.ts';
+import { assertEcoDeclaredComponent, isEcoDeclaredComponent } from './eco-declared-component.ts';
 import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
 
 describe('eco-declared-component', () => {

@@ -30,7 +30,8 @@
 		"./utils/client-only": "./src/utils/client-only.ts",
 		"./runtime/use-sync-external-store-with-selector": "./src/runtime/use-sync-external-store-with-selector.ts",
 		"./router-adapter": "./src/router-adapter.ts",
-		"./layout-compose": "./src/layout-compose.ts"
+		"./layout-compose": "./src/layout-compose.ts",
+		"./serialize-page-data-script": "./src/serialize-page-data-script.ts"
 	},
 	"repository": {
 		"type": "git",

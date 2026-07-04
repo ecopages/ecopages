@@ -12,6 +12,7 @@ import type {
 	InlineContentScriptAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
+import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -778,7 +779,7 @@ describe('DependencyResolverService', () => {
 		};
 
 		await expect(service.processComponentDependencies([component], 'kitajs')).rejects.toThrow(
-			/dependencies\.components entries must be eco\.component\(\)/,
+			UndeclaredComponentDependencyError,
 		);
 	});
 });

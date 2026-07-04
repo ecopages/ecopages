@@ -95,7 +95,7 @@ Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
 > **Warning:** These components **cannot** declare external dependencies (scripts/stylesheets) or use EcoPages' lazy loading strategies directly. For those features, wrap them in `eco.component()`.
 >
-> If you prefer this approach, you can still attach a config object to the component (e.g., `Counter.config`) to define dependencies, though `eco.component()` is the recommended type-safe way to do this.
+> **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with injected `config.__eco` metadata. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
 
 ```tsx
 import { useState } from 'react';
@@ -267,18 +267,52 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Use `eco.layout()` components as the `layout` option in `eco.page()`:
+Use `eco.layout()` components as the `layout` option in `eco.page()`. EcoPages merges declared layouts into the page dependency graph automatically — you do not need to list the layout again in `dependencies.components` unless you also render it manually inside `render` (unusual).
 
 ```tsx
+import { eco } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
+
 export default eco.page({
 	layout: BaseLayout,
 	render: () => <h1>Hello</h1>,
 });
 ```
 
+#### Nested layouts (outer → inner)
+
+Pass a single layout or an **array** of layouts. Array order is **outermost first**, innermost last — the same mental model as segment nesting in App Router-style frameworks.
+
+```tsx
+import { eco } from '@ecopages/core';
+import { AppShell } from '@/layouts/app-shell';
+import { DocsSection } from '@/layouts/docs-section';
+
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Documentation</h1>,
+});
+```
+
+At factory time, EcoPages normalizes this stack onto `config.layouts` (components) and `config.layoutEntries` (components plus optional per-tier `props` factories). The innermost tier is also exposed as `config.layout` for legacy call sites.
+
+Per-tier prop factories are supported when a tier needs route-scoped props:
+
+```tsx
+layout: [
+	AppShell,
+	{
+		component: DocsSection,
+		props: ({ params }) => ({ activeSection: params.slug }),
+	},
+],
+```
+
+On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), each tier is cached independently during SPA navigation. Routes that share an outer layout — for example `[AppShell, Docs]` and `[AppShell, Settings]` — reuse the same mounted outer instance while inner tiers swap.
+
 ### `eco.component()`
 
-Define a reusable component with dependencies.
+Define a reusable component with dependencies. Entries in `dependencies.components` must themselves be declared eco components (`eco.component()`, `eco.layout()`, or `eco.html()`).
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -384,12 +418,21 @@ export default eco.page({
 });
 ```
 
-**With layout:**
+**With layout (single or nested):**
 
 ```tsx
 export default eco.page({
-	layout: BaseLayout, // Wraps render output automatically
+	layout: BaseLayout, // or layout: [AppShell, SectionLayout]
 	render: () => <h1>Content</h1>,
+});
+```
+
+**With nested layouts:**
+
+```tsx
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Docs home</h1>,
 });
 ```
 
@@ -528,7 +571,8 @@ type DependencyEntry = {
 interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
-	components?: EcoComponent[];
+	/** Declared eco components only — see `EcoDeclaredComponent`. */
+	components?: EcoDeclaredComponent[];
 }
 
 // Shared base option shape used by component(), html(), and layout()
@@ -543,10 +587,17 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
 type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
 
+type EcoPageLayoutSpec<E = EcoPagesElement> =
+	| EcoDeclaredComponent<any, E>
+	| { component: EcoDeclaredComponent<any, E>; props?: (context: LayoutPropsContext) => Record<string, unknown> };
+
+/** Outer → inner. Normalized to `config.layouts` / `config.layoutEntries`. */
+type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];
+
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
 	dependencies?: EcoComponentDependencies;
-	layout?: EcoComponent<{ children: E }>;
+	layout?: EcoPageLayouts<E>;
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;

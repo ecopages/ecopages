@@ -11,19 +11,15 @@ export const getMetadata = () => ({
 
 # Creating Layouts in Ecopages
 
-Layouts are an essential part of structuring your Ecopages project. They provide a consistent structure for your pages and allow you to reuse common elements across your site. In this guide, we'll explore how to create layouts and use includes files, which are fundamental to the Ecopages framework.
+Layouts wrap page content with shared chrome — navigation, sidebars, providers, and other structure that repeats across routes. This guide covers document includes, declared layout components, single and nested layout stacks, and how layouts interact with SPA routing.
 
 ## Includes Files
 
-Includes files are mandatory in Ecopages and play a crucial role in defining the overall structure of your HTML. There are two main includes files you need to be aware of:
-
-1. `html.{ext}` and `head.{ext}` under `src/includes` (e.g. `html.tsx`, `head.tsx` with Ecopages JSX)
-
-These files are typically located in the `src/includes` directory.
+Includes files are mandatory in Ecopages and define the outer document shell. They live under `src/includes` (for example `html.tsx` and `head.tsx` with Ecopages JSX).
 
 ### html.ts
 
-This file defines the overall HTML structure of your pages. Here's an example of what it might look like:
+Defines the overall HTML envelope:
 
 ```typescript
 import { eco } from '@ecopages/core';
@@ -42,7 +38,7 @@ export const Html = eco.html<{ children: string }>({
 
 ### head.ts
 
-This file defines the content of the `<head>` tag, including meta tags, title, and other important elements. Here's an example:
+Defines `<head>` content — title, meta, icons:
 
 ```typescript
 import { eco } from '@ecopages/core';
@@ -60,58 +56,125 @@ export const Head = eco.component<{ title: string; description: string }>({
 `});
 ```
 
-These includes files are automatically used by Ecopages to structure your HTML. You don't need to explicitly import or use them in your pages or layouts.
+Includes are applied automatically. Pages and route layouts render **inside** this shell — they do not replace it.
 
-## Creating a Base Layout
+## Declared layout components
 
-A base layout is a reusable component that defines the common structure for your pages. Here's how to create a base layout:
+Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values.
 
-1. Create a new file, typically named `base-layout.ts`, in your `src/layouts` directory.
+**Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with `config.__eco` metadata (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
 
-2. Define your layout component. Here's an example:
-
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+import type { ReactNode } from 'react';
 
-export type BaseLayoutProps = {
-  children: string;
-  class?: string;
-};
+export const BaseLayout = eco.layout<{ children: ReactNode }>({
+	dependencies: {
+		stylesheets: ['./base-layout.css'],
+	},
+	render: ({ children }) => <main>{children}</main>,
+});
+```
 
-export const BaseLayout = eco.layout<BaseLayoutProps>({
+Use `eco.layout()` for wrappers around page content. Reserve `eco.html()` for the document shell in `src/includes`.
+
+## Single layout on a page
+
+Assign the layout on `eco.page()`. EcoPages wraps `render` output automatically — do not manually nest the layout inside `render` unless you have an exceptional one-off case.
+
+```tsx
+import { eco } from '@ecopages/core';
+import { BaseLayout } from '@/layouts/base-layout';
+
+export default eco.page({
+	layout: BaseLayout,
+	metadata: () => ({
+		title: 'Home',
+		description: 'Welcome',
+	}),
+	render: () => (
+		<>
+			<h1>Welcome to Ecopages</h1>
+			<p>This is the homepage.</p>
+		</>
+	),
+});
+```
+
+## Nested layouts (outer → inner)
+
+Pages can declare **multiple** layout tiers. Pass an array in **outer → inner** order:
+
+```tsx
+import { eco } from '@ecopages/core';
+import { AppShell } from '@/layouts/app-shell';
+import { DocsSection } from '@/layouts/docs-section';
+
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Documentation</h1>,
+});
+```
+
+EcoPages normalizes the stack to:
+
+- `config.layouts` — component references per tier
+- `config.layoutEntries` — components plus optional per-tier `props` factories
+- `config.layout` — innermost tier (legacy alias)
+
+### Per-tier layout props
+
+When a tier needs route context, use a layout entry object:
+
+```tsx
+layout: [
+	AppShell,
+	{
+		component: DocsSection,
+		props: ({ params, locals }) => ({
+			activeSlug: params.slug,
+			viewer: locals.user?.name,
+		}),
+	},
+],
+```
+
+`props` receives `LayoutPropsContext` (`params`, `query`, `locals`). See [Request Locals](/docs/core/request-locals) for how `locals` reach layout tiers during SSR and hydration.
+
+### Shared outer layouts and SPA navigation
+
+On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. Each layout tier is cached by `config.__eco.file` (or `id`). Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
+
+**Note:** Full reloads, HMR, and bootstrap paths that refresh persisted layouts may replace a cached tier when the imported function reference changes.
+
+## Layout dependencies
+
+Declare stylesheets, scripts, and child components on the layout factory:
+
+```tsx
+export const BaseLayout = eco.layout({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
+		components: [SiteHeader],
 	},
-	render: ({ children, class: className }) => html`
-	<body>
-		<main class=${className}>!${children}</main>
-	</body>
-`});
-```
-
-3. Create associated files for styles (`base-layout.css`) and scripts (`base-layout.script.ts`) if needed.
-
-4. Use your base layout in your pages:
-
-```typescript
-import { BaseLayout } from '@/layouts/base-layout';
-import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
-
-const HomePage = eco.page({
-	layout: BaseLayout,
-	render: () => html`
-		<h1>Welcome to Ecopages</h1>
-		<p>This is the homepage of your website.</p>
-	`
+	render: ({ children }) => (
+		<>
+			<SiteHeader />
+			<main>{children}</main>
+		</>
+	),
 });
-
-export default HomePage;
 ```
 
+Every entry in `dependencies.components` must be a declared eco component, same as on pages.
 
-By using layouts and includes files effectively, you can create a consistent structure for your Ecopages project while keeping your code modular and maintainable.
+## File-system segment layouts
 
-Include the `config` object with any required dependencies for both layouts and pages.
+v0.2 does **not** infer layouts from directory structure (for example `layouts/docs.tsx` wrapping `pages/docs/*`). Layout assignment is explicit on each `eco.page()` call. See the [segment layout inheritance ADR](https://github.com/ecopages/ecopages/blob/main/docs/adr/segment-layout-inheritance.md) for the proposed v2 model.
+
+## Related guides
+
+- [`eco` namespace reference](/docs/reference/eco-namespace) — full API for `eco.layout()` and `eco.page()`
+- [Creating Pages](/docs/core/pages) — page structure and `dependencies`
+- [React Router](/docs/ecosystem/react-router) — layout persistence during SPA navigation

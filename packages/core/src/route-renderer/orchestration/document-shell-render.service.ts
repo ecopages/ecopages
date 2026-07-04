@@ -22,11 +22,25 @@ export type DocumentShellComposeChildrenContext = {
 };
 
 export type DocumentShellComposeChildrenResult = {
+	/** Serialized or element children passed to the HTML template shell. */
 	children: unknown;
 	layoutRenders: ComponentRenderResult[];
+	/**
+	 * Primary/page render assets when the hook performs unified composition.
+	 *
+	 * @remarks
+	 * Omit only when the default sequential string path runs (core renders primary first).
+	 */
 	primaryRender?: ComponentRenderResult;
 };
 
+/**
+ * Optional hook that replaces default sequential string layout wrapping.
+ *
+ * @remarks
+ * When provided, core skips the initial primary render and expects the hook to return
+ * `children` for the HTML template. Supply `primaryRender` so dependency assets still merge.
+ */
 export type DocumentShellComposeChildrenHook = (
 	context: DocumentShellComposeChildrenContext,
 ) => Promise<DocumentShellComposeChildrenResult>;
@@ -74,6 +88,10 @@ function resolveDocumentShellLayouts(
 	}
 
 	return input.layout ? [input.layout] : [];
+}
+
+function resolveComponentIntegrationName(component: EcoComponent): string {
+	return component.config?.integration ?? component.config?.__eco?.integration ?? 'ecopages';
 }
 
 /**
@@ -140,7 +158,7 @@ export async function composeDocumentShell(
 			assets: [],
 			canAttachAttributes: true,
 			rootTag: 'main',
-			integrationName: 'unknown',
+			integrationName: resolveComponentIntegrationName(input.primaryComponent),
 		};
 	} else {
 		primaryRender = await dependencies.renderComponentWithForeignChildren({

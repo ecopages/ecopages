@@ -44,7 +44,12 @@ import {
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
 import { clearLayoutCache, resolvePersistedLayoutStack, type LayoutComponent } from './layout-cache.ts';
-import { composeLayoutPageTree, assertComposablePage } from '@ecopages/react/layout-compose';
+import {
+	composeLayoutPageTree,
+	assertComposablePage,
+	normalizePageLayoutComponents,
+	type ComposablePage,
+} from '@ecopages/react/layout-compose';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -69,15 +74,12 @@ const PageContext = createContext<PageContextValue>(null);
 
 const PersistLayoutsContext = createContext<boolean>(false);
 
-function resolvePageLayoutStack(pageConfig?: {
-	layout?: LayoutComponent;
-	layouts?: LayoutComponent[];
-}): LayoutComponent[] {
-	if (pageConfig?.layouts && pageConfig.layouts.length > 0) {
-		return pageConfig.layouts;
-	}
-
-	return pageConfig?.layout ? [pageConfig.layout] : [];
+/**
+ * @remarks
+ * Eco declared layouts widen to React callables for the persistence cache.
+ */
+function resolvePageLayoutStack(pageConfig?: ComposablePage['config']): LayoutComponent[] {
+	return normalizePageLayoutComponents(pageConfig?.layouts, pageConfig?.layout) as LayoutComponent[];
 }
 
 /**
@@ -125,10 +127,13 @@ export const PageContent: FC = () => {
 	}
 
 	const { Component: Page, props, refreshPersistedLayout } = pageContext;
-	const pageWithConfig = Page as ComponentType & {
-		config?: { layout?: LayoutComponent; layouts?: LayoutComponent[] };
-	};
-	const layoutComponents = resolvePageLayoutStack(pageWithConfig.config);
+
+	if (typeof Page !== 'function') {
+		return null;
+	}
+
+	const composablePage = assertComposablePage(Page);
+	const layoutComponents = resolvePageLayoutStack(composablePage.config);
 	const shouldRefreshPersistedLayout = Boolean(refreshPersistedLayout);
 
 	if (persistLayouts && layoutComponents.length > 0) {
@@ -143,11 +148,7 @@ export const PageContent: FC = () => {
 		return tree;
 	}
 
-	if (typeof Page !== 'function') {
-		return null;
-	}
-
-	return composeLayoutPageTree(assertComposablePage(Page), props);
+	return composeLayoutPageTree(composablePage, props);
 };
 
 function createDeferred<T>() {

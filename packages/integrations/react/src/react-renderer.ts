@@ -793,7 +793,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			return false;
 		}
 
-		const composablePage = page as ComposablePage;
+		const composablePage = assertComposablePage(page);
 		const configLayouts =
 			composablePage.config?.layouts ??
 			composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
@@ -947,12 +947,9 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, this.getComponentRequires(input.view)),
 		});
 		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
-		const composeChildren = this.shouldUseUnifiedReactLayoutComposition(input.view as EcoComponent, shellLayouts)
+		const composeChildren = this.shouldUseUnifiedReactLayoutComposition(input.view, shellLayouts)
 			? (context: DocumentShellComposeChildrenContext) =>
-					this.composeReactLayoutPageChildren(
-						{ component: input.view as EcoComponent, props: normalizedProps },
-						context,
-					)
+					this.composeReactLayoutPageChildren({ component: input.view, props: normalizedProps }, context)
 			: undefined;
 
 		const { documentHtml } = await composeDocumentShell(
@@ -962,7 +959,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
 			{
-				primaryComponent: input.view as EcoComponent,
+				primaryComponent: input.view,
 				primaryProps: normalizedProps,
 				layout: input.layout
 					? {
@@ -972,7 +969,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					: undefined,
 				layouts: shellLayouts.length > 0 ? shellLayouts : undefined,
 				composeChildren,
-				htmlTemplate: HtmlTemplate as EcoComponent,
+				htmlTemplate: HtmlTemplate,
 				documentProps: {
 					metadata,
 					pageProps: serializedPageProps,

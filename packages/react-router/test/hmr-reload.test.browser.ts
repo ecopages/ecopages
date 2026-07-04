@@ -336,6 +336,40 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Andee');
 		});
 
+		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
+			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
+			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: FirstPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v1');
+
+			root.render(
+				createElement(EcoRouter, {
+					page: UpdatedPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v2');
+			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
+			expect(layout?.textContent).toContain('Layout v2');
+		});
+
 		it('does not refresh persisted layouts on the initial bootstrap prop sync', async () => {
 			let layoutMountCount = 0;
 			const Layout = ({ children }: { children: ReactNode }) => {
@@ -369,40 +403,6 @@ describe('EcoRouter HMR Integration', () => {
 			root.render(createElement(EcoRouter, routerProps));
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			expect(layoutMountCount).toBe(1);
-		});
-
-		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
-			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
-			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');
-
-			root = createRoot(container);
-			root.render(
-				createElement(EcoRouter, {
-					page: FirstPage,
-					pageProps: {},
-					options: { persistLayouts: true },
-					// oxlint-disable-next-line no-children-prop
-					children: createElement(PageContent),
-				}),
-			);
-
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			expect(container.textContent).toContain('Layout v1');
-
-			root.render(
-				createElement(EcoRouter, {
-					page: UpdatedPage,
-					pageProps: {},
-					options: { persistLayouts: true },
-					// oxlint-disable-next-line no-children-prop
-					children: createElement(PageContent),
-				}),
-			);
-
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			expect(container.textContent).toContain('Layout v2');
-			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
-			expect(layout?.textContent).toContain('Layout v2');
 		});
 
 		it('does not reuse a persisted layout when plain layouts share the same display name', async () => {

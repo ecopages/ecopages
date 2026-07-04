@@ -74,6 +74,28 @@ HomePage.config = { layout: BaseLayout };
 export default HomePage;
 ```
 
+#### Nested layouts and shared parents
+
+Pages can declare an outer→inner stack with `layouts: [Outer, Inner]`. Each tier is cached independently by Eco metadata (`config.__eco.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` therefore share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
+
+A full document reload, HMR, or bootstrap that sets `refreshPersistedLayout` may replace a cached tier when the imported layout function reference changes, even when the cache key is unchanged.
+
+```tsx
+// src/pages/docs/index.tsx
+import { AppShell } from '../../layouts/app-shell';
+import { DocsSection } from '../../layouts/docs-section';
+
+const DocsPage = () => <h1>Docs</h1>;
+DocsPage.config = { layouts: [AppShell, DocsSection] };
+
+// src/pages/settings/index.tsx — reuses the same AppShell cache key
+import { AppShell } from '../../layouts/app-shell';
+import { SettingsSection } from '../../layouts/settings-section';
+
+const SettingsPage = () => <h1>Settings</h1>;
+SettingsPage.config = { layouts: [AppShell, SettingsSection] };
+```
+
 ### Links
 
 Standard relative links are intercepted natively. To bypass the router and force a hard reload, use the `data-eco-reload` attribute.

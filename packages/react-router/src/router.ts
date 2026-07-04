@@ -44,6 +44,7 @@ import {
 	type EcoReloadRequest,
 } from '@ecopages/core/router/navigation-coordinator';
 import { clearLayoutCache, resolvePersistedLayout, type LayoutComponent } from './layout-cache.ts';
+import { composeLayoutPageTree } from '@ecopages/react/layout-compose';
 import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
@@ -129,15 +130,16 @@ export const PageContent: FC = () => {
 	}
 
 	const { Component: Page, props, refreshPersistedLayout } = pageContext;
+	const pageWithConfig = Page as ComponentType & {
+		config?: { layout?: LayoutComponent; layouts?: LayoutComponent[] };
+	};
+	const layouts = pageWithConfig.config?.layouts;
 	const Layout = getLayoutFromPage(Page);
-	const pageElement = createElement(Page, props);
-	const layoutProps = props?.locals ? { locals: props.locals } : null;
+	const shouldUsePersistedSingleLayout = persistLayouts && Layout && (!layouts || layouts.length <= 1);
 
-	if (!Layout) {
-		return pageElement;
-	}
-
-	if (persistLayouts) {
+	if (shouldUsePersistedSingleLayout) {
+		const pageElement = createElement(Page, props);
+		const layoutProps = props?.locals ? { locals: props.locals } : null;
 		const { layout: CachedLayout, key: layoutKey } = resolvePersistedLayout(
 			Layout,
 			Boolean(refreshPersistedLayout),
@@ -146,7 +148,7 @@ export const PageContent: FC = () => {
 		return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, pageElement);
 	}
 
-	return createElement(Layout, layoutProps, pageElement);
+	return composeLayoutPageTree(Page as Parameters<typeof composeLayoutPageTree>[0], props);
 };
 
 function createDeferred<T>() {

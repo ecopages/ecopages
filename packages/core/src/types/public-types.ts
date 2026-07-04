@@ -378,20 +378,22 @@ export type EcoComponentDependencies = {
 	 * to express explicit module imports for client bundles.
 	 */
 	modules?: string[];
+	/**
+	 * Child components whose assets and foreign-child graph are collected transitively.
+	 * Each entry must be an `eco.component()`, `eco.layout()`, or `eco.html()` result
+	 * with plugin-injected `config.__eco` metadata.
+	 */
 	components?: EcoDeclaredComponent[];
 };
 
 /**
- * Eco component created through `eco.component()`, `eco.layout()`, or `eco.html()`.
+ * Component returned from `eco.component()`, `eco.layout()`, or `eco.html()`.
  *
  * @remarks
- * `config.__eco` is injected by the component-meta plugin at build time. The brand
- * keeps `dependencies.components` narrow at authoring time; use
- * `isEcoDeclaredComponent()` for runtime checks.
+ * Used for `dependencies.components` and eco factory return types. Plugin-injected
+ * `config.__eco` is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
  */
-export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R> & {
-	readonly __ecoDeclaredBrand?: unique symbol;
-};
+export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R>;
 
 export type EcoPagesElement = string | Promise<string>;
 
@@ -945,10 +947,7 @@ export interface PageBrowserGraphContribution {
 	assets?: ProcessedAsset[];
 }
 
-export type OwnershipValidationErrorCode =
-	| 'UNKNOWN_INTEGRATION_OWNER'
-	| 'MISSING_COMPONENT_METADATA'
-	| 'UNDECLARED_COMPONENT_DEPENDENCY';
+export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';
 
 export interface OwnershipValidationError {
 	code: OwnershipValidationErrorCode;

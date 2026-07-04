@@ -1,4 +1,5 @@
 import { LocalsAccessError } from '@ecopages/core/errors';
+import { serializePageDataScript } from '../serialize-page-data-script.ts';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
@@ -24,8 +25,7 @@ export class ReactPagePayloadService {
 	 * can read one shared document payload consistently.
 	 */
 	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
-		const safeJson = JSON.stringify(pageProps || {}).replace(/</g, '\\u003c');
-		return `<script id="__ECO_PAGE_DATA__" type="application/json">${safeJson}</script>`;
+		return serializePageDataScript(pageProps as Record<string, unknown> | undefined);
 	}
 
 	/**

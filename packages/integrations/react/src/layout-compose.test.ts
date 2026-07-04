@@ -6,6 +6,7 @@ import {
 	composeLayoutPageTreeFromShell,
 	normalizePageLayoutComponents,
 	resolveLayoutEntryProps,
+	resolveLayoutContextFromShell,
 	type ComposablePage,
 } from './layout-compose.ts';
 
@@ -86,5 +87,23 @@ describe('layout-compose', () => {
 
 		const tree = composeLayoutPageTreeFromShell(pageComponent(Page), {}, [{ component: Outer }]);
 		expect(tree.type).toBe(Outer);
+	});
+
+	it('should derive layout locals from shell props instead of pageProps.locals', () => {
+		const Layout = ({ locals, children }: { locals?: { role: string }; children?: string }) =>
+			createElement('section', null, locals?.role, children);
+		const Page = eco.page({
+			layout: Layout,
+			render: () => 'page',
+		});
+		const routeLocals = { role: 'admin' };
+		const pageLocals = { role: 'guarded' };
+
+		const context = resolveLayoutContextFromShell({ locals: pageLocals }, [
+			{ component: Layout, props: { locals: routeLocals } },
+		]);
+		const tree = composeLayoutPageTree(pageComponent(Page), { locals: pageLocals }, { context });
+
+		expect(tree.props).toEqual({ locals: routeLocals, children: expect.any(Object) });
 	});
 });

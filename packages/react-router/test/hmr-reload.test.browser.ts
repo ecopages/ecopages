@@ -336,6 +336,41 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Andee');
 		});
 
+		it('does not refresh persisted layouts on the initial bootstrap prop sync', async () => {
+			let layoutMountCount = 0;
+			const Layout = ({ children }: { children: ReactNode }) => {
+				layoutMountCount += 1;
+				return createElement('div', { 'data-testid': 'bootstrap-layout' }, children);
+			};
+			(Layout as typeof Layout & { config?: { __eco?: { id: string } } }).config = {
+				__eco: { id: 'bootstrap-layout' },
+			};
+
+			const Page = (() => createElement('div', { 'data-testid': 'bootstrap-page' }, 'page')) as ReturnType<
+				typeof createMockPageComponent
+			> & {
+				config?: { layout?: typeof Layout };
+			};
+			Page.config = { layout: Layout };
+
+			clearLayoutCache();
+			root = createRoot(container);
+			const routerProps = {
+				page: Page,
+				pageProps: {},
+				options: { persistLayouts: true },
+				children: createElement(PageContent),
+			};
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
+		});
+
 		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
 			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
 			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');

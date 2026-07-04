@@ -130,3 +130,13 @@ export function resolvePersistedLayout(
 
 	return { layout: cached, key: layoutKey };
 }
+
+/**
+ * Resolves one persisted layout instance per tier in an outer→inner stack.
+ */
+export function resolvePersistedLayoutStack(
+	layouts: LayoutComponent[],
+	refreshPersistedLayout: boolean,
+): ResolvedPersistedLayout[] {
+	return layouts.map((layout) => resolvePersistedLayout(layout, refreshPersistedLayout));
+}

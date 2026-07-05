@@ -1,0 +1,16 @@
+.docs-layout {
+	display: grid;
+	grid-template-columns: 240px minmax(0, 1fr);
+	gap: 2rem;
+	padding: 2rem;
+}
+
+.docs-layout__aside ul {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.docs-layout__aside a {
+	text-decoration: none;
+}

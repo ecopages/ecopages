@@ -1,4 +1,4 @@
-import { createElement, type FunctionComponent, type ReactElement } from 'react';
+import { createElement as defaultCreateElement, type FunctionComponent, type ReactElement } from 'react';
 import type {
 	EcoComponent,
 	EcoDeclaredComponent,
@@ -9,6 +9,16 @@ import type {
 import type { EcoComponentConfig } from '@ecopages/core';
 
 export type LayoutComposeContext = LayoutPropsContext;
+
+export type LayoutComposeOptions = {
+	context?: LayoutComposeContext;
+	/** @remarks Pass the app-resolved React runtime during SSR to avoid duplicate React copies. */
+	createElement?: typeof defaultCreateElement;
+};
+
+function resolveCreateElement(options?: LayoutComposeOptions): typeof defaultCreateElement {
+	return options?.createElement ?? defaultCreateElement;
+}
 
 export type LayoutShellEntry = {
 	component: EcoComponent;
@@ -114,8 +124,9 @@ export function assertComposablePage(Page: unknown): ComposablePage {
 export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	Page: ComposablePage<P>,
 	pageProps: P,
-	options?: { context?: LayoutComposeContext },
+	options?: LayoutComposeOptions,
 ): ReactElement {
+	const createElement = resolveCreateElement(options);
 	const context = options?.context ?? resolveLayoutContext(pageProps);
 	const pageElement = createElement(Page, pageProps);
 	const layoutEntries = Page.config?.layoutEntries;
@@ -152,8 +163,9 @@ export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>
 	Page: ComposablePage<P>,
 	pageProps: P,
 	shellLayouts: LayoutShellEntry[],
-	options?: { context?: LayoutComposeContext },
+	options?: LayoutComposeOptions,
 ): ReactElement {
+	const createElement = resolveCreateElement(options);
 	if (shellLayouts.length === 0) {
 		return composeLayoutPageTree(Page, pageProps, options);
 	}

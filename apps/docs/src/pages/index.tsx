@@ -1,4 +1,5 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
 import {
@@ -8,7 +9,7 @@ import {
 	configExampleCode,
 	pageExample,
 	pageExampleCode,
-} from '@/data/homepage-examples';
+} from '@/homepage/examples';
 import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 
 const HomeCard = ({
@@ -41,8 +42,18 @@ const HomePathCard = ({ href, title, description }: { href: string; title: strin
 	</a>
 );
 
-const HomePage: EcoComponent = () => {
-	return (
+export default eco.page<{}, JsxRenderable>({
+	layout: BaseLayout,
+	dependencies: {
+		components: [CodeTabs],
+		stylesheets: ['./index.css'],
+	},
+	metadata: () => ({
+		title: 'Ecopages',
+		description:
+			'A file-based web framework for HTML-first multi-page applications with optional interactive islands.',
+	}),
+	render: () => (
 		<div class="home-layout not-prose">
 			<header class="home-header">
 				<div class="home-hero">
@@ -245,15 +256,5 @@ const HomePage: EcoComponent = () => {
 				</div>
 			</aside>
 		</div>
-	);
-};
-
-HomePage.config = {
-	layout: BaseLayout,
-	dependencies: {
-		components: [CodeTabs],
-		stylesheets: ['./index.css'],
-	},
-};
-
-export default HomePage;
+	),
+});

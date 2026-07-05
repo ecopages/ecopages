@@ -2,10 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import React, { createContext, useContext, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ReactRenderer } from '../react-renderer.ts';
-
-const DataContext = createContext('missing');
 
 class TestReactRenderer extends ReactRenderer {
 	protected override async getHtmlTemplate() {
@@ -18,6 +16,10 @@ class TestReactRenderer extends ReactRenderer {
 
 	protected override async resolveDependencies() {
 		return [];
+	}
+
+	getRuntimeReact(): typeof import('react') {
+		return this.resolveReactRuntimeModules().react as typeof import('react');
 	}
 }
 
@@ -45,6 +47,8 @@ describe('ReactRenderer unified SSR layout composition', () => {
 			assetProcessingService: assetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
+		const { createContext, useContext } = renderer.getRuntimeReact();
+		const DataContext = createContext('missing');
 
 		const Layout = ({ children }: { children?: ReactNode }) => (
 			<DataContext.Provider value="from-layout">{children}</DataContext.Provider>

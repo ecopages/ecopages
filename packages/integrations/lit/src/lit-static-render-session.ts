@@ -93,8 +93,8 @@ export class LitStaticRenderSession {
 			const page = pageModule.default;
 			if (page) {
 				components.push(page);
-				if (page.config?.layout) {
-					components.push(page.config.layout);
+				for (const layout of page.config?.layouts ?? []) {
+					components.push(layout);
 				}
 				for (const nestedComponent of page.config?.dependencies?.components ?? []) {
 					components.push(nestedComponent);

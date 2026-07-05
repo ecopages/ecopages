@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 
 export type DocsLayoutProps = {
 	children: string;
@@ -19,8 +19,12 @@ const sidebarItems = [
 	{ href: '/docs/examples', label: 'Examples' },
 ];
 
-export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
-	return (
+export const DocsLayout = eco.layout<DocsLayoutProps>({
+	dependencies: {
+		stylesheets: ['./docs.css'],
+		scripts: ['./base-layout.script.ts', './docs-layout.script.ts'],
+	},
+	render: ({ children }) => (
 		<div class="docs-layout" data-testid="docs-layout">
 			<fixture-docs-sidebar
 				id="docs-sidebar"
@@ -42,12 +46,5 @@ export const DocsLayout: EcoComponent<DocsLayoutProps> = ({ children }) => {
 			</fixture-docs-sidebar>
 			<main class="docs-content">{children as 'safe'}</main>
 		</div>
-	);
-};
-
-DocsLayout.config = {
-	dependencies: {
-		stylesheets: ['./docs.css'],
-		scripts: ['./base-layout.script.ts', './docs-layout.script.ts'],
-	},
-};
+	),
+});

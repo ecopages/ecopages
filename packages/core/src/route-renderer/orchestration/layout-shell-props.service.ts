@@ -40,11 +40,16 @@ export function resolveLayoutEntryProps(
  */
 export function resolvePageLayoutComponents(
 	layouts?: EcoPageLayoutEntry['component'][],
-	legacyLayout?: EcoPageLayoutEntry['component'],
 ): EcoPageLayoutEntry['component'][] {
-	if (layouts && layouts.length > 0) {
-		return layouts;
-	}
+	return layouts && layouts.length > 0 ? layouts : [];
+}
 
-	return legacyLayout ? [legacyLayout] : [];
+/**
+ * Returns the innermost layout component from a normalized page layout stack.
+ */
+export function resolveInnermostPageLayout(
+	layouts?: EcoPageLayoutEntry['component'][],
+): EcoPageLayoutEntry['component'] | undefined {
+	const stack = resolvePageLayoutComponents(layouts);
+	return stack[stack.length - 1];
 }

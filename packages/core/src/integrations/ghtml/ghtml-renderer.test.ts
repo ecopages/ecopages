@@ -233,7 +233,7 @@ describe('GhtmlRenderer', () => {
 			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: Layout };
+			View.config = { layouts: [Layout] };
 
 			const response = await renderer.renderToResponse(View, { message: 'With Layout' }, {});
 			const body = await response.text();

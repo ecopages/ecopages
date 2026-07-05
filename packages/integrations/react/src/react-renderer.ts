@@ -24,6 +24,7 @@ import {
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { FunctionComponent, ReactElement, ReactNode } from 'react';
@@ -667,6 +668,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const { default: Page, getMetadata, config } = reactModule;
 
 		if (this.pageModuleService.isMdxFile(file) && config) {
+			ensurePageConfigLayouts(config);
 			Page.config = config;
 		}
 
@@ -774,9 +776,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			props: layout.props,
 		}));
 		const hasNormalizedLayouts =
-			Boolean(Page.config?.layoutEntries?.length) ||
-			Boolean(Page.config?.layouts?.length) ||
-			Boolean(Page.config?.layout);
+			Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
 
 		if (hasNormalizedLayouts) {
 			return composeLayoutPageTree(Page, pageProps, { context: layoutContext });
@@ -797,7 +797,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const configLayouts =
 			composablePage.config?.layouts ??
 			composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
-			(composablePage.config?.layout ? [composablePage.config.layout] : []);
+			[];
 
 		const layoutComponents =
 			shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
@@ -1001,11 +1001,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
+			const layouts = view.config?.layouts;
 			return await this.renderViewWithDocumentShell({
 				view,
 				props,
 				ctx,
-				layout: view.config?.layout,
+				layout: layouts?.[layouts.length - 1],
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render view', error);

@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
 import { getReactServerMetadataSummary } from './react-server-metadata.server';
-import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
 import type { ReactNode } from 'react';
 
 export default eco.page<{}, ReactNode>({

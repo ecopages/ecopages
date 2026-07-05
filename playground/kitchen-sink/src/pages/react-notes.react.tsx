@@ -2,7 +2,7 @@
 import { eco } from '@ecopages/core';
 import { ReactCounter } from '@/components/react-counter.react';
 import { getRouteLinkTestId } from '@/data/primary-links';
-import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
 import { ReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
 import type { ReactNode } from 'react';
 

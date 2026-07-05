@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoComponentConfig } from '../types/public-types.ts';
 import { eco } from './eco.ts';
-import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
+import {
+	applyPageLayoutConfig,
+	ensurePageConfigLayouts,
+	mergeLayoutDependencies,
+	normalizePageLayouts,
+} from './page-layout-normalization.ts';
 
 describe('page-layout-normalization', () => {
 	const OuterLayout = eco.layout({
@@ -57,5 +62,22 @@ describe('page-layout-normalization', () => {
 
 		expect(config.layouts).toEqual([OuterLayout, InnerLayout]);
 		expect(config.layoutEntries).toEqual(entries);
+	});
+
+	it('should migrate MDX-exported config.layout onto config.layouts', () => {
+		const config = { layout: InnerLayout } as EcoComponentConfig & { layout: typeof InnerLayout };
+
+		ensurePageConfigLayouts(config);
+
+		expect(config.layouts).toEqual([InnerLayout]);
+		expect(config.layoutEntries).toEqual([{ component: InnerLayout }]);
+	});
+
+	it('should leave configs with existing layouts unchanged', () => {
+		const config = { layouts: [InnerLayout] } as EcoComponentConfig;
+
+		ensurePageConfigLayouts(config);
+
+		expect(config.layouts).toEqual([InnerLayout]);
 	});
 });

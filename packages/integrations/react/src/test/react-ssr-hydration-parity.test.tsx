@@ -1,9 +1,10 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import React, { type ReactNode } from 'react';
-import { renderToString } from 'react-dom/server';
+import type { ReactNode } from 'react';
 import { composeLayoutPageTree, assertComposablePage } from '../layout-compose.ts';
 import { ReactRenderer } from '../react-renderer.ts';
 
@@ -16,6 +17,10 @@ class TestReactRenderer extends ReactRenderer {
 	protected override async resolveDependencies() {
 		return [];
 	}
+
+	getRuntime() {
+		return this.resolveReactRuntimeModules();
+	}
 }
 
 function extractLayoutMarkerOrder(html: string): string[] {
@@ -23,8 +28,11 @@ function extractLayoutMarkerOrder(html: string): string[] {
 	return matches.map((match) => match[1] ?? '');
 }
 
+const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 describe('React SSR and hydration layout parity', () => {
 	const appConfig = {
+		rootDir: integrationRoot,
 		defaultMetadata: { title: 'Test', description: 'Test' },
 		absolutePaths: { htmlTemplatePath: '/tmp/template.tsx', pagesDir: '/tmp/pages' },
 		srcDir: '/tmp/src',
@@ -41,6 +49,7 @@ describe('React SSR and hydration layout parity', () => {
 			assetProcessingService: assetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
+		const { react, reactDomServer } = renderer.getRuntime();
 
 		const Outer = ({ children }: { children?: ReactNode }) => <div data-layout="outer">{children}</div>;
 		const Inner = ({ children }: { children?: ReactNode }) => <div data-layout="inner">{children}</div>;
@@ -51,8 +60,8 @@ describe('React SSR and hydration layout parity', () => {
 			layoutEntries: [{ component: Outer }, { component: Inner }],
 		};
 
-		const clientTree = composeLayoutPageTree(assertComposablePage(Page), {});
-		const clientHtml = renderToString(clientTree);
+		const clientTree = composeLayoutPageTree(assertComposablePage(Page), {}, { react });
+		const clientHtml = reactDomServer.renderToString(clientTree);
 
 		const serverHtml = String(
 			await renderer.render({

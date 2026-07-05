@@ -1,6 +1,6 @@
 /**
- * Removes scoped e2e fixture build outputs so Playwright static builds do not
- * reuse stale incremental caches after workspace package changes.
+ * Removes e2e fixture and kitchen-sink build outputs so Playwright static builds
+ * do not reuse stale incremental caches after source or workspace package changes.
  */
 import { readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -8,14 +8,15 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const fixturesRoot = path.join(repoRoot, 'e2e', 'fixtures');
+const kitchenSinkDir = path.join(repoRoot, 'playground', 'kitchen-sink');
 
 const SCOPED_ARTIFACT_PATTERN = /^(?:dist(?:-.+)?|\.eco(?:-.+)?)$/;
 
-function removeScopedArtifacts(fixtureDir) {
+function removeScopedArtifacts(appDir) {
 	let entries;
 
 	try {
-		entries = readdirSync(fixtureDir);
+		entries = readdirSync(appDir);
 	} catch {
 		return;
 	}
@@ -25,7 +26,7 @@ function removeScopedArtifacts(fixtureDir) {
 			continue;
 		}
 
-		const artifactPath = path.join(fixtureDir, entry);
+		const artifactPath = path.join(appDir, entry);
 
 		try {
 			if (!statSync(artifactPath).isDirectory()) {
@@ -46,9 +47,11 @@ try {
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => path.join(fixturesRoot, entry.name));
 } catch {
-	process.exit(0);
+	fixtureDirs = [];
 }
 
 for (const fixtureDir of fixtureDirs) {
 	removeScopedArtifacts(fixtureDir);
 }
+
+removeScopedArtifacts(kitchenSinkDir);

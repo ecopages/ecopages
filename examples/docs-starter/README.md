@@ -6,11 +6,18 @@ Minimal Ecopages docs site using a content tree, manifest-driven navigation, and
 
 - `src/content/docs/**` — body-only MDX content
 - `src/docs-kit/**` — compile helpers, manifest, layout, and docs chrome (mirrors `apps/docs/src/lib/docs-kit` patterns)
+- `src/docs-kit.instance.ts` — app-specific wiring via `defineDocsKit()`
 - `src/pages/docs/[...slug]/index.tsx` — single catch-all route for all docs pages
+
+## Configuration
+
+- Edit `src/docs-kit/manifest/docs-manifest.config.ts` to add, remove, or reorder pages.
+- Every `.mdx` file under `src/content/docs` must appear in the manifest; orphan files fail `buildDocsManifest()`.
+- Inject shell layout and MDX components in `src/docs-kit.instance.ts`.
 
 ## Docs bar
 
-The docs layout composes local docs-kit components:
+The docs layout composes kit-local components:
 
 - `Breadcrumb` — receives `items` via props (resolved server-side from the manifest)
 - `CopyForLlm` — SSR markup with a Radiant script for clipboard behavior only (no client render override)

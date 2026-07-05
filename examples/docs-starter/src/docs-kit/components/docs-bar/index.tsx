@@ -1,7 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { Breadcrumb, type BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
-import { CopyForLlm } from '@/components/copy-for-llm';
+import { Breadcrumb, type BreadcrumbItem } from '../breadcrumb/breadcrumb';
+import { CopyForLlm } from '../copy-for-llm';
 
 export type DocsBarProps = {
 	crumbs?: BreadcrumbItem[];

@@ -1,11 +1,11 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import '@/docs-kit.instance';
 import { DocsBar } from '@/docs-kit/components/docs-bar';
+import { getDocsKit } from '@/docs-kit/config';
 import { getDocsLlmUrl } from '@/docs-kit/llm/docs-llm-url';
 import { resolveDocsBreadcrumb } from '@/docs-kit/navigation/resolve-docs-breadcrumb';
-import { docsManifestConfig } from '@/docs-kit/manifest/docs-manifest.config';
-import { BaseLayout } from '@/layouts/base-layout';
 
 type DocsLayoutPageProps = {
 	section?: string;
@@ -14,26 +14,34 @@ type DocsLayoutPageProps = {
 
 type DocsLayoutRenderProps = LayoutProps<JsxRenderable> & DocsLayoutPageProps;
 
+type ShellLayoutProps = {
+	class?: string;
+	children?: JsxRenderable;
+};
+
+const { manifest, layoutComponents, shellLayout } = getDocsKit();
+const ShellLayout = shellLayout as (props: ShellLayoutProps) => JsxRenderable;
+
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
-		components: [BaseLayout, DocsBar],
+		components: layoutComponents,
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
-		const crumbs = section && slug ? resolveDocsBreadcrumb(docsManifestConfig, section, slug) : [];
+		const crumbs = section && slug ? resolveDocsBreadcrumb(manifest, section, slug) : [];
 
 		return (
-			<BaseLayout class="docs-layout">
+			<ShellLayout class="docs-layout">
 				<aside class="docs-layout__aside">
 					<nav aria-label="Docs">
 						<ul>
-							{docsManifestConfig.sections.map((manifestSection) => (
+							{manifest.sections.map((manifestSection) => (
 								<li>
 									<p>{manifestSection.title}</p>
 									<ul>
 										{manifestSection.pages.map((page) => {
-											const href = `${docsManifestConfig.rootDir}/${page.section}/${page.slug}`;
+											const href = `${manifest.rootDir}/${page.section}/${page.slug}`;
 
 											return (
 												<li>
@@ -51,7 +59,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 					<DocsBar crumbs={crumbs} llmUrl={llmUrl} />
 					<div class="prose">{children}</div>
 				</div>
-			</BaseLayout>
+			</ShellLayout>
 		);
 	},
 });

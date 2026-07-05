@@ -61,17 +61,37 @@ export function mergeLayoutDependencies(
 
 /**
  * Writes normalized layout metadata onto a page `config`.
- *
- * @remarks
- * `config.layout` remains the innermost layout alias for legacy call sites.
  */
 export function applyPageLayoutConfig(pageConfig: EcoComponentConfig, layoutEntries: EcoPageLayoutEntry[]): void {
 	if (layoutEntries.length === 0) {
 		return;
 	}
 
-	const layoutComponents = layoutEntries.map((entry) => entry.component);
-	pageConfig.layouts = layoutComponents;
+	pageConfig.layouts = layoutEntries.map((entry) => entry.component);
 	pageConfig.layoutEntries = layoutEntries;
-	pageConfig.layout = layoutComponents[layoutComponents.length - 1];
+}
+
+type PageConfigWithLegacyLayout = EcoComponentConfig & {
+	layout?: EcoPageLayouts;
+};
+
+/**
+ * Migrates MDX-exported `config.layout` values onto normalized layout metadata.
+ *
+ * @remarks
+ * `eco.page({ layout })` already normalizes at factory time. MDX modules that
+ * export `config.layout` directly still need this import-time migration.
+ */
+export function ensurePageConfigLayouts(config: EcoComponentConfig | undefined): EcoComponentConfig | undefined {
+	if (!config || (config.layouts && config.layouts.length > 0)) {
+		return config;
+	}
+
+	const legacyLayout = (config as PageConfigWithLegacyLayout).layout;
+	if (!legacyLayout) {
+		return config;
+	}
+
+	applyPageLayoutConfig(config, normalizePageLayouts(legacyLayout));
+	return config;
 }

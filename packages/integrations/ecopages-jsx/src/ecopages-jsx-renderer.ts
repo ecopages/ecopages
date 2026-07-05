@@ -271,12 +271,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						throw new TypeError('JSX renderer expected a callable view component.');
 					}
 					const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
+					const layouts = viewComponent.config?.layouts;
 
 					return await this.renderViewWithDocumentShell({
 						view: viewComponent,
 						props: props as Record<string, unknown>,
 						ctx,
-						layout: viewComponent.config?.layout,
+						layout: layouts?.[layouts.length - 1],
 					});
 				} catch (error) {
 					throw this.createRenderError('Error rendering view', error);

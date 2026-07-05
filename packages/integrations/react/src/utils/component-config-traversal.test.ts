@@ -17,7 +17,7 @@ describe('component-config-traversal', () => {
 			},
 		};
 
-		leaf.layout = { config: child } as NonNullable<EcoComponentConfig['layout']>;
+		leaf.layouts = [{ config: child }];
 
 		const visited: EcoComponentConfig[] = [];
 		walkConfigForest([root], (config) => {

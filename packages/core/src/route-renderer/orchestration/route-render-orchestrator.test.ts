@@ -51,10 +51,7 @@ function createFlowAdapter(input: {
 		resolveRouteRenderInputs: async (routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeOptions.file);
 			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layouts = resolvePageLayoutComponents(
-				pageModule.Page.config?.layouts,
-				pageModule.Page.config?.layout,
-			);
+			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
 			const Layout = Layouts[Layouts.length - 1];
 			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
 

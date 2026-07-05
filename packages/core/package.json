@@ -94,6 +94,10 @@
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
 		},
+		"./eco/page-layout-normalization": {
+			"types": "./src/eco/page-layout-normalization.ts",
+			"default": "./src/eco/page-layout-normalization.ts"
+		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
 		},

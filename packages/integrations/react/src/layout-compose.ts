@@ -16,7 +16,7 @@ export type LayoutShellEntry = {
 };
 
 export type ComposablePage<P extends Record<string, unknown> = Record<string, unknown>> = FunctionComponent<P> & {
-	config?: Pick<EcoComponentConfig, 'layout' | 'layouts' | 'layoutEntries'>;
+	config?: Pick<EcoComponentConfig, 'layouts' | 'layoutEntries'>;
 };
 
 /**
@@ -138,13 +138,7 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 			);
 	}
 
-	const Layout = Page.config?.layout;
-	if (!Layout) {
-		return pageElement;
-	}
-
-	const layoutProps = context.locals ? { locals: context.locals } : {};
-	return createElement(toReactComponent(Layout), layoutProps, pageElement);
+	return pageElement;
 }
 
 /**
@@ -174,13 +168,6 @@ export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>
 /**
  * Normalizes page config layout metadata to an outer→inner component list.
  */
-export function normalizePageLayoutComponents(
-	layouts?: EcoDeclaredComponent[],
-	legacyLayout?: EcoDeclaredComponent,
-): EcoDeclaredComponent[] {
-	if (layouts && layouts.length > 0) {
-		return layouts;
-	}
-
-	return legacyLayout ? [legacyLayout] : [];
+export function normalizePageLayoutComponents(layouts?: EcoDeclaredComponent[]): EcoDeclaredComponent[] {
+	return layouts && layouts.length > 0 ? layouts : [];
 }

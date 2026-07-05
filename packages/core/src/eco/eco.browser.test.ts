@@ -25,7 +25,7 @@ describe('browser eco facade', () => {
 		});
 
 		expect(Page({})).toBe('<article>Docs</article>');
-		expect(Page.config?.layout).toBe(Layout);
+		expect(Page.config?.layouts).toEqual([Layout]);
 		expect(Page.config?.dependencies?.components).toEqual([Layout]);
 		expect(Page.staticPaths).toBe(staticPaths);
 		expect(Page.metadata).toBe(metadata);

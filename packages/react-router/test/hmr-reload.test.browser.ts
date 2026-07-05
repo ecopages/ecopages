@@ -32,7 +32,7 @@ function createLayoutAwarePage(name: string) {
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -52,7 +52,7 @@ function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey:
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -69,7 +69,7 @@ function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: st
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -109,7 +109,7 @@ function createPageWithEcoComponentLayout(
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -385,7 +385,7 @@ describe('EcoRouter HMR Integration', () => {
 			> & {
 				config?: { layout?: typeof Layout };
 			};
-			Page.config = { layout: Layout };
+			Page.config = { layouts: [Layout] };
 
 			clearLayoutCache();
 			root = createRoot(container);

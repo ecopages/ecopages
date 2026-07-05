@@ -44,7 +44,7 @@ describe('layout-shell-props.service', () => {
 		});
 	});
 
-	it('should fall back to legacy single layout config', () => {
-		expect(resolvePageLayoutComponents(undefined, Layout)).toEqual([Layout]);
+	it('should return an empty stack when layouts are missing', () => {
+		expect(resolvePageLayoutComponents(undefined)).toEqual([]);
 	});
 });

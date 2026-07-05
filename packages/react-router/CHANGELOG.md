@@ -6,6 +6,11 @@ All notable changes to `@ecopages/react-router` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Features
+
+- Added per-tier `persistLayouts` caching for nested `eco.page({ layout: [...] })` stacks via `resolvePersistedLayoutStack`.
+- Routes that share an outer layout (for example `[AppShell, Docs]` and `[AppShell, Settings]`) reuse the same mounted outer instance on SPA navigation while inner tiers swap.
+
 ### Bug Fixes
 
 - Fixed grouped React route navigations to resolve the destination page bootstrap from explicit document markers instead of relying on legacy asset filename patterns.
@@ -21,3 +26,10 @@ All notable changes to `@ecopages/react-router` are documented here.
 - Routed browser handoff and current-page reloads through the shared navigation coordinator.
 - Removed the React router adapter `importMapKey` field so the adapter now exposes only the browser bundle import path used by both development and production hydration.
 - Updated package metadata for the current core, Rolldown build adapter, and React peer dependency surface.
+
+---
+
+## Migration Notes
+
+- `persistLayouts` defaults to `true` with `ecoRouter()`. Each nested layout tier is cached by `config.__eco.file` or `id`; shared outer layouts stay mounted when navigating between routes with different inner tiers.
+- Plain React layout functions are not valid `eco.page({ layout })` values — use `eco.layout()` so layouts pass declared-component validation and enter the client graph.

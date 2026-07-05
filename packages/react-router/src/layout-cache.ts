@@ -130,3 +130,18 @@ export function resolvePersistedLayout(
 
 	return { layout: cached, key: layoutKey };
 }
+
+/**
+ * Resolves one persisted layout instance per tier in an outer→inner stack.
+ *
+ * @remarks
+ * Each tier is cached independently by {@link getLayoutCacheKey}. Routes that share
+ * an outer layout (e.g. `[A, B]` and `[A, C]`) reuse the same cached `A` instance
+ * while inner tiers mount and unmount with the active page.
+ */
+export function resolvePersistedLayoutStack(
+	layouts: LayoutComponent[],
+	refreshPersistedLayout: boolean,
+): ResolvedPersistedLayout[] {
+	return layouts.map((layout) => resolvePersistedLayout(layout, refreshPersistedLayout));
+}

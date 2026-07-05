@@ -12,6 +12,7 @@ import {
 	type RouteRenderOrchestratorAdapter,
 	RouteRenderOrchestrator,
 } from './route-render-orchestrator.ts';
+import { resolvePageLayoutComponents } from './layout-shell-props.service.ts';
 
 function createFlowAdapter(input: {
 	resolvePageModule: (file: string) => Promise<{
@@ -50,13 +51,16 @@ function createFlowAdapter(input: {
 		resolveRouteRenderInputs: async (routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeOptions.file);
 			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layout = pageModule.Page.config?.layout;
+			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
+			const Layout = Layouts[Layouts.length - 1];
 			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
 
 			return {
 				Page: pageModule.Page,
 				HtmlTemplate,
+				Layouts,
 				Layout,
+				layoutEntries: pageModule.Page.config?.layoutEntries,
 				props,
 				metadata,
 				integrationSpecificProps: pageModule.integrationSpecificProps,

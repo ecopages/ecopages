@@ -4,12 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
-import type {
-	GetMetadataContext,
-	HtmlTemplateProps,
-	LayoutProps,
-	StaticPath,
-} from '../types/public-types.ts';
+import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
 	type ForeignChildRuntime,
@@ -437,7 +432,7 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 		});
 	});
@@ -495,7 +490,7 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 			const result = await Page({});
 			expect(result).toBe('<h1>Page Content</h1>');
@@ -514,7 +509,7 @@ describe('eco namespace', () => {
 				},
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			const result = await Page({});
 			expect(result).toBe('<h1>Async Content</h1>');
 		});
@@ -660,6 +655,40 @@ describe('eco namespace', () => {
 			});
 
 			expect(Card.config?.dependencies?.components).toContain(Button);
+		});
+
+		test('should normalize nested page layouts onto config.layouts', () => {
+			const OuterLayout = eco.layout({
+				__eco: {
+					id: 'outer',
+					file: '/app/layouts/outer.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<outer>${children}</outer>`,
+			});
+			const InnerLayout = eco.layout({
+				__eco: {
+					id: 'inner',
+					file: '/app/layouts/inner.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<inner>${children}</inner>`,
+			});
+
+			const Page = eco.page({
+				layout: [OuterLayout, { component: InnerLayout, props: ({ params }) => ({ section: params?.slug }) }],
+				render: () => '<page />',
+			});
+
+			expect(Page.config?.layouts).toEqual([OuterLayout, InnerLayout]);
+			expect(Page.config?.layoutEntries).toEqual([
+				{ component: OuterLayout },
+				{
+					component: InnerLayout,
+					props: expect.any(Function),
+				},
+			]);
+			expect(Page.config?.dependencies?.components).toEqual([OuterLayout, InnerLayout]);
 		});
 	});
 

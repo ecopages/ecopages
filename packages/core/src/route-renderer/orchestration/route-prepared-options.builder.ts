@@ -8,6 +8,7 @@ import type {
 	IntegrationRendererRenderOptions,
 	PageBrowserGraphResult,
 	PageMetadataProps,
+	EcoPageLayoutEntry,
 	PageProps,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
@@ -18,7 +19,9 @@ import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
 type PreparedRenderInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps>;
+	Layouts: EcoComponent[];
 	Layout?: EcoComponent;
+	layoutEntries?: EcoPageLayoutEntry[];
 	props: Record<string, unknown>;
 	metadata: PageMetadataProps;
 	integrationSpecificProps: Record<string, unknown>;
@@ -45,7 +48,8 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		componentRender,
 		appConfig,
 	} = input;
-	const { Page, HtmlTemplate, Layout, props, metadata, integrationSpecificProps } = resolvedInputs;
+	const { Page, HtmlTemplate, Layouts, Layout, layoutEntries, props, metadata, integrationSpecificProps } =
+		resolvedInputs;
 
 	const dedupedDependencies = dedupeProcessedAssets(allDependencies);
 	const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
@@ -70,7 +74,9 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		pagePackage,
 		componentRender,
 		HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
+		Layouts,
 		Layout,
+		layoutEntries,
 		props,
 		Page: Page as EcoComponent<PageProps, C>,
 		metadata,

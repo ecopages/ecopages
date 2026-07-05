@@ -905,28 +905,30 @@ describe('ReactHmrStrategy', () => {
 					}),
 					importServerModule: createImportServerModuleMock({
 						config: {
-							layout: {
-								config: {
-									__eco: {
-										id: 'layout',
-										file: '/tmp/src/layouts/base-layout.tsx',
-										integration: 'react',
-									},
-									dependencies: {
-										components: [
-											{
-												config: {
-													__eco: {
-														id: 'shell',
-														file: changedComponent,
-														integration: 'react',
+							layouts: [
+								{
+									config: {
+										__eco: {
+											id: 'layout',
+											file: '/tmp/src/layouts/base-layout.tsx',
+											integration: 'react',
+										},
+										dependencies: {
+											components: [
+												{
+													config: {
+														__eco: {
+															id: 'shell',
+															file: changedComponent,
+															integration: 'react',
+														},
 													},
 												},
-											},
-										],
+											],
+										},
 									},
 								},
-							},
+							],
 						},
 					}),
 				}),
@@ -1032,28 +1034,30 @@ describe('ReactHmrStrategy', () => {
 					}),
 					importServerModule: createImportServerModuleMock({
 						config: {
-							layout: {
-								config: {
-									__eco: {
-										id: 'layout',
-										file: '/tmp/src/layouts/base-layout.tsx',
-										integration: 'react',
-									},
-									dependencies: {
-										components: [
-											{
-												config: {
-													__eco: {
-														id: 'shell',
-														file: changedComponent,
-														integration: 'react',
+							layouts: [
+								{
+									config: {
+										__eco: {
+											id: 'layout',
+											file: '/tmp/src/layouts/base-layout.tsx',
+											integration: 'react',
+										},
+										dependencies: {
+											components: [
+												{
+													config: {
+														__eco: {
+															id: 'shell',
+															file: changedComponent,
+															integration: 'react',
+														},
 													},
 												},
-											},
-										],
+											],
+										},
 									},
 								},
-							},
+							],
 						},
 					}),
 				}),
@@ -1106,28 +1110,30 @@ describe('ReactHmrStrategy', () => {
 					}),
 					importServerModule: createImportServerModuleMock({
 						config: {
-							layout: {
-								config: {
-									__eco: {
-										id: 'layout',
-										file: '/tmp/src/layouts/base-layout.tsx',
-										integration: 'react',
-									},
-									dependencies: {
-										components: [
-											{
-												config: {
-													__eco: {
-														id: 'shell',
-														file: changedComponent,
-														integration: 'react',
+							layouts: [
+								{
+									config: {
+										__eco: {
+											id: 'layout',
+											file: '/tmp/src/layouts/base-layout.tsx',
+											integration: 'react',
+										},
+										dependencies: {
+											components: [
+												{
+													config: {
+														__eco: {
+															id: 'shell',
+															file: changedComponent,
+															integration: 'react',
+														},
 													},
 												},
-											},
-										],
+											],
+										},
 									},
 								},
-							},
+							],
 						},
 					}),
 				}),

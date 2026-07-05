@@ -77,6 +77,10 @@
 			"types": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts",
 			"default": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts"
 		},
+		"./route-renderer/orchestration/document-shell-render.service": {
+			"types": "./src/route-renderer/orchestration/document-shell-render.service.ts",
+			"default": "./src/route-renderer/orchestration/document-shell-render.service.ts"
+		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
 			"default": "./src/router/client/navigation-coordinator.ts"
@@ -89,6 +93,10 @@
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",
 			"default": "./src/eco/eco.ts"
+		},
+		"./eco/page-layout-normalization": {
+			"types": "./src/eco/page-layout-normalization.ts",
+			"default": "./src/eco/page-layout-normalization.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"

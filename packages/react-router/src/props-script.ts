@@ -1,4 +1,5 @@
 import { createElement, type FC } from 'react';
+import { escapePageDataJson } from '@ecopages/react/serialize-page-data-script';
 
 export interface EcoPropsScriptProps {
 	/** The page props to serialize for client-side hydration */
@@ -14,6 +15,6 @@ export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data }) => {
 	return createElement('script', {
 		id: '__ECO_PAGE_DATA__',
 		type: 'application/json',
-		dangerouslySetInnerHTML: { __html: JSON.stringify(data || {}) },
+		dangerouslySetInnerHTML: { __html: escapePageDataJson(data) },
 	});
 };

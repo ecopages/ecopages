@@ -378,8 +378,22 @@ export type EcoComponentDependencies = {
 	 * to express explicit module imports for client bundles.
 	 */
 	modules?: string[];
-	components?: EcoComponent[];
+	/**
+	 * Child components whose assets and foreign-child graph are collected transitively.
+	 * Each entry must be an `eco.component()`, `eco.layout()`, or `eco.html()` result
+	 * with plugin-injected `config.__eco` metadata.
+	 */
+	components?: EcoDeclaredComponent[];
 };
+
+/**
+ * Component returned from `eco.component()`, `eco.layout()`, or `eco.html()`.
+ *
+ * @remarks
+ * Used for `dependencies.components` and eco factory return types. Plugin-injected
+ * `config.__eco` is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
+ */
+export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R>;
 
 export type EcoPagesElement = string | Promise<string>;
 

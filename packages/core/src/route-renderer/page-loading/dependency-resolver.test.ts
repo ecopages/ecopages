@@ -12,6 +12,7 @@ import type {
 	InlineContentScriptAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
+import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -757,5 +758,28 @@ describe('DependencyResolverService', () => {
 				filepath: '/app/components/theme-toggle.client.ts',
 			}),
 		]);
+	});
+
+	it('should throw when dependencies.components contains a plain function', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const plainChild = (() => '<child />') as EcoComponent;
+		const component = ((_) => '<parent></parent>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			__eco: {
+				id: 'parent',
+				integration: 'kitajs',
+				file: '/app/components/parent.kita.tsx',
+			},
+			dependencies: {
+				components: [plainChild],
+			},
+		};
+
+		await expect(service.processComponentDependencies([component], 'kitajs')).rejects.toThrow(
+			UndeclaredComponentDependencyError,
+		);
 	});
 });

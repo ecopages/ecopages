@@ -6,6 +6,7 @@
 /// <reference types="@ecopages/core/declarations" />
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { type ComponentType } from 'react';
 import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
 import type { EcoRouterOptions } from './types.ts';
@@ -359,6 +360,8 @@ export async function loadPageModuleFromDocument(
 	if (config && !rawComponent.config) {
 		rawComponent.config = config;
 	}
+
+	ensurePageConfigLayouts(rawComponent.config);
 
 	return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
 }

@@ -24,6 +24,7 @@ import {
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { FunctionComponent, ReactElement, ReactNode } from 'react';
@@ -667,6 +668,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const { default: Page, getMetadata, config } = reactModule;
 
 		if (this.pageModuleService.isMdxFile(file) && config) {
+			ensurePageConfigLayouts(config);
 			Page.config = config;
 		}
 

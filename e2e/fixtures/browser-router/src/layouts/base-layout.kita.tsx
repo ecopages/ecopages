@@ -1,15 +1,13 @@
-import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import type { EcoPagesElement } from '@ecopages/core';
 
 export type BaseLayoutProps = {
 	children: EcoPagesElement;
 };
 
-export const BaseLayout: EcoComponent<BaseLayoutProps> = ({ children }) => {
-	return <main data-testid="base-layout">{children as 'safe'}</main>;
-};
-
-BaseLayout.config = {
+export const BaseLayout = eco.layout<BaseLayoutProps>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
 	},
-};
+	render: ({ children }) => <main data-testid="base-layout">{children as 'safe'}</main>,
+});

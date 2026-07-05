@@ -13,6 +13,15 @@ const docsSrc = path.join(repoRoot, 'apps', 'docs', 'src');
 const docsDist = path.join(repoRoot, 'apps', 'docs', 'dist');
 const port = process.env.ECOPAGES_PORT || '4009';
 
+/** Workspace packages whose changes must invalidate a cached docs dist build. */
+const DOCS_BUILD_INPUT_ROOTS = [
+	docsSrc,
+	path.join(repoRoot, 'packages', 'core', 'src'),
+	path.join(repoRoot, 'packages', 'integrations', 'react', 'src'),
+	path.join(repoRoot, 'packages', 'integrations', 'ecopages-jsx', 'src'),
+	path.join(repoRoot, 'packages', 'react-router', 'src'),
+];
+
 const EXCLUDED_NAMES = new Set(['node_modules', 'dist', '.eco', '.eco-config']);
 
 function getNewestMtime(dir) {
@@ -65,7 +74,10 @@ function isDistFresh() {
 		return false;
 	}
 
-	return getNewestMtime(docsDist) > getNewestMtime(docsSrc);
+	const distMtime = getNewestMtime(docsDist);
+	const inputMtime = Math.max(...DOCS_BUILD_INPUT_ROOTS.map((root) => getNewestMtime(root)));
+
+	return distMtime > inputMtime;
 }
 
 function runCommand(command) {

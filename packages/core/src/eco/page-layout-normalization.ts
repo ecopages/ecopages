@@ -70,3 +70,28 @@ export function applyPageLayoutConfig(pageConfig: EcoComponentConfig, layoutEntr
 	pageConfig.layouts = layoutEntries.map((entry) => entry.component);
 	pageConfig.layoutEntries = layoutEntries;
 }
+
+type PageConfigWithLegacyLayout = EcoComponentConfig & {
+	layout?: EcoPageLayouts;
+};
+
+/**
+ * Migrates MDX-exported `config.layout` values onto normalized layout metadata.
+ *
+ * @remarks
+ * `eco.page({ layout })` already normalizes at factory time. MDX modules that
+ * export `config.layout` directly still need this import-time migration.
+ */
+export function ensurePageConfigLayouts(config: EcoComponentConfig | undefined): EcoComponentConfig | undefined {
+	if (!config || (config.layouts && config.layouts.length > 0)) {
+		return config;
+	}
+
+	const legacyLayout = (config as PageConfigWithLegacyLayout).layout;
+	if (!legacyLayout) {
+		return config;
+	}
+
+	applyPageLayoutConfig(config, normalizePageLayouts(legacyLayout));
+	return config;
+}

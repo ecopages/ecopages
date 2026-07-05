@@ -1,6 +1,8 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../types/public-types.ts';
+import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { mapDeclaredOwnershipGraph } from './declared-ownership-graph.ts';
+import { walkComponentGraph } from './component-graph.ts';
 
 type OwnershipValidationInput = {
 	currentIntegrationName: string;
@@ -31,6 +33,8 @@ export class OwnershipValidationService {
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
 	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
+		this.assertDeclaredComponentDependencies(input);
+
 		return mapDeclaredOwnershipGraph<OwnershipValidationError[]>({
 			roots: input.roots,
 			currentIntegrationName: input.currentIntegrationName,
@@ -68,6 +72,23 @@ export class OwnershipValidationService {
 				return errors;
 			},
 		}).flat();
+	}
+
+	private assertDeclaredComponentDependencies(input: OwnershipValidationInput): void {
+		walkComponentGraph({
+			roots: input.roots,
+			currentIntegrationName: input.currentIntegrationName,
+			onComponent: ({ component }) => {
+				const parentFile = component.config?.__eco?.file;
+				for (const child of component.config?.dependencies?.components ?? []) {
+					if (!child) {
+						continue;
+					}
+
+					assertEcoDeclaredComponent(child, { parentComponentFile: parentFile });
+				}
+			},
+		});
 	}
 
 	private isRegisteredIntegration(integrationName: string, currentIntegrationName: string): boolean {

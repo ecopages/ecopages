@@ -70,3 +70,5 @@ All notable changes to `@ecopages/react` are documented here.
 ## Migration Notes
 
 - React MDX support is built in via `reactPlugin({ mdx: { enabled: true } })`. You do not need to install `@ecopages/mdx` separately — it is installed transitively as a dependency of `@ecopages/react`. The standalone `@ecopages/mdx` plugin is for non-React JSX runtimes only.
+- For nested route layouts, use `eco.page({ layout: [Outer, Inner] })` (outer → inner). React SSR and `@ecopages/react-router` compose the same stack; with `ecoRouter()`, outer tiers persist across SPA navigation when routes share the same layout key.
+- Import `composeLayoutPageTree` from `@ecopages/react/layout-compose` when building custom client or SSR trees that must match router hydration.

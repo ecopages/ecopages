@@ -169,9 +169,9 @@ export const BaseLayout = eco.layout({
 
 Every entry in `dependencies.components` must be a declared eco component, same as on pages.
 
-## File-system segment layouts
+## How layouts are assigned
 
-v0.2 does **not** infer layouts from directory structure (for example `layouts/docs.tsx` wrapping `pages/docs/*`). Layout assignment is explicit on each `eco.page()` call. See the [segment layout inheritance ADR](https://github.com/ecopages/ecopages/blob/main/docs/adr/segment-layout-inheritance.md) for the proposed v2 model.
+Assign layouts on `eco.page({ layout })` — one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the declared component to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
 
 ## Related guides
 

@@ -57,14 +57,12 @@ export class ReactMdxConfigDependencyService {
 		config: EcoComponentConfig | undefined,
 	): Partial<EcoComponent>[] {
 		const components: Partial<EcoComponent>[] = [];
-		const resolvedLayout = config?.layout;
 
-		if (resolvedLayout?.config?.dependencies) {
-			const layoutConfig = this.config.pageModuleService.ensureConfigFileMetadata(
-				resolvedLayout.config,
-				pagePath,
-			);
-			components.push({ config: layoutConfig });
+		for (const layout of config?.layouts ?? []) {
+			if (layout?.config?.dependencies) {
+				const layoutConfig = this.config.pageModuleService.ensureConfigFileMetadata(layout.config, pagePath);
+				components.push({ config: layoutConfig });
+			}
 		}
 
 		if (config?.dependencies) {

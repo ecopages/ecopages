@@ -78,7 +78,7 @@ describe('layout-compose', () => {
 			render: () => null,
 		});
 
-		expect(normalizePageLayoutComponents(Page.config?.layouts, Page.config?.layout)).toEqual([Outer, Inner]);
+		expect(normalizePageLayoutComponents(Page.config?.layouts)).toEqual([Outer, Inner]);
 	});
 
 	it('should compose explicit shell layouts outer to inner', () => {

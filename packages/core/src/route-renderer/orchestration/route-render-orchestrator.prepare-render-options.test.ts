@@ -62,10 +62,7 @@ function createFlowAdapter<C>(input: {
 		resolveRouteRenderInputs: async (routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeOptions.file);
 			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layouts = resolvePageLayoutComponents(
-				pageModule.Page.config?.layouts,
-				pageModule.Page.config?.layout,
-			);
+			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
 			const Layout = Layouts[Layouts.length - 1];
 			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
 
@@ -1421,7 +1418,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.config = {
 			layouts: [OuterLayout, InnerLayout],
-			layout: InnerLayout,
 			layoutEntries: [{ component: OuterLayout }, { component: InnerLayout }],
 		};
 		const resolvedComponents: EcoComponent[] = [];

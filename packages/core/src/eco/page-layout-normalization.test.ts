@@ -49,7 +49,7 @@ describe('page-layout-normalization', () => {
 		expect(merged?.components).toEqual([Button, OuterLayout, InnerLayout]);
 	});
 
-	it('should write layouts, layoutEntries, and innermost layout alias onto page config', () => {
+	it('should write layouts and layoutEntries onto page config', () => {
 		const config = {} as EcoComponentConfig;
 		const entries = normalizePageLayouts([OuterLayout, InnerLayout]);
 
@@ -57,6 +57,5 @@ describe('page-layout-normalization', () => {
 
 		expect(config.layouts).toEqual([OuterLayout, InnerLayout]);
 		expect(config.layoutEntries).toEqual(entries);
-		expect(config.layout).toBe(InnerLayout);
 	});
 });

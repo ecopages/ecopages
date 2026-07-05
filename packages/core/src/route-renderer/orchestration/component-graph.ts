@@ -75,10 +75,6 @@ export function walkComponentGraph(input: {
 					visitConfig(layout.config, integrationName);
 				}
 			}
-
-			if (!ecoComponent.config?.layouts?.length && ecoComponent.config?.layout?.config) {
-				visitConfig(ecoComponent.config.layout.config, integrationName);
-			}
 		}
 
 		for (const child of ecoComponent.config?.dependencies?.components ?? []) {
@@ -102,10 +98,6 @@ export function walkComponentGraph(input: {
 				if (layout?.config) {
 					visitConfig(layout.config, parentIntegrationName);
 				}
-			}
-
-			if (!config.layouts?.length && config.layout?.config) {
-				visitConfig(config.layout.config, parentIntegrationName);
 			}
 		}
 

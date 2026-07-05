@@ -101,8 +101,8 @@ export class LitSsrLazyPreloader {
 				}
 			}
 
-			if (config.layout) {
-				collect(config.layout);
+			for (const layout of config.layouts ?? []) {
+				collect(layout);
 			}
 
 			for (const nestedComponent of config.dependencies?.components || []) {

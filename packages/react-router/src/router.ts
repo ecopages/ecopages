@@ -79,7 +79,7 @@ const PersistLayoutsContext = createContext<boolean>(false);
  * Eco declared layouts widen to React callables for the persistence cache.
  */
 function resolvePageLayoutStack(pageConfig?: ComposablePage['config']): LayoutComponent[] {
-	return normalizePageLayoutComponents(pageConfig?.layouts, pageConfig?.layout) as LayoutComponent[];
+	return normalizePageLayoutComponents(pageConfig?.layouts) as LayoutComponent[];
 }
 
 /**

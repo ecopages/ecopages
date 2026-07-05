@@ -61,17 +61,12 @@ export function mergeLayoutDependencies(
 
 /**
  * Writes normalized layout metadata onto a page `config`.
- *
- * @remarks
- * `config.layout` remains the innermost layout alias for legacy call sites.
  */
 export function applyPageLayoutConfig(pageConfig: EcoComponentConfig, layoutEntries: EcoPageLayoutEntry[]): void {
 	if (layoutEntries.length === 0) {
 		return;
 	}
 
-	const layoutComponents = layoutEntries.map((entry) => entry.component);
-	pageConfig.layouts = layoutComponents;
+	pageConfig.layouts = layoutEntries.map((entry) => entry.component);
 	pageConfig.layoutEntries = layoutEntries;
-	pageConfig.layout = layoutComponents[layoutComponents.length - 1];
 }

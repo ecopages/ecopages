@@ -478,20 +478,13 @@ export type EcoComponentConfig = {
 	 * );
 	 *
 	 * // Page using the layout
-	 * const MyPage = () => <h1>Hello</h1>;
-	 * MyPage.config = { layout: Layout };
+	 * const MyPage = eco.page({ layout: Layout, render: () => <h1>Hello</h1> });
 	 * ```
 	 */
 	/** Normalized outer→inner layout stack from `eco.page({ layout: [...] })`. */
 	layouts?: EcoDeclaredComponent[];
 	/** Layout entries retained for per-tier prop factories. */
 	layoutEntries?: EcoPageLayoutEntry[];
-	/**
-	 * Innermost layout alias for legacy call sites.
-	 *
-	 * @deprecated Prefer `layouts` or `layoutEntries`.
-	 */
-	layout?: EcoPageLayoutComponent<any>;
 	dependencies?: EcoComponentDependencies;
 	/**
 	 * Internal: Resolved lazy scripts grouped by trigger.

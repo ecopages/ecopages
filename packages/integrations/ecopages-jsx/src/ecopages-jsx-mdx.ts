@@ -82,9 +82,12 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	}
 
 	const Page = module.default;
+	const baseConfig = { ...(module.config ?? Page.config ?? {}) };
+	const layouts = baseConfig.layouts ?? (module.layout ? [module.layout] : undefined);
+
 	const normalizedConfig: EcoComponentConfig = {
-		...(module.config ?? Page.config ?? {}),
-		...(module.layout ? { layout: module.layout } : {}),
+		...baseConfig,
+		...(layouts ? { layouts } : {}),
 		__eco: module.config?.__eco ??
 			Page.config?.__eco ?? {
 				id: String(rapidhash(file)),

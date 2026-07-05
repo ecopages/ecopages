@@ -432,7 +432,7 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 		});
 	});
@@ -490,7 +490,7 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 			const result = await Page({});
 			expect(result).toBe('<h1>Page Content</h1>');
@@ -509,7 +509,7 @@ describe('eco namespace', () => {
 				},
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			const result = await Page({});
 			expect(result).toBe('<h1>Async Content</h1>');
 		});
@@ -681,7 +681,6 @@ describe('eco namespace', () => {
 			});
 
 			expect(Page.config?.layouts).toEqual([OuterLayout, InnerLayout]);
-			expect(Page.config?.layout).toBe(InnerLayout);
 			expect(Page.config?.layoutEntries).toEqual([
 				{ component: OuterLayout },
 				{

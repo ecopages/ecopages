@@ -932,7 +932,7 @@ describe('ReactRenderer', () => {
 			const MockView = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			MockView.config = { layout: MockLayout };
+			MockView.config = { layouts: [MockLayout] };
 
 			const response = await testRenderer.renderToResponse(MockView, { message: 'With Layout' }, {});
 
@@ -978,7 +978,7 @@ describe('ReactRenderer', () => {
 			const View = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: NonReactLayout };
+			View.config = { layouts: [NonReactLayout] };
 
 			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
 			const body = await response.text();

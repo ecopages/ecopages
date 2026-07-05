@@ -37,10 +37,10 @@ export class MDXRenderer extends StringMarkupRenderer {
 		const config = pageComponent.config;
 		const components: Partial<EcoComponent>[] = [];
 
-		const resolvedLayout = config?.layout;
-
-		if (resolvedLayout?.config?.dependencies) {
-			components.push({ config: resolvedLayout.config });
+		for (const layout of config?.layouts ?? []) {
+			if (layout?.config?.dependencies) {
+				components.push({ config: layout.config });
+			}
 		}
 
 		if (config?.dependencies) {
@@ -71,7 +71,8 @@ export class MDXRenderer extends StringMarkupRenderer {
 				throw new Error('MDX file must export a default function');
 			}
 
-			const resolvedLayout = config?.layout;
+			const layouts = config?.layouts;
+			const resolvedLayout = layouts?.[layouts.length - 1];
 
 			if (config) Page.config = config;
 

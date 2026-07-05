@@ -260,12 +260,14 @@ const mount = () => {
       const newModule = await import(newUrl);
       const nextProps = getPageData();
       ${getHmrImportStatement(isMdx)}
-      const currentPageLayout = Page.config?.layout;
-      const nextPageLayout = NewPage.config?.layout;
+      const currentPageLayoutStack = (Component) =>
+        (Component.config?.layouts ?? []).map((layout) => layout?.config?.__eco?.file ?? '').join('|');
+      const currentPageLayoutStackKey = currentPageLayoutStack(Page);
+      const nextPageLayoutStackKey = currentPageLayoutStack(NewPage);
 
       if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
         await window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({
-          clearCache: currentPageLayout !== nextPageLayout,
+          clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey,
           moduleUrl: "${importPath}",
           source: "react-router"
         });
@@ -306,7 +308,7 @@ if (document.readyState === "loading") {
  *
  * How it works:
  * - imports the page module directly
- * - reconstructs the layout wrapper from `Page.config?.layout`
+ * - reconstructs the layout wrapper from `Page.config?.layouts`
  * - hydrates a single document root
  * - patches that root during HMR without involving a router adapter
  */

@@ -774,9 +774,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			props: layout.props,
 		}));
 		const hasNormalizedLayouts =
-			Boolean(Page.config?.layoutEntries?.length) ||
-			Boolean(Page.config?.layouts?.length) ||
-			Boolean(Page.config?.layout);
+			Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
 
 		if (hasNormalizedLayouts) {
 			return composeLayoutPageTree(Page, pageProps, { context: layoutContext });
@@ -797,7 +795,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const configLayouts =
 			composablePage.config?.layouts ??
 			composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
-			(composablePage.config?.layout ? [composablePage.config.layout] : []);
+			[];
 
 		const layoutComponents =
 			shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
@@ -1001,11 +999,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
+			const layouts = view.config?.layouts;
 			return await this.renderViewWithDocumentShell({
 				view,
 				props,
 				ctx,
-				layout: view.config?.layout,
+				layout: layouts?.[layouts.length - 1],
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render view', error);

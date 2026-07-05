@@ -1,7 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { RadiantCodeTabsProps } from './code-tabs.script';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import './code-tabs.script';
 
 export const CodeTabs = eco.component({
 	dependencies: {

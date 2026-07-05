@@ -1,0 +1,69 @@
+# Architecture Overview
+
+Ecopages is designed to be modular, with thin runtime hosts, app-owned core services, and multiple rendering engines. This guide provides a brief overview of how things connect under the hood.
+
+## Ownership Model
+
+Ecopages is structured around four main ownership layers:
+
+1. **Core owns orchestration**: config finalization, build manifest assembly, server loading, browser bundling coordination, and development invalidation policy.
+2. **Integrations own framework semantics**: rendering, hydration behavior, framework-specific HMR, and cross-integration ownership policy.
+3. **Processors own asset semantics**: asset transformation, emitted files, asset-specific caching, and processor-specific watch behavior.
+4. **Adapters own transport**: Bun and Node hosts receive requests, wire runtime-specific server details, and delegate into the shared core pipeline.
+
+Packages declare contributions. Core decides lifecycle ordering and assembles the app-owned runtime/build state.
+
+## Request Lifecycle
+
+When a request hits your Ecopages application, it follows this simplified flow:
+
+1. **Runtime Host**: the active Bun or Node adapter receives the HTTP request and passes it into the shared core request pipeline.
+2. **Router**: The router matching logic identifies if the path corresponds to a static file, an API route, or a page file in `src/pages`.
+3. **Route Resolver**: If it's a page, Ecopages determines which integration handles the file extension (e.g., KitaJS for `.kita.tsx`).
+4. **Integration Renderer**: The specific renderer (React, Lit, etc.) is invoked with the page component and props.
+5. **Template Composition**: The page content is wrapped in the specified `HtmlTemplate`, `Head`, and `Seo` includes.
+6. **Response**: The final HTML (or JSON for APIs) is sent back to the client.
+
+## Plugin Lifecycle
+
+The integration and processor lifecycle is split into stable framework-owned phases.
+
+1. **Config finalization**: `ConfigBuilder.build()` validates registrations, initializes processor context, validates runtime capability declarations, collects build contributions, and seals the app-owned build manifest.
+2. **Build contribution preparation**: processors run `prepareBuildContributions()` before integrations so asset-side contributions are collected before framework-specific additions.
+3. **App startup setup**: processors run `setup()` before integrations, and integrations receive runtime origin and HMR manager context before request handling begins.
+4. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.
+5. **Development invalidation and HMR**: core classifies file changes, processors handle owned watch paths, and integrations participate through HMR strategies.
+
+See the dedicated [Plugin Lifecycle](/docs/core/plugin-lifecycle) guide for the exact ordering and boundaries.
+
+## Build and bundling
+
+Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Browser and server artifacts are produced through the build adapter; optional [Vite host](/docs/ecosystem/vite-plugin) integration delegates dev-server orchestration to Vite. See [Build and Host](/docs/core/build-and-host).
+
+## Core Modules
+
+For those wishing to dive deeper, we recommend exploring the source code:
+
+- **[`createApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: Recommended runtime entrypoint; selects Bun or Node adapter.
+- **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
+- **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
+- **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
+- **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
+- **[`Processor`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/processor.ts)**: The asset-processing boundary for file capabilities, transformation, and watch behavior.
+- **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Validates and constructs your application state.
+
+## Server Loading Boundary
+
+Server startup and server-side module execution are owned by core through the `ServerLoader` boundary, not by individual integrations or runtime hosts. Runtime hosts stay transport-oriented: they hand off startup, while core owns config loading, app loading, and invalidation behavior behind the server loader implementation.
+
+## Design Philosophy
+
+- **Minimal Configuration**: Sensible defaults for structure and asset loading, with a simple config file to override them.
+- **Explicit Dependencies**: Components declare their own scripts and styles, preventing global bloat.
+- **Hybrid by Choice**: Optimization for static builds while maintaining full server capabilities.
+
+<Banner type="info">
+  **Extensibility**
+
+  Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the `IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn how.
+</Banner>

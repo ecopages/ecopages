@@ -4,6 +4,7 @@ import {
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import {
@@ -14,6 +15,7 @@ import {
 	type ResolvedMdxCompileOptions,
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
+import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
@@ -127,6 +129,33 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */
 	override async prepareBuildContributions(): Promise<void> {
 		this.ensureMdxLoaderPlugin();
+	}
+
+	/**
+	 * Returns the JSX-integration HMR strategy.
+	 *
+	 * @remarks
+	 * The strategy handles `layout-update` broadcasts for page sources, layout
+	 * sources, and any component file in the active render tree. It defers
+	 * registered script entrypoints to the generic JS strategy and includes /
+	 * explicit server views to `ServerRenderedTemplateHmrStrategy`.
+	 */
+	override getHmrStrategy(): HmrStrategy | undefined {
+		if (!this.hmrManager || !this.appConfig) {
+			return undefined;
+		}
+
+		const context = this.hmrManager.getDefaultContext();
+		const absolutePaths = this.appConfig.absolutePaths;
+
+		return new EcopagesJsxHmrStrategy({
+			getWatchedFiles: context.getWatchedFiles,
+			getSrcDir: context.getSrcDir,
+			getPagesDir: context.getPagesDir,
+			getLayoutsDir: context.getLayoutsDir,
+			getIncludesDir: () => absolutePaths.includesDir,
+			getTemplateExtensions: () => this.extensions,
+		});
 	}
 
 	/**

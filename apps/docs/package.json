@@ -4,11 +4,12 @@
 	"private": true,
 	"scripts": {
 		"start": "pnpm run build && ecopages start",
-		"generate:llms": "bun run scripts/generate-llm-docs.ts",
-		"dev": "bun run generate:llms && ecopages dev",
-		"build": "bun run generate:llms && ecopages build",
+		"generate:llms": "tsx scripts/generate-llm-docs.ts",
+		"dev": "pnpm run generate:llms && ecopages dev",
+		"build": "pnpm run generate:llms && ecopages build",
 		"preview": "ecopages preview",
-		"watch:dev": "bun --watch run app.ts --dev"
+		"test": "vitest run",
+		"watch:dev": "pnpm run generate:llms && ecopages dev"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",
@@ -35,7 +36,10 @@
 		"remark-gfm": "^4.0.1",
 		"shiki": "^3.23.0",
 		"tailwindcss": "^4.3.0",
+		"tsx": "^4.22.3",
 		"unified": "^11.0.5",
-		"unist-util-visit": "^5.1.0"
+		"unist-util-visit": "^5.1.0",
+		"vfile": "^6.0.3",
+		"vitest": "^4.0.16"
 	}
 }

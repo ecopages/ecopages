@@ -1,11 +1,12 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { getDocsMdxPluginOptions } from './src/docs-kit/compile/mdx-plugin-chain';
 
-const appRoot = process.cwd();
+const appRoot = path.resolve(import.meta.dirname);
 
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BurgerEvents } from '../../../../../../components/burger/burger.events';
+import { docsKitBurgerEvents } from '../../../../chrome-events';
 import { RadiantNavigation } from './navigation.script';
 
 function resetDom(): void {
@@ -82,10 +82,10 @@ describe('RadiantNavigation', () => {
 		});
 		expect(navigation.querySelector('[href="/docs/start"]')?.classList.contains('active')).toBe(false);
 
-		window.dispatchEvent(new CustomEvent(BurgerEvents.TOGGLE_MENU));
+		window.dispatchEvent(new CustomEvent(docsKitBurgerEvents.TOGGLE_MENU));
 		expect(navigation.classList.contains('hidden')).toBe(false);
 
-		window.dispatchEvent(new CustomEvent(BurgerEvents.CLOSE_MENU));
+		window.dispatchEvent(new CustomEvent(docsKitBurgerEvents.CLOSE_MENU));
 		expect(navigation.classList.contains('hidden')).toBe(true);
 	});
 

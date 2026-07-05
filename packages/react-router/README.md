@@ -51,49 +51,58 @@ If your site mixes React pages with non-React pages, you can also run `@ecopages
 
 ### Layouts (Optional)
 
-Configure your page with a layout to keep UI components (like headers/navs) mounted across navigations:
+Configure your page with a declared layout to keep UI (headers, navs, sidebars) mounted across navigations:
 
 ```tsx
 // src/layouts/base-layout.tsx
-export const BaseLayout = ({ children }) => (
-	<html>
-		<body>
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
+
+export const BaseLayout = eco.layout<{ children: ReactNode }>({
+	render: ({ children }) => (
+		<>
 			<header>My Site</header>
 			<main>{children}</main>
-		</body>
-	</html>
-);
+		</>
+	),
+});
 
 // src/pages/index.tsx
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '../layouts/base-layout';
 
-const HomePage = () => <h1>Welcome</h1>;
-
-HomePage.config = { layout: BaseLayout };
-
-export default HomePage;
+export default eco.page({
+	layout: BaseLayout,
+	render: () => <h1>Welcome</h1>,
+});
 ```
 
 #### Nested layouts and shared parents
 
-Pages can declare an outer→inner stack with `layouts: [Outer, Inner]`. Each tier is cached independently by Eco metadata (`config.__eco.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` therefore share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
+Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Each tier is cached independently by Eco metadata (`config.__eco.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
 
 A full document reload, HMR, or bootstrap that sets `refreshPersistedLayout` may replace a cached tier when the imported layout function reference changes, even when the cache key is unchanged.
 
 ```tsx
 // src/pages/docs/index.tsx
+import { eco } from '@ecopages/core';
 import { AppShell } from '../../layouts/app-shell';
 import { DocsSection } from '../../layouts/docs-section';
 
-const DocsPage = () => <h1>Docs</h1>;
-DocsPage.config = { layouts: [AppShell, DocsSection] };
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Docs</h1>,
+});
 
 // src/pages/settings/index.tsx — reuses the same AppShell cache key
+import { eco } from '@ecopages/core';
 import { AppShell } from '../../layouts/app-shell';
 import { SettingsSection } from '../../layouts/settings-section';
 
-const SettingsPage = () => <h1>Settings</h1>;
-SettingsPage.config = { layouts: [AppShell, SettingsSection] };
+export default eco.page({
+	layout: [AppShell, SettingsSection],
+	render: () => <h1>Settings</h1>,
+});
 ```
 
 ### Links

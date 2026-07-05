@@ -22,18 +22,16 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
+	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Home page',
 		description: 'This is the homepage of the website',
 	}),
-	dependencies: {
-		components: [BaseLayout],
-	},
 	render: () => (
-		<BaseLayout class="main-content">
+		<>
 			<h1>Ecopages</h1>
 			<p>Welcome to my Ecopages website!</p>
-		</BaseLayout>
+		</>
 	),
 });
 ```
@@ -41,13 +39,16 @@ export default eco.page({
 Key elements:
 
 1. **`eco.page`**: Factory for a file-based route page.
-2. **`metadata`**: Page title, description, and social metadata.
-3. **`dependencies`**: Components, scripts, and stylesheets the page needs.
-4. **`render`**: Returns JSX for the page body (wrapped by layout and HTML shell).
+2. **`layout`**: Declared layout component (`eco.layout()` or `eco.component()`). EcoPages wraps `render` output automatically.
+3. **`metadata`**: Page title, description, and social metadata.
+4. **`dependencies`**: Additional components, scripts, and stylesheets the page needs beyond its layout stack.
+5. **`render`**: Returns JSX for the page body (inside the layout and document shell).
+
+See [Creating Layouts](/docs/core/layouts) for single and nested layout stacks.
 
 ## Using Components in Pages
 
-Import components and list them in `dependencies.components`:
+Import declared components and list them in `dependencies.components`. Every entry must be created with `eco.component()`, `eco.layout()`, or `eco.html()` — plain functions are rejected at render time.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -55,17 +56,20 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
+	layout: BaseLayout,
 	dependencies: {
-		components: [BaseLayout, RadiantCounter],
+		components: [RadiantCounter],
 	},
 	render: () => (
-		<BaseLayout class="main-content">
+		<>
 			<h1>Ecopages</h1>
 			<RadiantCounter count={5} />
-		</BaseLayout>
+		</>
 	),
 });
 ```
+
+**Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you.
 
 ## Working with Data
 

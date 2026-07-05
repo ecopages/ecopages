@@ -5,7 +5,6 @@
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
 import type {
-	EcoComponent,
 	GetMetadataContext,
 	HtmlTemplateProps,
 	LayoutProps,

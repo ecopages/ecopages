@@ -35,7 +35,7 @@ import { createRoot } from 'react-dom/client';
 import * as ReactDOM from 'react-dom';
 import { eco } from '@ecopages/core';
 import { ReactCounter } from '@/components/react-counter.react';
-import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
 import { getRouteLinkTestId } from '@/data/primary-links';
 
 export default eco.page({

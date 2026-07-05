@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
 import { buildPagesTreeSnapshot } from './tree.server';
-import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout';
+import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
 import { getPageTestId } from '@/data/primary-links';
 import type { ReactNode } from 'react';
 

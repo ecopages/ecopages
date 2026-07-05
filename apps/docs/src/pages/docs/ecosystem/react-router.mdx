@@ -69,34 +69,48 @@ That's it, all pages now have SPA navigation enabled.
 
 ### 2. Use Layouts (Optional)
 
-For persistent UI across navigations (headers, sidebars), use `config.layout`:
+For persistent UI across navigations (headers, sidebars), assign a **declared** layout on `eco.page()`. Use `eco.layout()` — plain React functions are not valid layout values.
 
 ```tsx
 // src/layouts/base-layout.tsx
-export const BaseLayout = ({ children }) => (
-  <html>
-    <head>...</head>
-    <body>
-      <header>My Site</header>
-      <main>{children}</main>
-      <footer>...</footer>
-    </body>
-  </html>
-);
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
+
+export const BaseLayout = eco.layout<{ children: ReactNode }>({
+	render: ({ children }) => (
+		<>
+			<header>My Site</header>
+			<main>{children}</main>
+		</>
+	),
+});
 
 // src/pages/index.tsx
 import { BaseLayout } from '../layouts/base-layout';
 import { eco } from '@ecopages/core';
 
-const HomePage = eco.page({
-  layout: BaseLayout,
-  render: () => <h1>Welcome</h1>
+export default eco.page({
+	layout: BaseLayout,
+	render: () => <h1>Welcome</h1>,
 });
-
-export default HomePage;
 ```
 
-When navigating between pages with the same layout, only the page content updates - the layout stays mounted.
+When navigating between pages that share the same layout key (`config.__eco.file` or `id`), `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. Only page content updates.
+
+#### Nested layouts
+
+Declare an outer → inner stack when routes need multiple wrappers — for example a site shell plus a section sidebar:
+
+```tsx
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Docs</h1>,
+});
+```
+
+Routes with different inner tiers but the same outer layout — `[AppShell, Docs]` and `[AppShell, Settings]` — share one mounted **AppShell** during SPA navigation. React state in the shell survives; inner tiers mount and unmount with the active page.
+
+See [Creating Layouts](/docs/core/layouts) for per-tier props, dependency rules, and SSR locals behavior.
 
 ### View Transitions
 

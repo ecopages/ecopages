@@ -148,7 +148,7 @@ Here's how it works:
 
 ## Using Components in Pages
 
-To use your components in pages, import them and include them in your HTML template:
+To use components in pages, import them and declare dependencies. Use `layout:` for route wrappers (see [Creating Layouts](/docs/core/layouts)); list interactive or nested components in `dependencies.components`.
 
 ```typescript
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -157,17 +157,18 @@ import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 
 export default eco.page({
+	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Home page',
 		description: 'This is the homepage of the website',
 	}),
 	dependencies: {
-		components: [BaseLayout, RadiantCounter],
+		components: [RadiantCounter],
 	},
-	render: () => html`${BaseLayout({
-		class: 'main-content',
-		children: html`<h1>Ecopages</h1>${RadiantCounter({ count: 5 })}`,
-	})}`,
+	render: () => html`
+		<h1>Ecopages</h1>
+		${RadiantCounter({ count: 5 })}
+	`,
 });
 ```
 

@@ -40,11 +40,16 @@ const routeRendererFactory = new RouteRendererFactory({
 function createRouteRendererFactoryWithStub404(
 	realFactory: PageRendererResolver,
 	error404TemplatePath: string,
+	options?: { executeError?: Error },
 ): PageRendererResolver {
 	const stub404Renderer = {
-		execute: vi.fn(async () => ({
-			body: '<h1>404 - Page Not Found</h1>',
-		})),
+		execute: options?.executeError
+			? vi.fn(async () => {
+					throw options.executeError;
+				})
+			: vi.fn(async () => ({
+					body: '<h1>404 - Page Not Found</h1>',
+				})),
 		loadPageModule: vi.fn(async () => ({
 			default: () => null,
 		})),
@@ -57,6 +62,41 @@ function createRouteRendererFactoryWithStub404(
 			}
 
 			return realFactory.getPageRenderer(filePath);
+		},
+	};
+}
+
+function createRouteRendererFactoryWithThrowingPage(
+	realFactory: PageRendererResolver,
+	pageFilePath: string,
+	error: Error,
+): PageRendererResolver {
+	return {
+		getPageRenderer(filePath: string) {
+			if (filePath === pageFilePath) {
+				return {
+					execute: vi.fn(async () => {
+						throw error;
+					}),
+					loadPageModule: vi.fn(async () => ({
+						default: () => null,
+					})),
+				};
+			}
+
+			return realFactory.getPageRenderer(filePath);
+		},
+	};
+}
+
+function createRouteRendererFactoryWithMissing404Template(error404TemplatePath: string): PageRendererResolver {
+	return {
+		getPageRenderer(filePath: string) {
+			if (filePath === error404TemplatePath) {
+				throw new Error('404 template not found');
+			}
+
+			throw new Error(`Unexpected page renderer request: ${filePath}`);
 		},
 	};
 }
@@ -310,6 +350,78 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleNoMatch('/non-existent.txt');
 			const body = await response.text();
 			expect(body).toContain('<h1>404 - Page Not Found</h1>');
+		});
+	});
+
+	describe('error taxonomy', () => {
+		it('should return 500 when a matched route render throws', async () => {
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: throwingFactory,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			const response = await matcher.handleMatch(match);
+
+			expect(response.status).toBe(500);
+			expect(await response.text()).toBe('Internal Server Error');
+		});
+
+		it('should return 500 when the custom 404 template render throws', async () => {
+			const templateError = new Error('404 template render failed');
+			const throwing404Factory = createRouteRendererFactoryWithStub404(
+				routeRendererFactory,
+				appConfig.absolutePaths.error404TemplatePath,
+				{ executeError: templateError },
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: throwing404Factory,
+				fileSystemResponseFactory,
+			});
+
+			const response = await matcher.handleNoMatch('/missing-page');
+
+			expect(response.status).toBe(500);
+			expect(await response.text()).toBe('Internal Server Error');
+		});
+
+		it('should fall back to default 404 when the custom 404 template cannot be resolved', async () => {
+			const missing404Factory = createRouteRendererFactoryWithMissing404Template(
+				appConfig.absolutePaths.error404TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: missing404Factory,
+				fileSystemResponseFactory,
+			});
+
+			const response = await matcher.handleNoMatch('/missing-page');
+
+			expect(response.status).toBe(404);
+			expect(await response.text()).not.toContain('<h1>404 - Page Not Found</h1>');
 		});
 	});
 

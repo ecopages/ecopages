@@ -1,17 +1,10 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
-import type { RequestLocals } from '@ecopages/core';
 import { ThemeToggleReact } from '@/components/theme-toggle.react';
 import { getPrimaryLinkTestId, kitchenSinkShell, kitchenSinkShellTestId, primaryLinks } from '@/data/primary-links';
 import type { ReactNode } from 'react';
 
-type ReactPlaygroundLayoutProps = {
-	children?: ReactNode;
-	locals?: RequestLocals;
-};
-
-export const ReactPlaygroundLayout = eco.component<ReactPlaygroundLayoutProps, ReactNode>({
-	integration: 'react',
+export const ReactPlaygroundLayout = eco.layout<ReactNode>({
 	dependencies: {
 		components: [ThemeToggleReact],
 		scripts: ['./base-layout/base-layout.script.ts'],

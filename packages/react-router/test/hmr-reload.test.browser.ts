@@ -32,7 +32,7 @@ function createLayoutAwarePage(name: string) {
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -52,7 +52,7 @@ function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey:
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -69,7 +69,7 @@ function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: st
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -109,7 +109,7 @@ function createPageWithEcoComponentLayout(
 	};
 
 	Page.displayName = name;
-	Page.config = { layout: Layout };
+	Page.config = { layouts: [Layout] };
 	return Page;
 }
 
@@ -368,6 +368,41 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Layout v2');
 			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
 			expect(layout?.textContent).toContain('Layout v2');
+		});
+
+		it('does not refresh persisted layouts on the initial bootstrap prop sync', async () => {
+			let layoutMountCount = 0;
+			const Layout = ({ children }: { children: ReactNode }) => {
+				layoutMountCount += 1;
+				return createElement('div', { 'data-testid': 'bootstrap-layout' }, children);
+			};
+			(Layout as typeof Layout & { config?: { __eco?: { id: string } } }).config = {
+				__eco: { id: 'bootstrap-layout' },
+			};
+
+			const Page = (() => createElement('div', { 'data-testid': 'bootstrap-page' }, 'page')) as ReturnType<
+				typeof createMockPageComponent
+			> & {
+				config?: { layout?: typeof Layout };
+			};
+			Page.config = { layouts: [Layout] };
+
+			clearLayoutCache();
+			root = createRoot(container);
+			const routerProps = {
+				page: Page,
+				pageProps: {},
+				options: { persistLayouts: true },
+				children: createElement(PageContent),
+			};
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
 		});
 
 		it('does not reuse a persisted layout when plain layouts share the same display name', async () => {

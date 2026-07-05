@@ -279,6 +279,17 @@ export default eco.page({
 });
 ```
 
+**Nested layouts (outer → inner):**
+
+```tsx
+export default eco.page({
+	layout: [MarketingShell, DocsShell],
+	render: () => <h1>Hello</h1>,
+});
+```
+
+A single layout remains equivalent to a one-element array. Normalization stores the stack on `config.layouts` and `config.layoutEntries` at factory time.
+
 ### `eco.component()`
 
 Define a reusable component with dependencies.

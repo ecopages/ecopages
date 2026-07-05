@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoInjectedMeta } from '@ecopages/core';
 import { createElement, type ReactNode } from 'react';
-import { getLayoutCacheKey, type LayoutComponentWithMeta } from './layout-cache.ts';
+import {
+	clearLayoutCache,
+	getLayoutCache,
+	getLayoutCacheKey,
+	resolvePersistedLayout,
+	resolvePersistedLayoutStack,
+	type LayoutComponentWithMeta,
+} from './layout-cache.ts';
 
 function createLayout(options?: {
 	displayName?: string;
@@ -74,5 +81,124 @@ describe('getLayoutCacheKey', () => {
 		homeLayout.displayName = 'layout';
 
 		expect(getLayoutCacheKey(docsLayout)).not.toBe(getLayoutCacheKey(homeLayout));
+	});
+});
+
+const originalWindow = globalThis.window;
+
+function withLayoutCacheWindow(run: () => void) {
+	const hadWindow = 'window' in globalThis;
+	globalThis.window = globalThis as unknown as Window & typeof globalThis;
+	try {
+		run();
+	} finally {
+		if (hadWindow) {
+			globalThis.window = originalWindow;
+		} else {
+			Reflect.deleteProperty(globalThis, 'window');
+		}
+	}
+}
+
+describe('resolvePersistedLayout', () => {
+	it('reuses the cached instance when refresh is false', () => {
+		withLayoutCacheWindow(() => {
+			clearLayoutCache();
+			const firstLayout = createLayout({
+				displayName: 'SharedLayout',
+				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+			});
+			const secondLayout = createLayout({
+				displayName: 'SharedLayout',
+				renderLabel: 'v2',
+				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+			});
+
+			const first = resolvePersistedLayout(firstLayout, false);
+			const second = resolvePersistedLayout(secondLayout, false);
+
+			expect(second.layout).toBe(first.layout);
+			expect(second.key).toBe(first.key);
+		});
+	});
+
+	it('replaces the cached instance when refresh is true and the import changed', () => {
+		withLayoutCacheWindow(() => {
+			clearLayoutCache();
+			const firstLayout = createLayout({
+				displayName: 'SharedLayout',
+				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+			});
+			const secondLayout = createLayout({
+				displayName: 'SharedLayout',
+				renderLabel: 'v2',
+				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+			});
+
+			resolvePersistedLayout(firstLayout, false);
+			const refreshed = resolvePersistedLayout(secondLayout, true);
+
+			expect(refreshed.layout).toBe(secondLayout);
+		});
+	});
+});
+
+describe('resolvePersistedLayoutStack', () => {
+	it('caches each layout tier independently', () => {
+		withLayoutCacheWindow(() => {
+			clearLayoutCache();
+			const outer = createLayout({
+				displayName: 'OuterLayout',
+				__eco: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
+			});
+			const inner = createLayout({
+				displayName: 'InnerLayout',
+				__eco: { file: '/app/layouts/inner.tsx', id: 'inner', integration: 'react' },
+			});
+
+			const firstStack = resolvePersistedLayoutStack([outer, inner], false);
+			const outerReplacement = createLayout({
+				displayName: 'OuterLayout',
+				__eco: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
+			});
+			const secondStack = resolvePersistedLayoutStack([outerReplacement, inner], false);
+
+			expect(firstStack[0]?.key).toBe('/app/layouts/outer.tsx');
+			expect(firstStack[1]?.key).toBe('/app/layouts/inner.tsx');
+			expect(secondStack[0]?.layout).toBe(firstStack[0]?.layout);
+			expect(secondStack[1]?.layout).toBe(firstStack[1]?.layout);
+			expect(getLayoutCache().size).toBe(2);
+		});
+	});
+
+	it('reuses the same cached parent when stacks share an outer layout key', () => {
+		withLayoutCacheWindow(() => {
+			clearLayoutCache();
+			const parentFirstImport = createLayout({
+				displayName: 'AppShell',
+				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+			});
+			const parentSecondImport = createLayout({
+				displayName: 'AppShell',
+				renderLabel: 'reimported',
+				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+			});
+			const docsInner = createLayout({
+				displayName: 'DocsInner',
+				__eco: { file: '/app/layouts/docs-inner.tsx', id: 'docs-inner', integration: 'react' },
+			});
+			const settingsInner = createLayout({
+				displayName: 'SettingsInner',
+				__eco: { file: '/app/layouts/settings-inner.tsx', id: 'settings-inner', integration: 'react' },
+			});
+
+			const docsStack = resolvePersistedLayoutStack([parentFirstImport, docsInner], false);
+			const settingsStack = resolvePersistedLayoutStack([parentSecondImport, settingsInner], false);
+
+			expect(docsStack[0]?.key).toBe('/app/layouts/app-shell.tsx');
+			expect(settingsStack[0]?.layout).toBe(docsStack[0]?.layout);
+			expect(settingsStack[1]?.layout).not.toBe(docsStack[1]?.layout);
+			expect(getLayoutCache().size).toBe(3);
+		});
 	});
 });

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { EcoComponent, EcoComponentConfig, EcoFunctionComponent, EcoPageFile, GetMetadata } from '@ecopages/core';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { rapidhash } from '@ecopages/core/hash';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
@@ -84,7 +85,6 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	const Page = module.default;
 	const normalizedConfig: EcoComponentConfig = {
 		...(module.config ?? Page.config ?? {}),
-		...(module.layout ? { layout: module.layout } : {}),
 		__eco: module.config?.__eco ??
 			Page.config?.__eco ?? {
 				id: String(rapidhash(file)),
@@ -92,6 +92,12 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 				integration: ECOPAGES_JSX_PLUGIN_NAME,
 			},
 	};
+
+	if (module.layout && !(normalizedConfig.layouts && normalizedConfig.layouts.length > 0)) {
+		(normalizedConfig as EcoComponentConfig & { layout?: EcoComponent }).layout = module.layout;
+	}
+
+	ensurePageConfigLayouts(normalizedConfig);
 	const wrappedPage: AsyncEcoComponent<Record<string, unknown>> = async (props: Record<string, unknown>) =>
 		await Page(props);
 

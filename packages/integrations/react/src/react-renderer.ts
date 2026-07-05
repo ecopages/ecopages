@@ -11,6 +11,7 @@ import type {
 	EcoPageFile,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
+	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
 import {
@@ -23,9 +24,11 @@ import {
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { FunctionComponent, ReactNode } from 'react';
+import type { FunctionComponent, ReactElement, ReactNode } from 'react';
+import { isValidElement } from 'react';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import type { ReactRendererConfig } from './react.types.ts';
@@ -37,6 +40,21 @@ import { ReactMdxConfigDependencyService } from './services/react-mdx-config-dep
 import { ReactPageModuleService } from './services/react-page-module.service.ts';
 import { ReactPagePayloadService } from './services/react-page-payload.service.ts';
 import { getReactIslandComponentKey, ReactHydrationAssetService } from './services/react-hydration-asset.service.ts';
+import {
+	composeDocumentShell,
+	renderPageDocumentShell,
+	type DocumentShellComposeChildrenContext,
+	type DocumentShellComposeChildrenResult,
+	type DocumentShellLayoutInput,
+} from '@ecopages/core/route-renderer/orchestration/document-shell-render.service';
+import {
+	composeLayoutPageTree,
+	composeLayoutPageTreeFromShell,
+	assertComposablePage,
+	resolveLayoutContextFromShell,
+	type ComposablePage,
+	type LayoutComposeContext,
+} from './layout-compose.ts';
 
 export type { ReactRendererConfig } from './react.types.ts';
 
@@ -327,6 +345,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			);
 		}
 
+		if (isValidElement(input.children)) {
+			return this.normalizeUnresolvedMarkerArtifactHtml(
+				reactDomServer.renderToString(
+					react.createElement(this.asReactComponent(input.component), input.props, input.children),
+				),
+			);
+		}
+
 		const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
 		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
 		if (runtimeContext) {
@@ -339,8 +365,22 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.normalizeUnresolvedMarkerArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
 	}
 
+	private toReactNode(children: unknown): ReactNode {
+		if (
+			children === null ||
+			typeof children === 'string' ||
+			typeof children === 'number' ||
+			typeof children === 'boolean' ||
+			isValidElement(children) ||
+			Array.isArray(children)
+		) {
+			return children;
+		}
+
+		throw new TypeError(`[ecopages] ${this.name} renderer expected a React node child.`);
+	}
+
 	/**
-	 * Restores raw child HTML that was temporarily replaced by a token during React SSR.
 	 *
 	 * Queued foreign-subtree resolution may render children through a fragment path before all
 	 * nested integration tokens are resolved. When that happens, React must never see
@@ -380,7 +420,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const { react, reactDomServer } = this.getReactRuntimeModules();
 
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(react.createElement(react.Fragment, null, children as ReactNode)),
+			reactDomServer.renderToString(react.createElement(react.Fragment, null, this.toReactNode(children))),
 		);
 		html = this.restoreRuntimeChildHtml(html, runtimeContext);
 
@@ -628,6 +668,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const { default: Page, getMetadata, config } = reactModule;
 
 		if (this.pageModuleService.isMdxFile(file) && config) {
+			ensurePageConfigLayouts(config);
 			Page.config = config;
 		}
 
@@ -680,6 +721,124 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				`Failed to generate hydration script: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
+	}
+
+	/**
+	 * Composes page and layout tiers as one React element tree for SSR.
+	 */
+	private async composeReactLayoutPageChildren(
+		page: { component: EcoComponent; props: Record<string, unknown> },
+		context: DocumentShellComposeChildrenContext,
+	): Promise<DocumentShellComposeChildrenResult> {
+		const pageComponent = assertComposablePage(page.component);
+		const shellEntries = context.layouts.map((layout) => ({
+			component: layout.component,
+			props: layout.props,
+		}));
+		const layoutContext = resolveLayoutContextFromShell(page.props, shellEntries);
+		const tree = this.resolveReactLayoutPageTree(pageComponent, page.props, context.layouts, layoutContext);
+		const { reactDomServer } = this.getReactRuntimeModules();
+		const runtimeInput: ComponentRenderInput = {
+			component: page.component,
+			props: page.props,
+			integrationContext: {
+				rendererCache: context.rendererCache as ReactForeignSubtreeResolutionContext['rendererCache'],
+			},
+		};
+		const runtimeContext = this.getQueuedForeignSubtreeResolutionContext(runtimeInput) as
+			| ReactForeignSubtreeResolutionContext
+			| undefined;
+		let html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
+		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
+		const primaryRender: ComponentRenderResult = {
+			html: resolved.html,
+			canAttachAttributes: hasSingleRootElement(resolved.html),
+			rootTag: this.getRootTagName(resolved.html),
+			integrationName: this.name,
+			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
+		};
+
+		return {
+			children: resolved.html,
+			layoutRenders: [],
+			primaryRender,
+		};
+	}
+
+	private resolveReactLayoutPageTree(
+		Page: ComposablePage,
+		pageProps: Record<string, unknown>,
+		shellLayouts: DocumentShellLayoutInput[],
+		layoutContext: LayoutComposeContext,
+	): ReactElement {
+		const shellEntries = shellLayouts.map((layout) => ({
+			component: layout.component,
+			props: layout.props,
+		}));
+		const hasNormalizedLayouts =
+			Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
+
+		if (hasNormalizedLayouts) {
+			return composeLayoutPageTree(Page, pageProps, { context: layoutContext });
+		}
+
+		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries);
+	}
+
+	private shouldUseUnifiedReactLayoutComposition(
+		page: EcoComponent,
+		shellLayouts: DocumentShellLayoutInput[],
+	): boolean {
+		if (!this.isReactManagedComponent(page)) {
+			return false;
+		}
+
+		const composablePage = assertComposablePage(page);
+		const configLayouts =
+			composablePage.config?.layouts ??
+			composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
+			[];
+
+		const layoutComponents =
+			shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
+
+		if (layoutComponents.length === 0) {
+			return false;
+		}
+
+		return layoutComponents.every((component) => this.isReactManagedComponent(component));
+	}
+
+	protected override async renderPageWithDocumentShell(input: {
+		page: {
+			component: EcoComponent;
+			props: Record<string, unknown>;
+		};
+		layout?: DocumentShellLayoutInput;
+		layouts?: DocumentShellLayoutInput[];
+		htmlTemplate: EcoComponent;
+		metadata: PageMetadataProps;
+		pageProps: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+		transformDocumentHtml?: (html: string) => string;
+	}): Promise<string> {
+		const shellLayouts = input.layouts ?? (input.layout ? [input.layout] : []);
+		const composeChildren = this.shouldUseUnifiedReactLayoutComposition(input.page.component, shellLayouts)
+			? (context: DocumentShellComposeChildrenContext) => this.composeReactLayoutPageChildren(input.page, context)
+			: undefined;
+
+		return renderPageDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			},
+			{
+				...input,
+				composeChildren,
+			},
+			this.DOC_TYPE,
+		);
 	}
 
 	/**
@@ -756,6 +915,78 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.getRouterDocumentAttributes();
 	}
 
+	protected override async renderViewWithDocumentShell<P>(input: {
+		view: EcoComponent<P>;
+		props: P;
+		ctx: RenderToResponseContext;
+		layout?: EcoComponent;
+	}): Promise<Response> {
+		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
+
+		if (input.ctx.partial) {
+			const { react, reactDomServer } = this.getReactRuntimeModules();
+			const ViewComponent = this.asReactComponent(input.view);
+			return this.renderPartialViewResponse({
+				...input,
+				renderInline: async () =>
+					await reactDomServer.renderToReadableStream(react.createElement(ViewComponent, normalizedProps)),
+			});
+		}
+
+		await this.prepareViewDependencies(input.view, input.layout);
+		if (!input.ctx.partial) {
+			await this.appendHydrationAssetsForFile(input.view.config?.__eco?.file);
+		}
+
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const metadata = await this.resolveViewMetadata(input.view, input.props);
+		const serializedPageProps = this.pagePayloadService.buildSerializedPageProps({
+			pageProps: normalizedProps,
+			params: {},
+			query: {},
+			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, this.getComponentRequires(input.view)),
+		});
+		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
+		const composeChildren = this.shouldUseUnifiedReactLayoutComposition(input.view, shellLayouts)
+			? (context: DocumentShellComposeChildrenContext) =>
+					this.composeReactLayoutPageChildren({ component: input.view, props: normalizedProps }, context)
+			: undefined;
+
+		const { documentHtml } = await composeDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			},
+			{
+				primaryComponent: input.view,
+				primaryProps: normalizedProps,
+				layout: input.layout
+					? {
+							component: input.layout,
+							props: {},
+						}
+					: undefined,
+				layouts: shellLayouts.length > 0 ? shellLayouts : undefined,
+				composeChildren,
+				htmlTemplate: HtmlTemplate,
+				documentProps: {
+					metadata,
+					pageProps: serializedPageProps,
+				},
+			},
+		);
+
+		const html = await this.finalizeResolvedHtml({
+			html: `${this.DOC_TYPE}${documentHtml}`,
+			partial: false,
+			documentAttributes: this.getRouterDocumentAttributes(),
+			htmlContributions: this.buildNonReactDocumentContributions(HtmlTemplate, serializedPageProps),
+		});
+
+		return this.createHtmlResponse(html, input.ctx);
+	}
+
 	/**
 	 * Renders an arbitrary React view through the application's HTML shell.
 	 *
@@ -770,60 +1001,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			const { react, reactDomServer } = this.getReactRuntimeModules();
-			const viewConfig = view.config;
-			const Layout = viewConfig?.layout;
-			const ViewComponent = this.asReactComponent(view);
-			const normalizedProps = (props ?? {}) as SerializableProps;
-
-			if (ctx.partial) {
-				return this.renderPartialViewResponse({
-					view,
-					props,
-					ctx,
-					renderInline: async () =>
-						await reactDomServer.renderToReadableStream(
-							react.createElement(ViewComponent, normalizedProps),
-						),
-				});
-			}
-
-			const HtmlTemplate = await this.getHtmlTemplate();
-			const metadata = await this.resolveViewMetadata(view, props);
-
-			await this.prepareViewDependencies(view, Layout);
-			await this.appendHydrationAssetsForFile(viewConfig?.__eco?.file);
-
-			const viewRender = await this.renderComponentWithForeignChildren({
-				component: view,
-				props: normalizedProps,
+			const layouts = view.config?.layouts;
+			return await this.renderViewWithDocumentShell({
+				view,
+				props,
+				ctx,
+				layout: layouts?.[layouts.length - 1],
 			});
-			const layoutRender = Layout
-				? await this.renderComponentWithForeignChildren({
-						component: Layout,
-						props: {},
-						children: viewRender.html,
-					})
-				: undefined;
-			const documentRender = await this.renderComponentWithForeignChildren({
-				component: HtmlTemplate,
-				props: {
-					metadata,
-					pageProps: normalizedProps,
-				},
-				children: layoutRender?.html ?? viewRender.html,
-			});
-
-			this.appendProcessedDependencies(viewRender.assets, layoutRender?.assets, documentRender.assets);
-
-			const transformedHtml = await this.finalizeResolvedHtml({
-				html: `${this.DOC_TYPE}${documentRender.html}`,
-				partial: false,
-				documentAttributes: this.getRouterDocumentAttributes(),
-				htmlContributions: this.buildNonReactDocumentContributions(HtmlTemplate, normalizedProps),
-			});
-
-			return this.createHtmlResponse(transformedHtml, ctx);
 		} catch (error) {
 			throw this.createRenderError('Failed to render view', error);
 		}

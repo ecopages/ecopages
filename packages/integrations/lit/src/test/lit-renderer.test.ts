@@ -856,7 +856,7 @@ describe('LitRenderer', () => {
 			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: Layout };
+			View.config = { layouts: [Layout] };
 
 			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
 
@@ -899,7 +899,7 @@ describe('LitRenderer', () => {
 				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
 			const View = (async () =>
 				staticHtml`<section data-testid="lit-view">Lit view</section>`) as unknown as EcoComponent<object>;
-			View.config = { layout: Layout };
+			View.config = { layouts: [Layout] };
 
 			const response = await testRenderer.renderToResponse(View, {}, {});
 			const body = await response.text();

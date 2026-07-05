@@ -6,8 +6,15 @@ All notable changes to `@ecopages/core` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Breaking Changes
+
+- Removed deprecated `config.layout` innermost alias on page configs. Use `config.layouts` and `config.layoutEntries` instead.
+
 ### Features
 
+- Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
+- Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
+- Added `EcoDeclaredComponent` validation for `dependencies.components` entries.
 - Added `createApp()` as the recommended runtime entrypoint with Bun-first execution and Node fallback.
 - Added app-owned build and runtime ownership: host module loading, browser-safe `eco` export, `eco.html()`, `eco.layout()`, and published `EcoPagesAppConfig`.
 - Added Page Browser Graph orchestration so integrations declare browser graph contributions and routes share grouped browser assets where appropriate.
@@ -50,4 +57,6 @@ All notable changes to `@ecopages/core` are documented here.
 - `createApp` is now the recommended entrypoint. Import it from `@ecopages/core/create-app`.
 - `defineApiHandler` keeps the same call shape, but the handler context is now explicitly runtime-agnostic.
 - The old explicit `renderingMode` config option has been removed and full orchestration is always active.
+- `eco.page({ layout })` accepts one layout or an **outer → inner** array. Arrays normalize to `config.layouts` and `config.layoutEntries`.
+- Entries in `dependencies.components` (including layouts merged from `eco.page({ layout })`) must be declared with `eco.component()`, `eco.layout()`, or `eco.html()` so `config.__eco` is present.
 - `DefaultHmrContext` now requires a `getEntrypointDependencyGraph(): EntrypointDependencyGraph` method. This enables selective HMR invalidation so integrations can rebuild only the entrypoints affected by a changed dependency instead of all watched entrypoints. Implementations should return the shared `EntrypointDependencyGraph` instance from `@ecopages/core/services/runtime-state/entrypoint-dependency-graph.service`.

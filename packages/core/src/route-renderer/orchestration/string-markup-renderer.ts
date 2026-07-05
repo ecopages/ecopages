@@ -8,6 +8,7 @@ import type {
 	RouteRendererBody,
 } from '../../types/public-types.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
+import { resolveInnermostPageLayout } from './layout-shell-props.service.ts';
 
 type StringMarkupViewFn<P = Record<string, unknown>> = EcoFunctionComponent<
 	P,
@@ -73,7 +74,7 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 				view,
 				props,
 				ctx,
-				layout: view.config?.layout,
+				layout: resolveInnermostPageLayout(view.config?.layouts),
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);

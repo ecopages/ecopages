@@ -18,6 +18,7 @@ import type {
 } from '../../services/assets/asset-processing-service/index.ts';
 import type { GroupedScriptBundle } from '../../services/assets/asset-processing-service/assets.types.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';
+import { resolvePageLayoutComponents } from './layout-shell-props.service.ts';
 import { type RouteRenderOrchestratorAdapter, RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 
 declare module '../../types/public-types.ts' {
@@ -61,13 +62,16 @@ function createFlowAdapter<C>(input: {
 		resolveRouteRenderInputs: async (routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeOptions.file);
 			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layout = pageModule.Page.config?.layout;
+			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
+			const Layout = Layouts[Layouts.length - 1];
 			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
 
 			return {
 				Page: pageModule.Page,
 				HtmlTemplate,
+				Layouts,
 				Layout,
+				layoutEntries: pageModule.Page.config?.layoutEntries,
 				props,
 				metadata,
 				integrationSpecificProps: pageModule.integrationSpecificProps,
@@ -1383,5 +1387,66 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		).rejects.toThrow(
 			'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
 		);
+	});
+
+	it('resolves dependencies for every layout tier in the stack', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [
+				{
+					name: 'react',
+					initializeRenderer: vi.fn(),
+					getResolvedIntegrationDependencies: () => [],
+				},
+			],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const OuterLayout = (() => '<outer></outer>') as EcoComponent;
+		OuterLayout.config = {
+			integration: 'react',
+			__eco: { id: 'outer', file: '/app/layouts/outer.tsx', integration: 'react' },
+		};
+		const InnerLayout = (() => '<inner></inner>') as EcoComponent;
+		InnerLayout.config = {
+			integration: 'react',
+			__eco: { id: 'inner', file: '/app/layouts/inner.tsx', integration: 'react' },
+		};
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			layouts: [OuterLayout, InnerLayout],
+			layoutEntries: [{ component: OuterLayout }, { component: InnerLayout }],
+		};
+		const resolvedComponents: EcoComponent[] = [];
+
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			{
+				...createFlowAdapter({
+					resolvePageModule: async () => ({
+						Page,
+						integrationSpecificProps: {},
+					}),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({
+						props: {},
+						metadata: { title: 'Page', description: 'Page description' },
+					}),
+					resolveDependencies: async (components) => {
+						resolvedComponents.push(...(components as EcoComponent[]));
+						return [];
+					},
+					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
+					shouldRenderPageComponent: () => false,
+					renderPageComponent: vi.fn(),
+				}),
+				name: 'react',
+			},
+		);
+
+		expect(resolvedComponents).toEqual([HtmlTemplate, OuterLayout, InnerLayout, Page]);
 	});
 });

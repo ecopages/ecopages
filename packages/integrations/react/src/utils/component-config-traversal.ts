@@ -21,8 +21,10 @@ export function walkConfigTree(
 	visited.add(config);
 	visitor(config);
 
-	if (config.layout?.config) {
-		walkConfigTree(config.layout.config, visitor, visited);
+	for (const layout of config.layouts ?? []) {
+		if (layout?.config) {
+			walkConfigTree(layout.config, visitor, visited);
+		}
 	}
 
 	for (const component of config.dependencies?.components ?? []) {

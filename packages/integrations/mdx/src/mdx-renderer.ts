@@ -10,6 +10,7 @@ import {
 	type PageBrowserGraphContributionContext,
 } from '@ecopages/core/route-renderer/integration-renderer';
 import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { rapidhash } from '@ecopages/core/hash';
@@ -37,10 +38,10 @@ export class MDXRenderer extends StringMarkupRenderer {
 		const config = pageComponent.config;
 		const components: Partial<EcoComponent>[] = [];
 
-		const resolvedLayout = config?.layout;
-
-		if (resolvedLayout?.config?.dependencies) {
-			components.push({ config: resolvedLayout.config });
+		for (const layout of config?.layouts ?? []) {
+			if (layout?.config?.dependencies) {
+				components.push({ config: layout.config });
+			}
 		}
 
 		if (config?.dependencies) {
@@ -71,7 +72,10 @@ export class MDXRenderer extends StringMarkupRenderer {
 				throw new Error('MDX file must export a default function');
 			}
 
-			const resolvedLayout = config?.layout;
+			ensurePageConfigLayouts(config);
+
+			const layouts = config?.layouts;
+			const resolvedLayout = layouts?.[layouts.length - 1];
 
 			if (config) Page.config = config;
 

@@ -238,7 +238,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 	private pageModuleRequiresLayoutRefresh(pageModule: ImportedReactPageModule, filePath: string): boolean {
 		return [pageModule.default?.config, pageModule.config].some((config) => {
-			return this.configContainsFile(config?.layout?.config, filePath);
+			return (config?.layouts ?? []).some((layout) => this.configContainsFile(layout?.config, filePath));
 		});
 	}
 

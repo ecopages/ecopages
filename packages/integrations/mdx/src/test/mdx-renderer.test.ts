@@ -60,7 +60,7 @@ describe('MDXRenderer', () => {
 				children: EcoPagesElement;
 			}>;
 			const Page = (async () => '<article>content</article>') as unknown as EcoComponent;
-			const config = { layout: Layout } as never;
+			const config = { layouts: [Layout] } as never;
 
 			const result = testRenderer.normalizeForTest({
 				default: Page,
@@ -271,7 +271,7 @@ describe('MDXRenderer', () => {
 			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: Layout };
+			View.config = { layouts: [Layout] };
 
 			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
 

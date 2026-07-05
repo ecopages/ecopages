@@ -191,6 +191,24 @@ describe('ReactRenderer', () => {
 			expect(result.html).toContain('<h2>React Component</h2>');
 		});
 
+		it('should compose React element children without escaping nested markup', async () => {
+			const testRenderer = createRenderer();
+			const Wrapper = (({ children }: { children?: React.ReactNode }) => (
+				<section>{children}</section>
+			)) as unknown as EcoComponent<{
+				children?: React.ReactNode;
+			}>;
+			const Inner = (() => <p>Nested</p>) as unknown as EcoComponent<object>;
+
+			const result = await testRenderer.renderComponent({
+				component: Wrapper,
+				props: {},
+				children: React.createElement(Inner, {}),
+			});
+
+			expect(result.html).toContain('<section><p>Nested</p></section>');
+		});
+
 		it('should report non-attachable boundaries for fragment output', async () => {
 			const testRenderer = createRenderer();
 			const Component = (() => (
@@ -914,7 +932,7 @@ describe('ReactRenderer', () => {
 			const MockView = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			MockView.config = { layout: MockLayout };
+			MockView.config = { layouts: [MockLayout] };
 
 			const response = await testRenderer.renderToResponse(MockView, { message: 'With Layout' }, {});
 
@@ -960,7 +978,7 @@ describe('ReactRenderer', () => {
 			const View = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: NonReactLayout };
+			View.config = { layouts: [NonReactLayout] };
 
 			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
 			const body = await response.text();

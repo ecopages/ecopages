@@ -6,6 +6,7 @@ import {
 	type HtmlDocumentContribution,
 	type RenderToResponseContext,
 } from './integration-renderer.ts';
+import { resolveInnermostPageLayout } from './layout-shell-props.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './component-render-context.ts';
@@ -81,7 +82,9 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		if (ctx.partial) {
 			body = content as string;
 		} else {
-			const Layout = view.config?.layout as ((props: { children: string }) => string) | undefined;
+			const Layout = resolveInnermostPageLayout(view.config?.layouts) as
+				| ((props: { children: string }) => string)
+				| undefined;
 			const children = Layout ? Layout({ children: content as string }) : content;
 			body = `<!DOCTYPE html><html><body>${children}</body></html>`;
 		}
@@ -701,7 +704,7 @@ describe('IntegrationRenderer', () => {
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
 		PageIdx.config = {
-			layout: Layout,
+			layouts: [Layout],
 			__eco: {
 				id: 'page-component',
 				file: '/app/pages/index.tsx',
@@ -1223,7 +1226,7 @@ describe('IntegrationRenderer', () => {
 			const View = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layout: Layout };
+			View.config = { layouts: [Layout] };
 
 			const response = await renderer.renderToResponse(View, { message: 'With Layout' }, {});
 

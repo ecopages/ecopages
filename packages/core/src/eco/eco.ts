@@ -35,6 +35,7 @@ import {
 	interceptForeignChild,
 } from '../route-renderer/orchestration/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/render-output.utils.ts';
+import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -190,22 +191,19 @@ function page<T, E>(
 ): EcoPageComponent<T> {
 	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
 
+	const layoutEntries = normalizePageLayouts(layout);
+
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
 		__eco: options.__eco,
 		integration: options.integration,
-		dependencies: layout
-			? {
-					...dependencies,
-					components: [...(dependencies?.components || []), layout],
-				}
-			: dependencies,
+		dependencies: mergeLayoutDependencies(dependencies, layoutEntries),
 		render,
 	};
 
 	const pageComponent = createComponentFactory(componentOptions) as EcoPageComponent<T>;
 
-	if (layout && pageComponent.config) {
-		pageComponent.config.layout = layout;
+	if (pageComponent.config) {
+		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
 	if (staticPaths) pageComponent.staticPaths = staticPaths;

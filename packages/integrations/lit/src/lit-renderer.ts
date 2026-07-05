@@ -275,7 +275,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			}
 
 			const viewConfig = view.config;
-			const Layout = viewConfig?.layout;
+			const layouts = viewConfig?.layouts;
+			const Layout = layouts?.[layouts.length - 1];
 			const HtmlTemplate = await this.getHtmlTemplate();
 			const metadata = await this.resolveViewMetadata(view, props);
 			const normalizedProps = (props ?? {}) as Record<string, unknown>;

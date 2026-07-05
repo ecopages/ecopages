@@ -36,6 +36,9 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Features
 
+- Added nested layout arrays on `eco.page()` with unified React SSR composition via `composeDocumentShell` `composeChildren`.
+- Added `composeLayoutPageTree` and `serializePageDataScript` exports for shared client/SSR layout and hydration payloads.
+- Added per-tier `persistLayouts` support in `@ecopages/react-router` for nested layout stacks.
 - Added built-in React MDX support and reachability-based hydration analysis for React page bundles.
 - Added the `@ecopages/react/eco-embed` helper for React-owned mixed-integration authoring on top of `eco.embed()`.
 
@@ -67,3 +70,5 @@ All notable changes to `@ecopages/react` are documented here.
 ## Migration Notes
 
 - React MDX support is built in via `reactPlugin({ mdx: { enabled: true } })`. You do not need to install `@ecopages/mdx` separately — it is installed transitively as a dependency of `@ecopages/react`. The standalone `@ecopages/mdx` plugin is for non-React JSX runtimes only.
+- For nested route layouts, use `eco.page({ layout: [Outer, Inner] })` (outer → inner). React SSR and `@ecopages/react-router` compose the same stack; with `ecoRouter()`, outer tiers persist across SPA navigation when routes share the same layout key.
+- Import `composeLayoutPageTree` from `@ecopages/react/layout-compose` when building custom client or SSR trees that must match router hydration.

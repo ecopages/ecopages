@@ -1,4 +1,5 @@
-import { createElement as defaultCreateElement, type FunctionComponent, type ReactElement } from 'react';
+import * as bundledReact from 'react';
+import type { FunctionComponent, ReactElement } from 'react';
 import type {
 	EcoComponent,
 	EcoDeclaredComponent,
@@ -10,14 +11,16 @@ import type { EcoComponentConfig } from '@ecopages/core';
 
 export type LayoutComposeContext = LayoutPropsContext;
 
+export type ReactRuntime = typeof bundledReact;
+
 export type LayoutComposeOptions = {
 	context?: LayoutComposeContext;
-	/** @remarks Pass the app-resolved React runtime during SSR to avoid duplicate React copies. */
-	createElement?: typeof defaultCreateElement;
+	/** @remarks Pass the app-resolved React runtime during SSR so composition matches `renderToString`. */
+	react?: ReactRuntime;
 };
 
-function resolveCreateElement(options?: LayoutComposeOptions): typeof defaultCreateElement {
-	return options?.createElement ?? defaultCreateElement;
+function resolveReact(options?: LayoutComposeOptions): ReactRuntime {
+	return options?.react ?? bundledReact;
 }
 
 export type LayoutShellEntry = {
@@ -118,15 +121,15 @@ export function assertComposablePage(Page: unknown): ComposablePage {
  * Builds the client or SSR React tree for a page and its outer→inner layout stack.
  *
  * @remarks
- * Layout prop factories receive `LayoutPropsContext`. For SSR, pass `options.context` with
- * route-scoped `locals` when they differ from `pageProps.locals`.
+ * Layout prop factories receive `LayoutPropsContext`. For SSR, pass `options.react` from the
+ * app-resolved runtime. Client code can omit it and use the bundled React import.
  */
 export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	Page: ComposablePage<P>,
 	pageProps: P,
 	options?: LayoutComposeOptions,
 ): ReactElement {
-	const createElement = resolveCreateElement(options);
+	const { createElement } = resolveReact(options);
 	const context = options?.context ?? resolveLayoutContext(pageProps);
 	const pageElement = createElement(Page, pageProps);
 	const layoutEntries = Page.config?.layoutEntries;
@@ -165,7 +168,7 @@ export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>
 	shellLayouts: LayoutShellEntry[],
 	options?: LayoutComposeOptions,
 ): ReactElement {
-	const createElement = resolveCreateElement(options);
+	const { createElement } = resolveReact(options);
 	if (shellLayouts.length === 0) {
 		return composeLayoutPageTree(Page, pageProps, options);
 	}

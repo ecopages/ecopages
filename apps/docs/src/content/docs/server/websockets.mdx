@@ -1,0 +1,310 @@
+# WebSockets
+
+Ecopages provides a runtime-agnostic WebSocket API that works identically on Bun and Node. Register WebSocket handlers with `app.websocket()` using the same dynamic segment syntax as HTTP routes.
+
+## Quick Start
+
+```typescript
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.websocket('/ws/echo', {
+	onMessage(socket, message) {
+		if (message.kind === 'text') {
+			socket.send(message.text);
+		}
+	},
+});
+
+await app.start();
+```
+
+Connect from the browser:
+
+```typescript
+const ws = new WebSocket('/ws/echo');
+ws.onmessage = (event) => console.log(event.data);
+ws.send('Hello');
+```
+
+## Dynamic Segments
+
+Use `:param` syntax to capture URL segments. The handler receives typed `params` per connection.
+
+```typescript
+app.websocket<{ username: string }, { roomId: string }>('/ws/chat/:roomId', {
+	async context({ params, search }) {
+		return { username: search.username ?? 'anonymous' };
+	},
+	onConnect(socket) {
+		console.log(`${socket.context.username} joined room ${socket.params.roomId}`);
+	},
+});
+```
+
+A single registration matches all variations of the pattern. `/ws/chat/abc`, `/ws/chat/xyz`, etc. each receive their own `params.roomId`.
+
+## Handler Interface
+
+`EcopagesWebSocketHandler<TContext, TParams>` accepts these optional hooks:
+
+| Hook | When | Purpose |
+|------|------|---------|
+| `context()` | Once per upgrade | Build per-connection state. Return value becomes `socket.context`. Rejecting the promise aborts the upgrade. |
+| `onConnect(socket)` | After upgrade | Register the client, send initial data. |
+| `onMessage(socket, message)` | Each frame | Handle incoming text or binary frames. |
+| `onClose(socket, event)` | After disconnect | Clean up resources. |
+| `onError(socket, error)` | On error | Log or recover from errors. |
+
+```typescript
+import type { EcopagesWebSocketHandler } from '@ecopages/core';
+
+const handler: EcopagesWebSocketHandler<{ userId: string }, { channel: string }> = {
+	async context({ params, search, request }) {
+		const userId = await authenticateRequest(request);
+		return { userId };
+	},
+	onConnect(socket) {
+		subscribe(socket.params.channel, socket);
+	},
+	onMessage(socket, message) {
+		if (message.kind === 'text') {
+			broadcast(socket.params.channel, message.text);
+		}
+	},
+	onClose(socket) {
+		unsubscribe(socket.params.channel, socket);
+	},
+	onError(socket, error) {
+		console.error(`Error for ${socket.context.userId}:`, error);
+	},
+};
+```
+
+## Socket API
+
+Each `EcopagesSocket` instance provides:
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `send` | `(message: OutgoingWebSocketMessage) => void` | Send text, binary, or stream data. |
+| `sendStream` | `(stream: ReadableStream<Uint8Array>) => Promise<void>` | Stream binary data to the client. |
+| `close` | `(code?: number, reason?: string) => void` | Close the connection. |
+
+Read-only properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `kind` | `string` | The registered route pattern (e.g. `/ws/chat/:roomId`). |
+| `params` | `TParams` | Dynamic segments captured at match time. |
+| `search` | `Record<string, string>` | Query string parameters. |
+| `context` | `TContext` | Per-connection state from `context()`. |
+
+### Message Types
+
+Incoming messages use a discriminated union:
+
+```typescript
+type IncomingWebSocketMessage =
+	| { kind: 'text'; text: string }
+	| { kind: 'binary'; data: Uint8Array };
+```
+
+Outgoing messages accept: `string`, `Uint8Array`, `ArrayBuffer`, `ArrayBufferView`, or `Blob`.
+
+## Broadcasting
+
+Build a room-based broadcast using a `Map` of client sets:
+
+```typescript
+import type { EcopagesSocket } from '@ecopages/core';
+
+const rooms = new Map<string, Set<EcopagesSocket>>();
+
+function broadcast(roomId: string, payload: unknown): void {
+	const clients = rooms.get(roomId);
+	if (!clients) return;
+	const msg = JSON.stringify(payload);
+	for (const client of clients) {
+		try {
+			client.send(msg);
+		} catch {
+			clients.delete(client);
+		}
+	}
+}
+
+app.websocket('/ws/room/:id', {
+	onConnect(socket) {
+		const { id } = socket.params;
+		let clients = rooms.get(id);
+		if (!clients) {
+			clients = new Set();
+			rooms.set(id, clients);
+		}
+		clients.add(socket);
+	},
+	onMessage(socket, message) {
+		if (message.kind === 'text') {
+			broadcast(socket.params.id, { text: message.text });
+		}
+	},
+	onClose(socket) {
+		const clients = rooms.get(socket.params.id);
+		clients?.delete(socket);
+		if (clients?.size === 0) {
+			rooms.delete(socket.params.id);
+		}
+	},
+});
+```
+
+## Full Example: Room-Based Chat
+
+This is the pattern used in the [kitchen-sink playground](https://github.com/ecopages/ecopages/blob/main/playground/kitchen-sink/src/handlers/ws-chat-room.ts):
+
+```typescript
+import type { EcopagesSocket, EcopagesWebSocketHandler } from '@ecopages/core';
+
+type ChatData = { username: string; roomId: string };
+
+const clients = new Map<string, Set<EcopagesSocket<ChatData>>>();
+const history = new Map<string, { id: string; username: string; text: string; ts: number }[]>();
+
+export const chatHandler: EcopagesWebSocketHandler<ChatData, { roomId: string }> = {
+	async context({ params, search }) {
+		return {
+			username: search.username ?? 'anonymous',
+			roomId: params.roomId,
+		};
+	},
+
+	onConnect(socket) {
+		const { roomId } = socket.context;
+		let room = clients.get(roomId);
+		if (!room) {
+			room = new Set();
+			clients.set(roomId, room);
+		}
+		room.add(socket);
+
+		socket.send(JSON.stringify({
+			type: 'history',
+			messages: history.get(roomId) ?? [],
+		}));
+	},
+
+	onMessage(socket, message) {
+		if (message.kind !== 'text') return;
+
+		let payload: { type?: string; text?: string };
+		try {
+			payload = JSON.parse(message.text);
+		} catch {
+			return;
+		}
+
+		if (payload.type !== 'message' || !payload.text?.trim()) return;
+
+		const msg = {
+			id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+			username: socket.context.username,
+			text: payload.text.trim(),
+			ts: Date.now(),
+		};
+
+		let roomHistory = history.get(socket.context.roomId);
+		if (!roomHistory) {
+			roomHistory = [];
+			history.set(socket.context.roomId, roomHistory);
+		}
+		roomHistory.push(msg);
+
+		const room = clients.get(socket.context.roomId);
+		if (!room) return;
+		const out = JSON.stringify({ type: 'message', message: msg });
+		for (const client of room) {
+			try { client.send(out); } catch { room.delete(client); }
+		}
+	},
+
+	onClose(socket) {
+		const room = clients.get(socket.context.roomId);
+		room?.delete(socket);
+		if (room?.size === 0) {
+			clients.delete(socket.context.roomId);
+		}
+	},
+};
+```
+
+Register it:
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+import { chatHandler } from './src/handlers/chat';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.websocket('/ws/chat/:roomId', chatHandler);
+
+await app.start();
+```
+
+Connect with a username:
+
+```typescript
+const ws = new WebSocket('/ws/chat/lobby?username=alice');
+
+ws.onmessage = (event) => {
+	const data = JSON.parse(event.data);
+	if (data.type === 'history') {
+		console.log('Chat history:', data.messages);
+	} else if (data.type === 'message') {
+		console.log(`${data.message.username}: ${data.message.text}`);
+	}
+};
+
+ws.send(JSON.stringify({ type: 'message', text: 'Hello everyone!' }));
+```
+
+## Route Matching
+
+WebSocket routes use the same pattern matching as HTTP routes. The framework selects the most specific match based on:
+
+1. More literal segments beat more dynamic segments.
+2. Fewer dynamic segments beat more dynamic segments.
+3. Longer patterns beat shorter patterns.
+
+```typescript
+app.websocket('/ws/admin', adminHandler);       // Matches /ws/admin
+app.websocket('/ws/:type', typeHandler);         // Matches /ws/anything
+app.websocket('/ws/:type/:id', detailHandler);   // Matches /ws/anything/something
+```
+
+A request to `/ws/admin` matches the literal pattern, not the dynamic one.
+
+## Runtime Compatibility
+
+The WebSocket API is runtime-agnostic. The same handler code works on both Bun and Node without changes. Each runtime uses its native WebSocket implementation under the hood:
+
+- **Bun**: Uses Bun's built-in `WebSocket` server.
+- **Node**: Uses the `ws` package with HTTP upgrade handling.
+
+Import types from `@ecopages/core` (not from runtime-specific modules):
+
+```typescript
+import type {
+	EcopagesWebSocketHandler,
+	EcopagesSocket,
+	IncomingWebSocketMessage,
+} from '@ecopages/core';
+```
+
+## No Manual Upgrade Route
+
+The framework handles the HTTP-to-WebSocket upgrade implicitly. Do not register a manual `GET` route for your WebSocket paths. The `app.websocket()` call is sufficient.

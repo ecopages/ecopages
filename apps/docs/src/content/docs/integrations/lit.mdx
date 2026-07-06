@@ -1,0 +1,169 @@
+# Lit Integration
+
+The `@ecopages/lit` package provides seamless integration with [Lit](https://lit.dev/), enabling the use of Lit components and reactive properties within the Ecopages framework.
+
+## Installation
+
+Install the integration package:
+
+<CodeTabs
+	name="lit-install"
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lit' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/lit' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/lit' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+Also install Lit's required peer packages in your app: `lit`, `@lit-labs/ssr`, and `@lit-labs/ssr-client`.
+
+## Usage
+
+Register the `litPlugin` in your Ecopages configuration:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { litPlugin } from '@ecopages/lit';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([litPlugin()])
+	.build();
+
+export default config;
+```
+
+## Creating Components with Lit
+ 
+Once the Lit integration is set up, you can create components. Ecopages provides a `StyledMixin` to attach string-based styles to your Lit components without any extra processor setup.
+ 
+```typescript
+import { StyledMixin } from '@ecopages/lit/styled-mixin';
+import { html, LitElement } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+
+const styles = `
+	:host {
+		display: inline-flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+`;
+ 
+@customElement('lit-counter')
+export class LitCounter extends StyledMixin(LitElement, [styles]) {
+	@property({ type: Number }) count = 0;
+ 
+	decrement() {
+		if (this.count > 0) this.count--;
+	}
+ 
+	increment() {
+		this.count++;
+	}
+ 
+	override render() {
+		return html`
+			<button @click=${this.decrement}>-</button>
+			<span>${this.count}</span>
+			<button @click=${this.increment}>+</button>
+		`;
+	}
+}
+```
+
+If you want to import CSS files as strings instead of inlining them, add the PostCSS processor in your app config. See the <a href="/docs/ecosystem/postcss-processor">PostCSS Processor</a> docs for the required setup.
+
+## Create the Component Wrapper
+
+To properly integrate the Lit component into Ecopages (handling dependencies and lazy loading), create a wrapper using `eco.component`.
+
+```typescript
+import { eco } from '@ecopages/core';
+import { html } from 'lit';
+import './lit-counter.script';
+
+export const LitCounter = eco.component({
+	dependencies: {
+		scripts: ['lit-counter.script.ts'],
+	},
+	render: (props: { count: number }) => html`
+		<lit-counter count=${props.count}></lit-counter>
+	`,
+});
+```
+
+This wrapper ensures that the script is loaded when needed and provides a typed interface for using the component in pages.
+
+## Using Lit Components in Pages
+
+To use Lit components in your pages, import the wrapper and include it in your page using `eco.page`.
+
+```typescript
+import { LitCounter } from '@/components/lit-counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+import { html } from '@ecopages/core/html';
+
+export default eco.page({
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+	}),
+	dependencies: {
+		components: [BaseLayout, LitCounter],
+	},
+	render: () =>
+		html`${BaseLayout({
+			class: 'main-content',
+			children: html`
+				<h1>Home</h1>
+				${LitCounter({ count: 8 })}
+			`,
+		})}`,
+});
+```
+
+## Static Export
+
+Lit pages render on the server through a dedicated worker thread started when the Lit plugin initializes. The same worker serves static export, dev, and preview requests. Before static generation, `@ecopages/lit` preloads SSR-eligible custom-element scripts from the route graph.
+
+## Key Features
+
+- Lit owns `.lit.tsx` routes and nested Lit component boundaries.
+- Registered custom elements render with declarative shadow DOM during SSR.
+- Lit component wrappers can declare scripts through `eco.component()` so browser assets stay dependency-driven.
+- Mixed-renderer shells hand Lit boundaries back to the Lit renderer instead of leaving unresolved placeholders in the route output.
+
+## Best Practices
+
+1. **Component Naming**: Use kebab-case for custom element names (e.g., `lit-counter`).
+2. **Separate CSS Files**: Keep styles in separate CSS files to improve maintainability.
+3. **Dependency Declarations**: Declare required scripts and styles through `eco.component()` dependencies.
+4. **Type Declarations**: Include type declarations for custom elements to improve TypeScript support.
+
+## Integration with Other Plugins
+
+The Lit integration works well with other Ecopages plugins. For example, you can pair it with KitaJS when an HTML-first shell should host nested Lit custom elements.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { litPlugin } from '@ecopages/lit';
+import { kitajsPlugin } from '@ecopages/kitajs';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([kitajsPlugin(), litPlugin()])
+	.build();
+
+export default config;
+```
+
+By leveraging the Lit integration, you can create powerful, reactive components within your Ecopages project, combining the efficiency of static site generation with the interactivity of modern web components.

@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { cn } from '@/styles/utils';
 import type { JsxRenderable } from '@ecopages/jsx';
 
@@ -13,24 +13,19 @@ export type BannerTitleProps = {
 	class?: string;
 };
 
-const BannerRoot: EcoComponent<BannerProps> = ({ children, type = 'info', class: className }) => {
-	return (
-		<div class={cn(`eco-banner eco-banner--${type}`, className)} role="alert">
-			{children}
-		</div>
-	);
-};
-
-const BannerTitle: EcoComponent<BannerTitleProps> = ({ children, class: className }) => {
+export function BannerTitle({ children, class: className }: BannerTitleProps) {
 	return <p class={cn('eco-banner__title', className)}>{children}</p>;
-};
+}
 
-export const Banner = Object.assign(BannerRoot, {
-	Title: BannerTitle,
-});
-
-Banner.config = {
+export const Banner = eco.component<BannerProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./banner.css'],
 	},
-};
+	render: ({ children, type = 'info', class: className }) => {
+		return (
+			<div class={cn(`eco-banner eco-banner--${type}`, className)} role="alert">
+				{children}
+			</div>
+		);
+	},
+});

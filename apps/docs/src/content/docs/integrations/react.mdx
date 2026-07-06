@@ -1,0 +1,184 @@
+# React Integration
+
+The `@ecopages/react` package introduces first-class integration with [React](https://reactjs.org/) version 19, enabling developers to build dynamic components using the latest React features within the Ecopages platform.
+
+
+
+## Installation
+
+<CodeTabs
+	name="react-install"
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/react' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/react' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+Also install React's required peer packages in your app: `react` and `react-dom`. In TypeScript projects, install `@types/react` and `@types/react-dom` as well.
+
+## Usage
+
+To enable React support, add the `reactPlugin` to your Ecopages configuration.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { reactPlugin } from '@ecopages/react';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([reactPlugin()])
+	.build();
+
+export default config;
+```
+
+## Creating Components
+
+### Standard (eco.component)
+
+The standard way to create components in Ecopages is via the `eco.component` factory. This is ideal for managing dependencies (scripts, stylesheets) and enabling advanced features like lazy loading.
+
+```tsx
+import { useState } from 'react';
+import { eco } from '@ecopages/core';
+
+export const Counter = eco.component({
+	dependencies: {
+		stylesheets: ['./counter.css'],
+	},
+	render: () => {
+		const [count, setCount] = useState(0);
+
+		return (
+			<div className="counter">
+				<p>Count: {count}</p>
+				<button onClick={() => setCount(prev => prev - 1)}>-</button>
+				<button onClick={() => setCount(prev => prev + 1)}>+</button>
+			</div>
+		);
+	}
+});
+```
+
+### Plain React Components
+
+You can also write standard React components directly when they only need React runtime behavior and do not need Ecopages-managed dependency declarations.
+
+**This is especially useful if you are using Tailwind CSS**, as you do not need to attach specific stylesheets or declare dependencies.
+
+```tsx
+import { useState } from 'react';
+
+export function SimpleCounter() {
+    const [count, setCount] = useState(0);
+    return (
+        <button 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={() => setCount(count + 1)}
+        >
+            Count: {count}
+        </button>
+    );
+}
+```
+
+### Using in Pages
+
+Import the component and include it in the page. Register it in the page's `dependencies`.
+
+```tsx
+import { Counter } from '@/components/counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	dependencies: {
+		components: [BaseLayout, Counter],
+	},
+	render: () => {
+		return (
+			<BaseLayout>
+				<h1>Welcome to React on Ecopages</h1>
+				<Counter />
+			</BaseLayout>
+		);
+	}
+});
+```
+
+## Utilities
+
+### `dynamic`
+
+Use the `dynamic` utility to lazy-load components or render them only on the client.
+
+```tsx
+import { dynamic } from '@ecopages/react/utils/dynamic';
+
+const HeavyComponent = dynamic(() => import('@/components/heavy-chart'), {
+	ssr: false,
+});
+```
+
+### `ClientOnly`
+
+The `ClientOnly` component is useful for parts of the UI that should strictly render in the browser (e.g., accessing `window` or `localStorage`).
+
+```tsx
+import { ClientOnly } from '@ecopages/react/utils/client-only';
+
+<ClientOnly fallback={<Spinner />}>
+    <BrowserSpecificFeature />
+</ClientOnly>
+```
+
+## Key Features
+
+- **React 19**: Server rendering and hydration for standard React 19 components and hooks.
+- **Fast Refresh**: Built-in Hot Module Replacement (HMR) for instant feedback.
+- **MDX**: Built-in React MDX support through `reactPlugin({ mdx: { enabled: true } })`.
+- **Mixed Rendering**: React can own routes directly or resolve nested React boundaries inside non-React shells.
+
+## MDX Support
+
+The React plugin includes optional MDX support. When enabled, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const appRoot = process.cwd();
+
+const config = await new ConfigBuilder()
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setIntegrations([
+		reactPlugin({
+			router: ecoRouter(),
+			mdx: {
+				enabled: true,
+				compilerOptions: {
+					// Optional: remark/rehype plugins
+				},
+			},
+		}),
+	])
+	.build();
+
+export default config;
+```
+
+This is the recommended approach when using a client-side router, as it ensures seamless navigation between TSX and MDX pages.
+
+<Banner type="info">
+	<BannerTitle>Standalone MDX</BannerTitle>
+	<p>
+		Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should compile against a non-React JSX runtime. React-backed MDX belongs on the React plugin even when you are not using client-side routing.
+	</p>
+</Banner>

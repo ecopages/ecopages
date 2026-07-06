@@ -1,0 +1,226 @@
+# Server API
+
+Ecopages provides a powerful server API that allows you to create endpoints and handle server-side logic with ease.
+
+## Basic Usage
+
+Create an `app.ts` file in your project root:
+
+```typescript
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.get('/api/hello', async () => {
+	return new Response('Hello World');
+});
+
+await app.start();
+```
+
+## Starting the server
+
+Call `app.start()` after you register routes. It boots the runtime for the current CLI mode (`dev`, `preview`, `build`, or production `start`). The runtime logs the ready URL by default — you do not need a callback for basic startup logging.
+
+```typescript
+// filepath: app.ts
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.get('/api/hello', async () => {
+	return new Response('Hello World');
+});
+
+await app.start();
+```
+
+Pass an optional callback when you need custom logic once the runtime can accept traffic. The callback receives `{ origin }` — the resolved base URL with no trailing slash (for example `http://localhost:3000`).
+
+```typescript
+await app.start(({ origin }) => {
+	// Run custom readiness work here
+});
+```
+
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app` if you want an explicit annotation.
+
+> **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
+
+## HTTP Methods
+
+The server supports all standard HTTP methods:
+
+```typescript
+app.get('/api/resource', handler);
+app.post('/api/resource', handler);
+app.put('/api/resource', handler);
+app.patch('/api/resource', handler);
+app.delete('/api/resource', handler);
+app.options('/api/resource', handler);
+app.head('/api/resource', handler);
+```
+
+
+## Route Parameters
+
+You can define dynamic route parameters using the `:param` syntax:
+
+```typescript
+app.get('/api/users/:id/posts/:postId', async ({ params }) => {
+	const { id, postId } = params;
+	return new Response(JSON.stringify({ userId: id, postId }));
+});
+```
+
+## Type Safety
+
+Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
+
+Handlers can be defined directly, but keeping the `params` type aligned with the `path` string requires explicit manual typing. Use `defineApiHandler` to infer parameter types from the path literal and keep route definitions organized.
+
+```typescript
+import { defineApiHandler } from '@ecopages/core';
+
+const getUserHandler = defineApiHandler({
+	method: 'GET',
+	path: '/api/users/:id',
+	handler: async ({ params }) => {
+		const { id } = params;
+		const user = { id: id, name: 'Example User' };
+
+		if (!user) {
+			return new Response('User not found', { status: 404 });
+		}
+		return new Response(JSON.stringify(user));
+	},
+});
+
+app.add(getUserHandler);
+
+const updateUserHandler = defineApiHandler({
+	method: 'PUT',
+	path: '/api/users/:id',
+	handler: async ({ params }) => {
+		const { id } = params;
+		return new Response(JSON.stringify({ id, message: 'User updated' }));
+	},
+});
+
+app.add(updateUserHandler);
+```
+
+### Benefits of Using `defineApiHandler`
+
+Using defineApiHandler offers several advantages:
+
+- Automatic Parameter Typing: Eliminates the need to manually type params.
+- Improved Readability: Keeps the handler definition concise.
+- Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
+- Reduced Errors: Prevents type mismatches between the path string and the parameters used in the handler.
+
+## Handler Context: Accessing the Server Instance
+
+The handler context now includes a `server` property, which exposes the underlying server instance (such as Bun's server object). This allows you to access advanced utilities, such as retrieving the request IP address or triggering a server reload.
+
+```typescript
+app.get('/api/hello', async ({ response, request, server }) => {
+	return response.json({
+		message: 'Hello world!',
+		requestIp: server.requestIP(request),
+	});
+});
+```
+
+
+You can use `server` for advanced debugging, runtime methods, or accessing server-specific utilities.
+
+## Static Site Generation
+
+During static site generation, the server can still handle API requests, making it possible to generate static content from API responses:
+
+```typescript
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	staticProps: async ({ appConfig }) => {
+		const response = await fetch(`${appConfig.baseUrl}/api/data`);
+		const data = await response.json();
+		
+		return {
+			props: { data },
+		};
+	},
+	render: ({ data }) => html`...`
+});
+```
+
+## Development Server
+
+The development server includes:
+
+- Hot Module Replacement (HMR)
+- Automatic route reloading
+- API endpoint hot reloading
+- Static file serving
+- Error handling with detailed stack traces
+
+## Production Build
+
+When building for production:
+
+1. Static routes are pre-rendered
+2. API routes are preserved for server-side handling
+3. Assets are optimized and collected
+4. Development-only code is stripped
+
+## Error Handling
+
+The server includes built-in error handling:
+
+```typescript
+app.get('/api/error', async () => {
+	throw new Error('Something went wrong');
+	// Will return a 500 response with error details in development
+	// and a safe error message in production
+});
+```
+
+## WebSocket Support
+
+Ecopages provides a runtime-agnostic WebSocket API with dynamic segment support, per-connection context, and automatic HTTP-to-WebSocket upgrades. Works on both Bun and Node.
+
+See [WebSockets](/docs/server/websockets) for the full guide.
+
+## Testing API Endpoints
+
+Use `app.fetch()` to exercise handlers without a bound network server. This is the same request surface embedded hosts use.
+
+```typescript
+import { createApp } from '@ecopages/core/create-app';
+import appConfig from './eco.config';
+
+const app = await createApp({ appConfig });
+
+app.get('/api/hello', async ({ response }) => {
+	return response.json({ message: 'Hello World' });
+});
+
+const response = await app.fetch(new Request('http://localhost/api/hello'));
+const data = await response.json();
+
+console.log(data); // { message: 'Hello World' }
+```
+
+## Configuration
+
+Server configuration can be customized in your `eco.config.ts`:
+
+```typescript 
+const config = await new ConfigBuilder() 
+	.setBaseUrl('http://localhost:3000') 
+	// ... other config
+	.build(); 
+```

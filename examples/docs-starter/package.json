@@ -4,8 +4,9 @@
 	"type": "module",
 	"scripts": {
 		"start": "pnpm run build && ecopages start",
-		"dev": "ecopages dev",
-		"build": "ecopages build",
+		"generate:llms": "tsx scripts/generate-llm-docs.ts",
+		"dev": "pnpm run generate:llms && ecopages dev",
+		"build": "pnpm run generate:llms && ecopages build",
 		"preview": "ecopages preview"
 	},
 	"devDependencies": {
@@ -20,6 +21,7 @@
 		"ecopages": "0.2.0-alpha.2",
 		"remark-gfm": "^4.0.1",
 		"tailwindcss": "^4.0.0",
+		"tsx": "^4.22.3",
 		"vfile": "^6.0.3"
 	}
 }

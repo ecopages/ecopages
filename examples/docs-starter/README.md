@@ -11,7 +11,7 @@ Minimal Ecopages docs site using a content tree, manifest-driven navigation, and
 
 ## Configuration
 
-- Edit `src/docs-kit/manifest/docs-manifest.config.ts` to add, remove, or reorder pages.
+- Edit `src/content/docs/content.meta.ts` to add, remove, or reorder pages (and register MDX modules in `content.ts`).
 - Every `.mdx` file under `src/content/docs` must appear in the manifest; orphan files fail `buildDocsManifest()`.
 - Inject shell layout and MDX components in `src/docs-kit.instance.ts`.
 
@@ -24,16 +24,21 @@ The docs layout composes kit-local components:
 
 Markup lives in `eco.component` render functions so layout HMR updates text and structure immediately.
 
+## LLM exports
+
+`scripts/generate-llm-docs.ts` writes `src/public/llms.txt` and `src/public/docs-llm/**/*.md` from the manifest before `dev` and `build`. Pages can opt out with `llms: false` in `content.meta.ts`.
+
 ## Commands
 
 ```bash
 pnpm install
 pnpm dev
 pnpm build
+pnpm run generate:llms
 ```
 
 Open `/docs/getting-started/introduction` after starting the dev server.
 
 ## Full docs app
 
-See `apps/docs` for the complete docs kit: sidebar icons, table of contents, pagination, and static LLM exports under `src/public/docs-llm/`.
+See `apps/docs` for the complete docs kit: sidebar icons, table of contents, and pagination.

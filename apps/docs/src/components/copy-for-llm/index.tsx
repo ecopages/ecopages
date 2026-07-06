@@ -13,7 +13,7 @@ export const CopyForLlm = eco.component<CopyForLlmProps, JsxRenderable>({
 	},
 	render: ({ llmUrl, label = 'Copy for LLM' }: CopyForLlmProps) => {
 		return (
-			<radiant-copy-for-llm llm-url={llmUrl}>
+			<radiant-copy-for-llm prop:llmUrl={llmUrl}>
 				<button type="button" class="docs-copy-for-llm" aria-label={label} data-testid="copy-for-llm">
 					<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--sparkle" aria-hidden="true">
 						{copyForLlmSparkleIcon}

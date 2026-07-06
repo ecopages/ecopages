@@ -1,18 +1,20 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { docsSiteContent } from '@/content/docs/content';
 import { DocsBar } from '@/docs-kit/components/docs-bar';
 import { defineDocsKit } from '@/docs-kit/config';
-import { docsManifestConfig } from '@/docs-kit/manifest/docs-manifest.config';
 import { BaseLayout } from '@/layouts/base-layout';
 
-const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const appRoot = moduleDir.includes(`${path.sep}.eco${path.sep}`)
+	? path.resolve(moduleDir, '../..')
+	: path.resolve(moduleDir, '..');
 
 defineDocsKit({
 	rootDir: appRoot,
-	manifest: docsManifestConfig,
+	content: docsSiteContent,
 	mdxComponents: {},
 	shellLayout: BaseLayout,
 	layoutComponents: [BaseLayout, DocsBar],
-	sectionIcons: {},
 	strictImageImports: false,
 });

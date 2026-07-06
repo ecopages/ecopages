@@ -1,12 +1,29 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import '../src/docs-kit.instance';
+import { defineDocsKit } from '../src/lib/docs-kit/config';
+import type { DocsSiteContent, DocsSiteContentMeta } from '../src/lib/docs-kit/content/docs-site-content.types';
+import type { DocsMdxComponent } from '../src/lib/docs-kit/mdx/docs-mdx.types';
 import { getContentFilePath } from '../src/lib/docs-kit/manifest/build-docs-manifest';
 import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest';
 
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
+
+function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
+	const stub: DocsMdxComponent = () => null;
+
+	return {
+		rootDir: meta.rootDir,
+		sections: meta.sections.map((section) => ({
+			...section,
+			pages: section.pages.map((page) => ({
+				...page,
+				content: stub,
+			})),
+		})),
+	};
+}
 
 async function ensureDir(path: string): Promise<void> {
 	await mkdir(path, { recursive: true });
@@ -54,6 +71,15 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
+	const { docsSiteContentMeta } = await import('../src/content/docs/content.meta');
+
+	defineDocsKit({
+		rootDir: docsRoot,
+		content: withStubContent(docsSiteContentMeta),
+		mdxComponents: {},
+		shellLayout: () => null,
+		layoutComponents: [],
+	});
 	await generateLlmDocs();
 	console.log(`[llms] Generated ${join(publicRoot, 'llms.txt')} and ${join(publicRoot, 'docs-llm')}/`);
 }

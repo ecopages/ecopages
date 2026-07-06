@@ -1,19 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { docsManifestConfig } from '../manifest/docs-manifest.config';
-import { resolveDocsBreadcrumb } from '@/lib/docs-kit/navigation/resolve-docs-breadcrumb';
+import { expect, test } from 'vitest';
+import { resolveDocsBreadcrumb } from './resolve-docs-breadcrumb';
 
-describe('resolveDocsBreadcrumb', () => {
-	it('returns crumbs pointing to the global docs index', () => {
-		const crumbs = resolveDocsBreadcrumb(docsManifestConfig, 'core', 'hmr');
+const sampleNav = {
+	rootDir: '/docs',
+	sections: [
+		{
+			id: 'getting-started',
+			title: 'Getting Started',
+			pages: [{ slug: 'introduction', title: 'Introduction', description: 'Intro.', content: () => null }],
+		},
+		{
+			id: 'core',
+			title: 'Core Concepts',
+			pages: [{ slug: 'hmr', title: 'HMR', description: 'Hot module replacement.', content: () => null }],
+		},
+	],
+};
 
-		expect(crumbs).toEqual([
-			{ label: 'Docs', href: '/docs/getting-started/introduction' },
-			{ label: 'Core Concepts', href: '/docs/core/concepts' },
-			{ label: 'HMR' },
-		]);
-	});
+test('resolveDocsBreadcrumb returns docs, section, and page labels', () => {
+	const crumbs = resolveDocsBreadcrumb(sampleNav, 'core', 'hmr');
 
-	it('returns an empty list for unknown pages', () => {
-		expect(resolveDocsBreadcrumb(docsManifestConfig, 'missing', 'page')).toEqual([]);
-	});
+	expect(crumbs).toEqual([
+		{ label: 'Docs', href: '/docs/getting-started/introduction' },
+		{ label: 'Core Concepts', href: '/docs/core/hmr' },
+		{ label: 'HMR' },
+	]);
+});
+
+test('resolveDocsBreadcrumb returns empty for unknown pages', () => {
+	expect(resolveDocsBreadcrumb(sampleNav, 'missing', 'page')).toEqual([]);
 });

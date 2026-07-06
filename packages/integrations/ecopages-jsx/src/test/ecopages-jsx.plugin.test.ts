@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { VFile, type Compatible as VFileCompatible } from 'vfile';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
+import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
 
 function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 	let capturedFilter: RegExp | undefined;
@@ -67,14 +68,14 @@ test('EcopagesJsxPlugin supports direct construction with MDX public options', (
 test('EcopagesJsxPlugin installs the explicit Radiant hydrator bootstrap when Radiant SSR is enabled', () => {
 	const plugin = new EcopagesJsxPlugin();
 	const dependency = (plugin as any).integrationDependencies.find(
-		(asset: NodeModuleScriptAsset) => asset.importPath === '@ecopages/radiant/client/install-hydrator',
+		(asset: NodeModuleScriptAsset) => asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
 	);
 
 	assert.deepEqual(dependency, {
 		kind: 'script',
 		source: 'node-module',
 		position: 'head',
-		importPath: '@ecopages/radiant/client/install-hydrator',
+		importPath: RADIANT_INSTALL_HYDRATOR_FILEPATH,
 		bundle: false,
 		attributes: {
 			'data-eco-script-id': 'ecopages-jsx-radiant-hydrator',
@@ -85,7 +86,7 @@ test('EcopagesJsxPlugin installs the explicit Radiant hydrator bootstrap when Ra
 test('EcopagesJsxPlugin skips the explicit Radiant hydrator bootstrap when Radiant SSR is disabled', () => {
 	const plugin = new EcopagesJsxPlugin({ radiant: false });
 	const dependency = (plugin as any).integrationDependencies.find(
-		(asset: NodeModuleScriptAsset) => asset.importPath === '@ecopages/radiant/client/install-hydrator',
+		(asset: NodeModuleScriptAsset) => asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
 	);
 
 	assert.equal(dependency, undefined);

@@ -19,7 +19,7 @@ type ShellLayoutProps = {
 	children?: JsxRenderable;
 };
 
-const { manifest, layoutComponents, shellLayout } = getDocsKit();
+const { content, layoutComponents, shellLayout } = getDocsKit();
 const ShellLayout = shellLayout as (props: ShellLayoutProps) => JsxRenderable;
 
 export const DocsLayout = eco.layout<JsxRenderable>({
@@ -29,19 +29,19 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
-		const crumbs = section && slug ? resolveDocsBreadcrumb(manifest, section, slug) : [];
+		const crumbs = section && slug ? resolveDocsBreadcrumb(content, section, slug) : [];
 
 		return (
 			<ShellLayout class="docs-layout">
 				<aside class="docs-layout__aside">
 					<nav aria-label="Docs">
 						<ul>
-							{manifest.sections.map((manifestSection) => (
+							{content.sections.map((contentSection) => (
 								<li>
-									<p>{manifestSection.title}</p>
+									<p>{contentSection.title}</p>
 									<ul>
-										{manifestSection.pages.map((page) => {
-											const href = `${manifest.rootDir}/${page.section}/${page.slug}`;
+										{contentSection.pages.map((page) => {
+											const href = `${content.rootDir}/${contentSection.id}/${page.slug}`;
 
 											return (
 												<li>

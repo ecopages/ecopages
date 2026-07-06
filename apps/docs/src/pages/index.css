@@ -113,6 +113,10 @@
 	@apply flex flex-wrap gap-2 mt-1;
 }
 
+.home-sidebar__hint {
+	@apply text-xs leading-relaxed text-on-background/60;
+}
+
 .home-code-block[data-rehype-pretty-code-figure] {
 	@apply my-0 border-0 rounded-sm rounded-b-none border border-border bg-background-accent overflow-x-auto;
 

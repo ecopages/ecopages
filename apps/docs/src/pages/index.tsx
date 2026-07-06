@@ -245,19 +245,18 @@ export default eco.page<{}, JsxRenderable>({
 				</div>
 
 				<div class="home-sidebar__section">
-					<p class="home-sidebar__label">AI agents</p>
-					<div class="flex flex-col gap-2 text-sm">
-						<a href="/skill.txt" class="home-sidebar__value home-sidebar__link">
-							Agent skill index
+					<p class="home-sidebar__label">For agents</p>
+					<div class="home-sidebar__tags">
+						<a href="/skill.txt" class="home-sidebar__tag">
+							skill.txt
 						</a>
-						<a href="/skill/SKILL.md" class="home-sidebar__value home-sidebar__link">
+						<a href="/skill/SKILL.md" class="home-sidebar__tag">
 							SKILL.md
 						</a>
-						<a href="/llms.txt" class="home-sidebar__value home-sidebar__link">
+						<a href="/llms.txt" class="home-sidebar__tag">
 							llms.txt
 						</a>
 					</div>
-					<p class="home-sidebar__hint">Indexes are .txt; linked doc pages are .md.</p>
 				</div>
 
 				<div class="home-sidebar__section">

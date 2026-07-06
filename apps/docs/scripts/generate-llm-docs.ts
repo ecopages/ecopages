@@ -6,20 +6,10 @@ import type { DocsSiteContent, DocsSiteContentMeta } from '../src/lib/docs-kit/c
 import type { DocsMdxComponent } from '../src/lib/docs-kit/mdx/docs-mdx.types';
 import { getContentFilePath } from '../src/lib/docs-kit/manifest/build-docs-manifest';
 import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest';
+import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
 
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
-
-const SKILL_REFERENCE_MODULES = [
-	{ title: 'Skill entry', path: 'SKILL.md' },
-	{ title: 'Getting started', path: 'reference/getting-started.md' },
-	{ title: 'Core', path: 'reference/core.md' },
-	{ title: 'Integrations', path: 'reference/integrations.md' },
-	{ title: 'Processors and plugins', path: 'reference/processors-and-plugins.md' },
-	{ title: 'Server', path: 'reference/server.md' },
-	{ title: 'Styling', path: 'reference/styling.md' },
-	{ title: 'Full-stack', path: 'reference/full-stack.md' },
-] as const;
 
 function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
 	const stub: DocsMdxComponent = () => null;

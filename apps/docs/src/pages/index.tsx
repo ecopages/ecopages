@@ -257,6 +257,7 @@ export default eco.page<{}, JsxRenderable>({
 							llms.txt
 						</a>
 					</div>
+					<p class="home-sidebar__hint">Indexes are .txt; linked doc pages are .md.</p>
 				</div>
 
 				<div class="home-sidebar__section">

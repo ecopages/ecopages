@@ -168,11 +168,42 @@ Ecopages is built to be friendly to AI coding assistants.
 - **Structure**: Clear file-system routing and component organization.
 
 <Banner type="info">
-	<BannerTitle>Agent skill pack</BannerTitle>
+	<BannerTitle>Agent documentation</BannerTitle>
 	<p>
-		Start with <a href="/skill.txt">skill.txt</a> or <a href="/skill/SKILL.md">SKILL.md</a> for a progressive
-		agent guide. Use <a href="/llms.txt">llms.txt</a> when you need the full generated docs export.
+		Ecopages exposes separate discovery indexes and markdown page exports for agents.
 	</p>
+	<table>
+		<thead>
+			<tr>
+				<th>Artifact</th>
+				<th>Format</th>
+				<th>Use</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>
+					<a href="/skill.txt">skill.txt</a> / <a href="/skill/SKILL.md">SKILL.md</a>
+				</td>
+				<td>index + md modules</td>
+				<td>Building or configuring Ecopages apps</td>
+			</tr>
+			<tr>
+				<td>
+					<a href="/llms.txt">llms.txt</a>
+				</td>
+				<td>txt index</td>
+				<td>Finding any docs page</td>
+			</tr>
+			<tr>
+				<td>
+					<code>/docs-llm/.../*.md</code>
+				</td>
+				<td>md pages</td>
+				<td>Reading a specific generated doc export</td>
+			</tr>
+		</tbody>
+	</table>
 </Banner>
 
 ## Getting Started

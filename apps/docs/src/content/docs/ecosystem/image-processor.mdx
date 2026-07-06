@@ -26,37 +26,41 @@ Add the image processor to your Ecopages configuration:
 ```typescript
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { ImageProcessorPlugin } from '@ecopages/image-processor';
+import { imageProcessorPlugin } from '@ecopages/image-processor';
 
 const appRoot = process.cwd();
-
-const imageProcessor = new ImageProcessorPlugin({
-	name: 'ecopages-image-processor',
-	type: 'image',
-	options: {
-		sourceDir: path.resolve(appRoot, 'src/images'),
-		outputDir: path.resolve(appRoot, '.eco/images'),
-		publicPath: '/images',
-		acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
-		quality: 80,
-		format: 'webp',
-		sizes: [
-			{ width: 320, label: 'sm' },
-			{ width: 768, label: 'md' },
-			{ width: 1024, label: 'lg' },
-			{ width: 1920, label: 'xl' },
-		],
-	},
-});
 
 export default await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setProcessors([imageProcessor])
+	.setProcessors([
+		imageProcessorPlugin({
+			options: {
+				sourceDir: path.resolve(appRoot, 'src/images'),
+				outputDir: path.resolve(appRoot, 'dist/images'),
+				publicPath: '/images',
+				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+				quality: 80,
+				format: 'webp',
+				sizes: [
+					{ width: 320, label: 'sm' },
+					{ width: 768, label: 'md' },
+					{ width: 1024, label: 'lg' },
+					{ width: 1920, label: 'xl' },
+				],
+			},
+		}),
+	])
 	.build();
 ```
 
+The processor name and image asset capabilities are fixed inside the plugin factory. Pass options only through `imageProcessorPlugin({ options })`.
+
+`outputDir` commonly targets a deployable path such as `dist/images`. Use a work-dir path only when processed files should stay inside `.eco` or another internal workspace.
+
 ### Configuration Options
+
+All options live under `imageProcessorPlugin({ options })`:
 
 - `sourceDir`: Directory containing your source images
 - `outputDir`: Where processed images will be saved
@@ -222,3 +226,8 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 </div>
 
 Photo by <a href="https://unsplash.com/@jxk?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash">Jan Kopřiva</a> on <a href="https://unsplash.com/photos/green-plant-on-persons-hand-nex3P5iBnPg?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash">Unsplash</a>
+
+## See also
+
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run

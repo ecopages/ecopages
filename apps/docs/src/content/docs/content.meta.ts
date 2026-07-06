@@ -256,6 +256,11 @@ export const docsSiteContentMeta = {
 					description: 'Write processors that transform source files during the build pipeline.',
 				},
 				{
+					slug: 'source-transforms',
+					title: 'Source Transforms',
+					description: 'Register filter-based module source rewrites for browser and HMR builds.',
+				},
+				{
 					slug: 'custom-integration',
 					title: 'Custom Integration',
 					description: 'Add support for new templating engines and frameworks via custom integrations.',

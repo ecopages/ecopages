@@ -106,7 +106,7 @@
 }
 
 .home-sidebar__tag {
-	@apply inline-flex items-center rounded-sm border border-border bg-background-accent px-2 py-0.5 text-xs font-mono text-on-background/80 transition-colors hover:bg-border/50;
+	@apply inline-flex items-center rounded-sm border border-border bg-background-accent px-2 py-0.5 text-xs font-mono text-on-background/80 no-underline transition-colors hover:border-on-background/30 hover:bg-border/50;
 }
 
 .home-sidebar__tags {

@@ -91,6 +91,12 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 		expect(llmsTxt).toContain('Introduction');
 		expect(llmsTxt).toContain('Installation');
 		expect(llmsTxt).not.toContain('Excluded');
+		expect(llmsTxt).toContain('## How to use this file');
+		expect(llmsTxt).toContain('This `llms.txt` file is an index only.');
+		expect(llmsTxt).toContain('/docs-llm/<section>/<slug>.md');
+		expect(llmsTxt).toContain('## Agent Skill');
+		expect(llmsTxt).toContain('/skill/SKILL.md');
+		expect(llmsTxt).toContain('/skill/reference/processors-and-plugins.md');
 
 		const introduction = await readFile(join(outputRoot, 'docs-llm/getting-started/introduction.md'), 'utf8');
 		expect(introduction).toContain('# Welcome to Ecopages');

@@ -2,28 +2,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defineDocsKit } from '../src/docs-kit/config';
-import type { DocsSiteContent, DocsSiteContentMeta } from '../src/docs-kit/content/docs-site-content.types';
-import type { DocsMdxComponent } from '../src/docs-kit/mdx/docs-mdx.types';
 import { getContentFilePath } from '../src/docs-kit/manifest/build-docs-manifest';
 import { getDocsManifest } from '../src/docs-kit/manifest/get-docs-manifest';
 
 const appRoot = join(import.meta.dirname, '..');
 const publicRoot = join(appRoot, 'src/public');
-
-function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
-	const stub: DocsMdxComponent = () => null;
-
-	return {
-		rootDir: meta.rootDir,
-		sections: meta.sections.map((section) => ({
-			...section,
-			pages: section.pages.map((page) => ({
-				...page,
-				content: stub,
-			})),
-		})),
-	};
-}
 
 async function ensureDir(path: string): Promise<void> {
 	await mkdir(path, { recursive: true });
@@ -33,7 +16,6 @@ async function ensureDir(path: string): Promise<void> {
  * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
  *
  * @remarks
- * Agent-facing contract:
  * - `llms.txt` is a `.txt` discovery index only.
  * - Linked page bodies live under `docs-llm/<section>/<slug>.md`.
  */
@@ -49,7 +31,6 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 		'',
 		'- This `llms.txt` file is an index only.',
 		'- Follow links to `/docs-llm/<section>/<slug>.md` for full page exports.',
-		'- For Ecopages build guidance, see https://ecopages.app/skill.txt.',
 		'',
 	];
 
@@ -82,10 +63,11 @@ const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process
 
 if (isDirectRun) {
 	const { docsSiteContentMeta } = await import('../src/content/docs/content.meta.ts');
+	const { stubDocsSiteContent } = await import('../src/content/docs/attach-docs-content-modules.ts');
 
 	defineDocsKit({
 		rootDir: appRoot,
-		content: withStubContent(docsSiteContentMeta),
+		content: stubDocsSiteContent(docsSiteContentMeta),
 		mdxComponents: {},
 		shellLayout: () => null,
 		layoutComponents: [],

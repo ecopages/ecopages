@@ -5,23 +5,22 @@ function resetDom(): void {
 	document.body.innerHTML = '';
 }
 
-function createCopyForLlm(options: { llmUrl?: string; label?: string } = {}): {
+async function createCopyForLlm(options: { llmUrl?: string; label?: string } = {}): Promise<{
 	element: RadiantCopyForLlm;
 	button: HTMLButtonElement;
-} {
+}> {
 	const element = document.createElement('radiant-copy-for-llm') as RadiantCopyForLlm;
 	element.llmUrl = options.llmUrl ?? '/docs-llm/getting-started/introduction.md';
-
-	const label = options.label ?? 'Copy for LLM';
-	element.innerHTML = `
-		<button type="button" class="docs-copy-for-llm" aria-label="${label}" data-testid="copy-for-llm">
-			<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--sparkle" aria-hidden="true"></span>
-			<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--check" aria-hidden="true"></span>
-			<span class="docs-copy-for-llm__label">${label}</span>
-		</button>
-	`;
+	element.label = options.label ?? 'Copy for LLM';
 
 	document.body.appendChild(element);
+
+	await vi.waitFor(() => {
+		const button = element.querySelector<HTMLButtonElement>('[data-testid="copy-for-llm"]');
+		if (!button) {
+			throw new Error('Expected copy button after render');
+		}
+	});
 
 	const button = element.querySelector<HTMLButtonElement>('[data-testid="copy-for-llm"]');
 	if (!button) {
@@ -51,7 +50,7 @@ describe('RadiantCopyForLlm', () => {
 	});
 
 	it('copies markdown and shows the copied state', async () => {
-		const { button } = createCopyForLlm();
+		const { button } = await createCopyForLlm();
 		button.click();
 
 		await vi.waitFor(() => {
@@ -67,7 +66,7 @@ describe('RadiantCopyForLlm', () => {
 			text: async () => '',
 		} as Response);
 
-		const { button } = createCopyForLlm();
+		const { button } = await createCopyForLlm();
 		button.click();
 
 		await vi.waitFor(() => {
@@ -78,7 +77,7 @@ describe('RadiantCopyForLlm', () => {
 	});
 
 	it('resets copied state after navigation swap', async () => {
-		const { button } = createCopyForLlm();
+		const { button } = await createCopyForLlm();
 		button.click();
 
 		await vi.waitFor(() => {
@@ -87,12 +86,14 @@ describe('RadiantCopyForLlm', () => {
 
 		document.dispatchEvent(new CustomEvent('eco:after-swap'));
 
-		expect(button.dataset.copied).toBe('false');
+		await vi.waitFor(() => {
+			expect(button.dataset.copied).toBe('false');
+		});
 		expect(button.dataset.copyError).toBe('false');
 	});
 
 	it('does nothing when llm-url is missing', async () => {
-		const { button } = createCopyForLlm({ llmUrl: '' });
+		const { button } = await createCopyForLlm({ llmUrl: '' });
 		button.click();
 
 		await new Promise((resolve) => {

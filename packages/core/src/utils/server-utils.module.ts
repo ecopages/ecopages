@@ -17,6 +17,7 @@ const ContentTypeMap = new Map<string, string>([
 	['ogv', 'video/ogg'],
 	['mov', 'video/quicktime'],
 	['txt', 'text/plain'],
+	['md', 'text/markdown'],
 	['html', 'text/html'],
 	['css', 'text/css'],
 	['js', 'text/javascript'],

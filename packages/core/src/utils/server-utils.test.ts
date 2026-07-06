@@ -18,6 +18,7 @@ describe('ServerUtils', () => {
 		['/my-file.gif', 'image/gif'],
 		['/my-file.ico', 'image/x-icon'],
 		['/my-file', 'text/plain'],
+		['/my-file.md', 'text/markdown'],
 	])('getContentType(%p) should return %p', (filePath, expected) => {
 		expect(ServerUtils.getContentType(filePath)).toBe(expected);
 	});
@@ -27,6 +28,7 @@ describe('ServerUtils', () => {
 		['/file.js', true],
 		['/file.html', true],
 		['/file.txt', true],
+		['/file.md', true],
 		['/file.png', true],
 		['/page', false],
 		['/page.', false],

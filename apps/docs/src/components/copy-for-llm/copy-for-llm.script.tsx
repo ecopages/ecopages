@@ -2,7 +2,9 @@ import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { prop } from '@ecopages/radiant/decorators/prop';
+import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { copyForLlmCheckIcon, copyForLlmSparkleIcon } from './copy-for-llm-icons';
 
 export type CopyForLlmProps = {
 	llmUrl: string;
@@ -31,8 +33,10 @@ async function copyTextToClipboard(text: string): Promise<void> {
 @customElement('radiant-copy-for-llm')
 export class RadiantCopyForLlm extends RadiantElement {
 	@prop({ type: String, attribute: 'llm-url' }) llmUrl = '';
+	@prop({ type: String }) label = 'Copy for LLM';
+	@state copyState: 'idle' | 'copied' | 'error' = 'idle';
+	@state copying = false;
 
-	private copying = false;
 	private resetTimeoutId: number | null = null;
 
 	override disconnectedCallback(): void {
@@ -45,78 +49,69 @@ export class RadiantCopyForLlm extends RadiantElement {
 
 	@onEvent({ document: true, type: 'eco:after-swap' })
 	onAfterSwap(): void {
-		this.resetCopyState();
-	}
-
-	@onEvent({ selector: '[data-testid="copy-for-llm"]', type: 'click' })
-	onCopyClick(): void {
-		void this.copyForLlm();
-	}
-
-	private getButton(): HTMLButtonElement | null {
-		return this.querySelector<HTMLButtonElement>('[data-testid="copy-for-llm"]');
-	}
-
-	private resetCopyState(): void {
-		const button = this.getButton();
-		if (!button) {
-			return;
-		}
-
-		this.clearFeedbackTimeout();
-		this.setCopyState(button, 'idle');
-	}
-
-	private setCopyState(button: HTMLButtonElement, state: 'idle' | 'copied' | 'error'): void {
-		button.dataset.copied = state === 'copied' ? 'true' : 'false';
-		button.dataset.copyError = state === 'error' ? 'true' : 'false';
-	}
-
-	private clearFeedbackTimeout(): void {
 		if (this.resetTimeoutId) {
 			clearTimeout(this.resetTimeoutId);
 			this.resetTimeoutId = null;
 		}
+		this.copyState = 'idle';
 	}
 
-	private scheduleIdleReset(button: HTMLButtonElement): void {
-		this.clearFeedbackTimeout();
-		this.resetTimeoutId = window.setTimeout(() => {
-			this.setCopyState(button, 'idle');
-			this.resetTimeoutId = null;
-		}, COPY_FEEDBACK_MS);
-	}
-
-	private async copyForLlm(): Promise<void> {
-		const button = this.getButton();
-
-		if (!this.llmUrl || this.copying || !button) {
+	handleCopy = async (): Promise<void> => {
+		if (!this.llmUrl || this.copying) {
 			return;
 		}
 
 		this.copying = true;
-		button.disabled = true;
-		this.setCopyState(button, 'idle');
+		this.copyState = 'idle';
 
 		try {
 			const response = await fetch(this.llmUrl);
 
 			if (!response.ok) {
-				this.setCopyState(button, 'error');
-				this.scheduleIdleReset(button);
+				this.copyState = 'error';
 				return;
 			}
 
 			await copyTextToClipboard(await response.text());
-			this.setCopyState(button, 'copied');
-			this.scheduleIdleReset(button);
+			this.copyState = 'copied';
 		} catch {
-			this.setCopyState(button, 'error');
-			this.scheduleIdleReset(button);
+			this.copyState = 'error';
 		} finally {
 			this.copying = false;
-			button.disabled = false;
+
+			if (this.copyState === 'copied' || this.copyState === 'error') {
+				if (this.resetTimeoutId) {
+					clearTimeout(this.resetTimeoutId);
+				}
+				this.resetTimeoutId = window.setTimeout(() => {
+					this.copyState = 'idle';
+					this.resetTimeoutId = null;
+				}, COPY_FEEDBACK_MS);
+			}
 		}
+	};
+
+	override render() {
+		return (
+			<button
+				type="button"
+				class="docs-copy-for-llm"
+				aria-label={this.label}
+				data-testid="copy-for-llm"
+				data-copied={this.copyState === 'copied' ? 'true' : 'false'}
+				data-copy-error={this.copyState === 'error' ? 'true' : 'false'}
+				disabled={this.copying}
+				on:click={this.handleCopy}
+			>
+				<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--sparkle" aria-hidden="true">
+					{copyForLlmSparkleIcon}
+				</span>
+				<span class="docs-copy-for-llm__icon docs-copy-for-llm__icon--check" aria-hidden="true">
+					{copyForLlmCheckIcon}
+				</span>
+				<span class="docs-copy-for-llm__label">{this.label}</span>
+			</button>
+		);
 	}
 }
 

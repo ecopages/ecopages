@@ -6,6 +6,7 @@ import type { DocsSiteContent, DocsSiteContentMeta } from '../src/lib/docs-kit/c
 import type { DocsMdxComponent } from '../src/lib/docs-kit/mdx/docs-mdx.types';
 import { getContentFilePath } from '../src/lib/docs-kit/manifest/build-docs-manifest';
 import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest';
+import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
 
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
@@ -31,6 +32,12 @@ async function ensureDir(path: string): Promise<void> {
 
 /**
  * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
+ *
+ * @remarks
+ * Agent-facing contract:
+ * - `llms.txt` is a `.txt` discovery index only.
+ * - Linked page bodies live under `docs-llm/<section>/<slug>.md`.
+ * - Progressive build guidance lives under `skill.txt` and `skill/reference/*.md`.
  */
 export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 	const manifest = await getDocsManifest();
@@ -38,6 +45,12 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 	const lines: string[] = [
 		'# Ecopages Documentation',
 		'> Ecopages is a static site generator written in TypeScript.',
+		'',
+		'## How to use this file',
+		'',
+		'- This `llms.txt` file is an index only.',
+		'- Follow links to `/docs-llm/<section>/<slug>.md` for full page exports.',
+		'- For a progressive build guide, start at `/skill.txt` or `/skill/SKILL.md`.',
 		'',
 	];
 
@@ -63,6 +76,21 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 
 		lines.push('');
 	}
+
+	lines.push('## Agent Skill');
+	lines.push('');
+	lines.push(`- [Skill index](${baseUrl}/skill.txt)`);
+	lines.push(`- [SKILL.md](${baseUrl}/skill/SKILL.md)`);
+
+	for (const module of SKILL_REFERENCE_MODULES) {
+		if (module.path === 'SKILL.md') {
+			continue;
+		}
+
+		lines.push(`- [${module.title}](${baseUrl}/skill/${module.path})`);
+	}
+
+	lines.push('');
 
 	await ensureDir(outputRoot);
 	await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');

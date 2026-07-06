@@ -8,7 +8,7 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 
 1. Template extensions
 2. Custom loaders
-3. Build hooks
+3. `prepareBuildContributions()` for build-facing declarations
 
 For example, the KitaJS integration might set up template extensions like this:
 
@@ -109,7 +109,7 @@ Ecopages automatically generates a robots.txt file based on your configuration. 
 
 ## Import CSS as String in JS Files
 
-Ecopages provides a way to load CSS directly into your JavaScript files as strings using Bun's plugins. This feature is enabled when you use the `@ecopages/postcss-processor` plugin in your `eco.config.ts`.
+Ecopages provides a way to load CSS directly into your JavaScript files as strings through Ecopages build plugins. This feature is enabled when you use the `@ecopages/postcss-processor` plugin in your `eco.config.ts`.
 
 ## Import MDX as a Component
 

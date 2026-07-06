@@ -109,6 +109,10 @@ No template filename setter is required in `eco.config.ts`.
 	An array of build plugins to use as loaders for custom file types.
 </ApiField>
 
+<ApiField name="sourceTransforms" type="EcoSourceTransform[]" defaultValue="[]" setter="setSourceTransforms">
+	Filter-based module source rewrites for browser and HMR builds. See [Source Transforms](/docs/plugins/source-transforms).
+</ApiField>
+
 ## Integrations
 
 Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:

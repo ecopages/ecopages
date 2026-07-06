@@ -2,7 +2,9 @@
 
 Welcome to the docs starter. Content files live under `src/content/docs` and are rendered through one catch-all route.
 
+Agent-readable exports: [`llms.txt`](/llms.txt) indexes every page; bodies are at `/docs-llm/<section>/<slug>.md`. Both are generated before `dev` and `build`.
+
 ## Add a page
 
 1. Add MDX under `src/content/docs/<section>/<slug>.mdx`.
-2. Register the page in `src/content/docs/content.ts`.
+2. Register the page in `src/content/docs/content.meta.ts` and wire the module in `content.ts`.

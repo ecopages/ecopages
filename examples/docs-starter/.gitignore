@@ -2,3 +2,7 @@ node_modules
 dist
 .eco
 .env
+
+# generated before dev/build
+src/public/llms.txt
+src/public/docs-llm

@@ -10,6 +10,17 @@ import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest'
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
 
+const SKILL_REFERENCE_MODULES = [
+	{ title: 'Skill entry', path: 'SKILL.md' },
+	{ title: 'Getting started', path: 'reference/getting-started.md' },
+	{ title: 'Core', path: 'reference/core.md' },
+	{ title: 'Integrations', path: 'reference/integrations.md' },
+	{ title: 'Processors and plugins', path: 'reference/processors-and-plugins.md' },
+	{ title: 'Server', path: 'reference/server.md' },
+	{ title: 'Styling', path: 'reference/styling.md' },
+	{ title: 'Full-stack', path: 'reference/full-stack.md' },
+] as const;
+
 function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
 	const stub: DocsMdxComponent = () => null;
 
@@ -63,6 +74,21 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 
 		lines.push('');
 	}
+
+	lines.push('## Agent Skill');
+	lines.push('');
+	lines.push(`- [Skill index](${baseUrl}/skill.txt)`);
+	lines.push(`- [SKILL.md](${baseUrl}/skill/SKILL.md)`);
+
+	for (const module of SKILL_REFERENCE_MODULES) {
+		if (module.path === 'SKILL.md') {
+			continue;
+		}
+
+		lines.push(`- [${module.title}](${baseUrl}/skill/${module.path})`);
+	}
+
+	lines.push('');
 
 	await ensureDir(outputRoot);
 	await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');

@@ -1,15 +1,14 @@
 import { join } from 'node:path';
-import type { DocsManifestConfig } from './manifest/docs-manifest';
+import type { DocsSiteContent } from '@/lib/docs-kit/content/docs-site-content.types';
 import { clearDocsManifestCache } from './manifest/get-docs-manifest';
 
 export type DocsKitConfig = {
 	rootDir: string;
 	contentRoot: string;
-	manifest: DocsManifestConfig;
+	content: DocsSiteContent;
 	mdxComponents: Record<string, unknown>;
 	shellLayout: unknown;
 	layoutComponents: unknown[];
-	sectionIcons: Record<string, unknown>;
 	strictImageImports?: boolean;
 };
 

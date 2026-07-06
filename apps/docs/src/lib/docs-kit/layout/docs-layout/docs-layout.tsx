@@ -5,6 +5,7 @@ import '@/docs-kit.instance';
 import { DocsBar } from '@/lib/docs-kit/components/docs-bar';
 import { getDocsKit } from '@/lib/docs-kit/config';
 import { getDocsLlmUrl } from '@/lib/docs-kit/llm/docs-llm-url';
+import { projectDocsManifest } from '@/lib/docs-kit/manifest/project-docs-manifest';
 import { resolveDocsBreadcrumb } from '@/lib/docs-kit/navigation/resolve-docs-breadcrumb';
 import { serializeDocsManifestData } from '@/lib/docs-kit/manifest/serialize-docs-manifest';
 import { DocsPagination } from './components/docs-pagination';
@@ -24,8 +25,8 @@ type ShellLayoutProps = {
 	children?: JsxRenderable;
 };
 
-const { manifest, layoutComponents, shellLayout } = getDocsKit();
-const manifestData = serializeDocsManifestData(manifest);
+const { content, layoutComponents, shellLayout } = getDocsKit();
+const manifestData = serializeDocsManifestData(projectDocsManifest(content));
 const ShellLayout = shellLayout as (props: ShellLayoutProps) => JsxRenderable;
 
 export const DocsLayout = eco.layout<JsxRenderable>({
@@ -35,7 +36,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
-		const crumbs = section && slug ? resolveDocsBreadcrumb(manifest, section, slug) : [];
+		const crumbs = section && slug ? resolveDocsBreadcrumb(content, section, slug) : [];
 
 		return (
 			<ShellLayout class="docs-layout" showBurger={true}>

@@ -1,8 +1,22 @@
 import { createMarkupNodeLike } from '@ecopages/jsx';
 import { createServerHydrationBindingState, withServerHydrationBindingState } from '@ecopages/jsx/server';
 
+type RadiantLightDomShimWindow = {
+	CSS: { escape(value: string): string };
+	CustomEvent: typeof CustomEvent;
+	Document: typeof Document;
+	Element: typeof Element;
+	Event: typeof Event;
+	EventTarget: typeof EventTarget;
+	HTMLScriptElement: typeof HTMLScriptElement;
+	HTMLElement: typeof HTMLElement;
+	Node: typeof Node;
+	document: Document;
+	customElements: CustomElementRegistry;
+};
+
 type RadiantServerRuntimeModules = {
-	installLightDomShim: () => void;
+	installLightDomShim: () => RadiantLightDomShimWindow;
 	resolveRadiantElementRenderBridge: (instance: unknown) =>
 		| {
 				renderHost: () => { nodeType: 1; outerHTML: string };
@@ -25,7 +39,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 	private static runtimeModules: RadiantServerRuntimeModules | undefined;
 	private static runtimeModulesPromise:
 		| Promise<{
-				installLightDomShim: () => void;
+				installLightDomShim: () => RadiantLightDomShimWindow;
 				withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
 		  }>
 		| undefined;
@@ -93,8 +107,11 @@ export class EcopagesJsxRadiantSsrPolicy {
 				radiantLightDomShimEntry,
 			).href;
 
-			EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = Promise.all([
-				import(radiantElementSsrRuntimeModuleUrl) as Promise<{
+			EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = (async () => {
+				const lightDomShimModule = await import(radiantLightDomShimEntry);
+				ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
+
+				const radiantElementSsrRuntimeModule = (await import(radiantElementSsrRuntimeModuleUrl)) as {
 					resolveRadiantElementRenderBridge: (instance: unknown) =>
 						| {
 								renderHost: () => { nodeType: 1; outerHTML: string };
@@ -102,9 +119,8 @@ export class EcopagesJsxRadiantSsrPolicy {
 						  }
 						| undefined;
 					withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
-				}>,
-				import(radiantLightDomShimEntry),
-			]).then(([radiantElementSsrRuntimeModule, lightDomShimModule]) => {
+				};
+
 				const modules = {
 					installLightDomShim: lightDomShimModule.installLightDomShim,
 					resolveRadiantElementRenderBridge: radiantElementSsrRuntimeModule.resolveRadiantElementRenderBridge,
@@ -114,10 +130,40 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 				EcopagesJsxRadiantSsrPolicy.runtimeModules = modules;
 				return modules;
-			});
+			})();
 		}
 
-		const lightDomShimModule = await EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise;
-		lightDomShimModule.installLightDomShim();
+		await EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise;
+
+		const lightDomShimModule = EcopagesJsxRadiantSsrPolicy.runtimeModules;
+		if (lightDomShimModule) {
+			ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
+		}
 	}
+}
+
+function ensureRadiantLightDomGlobals(installLightDomShim: () => RadiantLightDomShimWindow): void {
+	if (typeof globalThis.HTMLElement !== 'undefined') {
+		return;
+	}
+
+	const window = installLightDomShim();
+	if (!window) {
+		return;
+	}
+
+	Object.assign(globalThis, {
+		CSS: window.CSS,
+		CustomEvent: window.CustomEvent,
+		Document: window.Document,
+		Element: window.Element,
+		Event: window.Event,
+		EventTarget: window.EventTarget,
+		HTMLScriptElement: window.HTMLScriptElement,
+		HTMLElement: window.HTMLElement,
+		Node: window.Node,
+		document: window.document,
+		customElements: window.customElements,
+		window,
+	});
 }

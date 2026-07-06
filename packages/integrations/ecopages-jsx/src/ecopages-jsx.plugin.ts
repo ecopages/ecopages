@@ -7,6 +7,7 @@ import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asse
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
+import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
 import {
 	appendMdxExtensions,
 	createMdxLoaderPlugin,
@@ -117,7 +118,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		return [
 			AssetFactory.createNodeModuleScript({
 				position: 'head',
-				importPath: '@ecopages/radiant/client/install-hydrator',
+				importPath: RADIANT_INSTALL_HYDRATOR_FILEPATH,
 				bundle: false,
 				attributes: {
 					'data-eco-script-id': RADIANT_HYDRATOR_SCRIPT_ID,

@@ -4,7 +4,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { getDocsMdxPluginOptions } from './src/lib/docs-kit/compile/mdx-plugin-chain';
+import { getDocsMdxPluginOptions } from './src/lib/docs-kit/mdx/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
@@ -21,7 +21,7 @@ const config = await new ConfigBuilder()
 		image: 'public/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
 	})
-	.setAdditionalWatchPaths(['src/content', 'src/lib/plugins', 'src/data'])
+	.setAdditionalWatchPaths(['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'])
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({

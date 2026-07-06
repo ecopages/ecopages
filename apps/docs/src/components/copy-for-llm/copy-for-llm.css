@@ -4,6 +4,14 @@
 
 	&[data-copied='true'] {
 		@apply text-primary;
+
+		.docs-copy-for-llm__icon--sparkle {
+			@apply hidden;
+		}
+
+		.docs-copy-for-llm__icon--check {
+			@apply inline-flex;
+		}
 	}
 
 	&[data-copy-error='true'] {
@@ -21,14 +29,6 @@
 
 .docs-copy-for-llm__icon--check {
 	@apply hidden;
-}
-
-.docs-copy-for-llm[data-copied='true'] .docs-copy-for-llm__icon--sparkle {
-	@apply hidden;
-}
-
-.docs-copy-for-llm[data-copied='true'] .docs-copy-for-llm__icon--check {
-	@apply inline-flex;
 }
 
 .docs-copy-for-llm__label {

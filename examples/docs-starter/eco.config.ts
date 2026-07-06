@@ -3,7 +3,7 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { getDocsMdxPluginOptions } from './src/docs-kit/compile/mdx-plugin-chain';
+import { getDocsMdxPluginOptions } from './src/docs-kit/mdx/mdx-plugin-options';
 
 const appRoot = path.resolve(import.meta.dirname);
 

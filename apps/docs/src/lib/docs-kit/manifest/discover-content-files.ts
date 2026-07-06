@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { access, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type DiscoveredContentPage = {
@@ -10,6 +10,12 @@ export type DiscoveredContentPage = {
  * Walks `contentRoot` and returns every `section/slug` pair for `.mdx` files.
  */
 export async function discoverContentFiles(contentRoot: string): Promise<DiscoveredContentPage[]> {
+	try {
+		await access(contentRoot);
+	} catch {
+		throw new Error(`Docs content directory does not exist: ${contentRoot}`);
+	}
+
 	const sections = await readdir(contentRoot, { withFileTypes: true });
 	const pages: DiscoveredContentPage[] = [];
 

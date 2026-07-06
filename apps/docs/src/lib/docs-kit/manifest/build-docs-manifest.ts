@@ -1,59 +1,47 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDocsKit } from '@/lib/docs-kit/config';
+import type { DocsSiteContent } from '@/lib/docs-kit/content/docs-site-content.types';
 import type { DocsManifest, DocsManifestPage } from '@/lib/docs-kit/manifest/docs-manifest';
 import { contentPageKey, discoverContentFiles } from '@/lib/docs-kit/manifest/discover-content-files';
-import type { DocsManifestConfig } from '@/lib/docs-kit/manifest/docs-manifest';
-
-type PageMetaFile = {
-	description?: string;
-	llms?: boolean;
-};
-
-async function readPageMeta(contentRoot: string, section: string, slug: string): Promise<PageMetaFile | undefined> {
-	const metaPath = join(contentRoot, section, `${slug}.meta.json`);
-
-	try {
-		const raw = await readFile(metaPath, 'utf8');
-		return JSON.parse(raw) as PageMetaFile;
-	} catch {
-		return undefined;
-	}
-}
+import { projectDocsManifest } from '@/lib/docs-kit/manifest/project-docs-manifest';
 
 function resolveContentPath(contentRoot: string, section: string, slug: string): string {
 	return join(contentRoot, section, `${slug}.mdx`);
 }
 
-async function assertNoOrphanContentFiles(contentRoot: string, manifestConfig: DocsManifestConfig): Promise<void> {
-	const discovered = await discoverContentFiles(contentRoot);
-	const manifestKeys = new Set(
-		manifestConfig.sections.flatMap((section) =>
-			section.pages.map((page) => contentPageKey(page.section, page.slug)),
-		),
+function collectConfiguredPageKeys(content: DocsSiteContent): Set<string> {
+	return new Set(
+		content.sections.flatMap((section) => section.pages.map((page) => contentPageKey(section.id, page.slug))),
 	);
-	const orphans = discovered.filter((page) => !manifestKeys.has(contentPageKey(page.section, page.slug)));
+}
+
+async function assertNoOrphanContentFiles(contentRoot: string, content: DocsSiteContent): Promise<void> {
+	const discovered = await discoverContentFiles(contentRoot);
+	const configuredKeys = collectConfiguredPageKeys(content);
+	const orphans = discovered.filter((page) => !configuredKeys.has(contentPageKey(page.section, page.slug)));
 
 	if (orphans.length > 0) {
 		const listed = orphans.map((page) => contentPageKey(page.section, page.slug)).join(', ');
-		throw new Error(`Content files are not listed in the docs manifest: ${listed}`);
+		throw new Error(`Content files are not listed in docs site content: ${listed}`);
 	}
 }
 
 /**
- * Builds the validated docs manifest from the maintained config and content tree.
+ * Builds the validated docs manifest from the site content tree.
  */
-export async function buildDocsManifest(manifestConfig?: DocsManifestConfig): Promise<DocsManifest> {
+export async function buildDocsManifest(contentOverride?: DocsSiteContent): Promise<DocsManifest> {
 	const kit = getDocsKit();
-	const config = manifestConfig ?? kit.manifest;
+	const content = contentOverride ?? kit.content;
 	const contentRoot = kit.contentRoot;
+	const projected = projectDocsManifest(content);
 	const sections = [];
 
-	if (!manifestConfig) {
-		await assertNoOrphanContentFiles(contentRoot, config);
+	if (!contentOverride) {
+		await assertNoOrphanContentFiles(contentRoot, content);
 	}
 
-	for (const section of config.sections) {
+	for (const section of projected.sections) {
 		const pages: DocsManifestPage[] = [];
 
 		for (const page of section.pages) {
@@ -62,16 +50,15 @@ export async function buildDocsManifest(manifestConfig?: DocsManifestConfig): Pr
 			try {
 				await readFile(contentPath, 'utf8');
 			} catch {
-				throw new Error(`Manifest entry has no content file: ${contentPath}`);
+				throw new Error(`Docs content entry has no MDX file: ${contentPath}`);
 			}
 
-			const meta = await readPageMeta(contentRoot, page.section, page.slug);
 			pages.push({
 				section: page.section,
 				slug: page.slug,
 				title: page.title,
-				description: meta?.description,
-				llms: meta?.llms,
+				description: page.description,
+				llms: page.llms,
 			});
 		}
 
@@ -83,7 +70,7 @@ export async function buildDocsManifest(manifestConfig?: DocsManifestConfig): Pr
 	}
 
 	return {
-		rootDir: config.rootDir,
+		rootDir: projected.rootDir,
 		sections,
 	};
 }

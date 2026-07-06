@@ -1,4 +1,4 @@
-import type { DocsManifest, DocsManifestConfig } from '@/lib/docs-kit/manifest/docs-manifest';
+import type { DocsManifest } from '@/lib/docs-kit/manifest/docs-manifest';
 
 export type DocsManifestNavPage = {
 	href: string;
@@ -7,9 +7,7 @@ export type DocsManifestNavPage = {
 	slug: string;
 };
 
-type ManifestNavSource = Pick<DocsManifest, 'rootDir' | 'sections'> | DocsManifestConfig;
-
-export function flattenManifestPages(manifest: ManifestNavSource): DocsManifestNavPage[] {
+export function flattenManifestPages(manifest: DocsManifest): DocsManifestNavPage[] {
 	return manifest.sections.flatMap((section) =>
 		section.pages.map((page) => ({
 			href: `${manifest.rootDir}/${page.section}/${page.slug}`,
@@ -20,7 +18,7 @@ export function flattenManifestPages(manifest: ManifestNavSource): DocsManifestN
 	);
 }
 
-export function serializeDocsManifestData(manifest: ManifestNavSource): string {
+export function serializeDocsManifestData(manifest: DocsManifest): string {
 	return JSON.stringify({
 		rootDir: manifest.rootDir,
 		sections: manifest.sections.map((section) => ({

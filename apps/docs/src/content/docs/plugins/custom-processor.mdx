@@ -1,28 +1,36 @@
 # Creating Custom Processors
 
-Processors in Ecopages are plugins that handle file transformations during the build process. This guide will show you how to create your own processor.
+Processors in Ecopages handle asset transformation, build-time loaders, and development watch behavior. Core owns lifecycle ordering; processors declare contributions through the `Processor` base class.
+
+See [Plugin Lifecycle](/docs/core/plugin-lifecycle) for the full ordering across config build, startup, and development invalidation.
 
 ## Basic Structure
 
 A processor extends the `Processor` abstract class from `@ecopages/core`:
 
 ```typescript
-import { Processor } from '@ecopages/core/plugins/processor';
-import type { BunPlugin } from 'bun';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+} from '@ecopages/core/plugins/processor';
 
 class CustomProcessor extends Processor {
-	// Plugins used during build time
-	buildPlugins: BunPlugin[] = [];
+	buildPlugins: EcoBuildPlugin[] = [];
+	plugins: EcoBuildPlugin[] = [];
 
-	// Plugins used during runtime
-	plugins: BunPlugin[] = [];
-
-	constructor(config: ProcessorConfig) {
+	constructor(config: Omit<ProcessorConfig, 'name'>) {
 		super({
 			name: 'custom-processor',
 			runtimeCapability: {
 				tags: ['node-compatible'],
 			},
+			capabilities: [
+				{
+					kind: 'stylesheet',
+					extensions: ['*.custom'],
+				},
+			],
 			watch: {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
@@ -31,20 +39,24 @@ class CustomProcessor extends Processor {
 		});
 	}
 
-	async setup(): Promise<void> {
-		// Initialize resources, create cache directories, etc.
+	override async prepareBuildContributions(): Promise<void> {
+		// Materialize buildPlugins and plugins before ConfigBuilder.build() seals the manifest
 	}
 
-	async process(input: unknown): Promise<unknown> {
-		// Transform the input
+	override async setup(): Promise<void> {
+		// Runtime-only initialization
+	}
+
+	override async process(input: unknown, filePath?: string): Promise<unknown> {
 		return input;
 	}
-
-	async teardown(): Promise<void> {
-		// Cleanup resources
-	}
 }
+
+export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) =>
+	new CustomProcessor(config ?? {});
 ```
+
+Shipped processors such as PostCSS and Image expose a factory function (`postcssProcessorPlugin()`, `imageProcessorPlugin()`) rather than requiring callers to construct the class directly.
 
 ## Declaring Runtime Requirements
 
@@ -75,9 +87,63 @@ Prefer the narrowest declaration that matches the processor's actual runtime nee
 
 ## Processor Lifecycle
 
-1. **Setup**: Called when the processor is initialized
-2. **Process**: Called for each file that matches the processor's configuration
-3. **Teardown**: Called when the processor is being shut down
+Core owns the ordering. Processors participate in these phases:
+
+1. **`prepareBuildContributions()`** — runs during `ConfigBuilder.build()` before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
+2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
+3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
+4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
+5. **Watch callbacks** — in development, `onChange` / `onCreate` / `onDelete` on the `watch` config handle owned file paths.
+6. **`teardown()`** — optional override for explicit cleanup. Core does not call this hook today.
+
+## Asset Capabilities
+
+Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline.
+
+```typescript
+super({
+	name: 'custom-processor',
+	capabilities: [
+		{
+			kind: 'stylesheet',
+			extensions: ['*.{css,scss,sass}'],
+		},
+	],
+});
+```
+
+Supported `kind` values: `script`, `stylesheet`, `image`. Extension patterns support `*`, `.css`, `*.css`, and grouped forms such as `*.{css,scss}`.
+
+## prepareBuildContributions
+
+Use `prepareBuildContributions()` when `plugins` or `buildPlugins` depend on finalized paths or options resolved during config build:
+
+```typescript
+override async prepareBuildContributions(): Promise<void> {
+	this.plugins = [
+		{
+			name: 'custom-runtime-loader',
+			setup(build) {
+				build.onLoad({ filter: /\.custom$/ }, async (args) => ({
+					contents: await transformCustomFile(args.path),
+					loader: 'js',
+				}));
+			},
+		},
+	];
+
+	this.buildPlugins = [
+		{
+			name: 'custom-browser-plugin',
+			setup(build) {
+				// Browser-only bundling behavior
+			},
+		},
+	];
+}
+```
+
+Runtime-only side effects belong in `setup()`, not here.
 
 ## Working with Cache
 
@@ -85,14 +151,12 @@ Processors have built-in caching capabilities:
 
 ```typescript
 class CustomProcessor extends Processor {
-	async process(input: string): Promise<string> {
+	override async process(input: string): Promise<string> {
 		const cacheKey = 'my-cache-key';
 
-		// Try to read from cache first
 		const cached = await this.readCache<string>(cacheKey);
 		if (cached) return cached;
 
-		// Process and cache result
 		const result = await someExpensiveOperation(input);
 		await this.writeCache(cacheKey, result);
 
@@ -101,33 +165,38 @@ class CustomProcessor extends Processor {
 }
 ```
 
-## Adding Bun Plugins
+## Adding Build Plugins
 
-You can add Bun plugins for both build time and runtime:
+Processors contribute runtime-agnostic build plugins through `EcoBuildPlugin`:
 
 ```typescript
-import { plugin } from 'bun';
-
 class CustomProcessor extends Processor {
 	buildPlugins = [
-		plugin({
+		{
 			name: 'custom-build-plugin',
 			setup(build) {
-				// Build-time plugin configuration
+				build.onResolve({ filter: /\.custom$/ }, (args) => ({
+					path: args.path,
+				}));
 			},
-		}),
+		},
 	];
 
 	plugins = [
-		plugin({
+		{
 			name: 'custom-runtime-plugin',
 			setup(build) {
-				// Runtime plugin configuration
+				build.onLoad({ filter: /\.custom$/ }, async (args) => ({
+					contents: 'export default ""',
+					loader: 'js',
+				}));
 			},
-		}),
+		},
 	];
 }
 ```
+
+`buildPlugins` apply to browser-oriented bundles. `plugins` are collected into runtime plugin contributions and exposed during startup.
 
 ## File Watching
 
@@ -142,7 +211,6 @@ class CustomProcessor extends Processor {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
 				onChange: async ({ path, bridge }) => {
-					// Handle file changes
 					// bridge.reload() or bridge.cssUpdate(path)
 				},
 				onDelete: async ({ path, bridge }) => {
@@ -156,23 +224,28 @@ class CustomProcessor extends Processor {
 
 ## Using the Processor
 
-Register your processor in the Ecopages configuration:
+Register your processor in `eco.config.ts`:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { customProcessorPlugin } from './custom-processor';
 
-const customProcessor = new CustomProcessor({
-	// processor options
-});
-
-const config = await new ConfigBuilder().addProcessor(customProcessor).build();
+const config = await new ConfigBuilder()
+	.setProcessors([customProcessorPlugin()])
+	.build();
 ```
 
-## Communicating with the Browser (ClientBridge)
+`addProcessor(instance)` is also valid when you already hold a configured processor instance.
 
-Processors can broadcast events to connected browser clients for live updates (e.g., CSS hot reload) using the `bridge` provided in the `onChange` callback:
+## Communicating with the Browser (IClientBridge)
+
+Processors can broadcast events to connected browser clients for live updates using the `bridge` provided in watch callbacks:
 
 ```typescript
+import type { IClientBridge } from '@ecopages/core';
+import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
+
 class StyleProcessor extends Processor {
 	constructor() {
 		super({
@@ -187,27 +260,21 @@ class StyleProcessor extends Processor {
 		});
 	}
 
-	private async processFile(filePath: string, bridge: ClientBridge) {
+	private async processFile(filePath: string, bridge: IClientBridge) {
 		if (!this.context) return;
 
-		// Process and write the file...
-		const processed = await this.process(await Bun.file(filePath).text());
-		await Bun.write(outputPath, processed);
+		const source = await fileSystem.readFile(filePath);
+		const processed = String(await this.process(source, filePath));
+		const outputPath = path.join(this.context.distDir, path.basename(filePath));
+		await fileSystem.write(outputPath, processed);
 
-		// Broadcast CSS update to connected browsers
-		// This will trigger a hot reload of the stylesheet
 		bridge.cssUpdate(filePath);
-
-		// Or trigger a full reload if needed:
-		// bridge.reload();
-
-		// Or send a custom error:
-		// bridge.error("Processing failed");
 	}
 }
 ```
 
-The `ClientBridge` provides several utility methods:
+The `IClientBridge` contract provides:
+
 - `reload()`: Triggers a full page reload.
 - `cssUpdate(path)`: Triggers a CSS hot update for the given path.
 - `update(path)`: Triggers a JS module update.
@@ -217,9 +284,10 @@ The `ClientBridge` provides several utility methods:
 ## Best Practices
 
 1. Use meaningful names for your processors
-2. Implement proper error handling
-3. Cache expensive operations
-4. Clean up resources in teardown
-5. Follow TypeScript best practices
-6. Document your processor's API
-7. Use `bridge` for live updates instead of full reloads when possible
+2. Declare the smallest valid `runtimeCapability`
+3. Register `capabilities` when the processor owns asset kinds
+4. Put manifest-facing work in `prepareBuildContributions()`; runtime work in `setup()`
+5. Cache expensive operations
+6. Use `bridge` for live updates instead of full reloads when possible
+7. Export a factory function for `eco.config.ts` registration
+8. See [PostCSS Processor](/docs/ecosystem/postcss-processor) for a production reference implementation

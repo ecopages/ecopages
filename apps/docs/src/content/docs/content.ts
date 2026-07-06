@@ -34,6 +34,7 @@ import IntegrationsOverview from './integrations/overview.mdx';
 import IntegrationsReact from './integrations/react.mdx';
 import PluginsCustomIntegration from './plugins/custom-integration.mdx';
 import PluginsCustomProcessor from './plugins/custom-processor.mdx';
+import PluginsSourceTransforms from './plugins/source-transforms.mdx';
 import PluginsOverview from './plugins/overview.mdx';
 import ReferenceCliReference from './reference/cli-reference.mdx';
 import ReferenceDeployment from './reference/deployment.mdx';
@@ -80,6 +81,7 @@ export const docsSiteContent = attachDocsContentModules(docsSiteContentMeta, {
 	'integrations/react': IntegrationsReact,
 	'plugins/custom-integration': PluginsCustomIntegration,
 	'plugins/custom-processor': PluginsCustomProcessor,
+	'plugins/source-transforms': PluginsSourceTransforms,
 	'plugins/overview': PluginsOverview,
 	'reference/cli-reference': ReferenceCliReference,
 	'reference/deployment': ReferenceDeployment,

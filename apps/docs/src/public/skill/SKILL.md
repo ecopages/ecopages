@@ -58,14 +58,6 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 
 ## Resources
 
-### Documentation formats
-
-| Artifact | Format | Use |
-| --- | --- | --- |
-| `skill.txt` / `SKILL.md` | index + md modules | Building or configuring Ecopages apps |
-| `llms.txt` | txt index | Finding any docs page |
-| `/docs-llm/.../*.md` | md pages | Reading a specific generated doc export |
-
-Start with this skill pack for app work. Use [llms.txt](/llms.txt) when you need the exhaustive docs index.
+Start with this skill pack for app work. For the full docs index see [llms.txt](/llms.txt); page exports live under `/docs-llm/.../*.md`.
 
 - [Ecopages examples](https://github.com/ecopages/ecopages/tree/main/examples)

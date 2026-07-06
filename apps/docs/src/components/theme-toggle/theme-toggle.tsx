@@ -1,6 +1,5 @@
 import { eco } from '@ecopages/core';
 import type { RadiantSwitchProps } from '../switch/switch.script';
-import './theme-toggle.script';
 
 export const ThemeToggle = eco.component({
 	dependencies: {

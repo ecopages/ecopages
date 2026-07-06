@@ -175,27 +175,25 @@ describe('KitaRenderer', () => {
 	});
 
 	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets', async () => {
-		const deferredRenderComponent = vi.fn(
-			async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
-				html: '<button data-testid="deferred-widget">Deferred widget</button>',
-				canAttachAttributes: true,
-				rootTag: 'button',
-				integrationName: 'deferred',
-				rootAttributes: {
-					'data-eco-component-id':
-						(input.integrationContext as { componentInstanceId?: string } | undefined)
-							?.componentInstanceId ?? 'missing',
+		const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+			html: '<button data-testid="deferred-widget">Deferred widget</button>',
+			canAttachAttributes: true,
+			rootTag: 'button',
+			integrationName: 'deferred',
+			rootAttributes: {
+				'data-eco-component-id':
+					(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
+					'missing',
+			},
+			assets: [
+				{
+					kind: 'script' as const,
+					inline: true,
+					content: 'console.log("deferred-kita")',
+					position: 'body' as const,
 				},
-				assets: [
-					{
-						kind: 'script' as const,
-						inline: true,
-						content: 'console.log("deferred-kita")',
-						position: 'body' as const,
-					},
-				],
-			}),
-		);
+			],
+		}));
 
 		const deferredPlugin = createDeferredIntegrationPlugin({
 			renderComponent: deferredRenderComponent,

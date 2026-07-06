@@ -214,8 +214,7 @@ describe('DomSwapper DOM behavior', () => {
 		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = renderLightDomCounter('data-eco-persist="docs-sidebar" count="0"');
 		const currentCounter = document.querySelector('test-light-dom-counter') as
-			| (HTMLElement & { marker?: string })
-			| null;
+			(HTMLElement & { marker?: string }) | null;
 		currentCounter?.setAttribute('count', '5');
 		if (currentCounter) {
 			currentCounter.marker = 'kept';
@@ -228,8 +227,7 @@ describe('DomSwapper DOM behavior', () => {
 		swapper.replaceBody(newDocument);
 
 		const nextCounter = document.querySelector('test-light-dom-counter') as
-			| (HTMLElement & { marker?: string })
-			| null;
+			(HTMLElement & { marker?: string }) | null;
 		expect(nextCounter).toBe(currentCounter);
 		expect(nextCounter?.marker).toBe('kept');
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('5');

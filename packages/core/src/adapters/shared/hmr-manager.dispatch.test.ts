@@ -117,7 +117,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts[0].path, htmlFile);
 	});
 
-	test('TS file with no registered entrypoints falls back to DefaultHmrStrategy reload', async () => {
+	test('TS file with no registered entrypoints falls through to DefaultHmrStrategy reload', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-ts-fallback');
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
@@ -130,6 +130,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
+		assert.equal(spy.broadcasts[0].path, tsFile);
 	});
 
 	test('broadcast:false suppresses events even when the strategy returns a broadcast action', async () => {

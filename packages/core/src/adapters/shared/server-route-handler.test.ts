@@ -36,12 +36,7 @@ describe('ServerRouteHandler', () => {
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
 			});
 
-			Router.matchRequest = vi.fn(
-				() =>
-					({
-						/* match */
-					}) as any,
-			);
+			Router.matchRequest = vi.fn(() => ({/* match */}) as any);
 			const request = new Request('http://localhost/test');
 			const response = await handler.handleResponse(request);
 

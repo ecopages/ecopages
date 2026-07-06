@@ -1,13 +1,10 @@
 import path from 'node:path';
-import remarkGfm from 'remark-gfm';
-import rehypePrettyCode from 'rehype-pretty-code';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
-import { remarkEscapeInlineCodeHtml } from './src/plugins/remark-escape-inline-code-html';
+import { getDocsMdxPluginOptions } from './src/lib/docs-kit/mdx/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
@@ -15,24 +12,7 @@ const config = await new ConfigBuilder()
 	.setIntegrations([
 		ecopagesJsxPlugin({
 			extensions: ['.tsx', '.kita.tsx'],
-			mdx: {
-				enabled: true,
-				compilerOptions: {
-					remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
-					rehypePlugins: [
-						[
-							rehypePrettyCode,
-							{
-								theme: {
-									light: 'light-plus',
-									dark: 'dark-plus',
-								},
-							},
-						],
-						rehypeSimpleTableWrapper,
-					],
-				},
-			},
+			mdx: getDocsMdxPluginOptions(),
 		}),
 	])
 	.setDefaultMetadata({
@@ -41,7 +21,7 @@ const config = await new ConfigBuilder()
 		image: 'public/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
 	})
-	.setAdditionalWatchPaths(['src/data'])
+	.setAdditionalWatchPaths(['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'])
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({

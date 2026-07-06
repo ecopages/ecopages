@@ -27,6 +27,7 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderSession } from './ecopages-jsx-render-session.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
+import { updateEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
@@ -175,7 +176,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		return await this.withPreparedRadiantRuntime(() =>
 			this.renderSession.withActiveScope(async () => {
 				try {
-					return await this.renderPageWithDocumentShell({
+					const result = await this.renderPageWithDocumentShell({
 						page: {
 							component: options.Page,
 							props: {
@@ -196,6 +197,10 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						metadata: options.metadata,
 						pageProps: options.pageProps ?? {},
 					});
+
+					this.recordHmrOwnership([options.Page, options.Layout, options.HtmlTemplate]);
+
+					return result;
 				} catch (error) {
 					throw this.createRenderError('Error rendering page', error);
 				}
@@ -244,6 +249,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						...componentAssets,
 					]);
 
+					this.recordHmrOwnership([input.component as EcoComponent]);
+
 					return {
 						html: queuedForeignSubtreeResolution.html,
 						canAttachAttributes: true,
@@ -273,12 +280,16 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 					const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
 					const layouts = viewComponent.config?.layouts;
 
-					return await this.renderViewWithDocumentShell({
+					const response = await this.renderViewWithDocumentShell({
 						view: viewComponent,
 						props: props as Record<string, unknown>,
 						ctx,
 						layout: layouts?.[layouts.length - 1],
 					});
+
+					this.recordHmrOwnership([view as EcoComponent]);
+
+					return response;
 				} catch (error) {
 					throw this.createRenderError('Error rendering view', error);
 				}
@@ -312,5 +323,14 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		return ({ instance }: { instance?: unknown; tagName: string }) => {
 			return instance ? this.radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined;
 		};
+	}
+
+	/**
+	 * Records the source files that produced the current render so
+	 * {@link EcopagesJsxHmrStrategy} can match later watcher events without
+	 * re-walking the component tree.
+	 */
+	private recordHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
+		updateEjsxHmrOwnership(components);
 	}
 }

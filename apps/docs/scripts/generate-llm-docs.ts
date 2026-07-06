@@ -1,118 +1,85 @@
-import { join, dirname, basename } from 'path';
-import { exists, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { defineDocsKit } from '../src/lib/docs-kit/config';
+import type { DocsSiteContent, DocsSiteContentMeta } from '../src/lib/docs-kit/content/docs-site-content.types';
+import type { DocsMdxComponent } from '../src/lib/docs-kit/mdx/docs-mdx.types';
+import { getContentFilePath } from '../src/lib/docs-kit/manifest/build-docs-manifest';
+import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest';
 
-const ROOT_DIR = join(import.meta.dir, '..');
-const SRC_DOCS_DIR = join(ROOT_DIR, 'src/pages/docs');
-const PUBLIC_DIR = join(ROOT_DIR, 'src/public');
-const OUTPUT_CONTENT_DIR = join(PUBLIC_DIR, 'llms-content');
-const OUTPUT_LLMS_FILE = join(PUBLIC_DIR, 'llms.txt');
+const docsRoot = join(import.meta.dirname, '..');
+const publicRoot = join(docsRoot, 'src/public');
 
-async function ensureDir(path: string) {
-	if (!(await exists(path))) {
-		await mkdir(path, { recursive: true });
-	}
+function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
+	const stub: DocsMdxComponent = () => null;
+
+	return {
+		rootDir: meta.rootDir,
+		sections: meta.sections.map((section) => ({
+			...section,
+			pages: section.pages.map((page) => ({
+				...page,
+				content: stub,
+			})),
+		})),
+	};
 }
 
-async function scanDocs(
-	dir: string,
-	relativePath = '',
-): Promise<Array<{ filePath: string; relativePath: string; title: string }>> {
-	const results: Array<{ filePath: string; relativePath: string; title: string }> = [];
-
-	const entries = await readdir(dir, { withFileTypes: true });
-
-	for (const entry of entries) {
-		const fullPath = join(dir, entry.name);
-		const newRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-		if (entry.isDirectory()) {
-			const subResults = await scanDocs(fullPath, newRelativePath);
-			results.push(...subResults);
-		} else if (entry.isFile() && (entry.name.endsWith('.mdx') || entry.name.endsWith('.md'))) {
-			const baseName = basename(entry.name, entry.name.endsWith('.mdx') ? '.mdx' : '.md');
-			const pathWithoutExt = relativePath ? `${relativePath}/${baseName}` : baseName;
-
-			const title = baseName
-				.split('-')
-				.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-				.join(' ');
-
-			results.push({
-				filePath: fullPath,
-				relativePath: pathWithoutExt,
-				title,
-			});
-		}
-	}
-
-	return results;
+async function ensureDir(path: string): Promise<void> {
+	await mkdir(path, { recursive: true });
 }
 
-function groupBySection(
-	files: Array<{ filePath: string; relativePath: string; title: string }>,
-): Map<string, Array<{ filePath: string; relativePath: string; title: string }>> {
-	const sections = new Map<string, Array<{ filePath: string; relativePath: string; title: string }>>();
-
-	for (const file of files) {
-		const parts = file.relativePath.split('/');
-		const section = parts[0] || 'other';
-
-		if (!sections.has(section)) {
-			sections.set(section, []);
-		}
-		sections.get(section)?.push(file);
-	}
-
-	return sections;
-}
-
-async function main() {
-	await ensureDir(PUBLIC_DIR);
-	await ensureDir(OUTPUT_CONTENT_DIR);
-
-	const files = await scanDocs(SRC_DOCS_DIR);
-	const sections = groupBySection(files);
-
-	const sectionOrder = ['getting-started', 'core', 'server', 'ecosystem', 'integrations', 'plugins', 'reference'];
-
-	const outputLines: string[] = [
+/**
+ * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
+ */
+export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
+	const manifest = await getDocsManifest();
+	const llmRoot = join(outputRoot, 'docs-llm');
+	const lines: string[] = [
 		'# Ecopages Documentation',
 		'> Ecopages is a static site generator written in TypeScript.',
 		'',
 	];
 
-	const baseUrl = process.env.ECOPAGES_BASE_URL || 'https://ecopages.app';
+	const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'https://ecopages.app';
 
-	for (const section of sectionOrder) {
-		const sectionFiles = sections.get(section);
-		if (!sectionFiles || sectionFiles.length === 0) continue;
+	for (const section of manifest.sections) {
+		lines.push(`## ${section.title}`);
 
-		const sectionTitle = section
-			.split('-')
-			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-			.join(' ');
+		for (const page of section.pages) {
+			if (page.llms === false) {
+				continue;
+			}
 
-		outputLines.push(`## ${sectionTitle}`);
+			const sourcePath = getContentFilePath(page.section, page.slug);
+			const body = await readFile(sourcePath, 'utf8');
+			const outputPath = join(llmRoot, page.section, `${page.slug}.md`);
+			await ensureDir(dirname(outputPath));
+			await writeFile(outputPath, body, 'utf8');
 
-		for (const file of sectionFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath))) {
-			const destFile = join(OUTPUT_CONTENT_DIR, `${file.relativePath}.txt`);
-			const destDir = dirname(destFile);
-
-			await ensureDir(destDir);
-
-			const fileContent = await Bun.file(file.filePath).text();
-			await Bun.write(destFile, fileContent);
-
-			const url = `${baseUrl}/llms-content/${file.relativePath}.txt`;
-			outputLines.push(`- [${file.title}](${url})`);
+			const url = `${baseUrl}/docs-llm/${page.section}/${page.slug}.md`;
+			lines.push(`- [${page.title}](${url})`);
 		}
 
-		outputLines.push('');
+		lines.push('');
 	}
 
-	await Bun.write(OUTPUT_LLMS_FILE, outputLines.join('\n'));
-	console.log(`[llms.txt] Successfully generated at ${OUTPUT_LLMS_FILE}`);
-	console.log(`[llms.txt] Generated ${files.length} documentation files`);
+	await ensureDir(outputRoot);
+	await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');
 }
 
-main().catch(console.error);
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+	const { docsSiteContentMeta } = await import('../src/content/docs/content.meta');
+
+	defineDocsKit({
+		rootDir: docsRoot,
+		content: withStubContent(docsSiteContentMeta),
+		mdxComponents: {},
+		shellLayout: () => null,
+		layoutComponents: [],
+	});
+	await generateLlmDocs();
+	console.log(`[llms] Generated ${join(publicRoot, 'llms.txt')} and ${join(publicRoot, 'docs-llm')}/`);
+}

@@ -18,6 +18,7 @@ import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-c
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../react-renderer';
+import type { ReactRuntime } from '../layout-compose.ts';
 import { getReactIslandComponentKey } from '../services/react-hydration-asset.service.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
@@ -60,8 +61,8 @@ const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
 const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 
 type TestReactRuntimeModules = {
-	react: Pick<typeof React, 'createElement' | 'Fragment'>;
-	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToReadableStream' | 'renderToString'>;
+	react: ReactRuntime;
+	reactDomServer: typeof import('react-dom/server');
 };
 
 const createAssetProcessingServiceMock = () => ({
@@ -505,13 +506,13 @@ describe('ReactRenderer', () => {
 			react: {
 				createElement,
 				Fragment: 'fragment-token' as unknown as typeof React.Fragment,
-			},
+			} as ReactRuntime,
 			reactDomServer: {
 				renderToReadableStream: vi.fn(
 					async () => new ReadableStream(),
 				) as unknown as typeof import('react-dom/server').renderToReadableStream,
 				renderToString: renderToString as unknown as typeof import('react-dom/server').renderToString,
-			},
+			} as typeof import('react-dom/server'),
 		};
 
 		const ForeignSubtree = eco.component<{ label: string }, JSX.Element>({

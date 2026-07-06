@@ -16,9 +16,7 @@ export type LitStaticRenderWorkerShutdownMessage = {
 };
 
 export type LitStaticRenderWorkerRequestMessage =
-	| LitStaticRenderWorkerInitMessage
-	| LitStaticRenderWorkerRenderMessage
-	| LitStaticRenderWorkerShutdownMessage;
+	LitStaticRenderWorkerInitMessage | LitStaticRenderWorkerRenderMessage | LitStaticRenderWorkerShutdownMessage;
 
 export type LitStaticRenderWorkerReadyMessage = {
 	type: 'ready';
@@ -37,6 +35,4 @@ export type LitStaticRenderWorkerErrorMessage = {
 };
 
 export type LitStaticRenderWorkerResponseMessage =
-	| LitStaticRenderWorkerReadyMessage
-	| LitStaticRenderWorkerResultMessage
-	| LitStaticRenderWorkerErrorMessage;
+	LitStaticRenderWorkerReadyMessage | LitStaticRenderWorkerResultMessage | LitStaticRenderWorkerErrorMessage;

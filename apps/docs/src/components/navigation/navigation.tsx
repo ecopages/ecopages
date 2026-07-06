@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { ThemeToggle } from '../theme-toggle/theme-toggle';
 import type { JsxRenderable } from '@ecopages/jsx';
 
@@ -10,28 +10,27 @@ export type NavigationProps = {
 	}[];
 };
 
-export const Navigation: EcoComponent<NavigationProps> = ({ items }) => {
-	return (
-		<nav class="navigation">
-			<ul>
-				{items.map(({ label, href, target = '_self' }) => (
-					<li>
-						<a href={href} target={target}>
-							{label}
-						</a>
-					</li>
-				))}
-				<li>
-					<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel data-eco-persist="theme-toggle" />
-				</li>
-			</ul>
-		</nav>
-	);
-};
-
-Navigation.config = {
+export const Navigation = eco.component<NavigationProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./navigation.css'],
 		components: [ThemeToggle],
 	},
-};
+	render: ({ items }) => {
+		return (
+			<nav class="navigation">
+				<ul>
+					{items.map(({ label, href, target = '_self' }) => (
+						<li>
+							<a href={href} target={target}>
+								{label}
+							</a>
+						</li>
+					))}
+					<li>
+						<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel data-eco-persist="theme-toggle" />
+					</li>
+				</ul>
+			</nav>
+		);
+	},
+});

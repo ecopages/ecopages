@@ -1,0 +1,46 @@
+# Vite Plugin
+
+`@ecopages/vite-plugin` integrates Ecopages with [Vite](https://vite.dev/) so you can use Vite's dev server, transforms, and plugin ecosystem alongside Ecopages routing and rendering.
+
+The plugin is **private to the monorepo** today but documents the host-side integration pattern used with Vite and Nitro-style deployments.
+
+## Installation
+
+<CodeTabs
+	name="vite-plugin-install"
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D vite @ecopages/vite-plugin @ecopages/core' },
+		{ id: 'npm', label: 'npm', code: 'npm install -D vite @ecopages/vite-plugin @ecopages/core' },
+		{ id: 'bun', label: 'bun', code: 'bun add -d vite @ecopages/vite-plugin @ecopages/core' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+Export your app config from `eco.config.ts` using `ConfigBuilder` (see [Configuration](/docs/getting-started/configuration)).
+
+## Usage
+
+```typescript
+import { defineConfig } from 'vite';
+import { ecopages } from '@ecopages/vite-plugin';
+import appConfig from './eco.config';
+
+export default defineConfig({
+	plugins: [ecopages({ appConfig })],
+});
+```
+
+Register `ecopages()` **before** framework plugins such as `@vitejs/plugin-react` or Tailwind when those plugins also transform JSX or CSS.
+
+## What the plugin provides
+
+- Vite config merging for Ecopages defaults (aliases, `optimizeDeps`, `ssr.noExternal`)
+- Ecopages source transforms as Vite plugins
+- Virtual modules for integration manifests
+- Ecopages-aware HMR and dev-server bridging to `app.fetch()`
+
+## CLI vs Vite host
+
+The `ecopages` CLI runs apps through Bun or Node (`tsx`) directly. Use this plugin when you want Ecopages to run **inside** a Vite host for dev and build orchestration.
+
+See [Build and Host](/docs/core/build-and-host) for how this fits the Rolldown and Vite-host build model.

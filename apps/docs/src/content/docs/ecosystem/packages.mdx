@@ -1,0 +1,85 @@
+# Ecosystem Packages
+
+The Ecopages ecosystem is composed of several modular packages. You only install what you need.
+
+## Core Packages
+
+| Package | Purpose |
+| :--- | :--- |
+| **[`@ecopages/core`](https://www.npmjs.com/package/@ecopages/core)** | The heart of Ecopages. Contains the application adapter, router, and base plugin classes. |
+| **[`@ecopages/logger`](https://www.npmjs.com/package/@ecopages/logger)** | Unified logging utility used across the entire ecosystem. |
+
+---
+
+## Routers
+
+Specialized routers for different application needs.
+
+| Package | Purpose |
+| :--- | :--- |
+| **[`@ecopages/browser-router`](https://www.npmjs.com/package/@ecopages/browser-router)** | Standard browser-based router with View Transitions support. |
+| **[`@ecopages/react-router`](https://www.npmjs.com/package/@ecopages/react-router)** | React-specific router enabling SPA navigation for React apps. |
+
+---
+
+## Integrations
+
+These packages add support for different rendering engines.
+
+| Package | Purpose |
+| :--- | :--- |
+| **[`@ecopages/ecopages-jsx`](https://jsr.io/@ecopages/ecopages-jsx)** | Ecopages-owned JSX routes with optional Radiant and MDX support. Published on **JSR** (ships TypeScript source; not on npm). |
+| **[`@ecopages/kitajs`](https://www.npmjs.com/package/@ecopages/kitajs)** | HTML-first JSX rendering for `.kita.tsx` routes. |
+| **[`@ecopages/react`](https://www.npmjs.com/package/@ecopages/react)** | React 19 support with SSR and hydration. |
+| **[`@ecopages/lit`](https://www.npmjs.com/package/@ecopages/lit)** | Lit Web Components integration with SSR support. |
+| **[`@ecopages/mdx`](https://www.npmjs.com/package/@ecopages/mdx)** | Standalone MDX for non-React JSX runtimes such as `@kitajs/html`. |
+
+---
+
+## Processors & Loaders
+
+Tools for processing assets at build time.
+
+| Package | Purpose |
+| :--- | :--- |
+| **[`@ecopages/image-processor`](https://www.npmjs.com/package/@ecopages/image-processor)** | Build-time image optimization and responsive image generation. |
+| **[`@ecopages/postcss-processor`](https://www.npmjs.com/package/@ecopages/postcss-processor)** | Processes CSS through PostCSS and Tailwind. |
+
+---
+
+## Utilities
+
+| Package | Purpose |
+| :--- | :--- |
+| **[`ecopages`](https://www.npmjs.com/package/ecopages)** | Official npm CLI for scaffolding and running Ecopages apps. See also [CLI docs](/docs/ecosystem/ecopages). |
+| **[`@ecopages/file-system`](https://www.npmjs.com/package/@ecopages/file-system)** | Utilities for file system operations and route discovery. |
+| **[`@ecopages/radiant`](https://www.npmjs.com/package/@ecopages/radiant)** | A minimalist web component library for reactive UI. |
+| **[`@ecopages/scripts-injector`](https://www.npmjs.com/package/@ecopages/scripts-injector)** | Helper for lazy-loading scripts in the browser. |
+
+---
+
+## Installation Tip
+
+You can install multiple packages at once:
+
+<CodeTabs
+	name="packages-install-multiple"
+	tabs={[
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant @ecopages/image-processor',
+		},
+	]}
+	defaultSelectedKey="pnpm"
+/>

@@ -361,19 +361,17 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			srcUrl: '/assets/page.js',
 			position: 'head',
 		} as ProcessedAsset;
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [
-					{
-						kind: 'script',
-						source: 'content',
-						content: 'console.log("page")',
-						name: 'page',
-						attributes: { type: 'module' },
-					},
-				],
-			}),
-		);
+		const collectPageBrowserGraphContribution = vi.fn(async (): Promise<PageBrowserGraphContribution> => ({
+			dependencies: [
+				{
+					kind: 'script',
+					source: 'content',
+					content: 'console.log("page")',
+					name: 'page',
+					attributes: { type: 'module' },
+				},
+			],
+		}));
 		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
 		const assetProcessingService = {
 			processDependencies,
@@ -422,19 +420,17 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			srcUrl: '/assets/page.js',
 			position: 'head',
 		} as ProcessedAsset;
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [
-					{
-						kind: 'script',
-						source: 'content',
-						content: 'console.log("page")',
-						name: 'page',
-						attributes: { type: 'module' },
-					},
-				],
-			}),
-		);
+		const collectPageBrowserGraphContribution = vi.fn(async (): Promise<PageBrowserGraphContribution> => ({
+			dependencies: [
+				{
+					kind: 'script',
+					source: 'content',
+					content: 'console.log("page")',
+					name: 'page',
+					attributes: { type: 'module' },
+				},
+			],
+		}));
 		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
 		const assetProcessingService = {
 			processDependencies,

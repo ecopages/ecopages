@@ -1,0 +1,9 @@
+.site-header {
+	padding: 1rem 2rem;
+	border-bottom: 1px solid #e5e7eb;
+}
+
+.site-header a {
+	font-weight: 600;
+	text-decoration: none;
+}

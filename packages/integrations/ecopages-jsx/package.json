@@ -48,7 +48,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "0.3.0-alpha.25",
-		"@ecopages/radiant": "0.3.0-alpha.25"
+		"@ecopages/jsx": "0.3.0-beta.0",
+		"@ecopages/radiant": "0.3.0-beta.0"
 	}
 }

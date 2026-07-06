@@ -49,8 +49,7 @@ async function runUserWebSocketOpen<TWsData extends BunUserWebSocketData>(
 	deps: BunUserWebSocketLifecycleDeps<TWsData>,
 ): Promise<void> {
 	const handler = deps.userHandlers.get(kind) as
-		| EcopagesWebSocketHandler<unknown, Record<string, string>>
-		| undefined;
+		EcopagesWebSocketHandler<unknown, Record<string, string>> | undefined;
 	if (!handler) {
 		return;
 	}
@@ -97,8 +96,7 @@ export function createBunUserWebSocketLifecycle<TWsData extends BunUserWebSocket
 		}
 
 		const handler = deps.userHandlers.get(kind) as
-			| EcopagesWebSocketHandler<unknown, Record<string, string>>
-			| undefined;
+			EcopagesWebSocketHandler<unknown, Record<string, string>> | undefined;
 		if (!handler) {
 			return undefined;
 		}

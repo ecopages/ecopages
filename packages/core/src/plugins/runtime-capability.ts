@@ -1,8 +1,5 @@
 export type RuntimeCapabilityTag =
-	| 'bun-only'
-	| 'node-compatible'
-	| 'requires-native-bun-api'
-	| 'requires-node-builtins';
+	'bun-only' | 'node-compatible' | 'requires-native-bun-api' | 'requires-node-builtins';
 
 /**
  * Declares the runtime assumptions a plugin makes so config finalization can

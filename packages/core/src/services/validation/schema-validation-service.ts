@@ -183,8 +183,7 @@ export class SchemaValidationService {
 					errors: result.issues.map((issue: StandardSchemaIssue) => ({
 						message: issue.message,
 						path: issue.path?.map((p) => (typeof p === 'object' && 'key' in p ? p.key : p)) as
-							| Array<string | number>
-							| undefined,
+							Array<string | number> | undefined,
 					})),
 				};
 			}

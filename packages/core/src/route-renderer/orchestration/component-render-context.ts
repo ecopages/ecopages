@@ -9,9 +9,7 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
  * transport token for later queue resolution.
  */
 export type ForeignChildInterceptionResult =
-	| { kind: 'inline'; props?: Record<string, unknown> }
-	| { kind: 'resolved'; value: unknown }
-	| undefined;
+	{ kind: 'inline'; props?: Record<string, unknown> } | { kind: 'resolved'; value: unknown } | undefined;
 
 /**
  * Foreign-child metadata passed into the active renderer-owned runtime.

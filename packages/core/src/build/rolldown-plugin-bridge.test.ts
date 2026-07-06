@@ -76,8 +76,7 @@ test('createRolldownPluginBridge resolveId translates EcoBuildOnResolveResult to
 	const plugin = bridge[0]!;
 	await callBuildStart(plugin);
 	const result = (await callResolveId(plugin, 'react', '/app/index.ts')) as
-		| { id: string; external: boolean }
-		| undefined;
+		{ id: string; external: boolean } | undefined;
 	assert.deepEqual(result, { id: '/vendor/react.js', external: true });
 });
 
@@ -285,8 +284,7 @@ test('createRolldownPluginBridge applies source transforms after first-wins onLo
 	const plugin = bridge[0]!;
 	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/src/layouts/minimal-layout.tsx')) as
-		| { code: string; moduleType: string }
-		| undefined;
+		{ code: string; moduleType: string } | undefined;
 
 	assert.match(result?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
 	assert.equal(result?.moduleType, 'tsx');

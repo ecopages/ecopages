@@ -749,8 +749,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			},
 		};
 		const runtimeContext = this.getQueuedForeignSubtreeResolutionContext(runtimeInput) as
-			| ReactForeignSubtreeResolutionContext
-			| undefined;
+			ReactForeignSubtreeResolutionContext | undefined;
 		let html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
 		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const primaryRender: ComponentRenderResult = {

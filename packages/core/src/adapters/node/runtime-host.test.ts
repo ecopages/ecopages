@@ -10,8 +10,7 @@ describe('NodeRuntimeHost', () => {
 
 	it('does not log or report client aborts raised while sending the response', async () => {
 		let requestHandler:
-			| ((req: unknown, res: { statusCode: number; end: ReturnType<typeof vi.fn> }) => Promise<void>)
-			| undefined;
+			((req: unknown, res: { statusCode: number; end: ReturnType<typeof vi.fn> }) => Promise<void>) | undefined;
 
 		const requestBridge = {
 			createWebRequest: vi.fn().mockReturnValue(new Request('http://localhost:3000')),

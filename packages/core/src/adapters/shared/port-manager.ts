@@ -111,9 +111,7 @@ function createDefaultPrompt(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStrea
 
 /** Outcome of attempting to bind a single port. */
 type BindOutcome =
-	| { status: 'bound'; boundPort: number }
-	| { status: 'port-in-use'; error: unknown }
-	| { status: 'factory-refused' };
+	{ status: 'bound'; boundPort: number } | { status: 'port-in-use'; error: unknown } | { status: 'factory-refused' };
 
 export interface PortManagerOptions {
 	/**

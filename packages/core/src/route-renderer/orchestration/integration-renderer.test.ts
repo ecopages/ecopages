@@ -83,8 +83,7 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 			body = content as string;
 		} else {
 			const Layout = resolveInnermostPageLayout(view.config?.layouts) as
-				| ((props: { children: string }) => string)
-				| undefined;
+				((props: { children: string }) => string) | undefined;
 			const children = Layout ? Layout({ children: content as string }) : content;
 			body = `<!DOCTYPE html><html><body>${children}</body></html>`;
 		}

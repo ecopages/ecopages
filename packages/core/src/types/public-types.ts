@@ -23,8 +23,7 @@ export type { ProcessedAsset } from '../services/assets/asset-processing-service
  * union lets handlers deal with both without runtime-specific casts.
  */
 export type IncomingWebSocketMessage =
-	| { readonly kind: 'text'; readonly text: string }
-	| { readonly kind: 'binary'; readonly data: Uint8Array };
+	{ readonly kind: 'text'; readonly text: string } | { readonly kind: 'binary'; readonly data: Uint8Array };
 
 /**
  * Runtime-agnostic outgoing WebSocket payload.
@@ -118,9 +117,7 @@ export type {
 export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
 
 export type DependencyLazyTrigger =
-	| { 'on:idle': true }
-	| { 'on:interaction': InteractionEventsString }
-	| { 'on:visible': true | string };
+	{ 'on:idle': true } | { 'on:interaction': InteractionEventsString } | { 'on:visible': true | string };
 
 export type DependencyAttributes = Record<string, string>;
 

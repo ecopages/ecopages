@@ -14,7 +14,7 @@ Processors are plugins that handle file transformations. They can:
 - Transform files during build time
 - Generate additional assets
 - Optimize content
-- Provide Bun loaders for development
+- Provide build loaders for development
 
 Examples include the PostCSS processor and Image processor.
 
@@ -28,6 +28,10 @@ Integrations add support for different templating engines and frameworks. They:
 - Handle asset inclusion
 
 Examples include the KitaJS, React, and Lit integrations.
+
+### Source Transforms
+
+Source transforms rewrite module source during browser and HMR builds. They are configured separately from processors and integrations. See [Source Transforms](/docs/plugins/source-transforms).
 
 ## Plugin Configuration
 
@@ -45,4 +49,3 @@ const config = await new ConfigBuilder()
 ```
 
 See [Custom Processor](/docs/plugins/custom-processor) and [Custom Integration](/docs/plugins/custom-integration) for details on creating your own plugins.
-```

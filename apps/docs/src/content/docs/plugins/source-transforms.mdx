@@ -1,0 +1,79 @@
+# Source Transforms
+
+Source transforms rewrite module source during browser and HMR builds. Register them on `ConfigBuilder` when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
+
+Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. The Rolldown bridge runs source transforms after first-wins `onLoad` plugins, so metadata injection and similar loader passes still run on rewritten output.
+
+## EcoSourceTransform Shape
+
+```typescript
+import type { EcoSourceTransform } from '@ecopages/core/plugins/source-transform';
+
+const bannerTransform: EcoSourceTransform = {
+	name: 'file-banner',
+	filter: /entry\.tsx$/,
+	enforce: 'pre',
+	transform(code, id) {
+		return { code: `/* transformed: ${id} */\n${code}` };
+	},
+};
+```
+
+Fields:
+
+- `name` — stable identifier; also used to dedupe loader plugins in browser builds
+- `filter` — `RegExp` tested against normalized module ids
+- `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
+- `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip
+
+## Registration
+
+Register transforms in `eco.config.ts`:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+
+const config = await new ConfigBuilder()
+	.setRootDir(process.cwd())
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setSourceTransforms([
+		{
+			name: 'test-source-transform',
+			filter: /entry\.tsx$/,
+			transform(code) {
+				return { code: `/* source transform */\n${code}` };
+			},
+		},
+	])
+	.build();
+```
+
+Use `addSourceTransform(name, transform)` when adding a single transform to an existing builder chain.
+
+## Vite Host Bridge
+
+When Ecopages runs inside a Vite host, adapt app-owned transforms into Vite-compatible plugins:
+
+```typescript
+import { createVitePluginsFromAppSourceTransforms } from '@ecopages/core/plugins/source-transform';
+import appConfig from './eco.config';
+
+const viteTransforms = createVitePluginsFromAppSourceTransforms(appConfig);
+```
+
+See [Vite Plugin](/docs/ecosystem/vite-plugin) for host integration.
+
+## Choosing the Right Extension Point
+
+| Mechanism | Use when |
+| --- | --- |
+| `EcoSourceTransform` | Filter-based source rewrites during browser/HMR builds |
+| `EcoBuildPlugin` (`onLoad` / `onResolve`) | Virtual modules, custom loaders, or resolve-time behavior |
+| Processor `plugins` | Runtime file processing owned by a processor |
+| Processor `buildPlugins` | Browser-only bundling behavior owned by a processor |
+| Integration `browserBuildPlugins` | Framework-specific browser transforms or import aliasing |
+
+## See also
+
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when build contributions are collected
+- [Custom Processor](/docs/plugins/custom-processor) — processor-owned loaders and watch behavior

@@ -41,7 +41,8 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
    - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
 5. **AI-Ready Documentation**:
-   - Includes [`llms.txt`](/llms.txt) and a progressive [`/skill/SKILL.md`](/skill/SKILL.md) agent skill pack.
+   - Progressive agent skill pack: [`skill.txt`](/skill.txt) and [`SKILL.md`](/skill/SKILL.md)
+   - Full docs index: [`llms.txt`](/llms.txt)
    - Designed with clear patterns that are easy for LLMs to generate and debug.
 
 6. **Choose Your Templating**:
@@ -161,11 +162,18 @@ app.add(greetHandler);
 ## AI Agents & Ecopages
 
 Ecopages is built to be friendly to AI coding assistants.
+
 - **Explicit APIs**: Less "magic", making it easier for AI to infer logic.
 - **Standard Types**: Uses standard TypeScript and Web APIs.
 - **Structure**: Clear file-system routing and component organization.
 
-Refer your AI agent to [`llms.txt`](/llms.txt) for the full docs index or [`/skill/SKILL.md`](/skill/SKILL.md) for the progressive agent skill pack.
+<Banner type="info">
+	<BannerTitle>Agent skill pack</BannerTitle>
+	<p>
+		Start with <a href="/skill.txt">skill.txt</a> or <a href="/skill/SKILL.md">SKILL.md</a> for a progressive
+		agent guide. Use <a href="/llms.txt">llms.txt</a> when you need the full generated docs export.
+	</p>
+</Banner>
 
 ## Getting Started
 

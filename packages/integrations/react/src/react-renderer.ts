@@ -53,7 +53,8 @@ import {
 	assertComposablePage,
 	resolveLayoutContextFromShell,
 	type ComposablePage,
-	type LayoutComposeContext,
+	type LayoutComposeOptions,
+	type ReactRuntime,
 } from './layout-compose.ts';
 
 export type { ReactRendererConfig } from './react.types.ts';
@@ -84,8 +85,8 @@ type ReactRenderableComponent<P extends SerializableProps = SerializableProps> =
 };
 
 type ReactRuntimeModules = {
-	react: Pick<typeof import('react'), 'createElement' | 'Fragment'>;
-	reactDomServer: Pick<typeof import('react-dom/server'), 'renderToReadableStream' | 'renderToString'>;
+	react: ReactRuntime;
+	reactDomServer: typeof import('react-dom/server');
 };
 
 type RequiresAwareComponent = {
@@ -268,15 +269,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const requireFromApp = createRequire(appPackageJsonPath);
 
 			return {
-				react: requireFromApp('react') as ReactRuntimeModules['react'],
-				reactDomServer: requireFromApp('react-dom/server') as ReactRuntimeModules['reactDomServer'],
+				react: requireFromApp('react') as ReactRuntime,
+				reactDomServer: requireFromApp('react-dom/server'),
 			};
 		} catch {
 			const requireFromIntegration = createRequire(import.meta.url);
 
 			return {
-				react: requireFromIntegration('react') as ReactRuntimeModules['react'],
-				reactDomServer: requireFromIntegration('react-dom/server') as ReactRuntimeModules['reactDomServer'],
+				react: requireFromIntegration('react') as ReactRuntime,
+				reactDomServer: requireFromIntegration('react-dom/server'),
 			};
 		}
 	}
@@ -735,9 +736,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			component: layout.component,
 			props: layout.props,
 		}));
-		const layoutContext = resolveLayoutContextFromShell(page.props, shellEntries);
-		const tree = this.resolveReactLayoutPageTree(pageComponent, page.props, context.layouts, layoutContext);
-		const { reactDomServer } = this.getReactRuntimeModules();
+		const { react, reactDomServer } = this.getReactRuntimeModules();
+		const tree = this.composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
+			context: resolveLayoutContextFromShell(page.props, shellEntries),
+			react,
+		});
 		const runtimeInput: ComponentRenderInput = {
 			component: page.component,
 			props: page.props,
@@ -765,24 +768,20 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 	}
 
-	private resolveReactLayoutPageTree(
+	private composeReactLayoutPageTree(
 		Page: ComposablePage,
 		pageProps: Record<string, unknown>,
-		shellLayouts: DocumentShellLayoutInput[],
-		layoutContext: LayoutComposeContext,
+		shellEntries: Array<{ component: EcoComponent; props?: Record<string, unknown> }>,
+		options: LayoutComposeOptions,
 	): ReactElement {
-		const shellEntries = shellLayouts.map((layout) => ({
-			component: layout.component,
-			props: layout.props,
-		}));
 		const hasNormalizedLayouts =
 			Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
 
 		if (hasNormalizedLayouts) {
-			return composeLayoutPageTree(Page, pageProps, { context: layoutContext });
+			return composeLayoutPageTree(Page, pageProps, options);
 		}
 
-		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries);
+		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries, options);
 	}
 
 	private shouldUseUnifiedReactLayoutComposition(

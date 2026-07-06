@@ -11,7 +11,7 @@ Minimal Ecopages docs site using a content tree, manifest-driven navigation, and
 
 ## Configuration
 
-- Edit `src/content/docs/content.meta.ts` to add, remove, or reorder pages (and wire MDX modules in `content.ts`).
+- Edit `src/content/docs/content.meta.ts` to add, remove, or reorder pages (and register MDX modules in `content.ts`).
 - Every `.mdx` file under `src/content/docs` must appear in the manifest; orphan files fail `buildDocsManifest()`.
 - Inject shell layout and MDX components in `src/docs-kit.instance.ts`.
 
@@ -28,8 +28,6 @@ Markup lives in `eco.component` render functions so layout HMR updates text and 
 
 `scripts/generate-llm-docs.ts` writes `src/public/llms.txt` and `src/public/docs-llm/**/*.md` from the manifest before `dev` and `build`. Pages can opt out with `llms: false` in `content.meta.ts`.
 
-For the full Ecopages agent skill pack, see [ecopages.app/skill.txt](https://ecopages.app/skill.txt).
-
 ## Commands
 
 ```bash
@@ -43,4 +41,4 @@ Open `/docs/getting-started/introduction` after starting the dev server.
 
 ## Full docs app
 
-See `apps/docs` for the complete docs kit: sidebar icons, table of contents, pagination, and the progressive agent skill pack under `src/public/skill/`.
+See `apps/docs` for the complete docs kit: sidebar icons, table of contents, and pagination.

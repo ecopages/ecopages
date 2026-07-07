@@ -6,10 +6,10 @@
 /// <reference types="@ecopages/core/declarations" />
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
+import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { type ComponentType } from 'react';
 import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
-import type { EcoRouterOptions } from './types.ts';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
 
@@ -46,77 +46,6 @@ type LoadPageModuleFromDocumentOptions = {
 	 */
 	moduleUrlOverride?: string;
 };
-
-export type InterceptDecision =
-	| { shouldIntercept: true }
-	| {
-			shouldIntercept: false;
-			reason:
-				| 'modified-click'
-				| 'non-left-click'
-				| 'external-target'
-				| 'explicit-reload'
-				| 'download'
-				| 'invalid-href'
-				| 'cross-origin'
-				| 'same-page-hash';
-	  };
-
-export function isSamePageHashNavigationHref(href: string): boolean {
-	if (!href) {
-		return false;
-	}
-
-	const currentUrl = new URL(window.location.href);
-	const targetUrl = new URL(href, currentUrl);
-
-	return (
-		targetUrl.origin === currentUrl.origin &&
-		targetUrl.hash.length > 0 &&
-		targetUrl.pathname === currentUrl.pathname &&
-		targetUrl.search === currentUrl.search
-	);
-}
-
-/**
- * Determines whether a link click should be intercepted for client-side navigation.
- *
- * Standard SPA navigation rules:
- * - Modified clicks (Cmd/Ctrl/Shift/Alt) open in new tab
- * - Non-left clicks use default browser behavior
- * - External targets, downloads, and cross-origin links navigate normally
- *
- * @returns Object indicating whether to intercept and the reason if not
- */
-export function getInterceptDecision(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): InterceptDecision {
-	if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-		return { shouldIntercept: false, reason: 'modified-click' };
-	}
-	if (event.button !== 0) return { shouldIntercept: false, reason: 'non-left-click' };
-
-	const target = link.getAttribute('target');
-	if (target && target !== '_self') return { shouldIntercept: false, reason: 'external-target' };
-
-	if (link.hasAttribute(options.reloadAttribute)) return { shouldIntercept: false, reason: 'explicit-reload' };
-	if (link.hasAttribute('download')) return { shouldIntercept: false, reason: 'download' };
-
-	const href = link.getAttribute('href');
-	if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
-		return { shouldIntercept: false, reason: 'invalid-href' };
-	}
-
-	const url = new URL(href, window.location.origin);
-	if (url.origin !== window.location.origin) return { shouldIntercept: false, reason: 'cross-origin' };
-	if (isSamePageHashNavigationHref(href)) {
-		return { shouldIntercept: false, reason: 'same-page-hash' };
-	}
-
-	return { shouldIntercept: true };
-}
 
 /**
  * Extracts component module URL from window.__ECO_PAGES__.page.
@@ -301,6 +230,9 @@ export async function fetchPageDocument(
 				Accept: 'text/html',
 			},
 		});
+		if (!isHtmlPageResponse(res)) {
+			return null;
+		}
 		const html = await res.text();
 
 		const finalUrl = new URL(res.url || url, window.location.origin);
@@ -364,16 +296,4 @@ export async function loadPageModuleFromDocument(
 	ensurePageConfigLayouts(rawComponent.config);
 
 	return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
-}
-
-/**
- * Convenience wrapper around getInterceptDecision that returns a boolean.
- * Use getInterceptDecision directly when you need the reason for debugging.
- */
-export function shouldInterceptClick(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): boolean {
-	return getInterceptDecision(event, link, options).shouldIntercept;
 }

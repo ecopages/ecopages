@@ -4,6 +4,8 @@
  * @module prefetch-manager
  */
 
+import { isHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
 
 export interface PrefetchOptions {
@@ -97,7 +99,10 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit);
 
-			if (!response.ok) return;
+			if (!response.ok || !isHtmlPageResponse(response)) {
+				this.prefetched.delete(url.href);
+				return;
+			}
 
 			const html = await response.text();
 
@@ -275,11 +280,9 @@ export class PrefetchManager {
 		const link = target.closest(this.options.linkSelector) as HTMLAnchorElement | null;
 
 		if (!link) return null;
-		if (link.hasAttribute(this.options.noPrefetchAttribute)) return null;
-		if (link.hasAttribute('download')) return null;
-
-		const href = link.getAttribute('href');
-		if (!href || href.startsWith('#') || href.startsWith('javascript:')) return null;
+		if (!shouldPrefetchLink(link, { noPrefetchAttribute: this.options.noPrefetchAttribute })) {
+			return null;
+		}
 
 		return link;
 	}

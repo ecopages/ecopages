@@ -1,3 +1,5 @@
+import { hasKnownStaticExtension } from './static-file-extensions.ts';
+
 const ContentTypeMap = new Map<string, string>([
 	['jpg', 'image/jpeg'],
 	['jpeg', 'image/jpeg'],
@@ -54,15 +56,12 @@ export const getContentType = (file: string): string => {
  * @param file - The file name or path.
  * @returns true if the extension is recognized.
  */
-export const hasKnownExtension = (file: string): boolean => {
-	const extension = file.split('.').pop();
-	return extension !== undefined && ContentTypeMap.has(extension);
-};
+export { hasKnownStaticExtension } from './static-file-extensions.ts';
 
 /**
  * A module for server utilities.
  */
 export const ServerUtils = {
 	getContentType,
-	hasKnownExtension,
+	hasKnownStaticExtension,
 };

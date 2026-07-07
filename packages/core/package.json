@@ -89,6 +89,10 @@
 			"types": "./src/router/client/link-intent.ts",
 			"default": "./src/router/client/link-intent.ts"
 		},
+		"./router/link-navigation-policy": {
+			"types": "./src/router/client/link-navigation-policy.ts",
+			"default": "./src/router/client/link-navigation-policy.ts"
+		},
 		"./eco": {
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",

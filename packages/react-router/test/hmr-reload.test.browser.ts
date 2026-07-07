@@ -3,7 +3,18 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { EcoRouter, PageContent, clearLayoutCache } from '../src/router';
+import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+
+function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
+	return new Response(body, {
+		status: 200,
+		...init,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			...(init.headers ?? {}),
+		},
+	});
+}
 
 function createMockPageComponent(name: string) {
 	const Component = () => createElement('div', { 'data-testid': name }, `Page: ${name}`);
@@ -241,7 +252,7 @@ describe('EcoRouter HMR Integration', () => {
 					</body>
 				</html>
 			`;
-			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(mockHtml, { status: 200 }));
 
 			root = createRoot(container);
 
@@ -294,7 +305,7 @@ describe('EcoRouter HMR Integration', () => {
 			expect(reloadResult).toBe(false);
 			expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-			resolveFetch(new Response('<html><body><main>Done</main></body></html>', { status: 200 }));
+			resolveFetch(htmlPageResponse('<html><body><main>Done</main></body></html>', { status: 200 }));
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		});
 
@@ -495,7 +506,7 @@ describe('EcoRouter HMR Integration', () => {
 			});
 
 			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-				new Response('<html><body><main>Outside React</main></body></html>', { status: 200 }),
+				htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 }),
 			);
 
 			root = createRoot(container);
@@ -567,7 +578,7 @@ describe('EcoRouter HMR Integration', () => {
 
 			const fetchSpy = vi
 				.spyOn(globalThis, 'fetch')
-				.mockResolvedValue(new Response('<html></html>', { status: 200 }));
+				.mockResolvedValue(htmlPageResponse('<html></html>', { status: 200 }));
 			const handled = await runtime.requestNavigation({ href: '/still-registered', source: 'browser-router' });
 
 			expect(handled).toBe(false);
@@ -580,7 +591,7 @@ describe('EcoRouter HMR Integration', () => {
 			const runtime = getEcoNavigationRuntime(window);
 			const fetchSpy = vi
 				.spyOn(globalThis, 'fetch')
-				.mockResolvedValue(new Response('<html></html>', { status: 200 }));
+				.mockResolvedValue(htmlPageResponse('<html></html>', { status: 200 }));
 
 			root = createRoot(container);
 			root.render(
@@ -619,7 +630,7 @@ describe('EcoRouter HMR Integration', () => {
 				</html>
 			`;
 
-			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(createHtml('fast'), { status: 200 }));
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createHtml('fast'), { status: 200 }));
 
 			root = createRoot(container);
 			root.render(
@@ -678,12 +689,12 @@ describe('EcoRouter HMR Integration', () => {
 						abortSignal?.addEventListener('abort', handleAbort, { once: true });
 						slowFetch.promise.then(() => {
 							abortSignal?.removeEventListener('abort', handleAbort);
-							resolve(new Response(createHtml('slow'), { status: 200 }));
+							resolve(htmlPageResponse(createHtml('slow'), { status: 200 }));
 						});
 					});
 				}
 				if (url === '/fast') {
-					return Promise.resolve(new Response(createHtml('fast'), { status: 200 }));
+					return Promise.resolve(htmlPageResponse(createHtml('fast'), { status: 200 }));
 				}
 				throw new Error(`Unexpected fetch: ${url}`);
 			});
@@ -755,11 +766,11 @@ describe('EcoRouter HMR Integration', () => {
 						abortSignal?.addEventListener('abort', handleAbort, { once: true });
 						slowFetch.promise.then(() => {
 							abortSignal?.removeEventListener('abort', handleAbort);
-							resolve(new Response(createHtml('clicked'), { status: 200 }));
+							resolve(htmlPageResponse(createHtml('clicked'), { status: 200 }));
 						});
 					});
 				}
-				return Promise.resolve(new Response(createHtml(url.slice(1)), { status: 200 }));
+				return Promise.resolve(htmlPageResponse(createHtml(url.slice(1)), { status: 200 }));
 			});
 
 			root = createRoot(container);
@@ -842,10 +853,10 @@ describe('EcoRouter HMR Integration', () => {
 				const url = input.toString();
 				if (url === '/slow') {
 					await new Promise((resolve) => setTimeout(resolve, 60));
-					return new Response(createHtml('slow'), { status: 200 });
+					return htmlPageResponse(createHtml('slow'), { status: 200 });
 				}
 				if (url === '/fast') {
-					return new Response(createHtml('fast'), { status: 200 });
+					return htmlPageResponse(createHtml('fast'), { status: 200 });
 				}
 				throw new Error(`Unexpected fetch: ${url}`);
 			});
@@ -912,10 +923,10 @@ describe('EcoRouter HMR Integration', () => {
 				const url = input.toString();
 				if (url === '/outside-react') {
 					await new Promise((resolve) => setTimeout(resolve, 60));
-					return new Response('<html><body><main>Outside React</main></body></html>', { status: 200 });
+					return htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 });
 				}
 				if (url === '/fast') {
-					return new Response(createHtml('fast'), { status: 200 });
+					return htmlPageResponse(createHtml('fast'), { status: 200 });
 				}
 				throw new Error(`Unexpected fetch: ${url}`);
 			});

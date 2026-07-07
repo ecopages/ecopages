@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAnchorFromNavigationEvent, recoverPendingNavigationHref } from './link-intent.ts';
+import { getAnchorFromNavigationEvent, isStaticAssetHref, recoverPendingNavigationHref } from './link-intent.ts';
 
 describe('getAnchorFromNavigationEvent', () => {
 	it('returns the anchor when the event target is a text node inside it', () => {
@@ -35,6 +35,19 @@ describe('getAnchorFromNavigationEvent', () => {
 		});
 
 		expect(getAnchorFromNavigationEvent(event, 'a[data-eco-link]')).toBe(anchor);
+	});
+});
+
+describe('isStaticAssetHref', () => {
+	it('returns true for known static asset paths', () => {
+		expect(isStaticAssetHref('/skill.txt')).toBe(true);
+		expect(isStaticAssetHref('/skill/reference/full-stack.md')).toBe(true);
+		expect(isStaticAssetHref('/assets/logo.png')).toBe(true);
+	});
+
+	it('returns false for application routes', () => {
+		expect(isStaticAssetHref('/docs/getting-started/introduction')).toBe(false);
+		expect(isStaticAssetHref('/')).toBe(false);
 	});
 });
 

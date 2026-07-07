@@ -4,70 +4,22 @@
  * @module
  */
 
+import {
+	RERUN_SRC_ATTR,
+	collectRerunScripts,
+	flushPendingRerunScripts,
+	isNonExecutableHeadScript,
+	isRerunScript,
+	shouldPersistExecutableInlineHeadScript,
+} from '@ecopages/core/client/navigation-scripts';
 import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 
 const PRESERVE_SELECTORS = ['meta[charset]', '[data-eco-persist]'];
-const RERUN_SRC_ATTR = 'data-eco-rerun-src';
-
-type PendingRerunScript = {
-	attributes: Array<[string, string]>;
-	textContent: string;
-	scriptId: string | null;
-	src: string | null;
-};
-
-type RerunScriptCallback = () => void;
 
 export type HeadMorphResult = {
 	cleanup: () => void;
 	flushRerunScripts: () => void;
 };
-
-let rerunNonce = 0;
-
-function isNonExecutableHeadScript(el: Element): boolean {
-	if (el.tagName !== 'SCRIPT') {
-		return false;
-	}
-
-	const type = (el.getAttribute('type') ?? '').trim().toLowerCase();
-	if (!type) {
-		return false;
-	}
-
-	return ![
-		'application/javascript',
-		'application/ecmascript',
-		'module',
-		'text/ecmascript',
-		'text/javascript',
-	].includes(type);
-}
-
-function shouldPersistExecutableInlineHeadScript(el: Element): boolean {
-	if (el.tagName !== 'SCRIPT') {
-		return false;
-	}
-
-	const scriptId = el.getAttribute('data-eco-script-id') || el.getAttribute('id');
-	if (!scriptId) {
-		return false;
-	}
-
-	if (el.hasAttribute('data-eco-rerun')) {
-		return false;
-	}
-
-	if ((el as HTMLScriptElement).src) {
-		return false;
-	}
-
-	return !isNonExecutableHeadScript(el);
-}
-
-function isRerunScript(el: Element): el is HTMLScriptElement {
-	return el.tagName === 'SCRIPT' && el.hasAttribute('data-eco-rerun');
-}
 
 function isReactRouterPageBootstrapScriptId(scriptId: string | null): boolean {
 	return !!scriptId && scriptId.startsWith('ecopages-react-') && !scriptId.startsWith('ecopages-react-island-');
@@ -123,12 +75,10 @@ function getHeadElementKey(el: Element): string | null {
 
 /**
  * Morphs the current document head to match the new document's head.
- * Now splits the process into adding new elements and returning a cleanup function
- * to remove old ones. This is crucial for View Transitions to ensure styles
- * don't disappear before the "old" snapshot is taken.
  *
- * @param newDocument - The parsed document from the navigation target
- * @returns Promise that resolves to cleanup and rerun hooks when new stylesheets have loaded
+ * @remarks
+ * Returns cleanup and rerun hooks separately so callers can defer head removal
+ * until after a view-transition snapshot captures the old styles.
  */
 export async function morphHead(newDocument: Document): Promise<HeadMorphResult> {
 	const currentHead = document.head;
@@ -138,36 +88,18 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 	const newElements = new Map<string, Element>();
 	const stylesheetPromises: Promise<void>[] = [];
 	const elementsToRemove: Element[] = [];
-	const pendingRerunScripts = Array.from(newHead.querySelectorAll<HTMLScriptElement>('script[data-eco-rerun]'))
-		.filter((script) => !isHydrationScript(script))
-		.map((script) => ({
-			attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value] as [string, string]),
-			textContent: script.textContent ?? '',
-			scriptId: script.getAttribute('data-eco-script-id'),
-			src: script.getAttribute('src'),
-		}));
+	const pendingRerunScripts = collectRerunScripts(newDocument, (script) => !isHydrationScript(script));
 
-	/**
-	 * First, map existing head elements by their keys
-	 * to enable efficient diffing.
-	 */
 	for (const el of Array.from(currentHead.children)) {
 		const key = getHeadElementKey(el);
 		if (key) currentElements.set(key, el);
 	}
 
-	/**
-	 * Next, map new head elements by their keys.
-	 * This allows us to see which elements are new, updated, or removed.
-	 */
 	for (const el of Array.from(newHead.children)) {
 		const key = getHeadElementKey(el);
 		if (key) newElements.set(key, el);
 	}
 
-	/**
-	 * Now, iterate over new elements to add or update them in the current head.
-	 */
 	for (const [key, newEl] of newElements) {
 		const currentEl = currentElements.get(key);
 
@@ -176,20 +108,12 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 		}
 
 		if (!currentEl) {
-			/**
-			 * Skip hydration scripts during SPA navigation to prevent re-mounting.
-			 * The EcoRouter is already running and handles page updates internally.
-			 */
 			if (newEl.tagName === 'SCRIPT' && isHydrationScript(newEl as HTMLScriptElement)) {
 				continue;
 			}
 
 			const cloned = newEl.cloneNode(true) as Element;
 
-			/**
-			 * If the new element is a stylesheet, we need to wait for it to load
-			 * before considering the head morph complete. This prevents FOUC.
-			 */
 			if (cloned.tagName === 'LINK' && (cloned as HTMLLinkElement).rel === 'stylesheet') {
 				const loadPromise = new Promise<void>((resolve) => {
 					(cloned as HTMLLinkElement).onload = () => resolve();
@@ -208,9 +132,6 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 		}
 	}
 
-	/**
-	 * Finally, handle any new elements without keys (e.g., inline scripts/styles)
-	 */
 	for (const newEl of Array.from(newHead.children)) {
 		const key = getHeadElementKey(newEl);
 		if (!key && !isRerunScript(newEl)) {
@@ -218,17 +139,10 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 		}
 	}
 
-	/**
-	 * Wait for all new stylesheets to load before proceeding.
-	 */
 	if (stylesheetPromises.length > 0) {
 		await Promise.all(stylesheetPromises);
 	}
 
-	/**
-	 * Identify and prepare to remove any old elements
-	 * that are no longer present in the new head.
-	 */
 	for (const [key, el] of currentElements) {
 		if (!newElements.has(key)) {
 			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
@@ -238,11 +152,6 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 		}
 	}
 
-	/**
-	 * Return a cleanup function to remove old elements.
-	 * This allows the caller to control when the removal happens,
-	 * which is important for View Transitions.
-	 */
 	return {
 		cleanup: () => {
 			for (const el of elementsToRemove) {
@@ -250,85 +159,7 @@ export async function morphHead(newDocument: Document): Promise<HeadMorphResult>
 			}
 		},
 		flushRerunScripts: () => {
-			for (const script of pendingRerunScripts) {
-				const registeredRerun = getRegisteredRerunScript(script.scriptId);
-				const replacement = document.createElement('script');
-				const shouldBustModuleSrc = isExternalModuleRerunScript(script) && !registeredRerun;
-
-				for (const [name, value] of script.attributes) {
-					if (name === 'src' && shouldBustModuleSrc) {
-						replacement.setAttribute(RERUN_SRC_ATTR, value);
-						replacement.setAttribute('src', createRerunScriptUrl(value));
-						continue;
-					}
-
-					replacement.setAttribute(name, value);
-				}
-
-				replacement.textContent = script.textContent;
-
-				const existingScript = findExistingRerunScript(script);
-				if (registeredRerun) {
-					if (!existingScript) {
-						document.head.appendChild(replacement);
-					}
-
-					registeredRerun();
-					continue;
-				}
-
-				if (existingScript) {
-					existingScript.replaceWith(replacement);
-					continue;
-				}
-
-				document.head.appendChild(replacement);
-			}
+			flushPendingRerunScripts(pendingRerunScripts);
 		},
 	};
-}
-
-function findExistingRerunScript(script: PendingRerunScript): HTMLScriptElement | null {
-	const scripts = Array.from(document.head.querySelectorAll<HTMLScriptElement>('script'));
-
-	if (script.scriptId) {
-		return scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null;
-	}
-
-	return (
-		scripts.find(
-			(candidate) =>
-				(candidate.getAttribute(RERUN_SRC_ATTR) ?? candidate.getAttribute('src')) === script.src &&
-				(candidate.textContent ?? '') === script.textContent,
-		) ?? null
-	);
-}
-
-function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
-	if (!script.src) {
-		return false;
-	}
-
-	return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
-}
-
-function getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
-	if (!scriptId) {
-		return null;
-	}
-
-	const runtimeWindow = window as Window &
-		typeof globalThis & {
-			__ECO_PAGES__?: {
-				rerunScripts?: Record<string, RerunScriptCallback | undefined>;
-			};
-		};
-
-	return runtimeWindow.__ECO_PAGES__?.rerunScripts?.[scriptId] ?? null;
-}
-
-function createRerunScriptUrl(src: string): string {
-	const url = new URL(src, document.baseURI);
-	url.searchParams.set('__eco_rerun', String(++rerunNonce));
-	return url.toString();
 }

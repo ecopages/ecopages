@@ -3,7 +3,8 @@
  * @module
  */
 
-import { applyViewTransitionNames, clearViewTransitionNames } from '../view-transition-utils.ts';
+import { manageWindowScroll } from '@ecopages/core/client/scroll';
+import { applyViewTransitionNames, clearViewTransitionNames } from '@ecopages/core/client/view-transitions';
 
 /**
  * Service for handling View Transition API during page transitions.

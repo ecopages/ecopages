@@ -28,8 +28,8 @@ import { RouterContext } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import { type PageState, fetchPageDocument, loadPageModuleFromDocument } from './navigation.ts';
 import { morphHead } from './head-morpher.ts';
-import { applyViewTransitionNames } from './view-transition-utils.ts';
-import { manageScroll } from './manage-scroll.ts';
+import { applyViewTransitionNames } from '@ecopages/core/client/view-transitions';
+import { manageWindowScroll } from '@ecopages/core/client/scroll';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
 import {
 	getEcoNavigationRuntime,
@@ -316,7 +316,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		const previousUrl = new URL(previousUrlRef.current);
 
 		if (url.href !== previousUrl.href) {
-			manageScroll(url, previousUrl, {
+			manageWindowScroll(url, previousUrl, {
 				scrollBehavior: options.scrollBehavior,
 				smoothScroll: options.smoothScroll,
 			});

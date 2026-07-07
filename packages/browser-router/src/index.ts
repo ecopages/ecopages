@@ -20,4 +20,4 @@ export {
 
 export { EcoRouter, createRouter } from './client/index.ts';
 
-export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services/index.ts';
+export { DomSwapper, ViewTransitionManager } from './client/services/index.ts';

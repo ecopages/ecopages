@@ -14,7 +14,8 @@ import {
 import { getNavigableHrefFromClick, isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
-import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
+import { manageWindowScroll } from '@ecopages/core/client/scroll';
+import { DomSwapper, ViewTransitionManager, PrefetchManager } from './services/index.ts';
 
 /**
  * Intercepts same-origin link clicks and performs client-side navigation
@@ -29,7 +30,6 @@ export class EcoRouter {
 	private queuedNavigationHref: string | null = null;
 
 	private domSwapper: DomSwapper;
-	private scrollManager: ScrollManager;
 	private viewTransitionManager: ViewTransitionManager;
 	private prefetchManager: PrefetchManager | null = null;
 
@@ -43,7 +43,6 @@ export class EcoRouter {
 		};
 
 		this.domSwapper = new DomSwapper(this.options.persistAttribute);
-		this.scrollManager = new ScrollManager(this.options.scrollBehavior, this.options.smoothScroll);
 		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
 
 		if (this.options.prefetch !== false) {
@@ -195,7 +194,10 @@ export class EcoRouter {
 				this.domSwapper.replaceBody(newDocument);
 			}
 			this.domSwapper.flushRerunScripts();
-			this.scrollManager.handleScroll(url, previousUrl);
+			manageWindowScroll(url, previousUrl, {
+				scrollBehavior: this.options.scrollBehavior,
+				smoothScroll: this.options.smoothScroll,
+			});
 		};
 
 		if (useViewTransitions) {

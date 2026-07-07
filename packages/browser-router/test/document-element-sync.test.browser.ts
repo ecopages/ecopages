@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import {
-	defaultDocumentElementAttributesToSync,
-	syncDocumentElementAttributes,
-} from '../src/client/document-element-sync.ts';
+import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC } from '../src/client/types.ts';
+import { syncDocumentElementAttributes } from '../src/client/document-element-sync.ts';
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -19,7 +17,7 @@ function resetDocumentElement(): void {
 
 describe('document-element-sync', () => {
 	it('exposes the default document-owned html attributes', () => {
-		expect(defaultDocumentElementAttributesToSync).toEqual(['lang', 'dir', ECO_DOCUMENT_OWNER_ATTRIBUTE]);
+		expect(DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC).toEqual(['lang', 'dir', ECO_DOCUMENT_OWNER_ATTRIBUTE]);
 	});
 
 	it('updates changed synced attributes from the incoming document', () => {
@@ -32,7 +30,7 @@ describe('document-element-sync', () => {
 			`<html lang="fr" dir="rtl" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><head></head><body></body></html>`,
 		);
 
-		syncDocumentElementAttributes(document, newDocument, defaultDocumentElementAttributesToSync);
+		syncDocumentElementAttributes(document, newDocument, DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC);
 
 		expect(document.documentElement.getAttribute('lang')).toBe('fr');
 		expect(document.documentElement.getAttribute('dir')).toBe('rtl');
@@ -47,7 +45,7 @@ describe('document-element-sync', () => {
 
 		const newDocument = parseDocument('<html lang="fr"><head></head><body></body></html>');
 
-		syncDocumentElementAttributes(document, newDocument, defaultDocumentElementAttributesToSync);
+		syncDocumentElementAttributes(document, newDocument, DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC);
 
 		expect(document.documentElement.getAttribute('lang')).toBe('fr');
 		expect(document.documentElement.hasAttribute('dir')).toBe(false);
@@ -63,7 +61,7 @@ describe('document-element-sync', () => {
 			'<html lang="fr" dir="rtl" data-theme="light" class="light"><head></head><body></body></html>',
 		);
 
-		syncDocumentElementAttributes(document, newDocument, defaultDocumentElementAttributesToSync);
+		syncDocumentElementAttributes(document, newDocument, DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC);
 
 		expect(document.documentElement.getAttribute('lang')).toBe('fr');
 		expect(document.documentElement.getAttribute('dir')).toBe('rtl');

@@ -14,8 +14,10 @@ import {
 import { getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
-import { DomSwapper, ViewTransitionManager, PrefetchManager } from './services/index.ts';
-import { commitDocumentNavigation } from './navigation-commit.ts';
+import { DomSwapper } from './dom/dom-swapper.ts';
+import { PrefetchManager } from './services/prefetch-manager.ts';
+import { ViewTransitionManager } from './services/view-transition-manager.ts';
+import { commitDocumentNavigation, type CommitDocumentNavigationDeps } from './navigation-commit.ts';
 import { fetchNavigationPage } from './navigation-fetch.ts';
 
 /**
@@ -33,6 +35,7 @@ export class EcoRouter {
 	private domSwapper: DomSwapper;
 	private viewTransitionManager: ViewTransitionManager;
 	private prefetchManager: PrefetchManager | null = null;
+	private readonly commitDeps: CommitDocumentNavigationDeps;
 
 	constructor(options: EcoRouterOptions = {}) {
 		this.options = {
@@ -56,16 +59,19 @@ export class EcoRouter {
 		this.handleClick = this.handleClick.bind(this);
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
-	}
 
-	private getLinkFromEvent(event: MouseEvent | PointerEvent): HTMLAnchorElement | null {
-		return getAnchorFromNavigationEvent(event, this.options.linkSelector);
-	}
-
-	private canInterceptLink(event: MouseEvent | PointerEvent, link: HTMLAnchorElement): string | null {
-		return getNavigableHrefFromClick(event, link, {
-			reloadAttribute: this.options.reloadAttribute,
-		});
+		this.commitDeps = {
+			domSwapper: this.domSwapper,
+			viewTransitionManager: this.viewTransitionManager,
+			prefetchManager: this.prefetchManager,
+			options: this.options,
+			syncDocumentElementAttributes: (newDocument) => {
+				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
+			},
+			reloadDocument: (url) => {
+				window.location.assign(url.href);
+			},
+		};
 	}
 
 	private getRecoveredPointerHref(): string | null {
@@ -87,37 +93,6 @@ export class EcoRouter {
 		return (
 			ownerState.owner !== 'none' && ownerState.owner !== 'browser-router' && ownerState.canHandleSpaNavigation
 		);
-	}
-
-	private getDocumentOwner(doc: Document) {
-		return getEcoNavigationRuntime(window).resolveDocumentOwner(doc, 'browser-router');
-	}
-
-	private adoptDocumentOwner(doc: Document): void {
-		getEcoNavigationRuntime(window).adoptDocumentOwner(doc, 'browser-router');
-	}
-
-	private syncDocumentElementAttributes(newDocument: Document): void {
-		syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
-	}
-
-	private reloadDocument(url: URL): void {
-		window.location.assign(url.href);
-	}
-
-	private getCommitDeps() {
-		return {
-			domSwapper: this.domSwapper,
-			viewTransitionManager: this.viewTransitionManager,
-			prefetchManager: this.prefetchManager,
-			options: this.options,
-			syncDocumentElementAttributes: (newDocument: Document) => {
-				this.syncDocumentElementAttributes(newDocument);
-			},
-			reloadDocument: (url: URL) => {
-				this.reloadDocument(url);
-			},
-		};
 	}
 
 	/**
@@ -156,7 +131,7 @@ export class EcoRouter {
 				if (isStaleNavigation()) return true;
 				try {
 					await commitDocumentNavigation(
-						this.getCommitDeps(),
+						this.commitDeps,
 						new URL(request.finalHref ?? request.href, window.location.origin),
 						request.direction ?? 'forward',
 						request.document,
@@ -187,7 +162,7 @@ export class EcoRouter {
 				this.cancelNavigationTransaction();
 			},
 		});
-		this.adoptDocumentOwner(document);
+		getEcoNavigationRuntime(window).adoptDocumentOwner(document, 'browser-router');
 
 		// Cache the initial page for instant back-navigation
 		const initialHtml = document.documentElement.outerHTML;
@@ -231,7 +206,7 @@ export class EcoRouter {
 	public async navigate(href: string, options: { replace?: boolean } = {}): Promise<void> {
 		const url = new URL(href, window.location.origin);
 
-		if (!this.isSameOrigin(url)) {
+		if (url.origin !== window.location.origin) {
 			window.location.href = href;
 			return;
 		}
@@ -266,13 +241,13 @@ export class EcoRouter {
 	 * Shadow DOM boundaries (Web Components).
 	 */
 	private handlePointerDown(event: PointerEvent): void {
-		const link = this.getLinkFromEvent(event);
+		const link = getAnchorFromNavigationEvent(event, this.options.linkSelector);
 		if (!link) {
 			this.pendingPointerNavigation = null;
 			return;
 		}
 
-		const href = this.canInterceptLink(event, link);
+		const href = getNavigableHrefFromClick(event, link, { reloadAttribute: this.options.reloadAttribute });
 		this.pendingPointerNavigation = href
 			? {
 					href,
@@ -287,8 +262,10 @@ export class EcoRouter {
 
 	private handleClick(event: MouseEvent): void {
 		const navigationRuntime = getEcoNavigationRuntime(window);
-		const link = this.getLinkFromEvent(event);
-		const href = link ? this.canInterceptLink(event, link) : this.getRecoveredPointerHref();
+		const link = getAnchorFromNavigationEvent(event, this.options.linkSelector);
+		const href = link
+			? getNavigableHrefFromClick(event, link, { reloadAttribute: this.options.reloadAttribute })
+			: this.getRecoveredPointerHref();
 		this.pendingPointerNavigation = null;
 		if (!href) return;
 		this.queuedNavigationHref = null;
@@ -324,14 +301,6 @@ export class EcoRouter {
 
 		const url = new URL(window.location.href);
 		this.performNavigation(url, 'back');
-	}
-
-	/**
-	 * Checks if a URL shares the same origin as the current page.
-	 * Cross-origin navigation always falls back to full page reload.
-	 */
-	private isSameOrigin(url: URL): boolean {
-		return url.origin === window.location.origin;
 	}
 
 	private cancelNavigationTransaction(): void {
@@ -394,7 +363,7 @@ export class EcoRouter {
 				return false;
 			}
 
-			committed = await commitDocumentNavigation(this.getCommitDeps(), url, direction, newDocument, {
+			committed = await commitDocumentNavigation(this.commitDeps, url, direction, newDocument, {
 				html,
 				isStaleNavigation,
 				allowFullDocumentFallback,

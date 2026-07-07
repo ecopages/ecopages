@@ -131,7 +131,7 @@ If you need lower-level control without overriding the router pipeline, import t
 ```typescript
 import {
   createRouter,
-  defaultDocumentElementAttributesToSync,
+  DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
   syncDocumentElementAttributes,
 } from '@ecopages/browser-router';
 
@@ -139,7 +139,7 @@ const router = createRouter();
 
 document.addEventListener('eco:before-swap', (event) => {
   syncDocumentElementAttributes(document, event.detail.newDocument, [
-    ...defaultDocumentElementAttributesToSync,
+    ...DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
     'data-theme',
   ]);
 });

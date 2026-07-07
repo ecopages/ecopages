@@ -11,7 +11,7 @@ import {
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
-import { assertHtmlPageResponse, getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
+import { getNavigableHrefFromClick, isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
@@ -582,7 +582,12 @@ export class EcoRouter {
 			throw new Error(`Failed to fetch page: ${response.status}`);
 		}
 
-		await assertHtmlPageResponse(response);
+		if (!isHtmlPageResponse(response)) {
+			throw new Error(
+				`Expected HTML page response, received ${response.headers.get('Content-Type') ?? 'unknown content type'}`,
+			);
+		}
+
 		return response.text();
 	}
 }

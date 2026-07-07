@@ -34,7 +34,7 @@ describe('ServerUtils', () => {
 		['/page.', false],
 		['/page.xyz', false],
 		['/page.dd', false],
-	])('hasKnownExtension(%p) should return %p', (filePath, expected) => {
-		expect(ServerUtils.hasKnownExtension(filePath)).toBe(expected);
+	])('hasKnownStaticExtension(%p) should return %p', (filePath, expected) => {
+		expect(ServerUtils.hasKnownStaticExtension(filePath)).toBe(expected);
 	});
 });

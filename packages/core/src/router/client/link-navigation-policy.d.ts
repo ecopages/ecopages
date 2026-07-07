@@ -4,7 +4,6 @@
  */
 export type { LinkNavigationDecision, LinkNavigationPolicyOptions } from './link-navigation-policy.ts';
 export {
-	assertHtmlPageResponse,
 	getLinkNavigationDecision,
 	getNavigableHrefFromClick,
 	isHtmlPageResponse,

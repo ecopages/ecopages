@@ -6,6 +6,13 @@ import { createRoot, type Root } from 'react-dom/client';
 
 const loadPageModuleFromDocumentMock = vi.fn();
 
+function htmlPageResponse(body: string): Response {
+	return new Response(body, {
+		status: 200,
+		headers: { 'Content-Type': 'text/html; charset=utf-8' },
+	});
+}
+
 vi.mock('../src/navigation.ts', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../src/navigation.ts')>();
 	return {
@@ -136,9 +143,7 @@ describe('nested layout persistence', () => {
 		const SettingsPage = createNestedLayoutPage('SettingsPage', [shellSettingsImport, settingsInner]);
 
 		clearLayoutCache();
-		vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response('<html><head></head><body></body></html>', { status: 200 }),
-		);
+		vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlPageResponse('<html><head></head><body></body></html>'));
 		loadPageModuleFromDocumentMock.mockResolvedValue({
 			Component: SettingsPage,
 			props: {},

@@ -3,7 +3,6 @@
  * @module
  */
 
-import { manageWindowScroll } from '@ecopages/core/client/scroll';
 import { applyViewTransitionNames, clearViewTransitionNames } from '@ecopages/core/client/view-transitions';
 
 /**

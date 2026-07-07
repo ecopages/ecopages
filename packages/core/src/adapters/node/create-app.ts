@@ -23,7 +23,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
 		},
 	) {
-		super(options);
+		super(options, 'Node');
 		this.runtimeHost = dependencies.runtimeHost;
 	}
 

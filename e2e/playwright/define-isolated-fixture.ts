@@ -6,7 +6,7 @@
  */
 import path from 'node:path';
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getIsolatedDevServerReadySignal } from './isolated-dev-server-ready.ts';
+import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 
 export const crossIntegrationSourceDir = 'playground/kitchen-sink';
 export const isolatedAppLauncher = 'node e2e/scripts/playwright/run-isolated-app.mjs';
@@ -93,7 +93,7 @@ export function defineCrossIntegrationFixture(
 					port: project.port,
 				}),
 				cwd: '.',
-				...getIsolatedDevServerReadySignal(project.host, project.port),
+				...getEcopagesServerReadySignal(),
 				projects: [project.name],
 				reuseExistingServer: options.reuseExistingServer,
 				stdout: 'pipe',

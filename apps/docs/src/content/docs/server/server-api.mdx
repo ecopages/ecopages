@@ -21,31 +21,17 @@ await app.start();
 
 ## Starting the server
 
-Call `app.start()` after you register routes. It boots the runtime for the current CLI mode (`dev`, `preview`, `build`, or production `start`). The runtime logs the ready URL by default — you do not need a callback for basic startup logging.
+Call `app.start()` after you register routes. It boots the server for the current CLI mode (`dev`, `preview`, `build`, or `start`).
 
-```typescript
-// filepath: app.ts
-import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
-
-const app = await createApp({ appConfig });
-
-app.get('/api/hello', async () => {
-	return new Response('Hello World');
-});
-
-await app.start();
-```
-
-Pass an optional callback when you need custom logic once the runtime can accept traffic. The callback receives `{ origin }` — the resolved base URL with no trailing slash (for example `http://localhost:3000`).
+Pass an optional callback to run logic once the server can accept traffic. The callback receives `{ origin }` — the resolved base URL with no trailing slash.
 
 ```typescript
 await app.start(({ origin }) => {
-	// Run custom readiness work here
+	// readiness hook
 });
 ```
 
-The `OnAppStartCallback` type is exported from `@ecopages/core/create-app` if you want an explicit annotation.
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`.
 
 > **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
 

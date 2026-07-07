@@ -5,7 +5,7 @@
  * only serves the existing static export (bun or node runtime).
  */
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getEcopagesPreviewReadySignal } from './isolated-dev-server-ready.ts';
+import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 import { getDefaultWorkerCount } from './workers.ts';
 import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
 
@@ -40,7 +40,7 @@ export function defineKitchenSinkPreviewFixture(
 	const webServers: FixtureWebServer[] = previewVariants.map((variant) => ({
 		command: `NODE_ENV=production ECOPAGES_PORT=${variant.port} ECOPAGES_PREVIEW_RUNTIME=${variant.runtime} ${previewLauncher}`,
 		cwd: '.',
-		...getEcopagesPreviewReadySignal(),
+		...getEcopagesServerReadySignal(),
 		projects: [variant.name],
 		reuseExistingServer: options.reuseExistingServer,
 		stdout: 'pipe',

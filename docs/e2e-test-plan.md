@@ -173,7 +173,7 @@ Timeout: 90 s (project) · Workers: `1`. The `@parity` spec also runs on each no
 | ----- | --------------------------------------------------------------- |
 | 2     | Serial describe; mutates include + explicit-route files on disk |
 
-Ready signals: apps opt in via `app.start(onAppStart)`. This repo uses `e2e/playwright/on-app-start.ts` for Playwright stdout matching.  
+Ready signals: dev servers log `Bun server running at …` or `Node server running at …` via `appLogger`; Playwright matches that stdout line. Preview-only servers (for example docs-e2e) use port-open readiness instead.  
 Timeout: 90 s · Workers: `1`
 
 ### Timeouts in tests

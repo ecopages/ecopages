@@ -55,6 +55,14 @@ export type ExternalFixtureDefinition = {
 	cwd: string;
 	projectName?: string;
 	workers?: number;
+	/**
+	 * How Playwright waits for the web server.
+	 *
+	 * @remarks
+	 * `stdout` matches the runtime startup log (`Bun server running at` / `Node server running at`).
+	 * `port` waits for the TCP port to accept connections (preview-only servers).
+	 */
+	readiness?: 'stdout' | 'port';
 };
 
 export type FixtureModule = {
@@ -298,7 +306,7 @@ export function defineExternalFixture(
 			{
 				command: definition.command,
 				cwd: definition.cwd,
-				...getEcopagesServerReadySignal(),
+				...(definition.readiness === 'port' ? { port: definition.port } : getEcopagesServerReadySignal()),
 				projects: [projectName],
 				reuseExistingServer: options.reuseExistingServer,
 				stdout: 'pipe',

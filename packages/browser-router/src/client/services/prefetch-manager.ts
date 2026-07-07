@@ -5,6 +5,7 @@
  */
 
 import { isHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
 
@@ -54,7 +55,7 @@ export class PrefetchManager {
 			this.setupHoverListeners();
 		}
 
-		this.observeExistingLinks();
+		this.observeLinks();
 	}
 
 	/**
@@ -160,9 +161,12 @@ export class PrefetchManager {
 				headers: { Accept: 'text/html' },
 				priority: 'low',
 			} as RequestInit)
-				.then((response) => {
-					if (response.ok) return response.text();
-					return null;
+				.then(async (response) => {
+					if (!response.ok || !isHtmlPageResponse(response)) {
+						return null;
+					}
+
+					return response.text();
 				})
 				.then((freshHtml) => {
 					if (freshHtml) {
@@ -376,35 +380,9 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Begins observing all existing links on the page.
-	 *
-	 * Called once during initialization. Eager links are prefetched immediately;
-	 * viewport-strategy links are registered with the IntersectionObserver.
+	 * Observes links for prefetching within `root`.
 	 */
-	private observeExistingLinks(): void {
-		const links = document.querySelectorAll<HTMLAnchorElement>(this.options.linkSelector);
-		for (const link of links) {
-			if (link.hasAttribute(this.options.noPrefetchAttribute)) continue;
-
-			const strategy = this.getLinkStrategy(link);
-
-			if (strategy === 'eager') {
-				this.scheduleIdlePrefetch(link.href, true);
-			} else if (this.observer && strategy === 'viewport') {
-				this.observer.observe(link);
-			}
-		}
-	}
-
-	/**
-	 * Observes newly added links after DOM mutations.
-	 *
-	 * Should be called after client-side navigation or dynamic content updates
-	 * to ensure new links are tracked for prefetching.
-	 *
-	 * @param root - The root element to search for links (defaults to document)
-	 */
-	observeNewLinks(root: Element | Document = document): void {
+	observeLinks(root: Element | Document = document): void {
 		const links = root.querySelectorAll<HTMLAnchorElement>(this.options.linkSelector);
 		for (const link of links) {
 			if (link.hasAttribute(this.options.noPrefetchAttribute)) continue;
@@ -434,21 +412,12 @@ export class PrefetchManager {
 		const parser = new DOMParser();
 		const doc = parser.parseFromString(`<base href="${url.href}">${html}`, 'text/html');
 
-		const existingHrefs = new Set([
-			...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((l) => l.href),
-			...this.prefetchedStylesheets,
-		]);
-
-		const newStylesheets = doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]');
-		const stylesheetFetches: Promise<void>[] = [];
-
-		for (const link of newStylesheets) {
-			if (!existingHrefs.has(link.href)) {
-				existingHrefs.add(link.href);
-				this.prefetchedStylesheets.add(link.href);
-				stylesheetFetches.push(this.prefetchStylesheet(link.href));
-			}
-		}
+		const existingHrefs = new Set([...getCurrentStylesheetHrefs(), ...this.prefetchedStylesheets]);
+		const newStylesheetHrefs = discoverNewStylesheetLinks(doc, existingHrefs).map((link) => link.href);
+		const stylesheetFetches = newStylesheetHrefs.map((href) => {
+			this.prefetchedStylesheets.add(href);
+			return this.prefetchStylesheet(href);
+		});
 
 		await Promise.allSettled(stylesheetFetches);
 	}

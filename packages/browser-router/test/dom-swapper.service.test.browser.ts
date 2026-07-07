@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DomSwapper } from '../src/client/services/dom-swapper.ts';
+import { resetRerunNonceForTests } from '@ecopages/core/client/navigation-scripts';
+import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
 import { ViewTransitionManager } from '../src/client/services/view-transition-manager.ts';
 
 type DocumentWithViewTransition = Document & {
@@ -19,6 +20,7 @@ function resetDocument(): void {
 	document.head.innerHTML = '';
 	document.body.innerHTML = '';
 	document.title = '';
+	resetRerunNonceForTests();
 }
 
 afterEach(() => {

@@ -4,20 +4,19 @@
  * @module
  */
 
-export type {
-	EcoRouterOptions,
-	EcoNavigationEvent,
-	EcoBeforeSwapEvent,
-	EcoAfterSwapEvent,
-	EcoRouterEventMap,
-} from './types.ts';
-
-export { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
 export {
-	defaultDocumentElementAttributesToSync,
+	createRouter,
+	DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
+	DEFAULT_OPTIONS,
+	EcoRouter,
 	syncDocumentElementAttributes,
-} from './client/document-element-sync.ts';
+	type BrowserRouterNavigateOptions,
+	type EcoAfterSwapEvent,
+	type EcoBeforeSwapEvent,
+	type EcoNavigationEvent,
+	type EcoRouterEventMap,
+	type EcoRouterOptions,
+} from './client/index.ts';
 
-export { EcoRouter, createRouter } from './client/index.ts';
-
-export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services/index.ts';
+export { DomSwapper } from './client/dom/dom-swapper.ts';
+export { ViewTransitionManager } from './client/services/view-transition-manager.ts';

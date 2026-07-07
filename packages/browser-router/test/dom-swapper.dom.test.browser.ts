@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomSwapper } from '../src/client/services/dom-swapper.ts';
+import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');

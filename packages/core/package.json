@@ -93,6 +93,18 @@
 			"types": "./src/router/client/link-navigation-policy.ts",
 			"default": "./src/router/client/link-navigation-policy.ts"
 		},
+		"./client/scroll": {
+			"types": "./src/client/scroll.ts",
+			"default": "./src/client/scroll.ts"
+		},
+		"./client/view-transitions": {
+			"types": "./src/client/view-transitions.ts",
+			"default": "./src/client/view-transitions.ts"
+		},
+		"./client/navigation-scripts": {
+			"types": "./src/client/navigation-scripts/index.ts",
+			"default": "./src/client/navigation-scripts/index.ts"
+		},
 		"./eco": {
 			"browser": "./src/eco/eco.browser.ts",
 			"types": "./src/eco/eco.ts",

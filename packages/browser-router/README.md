@@ -76,6 +76,12 @@ document.addEventListener('eco:before-swap', (event) => {
 
 Loading the router script is the opt-in point for browser-router-managed navigation on that page shell. Pages without the router script continue to use normal document navigation.
 
+## Router singleton
+
+`createRouter()` returns a single active router per browser tab. The first call creates, starts, and stores the instance on `window.__ecopages_browser_router__`. Later calls return that same instance and ignore new options.
+
+Call `router.stop()` before replacing the router script in long-lived sessions (for example after `data-eco-rerun` layout reloads) if you need a fresh instance with different options.
+
 ## Configuration
 
 | Option                            | Type                            | Default                                      | Description                                                                                 |

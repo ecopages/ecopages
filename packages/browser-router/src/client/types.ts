@@ -101,6 +101,13 @@ export interface EcoBeforeSwapEvent extends EcoNavigationEvent {
 /** Event fired after the DOM swap completes */
 export interface EcoAfterSwapEvent extends EcoNavigationEvent {}
 
+/** Custom event map for navigation lifecycle */
+export interface EcoRouterEventMap {
+	'eco:before-swap': CustomEvent<EcoBeforeSwapEvent>;
+	'eco:after-swap': CustomEvent<EcoAfterSwapEvent>;
+	'eco:page-load': CustomEvent<EcoNavigationEvent>;
+}
+
 /** Default prefetch configuration */
 const DEFAULT_PREFETCH_CONFIG: Required<PrefetchConfig> = {
 	strategy: 'intent',

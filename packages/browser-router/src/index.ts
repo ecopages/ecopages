@@ -10,9 +10,9 @@ export type {
 	EcoBeforeSwapEvent,
 	EcoAfterSwapEvent,
 	EcoRouterEventMap,
-} from './types.ts';
+} from './client/types.ts';
 
-export { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
+export { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './client/types.ts';
 export {
 	defaultDocumentElementAttributesToSync,
 	syncDocumentElementAttributes,

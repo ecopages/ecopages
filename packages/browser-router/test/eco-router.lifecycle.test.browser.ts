@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { createRouter, EcoRouter } from '../src/client/eco-router';
+import { createRouter } from '../src/client/eco-router';
 import { htmlFetchResponse, installEcoRouterTestHooks, type EcoRouterTestFixtures } from './eco-router.harness';
 
 describe('EcoRouter', () => {
@@ -25,9 +25,9 @@ describe('EcoRouter', () => {
 			fixtures.fetchSpy?.mockResolvedValueOnce(htmlFetchResponse(reactHtml));
 
 			const reloadSpy = vi.spyOn(
-				fixtures.router as EcoRouter & { reloadDocument: (url: URL) => void },
+				(fixtures.router as unknown as { commitDeps: { reloadDocument: (url: URL) => void } }).commitDeps,
 				'reloadDocument',
-			) as ReturnType<typeof vi.spyOn>;
+			);
 			reloadSpy.mockImplementation(() => undefined);
 			const pushStateSpy = vi.spyOn(window.history, 'pushState');
 			const afterSwapSpy = vi.fn();
@@ -59,9 +59,9 @@ describe('EcoRouter', () => {
 			getEcoNavigationRuntime(window).claimOwnership('react-router');
 
 			const reloadSpy = vi.spyOn(
-				fixtures.router as EcoRouter & { reloadDocument: (url: URL) => void },
+				(fixtures.router as unknown as { commitDeps: { reloadDocument: (url: URL) => void } }).commitDeps,
 				'reloadDocument',
-			) as ReturnType<typeof vi.spyOn>;
+			);
 			reloadSpy.mockImplementation(() => undefined);
 
 			try {

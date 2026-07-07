@@ -60,7 +60,7 @@ For advanced cases, browser-router also exports low-level document sync tooling 
 ```ts
 import {
 	createRouter,
-	defaultDocumentElementAttributesToSync,
+	DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
 	syncDocumentElementAttributes,
 } from '@ecopages/browser-router';
 
@@ -68,7 +68,7 @@ const router = createRouter();
 
 document.addEventListener('eco:before-swap', (event) => {
 	syncDocumentElementAttributes(document, event.detail.newDocument, [
-		...defaultDocumentElementAttributesToSync,
+		...DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
 		'data-theme',
 	]);
 });

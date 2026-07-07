@@ -28,6 +28,41 @@ export type LinkNavigationDecision =
 				| 'same-page-hash';
 	  };
 
+type LinkIneligibilityReason = Exclude<LinkNavigationDecision, { shouldIntercept: true }>['reason'];
+
+/**
+ * Shared anchor/href checks for navigation interception and prefetch eligibility.
+ */
+function getLinkIneligibilityReason(
+	link: HTMLAnchorElement,
+	options: LinkNavigationPolicyOptions,
+): LinkIneligibilityReason | null {
+	if (options.noPrefetchAttribute && link.hasAttribute(options.noPrefetchAttribute)) {
+		return 'no-prefetch';
+	}
+	if (options.reloadAttribute && link.hasAttribute(options.reloadAttribute)) {
+		return 'explicit-reload';
+	}
+	if (link.hasAttribute('download')) {
+		return 'download';
+	}
+
+	const href = link.getAttribute('href');
+	if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
+		return 'invalid-href';
+	}
+
+	const url = new URL(href, window.location.origin);
+	if (url.origin !== window.location.origin) {
+		return 'cross-origin';
+	}
+	if (isStaticAssetHref(href)) {
+		return 'static-asset';
+	}
+
+	return null;
+}
+
 /**
  * Returns whether an href only adds a hash fragment on the current page.
  */
@@ -67,25 +102,12 @@ export function getLinkNavigationDecision(
 		return { shouldIntercept: false, reason: 'external-target' };
 	}
 
-	if (options.reloadAttribute && link.hasAttribute(options.reloadAttribute)) {
-		return { shouldIntercept: false, reason: 'explicit-reload' };
-	}
-	if (link.hasAttribute('download')) {
-		return { shouldIntercept: false, reason: 'download' };
+	const ineligibility = getLinkIneligibilityReason(link, options);
+	if (ineligibility) {
+		return { shouldIntercept: false, reason: ineligibility };
 	}
 
-	const href = link.getAttribute('href');
-	if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
-		return { shouldIntercept: false, reason: 'invalid-href' };
-	}
-
-	const url = new URL(href, window.location.origin);
-	if (url.origin !== window.location.origin) {
-		return { shouldIntercept: false, reason: 'cross-origin' };
-	}
-	if (isStaticAssetHref(href)) {
-		return { shouldIntercept: false, reason: 'static-asset' };
-	}
+	const href = link.getAttribute('href')!;
 	if (isSamePageHashNavigationHref(href)) {
 		return { shouldIntercept: false, reason: 'same-page-hash' };
 	}
@@ -109,30 +131,13 @@ export function getNavigableHrefFromClick(
  * Returns whether a link is eligible for hover or viewport prefetch.
  */
 export function shouldPrefetchLink(link: HTMLAnchorElement, options: LinkNavigationPolicyOptions): boolean {
-	if (options.noPrefetchAttribute && link.hasAttribute(options.noPrefetchAttribute)) {
-		return false;
-	}
-	if (options.reloadAttribute && link.hasAttribute(options.reloadAttribute)) {
-		return false;
-	}
-	if (link.hasAttribute('download')) {
+	if (getLinkIneligibilityReason(link, options)) {
 		return false;
 	}
 
-	const href = link.getAttribute('href');
-	if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
-		return false;
-	}
-	if (isStaticAssetHref(href)) {
-		return false;
-	}
-
+	const href = link.getAttribute('href')!;
 	try {
 		const url = new URL(href, window.location.origin);
-		if (url.origin !== window.location.origin) {
-			return false;
-		}
-
 		const currentPath = window.location.pathname + window.location.search;
 		const targetPath = url.pathname + url.search;
 		return currentPath !== targetPath;

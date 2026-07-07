@@ -3,16 +3,6 @@
  * @module
  */
 
-import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC } from './types.ts';
-
-/**
- * Default root `<html>` attributes that browser-router treats as document-owned.
- *
- * These attributes are synchronized from the incoming document during navigation.
- * Other root attributes are preserved unless explicitly included.
- */
-export const defaultDocumentElementAttributesToSync = DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC;
-
 /**
  * Synchronizes a selected set of root `<html>` attributes from an incoming document
  * onto the current live document.

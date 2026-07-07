@@ -74,6 +74,10 @@ export function createRerunScriptUrl(src: string): string {
 
 /**
  * Replays queued rerun scripts after the incoming page body is in place.
+ *
+ * @remarks
+ * Flushed elements keep `data-eco-rerun` so head cleanup does not treat them
+ * as persistable inline scripts on the next navigation.
  */
 export function flushPendingRerunScripts(scripts: readonly PendingRerunScript[]): void {
 	for (const script of scripts) {
@@ -83,10 +87,6 @@ export function flushPendingRerunScripts(scripts: readonly PendingRerunScript[])
 		const shouldBustModuleSrc = isExternalModuleRerunScript(script) && !registeredRerun;
 
 		for (const [name, value] of script.attributes) {
-			if (name === 'data-eco-rerun') {
-				continue;
-			}
-
 			if (name === 'src' && shouldBustModuleSrc) {
 				replacement.setAttribute(RERUN_SRC_ATTR, value);
 				replacement.setAttribute('src', createRerunScriptUrl(value));

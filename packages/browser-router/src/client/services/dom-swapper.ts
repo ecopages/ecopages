@@ -148,7 +148,7 @@ export class DomSwapper {
 	 * - Handles script re-execution for marked scripts
 	 * - Injects new scripts from the incoming page that are absent from the current head
 	 */
-	morphHead(newDocument: Document): void {
+	morphHead(newDocument: Document): { bodyStrategy: 'morph' | 'replace' } {
 		this.pendingHeadScripts = [];
 		this.pendingRerunScripts = collectRerunScripts(newDocument);
 		this.removeStaleHeadScripts(newDocument);
@@ -249,6 +249,10 @@ export class DomSwapper {
 				existingInlineContents.add(content);
 			}
 		}
+
+		return {
+			bodyStrategy: this.pendingRerunScripts.length > 0 ? 'replace' : 'morph',
+		};
 	}
 
 	/**
@@ -284,15 +288,7 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Returns whether pending rerun scripts require a full body replacement
-	 * instead of morphing, so DOM-dependent bootstraps bind against fresh markup.
-	 */
-	shouldReplaceBodyForRerunScripts(): boolean {
-		return this.pendingRerunScripts.length > 0;
-	}
-
-	/**
-	 * Detects custom elements without shadow DOM (light-DOM custom elements).
+	 * Replays queued `data-eco-rerun` scripts after the body swap completes.
 	 * These need full replacement rather than morphing, because morphdom would
 	 * strip JS-generated content from their light DOM children.
 	 */

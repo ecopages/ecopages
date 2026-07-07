@@ -1,3 +1,5 @@
+import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
+
 /**
  * Shared client-side navigation intent helpers.
  *
@@ -62,17 +64,23 @@ export function getAnchorFromNavigationEvent(
 }
 
 /**
+ * Returns whether an href targets a static asset that should use a full document load.
+ */
+export function isStaticAssetHref(href: string): boolean {
+	try {
+		const url = new URL(href, 'http://localhost');
+		return hasKnownStaticExtension(url.pathname);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Resolves a previously captured intent while a navigation is still in flight.
  *
- * Pending intents expire quickly because they are only meant to bridge the gap
- * between pointer or hover capture and the later click event when the DOM or
- * active runtime changes during a rapid navigation sequence.
- *
- * @param intent - Previously captured pointer or hover intent.
- * @param hasInFlightNavigation - Whether a router navigation is still active.
- * @param now - Current monotonic timestamp, usually from `performance.now()`.
- * @param maxAgeMs - Maximum allowed age for the recovered intent.
- * @returns The intended href when still valid, otherwise `null`.
+ * @remarks
+ * Pending intents expire quickly because they bridge pointer or hover capture
+ * and the later click when the DOM changes during a rapid navigation sequence.
  */
 export function recoverPendingNavigationHref(
 	intent: EcoPendingNavigationIntent | null,

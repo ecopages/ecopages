@@ -7,9 +7,11 @@ import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfter
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import {
 	getAnchorFromNavigationEvent,
+	isStaticAssetHref,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
+import { assertHtmlPageResponse, getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
 import { DomSwapper, ScrollManager, ViewTransitionManager, PrefetchManager } from './services/index.ts';
@@ -61,33 +63,9 @@ export class EcoRouter {
 	}
 
 	private canInterceptLink(event: MouseEvent | PointerEvent, link: HTMLAnchorElement): string | null {
-		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
-		if (event.button !== 0) return null;
-
-		const target = link.getAttribute('target');
-		if (target && target !== '_self') return null;
-
-		if (link.hasAttribute(this.options.reloadAttribute)) return null;
-		if (link.hasAttribute('download')) return null;
-
-		const href = link.getAttribute('href');
-		if (!href) return null;
-
-		if (href.startsWith('#')) return null;
-		if (href.startsWith('javascript:')) return null;
-
-		const url = new URL(href, window.location.origin);
-		if (!this.isSameOrigin(url)) return null;
-
-		/**
-		 * Skip same-page anchor navigation — let the browser handle it natively.
-		 * This covers full-path hash links like "/docs/page#section" when already on that page.
-		 */
-		if (url.hash && url.pathname === window.location.pathname && url.search === window.location.search) {
-			return null;
-		}
-
-		return href;
+		return getNavigableHrefFromClick(event, link, {
+			reloadAttribute: this.options.reloadAttribute,
+		});
 	}
 
 	private getRecoveredPointerHref(): string | null {
@@ -373,6 +351,11 @@ export class EcoRouter {
 			return;
 		}
 
+		if (isStaticAssetHref(href)) {
+			window.location.assign(url.href);
+			return;
+		}
+
 		await this.performNavigation(url, options.replace ? 'replace' : 'forward');
 	}
 
@@ -599,6 +582,7 @@ export class EcoRouter {
 			throw new Error(`Failed to fetch page: ${response.status}`);
 		}
 
+		await assertHtmlPageResponse(response);
 		return response.text();
 	}
 }

@@ -11,6 +11,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const docsSrc = path.join(repoRoot, 'apps', 'docs', 'src');
 const docsDist = path.join(repoRoot, 'apps', 'docs', 'dist');
+const docsEco = path.join(repoRoot, 'apps', 'docs', '.eco');
 const port = process.env.ECOPAGES_PORT || '4009';
 
 /** Workspace packages whose changes must invalidate a cached docs dist build. */
@@ -104,6 +105,10 @@ if (isDistFresh()) {
 		rmSync(docsDist, { recursive: true, force: true });
 	} else {
 		console.log('[docs-e2e] no dist — building');
+	}
+
+	if (existsSync(docsEco)) {
+		rmSync(docsEco, { recursive: true, force: true });
 	}
 
 	runCommand(`NODE_ENV=production pnpm --filter @ecopages/docs run build && ${previewCommand}`);

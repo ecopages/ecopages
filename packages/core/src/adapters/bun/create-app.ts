@@ -57,7 +57,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 		},
 	) {
-		super(options);
+		super(options, 'Bun');
 		this.runtimeHost = dependencies.runtimeHost;
 	}
 

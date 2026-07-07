@@ -1,5 +1,4 @@
 import { createApp } from '@ecopages/core/create-app';
-import { onAppStartCallback } from '../../playwright/on-app-start';
 import appConfig from './eco.config';
 
 const app = await createApp({ appConfig });
@@ -54,4 +53,4 @@ app.get('/api/cache-stats', async ({ services }) => {
 	return Response.json(stats);
 });
 
-await app.start(onAppStartCallback);
+await app.start();

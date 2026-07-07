@@ -25,7 +25,8 @@ describe('EcoRouter', () => {
 			fixtures.fetchSpy?.mockResolvedValueOnce(htmlFetchResponse(reactHtml));
 
 			const reloadSpy = vi.spyOn(
-				(fixtures.router as unknown as { commitDeps: { reloadDocument: (url: URL) => void } }).commitDeps,
+				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
+					.navigationCommit,
 				'reloadDocument',
 			);
 			reloadSpy.mockImplementation(() => undefined);
@@ -44,6 +45,8 @@ describe('EcoRouter', () => {
 				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 			} finally {
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
+				reloadSpy.mockRestore();
+				pushStateSpy.mockRestore();
 			}
 		});
 
@@ -59,7 +62,8 @@ describe('EcoRouter', () => {
 			getEcoNavigationRuntime(window).claimOwnership('react-router');
 
 			const reloadSpy = vi.spyOn(
-				(fixtures.router as unknown as { commitDeps: { reloadDocument: (url: URL) => void } }).commitDeps,
+				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
+					.navigationCommit,
 				'reloadDocument',
 			);
 			reloadSpy.mockImplementation(() => undefined);
@@ -91,6 +95,7 @@ describe('EcoRouter', () => {
 					document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 				}
 				unregister();
+				reloadSpy.mockRestore();
 			}
 		});
 

@@ -13,11 +13,10 @@ import {
 } from '@ecopages/core/router/link-intent';
 import { getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
-import { syncDocumentElementAttributes } from './document-element-sync.ts';
 import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
 import { ViewTransitionManager } from './services/view-transition-manager.ts';
-import { commitDocumentNavigation, type CommitDocumentNavigationDeps } from './navigation-commit.ts';
+import { NavigationCommit } from './navigation-commit.ts';
 import { fetchNavigationPage } from './navigation-fetch.ts';
 
 /**
@@ -35,7 +34,7 @@ export class EcoRouter {
 	private domSwapper: DomSwapper;
 	private viewTransitionManager: ViewTransitionManager;
 	private prefetchManager: PrefetchManager | null = null;
-	private readonly commitDeps: CommitDocumentNavigationDeps;
+	private readonly navigationCommit: NavigationCommit;
 
 	constructor(options: EcoRouterOptions = {}) {
 		this.options = {
@@ -60,18 +59,12 @@ export class EcoRouter {
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 
-		this.commitDeps = {
-			domSwapper: this.domSwapper,
-			viewTransitionManager: this.viewTransitionManager,
-			prefetchManager: this.prefetchManager,
-			options: this.options,
-			syncDocumentElementAttributes: (newDocument) => {
-				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
-			},
-			reloadDocument: (url) => {
-				window.location.assign(url.href);
-			},
-		};
+		this.navigationCommit = new NavigationCommit(
+			this.domSwapper,
+			this.viewTransitionManager,
+			this.prefetchManager,
+			this.options,
+		);
 	}
 
 	private getRecoveredPointerHref(): string | null {
@@ -130,8 +123,7 @@ export class EcoRouter {
 				const { isStaleNavigation, complete } = this.beginNavigationTransaction();
 				if (isStaleNavigation()) return true;
 				try {
-					await commitDocumentNavigation(
-						this.commitDeps,
+					await this.navigationCommit.commit(
 						new URL(request.finalHref ?? request.href, window.location.origin),
 						request.direction ?? 'forward',
 						request.document,
@@ -363,7 +355,7 @@ export class EcoRouter {
 				return false;
 			}
 
-			committed = await commitDocumentNavigation(this.commitDeps, url, direction, newDocument, {
+			committed = await this.navigationCommit.commit(url, direction, newDocument, {
 				html,
 				isStaleNavigation,
 				allowFullDocumentFallback,

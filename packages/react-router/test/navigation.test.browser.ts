@@ -4,12 +4,24 @@ import {
 	extractProps,
 	extractComponentUrl,
 	fetchPageDocument,
+	getInterceptDecision,
 	isSamePageHashNavigationHref,
 	loadPageModule,
 	loadPageModuleFromDocument,
 	shouldInterceptClick,
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
+
+function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
+	return new Response(body, {
+		status: 200,
+		...init,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			...(init.headers ?? {}),
+		},
+	});
+}
 
 function createMockDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -410,7 +422,7 @@ describe('loadPageModule', () => {
 
 	it('should return null when component URL cannot be extracted', async () => {
 		const mockHtml = '<html><body>No scripts</body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await loadPageModule('/test');
 
@@ -420,7 +432,7 @@ describe('loadPageModule', () => {
 
 	it('should log when a marked react-router document is missing a component URL', async () => {
 		const mockHtml = `<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`;
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await loadPageModule('/test');
 
@@ -449,7 +461,7 @@ describe('loadPageModule', () => {
 
 	it('should fetch and parse a navigation document without loading a module', async () => {
 		const mockHtml = '<html><body><main>Outside React</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await fetchPageDocument('/docs');
 
@@ -463,7 +475,7 @@ describe('loadPageModule', () => {
 
 	it('should request navigation documents as HTML', async () => {
 		const mockHtml = '<html><body><main>Docs</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		await fetchPageDocument('/docs');
 
@@ -597,6 +609,20 @@ describe('shouldInterceptClick', () => {
 		const result = shouldInterceptClick(event, link, options);
 
 		expect(result).toBe(false);
+	});
+
+	it('should not intercept links to static asset files', () => {
+		for (const href of ['/skill.txt', '/skill/reference/full-stack.md']) {
+			const link = createLink(href);
+			links.push(link);
+			const event = createMouseEvent();
+
+			expect(shouldInterceptClick(event, link, options)).toBe(false);
+			expect(getInterceptDecision(event, link, options)).toEqual({
+				shouldIntercept: false,
+				reason: 'static-asset',
+			});
+		}
 	});
 
 	it('should not intercept links with reload attribute', () => {

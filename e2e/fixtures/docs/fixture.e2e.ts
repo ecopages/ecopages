@@ -10,6 +10,7 @@ export default defineExternalFixture(
 		command: 'NODE_ENV=production ECOPAGES_PORT=4009 node e2e/scripts/playwright/start-docs-e2e-server.mjs',
 		cwd: '.',
 		projectName: 'docs-e2e',
+		readiness: 'port',
 	},
 	devices['Desktop Chrome'],
 	{ reuseExistingServer: shouldReuseExistingTestServers() },

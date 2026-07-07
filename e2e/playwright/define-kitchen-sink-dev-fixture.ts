@@ -5,7 +5,7 @@
  * .eco-${scope} dir and its own port. HMR stays in the isolated fixture.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getIsolatedDevServerReadySignal } from './isolated-dev-server-ready.ts';
+import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
 import {
 	crossIntegrationHmrMatch,
@@ -95,7 +95,7 @@ export function defineKitchenSinkDevFixture(
 	const webServers: FixtureWebServer[] = devVariants.map((variant) => ({
 		command: buildDevServerCommand(variant),
 		cwd: '.',
-		...getIsolatedDevServerReadySignal(variant.host, variant.port),
+		...getEcopagesServerReadySignal(),
 		projects: [variant.name],
 		reuseExistingServer: options.reuseExistingServer,
 		stdout: 'pipe',

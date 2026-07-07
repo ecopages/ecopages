@@ -27,7 +27,10 @@ import type {
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { formatServerReadyMessage } from '../../dev/server-ready-message.ts';
+import {
+	formatRuntimeServerStartedMessage,
+	type EcopagesRuntimeLabel,
+} from '../../dev/runtime-server-started-message.ts';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 
 /**
@@ -148,8 +151,10 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 	private onAppStartCallback?: OnAppStartCallback;
+	protected readonly runtimeLabel: EcopagesRuntimeLabel;
 
-	constructor(options: TOptions) {
+	constructor(options: TOptions, runtimeLabel: EcopagesRuntimeLabel) {
+		this.runtimeLabel = runtimeLabel;
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.runtimeOptions = options.runtime ?? {};
@@ -511,6 +516,10 @@ export abstract class AbstractApplicationAdapter<
 	/** Runtime-specific server boot (dev, preview, build). */
 	protected abstract bootServer(): Promise<TServer | void>;
 
+	protected logServerStarted(origin: string): void {
+		appLogger.info(formatRuntimeServerStartedMessage(this.runtimeLabel, origin));
+	}
+
 	/**
 	 * Invoked by embedded hosts (for example Vite) once the app can take traffic.
 	 */
@@ -522,7 +531,7 @@ export abstract class AbstractApplicationAdapter<
 		const normalizedOrigin = origin.replace(/\/$/, '');
 
 		if (!this.onAppStartCallback) {
-			console.log(formatServerReadyMessage(normalizedOrigin));
+			this.logServerStarted(normalizedOrigin);
 		}
 
 		this.onAppStartCallback?.({ origin: normalizedOrigin });

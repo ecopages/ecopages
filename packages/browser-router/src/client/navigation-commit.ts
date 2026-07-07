@@ -1,6 +1,6 @@
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
-import type { DomSwapper } from './services/dom-swapper.ts';
+import type { DomSwapper } from './dom/dom-swapper.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
 import type { ViewTransitionManager } from './services/view-transition-manager.ts';
 import type { EcoAfterSwapEvent, EcoBeforeSwapEvent, EcoNavigationEvent, EcoRouterOptions } from './types.ts';

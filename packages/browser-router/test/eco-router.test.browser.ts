@@ -41,10 +41,14 @@ function resetBrowserRuntimeState(): void {
 }
 
 function mockFetch(htmlContent: string) {
-	return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-		ok: true,
-		text: async () => htmlContent,
-	} as Response);
+	return vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlFetchResponse(htmlContent));
+}
+
+function htmlFetchResponse(body: string): Response {
+	return new Response(body, {
+		status: 200,
+		headers: { 'Content-Type': 'text/html; charset=utf-8' },
+	});
 }
 
 function createLink(attributes: Record<string, string>): HTMLAnchorElement {
@@ -176,10 +180,12 @@ describe('EcoRouter', () => {
 			router = createRouter();
 			const fullMockHtml =
 				'<html><head><title>New Title</title></head><body><div id="content">New Content</div></body></html>';
-			fetchSpy?.mockResolvedValueOnce({
-				ok: true,
-				text: async () => fullMockHtml,
-			} as Response);
+			fetchSpy?.mockResolvedValueOnce(
+				new Response(fullMockHtml, {
+					status: 200,
+					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+				}),
+			);
 
 			await router.navigate('/full-update');
 
@@ -194,10 +200,12 @@ describe('EcoRouter', () => {
 			});
 			const fullMockHtml =
 				'<html lang="fr" data-theme="light"><head><title>New Title</title></head><body><div id="content">New Content</div></body></html>';
-			fetchSpy?.mockResolvedValueOnce({
-				ok: true,
-				text: async () => fullMockHtml,
-			} as Response);
+			fetchSpy?.mockResolvedValueOnce(
+				new Response(fullMockHtml, {
+					status: 200,
+					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+				}),
+			);
 
 			await router.navigate('/custom-html-sync');
 
@@ -269,19 +277,19 @@ describe('EcoRouter', () => {
 							abortSignal?.addEventListener('abort', handleAbort, { once: true });
 							firstFetch.promise.then(() => {
 								abortSignal?.removeEventListener('abort', handleAbort);
-								resolve({
-									ok: true,
-									text: async () =>
+								resolve(
+									htmlFetchResponse(
 										'<html><head></head><body><div id="content">First Content</div></body></html>',
-								} as Response);
+									),
+								);
 							});
 						}),
 				);
-				fetchSpy?.mockResolvedValueOnce({
-					ok: true,
-					text: async () =>
+				fetchSpy?.mockResolvedValueOnce(
+					htmlFetchResponse(
 						'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
-				} as Response);
+					),
+				);
 
 				const firstLink = createLink({ href: '/first-route', id: 'first-link' });
 				const hoveredLink = createLink({ href: '/hover-recovered-route', id: 'hovered-link' });
@@ -465,6 +473,19 @@ describe('EcoRouter', () => {
 				link.addEventListener('click', (e) => e.preventDefault());
 
 				simulateClick(link);
+
+				expect(pushStateSpy).not.toHaveBeenCalled();
+			});
+
+			it('should NOT intercept links to static asset files', () => {
+				router = createRouter();
+				const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+				for (const href of ['/skill.txt', '/skill/reference/full-stack.md', '/llms.txt']) {
+					const link = createLink({ href, id: `static-${href}` });
+					link.addEventListener('click', (e) => e.preventDefault());
+					simulateClick(link);
+				}
 
 				expect(pushStateSpy).not.toHaveBeenCalled();
 			});
@@ -670,10 +691,7 @@ describe('EcoRouter', () => {
 				'<body><main>React Route</main></body>',
 				'</html>',
 			].join('');
-			fetchSpy?.mockResolvedValueOnce({
-				ok: true,
-				text: async () => reactHtml,
-			} as Response);
+			fetchSpy?.mockResolvedValueOnce(htmlFetchResponse(reactHtml));
 
 			const reloadSpy = vi.spyOn(
 				router as EcoRouter & { reloadDocument: (url: URL) => void },
@@ -875,10 +893,7 @@ describe('EcoRouter', () => {
 			const fetchCalled = new Promise((resolve) => {
 				fetchSpy?.mockImplementationOnce(async () => {
 					resolve(true);
-					return {
-						ok: true,
-						text: async () => '<html><body>Popstate Content</body></html>',
-					} as Response;
+					return htmlFetchResponse('<html><body>Popstate Content</body></html>');
 				});
 			});
 
@@ -919,10 +934,7 @@ describe('EcoRouter', () => {
 					});
 				}
 
-				return Promise.resolve({
-					ok: true,
-					text: async () => '<html><body>Second</body></html>',
-				} as Response);
+				return Promise.resolve(htmlFetchResponse('<html><body>Second</body></html>'));
 			});
 
 			void router.navigate('/first-page');
@@ -946,10 +958,7 @@ describe('EcoRouter', () => {
 					abortSignal = init?.signal ?? undefined;
 					return new Promise(() => {});
 				}
-				return Promise.resolve({
-					ok: true,
-					text: async () => '<html><body>Second</body></html>',
-				} as Response);
+				return Promise.resolve(htmlFetchResponse('<html><body>Second</body></html>'));
 			});
 
 			router.navigate('/first-page');
@@ -970,16 +979,14 @@ describe('EcoRouter', () => {
 
 			fetchSpy?.mockImplementation((url: string | URL | Request) => {
 				if (url.toString().includes('/slow-page')) {
-					return Promise.resolve({
-						ok: true,
-						text: async () => '<html><body><div id="content">Slow Content</div></body></html>',
-					} as Response);
+					return Promise.resolve(
+						htmlFetchResponse('<html><body><div id="content">Slow Content</div></body></html>'),
+					);
 				}
 
-				return Promise.resolve({
-					ok: true,
-					text: async () => '<html><body><div id="content">Fast Content</div></body></html>',
-				} as Response);
+				return Promise.resolve(
+					htmlFetchResponse('<html><body><div id="content">Fast Content</div></body></html>'),
+				);
 			});
 
 			const routerWithInternals = router as unknown as {
@@ -1022,18 +1029,16 @@ describe('EcoRouter', () => {
 							},
 						);
 						slowPage.promise.then(() => {
-							resolve({
-								ok: true,
-								text: async () => '<html><body><div id="content">Slow Content</div></body></html>',
-							} as Response);
+							resolve(
+								htmlFetchResponse('<html><body><div id="content">Slow Content</div></body></html>'),
+							);
 						});
 					});
 				}
 
-				return Promise.resolve({
-					ok: true,
-					text: async () => '<html><body><div id="content">Fast Content</div></body></html>',
-				} as Response);
+				return Promise.resolve(
+					htmlFetchResponse('<html><body><div id="content">Fast Content</div></body></html>'),
+				);
 			});
 
 			const slowNavigation = router.navigate('/slow-page');

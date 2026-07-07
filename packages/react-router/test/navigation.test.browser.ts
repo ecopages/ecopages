@@ -1,15 +1,29 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import {
 	extractProps,
 	extractComponentUrl,
 	fetchPageDocument,
-	isSamePageHashNavigationHref,
 	loadPageModule,
 	loadPageModuleFromDocument,
-	shouldInterceptClick,
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
+
+function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
+	return { reloadAttribute: options.reloadAttribute };
+}
+
+function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
+	return new Response(body, {
+		status: 200,
+		...init,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			...(init.headers ?? {}),
+		},
+	});
+}
 
 function createMockDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -410,7 +424,7 @@ describe('loadPageModule', () => {
 
 	it('should return null when component URL cannot be extracted', async () => {
 		const mockHtml = '<html><body>No scripts</body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await loadPageModule('/test');
 
@@ -420,7 +434,7 @@ describe('loadPageModule', () => {
 
 	it('should log when a marked react-router document is missing a component URL', async () => {
 		const mockHtml = `<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`;
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await loadPageModule('/test');
 
@@ -449,7 +463,7 @@ describe('loadPageModule', () => {
 
 	it('should fetch and parse a navigation document without loading a module', async () => {
 		const mockHtml = '<html><body><main>Outside React</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await fetchPageDocument('/docs');
 
@@ -463,7 +477,7 @@ describe('loadPageModule', () => {
 
 	it('should request navigation documents as HTML', async () => {
 		const mockHtml = '<html><body><main>Docs</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		await fetchPageDocument('/docs');
 
@@ -520,7 +534,7 @@ describe('loadPageModule', () => {
 	});
 });
 
-describe('shouldInterceptClick', () => {
+describe('getLinkNavigationDecision', () => {
 	const options = DEFAULT_OPTIONS;
 	let links: HTMLAnchorElement[] = [];
 
@@ -538,7 +552,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(true);
 	});
@@ -547,7 +561,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ ctrlKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ ctrlKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -555,7 +573,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ metaKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ metaKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -564,7 +586,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent({ button: 1 });
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -574,7 +596,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -584,7 +606,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -594,9 +616,25 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
+	});
+
+	it('should not intercept links to static asset files', () => {
+		for (const href of ['/skill.txt', '/skill/reference/full-stack.md']) {
+			const link = createLink(href);
+			links.push(link);
+			const event = createMouseEvent();
+
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept).toBe(
+				false,
+			);
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options))).toEqual({
+				shouldIntercept: false,
+				reason: 'static-asset',
+			});
+		}
 	});
 
 	it('should not intercept links with reload attribute', () => {
@@ -604,7 +642,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -614,7 +652,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -624,7 +662,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/docs/ecosystem/browser-router#setup');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent(), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent(),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 
 		expect(result).toBe(false);
 		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
@@ -635,7 +677,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -645,7 +687,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});

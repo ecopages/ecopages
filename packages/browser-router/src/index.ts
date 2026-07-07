@@ -18,6 +18,6 @@ export {
 	syncDocumentElementAttributes,
 } from './client/document-element-sync.ts';
 
-export { EcoRouter, createRouter } from './client/eco-router.ts';
+export { EcoRouter, createRouter } from './client/index.ts';
 
 export { DomSwapper, ScrollManager, ViewTransitionManager } from './client/services/index.ts';

@@ -99,8 +99,14 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit);
 
-			if (!response.ok) return;
-			if (!isHtmlPageResponse(response)) return;
+			if (!response.ok) {
+				this.prefetched.delete(url.href);
+				return;
+			}
+			if (!isHtmlPageResponse(response)) {
+				this.prefetched.delete(url.href);
+				return;
+			}
 
 			const html = await response.text();
 

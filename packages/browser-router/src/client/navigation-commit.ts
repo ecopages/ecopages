@@ -125,7 +125,7 @@ export async function commitDocumentNavigation(
 
 	document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
 
-	deps.prefetchManager?.observeNewLinks();
+	deps.prefetchManager?.observeLinks();
 
 	if (options.html) {
 		deps.prefetchManager?.cacheVisitedPage(url.href, options.html);

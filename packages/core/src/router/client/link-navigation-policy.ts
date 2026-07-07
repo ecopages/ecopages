@@ -1,7 +1,8 @@
 import { isStaticAssetHref } from './link-intent.ts';
 
 /**
- * Options shared by link interception and prefetch eligibility checks.
+ * Canonical link interception, prefetch eligibility, and HTML fetch guards.
+ * @module
  */
 export type LinkNavigationPolicyOptions = {
 	/** Attribute that forces a full document reload instead of SPA navigation. */
@@ -142,13 +143,13 @@ export function shouldPrefetchLink(link: HTMLAnchorElement, options: LinkNavigat
 
 /**
  * @remarks
- * Prefetch and SPA fetches request HTML. Static markdown, plain text, and other
- * asset responses must not be parsed as documents.
+ * Prefetch and SPA fetches request HTML. Only explicit `text/html` and
+ * `application/xhtml+xml` responses are accepted; missing or asset types are rejected.
  */
 export function isHtmlPageResponse(response: Response): boolean {
 	const contentType = response.headers.get('Content-Type');
 	if (!contentType) {
-		return true;
+		return false;
 	}
 
 	const normalized = contentType.split(';')[0]?.trim().toLowerCase() ?? '';

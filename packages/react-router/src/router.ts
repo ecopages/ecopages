@@ -52,6 +52,7 @@ import {
 } from '@ecopages/react/layout-compose';
 import {
 	getAnchorFromNavigationEvent,
+	isStaticAssetHref,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
@@ -380,6 +381,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 
 			try {
 				setIsNavigating(true);
+
+				if (isStaticAssetHref(url)) {
+					window.location.assign(new URL(url, window.location.origin).href);
+					return;
+				}
+
 				const fetchedPage = await fetchPageDocument(url, { signal: navigation.signal });
 
 				if (isStale()) return;

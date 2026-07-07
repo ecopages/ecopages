@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	assertHtmlPageResponse,
 	getLinkNavigationDecision,
 	getNavigableHrefFromClick,
 	isHtmlPageResponse,
@@ -93,16 +92,16 @@ describe('isHtmlPageResponse', () => {
 	});
 });
 
-describe('assertHtmlPageResponse', () => {
-	it('throws for non-html responses', async () => {
-		await expect(
-			assertHtmlPageResponse(new Response('text', { headers: { 'Content-Type': 'text/plain' } })),
-		).rejects.toThrow(/Expected HTML page response/);
+describe('isHtmlPageResponse', () => {
+	it('accepts html and xhtml content types', () => {
+		expect(isHtmlPageResponse(new Response('', { headers: { 'Content-Type': 'text/html' } }))).toBe(true);
+		expect(isHtmlPageResponse(new Response('', { headers: { 'Content-Type': 'application/xhtml+xml' } }))).toBe(
+			true,
+		);
 	});
 
-	it('accepts document-shaped bodies when the runtime defaults to text/plain', async () => {
-		await expect(
-			assertHtmlPageResponse(new Response('<html><body></body></html>', { status: 200 })),
-		).resolves.toBeUndefined();
+	it('rejects plain text and markdown responses', () => {
+		expect(isHtmlPageResponse(new Response('text', { headers: { 'Content-Type': 'text/plain' } }))).toBe(false);
+		expect(isHtmlPageResponse(new Response('# doc', { headers: { 'Content-Type': 'text/markdown' } }))).toBe(false);
 	});
 });

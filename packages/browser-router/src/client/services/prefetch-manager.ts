@@ -4,7 +4,7 @@
  * @module prefetch-manager
  */
 
-import { assertHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+import { isHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
 
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
 
@@ -100,8 +100,8 @@ export class PrefetchManager {
 			} as RequestInit);
 
 			if (!response.ok) return;
+			if (!isHtmlPageResponse(response)) return;
 
-			await assertHtmlPageResponse(response);
 			const html = await response.text();
 
 			this.htmlCache.set(url.href, html);

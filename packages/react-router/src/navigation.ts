@@ -7,8 +7,8 @@
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
 import {
-	assertHtmlPageResponse,
 	getLinkNavigationDecision,
+	isHtmlPageResponse,
 	isSamePageHashNavigationHref,
 	type LinkNavigationDecision,
 } from '@ecopages/core/router/link-navigation-policy';
@@ -253,7 +253,9 @@ export async function fetchPageDocument(
 				Accept: 'text/html',
 			},
 		});
-		await assertHtmlPageResponse(res);
+		if (!isHtmlPageResponse(res)) {
+			return null;
+		}
 		const html = await res.text();
 
 		const finalUrl = new URL(res.url || url, window.location.origin);

@@ -56,12 +56,12 @@ export const getContentType = (file: string): string => {
  * @param file - The file name or path.
  * @returns true if the extension is recognized.
  */
-export const hasKnownExtension = hasKnownStaticExtension;
+export { hasKnownStaticExtension } from './static-file-extensions.ts';
 
 /**
  * A module for server utilities.
  */
 export const ServerUtils = {
 	getContentType,
-	hasKnownExtension,
+	hasKnownStaticExtension,
 };

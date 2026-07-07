@@ -76,7 +76,7 @@ export class FileSystemResponseMatcher {
 	 * @returns Static file response or rendered 404 response.
 	 */
 	async handleNoMatch(requestUrl: string): Promise<Response> {
-		const isStaticFileRequest = ServerUtils.hasKnownExtension(requestUrl);
+		const isStaticFileRequest = ServerUtils.hasKnownStaticExtension(requestUrl);
 
 		if (!isStaticFileRequest) {
 			return this.renderCustomNotFoundResponseOrServerError(requestUrl);

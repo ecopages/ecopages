@@ -5,16 +5,16 @@
  */
 
 import morphdom from 'morphdom';
+import {
+	RERUN_SRC_ATTR,
+	collectRerunScripts,
+	flushPendingRerunScripts,
+	isNonExecutableHeadScript,
+	shouldPersistExecutableInlineHeadScript,
+	type PendingRerunScript,
+} from '@ecopages/core/client/navigation-scripts';
 
 const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
-
-type PendingRerunScript = {
-	parent: 'head' | 'body';
-	attributes: Array<[string, string]>;
-	textContent: string;
-	src: string | null;
-	scriptId: string | null;
-};
 
 type PendingHeadScript = {
 	attributes: Array<[string, string]>;
@@ -23,10 +23,6 @@ type PendingHeadScript = {
 	scriptId: string | null;
 	replaceExisting: boolean;
 };
-
-type RerunScriptCallback = () => void;
-
-const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 
 /**
  * Checks if element has a persist attribute (custom or default).
@@ -70,7 +66,6 @@ export class DomSwapper {
 	private persistAttribute: string;
 	private pendingHeadScripts: PendingHeadScript[] = [];
 	private pendingRerunScripts: PendingRerunScript[] = [];
-	private rerunNonce = 0;
 
 	constructor(persistAttribute: string) {
 		this.persistAttribute = persistAttribute;
@@ -155,7 +150,7 @@ export class DomSwapper {
 	 */
 	morphHead(newDocument: Document): void {
 		this.pendingHeadScripts = [];
-		this.pendingRerunScripts = this.collectRerunScripts(newDocument);
+		this.pendingRerunScripts = collectRerunScripts(newDocument);
 		this.removeStaleHeadScripts(newDocument);
 
 		/** Update the document title if it has changed. */
@@ -212,7 +207,7 @@ export class DomSwapper {
 			const existingScript = this.findExistingHeadScript(script);
 
 			if (scriptId && existingScript) {
-				if (!this.isNonExecutableHeadScript(script)) {
+				if (!isNonExecutableHeadScript(script)) {
 					continue;
 				}
 
@@ -284,47 +279,7 @@ export class DomSwapper {
 
 		this.pendingHeadScripts = [];
 
-		for (const script of this.pendingRerunScripts) {
-			const targetParent = script.parent === 'body' ? document.body : document.head;
-			const registeredRerun = this.getRegisteredRerunScript(script.scriptId);
-			const replacement = document.createElement('script');
-			const shouldBustModuleSrc = this.isExternalModuleRerunScript(script) && !registeredRerun;
-
-			for (const [name, value] of script.attributes) {
-				if (name === 'data-eco-rerun') {
-					continue;
-				}
-
-				if (name === 'src' && shouldBustModuleSrc) {
-					replacement.setAttribute(RERUN_SRC_ATTR, value);
-					replacement.setAttribute('src', this.createRerunScriptUrl(value));
-					continue;
-				}
-
-				replacement.setAttribute(name, value);
-			}
-
-			replacement.textContent = script.textContent;
-
-			const existingScript = this.findExistingRerunScript(targetParent, script);
-
-			if (registeredRerun) {
-				if (!existingScript) {
-					targetParent.appendChild(replacement);
-				}
-
-				registeredRerun();
-				continue;
-			}
-
-			if (existingScript) {
-				existingScript.replaceWith(replacement);
-				continue;
-			}
-
-			targetParent.appendChild(replacement);
-		}
-
+		flushPendingRerunScripts(this.pendingRerunScripts);
 		this.pendingRerunScripts = [];
 	}
 
@@ -464,22 +419,6 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Collects all `data-eco-rerun` scripts from the incoming document.
-	 *
-	 * These scripts are re-executed after each navigation so their side-effects
-	 * (event listeners, DOM bootstraps) bind against the new page content.
-	 */
-	private collectRerunScripts(newDocument: Document): PendingRerunScript[] {
-		return Array.from(newDocument.querySelectorAll<HTMLScriptElement>('script[data-eco-rerun]')).map((script) => ({
-			parent: script.closest('body') ? 'body' : 'head',
-			attributes: Array.from(script.attributes).map((attr) => [attr.name, attr.value]),
-			textContent: script.textContent ?? '',
-			src: script.getAttribute('src'),
-			scriptId: script.getAttribute('data-eco-script-id'),
-		}));
-	}
-
-	/**
 	 * Removes head scripts that are no longer present in the incoming document.
 	 *
 	 * Persisted scripts and executable inline scripts with stable identifiers
@@ -502,59 +441,12 @@ export class DomSwapper {
 				continue;
 			}
 
-			if (this.shouldPersistExecutableInlineHeadScript(script)) {
+			if (shouldPersistExecutableInlineHeadScript(script)) {
 				continue;
 			}
 
 			script.remove();
 		}
-	}
-
-	/**
-	 * Determines whether an inline head script should survive navigation.
-	 *
-	 * Only identified (`data-eco-script-id` or `id`), executable inline scripts
-	 * are persisted. External scripts and rerun scripts are never persisted here
-	 * because they have their own lifecycle management.
-	 */
-	private shouldPersistExecutableInlineHeadScript(script: HTMLScriptElement): boolean {
-		const scriptId = script.getAttribute('data-eco-script-id') || script.getAttribute('id');
-		if (!scriptId) {
-			return false;
-		}
-
-		if (script.hasAttribute('data-eco-rerun')) {
-			return false;
-		}
-
-		if (script.getAttribute(RERUN_SRC_ATTR) || script.getAttribute('src')) {
-			return false;
-		}
-
-		return !this.isNonExecutableHeadScript(script);
-	}
-
-	/**
-	 * Returns whether a script is non-executable (e.g. `type="application/json"`).
-	 *
-	 * Non-executable scripts are data carriers (JSON-LD, page data) that can be
-	 * safely replaced without side-effects, unlike executable scripts that would
-	 * re-run their bootstrap logic.
-	 */
-	private isNonExecutableHeadScript(script: HTMLScriptElement): boolean {
-		const type = (script.getAttribute('type') ?? '').trim().toLowerCase();
-
-		if (!type) {
-			return false;
-		}
-
-		return ![
-			'application/javascript',
-			'application/ecmascript',
-			'module',
-			'text/ecmascript',
-			'text/javascript',
-		].includes(type);
 	}
 
 	/**
@@ -632,67 +524,6 @@ export class DomSwapper {
 				(candidate) => this.getHeadScriptKey(candidate) === scriptKey,
 			) ?? null
 		);
-	}
-
-	/**
-	 * Finds an existing rerun script in the given root by `data-eco-script-id` or
-	 * by matching `src` and `textContent`.
-	 */
-	private findExistingRerunScript(root: HTMLElement, script: PendingRerunScript): HTMLScriptElement | null {
-		const scripts = Array.from(root.querySelectorAll<HTMLScriptElement>('script'));
-
-		if (script.scriptId) {
-			return (
-				scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null
-			);
-		}
-
-		return (
-			scripts.find(
-				(candidate) =>
-					(candidate.getAttribute(RERUN_SRC_ATTR) ?? candidate.getAttribute('src')) === script.src &&
-					(candidate.textContent ?? '') === script.textContent,
-			) ?? null
-		);
-	}
-
-	/**
-	 * Returns whether a rerun script is an external ES module (`type="module"` with `src`).
-	 *
-	 * Module scripts are cached by URL, so re-execution requires cache-busting
-	 * via a query parameter nonce.
-	 */
-	private isExternalModuleRerunScript(script: PendingRerunScript): boolean {
-		if (!script.src) {
-			return false;
-		}
-
-		return script.attributes.some(([name, value]) => name === 'type' && value === 'module');
-	}
-
-	private getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
-		if (!scriptId) {
-			return null;
-		}
-
-		const runtimeWindow = window as Window &
-			typeof globalThis & {
-				__ECO_PAGES__?: {
-					rerunScripts?: Record<string, RerunScriptCallback | undefined>;
-				};
-			};
-
-		return runtimeWindow.__ECO_PAGES__?.rerunScripts?.[scriptId] ?? null;
-	}
-
-	/**
-	 * Appends a nonce query parameter to a script URL to bust the browser's
-	 * module cache and force re-execution on navigation.
-	 */
-	private createRerunScriptUrl(src: string): string {
-		const url = new URL(src, document.baseURI);
-		url.searchParams.set('__eco_rerun', String(++this.rerunNonce));
-		return url.toString();
 	}
 
 	/**

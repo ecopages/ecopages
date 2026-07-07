@@ -1,3 +1,5 @@
+import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from './stylesheet-discovery.ts';
+
 /**
  * Preloads new stylesheets from target document to prevent FOUC.
  *
@@ -8,13 +10,7 @@
  * before any DOM updates.
  */
 export async function preloadStylesheets(newDocument: Document): Promise<void> {
-	const existingHrefs = new Set(
-		Array.from(document.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((l) => l.href),
-	);
-
-	const newStylesheetLinks = Array.from(
-		newDocument.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
-	).filter((link) => !existingHrefs.has(link.href));
+	const newStylesheetLinks = discoverNewStylesheetLinks(newDocument, getCurrentStylesheetHrefs());
 
 	if (newStylesheetLinks.length === 0) {
 		return;

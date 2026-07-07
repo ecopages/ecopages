@@ -4,5 +4,6 @@ export type {
 	EcoAfterSwapEvent,
 	EcoBeforeSwapEvent,
 	EcoNavigationEvent,
+	EcoRouterEventMap,
 	EcoRouterOptions,
 } from './types.ts';

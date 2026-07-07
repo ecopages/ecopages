@@ -6,16 +6,10 @@
 /// <reference types="@ecopages/core/declarations" />
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
-import {
-	getLinkNavigationDecision,
-	isHtmlPageResponse,
-	isSamePageHashNavigationHref,
-	type LinkNavigationDecision,
-} from '@ecopages/core/router/link-navigation-policy';
+import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import { type ComponentType } from 'react';
 import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
-import type { EcoRouterOptions } from './types.ts';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
 
@@ -52,23 +46,6 @@ type LoadPageModuleFromDocumentOptions = {
 	 */
 	moduleUrlOverride?: string;
 };
-
-export type InterceptDecision = LinkNavigationDecision;
-
-export { isSamePageHashNavigationHref };
-
-/**
- * Determines whether a link click should be intercepted for client-side navigation.
- */
-export function getInterceptDecision(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): InterceptDecision {
-	return getLinkNavigationDecision(event, link, {
-		reloadAttribute: options.reloadAttribute,
-	});
-}
 
 /**
  * Extracts component module URL from window.__ECO_PAGES__.page.
@@ -319,16 +296,4 @@ export async function loadPageModuleFromDocument(
 	ensurePageConfigLayouts(rawComponent.config);
 
 	return { Component: rawComponent, props, doc, finalPath, moduleUrl: componentUrl };
-}
-
-/**
- * Convenience wrapper around getInterceptDecision that returns a boolean.
- * Use getInterceptDecision directly when you need the reason for debugging.
- */
-export function shouldInterceptClick(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): boolean {
-	return getInterceptDecision(event, link, options).shouldIntercept;
 }

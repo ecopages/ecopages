@@ -621,5 +621,3 @@ export function createRouter(options?: EcoRouterOptions): EcoRouter {
 	router.start();
 	return router;
 }
-
-export type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types';

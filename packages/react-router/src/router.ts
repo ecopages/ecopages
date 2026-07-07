@@ -25,14 +25,8 @@ import {
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
-import {
-	type PageState,
-	fetchPageDocument,
-	getInterceptDecision,
-	isSamePageHashNavigationHref,
-	loadPageModuleFromDocument,
-	shouldInterceptClick,
-} from './navigation.ts';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
+import { type PageState, fetchPageDocument, loadPageModuleFromDocument } from './navigation.ts';
 import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from './view-transition-utils.ts';
 import { manageScroll } from './manage-scroll.ts';
@@ -561,10 +555,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			return;
 		}
 
-		const decision = getInterceptDecision(event as unknown as MouseEvent, link, options);
+		const decision = getLinkNavigationDecision(event, link, {
+			reloadAttribute: options.reloadAttribute,
+		});
 		pendingPointerNavigationRef.current = decision.shouldIntercept
 			? {
-					href: link.getAttribute('href')!,
+					href: decision.href,
 					timestamp: performance.now(),
 				}
 			: null;
@@ -600,12 +596,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			return;
 		}
 
-		if (!shouldInterceptClick(event, link, options)) {
+		const decision = getLinkNavigationDecision(event, link, {
+			reloadAttribute: options.reloadAttribute,
+		});
+		if (!decision.shouldIntercept) {
 			if (options.debug) {
-				const decision = getInterceptDecision(event, link, options);
-				if (!decision.shouldIntercept) {
-					console.debug('[EcoRouter] Not intercepting link click:', decision.reason, link.href);
-				}
+				console.debug('[EcoRouter] Not intercepting link click:', decision.reason, link.href);
 			}
 			pendingPointerNavigationRef.current = null;
 			return;

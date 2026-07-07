@@ -1,16 +1,18 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import {
 	extractProps,
 	extractComponentUrl,
 	fetchPageDocument,
-	getInterceptDecision,
-	isSamePageHashNavigationHref,
 	loadPageModule,
 	loadPageModuleFromDocument,
-	shouldInterceptClick,
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
+
+function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
+	return { reloadAttribute: options.reloadAttribute };
+}
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -532,7 +534,7 @@ describe('loadPageModule', () => {
 	});
 });
 
-describe('shouldInterceptClick', () => {
+describe('getLinkNavigationDecision', () => {
 	const options = DEFAULT_OPTIONS;
 	let links: HTMLAnchorElement[] = [];
 
@@ -550,7 +552,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(true);
 	});
@@ -559,7 +561,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ ctrlKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ ctrlKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -567,7 +573,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ metaKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ metaKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -576,7 +586,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent({ button: 1 });
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -586,7 +596,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -596,7 +606,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -606,7 +616,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -617,8 +627,10 @@ describe('shouldInterceptClick', () => {
 			links.push(link);
 			const event = createMouseEvent();
 
-			expect(shouldInterceptClick(event, link, options)).toBe(false);
-			expect(getInterceptDecision(event, link, options)).toEqual({
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept).toBe(
+				false,
+			);
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options))).toEqual({
 				shouldIntercept: false,
 				reason: 'static-asset',
 			});
@@ -630,7 +642,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -640,7 +652,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -650,7 +662,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/docs/ecosystem/browser-router#setup');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent(), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent(),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 
 		expect(result).toBe(false);
 		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
@@ -661,7 +677,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -671,7 +687,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetRerunNonceForTests } from '@ecopages/core/client/navigation-scripts';
-import { DomSwapper } from '../src/client/services/dom-swapper.ts';
+import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
 import { ViewTransitionManager } from '../src/client/services/view-transition-manager.ts';
 
 type DocumentWithViewTransition = Document & {

@@ -3,7 +3,7 @@
  * @module eco-router
  */
 
-import type { EcoRouterOptions, EcoNavigationEvent, EcoBeforeSwapEvent, EcoAfterSwapEvent } from './types.ts';
+import type { EcoRouterOptions, EcoNavigationEvent } from './types.ts';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import {
 	getAnchorFromNavigationEvent,

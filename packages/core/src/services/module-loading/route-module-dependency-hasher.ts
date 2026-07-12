@@ -115,9 +115,14 @@ export class RouteModuleDependencyHasher {
 		return true;
 	}
 
-	/** Clears the per-build memo. Intended for unit tests only. */
-	clearMemoForTests(): void {
+	/** Clears the per-build memo so subsequent reads reflect current file contents. */
+	clearMemo(): void {
 		this.memo.clear();
+	}
+
+	/** @deprecated Use {@link clearMemo}. */
+	clearMemoForTests(): void {
+		this.clearMemo();
 	}
 }
 

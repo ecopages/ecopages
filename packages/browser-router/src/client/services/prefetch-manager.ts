@@ -163,7 +163,12 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit)
 				.then(async (response) => {
-					if (!response.ok || !isHtmlPageResponse(response)) {
+					if (!response.ok) {
+						return null;
+					}
+					try {
+						await assertHtmlPageResponse(response);
+					} catch {
 						return null;
 					}
 

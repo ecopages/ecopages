@@ -667,6 +667,69 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
+	it('should miss the in-memory dev cache when a tracked layout dependency changes', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-graph-cache-'));
+		const rootDir = join(tempDir, 'app');
+		const pagesDir = join(rootDir, 'pages');
+		const layoutsDir = join(rootDir, 'layouts');
+		mkdirSync(pagesDir, { recursive: true });
+		mkdirSync(layoutsDir, { recursive: true });
+
+		const pagePath = join(pagesDir, 'page.tsx');
+		const layoutPath = join(layoutsDir, 'shared.tsx');
+		writeFileSync(pagePath, 'import "../layouts/shared.tsx"; export default {};\n', 'utf8');
+		writeFileSync(layoutPath, 'export const v = 1;\n', 'utf8');
+
+		let buildCount = 0;
+		const devService = new PageModuleImportService(undefined, {
+			hashFile(filePath: string): string {
+				return fileSystem.hash(filePath);
+			},
+			async buildModule(): Promise<BuildResult> {
+				buildCount += 1;
+				const compiledOutput = join(tempDir, `page-build-${buildCount}.mjs`);
+				writeFileSync(compiledOutput, `export const build = ${buildCount};`, 'utf8');
+				return createBuildResult({
+					outputs: [{ path: compiledOutput }],
+					dependencyGraph: {
+						entrypoints: {
+							[pagePath]: [pagePath, layoutPath],
+						},
+					},
+				});
+			},
+			canLoadSourceModuleFromHost: () => false,
+			getHostModuleLoader: () => undefined,
+		});
+
+		try {
+			await devService.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: tempDir,
+			});
+
+			await devService.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: tempDir,
+			});
+			assert.equal(buildCount, 1);
+
+			writeFileSync(layoutPath, 'export const v = 2;\n', 'utf8');
+
+			await devService.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: tempDir,
+			});
+			assert.equal(buildCount, 2);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should miss the disk cache when a tracked layout dependency changes', async () => {
 		process.env.NODE_ENV = 'production';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-graph-cache-'));

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { compile } from '@mdx-js/mdx';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import type { NodeModuleScriptAsset } from '@ecopages/core/services/asset-processing-service';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import remarkGfm from 'remark-gfm';
@@ -8,6 +8,34 @@ import { VFile, type Compatible as VFileCompatible } from 'vfile';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
 import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
+import { invalidateRadiantRegisteredScriptSsrRegistration } from '../radiant-registered-script-ssr-invalidation.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+
+function createHmrManagerStub(): IHmrManager {
+	return {
+		registerStrategy: vi.fn(),
+		registerEntrypoint: vi.fn(),
+		registerScriptEntrypoint: vi.fn(),
+		setPlugins: vi.fn(),
+		setEnabled: vi.fn(),
+		stop: vi.fn(),
+		isEnabled: vi.fn(() => true),
+		broadcast: vi.fn(),
+		getOutputUrl: vi.fn(),
+		getWatchedFiles: vi.fn(() => new Map()),
+		getDistDir: vi.fn(() => ''),
+		getPlugins: vi.fn(() => []),
+		getDefaultContext: vi.fn(() => ({
+			getWatchedFiles: () => new Map(),
+			getDistDir: () => '',
+			getPlugins: () => [],
+			getSrcDir: () => '/test/project/src',
+			getPagesDir: () => '/test/project/src/pages',
+			getLayoutsDir: () => '/test/project/src/layouts',
+		})),
+		handleFileChange: vi.fn(),
+	} as unknown as IHmrManager;
+}
 
 function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 	let capturedFilter: RegExp | undefined;
@@ -90,6 +118,28 @@ test('EcopagesJsxPlugin skips the explicit Radiant hydrator bootstrap when Radia
 	);
 
 	assert.equal(dependency, undefined);
+});
+
+test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', () => {
+	const appConfig = { runtime: {} } as EcoPagesAppConfig;
+	const plugin = new EcopagesJsxPlugin();
+	(plugin as any).appConfig = appConfig;
+
+	plugin.setHmrManager(createHmrManagerStub());
+
+	assert.deepEqual(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, [
+		invalidateRadiantRegisteredScriptSsrRegistration,
+	]);
+});
+
+test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', () => {
+	const appConfig = { runtime: {} } as EcoPagesAppConfig;
+	const plugin = new EcopagesJsxPlugin({ radiant: false });
+	(plugin as any).appConfig = appConfig;
+
+	plugin.setHmrManager(createHmrManagerStub());
+
+	assert.equal(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, undefined);
 });
 
 test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {

@@ -90,4 +90,15 @@ describe('DevelopmentInvalidationService', () => {
 		service.resetRuntimeState(['/test/project/src/pages/index.tsx']);
 		expect(service.getServerModuleInvalidationVersion()).toBe(3);
 	});
+
+	it('notifies registered script entrypoint change handlers', async () => {
+		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const handler = vi.fn(async () => {});
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		service.registerRegisteredScriptEntrypointChangeHandler(handler);
+		await service.notifyRegisteredScriptEntrypointChange('/test/project/src/components/widget.tsx');
+
+		expect(handler).toHaveBeenCalledWith('/test/project/src/components/widget.tsx');
+	});
 });

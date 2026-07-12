@@ -16,6 +16,9 @@ import type { ServerInvalidationState } from '../services/runtime-state/server-i
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
+/** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
+export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | Promise<void>;
+
 export interface RobotsPreference {
 	/**
 	 * The user agent
@@ -166,6 +169,8 @@ export type EcoPagesAppConfig = {
 		runtimeAssetsPrepared?: boolean;
 		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
 		devClientOwner?: 'core' | 'host';
+		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */
+		registeredScriptEntrypointChangeHandlers?: RegisteredScriptEntrypointChangeHandler[];
 		/** @deprecated Prefer {@link devClientOwner}: `'host'`. */
 		delegateBrowserReloadToHost?: boolean;
 	};

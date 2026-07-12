@@ -8,7 +8,6 @@ import {
 	DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
-import { invalidateRegisteredScriptSsrRegistration } from '../hmr/declared-script-ssr-invalidation.ts';
 import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
@@ -224,7 +223,7 @@ export class ProjectWatcher {
 			if (plan.invalidateServerModules) {
 				this.invalidationService.invalidateServerModules([filePath]);
 				if (isRegisteredScriptEdit) {
-					invalidateRegisteredScriptSsrRegistration(resolvedFilePath);
+					await this.invalidationService.notifyRegisteredScriptEntrypointChange(resolvedFilePath);
 				}
 			}
 

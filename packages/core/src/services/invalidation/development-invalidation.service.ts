@@ -1,6 +1,9 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig, RegisteredScriptEntrypointChangeHandler } from '../../types/internal-types.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { appLogger } from '../../global/app-logger.ts';
+
+export type { RegisteredScriptEntrypointChangeHandler };
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -60,6 +63,33 @@ export class DevelopmentInvalidationService {
 	invalidateServerModules(changedFiles?: string[]): void {
 		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
 		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+	}
+
+	/**
+	 * Registers an integration-owned handler for registered script entrypoint edits.
+	 */
+	registerRegisteredScriptEntrypointChangeHandler(handler: RegisteredScriptEntrypointChangeHandler): void {
+		const runtime = this.appConfig.runtime ?? {};
+		this.appConfig.runtime = runtime;
+		runtime.registeredScriptEntrypointChangeHandlers ??= [];
+		runtime.registeredScriptEntrypointChangeHandlers.push(handler);
+	}
+
+	/**
+	 * Notifies integration handlers that a registered script entrypoint changed.
+	 */
+	async notifyRegisteredScriptEntrypointChange(filePath: string): Promise<void> {
+		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
+
+		for (const handler of handlers) {
+			try {
+				await handler(filePath);
+			} catch (error) {
+				appLogger.error(
+					`Failed to handle registered script entrypoint change for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}
 	}
 
 	/**

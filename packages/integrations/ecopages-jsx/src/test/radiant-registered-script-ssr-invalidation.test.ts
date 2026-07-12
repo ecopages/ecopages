@@ -3,27 +3,27 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
-	clearRegisteredCustomElementDefinition,
-	invalidateRegisteredScriptSsrRegistration,
-	resolveRegisteredScriptCustomElementTag,
-} from './declared-script-ssr-invalidation.ts';
+	clearRadiantCustomElementDefinition,
+	invalidateRadiantRegisteredScriptSsrRegistration,
+	resolveRadiantCustomElementTag,
+} from '../radiant-registered-script-ssr-invalidation.ts';
 
-describe('resolveRegisteredScriptCustomElementTag', () => {
+describe('resolveRadiantCustomElementTag', () => {
 	it('reads the tag from @customElement decorators', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'registered-script-tag-'));
+		const tempDir = mkdtempSync(join(tmpdir(), 'radiant-script-tag-'));
 		const scriptPath = join(tempDir, 'theme-toggle.tsx');
 
 		writeFileSync(scriptPath, `@customElement('theme-toggle')\nexport class ThemeToggle {}\n`, 'utf-8');
 
 		try {
-			expect(resolveRegisteredScriptCustomElementTag(scriptPath)).toBe('theme-toggle');
+			expect(resolveRadiantCustomElementTag(scriptPath)).toBe('theme-toggle');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 });
 
-describe('clearRegisteredCustomElementDefinition', () => {
+describe('clearRadiantCustomElementDefinition', () => {
 	it('deletes from browser-like registries', () => {
 		const deleteSpy = vi.fn(() => true);
 		const previousRegistry = (globalThis as { customElements?: unknown }).customElements;
@@ -36,7 +36,7 @@ describe('clearRegisteredCustomElementDefinition', () => {
 		});
 
 		try {
-			clearRegisteredCustomElementDefinition('theme-toggle');
+			clearRadiantCustomElementDefinition('theme-toggle');
 			expect(deleteSpy).toHaveBeenCalledWith('theme-toggle');
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;
@@ -55,7 +55,7 @@ describe('clearRegisteredCustomElementDefinition', () => {
 		});
 
 		try {
-			clearRegisteredCustomElementDefinition('theme-toggle');
+			clearRadiantCustomElementDefinition('theme-toggle');
 			expect(definitions.has('theme-toggle')).toBe(false);
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;
@@ -63,9 +63,9 @@ describe('clearRegisteredCustomElementDefinition', () => {
 	});
 });
 
-describe('invalidateRegisteredScriptSsrRegistration', () => {
-	it('clears the registry entry for registered script modules', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'registered-script-invalidate-'));
+describe('invalidateRadiantRegisteredScriptSsrRegistration', () => {
+	it('clears the registry entry for registered Radiant script modules', () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'radiant-script-invalidate-'));
 		const scriptPath = join(tempDir, 'widget.tsx');
 		const definitions = new Map<string, unknown>([['widget', class {}]]);
 		const previousRegistry = (globalThis as { customElements?: unknown }).customElements;
@@ -79,7 +79,7 @@ describe('invalidateRegisteredScriptSsrRegistration', () => {
 		});
 
 		try {
-			invalidateRegisteredScriptSsrRegistration(scriptPath);
+			invalidateRadiantRegisteredScriptSsrRegistration(scriptPath);
 			expect(definitions.has('widget')).toBe(false);
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;

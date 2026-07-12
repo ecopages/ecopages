@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
+import { resolveHmrEntrypointOutputPaths } from '../../hmr/hmr-entrypoint-output.ts';
 import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -241,25 +242,31 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Returns the emitted HMR script output when the artifact already exists on disk.
+	 * Returns the emitted HMR script output when the entrypoint is already registered
+	 * and its browser bundle exists on disk.
 	 *
-	 * SSR must not block on entrypoint registration when a previous build already
-	 * produced the browser bundle.
+	 * @remarks
+	 * Disk artifacts alone are not enough: a fresh dev session must still register
+	 * the entrypoint so file watchers can rebuild it on change.
 	 */
 	public getResolvedScriptOutput(entrypointPath: string): { outputUrl: string; outputPath: string } | undefined {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-		const relativePath = path.relative(this.appConfig.absolutePaths.srcDir, normalizedEntrypoint);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js').replace(/\[([^\]]+)\]/g, '_$1_');
-		const urlPath = relativePathJs.split(path.sep).join('/');
-		const outputPath = path.join(this.distDir, urlPath);
+
+		if (!this.watchedFiles.has(normalizedEntrypoint)) {
+			return undefined;
+		}
+
+		const { outputPath, outputUrl: derivedOutputUrl } = resolveHmrEntrypointOutputPaths(
+			this.appConfig.absolutePaths.srcDir,
+			this.distDir,
+			normalizedEntrypoint,
+		);
 
 		if (!fileSystem.exists(outputPath)) {
 			return undefined;
 		}
 
-		const outputUrl =
-			this.watchedFiles.get(normalizedEntrypoint) ??
-			`/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath).split(path.sep).join('/')}`;
+		const outputUrl = this.watchedFiles.get(normalizedEntrypoint) ?? derivedOutputUrl;
 
 		return { outputUrl, outputPath };
 	}

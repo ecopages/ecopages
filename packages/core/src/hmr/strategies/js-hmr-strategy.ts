@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { removeStaleHmrEntrypointOutput, resolveHmrEntrypointOutputPaths } from '../hmr-entrypoint-output.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
@@ -118,17 +119,19 @@ export class JsHmrStrategy extends HmrStrategy {
 	 * Matches if:
 	 * 1. There are registered entrypoints to rebuild
 	 * 2. The changed file is a JS/TS file in the src directory
+	 * 3. Registered entrypoints always match, even when they share an integration template extension
 	 *
 	 * @param filePath - Absolute path to the changed file
 	 * @returns True if this file should trigger entrypoint rebuilds
 	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
-		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(filePath);
-		const isInSrc = filePath.startsWith(this.context.getSrcDir());
+		const resolvedPath = path.resolve(filePath);
+		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(resolvedPath);
+		const isInSrc = resolvedPath.startsWith(this.context.getSrcDir());
 		const isIntegrationTemplate = this.context
 			.getTemplateExtensions()
-			.some((extension) => filePath.endsWith(extension));
+			.some((extension) => resolvedPath.endsWith(extension));
 
 		if (watchedFiles.size === 0) {
 			return false;
@@ -138,12 +141,12 @@ export class JsHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		if (isIntegrationTemplate) {
-			return false;
+		if (watchedFiles.has(resolvedPath)) {
+			return true;
 		}
 
-		if (watchedFiles.has(filePath)) {
-			return true;
+		if (isIntegrationTemplate) {
+			return false;
 		}
 
 		return true;
@@ -173,7 +176,7 @@ export class JsHmrStrategy extends HmrStrategy {
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = hasDependencyHit
-			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(entrypoint))
+			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
 			: Array.from(watchedFiles.keys());
 		const buildableEntrypoints = impactedEntrypoints.filter(
 			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
@@ -185,6 +188,10 @@ export class JsHmrStrategy extends HmrStrategy {
 
 		if (buildableEntrypoints.length === 0) {
 			return { type: 'none' };
+		}
+
+		for (const entrypoint of buildableEntrypoints) {
+			this.removeStaleEntrypointOutput(this.resolveEntrypointOutputPath(entrypoint));
 		}
 
 		const buildResult = await this.bundleEntrypoints(buildableEntrypoints);
@@ -205,10 +212,7 @@ export class JsHmrStrategy extends HmrStrategy {
 				this.context.getEntrypointDependencyGraph().setEntrypointDependencies(entrypoint, entrypointDeps);
 			}
 
-			const srcDir = this.context.getSrcDir();
-			const relativePath = path.relative(srcDir, entrypoint);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
+			const outputPath = this.resolveEntrypointOutputPath(entrypoint);
 
 			const result = await this.processOutput(outputPath, outputUrl);
 			if (result.success) {
@@ -241,6 +245,15 @@ export class JsHmrStrategy extends HmrStrategy {
 		return { type: 'none' };
 	}
 
+	private resolveEntrypointOutputPath(entrypointPath: string): string {
+		return resolveHmrEntrypointOutputPaths(this.context.getSrcDir(), this.context.getDistDir(), entrypointPath)
+			.outputPath;
+	}
+
+	private removeStaleEntrypointOutput(outputPath: string): void {
+		removeStaleHmrEntrypointOutput(outputPath, 'JsHmrStrategy');
+	}
+
 	/**
 	 * Bundles one or more entrypoints in a single build invocation.
 	 * Uses the source directory as the output base so that the directory structure
@@ -250,6 +263,34 @@ export class JsHmrStrategy extends HmrStrategy {
 		entrypoints: string[],
 	): Promise<{ success: boolean; dependencies?: Map<string, string[]> }> {
 		try {
+			if (entrypoints.length === 1) {
+				const entrypoint = entrypoints[0]!;
+				const outputPath = this.resolveEntrypointOutputPath(entrypoint);
+				const naming = path.relative(this.context.getDistDir(), outputPath).split(path.sep).join('/');
+				const result = await this.context.getBrowserBundleService().bundle({
+					profile: 'hmr-entrypoint',
+					entrypoints: [entrypoint],
+					outdir: this.context.getDistDir(),
+					naming,
+					plugins: this.context.getPlugins(),
+					minify: false,
+				});
+
+				if (!result.success) {
+					appLogger.error('[JsHmrStrategy] Entrypoint build failed:', result.logs);
+					return { success: false };
+				}
+
+				const dependencies = new Map<string, string[]>();
+				if (result.dependencyGraph?.entrypoints) {
+					for (const [resolvedEntrypoint, deps] of Object.entries(result.dependencyGraph.entrypoints)) {
+						dependencies.set(path.resolve(resolvedEntrypoint), deps);
+					}
+				}
+
+				return { success: true, dependencies };
+			}
+
 			const result = await this.context.getBrowserBundleService().bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints,

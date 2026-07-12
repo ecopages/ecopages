@@ -7,6 +7,8 @@ import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
 import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
+import { clearAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
+import { clearAppHmrManager } from '../../dev/hmr-manager-registry.ts';
 import { injectHmrRuntimeIntoHtmlResponse, isHtmlResponse, shouldInjectHmrHtmlResponse } from './hmr-html-response.ts';
 
 /**
@@ -73,5 +75,7 @@ export async function disposeDevResources(options: {
 	await disposeAppBuildRuntime(options.appConfig);
 	options.hmrManager?.stop();
 	options.bridge?.destroy();
+	clearAppDevClientBridge(options.appConfig);
+	clearAppHmrManager(options.appConfig);
 	await options.previewHost.stop();
 }

@@ -1,4 +1,4 @@
-import { fileSystem } from '@ecopages/file-system';
+import { existsSync, readFileSync } from 'node:fs';
 
 const CUSTOM_ELEMENT_TAG_PATTERN = /@customElement\s*\(\s*['"`]([^'"`]+)['"`]/u;
 
@@ -11,12 +11,12 @@ type CustomElementRegistryLike = {
 /**
  * Reads the custom-element tag name from a registered script module source file.
  */
-export function resolveRegisteredScriptCustomElementTag(scriptPath: string): string | undefined {
-	if (!fileSystem.exists(scriptPath)) {
+export function resolveRadiantCustomElementTag(scriptPath: string): string | undefined {
+	if (!existsSync(scriptPath)) {
 		return undefined;
 	}
 
-	const content = fileSystem.readFileSync(scriptPath);
+	const content = readFileSync(scriptPath, 'utf8');
 	const match = content.match(CUSTOM_ELEMENT_TAG_PATTERN);
 
 	return match?.[1];
@@ -31,7 +31,7 @@ export function resolveRegisteredScriptCustomElementTag(scriptPath: string): str
  * reuse the same process-global registry, so script edits would otherwise keep
  * serving stale SSR markup until a full dev-server restart.
  */
-export function clearRegisteredCustomElementDefinition(tagName: string): void {
+export function clearRadiantCustomElementDefinition(tagName: string): void {
 	const registry = (globalThis as { customElements?: CustomElementRegistryLike }).customElements;
 	if (!registry) {
 		return;
@@ -49,13 +49,13 @@ export function clearRegisteredCustomElementDefinition(tagName: string): void {
 }
 
 /**
- * Clears the SSR custom-element registry entry for one registered script module.
+ * Clears the SSR custom-element registry entry for one registered Radiant script module.
  */
-export function invalidateRegisteredScriptSsrRegistration(scriptPath: string): void {
-	const tagName = resolveRegisteredScriptCustomElementTag(scriptPath);
+export function invalidateRadiantRegisteredScriptSsrRegistration(scriptPath: string): void {
+	const tagName = resolveRadiantCustomElementTag(scriptPath);
 	if (!tagName) {
 		return;
 	}
 
-	clearRegisteredCustomElementDefinition(tagName);
+	clearRadiantCustomElementDefinition(tagName);
 }

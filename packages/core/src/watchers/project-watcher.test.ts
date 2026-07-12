@@ -286,6 +286,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 		test('should prewarm registered script modules before HMR and defer processor notifications', async () => {
 			const onChange = vi.fn(async () => {});
 			const importModule = vi.fn(async <T = unknown>() => ({}) as T);
+			const scriptChangeHandler = vi.fn(async () => {});
 			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.tsx');
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
@@ -305,6 +306,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			);
 			Config.runtime = {
 				...(Config.runtime ?? {}),
+				registeredScriptEntrypointChangeHandlers: [scriptChangeHandler],
 				appModuleLoader: {
 					owner: 'app',
 					importModule: importModule as AppModuleLoader['importModule'],
@@ -313,6 +315,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 			};
 
 			await (watcher as any).handleFileChange(scriptPath);
+
+			expect(scriptChangeHandler).toHaveBeenCalledWith(path.resolve(scriptPath));
 
 			expect(importModule).toHaveBeenCalledWith(
 				expect.objectContaining({

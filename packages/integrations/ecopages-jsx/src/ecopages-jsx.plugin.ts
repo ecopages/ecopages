@@ -5,6 +5,7 @@ import {
 } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
+import type { IHmrManager } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
@@ -17,6 +18,7 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
+import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
 export type {
@@ -130,6 +132,20 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */
 	override async prepareBuildContributions(): Promise<void> {
 		this.ensureMdxLoaderPlugin();
+	}
+
+	/** Registers JSX HMR strategy and Radiant SSR invalidation hooks. */
+	override setHmrManager(hmrManager: IHmrManager): void {
+		super.setHmrManager(hmrManager);
+
+		if (!this.includeRadiant || !this.appConfig) {
+			return;
+		}
+
+		const runtime = this.appConfig.runtime ?? {};
+		this.appConfig.runtime = runtime;
+		runtime.registeredScriptEntrypointChangeHandlers ??= [];
+		runtime.registeredScriptEntrypointChangeHandlers.push(invalidateRadiantRegisteredScriptSsrRegistration);
 	}
 
 	/**

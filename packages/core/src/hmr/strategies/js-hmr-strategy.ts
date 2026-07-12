@@ -18,7 +18,6 @@ import {
 	isRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 } from '../hmr-entrypoint-output.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 

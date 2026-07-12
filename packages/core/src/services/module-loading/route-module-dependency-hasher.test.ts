@@ -55,7 +55,7 @@ describe('RouteModuleDependencyHasher', () => {
 		assert.equal(hasher.matchesStoredHashes(storedHashes), true);
 
 		hashes.set('/app/layouts/shared.tsx', 'hash-layout-v2');
-		hasher.clearMemoForTests();
+		hasher.clearMemo();
 		assert.equal(hasher.matchesStoredHashes(storedHashes, '/app/pages/about.tsx', 'hash-a'), false);
 	});
 

@@ -18,7 +18,11 @@ import {
 	createJsxCacheKey,
 } from './route-module-build-cache.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
-import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
+import {
+	RouteModuleDependencyHasher,
+	resolveRouteModuleDependencyPaths,
+	type RouteModuleDependencyHashes,
+} from './route-module-dependency-hasher.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
 
@@ -69,6 +73,16 @@ export interface PageModuleImportDependencies {
 	getHostModuleLoader: SourceModuleLoaderFactory;
 }
 
+interface ImportCacheEntry {
+	promise: Promise<unknown>;
+	dependencyHashes?: RouteModuleDependencyHashes;
+}
+
+type LoadModuleOptions = PageModuleBuildImportOptions & {
+	fileHash: string;
+	importCacheKey?: string;
+};
+
 /**
  * Loads page-like modules through the Ecopages build pipeline.
  *
@@ -84,7 +98,8 @@ export interface PageModuleImportDependencies {
 export class PageModuleImportService {
 	private readonly appConfig?: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
-	private readonly importCache = new Map<string, Promise<unknown>>();
+	private readonly dependencyHasher: RouteModuleDependencyHasher;
+	private readonly importCache = new Map<string, ImportCacheEntry>();
 	private developmentInvalidationVersion = 0;
 
 	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
@@ -95,6 +110,10 @@ export class PageModuleImportService {
 			canLoadSourceModuleFromHost: dependencies?.canLoadSourceModuleFromHost ?? supportsSourceModuleLoading,
 			getHostModuleLoader: dependencies?.getHostModuleLoader ?? (() => undefined),
 		};
+		this.dependencyHasher = new RouteModuleDependencyHasher({
+			hashFile: (filePath) => this.dependencies.hashFile(filePath),
+			exists: (filePath) => fileSystem.exists(filePath),
+		});
 	}
 
 	/**
@@ -174,15 +193,24 @@ export class PageModuleImportService {
 		const cachedModule = this.importCache.get(cacheKey);
 
 		if (cachedModule) {
-			return (await cachedModule) as T;
+			this.dependencyHasher.clearMemo();
+			if (
+				!cachedModule.dependencyHashes ||
+				this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)
+			) {
+				return (await cachedModule.promise) as T;
+			}
+
+			this.importCache.delete(cacheKey);
 		}
 
 		const importPromise = this.loadModule<T>({
 			...options,
 			fileHash,
+			importCacheKey: cacheKey,
 		});
 
-		this.importCache.set(cacheKey, importPromise);
+		this.importCache.set(cacheKey, { promise: importPromise });
 
 		try {
 			return await importPromise;
@@ -192,12 +220,14 @@ export class PageModuleImportService {
 		}
 	}
 
-	private async loadModule<T = unknown>(
-		options: PageModuleBuildImportOptions & {
-			fileHash: string;
-		},
-	): Promise<T> {
-		const { filePath, invalidationVersion = this.developmentInvalidationVersion, cacheScope, fileHash } = options;
+	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
+		const {
+			filePath,
+			invalidationVersion = this.developmentInvalidationVersion,
+			cacheScope,
+			fileHash,
+			importCacheKey,
+		} = options;
 
 		const {
 			rootDir,
@@ -269,11 +299,22 @@ export class PageModuleImportService {
 		}
 
 		normalizeNodeRuntimeBuildOutputFile(compiledOutput, rootDir);
+		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
+		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
+		dependencyHashes[path.normalize(filePath)] = fileHash;
+
+		if (importCacheKey) {
+			const cacheEntry = this.importCache.get(importCacheKey);
+			if (cacheEntry) {
+				cacheEntry.dependencyHashes = dependencyHashes;
+			}
+		}
+
 		routeModuleBuildCache.recordBuild({
 			...options,
 			fileHash,
 			outputPath: compiledOutput,
-			dependencyModulePaths: resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir),
+			dependencyModulePaths,
 		});
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);

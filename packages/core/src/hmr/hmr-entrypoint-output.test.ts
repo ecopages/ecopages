@@ -6,6 +6,7 @@ import {
 	isRegisteredScriptEntrypoint,
 	isBrowserOnlyRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
+	isHmrOutputOlderThanSource,
 	resolveHmrEntrypointOutputPaths,
 } from './hmr-entrypoint-output.ts';
 
@@ -94,6 +95,36 @@ describe('isHmrOutputFresh', () => {
 		fs.utimesSync(sourcePath, sourceMtime, sourceMtime);
 
 		expect(isHmrOutputFresh(outputPath, sourcePath)).toBe(true);
+
+		fs.rmSync(root, { recursive: true, force: true });
+	});
+});
+
+describe('isHmrOutputOlderThanSource', () => {
+	it('returns false when the output file is missing', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-stale-'));
+		const sourcePath = path.join(root, 'widget.script.tsx');
+		const outputPath = path.join(root, 'widget.script.js');
+
+		fs.writeFileSync(sourcePath, 'source');
+
+		expect(isHmrOutputOlderThanSource(outputPath, sourcePath)).toBe(false);
+
+		fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	it('returns true when output mtime is older than source mtime', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-stale-'));
+		const sourcePath = path.join(root, 'widget.script.tsx');
+		const outputPath = path.join(root, 'widget.script.js');
+
+		fs.writeFileSync(sourcePath, 'source');
+		fs.writeFileSync(outputPath, 'output');
+
+		const outputMtime = new Date(Date.now() - 1_000);
+		fs.utimesSync(outputPath, outputMtime, outputMtime);
+
+		expect(isHmrOutputOlderThanSource(outputPath, sourcePath)).toBe(true);
 
 		fs.rmSync(root, { recursive: true, force: true });
 	});

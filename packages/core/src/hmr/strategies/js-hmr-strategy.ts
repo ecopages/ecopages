@@ -17,6 +17,7 @@ import {
 	resolveHmrEntrypointOutputPaths,
 	isRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
+	isHmrOutputOlderThanSource,
 } from '../hmr-entrypoint-output.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
@@ -343,7 +344,11 @@ export class JsHmrStrategy extends HmrStrategy {
 	): Promise<{ success: boolean; requiresReload: boolean }> {
 		try {
 			if (sourcePath && !isHmrOutputFresh(filepath, sourcePath)) {
-				appLogger.warn(`[JsHmrStrategy] Skipping broadcast for stale HMR output ${url}`);
+				if (isHmrOutputOlderThanSource(filepath, sourcePath)) {
+					appLogger.warn(
+						`[JsHmrStrategy] HMR output is older than source after rebuild; skipping broadcast for ${url}`,
+					);
+				}
 				return { success: false, requiresReload: false };
 			}
 

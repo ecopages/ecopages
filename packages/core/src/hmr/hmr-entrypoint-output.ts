@@ -92,3 +92,16 @@ export function isHmrOutputFresh(outputPath: string, sourcePath: string): boolea
 
 	return outputMtimeMs >= sourceMtimeMs;
 }
+
+/**
+ * @remarks
+ * Missing output is treated as a benign rebuild race. This helper isolates the
+ * post-build case where a bundle exists but is still older than its source.
+ */
+export function isHmrOutputOlderThanSource(outputPath: string, sourcePath: string): boolean {
+	if (!fileSystem.exists(outputPath) || !fileSystem.exists(sourcePath)) {
+		return false;
+	}
+
+	return fs.statSync(outputPath).mtimeMs < fs.statSync(sourcePath).mtimeMs;
+}

@@ -95,6 +95,19 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(entrypoint)).toBe(true);
 		});
 
+		it('returns true for registered script entrypoints that share an integration template extension', () => {
+			const entrypoint = path.join(SRC_DIR, 'components', 'widget.script.tsx');
+			const devGraphService = new InMemoryDevGraphService();
+			const context = createMockContext({
+				getWatchedFiles: () => new Map([[entrypoint, '/_hmr/widget.script.js']]),
+				getEntrypointDependencyGraph: () => devGraphService,
+				getTemplateExtensions: () => ['.tsx'],
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(entrypoint)).toBe(true);
+		});
+
 		it('returns true for .js files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),

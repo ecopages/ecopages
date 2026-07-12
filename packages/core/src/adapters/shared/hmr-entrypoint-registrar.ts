@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { appLogger } from '../../global/app-logger.ts';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
+import { removeStaleHmrEntrypointOutput, resolveHmrEntrypointOutputPaths } from '../../hmr/hmr-entrypoint-output.ts';
 
 /**
  * Shared runtime state used while registering HMR-owned entrypoints.
@@ -91,7 +90,7 @@ export class HmrEntrypointRegistrar {
 		const { outputPath, outputUrl } = this.getEntrypointOutput(entrypointPath);
 
 		this.options.watchedFiles.set(entrypointPath, outputUrl);
-		this.removeStaleEntrypointOutput(outputPath);
+		removeStaleHmrEntrypointOutput(outputPath, 'HMR');
 
 		await registrationOptions.emit(entrypointPath, outputPath);
 
@@ -118,32 +117,6 @@ export class HmrEntrypointRegistrar {
 	}
 
 	private getEntrypointOutput(entrypointPath: string): { outputPath: string; outputUrl: string } {
-		const relativePath = path.relative(this.options.srcDir, entrypointPath);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
-		const urlPath = encodedPathJs.split(path.sep).join('/');
-
-		return {
-			outputUrl: `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`,
-			outputPath: path.join(this.options.distDir, urlPath),
-		};
-	}
-
-	private removeStaleEntrypointOutput(outputPath: string): void {
-		if (!fileSystem.exists(outputPath)) {
-			return;
-		}
-
-		try {
-			fileSystem.remove(outputPath);
-		} catch (error) {
-			appLogger.warn(
-				`[HMR] Failed to remove stale entrypoint output ${outputPath}: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
-	}
-
-	private encodeDynamicSegments(filepath: string): string {
-		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
+		return resolveHmrEntrypointOutputPaths(this.options.srcDir, this.options.distDir, entrypointPath);
 	}
 }

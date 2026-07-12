@@ -8,6 +8,7 @@ function createApi() {
 		appConfig: {
 			additionalWatchPaths: [],
 			templatesExt: [],
+			processors: new Map(),
 			absolutePaths: {
 				componentsDir: '/app/src/components',
 				includesDir: '/app/src/includes',
@@ -339,31 +340,91 @@ describe('ecopagesHotUpdate', () => {
 		);
 	});
 
-	it('returns an empty hot-update result when the host owns the dev client', () => {
+	it('returns an empty hot-update result when the host owns the dev client', async () => {
 		const api = createApi();
 		api.appConfig.runtime = { devClientOwner: 'host' };
 		api.markDevHostReady();
+		const handleFileChange = vi.fn(async () => {});
+		const { setAppHmrManager } = await import('@ecopages/core/dev/hmr-manager-registry');
+		setAppHmrManager(api.appConfig, {
+			isEnabled: () => true,
+			handleFileChange,
+		} as never);
+
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
-		const modules = [{ id: 'page' }];
-		const server = createHotUpdateServer(send);
-
-		const result = callPluginHook(
-			plugin.hotUpdate,
-			{
-				environment: {
-					name: 'client',
-					moduleGraph: { invalidateModule: vi.fn() },
+		const listeners = new Map<string, Set<(file: string) => void>>();
+		const server = {
+			watcher: {
+				add: vi.fn(),
+				on(event: string, listener: (file: string) => void) {
+					const bucket = listeners.get(event) ?? new Set();
+					bucket.add(listener);
+					listeners.set(event, bucket);
 				},
-			} as never,
-			{
-				file: '/app/src/pages/index.kita.tsx',
-				modules,
-				server: server as never,
+				off(event: string, listener: (file: string) => void) {
+					listeners.get(event)?.delete(listener);
+				},
 			},
-		);
+			environments: {
+				client: { hot: { send } },
+				ssr: { moduleGraph: { getModulesByFile: () => undefined } },
+			},
+			hot: { send },
+		};
 
-		expect(result).toEqual([]);
-		expect(send).not.toHaveBeenCalled();
+		callPluginHook(plugin.configureServer, {} as never, server as never);
+
+		for (const listener of listeners.get('change') ?? []) {
+			listener('/app/src/pages/index.kita.tsx');
+		}
+
+		await Promise.resolve();
+
+		expect(handleFileChange).toHaveBeenCalledWith('/app/src/pages/index.kita.tsx');
+	});
+
+	it('dispatches script changes through the host HMR manager when the host owns the dev client', async () => {
+		const api = createApi();
+		api.appConfig.runtime = { devClientOwner: 'host' };
+		api.markDevHostReady();
+		const handleFileChange = vi.fn(async () => {});
+		const { setAppHmrManager } = await import('@ecopages/core/dev/hmr-manager-registry');
+		setAppHmrManager(api.appConfig, {
+			isEnabled: () => true,
+			handleFileChange,
+		} as never);
+
+		const plugin = ecopagesHotUpdate(api);
+		const send = vi.fn();
+		const listeners = new Map<string, Set<(file: string) => void>>();
+		const server = {
+			watcher: {
+				add: vi.fn(),
+				on(event: string, listener: (file: string) => void) {
+					const bucket = listeners.get(event) ?? new Set();
+					bucket.add(listener);
+					listeners.set(event, bucket);
+				},
+				off(event: string, listener: (file: string) => void) {
+					listeners.get(event)?.delete(listener);
+				},
+			},
+			environments: {
+				client: { hot: { send } },
+				ssr: { moduleGraph: { getModulesByFile: () => undefined } },
+			},
+			hot: { send },
+		};
+
+		callPluginHook(plugin.configureServer, {} as never, server as never);
+
+		for (const listener of listeners.get('change') ?? []) {
+			listener('/app/src/components/theme-toggle.script.tsx');
+		}
+
+		await Promise.resolve();
+
+		expect(handleFileChange).toHaveBeenCalledWith('/app/src/components/theme-toggle.script.tsx');
 	});
 });

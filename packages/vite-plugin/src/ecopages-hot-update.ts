@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { EnvironmentModuleNode, HotUpdateOptions, ViteDevServer } from 'vite';
 import { hostOwnsDevClient } from '@ecopages/core/dev/dev-client-ownership';
+import { getAppHmrManager } from '@ecopages/core/dev/hmr-manager-registry';
 import { createDevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import type { DevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import type { EcopagesPluginApi } from './plugin-api.ts';
@@ -39,6 +40,15 @@ type ProcessFileChangeOptions = {
 	clientModules?: EnvironmentModuleNode[];
 	invalidateClientModule?: (module: EnvironmentModuleNode) => void;
 };
+
+function dispatchHostOwnedHmr(api: EcopagesPluginApi, file: string): void {
+	void api.getDevHostReady().then(async () => {
+		const hmrManager = getAppHmrManager(api.appConfig);
+		if (hmrManager?.isEnabled()) {
+			await hmrManager.handleFileChange(file);
+		}
+	});
+}
 
 function processEcopagesFileChange(
 	file: string,
@@ -100,6 +110,7 @@ function processEcopagesFileChange(
 	}
 
 	if (hostOwnsClient()) {
+		dispatchHostOwnedHmr(api, file);
 		return [];
 	}
 

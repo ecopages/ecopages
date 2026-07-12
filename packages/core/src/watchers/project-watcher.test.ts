@@ -8,6 +8,7 @@ import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
+import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();
@@ -278,6 +279,57 @@ describe('ProjectWatcher - File Change Handling', () => {
 				setImmediate(resolve);
 			});
 			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(includeFilePath), bridge: Bridge });
+		});
+	});
+
+	describe('registered script entrypoints', () => {
+		test('should prewarm registered script modules before HMR and defer processor notifications', async () => {
+			const onChange = vi.fn(async () => {});
+			const importModule = vi.fn(async <T = unknown>() => ({}) as T);
+			const scriptChangeHandler = vi.fn(async () => {});
+			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.tsx');
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.css', '.tsx'],
+					onChange,
+				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && filepath?.endsWith('.css');
+				}),
+				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+			HmrManager.getWatchedFiles = vi.fn(
+				() => new Map([[path.resolve(scriptPath), '/assets/_hmr/components/theme-toggle.js']]),
+			);
+			Config.runtime = {
+				...(Config.runtime ?? {}),
+				registeredScriptEntrypointChangeHandlers: [scriptChangeHandler],
+				appModuleLoader: {
+					owner: 'app',
+					importModule: importModule as AppModuleLoader['importModule'],
+					invalidateDevelopmentGraph: vi.fn(),
+				},
+			};
+
+			await (watcher as any).handleFileChange(scriptPath);
+
+			expect(scriptChangeHandler).toHaveBeenCalledWith(path.resolve(scriptPath));
+
+			expect(importModule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					filePath: path.resolve(scriptPath),
+					bypassCache: true,
+				}),
+			);
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(scriptPath));
+			expect(Bridge.reload).not.toHaveBeenCalled();
+			await new Promise<void>((resolve) => {
+				setImmediate(resolve);
+			});
+			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(scriptPath), bridge: Bridge });
 		});
 	});
 

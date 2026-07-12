@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { appLogger } from '../../../../../global/app-logger.ts';
 import type { IHmrManager } from '../../../../../types/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
@@ -66,8 +67,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 					packageRole: dep.packageRole,
 					bundledSourceFilepaths: dep.bundledSourceFilepaths,
 				};
-			} catch {
-				// Fall back to the non-HMR path when registration is still in flight.
+			} catch (error) {
+				appLogger.warn(
+					`[FileScriptProcessor] HMR script registration failed for ${dep.filepath}, falling back to non-HMR asset: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		}
 

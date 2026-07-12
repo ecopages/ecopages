@@ -158,6 +158,8 @@ Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integr
 
 **BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
 
+**Registered client script HMR**: Declared layout/page scripts register through `HmrEntrypointRegistrar` and must resolve to verified `/assets/_hmr/` artifacts when HMR is enabled. Enabled HMR never silently falls back to static assets per entrypoint. See [docs/adr/hmr-registered-script-ownership.md](./docs/adr/hmr-registered-script-ownership.md).
+
 **Build Ownership**: Two adapters exist — `'rolldown'` (default bundled backend) and `'vite-host'` (host-managed boundary marker).
 
 **Native MagicString**: Enabled via `experimental.nativeMagicString: true` for Rust-native string manipulation.

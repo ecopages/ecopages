@@ -16,7 +16,7 @@ const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-tea
 const SEO_SUFFIX = '[include-hmr]';
 const EXPLICIT_TEAM_SUFFIX = '[explicit-route-hmr]';
 const INCLUDE_HMR_TIMEOUT_MS = 8_000;
-const VIEW_HMR_TIMEOUT_MS = 5_000;
+const VIEW_HMR_TIMEOUT_MS = 15_000;
 
 function getSeoIncludeFile(projectMetadata: Record<string, unknown> | undefined) {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;

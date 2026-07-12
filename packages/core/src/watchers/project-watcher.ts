@@ -22,6 +22,8 @@ export interface ProjectWatcherConfig {
 	bridge: IClientBridge;
 	/** When true, the host dev server owns browser dev-client bootstrap. */
 	hostOwnsDevClient?: boolean;
+	/** Delay before a change event is processed; 0 disables debouncing. */
+	changeDebounceMs?: number;
 }
 
 /**
@@ -54,20 +56,24 @@ export class ProjectWatcher {
 	private bridge: IClientBridge;
 	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
+	private readonly changeDebounceMs: number;
 	private watcher: FSWatcher | null = null;
 	private lastHandledChange = new Map<string, number>();
+	private pendingChangeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private changeQueue: Promise<void> = Promise.resolve();
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge, hostOwnsDevClient }: ProjectWatcherConfig) {
+	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge, hostOwnsDevClient, changeDebounceMs }: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
 		this.hostOwnsDevClient = hostOwnsDevClient === true;
+		this.changeDebounceMs = changeDebounceMs ?? ProjectWatcher.duplicateChangeWindowMs;
 		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
+		this.processFileChange = this.processFileChange.bind(this);
 	}
 
 	/**
@@ -130,9 +136,10 @@ export class ProjectWatcher {
 	 * Serializes file change handling so that concurrent chokidar events are
 	 * processed one at a time, preventing overlapping builds and race conditions.
 	 */
-	private enqueueChange(task: () => Promise<void>): void {
+	private enqueueChange(task: () => Promise<void>): Promise<void> {
 		const queuedTask = this.changeQueue.then(task, task);
 		this.changeQueue = queuedTask.catch(() => undefined);
+		return queuedTask;
 	}
 
 	/**
@@ -153,8 +160,28 @@ export class ProjectWatcher {
 	 * @param rawPath - Path of the changed file
 	 * @param event - The type of file system event
 	 */
-	private async handleFileChange(rawPath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
+	private handleFileChange(rawPath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
 		const filePath = path.resolve(rawPath);
+
+		if (this.changeDebounceMs === 0) {
+			return this.enqueueChange(() => this.processFileChange(filePath, event));
+		}
+
+		const existing = this.pendingChangeTimers.get(filePath);
+		if (existing) {
+			clearTimeout(existing);
+		}
+
+		const timer = setTimeout(() => {
+			this.pendingChangeTimers.delete(filePath);
+			this.enqueueChange(() => this.processFileChange(filePath, event));
+		}, this.changeDebounceMs);
+
+		this.pendingChangeTimers.set(filePath, timer);
+		return Promise.resolve();
+	}
+
+	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		const now = Date.now();
 		const lastHandledAt = this.lastHandledChange.get(filePath);
 		if (lastHandledAt !== undefined && now - lastHandledAt < ProjectWatcher.duplicateChangeWindowMs) {
@@ -356,10 +383,10 @@ export class ProjectWatcher {
 		});
 
 		this.watcher
-			.on('change', (p) => this.enqueueChange(() => this.handleFileChange(p, 'change')))
-			.on('add', (p) => this.enqueueChange(() => this.handleFileChange(p, 'add')))
+			.on('change', (p) => this.handleFileChange(p, 'change'))
+			.on('add', (p) => this.handleFileChange(p, 'add'))
 			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
-			.on('unlink', (p) => this.enqueueChange(() => this.handleFileChange(p, 'unlink')))
+			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
 			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('error', (error) => this.handleError(error));
 

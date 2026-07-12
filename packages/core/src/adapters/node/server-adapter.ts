@@ -381,7 +381,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			this.hmrManager = devRuntime.hmrManager;
 			this.hmrManager.setEnabled(true);
 
-			await this.hmrManager.buildRuntime();
+			await this.hmrManager.ensureRuntimeReady();
 
 			const hmrPreflight = (
 				req: IncomingMessage,

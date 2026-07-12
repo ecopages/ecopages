@@ -233,7 +233,6 @@ export abstract class SharedServerAdapter<
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
 					externalPackages: true,
-					bypassCache: this.options?.watch === true,
 				}),
 		});
 	}

@@ -4,7 +4,7 @@
  * @module prefetch-manager
  */
 
-import { isHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+import { assertHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
@@ -100,10 +100,11 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit);
 
-			if (!response.ok || !isHtmlPageResponse(response)) {
+			if (!response.ok) {
 				this.prefetched.delete(url.href);
 				return;
 			}
+			await assertHtmlPageResponse(response);
 
 			const html = await response.text();
 
@@ -162,7 +163,12 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit)
 				.then(async (response) => {
-					if (!response.ok || !isHtmlPageResponse(response)) {
+					if (!response.ok) {
+						return null;
+					}
+					try {
+						await assertHtmlPageResponse(response);
+					} catch {
 						return null;
 					}
 

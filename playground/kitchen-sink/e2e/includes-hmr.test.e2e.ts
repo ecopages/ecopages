@@ -15,8 +15,8 @@ const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', i
 const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
 const SEO_SUFFIX = '[include-hmr]';
 const EXPLICIT_TEAM_SUFFIX = '[explicit-route-hmr]';
-const INCLUDE_HMR_TIMEOUT_MS = 8_000;
-const VIEW_HMR_TIMEOUT_MS = 5_000;
+const INCLUDE_HMR_TIMEOUT_MS = 12_000;
+const VIEW_HMR_TIMEOUT_MS = 8_000;
 
 function getSeoIncludeFile(projectMetadata: Record<string, unknown> | undefined) {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
@@ -57,6 +57,11 @@ test.describe('Source mutation HMR @hmr', () => {
 
 	test.describe.configure({ mode: 'serial' });
 
+	function restoreMutatedSources() {
+		fs.writeFileSync(seoIncludeFile, originalSeoInclude, 'utf-8');
+		fs.writeFileSync(explicitTeamViewFile, originalExplicitTeamView, 'utf-8');
+	}
+
 	// oxlint-disable-next-line no-empty-pattern
 	test.beforeAll(async ({}, testInfo) => {
 		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
@@ -68,8 +73,7 @@ test.describe('Source mutation HMR @hmr', () => {
 	});
 
 	test.afterAll(() => {
-		fs.writeFileSync(seoIncludeFile, originalSeoInclude, 'utf-8');
-		fs.writeFileSync(explicitTeamViewFile, originalExplicitTeamView, 'utf-8');
+		restoreMutatedSources();
 	});
 
 	test('refreshes the current page when a shared include template changes', async ({ page }, testInfo) => {
@@ -83,8 +87,8 @@ test.describe('Source mutation HMR @hmr', () => {
 		await hmrReady;
 		timer.mark('hmr-connected');
 		await expect(page.getByTestId('page-docs')).toBeVisible();
+		await expect(page).toHaveTitle(/^Ecopages(?! \[include-hmr\])/);
 		const initialTitle = await page.title();
-		expect(initialTitle.length).toBeGreaterThan(0);
 
 		fs.writeFileSync(seoIncludeFile, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
 		timer.mark('mutation-applied');

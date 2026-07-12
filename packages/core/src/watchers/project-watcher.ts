@@ -62,7 +62,14 @@ export class ProjectWatcher {
 	private pendingChangeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private changeQueue: Promise<void> = Promise.resolve();
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge, hostOwnsDevClient, changeDebounceMs }: ProjectWatcherConfig) {
+	constructor({
+		config,
+		refreshRouterRoutesCallback,
+		hmrManager,
+		bridge,
+		hostOwnsDevClient,
+		changeDebounceMs,
+	}: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;

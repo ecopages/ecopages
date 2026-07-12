@@ -297,6 +297,7 @@ export function buildEnv(options) {
 		...(viteBaseUrl ? { ECOPAGES_BASE_URL: viteBaseUrl } : {}),
 		...(options.host === 'vite' ? { ECOPAGES_CROSS_INTEGRATION_HOST: 'vite' } : {}),
 		...(options.host === 'ecopages' ? { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } : {}),
+		...(options.artifactScope === 'cross-integration-hmr' ? { ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' } : {}),
 		NODE_ENV: options.mode === 'preview' ? 'production' : 'development',
 	});
 }

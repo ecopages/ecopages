@@ -79,7 +79,11 @@ export class ProjectWatcher {
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
 		this.hostOwnsDevClient = hostOwnsDevClient === true;
-		this.changeDebounceMs = changeDebounceMs ?? ProjectWatcher.duplicateChangeWindowMs;
+		const envDebounceMs = process.env.ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS;
+		this.changeDebounceMs =
+			changeDebounceMs ??
+			(envDebounceMs !== undefined && envDebounceMs !== '' ? Number(envDebounceMs) : undefined) ??
+			ProjectWatcher.duplicateChangeWindowMs;
 		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);

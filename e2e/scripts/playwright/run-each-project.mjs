@@ -8,10 +8,47 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlaywrightSubprocessEnv } from '../../playwright/playwright-color-env.mjs';
+import { removeDirectorySync } from './run-isolated-app.mjs';
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+/** Isolated kitchen-sink cells copy into `.e2e-tmp/<workspace>` and may mutate source. */
+const ISOLATED_PROJECT_WORKSPACES = {
+	'cross-integration-hmr-e2e': 'cross-integration-hmr',
+	'cross-integration-bun-parity-e2e': 'cross-integration-bun-parity',
+	'cross-integration-vite-node-parity-e2e': 'cross-integration-vite-node-parity',
+	'cross-integration-vite-bun-parity-e2e': 'cross-integration-vite-bun-parity',
+};
+
+function shouldResetIsolatedWorkspace() {
+	return process.env.ECOPAGES_REUSE_TEST_SERVERS !== 'true';
+}
+
+function prepareIsolatedProjectWorkspace(project) {
+	if (!shouldResetIsolatedWorkspace()) {
+		return;
+	}
+
+	const workspace = ISOLATED_PROJECT_WORKSPACES[project];
+	if (!workspace) {
+		return;
+	}
+
+	const workspaceDir = path.join(repoRoot, '.e2e-tmp', workspace);
+	removeDirectorySync(workspaceDir);
+
+	try {
+		unlinkSync(`${workspaceDir}.prepare-lock`);
+	} catch (error) {
+		if (error?.code !== 'ENOENT') {
+			throw error;
+		}
+	}
+}
 const require = createRequire(import.meta.url);
 const playwrightCliPath = require.resolve('@playwright/test/cli');
 
@@ -36,13 +73,15 @@ if (projects.length === 0) {
 }
 
 for (const project of projects) {
+	prepareIsolatedProjectWorkspace(project);
+
 	const env = createPlaywrightSubprocessEnv({
 		ECOPAGES_MANAGE_ISOLATED_WORKSPACES: 'true',
 		ECOPAGES_PLAYWRIGHT_PROJECTS: project,
 	});
 
 	const result = spawnSync(process.execPath, [playwrightCliPath, 'test', ...playwrightArgs, '--project', project], {
-		cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..'),
+		cwd: repoRoot,
 		env,
 		stdio: 'inherit',
 	});
@@ -50,4 +89,6 @@ for (const project of projects) {
 	if (result.status !== 0) {
 		process.exit(result.status ?? 1);
 	}
+
+	prepareIsolatedProjectWorkspace(project);
 }

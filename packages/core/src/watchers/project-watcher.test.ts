@@ -686,8 +686,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 	test('should watch includes and src directories alongside processor paths', async () => {
 		const Config = await createMockConfig();
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
-		const HmrManager = createMockHmrManager();
-		const Bridge = createMockBridge();
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
 			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir].includes(String(targetPath)),
 		);

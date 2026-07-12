@@ -11,7 +11,7 @@ import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 export const crossIntegrationSourceDir = 'playground/kitchen-sink';
 export const isolatedAppLauncher = 'node e2e/scripts/playwright/run-isolated-app.mjs';
 
-export const crossIntegrationHmrMatch = `${crossIntegrationSourceDir}/e2e/includes-hmr.test.e2e.ts`;
+export const crossIntegrationHmrMatch = `${crossIntegrationSourceDir}/e2e/*-hmr.test.e2e.ts`;
 
 const CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS = 90_000;
 

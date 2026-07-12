@@ -40,6 +40,7 @@ import {
 } from '../shared/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
+import { setAppHmrManager } from '../../dev/hmr-manager-registry.ts';
 import { HmrManager } from './hmr-manager.ts';
 import { BunStaticPreviewHost } from './static-preview-host.ts';
 
@@ -799,6 +800,7 @@ export async function createBunServerAdapter(params: BunServerAdapterParams): Pr
 	const bridge = params.bridge ?? new ClientBridge();
 	const hmrManager = params.hmrManager ?? new HmrManager({ appConfig: params.appConfig, bridge });
 	setAppDevClientBridge(params.appConfig, bridge);
+	setAppHmrManager(params.appConfig, hmrManager);
 	const previewHost = params.previewHost ?? new BunStaticPreviewHost();
 
 	const adapter = new BunServerAdapter({

@@ -282,10 +282,11 @@ describe('ProjectWatcher - File Change Handling', () => {
 		});
 	});
 
-	describe('declared script entrypoints', () => {
-		test('should prewarm declared script modules before HMR and defer processor notifications', async () => {
+	describe('registered script entrypoints', () => {
+		test('should prewarm registered script modules before HMR and defer processor notifications', async () => {
 			const onChange = vi.fn(async () => {});
 			const importModule = vi.fn(async <T = unknown>() => ({}) as T);
+			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.tsx');
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
@@ -299,6 +300,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 			};
 			Config.processors.set('css', Processor as any);
+			HmrManager.getWatchedFiles = vi.fn(
+				() => new Map([[path.resolve(scriptPath), '/assets/_hmr/components/theme-toggle.js']]),
+			);
 			Config.runtime = {
 				...(Config.runtime ?? {}),
 				appModuleLoader: {
@@ -307,8 +311,6 @@ describe('ProjectWatcher - File Change Handling', () => {
 					invalidateDevelopmentGraph: vi.fn(),
 				},
 			};
-
-			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.script.tsx');
 
 			await (watcher as any).handleFileChange(scriptPath);
 

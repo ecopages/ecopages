@@ -15,7 +15,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import {
 	removeStaleHmrEntrypointOutput,
 	resolveHmrEntrypointOutputPaths,
-	isDeclaredClientScriptEntrypoint,
+	isRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 } from '../hmr-entrypoint-output.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
@@ -138,11 +138,6 @@ export class JsHmrStrategy extends HmrStrategy {
 		const isIntegrationTemplate = this.context
 			.getTemplateExtensions()
 			.some((extension) => resolvedPath.endsWith(extension));
-		const isDeclaredScript = isDeclaredClientScriptEntrypoint(resolvedPath);
-
-		if (isDeclaredScript && isInSrc && isJsTs) {
-			return true;
-		}
 
 		if (watchedFiles.size === 0) {
 			return false;
@@ -179,16 +174,16 @@ export class JsHmrStrategy extends HmrStrategy {
 		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedChanged = path.resolve(filePath);
-		const isDirectScriptEdit = isDeclaredClientScriptEntrypoint(resolvedChanged);
+		const isRegisteredEntrypointEdit = isRegisteredScriptEntrypoint(watchedFiles, resolvedChanged);
 
-		if (watchedFiles.size === 0 && !isDirectScriptEdit) {
+		if (watchedFiles.size === 0) {
 			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
 			return { type: 'none' };
 		}
 
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
-		const impactedEntrypoints = isDirectScriptEdit
+		const impactedEntrypoints = isRegisteredEntrypointEdit
 			? [resolvedChanged]
 			: hasDependencyHit
 				? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
@@ -197,7 +192,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
 		);
 
-		if (!hasDependencyHit && !isDirectScriptEdit) {
+		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
 			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
 		}
 

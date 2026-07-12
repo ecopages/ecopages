@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-	isDeclaredClientScriptEntrypoint,
+	isRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 	resolveHmrEntrypointOutputPaths,
 } from './hmr-entrypoint-output.ts';
@@ -36,11 +36,19 @@ describe('resolveHmrEntrypointOutputPaths', () => {
 	});
 });
 
-describe('isDeclaredClientScriptEntrypoint', () => {
-	it('recognizes .script.tsx and .script.ts entrypoints', () => {
-		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.script.tsx')).toBe(true);
-		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.script.ts')).toBe(true);
-		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.tsx')).toBe(false);
+describe('isRegisteredScriptEntrypoint', () => {
+	it('matches paths registered in the HMR watched-files map', () => {
+		const entrypoint = '/app/src/components/theme-toggle.tsx';
+		const watchedFiles = new Map([[entrypoint, '/assets/_hmr/components/theme-toggle.js']]);
+
+		expect(isRegisteredScriptEntrypoint(watchedFiles, entrypoint)).toBe(true);
+		expect(isRegisteredScriptEntrypoint(watchedFiles, '/app/src/components/other.tsx')).toBe(false);
+	});
+
+	it('normalizes registered entrypoint paths before matching', () => {
+		const watchedFiles = new Map([['/app/src/components/counter.ts', '/assets/_hmr/counter.js']]);
+
+		expect(isRegisteredScriptEntrypoint(watchedFiles, '/app/src/components/../components/counter.ts')).toBe(true);
 	});
 });
 

@@ -8,8 +8,8 @@ import {
 	DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
-import { invalidateDeclaredScriptSsrRegistration } from '../hmr/declared-script-ssr-invalidation.ts';
-import { isDeclaredClientScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
+import { invalidateRegisteredScriptSsrRegistration } from '../hmr/declared-script-ssr-invalidation.ts';
+import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 
@@ -216,12 +216,15 @@ export class ProjectWatcher {
 
 			this.uncacheModules();
 			const resolvedFilePath = path.resolve(filePath);
-			const isDeclaredScriptEdit = isDeclaredClientScriptEntrypoint(resolvedFilePath);
+			const isRegisteredScriptEdit = isRegisteredScriptEntrypoint(
+				this.hmrManager.getWatchedFiles(),
+				resolvedFilePath,
+			);
 
 			if (plan.invalidateServerModules) {
 				this.invalidationService.invalidateServerModules([filePath]);
-				if (isDeclaredScriptEdit) {
-					invalidateDeclaredScriptSsrRegistration(resolvedFilePath);
+				if (isRegisteredScriptEdit) {
+					invalidateRegisteredScriptSsrRegistration(resolvedFilePath);
 				}
 			}
 
@@ -235,10 +238,12 @@ export class ProjectWatcher {
 			}
 
 			const deferProcessorNotifications =
-				plan.category === 'include-source' || plan.category === 'explicit-server-view' || isDeclaredScriptEdit;
+				plan.category === 'include-source' ||
+				plan.category === 'explicit-server-view' ||
+				isRegisteredScriptEdit;
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
-				await this.prewarmBeforeHmr(resolvedFilePath, plan, isDeclaredScriptEdit);
+				await this.prewarmBeforeHmr(resolvedFilePath, plan, isRegisteredScriptEdit);
 				await this.hmrManager.handleFileChange(filePath);
 				void this.notifyProcessors(filePath, event);
 				return;
@@ -268,10 +273,10 @@ export class ProjectWatcher {
 	private async prewarmBeforeHmr(
 		filePath: string,
 		plan: DevelopmentInvalidationPlan,
-		isDeclaredScriptEdit: boolean,
+		isRegisteredScriptEdit: boolean,
 	): Promise<void> {
-		if (isDeclaredScriptEdit) {
-			await this.prewarmServerModuleImports([filePath], { bypassCache: true, scope: 'declared script' });
+		if (isRegisteredScriptEdit) {
+			await this.prewarmServerModuleImports([filePath], { bypassCache: true, scope: 'registered script' });
 			return;
 		}
 

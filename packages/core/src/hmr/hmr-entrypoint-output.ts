@@ -4,13 +4,27 @@ import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 
-const DECLARED_CLIENT_SCRIPT_ENTRYPOINT = /\.script\.(?:tsx?|jsx?)$/;
-
 /**
- * Returns whether a source path follows the declared client script entrypoint convention.
+ * Returns whether a source path is a registered client script HMR entrypoint.
+ *
+ * @remarks
+ * Registration comes from `dependencies.scripts` via `FileScriptProcessor`,
+ * not from filename conventions such as `.script.tsx`.
  */
-export function isDeclaredClientScriptEntrypoint(filePath: string): boolean {
-	return DECLARED_CLIENT_SCRIPT_ENTRYPOINT.test(path.resolve(filePath));
+export function isRegisteredScriptEntrypoint(watchedFiles: ReadonlyMap<string, string>, filePath: string): boolean {
+	const resolvedPath = path.resolve(filePath);
+
+	if (watchedFiles.has(resolvedPath)) {
+		return true;
+	}
+
+	for (const entrypointPath of watchedFiles.keys()) {
+		if (path.resolve(entrypointPath) === resolvedPath) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 export function encodeHmrDynamicSegments(filepath: string): string {

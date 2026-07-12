@@ -4,19 +4,19 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
 	clearRegisteredCustomElementDefinition,
-	invalidateDeclaredScriptSsrRegistration,
-	resolveDeclaredScriptCustomElementTag,
+	invalidateRegisteredScriptSsrRegistration,
+	resolveRegisteredScriptCustomElementTag,
 } from './declared-script-ssr-invalidation.ts';
 
-describe('resolveDeclaredScriptCustomElementTag', () => {
+describe('resolveRegisteredScriptCustomElementTag', () => {
 	it('reads the tag from @customElement decorators', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'declared-script-tag-'));
-		const scriptPath = join(tempDir, 'theme-toggle.script.tsx');
+		const tempDir = mkdtempSync(join(tmpdir(), 'registered-script-tag-'));
+		const scriptPath = join(tempDir, 'theme-toggle.tsx');
 
 		writeFileSync(scriptPath, `@customElement('theme-toggle')\nexport class ThemeToggle {}\n`, 'utf-8');
 
 		try {
-			expect(resolveDeclaredScriptCustomElementTag(scriptPath)).toBe('theme-toggle');
+			expect(resolveRegisteredScriptCustomElementTag(scriptPath)).toBe('theme-toggle');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -63,10 +63,10 @@ describe('clearRegisteredCustomElementDefinition', () => {
 	});
 });
 
-describe('invalidateDeclaredScriptSsrRegistration', () => {
-	it('clears the registry entry for declared script entrypoints', () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'declared-script-invalidate-'));
-		const scriptPath = join(tempDir, 'widget.script.tsx');
+describe('invalidateRegisteredScriptSsrRegistration', () => {
+	it('clears the registry entry for registered script modules', () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'registered-script-invalidate-'));
+		const scriptPath = join(tempDir, 'widget.tsx');
 		const definitions = new Map<string, unknown>([['widget', class {}]]);
 		const previousRegistry = (globalThis as { customElements?: unknown }).customElements;
 
@@ -79,7 +79,7 @@ describe('invalidateDeclaredScriptSsrRegistration', () => {
 		});
 
 		try {
-			invalidateDeclaredScriptSsrRegistration(scriptPath);
+			invalidateRegisteredScriptSsrRegistration(scriptPath);
 			expect(definitions.has('widget')).toBe(false);
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;

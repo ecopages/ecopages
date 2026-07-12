@@ -148,6 +148,10 @@
 			"types": "./src/dev/client-bridge-registry.ts",
 			"default": "./src/dev/client-bridge-registry.ts"
 		},
+		"./dev/hmr-manager-registry": {
+			"types": "./src/dev/hmr-manager-registry.ts",
+			"default": "./src/dev/hmr-manager-registry.ts"
+		},
 		"./dev/dev-client-ownership": {
 			"types": "./src/dev/dev-client-ownership.ts",
 			"default": "./src/dev/dev-client-ownership.ts"

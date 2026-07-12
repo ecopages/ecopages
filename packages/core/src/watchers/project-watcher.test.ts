@@ -8,6 +8,7 @@ import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
+import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();
@@ -278,6 +279,51 @@ describe('ProjectWatcher - File Change Handling', () => {
 				setImmediate(resolve);
 			});
 			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(includeFilePath), bridge: Bridge });
+		});
+	});
+
+	describe('declared script entrypoints', () => {
+		test('should prewarm declared script modules before HMR and defer processor notifications', async () => {
+			const onChange = vi.fn(async () => {});
+			const importModule = vi.fn(async <T = unknown>() => ({}) as T);
+			const Processor = {
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.css', '.tsx'],
+					onChange,
+				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && filepath?.endsWith('.css');
+				}),
+				matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+			Config.runtime = {
+				...(Config.runtime ?? {}),
+				appModuleLoader: {
+					owner: 'app',
+					importModule: importModule as AppModuleLoader['importModule'],
+					invalidateDevelopmentGraph: vi.fn(),
+				},
+			};
+
+			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.script.tsx');
+
+			await (watcher as any).handleFileChange(scriptPath);
+
+			expect(importModule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					filePath: path.resolve(scriptPath),
+					bypassCache: true,
+				}),
+			);
+			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(scriptPath));
+			expect(Bridge.reload).not.toHaveBeenCalled();
+			await new Promise<void>((resolve) => {
+				setImmediate(resolve);
+			});
+			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(scriptPath), bridge: Bridge });
 		});
 	});
 

@@ -99,31 +99,60 @@ export async function clickByTestId(page: Page, testId: string) {
 	await page.getByTestId(testId).click();
 }
 
+const FORBIDDEN_HMR_DIAGNOSTIC_PATTERNS = [
+	/HMR script registration failed/i,
+	/Timed out registering entrypoint/i,
+	/stale-output skips/i,
+	/unhandled rejection/i,
+	/missing runtime output/i,
+] as const;
+
+/**
+ * Asserts declared layout/page scripts are served from the HMR dist path on cold start.
+ */
+export async function assertRegisteredHmrScript(page: Page, scriptPathFragment: string) {
+	const script = page.locator(`script[src*="/assets/_hmr/"][src*="${scriptPathFragment}"]`);
+	await expect(script, `expected HMR script containing ${scriptPathFragment}`).toHaveCount(1);
+	return script;
+}
+
+export function assertNoForbiddenHmrDiagnostics(messages: string[]) {
+	const combined = messages.join('\n');
+	for (const pattern of FORBIDDEN_HMR_DIAGNOSTIC_PATTERNS) {
+		expect(pattern.test(combined), `forbidden HMR diagnostic matched ${pattern}`).toBe(false);
+	}
+}
+
 /**
  * Captures page and console errors so E2E specs can assert that rapid navigation stays clean.
  */
 export function trackRuntimeErrors(page: Page) {
 	const pageErrors: string[] = [];
 	const consoleErrors: string[] = [];
+	const consoleMessages: string[] = [];
 
 	page.on('pageerror', (error: Error) => {
 		pageErrors.push(error.message);
 	});
 
 	page.on('console', (msg: ConsoleMessage) => {
+		const text = msg.text();
+		consoleMessages.push(text);
 		if (msg.type() === 'error') {
-			consoleErrors.push(msg.text());
+			consoleErrors.push(text);
 		}
 	});
 
 	return {
 		pageErrors,
 		consoleErrors,
+		consoleMessages,
 		assertClean() {
 			const combinedErrors = `${pageErrors.join('\n')}\n${consoleErrors.join('\n')}`;
 			for (const pattern of RUNTIME_ERROR_PATTERNS) {
 				expect(pattern.test(combinedErrors), `runtime errors should not match ${pattern}`).toBe(false);
 			}
+			assertNoForbiddenHmrDiagnostics(consoleMessages);
 		},
 	};
 }

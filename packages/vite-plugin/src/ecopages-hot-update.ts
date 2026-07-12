@@ -44,8 +44,15 @@ type ProcessFileChangeOptions = {
 function dispatchHostOwnedHmr(api: EcopagesPluginApi, file: string): void {
 	void api.getDevHostReady().then(async () => {
 		const hmrManager = getAppHmrManager(api.appConfig);
-		if (hmrManager?.isEnabled()) {
+		if (!hmrManager?.isEnabled()) {
+			return;
+		}
+
+		try {
 			await hmrManager.handleFileChange(file);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			hmrManager.broadcast({ type: 'error', message });
 		}
 	});
 }
@@ -70,8 +77,11 @@ function processEcopagesFileChange(
 	}
 
 	const plan = hostRuntime.planFileChange(file);
+	const hmrManager = getAppHmrManager(api.appConfig);
+	const watchedFiles = hmrManager?.getWatchedFiles?.();
+	const isRegisteredScriptEdit = hmrManager?.isEnabled() === true && watchedFiles?.has(path.resolve(file)) === true;
 
-	if (plan.invalidateServerModules) {
+	if (plan.invalidateServerModules && !isRegisteredScriptEdit) {
 		hostRuntime.invalidateServerModules([file]);
 		invalidateFileInServerEnvironments(server, file);
 		api.invalidateAppCache();

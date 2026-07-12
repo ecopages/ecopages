@@ -18,7 +18,6 @@ import {
 	isRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 } from '../hmr-entrypoint-output.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
@@ -38,11 +37,6 @@ export interface JsHmrContext {
 	 * Directory where HMR bundles are written.
 	 */
 	getDistDir(): string;
-
-	/**
-	 * Build plugins to use during bundling.
-	 */
-	getPlugins(): EcoBuildPlugin[];
 
 	/**
 	 * Absolute path to the source directory.
@@ -288,7 +282,6 @@ export class JsHmrStrategy extends HmrStrategy {
 					entrypoints: [entrypoint],
 					outdir: this.context.getDistDir(),
 					naming,
-					plugins: this.context.getPlugins(),
 					minify: false,
 				});
 
@@ -313,7 +306,6 @@ export class JsHmrStrategy extends HmrStrategy {
 				outdir: this.context.getDistDir(),
 				outbase: this.context.getSrcDir(),
 				naming: '[dir]/[name]',
-				plugins: this.context.getPlugins(),
 				minify: false,
 			});
 

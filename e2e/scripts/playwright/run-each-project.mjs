@@ -19,6 +19,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 /** Isolated kitchen-sink cells copy into `.e2e-tmp/<workspace>` and may mutate source. */
 const ISOLATED_PROJECT_WORKSPACES = {
 	'cross-integration-hmr-e2e': 'cross-integration-hmr',
+	'cross-integration-hmr-node-e2e': 'cross-integration-hmr-node',
+	'cross-integration-hmr-vite-e2e': 'cross-integration-hmr-vite',
 	'cross-integration-bun-parity-e2e': 'cross-integration-bun-parity',
 	'cross-integration-vite-node-parity-e2e': 'cross-integration-vite-node-parity',
 	'cross-integration-vite-bun-parity-e2e': 'cross-integration-vite-bun-parity',

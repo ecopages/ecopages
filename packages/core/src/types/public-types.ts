@@ -1,7 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../build/build-types.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
@@ -196,11 +195,6 @@ export interface DefaultHmrContext {
 	getDistDir(): string;
 
 	/**
-	 * Build plugins to use during bundling.
-	 */
-	getPlugins(): EcoBuildPlugin[];
-
-	/**
 	 * Absolute path to the source directory.
 	 */
 	getSrcDir(): string;
@@ -273,6 +267,15 @@ export interface IClientBridge {
 }
 
 /**
+ * Verified HMR entrypoint artifact produced by registration.
+ */
+export interface ResolvedHmrEntrypoint {
+	sourcePath: string;
+	outputPath: string;
+	outputUrl: string;
+}
+
+/**
  * Interface for the HMR Manager.
  * Used by integration plugins to register entrypoints and strategies.
  */
@@ -294,17 +297,12 @@ export interface IHmrManager {
 	 * framework integration. Unlike `registerEntrypoint()`, it may use the generic
 	 * script bundling path.
 	 */
-	registerScriptEntrypoint(entrypointPath: string): Promise<string>;
+	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 
 	/**
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategy): void;
-
-	/**
-	 * Sets the build plugins to use during bundling.
-	 */
-	setPlugins(plugins: EcoBuildPlugin[]): void;
 
 	/**
 	 * Enables or disables HMR.
@@ -334,7 +332,7 @@ export interface IHmrManager {
 	/**
 	 * Returns an existing emitted HMR script artifact without registering it.
 	 */
-	getResolvedScriptOutput?(entrypointPath: string): { outputUrl: string; outputPath: string } | undefined;
+	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
 
 	/**
 	 * Gets the map of watched files.
@@ -345,11 +343,6 @@ export interface IHmrManager {
 	 * Gets the HMR dist directory.
 	 */
 	getDistDir(): string;
-
-	/**
-	 * Gets the build plugins.
-	 */
-	getPlugins(): EcoBuildPlugin[];
 
 	/**
 	 * Gets the default HMR context.

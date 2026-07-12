@@ -5,26 +5,33 @@ import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 
 /**
+ * Verified HMR entrypoint artifact produced by registration.
+ */
+export interface ResolvedHmrEntrypoint {
+	sourcePath: string;
+	outputPath: string;
+	outputUrl: string;
+}
+
+/**
  * Returns whether a source path is a registered client script HMR entrypoint.
+ */
+export function isRegisteredScriptEntrypoint(registered: ReadonlyMap<string, unknown>, filePath: string): boolean {
+	return registered.has(path.resolve(filePath));
+}
+
+/**
+ * Returns whether a registered script entrypoint is browser-only and must not be
+ * server-imported during HMR invalidation.
  *
  * @remarks
- * Registration comes from `dependencies.scripts` via `FileScriptProcessor`,
- * not from filename conventions such as `.script.tsx`.
+ * Declared `*.script.ts` modules run only in the browser bundle. Re-importing them
+ * on the server during `prepareRegisteredScriptChange()` executes DOM globals and
+ * aborts the watcher before the client artifact rebuilds. Radiant `*.script.tsx`
+ * entrypoints are server-rendered and remain on the invalidation path.
  */
-export function isRegisteredScriptEntrypoint(watchedFiles: ReadonlyMap<string, string>, filePath: string): boolean {
-	const resolvedPath = path.resolve(filePath);
-
-	if (watchedFiles.has(resolvedPath)) {
-		return true;
-	}
-
-	for (const entrypointPath of watchedFiles.keys()) {
-		if (path.resolve(entrypointPath) === resolvedPath) {
-			return true;
-		}
-	}
-
-	return false;
+export function isBrowserOnlyRegisteredScriptEntrypoint(filePath: string): boolean {
+	return /\.script\.ts$/u.test(path.resolve(filePath));
 }
 
 export function encodeHmrDynamicSegments(filepath: string): string {

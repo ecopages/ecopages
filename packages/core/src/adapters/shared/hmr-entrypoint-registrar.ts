@@ -1,24 +1,10 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { removeStaleHmrEntrypointOutput, resolveHmrEntrypointOutputPaths } from '../../hmr/hmr-entrypoint-output.ts';
-
-/**
- * Shared runtime state used while registering HMR-owned entrypoints.
- */
-export interface HmrEntrypointRegistrarOptions {
-	/** Absolute source directory used to derive the emitted HMR path. */
-	srcDir: string;
-	/** Absolute distribution directory where HMR outputs are written. */
-	distDir: string;
-	/** In-flight registrations keyed by normalized absolute entrypoint path. */
-	entrypointRegistrations: Map<string, Promise<string>>;
-	/** Stable entrypoint-to-output mapping retained once an entrypoint is registered. */
-	watchedFiles: Map<string, string>;
-	/** Runtime-specific cleanup invoked when an entrypoint registration fails. */
-	clearFailedRegistration?: (entrypointPath: string) => void;
-	/** Development-only guardrail for integrations that never finish producing output. */
-	registrationTimeoutMs: number;
-}
+import {
+	removeStaleHmrEntrypointOutput,
+	resolveHmrEntrypointOutputPaths,
+	type ResolvedHmrEntrypoint,
+} from '../../hmr/hmr-entrypoint-output.ts';
 
 /**
  * Runtime-specific hooks required to materialize a single HMR entrypoint.
@@ -34,62 +20,98 @@ export interface HmrEntrypointRegistrationOptions {
 	getMissingOutputError(entrypointPath: string, outputPath: string): Error;
 }
 
+export interface HmrEntrypointRegistrarOptions {
+	/** Absolute source directory used to derive the emitted HMR path. */
+	srcDir: string;
+	/** Absolute distribution directory where HMR outputs are written. */
+	distDir: string;
+	/** Runtime-specific cleanup invoked when an entrypoint registration fails. */
+	clearFailedRegistration?: (entrypointPath: string) => void;
+}
+
 /**
  * Coordinates the shared HMR entrypoint registration lifecycle for both Node and Bun managers.
  *
- * The registrar owns the cross-runtime policy: normalize entrypoint identities, dedupe concurrent
- * registrations, derive the emitted `_hmr` output path, clear stale output before rebuilding, and
- * apply the development timeout that prevents unresolved registrations from hanging navigation.
- * Runtime-specific managers remain responsible for the actual emit step and any cleanup outside
- * this shared registration flow.
+ * @remarks
+ * The registrar owns in-flight deduplication and the registered entrypoint table.
+ * A source path is committed only after emit succeeds and the expected output exists on disk.
  */
 export class HmrEntrypointRegistrar {
 	private readonly options: HmrEntrypointRegistrarOptions;
+	private readonly inFlight = new Map<string, Promise<ResolvedHmrEntrypoint>>();
+	private readonly registered = new Map<string, ResolvedHmrEntrypoint>();
 
 	constructor(options: HmrEntrypointRegistrarOptions) {
 		this.options = options;
 	}
 
+	getRegistered(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
+		return this.registered;
+	}
+
+	getWatchedFiles(): Map<string, string> {
+		const watchedFiles = new Map<string, string>();
+		for (const [sourcePath, entrypoint] of this.registered) {
+			watchedFiles.set(sourcePath, entrypoint.outputUrl);
+		}
+		return watchedFiles;
+	}
+
+	clearRegistration(entrypointPath: string): void {
+		this.registered.delete(path.resolve(entrypointPath));
+	}
+
+	clearAll(): void {
+		this.inFlight.clear();
+		this.registered.clear();
+	}
+
 	/**
-	 * Registers a single source entrypoint and returns the browser URL for its emitted HMR module.
+	 * Registers a single source entrypoint and returns its verified HMR artifact.
 	 *
-	 * Concurrent requests for the same normalized entrypoint share the same in-flight promise so the
-	 * integration only builds once per registration cycle.
+	 * Concurrent requests for the same normalized entrypoint share the same in-flight promise.
 	 */
 	async registerEntrypoint(
 		entrypointPath: string,
 		registrationOptions: HmrEntrypointRegistrationOptions,
-	): Promise<string> {
+	): Promise<ResolvedHmrEntrypoint> {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-		const existingRegistration = this.options.entrypointRegistrations.get(normalizedEntrypoint);
+		const existing = this.registered.get(normalizedEntrypoint);
+		if (existing && fileSystem.exists(existing.outputPath)) {
+			return existing;
+		}
+
+		const existingRegistration = this.inFlight.get(normalizedEntrypoint);
 		if (existingRegistration) {
-			return await this.awaitEntrypointRegistration(existingRegistration, normalizedEntrypoint);
+			return await existingRegistration;
 		}
 
 		const registration = this.registerEntrypointInternal(normalizedEntrypoint, registrationOptions);
-		this.options.entrypointRegistrations.set(normalizedEntrypoint, registration);
+		this.inFlight.set(normalizedEntrypoint, registration);
 
 		try {
-			return await this.awaitEntrypointRegistration(registration, normalizedEntrypoint);
+			return await registration;
 		} catch (error) {
 			this.options.clearFailedRegistration?.(normalizedEntrypoint);
+			this.registered.delete(normalizedEntrypoint);
 			throw error;
 		} finally {
-			this.options.entrypointRegistrations.delete(normalizedEntrypoint);
+			if (this.inFlight.get(normalizedEntrypoint) === registration) {
+				this.inFlight.delete(normalizedEntrypoint);
+			}
 		}
 	}
 
 	private async registerEntrypointInternal(
 		entrypointPath: string,
 		registrationOptions: HmrEntrypointRegistrationOptions,
-	): Promise<string> {
-		if (this.options.watchedFiles.has(entrypointPath)) {
-			return this.options.watchedFiles.get(entrypointPath)!;
-		}
+	): Promise<ResolvedHmrEntrypoint> {
+		const { outputPath, outputUrl } = resolveHmrEntrypointOutputPaths(
+			this.options.srcDir,
+			this.options.distDir,
+			entrypointPath,
+		);
 
-		const { outputPath, outputUrl } = this.getEntrypointOutput(entrypointPath);
-
-		this.options.watchedFiles.set(entrypointPath, outputUrl);
 		removeStaleHmrEntrypointOutput(outputPath, 'HMR');
 
 		await registrationOptions.emit(entrypointPath, outputPath);
@@ -98,25 +120,12 @@ export class HmrEntrypointRegistrar {
 			throw registrationOptions.getMissingOutputError(entrypointPath, outputPath);
 		}
 
-		return outputUrl;
-	}
-
-	private async awaitEntrypointRegistration(registration: Promise<string>, entrypointPath: string): Promise<string> {
-		if (process.env.NODE_ENV !== 'development') {
-			return await registration;
-		}
-
-		return await Promise.race([
-			registration,
-			new Promise<string>((_, reject) => {
-				setTimeout(() => {
-					reject(new Error(`[HMR] Timed out registering entrypoint: ${entrypointPath}`));
-				}, this.options.registrationTimeoutMs);
-			}),
-		]);
-	}
-
-	private getEntrypointOutput(entrypointPath: string): { outputPath: string; outputUrl: string } {
-		return resolveHmrEntrypointOutputPaths(this.options.srcDir, this.options.distDir, entrypointPath);
+		const resolved: ResolvedHmrEntrypoint = {
+			sourcePath: entrypointPath,
+			outputPath,
+			outputUrl,
+		};
+		this.registered.set(entrypointPath, resolved);
+		return resolved;
 	}
 }

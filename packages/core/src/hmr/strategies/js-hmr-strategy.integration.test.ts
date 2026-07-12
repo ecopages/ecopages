@@ -80,4 +80,68 @@ describe('JsHmrStrategy integration', () => {
 		expect(fs.readFileSync(outputPath, 'utf8')).toContain('UPDATED');
 		expect(broadcasts.some((event) => event.type === 'reload' || event.type === 'update')).toBe(true);
 	});
+
+	it('rebuilds a browser-only .script.ts entrypoint without server-importing it', async () => {
+		const rootDir = createTempRoot('js-hmr-browser-script');
+		const layoutsDir = path.join(rootDir, 'src', 'layouts', 'base-layout');
+		fs.mkdirSync(layoutsDir, { recursive: true });
+
+		const entrypointPath = path.join(layoutsDir, 'base-layout.script.ts');
+		const writeMarker = (marker: string) => {
+			fs.writeFileSync(
+				entrypointPath,
+				`const marker = ${JSON.stringify(marker)};\nif (typeof document !== 'undefined') {\n  document.documentElement.dataset.baseLayoutScript = marker;\n}\n`,
+				'utf8',
+			);
+		};
+
+		writeMarker('BASELINE');
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const broadcasts: ClientBridgeEvent[] = [];
+		let importCalls = 0;
+		config.runtime ??= {};
+		config.runtime.appModuleLoader = {
+			importModule: async () => {
+				importCalls += 1;
+				throw new Error('browser-only registered scripts must not be server-imported');
+			},
+			invalidateDevelopmentGraph: () => undefined,
+		} as never;
+
+		using manager = new BunHmrManager({
+			appConfig: config,
+			bridge: {
+				subscriberCount: 0,
+				broadcast: (event: ClientBridgeEvent) => {
+					broadcasts.push(event);
+				},
+			} as never,
+		});
+
+		manager.setEnabled(true);
+		installBuildRuntime(config);
+
+		await manager.registerScriptEntrypoint(entrypointPath);
+
+		const outputPath = path.join(
+			resolveInternalWorkDir(config),
+			'assets',
+			'_hmr',
+			'layouts',
+			'base-layout',
+			'base-layout.script.js',
+		);
+
+		expect(fs.existsSync(outputPath)).toBe(true);
+		expect(fs.readFileSync(outputPath, 'utf8')).toContain('BASELINE');
+
+		writeMarker('UPDATED');
+		broadcasts.length = 0;
+		await manager.handleFileChange(entrypointPath);
+
+		expect(importCalls).toBe(0);
+		expect(broadcasts.length).toBeGreaterThan(0);
+		expect(fs.readFileSync(outputPath, 'utf8')).toContain('UPDATED');
+	});
 });

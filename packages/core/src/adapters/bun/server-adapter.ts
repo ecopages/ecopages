@@ -33,10 +33,10 @@ import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../s
 import { createEcopagesSocket } from '../shared/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import {
+	attachHmrToIntegrations,
 	disposeDevResources,
 	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
-	wireIntegrationHmrManagers,
 } from '../shared/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
@@ -313,13 +313,14 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
-				hmrManager: this.hmrManager,
 				onRuntimePlugin: (plugin: EcoBuildPlugin) => {
 					this.registerBunRuntimePlugin(plugin);
 				},
 			});
 
-			wireIntegrationHmrManagers(this.appConfig, this.hmrManager);
+			if (options?.watch) {
+				attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			}
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;

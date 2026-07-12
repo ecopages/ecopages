@@ -101,7 +101,6 @@ describe('IntegrationPlugin', () => {
 			registerStrategy,
 			registerEntrypoint: vi.fn(),
 			registerScriptEntrypoint: vi.fn(),
-			setPlugins: vi.fn(),
 			setEnabled: vi.fn(),
 			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),
@@ -109,7 +108,6 @@ describe('IntegrationPlugin', () => {
 			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getDistDir: vi.fn(() => ''),
-			getPlugins: vi.fn(() => []),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),
 		} satisfies IHmrManager;

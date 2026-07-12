@@ -20,10 +20,10 @@ import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import {
+	attachHmrToIntegrations,
+	disposeDevResources,
 	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
-	wireIntegrationHmrManagers,
-	disposeDevResources,
 } from '../shared/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -193,7 +193,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
-				hmrManager: this.hmrManager ?? undefined,
 			});
 		}
 		await this.initializeSharedRouteHandling({
@@ -408,7 +407,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				});
 			}
 
-			wireIntegrationHmrManagers(this.appConfig, this.hmrManager);
+			attachHmrToIntegrations(this.appConfig, this.hmrManager);
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

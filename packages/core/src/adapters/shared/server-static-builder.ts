@@ -3,6 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { build, getAppBuildAdapter, setupAppRuntimePlugins, type BuildOptions } from '../../build/build-adapter.ts';
+import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import {
 	getServerBundleOutputPaths,
@@ -130,9 +131,12 @@ export class ServerStaticBuilder {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
-				hmrManager: this.hmrManager,
 				onRuntimePlugin: this.onRuntimePlugin,
 			});
+
+			if (this.hmrManager?.isEnabled()) {
+				attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			}
 		} finally {
 			appLogger.debugTimeEnd('refreshRuntimeAssets');
 		}

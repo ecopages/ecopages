@@ -149,6 +149,27 @@ export abstract class HmrStrategy {
 	abstract matches(filePath: string): boolean;
 
 	/**
+	 * Returns whether this strategy owns cold registration for the entrypoint.
+	 *
+	 * @remarks
+	 * Registration dispatch uses only integration strategies that claim the
+	 * entrypoint. File-change dispatch continues to use {@link matches}.
+	 */
+	canEmitEntrypoint(_entrypointPath: string): boolean {
+		return false;
+	}
+
+	/**
+	 * Materializes one integration-owned HMR entrypoint during registration.
+	 *
+	 * @remarks
+	 * Must write the canonical output path and must not broadcast client events.
+	 */
+	async emitEntrypoint(_entrypointPath: string, _outputPath: string): Promise<void> {
+		return;
+	}
+
+	/**
 	 * Processes a file change and returns the action to take.
 	 *
 	 * This method may perform side effects such as:

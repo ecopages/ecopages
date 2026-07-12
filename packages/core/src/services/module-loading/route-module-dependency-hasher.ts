@@ -92,6 +92,8 @@ export class RouteModuleDependencyHasher {
 		entrypointPath?: string,
 		entrypointSourceHash?: string,
 	): boolean {
+		this.clearMemo();
+
 		if (!storedHashes || Object.keys(storedHashes).length === 0) {
 			return false;
 		}

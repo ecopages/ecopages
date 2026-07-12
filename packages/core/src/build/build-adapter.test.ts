@@ -470,7 +470,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			integrations: [integration],
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
-		hmrManager: {} as any,
 		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
@@ -478,7 +477,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		'processor-setup',
 		'integration-config',
 		'integration-origin',
-		'integration-hmr',
 		'integration-setup',
 	]);
 	assert.deepEqual(observedRuntimePlugins, [

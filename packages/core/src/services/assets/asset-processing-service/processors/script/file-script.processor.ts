@@ -1,31 +1,12 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { appLogger } from '../../../../../global/app-logger.ts';
 import type { IHmrManager } from '../../../../../types/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
-
-	private resolveHmrOutputFilepath(entrypointPath: string): string | undefined {
-		if (!this.hmrManager || !('getDistDir' in this.hmrManager)) {
-			return undefined;
-		}
-
-		const getDistDir = this.hmrManager.getDistDir;
-		if (typeof getDistDir !== 'function') {
-			return undefined;
-		}
-
-		const relativePathJs = path
-			.relative(this.appConfig.absolutePaths.srcDir, entrypointPath)
-			.replace(/\.(tsx?|jsx?|mdx?)$/, '.js')
-			.replace(/\[([^\]]+)\]/g, '_$1_');
-
-		return path.join(getDistDir.call(this.hmrManager), relativePathJs);
-	}
 
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
@@ -52,26 +33,19 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				};
 			}
 
-			try {
-				const outputUrl = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
-				const outputFilepath = this.resolveHmrOutputFilepath(dep.filepath);
-				return {
-					filepath: outputFilepath ?? dep.filepath,
-					sourceFilepath: dep.filepath,
-					srcUrl: outputUrl,
-					kind: 'script',
-					position: dep.position,
-					attributes: dep.attributes,
-					inline: false,
-					excludeFromHtml: dep.excludeFromHtml,
-					packageRole: dep.packageRole,
-					bundledSourceFilepaths: dep.bundledSourceFilepaths,
-				};
-			} catch (error) {
-				appLogger.warn(
-					`[FileScriptProcessor] HMR script registration failed for ${dep.filepath}, falling back to non-HMR asset: ${error instanceof Error ? error.message : String(error)}`,
-				);
-			}
+			const registered = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
+			return {
+				filepath: registered.outputPath,
+				sourceFilepath: dep.filepath,
+				srcUrl: registered.outputUrl,
+				kind: 'script',
+				position: dep.position,
+				attributes: dep.attributes,
+				inline: false,
+				excludeFromHtml: dep.excludeFromHtml,
+				packageRole: dep.packageRole,
+				bundledSourceFilepaths: dep.bundledSourceFilepaths,
+			};
 		}
 
 		const content = fileSystem.readFileSync(dep.filepath);

@@ -67,7 +67,6 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 	return {
 		getWatchedFiles: () => new Map(),
 		getDistDir: () => '/tmp/.eco/assets/_hmr',
-		getPlugins: () => [],
 		getSrcDir: () => '/tmp/src',
 		getLayoutsDir: () => '/tmp/src/layouts',
 		getPagesDir: () => '/tmp/src/pages',
@@ -110,6 +109,91 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
+	});
+
+	it('claims owned React entrypoints for cold registration emission', () => {
+		const pagePath = '/tmp/src/pages/index.tsx';
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache({
+				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		expect(strategy.canEmitEntrypoint(pagePath)).toBe(true);
+	});
+
+	it('emitEntrypoint bundles owned React entrypoints before they are registered in watched files', async () => {
+		const pagePath = '/tmp/src/pages/index.tsx';
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.js' }],
+		}));
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getBrowserBundleService: () => ({ bundle }),
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		await strategy.emitEntrypoint(pagePath, '/tmp/.eco/assets/_hmr/pages/index.js');
+		expect(bundle).toHaveBeenCalled();
+	});
+
+	it('emitEntrypoint bundles owned React entrypoints during registration when other pages are already watched', async () => {
+		const existingPagePath = '/tmp/src/pages/about.tsx';
+		const pendingPagePath = '/tmp/src/pages/index.tsx';
+		const watchedFiles = new Map<string, string>([[existingPagePath, '/assets/_hmr/pages/about.js']]);
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
+		}));
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getWatchedFiles: () => watchedFiles,
+				getBrowserBundleService: () => ({ bundle }),
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				ownsEntrypoint: (entrypointPath) =>
+					entrypointPath === existingPagePath || entrypointPath === pendingPagePath,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		await strategy.emitEntrypoint(pendingPagePath, '/tmp/.eco/assets/_hmr/pages/index.js');
+		expect(bundle).toHaveBeenCalledTimes(1);
+		expect(bundle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				entrypoints: [pendingPagePath],
+			}),
+		);
+	});
+
+	it('process returns none when no entrypoints are registered yet', async () => {
+		const pagePath = '/tmp/src/pages/index.tsx';
+		const bundle = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.js' }],
+		}));
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getBrowserBundleService: () => ({ bundle }),
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		await expect(strategy.process(pagePath)).resolves.toEqual({ type: 'none' });
+		expect(bundle).not.toHaveBeenCalled();
 	});
 
 	it('matches route templates only when their configured extension is owned by React', () => {

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
 	isRegisteredScriptEntrypoint,
+	isBrowserOnlyRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 	resolveHmrEntrypointOutputPaths,
 } from './hmr-entrypoint-output.ts';
@@ -37,18 +38,46 @@ describe('resolveHmrEntrypointOutputPaths', () => {
 });
 
 describe('isRegisteredScriptEntrypoint', () => {
-	it('matches paths registered in the HMR watched-files map', () => {
+	it('matches paths registered in the HMR entrypoint map', () => {
 		const entrypoint = '/app/src/components/theme-toggle.tsx';
-		const watchedFiles = new Map([[entrypoint, '/assets/_hmr/components/theme-toggle.js']]);
+		const registered = new Map([
+			[
+				entrypoint,
+				{
+					sourcePath: entrypoint,
+					outputPath: '/app/.eco/assets/_hmr/components/theme-toggle.js',
+					outputUrl: '/assets/_hmr/components/theme-toggle.js',
+				},
+			],
+		]);
 
-		expect(isRegisteredScriptEntrypoint(watchedFiles, entrypoint)).toBe(true);
-		expect(isRegisteredScriptEntrypoint(watchedFiles, '/app/src/components/other.tsx')).toBe(false);
+		expect(isRegisteredScriptEntrypoint(registered, entrypoint)).toBe(true);
+		expect(isRegisteredScriptEntrypoint(registered, '/app/src/components/other.tsx')).toBe(false);
 	});
 
 	it('normalizes registered entrypoint paths before matching', () => {
-		const watchedFiles = new Map([['/app/src/components/counter.ts', '/assets/_hmr/counter.js']]);
+		const registered = new Map([
+			[
+				'/app/src/components/counter.ts',
+				{
+					sourcePath: '/app/src/components/counter.ts',
+					outputPath: '/app/.eco/assets/_hmr/counter.js',
+					outputUrl: '/assets/_hmr/counter.js',
+				},
+			],
+		]);
 
-		expect(isRegisteredScriptEntrypoint(watchedFiles, '/app/src/components/../components/counter.ts')).toBe(true);
+		expect(isRegisteredScriptEntrypoint(registered, '/app/src/components/../components/counter.ts')).toBe(true);
+	});
+});
+
+describe('isBrowserOnlyRegisteredScriptEntrypoint', () => {
+	it('matches declared browser script entrypoints', () => {
+		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/layouts/base-layout/base-layout.script.ts')).toBe(
+			true,
+		);
+		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/components/widget.script.tsx')).toBe(false);
+		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/components/widget.script.eco.tsx')).toBe(false);
 	});
 });
 

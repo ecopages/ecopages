@@ -63,8 +63,11 @@ export class ProjectWatcher {
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private readonly changeDebounceMs: number;
 	private watcher: FSWatcher | null = null;
-	private lastHandledChange = new Map<string, number>();
-	private pendingChangeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private closed = false;
+	private pendingChangeEvents = new Map<
+		string,
+		{ event: 'change' | 'add' | 'unlink'; timer: ReturnType<typeof setTimeout> }
+	>();
 	private changeQueue: Promise<void> = Promise.resolve();
 
 	constructor({
@@ -177,34 +180,31 @@ export class ProjectWatcher {
 	 * @param event - The type of file system event
 	 */
 	private handleFileChange(rawPath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
+		if (this.closed) {
+			return Promise.resolve();
+		}
+
 		const filePath = path.resolve(rawPath);
 
 		if (this.changeDebounceMs === 0) {
 			return this.enqueueChange(() => this.processFileChange(filePath, event));
 		}
 
-		const existing = this.pendingChangeTimers.get(filePath);
+		const existing = this.pendingChangeEvents.get(filePath);
 		if (existing) {
-			clearTimeout(existing);
+			clearTimeout(existing.timer);
 		}
 
 		const timer = setTimeout(() => {
-			this.pendingChangeTimers.delete(filePath);
-			this.enqueueChange(() => this.processFileChange(filePath, event));
+			this.pendingChangeEvents.delete(filePath);
+			void this.enqueueChange(() => this.processFileChange(filePath, event));
 		}, this.changeDebounceMs);
 
-		this.pendingChangeTimers.set(filePath, timer);
+		this.pendingChangeEvents.set(filePath, { event, timer });
 		return Promise.resolve();
 	}
 
 	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
-		const now = Date.now();
-		const lastHandledAt = this.lastHandledChange.get(filePath);
-		if (lastHandledAt !== undefined && now - lastHandledAt < ProjectWatcher.duplicateChangeWindowMs) {
-			return;
-		}
-		this.lastHandledChange.set(filePath, now);
-
 		try {
 			const plan = this.invalidationService.planFileChange(filePath);
 
@@ -220,11 +220,8 @@ export class ProjectWatcher {
 				resolvedFilePath,
 			);
 
-			if (plan.invalidateServerModules) {
+			if (plan.invalidateServerModules && !isRegisteredScriptEdit) {
 				this.invalidationService.invalidateServerModules([filePath]);
-				if (isRegisteredScriptEdit) {
-					await this.invalidationService.notifyRegisteredScriptEntrypointChange(resolvedFilePath);
-				}
 			}
 
 			if (plan.refreshRoutes) {
@@ -242,9 +239,9 @@ export class ProjectWatcher {
 				isRegisteredScriptEdit;
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
-				await this.prewarmBeforeHmr(resolvedFilePath, plan, isRegisteredScriptEdit);
+				await this.prewarmBeforeHmr(resolvedFilePath, plan);
 				await this.hmrManager.handleFileChange(filePath);
-				void this.notifyProcessors(filePath, event);
+				await this.notifyProcessors(filePath, event);
 				return;
 			}
 
@@ -269,16 +266,7 @@ export class ProjectWatcher {
 	 * Re-imports server modules before HMR broadcast so reload/refetch does not
 	 * race stale in-memory imports or custom-element registry state.
 	 */
-	private async prewarmBeforeHmr(
-		filePath: string,
-		plan: DevelopmentInvalidationPlan,
-		isRegisteredScriptEdit: boolean,
-	): Promise<void> {
-		if (isRegisteredScriptEdit) {
-			await this.prewarmServerModuleImports([filePath], { bypassCache: true, scope: 'registered script' });
-			return;
-		}
-
+	private async prewarmBeforeHmr(filePath: string, plan: DevelopmentInvalidationPlan): Promise<void> {
 		if (plan.category !== 'include-source' && plan.category !== 'explicit-server-view') {
 			return;
 		}
@@ -494,11 +482,18 @@ export class ProjectWatcher {
 	 * and other short-lived Ecopages runtimes.
 	 */
 	public async close(): Promise<void> {
-		if (!this.watcher) {
-			return;
+		this.closed = true;
+
+		for (const pending of this.pendingChangeEvents.values()) {
+			clearTimeout(pending.timer);
+		}
+		this.pendingChangeEvents.clear();
+
+		if (this.watcher) {
+			await this.watcher.close();
+			this.watcher = null;
 		}
 
-		await this.watcher.close();
-		this.watcher = null;
+		await this.changeQueue.catch(() => undefined);
 	}
 }

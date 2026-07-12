@@ -191,12 +191,6 @@ test('HmrManager stop clears retained registration state', async () => {
 		} as any,
 	});
 
-	const relativePathJs = path
-		.relative(config.absolutePaths.srcDir, entrypointPath)
-		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
-
 	vi.spyOn(manager, 'emitIntegrationEntrypoint').mockImplementation(async (_entrypoint, outputPath) => {
 		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 		fs.writeFileSync(outputPath, 'export default 1;', 'utf8');

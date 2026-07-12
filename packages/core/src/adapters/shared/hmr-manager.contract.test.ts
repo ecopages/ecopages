@@ -57,14 +57,6 @@ const runtimes = [
 	},
 ] as const;
 
-function getEntrypointOutputPath(manager: SharedHmrManager, entrypointPath: string): string {
-	const relativePathJs = path
-		.relative(manager.appConfig.absolutePaths.srcDir, entrypointPath)
-		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	return path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', encodedPathJs);
-}
-
 describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 	test('shares one in-flight entrypoint registration across concurrent callers', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-register');
@@ -75,7 +67,6 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 		using manager = await create(rootDir);
-		const outputPath = getEntrypointOutputPath(manager, entrypointPath);
 
 		const emitIntegrationEntrypoint = vi
 			.spyOn(manager, 'emitIntegrationEntrypoint')
@@ -232,7 +223,6 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 		using manager = await create(rootDir);
-		const outputPath = getEntrypointOutputPath(manager, entrypointPath);
 
 		vi.spyOn(manager, 'emitIntegrationEntrypoint').mockImplementation(async (_entrypoint, outputPath) => {
 			fs.mkdirSync(path.dirname(outputPath), { recursive: true });

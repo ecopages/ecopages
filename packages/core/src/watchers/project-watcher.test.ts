@@ -8,7 +8,6 @@ import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
-import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();

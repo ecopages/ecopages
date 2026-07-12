@@ -1,4 +1,4 @@
-import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
+import { assertHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
 
 export type FetchNavigationPageOptions = {
 	bypassCache?: boolean;
@@ -32,11 +32,7 @@ export async function fetchNavigationPage(
 		throw new Error(`Failed to fetch page: ${response.status}`);
 	}
 
-	if (!isHtmlPageResponse(response)) {
-		throw new Error(
-			`Expected HTML page response, received ${response.headers.get('Content-Type') ?? 'unknown content type'}`,
-		);
-	}
+	await assertHtmlPageResponse(response);
 
 	return response.text();
 }

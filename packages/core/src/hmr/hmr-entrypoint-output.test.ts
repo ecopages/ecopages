@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { resolveHmrEntrypointOutputPaths } from './hmr-entrypoint-output.ts';
+import {
+	isDeclaredClientScriptEntrypoint,
+	isHmrOutputFresh,
+	resolveHmrEntrypointOutputPaths,
+} from './hmr-entrypoint-output.ts';
 
 describe('resolveHmrEntrypointOutputPaths', () => {
 	it('maps script entrypoints to _hmr output paths', () => {
@@ -27,5 +33,31 @@ describe('resolveHmrEntrypointOutputPaths', () => {
 			outputUrl: '/assets/_hmr/pages/blog/_slug_.js',
 			outputPath: path.join(distDir, 'pages/blog/_slug_.js'),
 		});
+	});
+});
+
+describe('isDeclaredClientScriptEntrypoint', () => {
+	it('recognizes .script.tsx and .script.ts entrypoints', () => {
+		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.script.tsx')).toBe(true);
+		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.script.ts')).toBe(true);
+		expect(isDeclaredClientScriptEntrypoint('/app/src/components/theme-toggle.tsx')).toBe(false);
+	});
+});
+
+describe('isHmrOutputFresh', () => {
+	it('returns true when output mtime is newer than source mtime', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-fresh-'));
+		const sourcePath = path.join(root, 'widget.script.tsx');
+		const outputPath = path.join(root, 'widget.script.js');
+
+		fs.writeFileSync(sourcePath, 'source');
+		fs.writeFileSync(outputPath, 'output');
+
+		const sourceMtime = new Date(Date.now() - 1_000);
+		fs.utimesSync(sourcePath, sourceMtime, sourceMtime);
+
+		expect(isHmrOutputFresh(outputPath, sourcePath)).toBe(true);
+
+		fs.rmSync(root, { recursive: true, force: true });
 	});
 });

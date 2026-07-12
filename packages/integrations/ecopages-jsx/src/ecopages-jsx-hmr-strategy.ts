@@ -41,11 +41,15 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 	}
 
 	override matches(filePath: string): boolean {
-		if (this.context.getWatchedFiles().has(filePath)) {
+		const resolvedPath = path.resolve(filePath);
+		const watchedFiles = this.context.getWatchedFiles();
+
+		if (
+			watchedFiles.has(resolvedPath) ||
+			[...watchedFiles.keys()].some((key) => path.resolve(key) === resolvedPath)
+		) {
 			return false;
 		}
-
-		const resolvedPath = path.resolve(filePath);
 		const srcDir = path.resolve(this.context.getSrcDir());
 
 		if (!resolvedPath.startsWith(`${srcDir}${path.sep}`) && resolvedPath !== srcDir) {

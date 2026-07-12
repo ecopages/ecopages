@@ -24,6 +24,7 @@ import {
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
+import type { BuildResult } from '../../build/build-contracts.ts';
 
 type HandleFileChangeOptions = {
 	broadcast?: boolean;
@@ -78,6 +79,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
+	private runtimeBuildPromise: Promise<boolean> | null = null;
 
 	constructor({ appConfig, bridge, registrationTimeoutMs }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
@@ -171,7 +173,39 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return this.enabled;
 	}
 
+	public isRuntimeReady(): boolean {
+		return fileSystem.exists(this.getRuntimePath());
+	}
+
+	/**
+	 * Builds the browser HMR runtime once and reuses the in-flight build for concurrent callers.
+	 */
+	public async ensureRuntimeReady(): Promise<boolean> {
+		if (this.isRuntimeReady()) {
+			return true;
+		}
+
+		if (this.runtimeBuildPromise) {
+			return this.runtimeBuildPromise;
+		}
+
+		this.runtimeBuildPromise = this.buildRuntimeInternal();
+		try {
+			return await this.runtimeBuildPromise;
+		} finally {
+			this.runtimeBuildPromise = null;
+		}
+	}
+
 	public async buildRuntime(): Promise<void> {
+		await this.ensureRuntimeReady();
+	}
+
+	public getRuntimePath(): string {
+		return path.join(this.distDir, '_hmr_runtime.js');
+	}
+
+	private async buildRuntimeInternal(): Promise<boolean> {
 		const runtimeSource = fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime'));
 
 		try {
@@ -186,14 +220,36 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 			if (!result.success) {
 				this.onRuntimeBundleFailure(result.logs);
+				return false;
 			}
+
+			this.syncRuntimeOutput(result);
+			return this.isRuntimeReady();
 		} catch (error) {
 			this.onRuntimeBundleFailure(error);
+			return false;
 		}
 	}
 
-	public getRuntimePath(): string {
-		return path.join(this.distDir, '_hmr_runtime.js');
+	/**
+	 * @remarks
+	 * Rolldown may emit the runtime bundle under a derived filename when the
+	 * entrypoint lives outside the app root. The dev server always serves
+	 * `/_hmr_runtime.js` from a stable path under `.eco/assets/_hmr/`.
+	 */
+	private syncRuntimeOutput(result: BuildResult): void {
+		const runtimePath = this.getRuntimePath();
+		if (fileSystem.exists(runtimePath)) {
+			return;
+		}
+
+		const emittedRuntime = result.outputs.find((output) => output.path.endsWith('.js'));
+		if (!emittedRuntime || emittedRuntime.path === runtimePath) {
+			return;
+		}
+
+		fileSystem.ensureDir(path.dirname(runtimePath));
+		fileSystem.copyFile(emittedRuntime.path, runtimePath);
 	}
 
 	public broadcast(event: ClientBridgeEvent) {

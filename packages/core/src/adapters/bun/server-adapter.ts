@@ -272,9 +272,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		installAppRuntimeBuildExecutor(this.appConfig);
 
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		if (this.options?.watch) {
-			await this.hmrManager.buildRuntime();
-		}
 		prepareRuntimePublicDir(this.appConfig);
 
 		const staticBuilderOptions = {
@@ -293,6 +290,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		if (!this.deferRuntimeAssetSetup) {
 			await this.initializeRuntimePlugins({ watch: this.options?.watch });
+		}
+
+		if (this.options?.watch) {
+			await this.hmrManager.ensureRuntimeReady();
 		}
 	}
 
@@ -466,14 +467,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 				if (url.pathname === '/_hmr_runtime.js') {
 					await waitForInit();
+					const runtimeReady = await hmrManager.ensureRuntimeReady();
 					const runtimePath = hmrManager.getRuntimePath();
-					if (!fileSystem.exists(runtimePath)) {
-						appLogger.warn(
-							`[HMR] Runtime script missing at ${runtimePath}; attempting to rebuild before serving.`,
-						);
-						await hmrManager.buildRuntime();
-					}
-					if (fileSystem.exists(runtimePath)) {
+					if (runtimeReady && fileSystem.exists(runtimePath)) {
 						return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
 							headers: { 'Content-Type': 'application/javascript' },
 						});
@@ -691,6 +687,10 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			staticRoutes: this.staticRoutes,
 			hmrManager: this.hmrManager,
 		});
+
+		if (this.options?.watch) {
+			await this.hmrManager.ensureRuntimeReady();
+		}
 
 		this.fullyInitialized = true;
 

@@ -2,7 +2,7 @@ import type { EcoBuildPlugin } from './build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 function patchAppRuntime(
 	appConfig: EcoPagesAppConfig,
@@ -74,7 +74,6 @@ export async function collectConfiguredAppBuildManifestContributions(
 export async function setupAppRuntimePlugins(options: {
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-	hmrManager?: IHmrManager;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
@@ -103,9 +102,6 @@ export async function setupAppRuntimePlugins(options: {
 		for (const integration of options.appConfig.integrations) {
 			integration.setConfig(options.appConfig);
 			integration.setRuntimeOrigin(options.runtimeOrigin);
-			if (options.hmrManager) {
-				integration.setHmrManager(options.hmrManager);
-			}
 
 			await integration.setup();
 

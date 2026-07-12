@@ -40,11 +40,6 @@ export interface JsHmrContext {
 	getDistDir(): string;
 
 	/**
-	 * Build plugins to use during bundling.
-	 */
-	getPlugins(): EcoBuildPlugin[];
-
-	/**
 	 * Absolute path to the source directory.
 	 */
 	getSrcDir(): string;
@@ -288,7 +283,6 @@ export class JsHmrStrategy extends HmrStrategy {
 					entrypoints: [entrypoint],
 					outdir: this.context.getDistDir(),
 					naming,
-					plugins: this.context.getPlugins(),
 					minify: false,
 				});
 
@@ -313,7 +307,6 @@ export class JsHmrStrategy extends HmrStrategy {
 				outdir: this.context.getDistDir(),
 				outbase: this.context.getSrcDir(),
 				naming: '[dir]/[name]',
-				plugins: this.context.getPlugins(),
 				minify: false,
 			});
 

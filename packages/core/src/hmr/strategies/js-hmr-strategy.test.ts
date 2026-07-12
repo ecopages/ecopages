@@ -14,7 +14,6 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 		getWatchedFiles: () => new Map(),
 		getEntrypointDependencyGraph: () => new NoopDevGraphService(),
 		getDistDir: () => TMP_DIR,
-		getPlugins: () => [],
 		getSrcDir: () => SRC_DIR,
 		getPagesDir: () => path.join(SRC_DIR, 'pages'),
 		getLayoutsDir: () => path.join(SRC_DIR, 'layouts'),

@@ -4,7 +4,6 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { IHmrManager } from '../../types/public-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { clearAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
@@ -24,15 +23,32 @@ export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 }
 
+const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
+
 /**
- * Propagates browser build plugins and the shared HMR manager into integrations.
+ * Attaches the shared HMR manager to every integration exactly once per app config.
+ *
+ * @remarks
+ * Runtime plugin setup must not call `integration.setHmrManager()` directly. Adapters invoke
+ * this after the manager is enabled so late plugin init cannot double-bind integrations.
  */
-export function wireIntegrationHmrManagers(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
-	hmrManager.setPlugins(getAppBrowserBuildPlugins(appConfig));
+export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
+	if (attachedHmrApps.has(appConfig)) {
+		return;
+	}
+
+	attachedHmrApps.add(appConfig);
 
 	for (const integration of appConfig.integrations) {
 		integration.setHmrManager(hmrManager);
 	}
+}
+
+/**
+ * @deprecated Use {@link attachHmrToIntegrations} instead.
+ */
+export function wireIntegrationHmrManagers(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
+	attachHmrToIntegrations(appConfig, hmrManager);
 }
 
 /**

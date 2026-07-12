@@ -198,7 +198,6 @@ export class PageModuleImportService {
 				return (await cachedModule.promise) as T;
 			}
 
-			this.dependencyHasher.clearMemo();
 			if (this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)) {
 				return (await cachedModule.promise) as T;
 			}

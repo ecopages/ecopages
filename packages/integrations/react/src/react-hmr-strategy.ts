@@ -175,7 +175,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 				cache: this.clientGraphBoundaryCache,
 			}),
 			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
-			...this.context.getPlugins(),
 		];
 	}
 
@@ -276,9 +275,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
 		appLogger.debug(`Checking ${filePath}. Watched: ${watchedFiles.size}`);
-		if (watchedFiles.size === 0) {
-			return false;
-		}
 
 		if (watchedFiles.has(filePath)) {
 			return this.ownsWatchedEntrypoint(filePath);
@@ -295,6 +291,15 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 
 		return this.isReactEntrypoint(filePath);
+	}
+
+	override canEmitEntrypoint(entrypointPath: string): boolean {
+		return this.isReactEntrypoint(entrypointPath) && this.ownsWatchedEntrypoint(entrypointPath);
+	}
+
+	override async emitEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
+		const { outputUrl } = this.getEntrypointOutput(entrypointPath);
+		await this.bundleReactEntrypoint(entrypointPath, outputUrl);
 	}
 
 	/**

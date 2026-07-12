@@ -8,6 +8,7 @@
  */
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
+import { isDeclaredClientScriptEntrypoint } from '../hmr-entrypoint-output.ts';
 
 /**
  * Default fallback strategy for unhandled file types.
@@ -36,6 +37,10 @@ export class DefaultHmrStrategy extends HmrStrategy {
 	 * @returns Always returns true as this is a catch-all strategy
 	 */
 	matches(_filePath: string): boolean {
+		if (isDeclaredClientScriptEntrypoint(_filePath)) {
+			return false;
+		}
+
 		return true;
 	}
 

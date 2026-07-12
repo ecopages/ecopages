@@ -108,6 +108,17 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(entrypoint)).toBe(true);
 		});
 
+		it('returns true for unregistered .script.tsx entrypoints even when watchedFiles is empty', () => {
+			const entrypoint = path.join(SRC_DIR, 'components', 'theme-toggle.script.tsx');
+			const context = createMockContext({
+				getWatchedFiles: () => new Map(),
+				getTemplateExtensions: () => ['.tsx'],
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(entrypoint)).toBe(true);
+		});
+
 		it('returns true for .js files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),

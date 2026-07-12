@@ -1,7 +1,17 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
+
+const DECLARED_CLIENT_SCRIPT_ENTRYPOINT = /\.script\.(?:tsx?|jsx?)$/;
+
+/**
+ * Returns whether a source path follows the declared client script entrypoint convention.
+ */
+export function isDeclaredClientScriptEntrypoint(filePath: string): boolean {
+	return DECLARED_CLIENT_SCRIPT_ENTRYPOINT.test(path.resolve(filePath));
+}
 
 export function encodeHmrDynamicSegments(filepath: string): string {
 	return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
@@ -44,4 +54,20 @@ export function removeStaleHmrEntrypointOutput(outputPath: string, scope: string
 			`[${scope}] Failed to remove stale entrypoint output ${outputPath}: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
+}
+
+/**
+ * @remarks
+ * Guards against broadcasting reload/update before the bundler has flushed a
+ * fresher artifact than the edited source file.
+ */
+export function isHmrOutputFresh(outputPath: string, sourcePath: string): boolean {
+	if (!fileSystem.exists(outputPath) || !fileSystem.exists(sourcePath)) {
+		return false;
+	}
+
+	const outputMtimeMs = fs.statSync(outputPath).mtimeMs;
+	const sourceMtimeMs = fs.statSync(sourcePath).mtimeMs;
+
+	return outputMtimeMs >= sourceMtimeMs;
 }

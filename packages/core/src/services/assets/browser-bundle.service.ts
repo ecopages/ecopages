@@ -62,7 +62,7 @@ function resolveBrowserBundleExecutor(
 ): BuildExecutor {
 	const buildRuntime = requireBuildRuntime(appConfig);
 
-	if (executor === 'hmr' && profile === 'hmr-entrypoint') {
+	if (executor === 'hmr' && (profile === 'hmr-entrypoint' || profile === 'hmr-runtime')) {
 		return buildRuntime.getProfile('browser-hmr');
 	}
 

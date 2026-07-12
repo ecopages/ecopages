@@ -229,16 +229,24 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
-		test('should ignore duplicate save events for the same page within the debounce window', async () => {
+		test('should coalesce duplicate save events for the same page within the debounce window', async () => {
+			vi.useFakeTimers();
+			const debouncedWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 150,
+			});
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
-			const nowSpy = vi.spyOn(Date, 'now');
-			nowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(1050);
 
-			await (watcher as any).handleFileChange(pageFilePath);
-			await (watcher as any).handleFileChange(pageFilePath);
+			void (debouncedWatcher as any).handleFileChange(pageFilePath);
+			void (debouncedWatcher as any).handleFileChange(pageFilePath);
+			await vi.runAllTimersAsync();
 
 			expect(HmrManager.handleFileChange).toHaveBeenCalledTimes(1);
 			expect(RefreshCallback).toHaveBeenCalledTimes(1);
+			vi.useRealTimers();
 		});
 	});
 
@@ -283,10 +291,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 	});
 
 	describe('registered script entrypoints', () => {
-		test('should prewarm registered script modules before HMR and defer processor notifications', async () => {
+		test('should defer processor notifications for registered script edits until after HMR handling', async () => {
 			const onChange = vi.fn(async () => {});
-			const importModule = vi.fn(async <T = unknown>() => ({}) as T);
-			const scriptChangeHandler = vi.fn(async () => {});
 			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.tsx');
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
@@ -304,26 +310,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 			HmrManager.getWatchedFiles = vi.fn(
 				() => new Map([[path.resolve(scriptPath), '/assets/_hmr/components/theme-toggle.js']]),
 			);
-			Config.runtime = {
-				...(Config.runtime ?? {}),
-				registeredScriptEntrypointChangeHandlers: [scriptChangeHandler],
-				appModuleLoader: {
-					owner: 'app',
-					importModule: importModule as AppModuleLoader['importModule'],
-					invalidateDevelopmentGraph: vi.fn(),
-				},
-			};
 
 			await (watcher as any).handleFileChange(scriptPath);
 
-			expect(scriptChangeHandler).toHaveBeenCalledWith(path.resolve(scriptPath));
-
-			expect(importModule).toHaveBeenCalledWith(
-				expect.objectContaining({
-					filePath: path.resolve(scriptPath),
-					bypassCache: true,
-				}),
-			);
 			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(scriptPath));
 			expect(Bridge.reload).not.toHaveBeenCalled();
 			await new Promise<void>((resolve) => {

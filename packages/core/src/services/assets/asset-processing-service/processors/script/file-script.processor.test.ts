@@ -114,8 +114,11 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
-				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
+				registerScriptEntrypoint: vi.fn(async () => ({
+					sourcePath: '/test/project/src/script.ts',
+					outputUrl: '/hmr/script.js',
+					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+				})),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -140,7 +143,11 @@ describe('FileScriptProcessor', () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				registerScriptEntrypoint: vi.fn(async () => ({
+					sourcePath: '/test/project/src/script.ts',
+					outputUrl: '/hmr/script.js',
+					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+				})),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -160,11 +167,13 @@ describe('FileScriptProcessor', () => {
 			expect(result.excludeFromHtml).toBe(false);
 		});
 
-		test('should fall back to the source filepath when the HMR manager does not expose a dist directory', async () => {
+		test('should propagate HMR registration failures instead of falling back to static assets', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
-				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
+				registerScriptEntrypoint: vi.fn(async () => {
+					throw new Error('[HMR] Failed to register script entrypoint');
+				}),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
 
@@ -175,9 +184,7 @@ describe('FileScriptProcessor', () => {
 				inline: false,
 			};
 
-			const result = await processor.process(dep);
-
-			expect(result.filepath).toBe('/test/project/src/script.ts');
+			await expect(processor.process(dep)).rejects.toThrow(/Failed to register script entrypoint/);
 		});
 
 		test('should not use HMR when inline is true', async () => {

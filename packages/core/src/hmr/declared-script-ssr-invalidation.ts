@@ -1,5 +1,4 @@
 import { fileSystem } from '@ecopages/file-system';
-import { isDeclaredClientScriptEntrypoint } from './hmr-entrypoint-output.ts';
 
 const CUSTOM_ELEMENT_TAG_PATTERN = /@customElement\s*\(\s*['"`]([^'"`]+)['"`]/u;
 
@@ -10,9 +9,9 @@ type CustomElementRegistryLike = {
 };
 
 /**
- * Reads the custom-element tag name from a declared script entrypoint source file.
+ * Reads the custom-element tag name from a registered script module source file.
  */
-export function resolveDeclaredScriptCustomElementTag(scriptPath: string): string | undefined {
+export function resolveRegisteredScriptCustomElementTag(scriptPath: string): string | undefined {
 	if (!fileSystem.exists(scriptPath)) {
 		return undefined;
 	}
@@ -50,14 +49,10 @@ export function clearRegisteredCustomElementDefinition(tagName: string): void {
 }
 
 /**
- * Clears the SSR custom-element registry entry for one declared script file.
+ * Clears the SSR custom-element registry entry for one registered script module.
  */
-export function invalidateDeclaredScriptSsrRegistration(scriptPath: string): void {
-	if (!isDeclaredClientScriptEntrypoint(scriptPath)) {
-		return;
-	}
-
-	const tagName = resolveDeclaredScriptCustomElementTag(scriptPath);
+export function invalidateRegisteredScriptSsrRegistration(scriptPath: string): void {
+	const tagName = resolveRegisteredScriptCustomElementTag(scriptPath);
 	if (!tagName) {
 		return;
 	}

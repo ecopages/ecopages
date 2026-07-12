@@ -119,11 +119,6 @@ export class RouteModuleDependencyHasher {
 	clearMemo(): void {
 		this.memo.clear();
 	}
-
-	/** @deprecated Use {@link clearMemo}. */
-	clearMemoForTests(): void {
-		this.clearMemo();
-	}
 }
 
 /**

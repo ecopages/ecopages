@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
+import path from 'node:path';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { getEjsxHmrOwnership, resetEjsxHmrOwnership, updateEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
@@ -105,6 +106,14 @@ describe('EcopagesJsxHmrStrategy', () => {
 			const scriptPath = `${COMPONENTS_DIR}/copy-for-llm/copy-for-llm.script.tsx`;
 			const strategy = new EcopagesJsxHmrStrategy(
 				makeContext({ watchedFiles: new Map([[scriptPath, '/assets/_hmr/script.js']]) }),
+			);
+			expect(strategy.matches(scriptPath)).toBe(false);
+		});
+
+		it('defers registered script entrypoints when watchedFiles keys are resolved paths', () => {
+			const scriptPath = `${COMPONENTS_DIR}/copy-for-llm/copy-for-llm.script.tsx`;
+			const strategy = new EcopagesJsxHmrStrategy(
+				makeContext({ watchedFiles: new Map([[path.resolve(scriptPath), '/assets/_hmr/script.js']]) }),
 			);
 			expect(strategy.matches(scriptPath)).toBe(false);
 		});

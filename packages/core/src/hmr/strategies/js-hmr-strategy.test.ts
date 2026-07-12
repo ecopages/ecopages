@@ -108,6 +108,30 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(entrypoint)).toBe(true);
 		});
 
+		it('returns true for registered script entrypoints regardless of filename', () => {
+			const entrypoint = path.join(SRC_DIR, 'components', 'radiant-counter.tsx');
+			const devGraphService = new InMemoryDevGraphService();
+			const context = createMockContext({
+				getWatchedFiles: () => new Map([[entrypoint, '/_hmr/radiant-counter.js']]),
+				getEntrypointDependencyGraph: () => devGraphService,
+				getTemplateExtensions: () => ['.tsx'],
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(entrypoint)).toBe(true);
+		});
+
+		it('returns false for unregistered files when watchedFiles is empty', () => {
+			const entrypoint = path.join(SRC_DIR, 'components', 'radiant-counter.tsx');
+			const context = createMockContext({
+				getWatchedFiles: () => new Map(),
+				getTemplateExtensions: () => ['.tsx'],
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(entrypoint)).toBe(false);
+		});
+
 		it('returns true for .js files in src directory', () => {
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), '/output.js']]),

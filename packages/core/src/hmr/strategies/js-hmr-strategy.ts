@@ -12,7 +12,12 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { removeStaleHmrEntrypointOutput, resolveHmrEntrypointOutputPaths } from '../hmr-entrypoint-output.ts';
+import {
+	removeStaleHmrEntrypointOutput,
+	resolveHmrEntrypointOutputPaths,
+	isRegisteredScriptEntrypoint,
+	isHmrOutputFresh,
+} from '../hmr-entrypoint-output.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
@@ -128,7 +133,8 @@ export class JsHmrStrategy extends HmrStrategy {
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedPath = path.resolve(filePath);
 		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(resolvedPath);
-		const isInSrc = resolvedPath.startsWith(this.context.getSrcDir());
+		const srcDir = path.resolve(this.context.getSrcDir());
+		const isInSrc = resolvedPath.startsWith(`${srcDir}${path.sep}`) || resolvedPath === srcDir;
 		const isIntegrationTemplate = this.context
 			.getTemplateExtensions()
 			.some((extension) => resolvedPath.endsWith(extension));
@@ -167,6 +173,8 @@ export class JsHmrStrategy extends HmrStrategy {
 	async process(filePath: string): Promise<HmrAction> {
 		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
 		const watchedFiles = this.context.getWatchedFiles();
+		const resolvedChanged = path.resolve(filePath);
+		const isRegisteredEntrypointEdit = isRegisteredScriptEntrypoint(watchedFiles, resolvedChanged);
 
 		if (watchedFiles.size === 0) {
 			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
@@ -175,14 +183,16 @@ export class JsHmrStrategy extends HmrStrategy {
 
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
-		const impactedEntrypoints = hasDependencyHit
-			? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
-			: Array.from(watchedFiles.keys());
+		const impactedEntrypoints = isRegisteredEntrypointEdit
+			? [resolvedChanged]
+			: hasDependencyHit
+				? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
+				: Array.from(watchedFiles.keys());
 		const buildableEntrypoints = impactedEntrypoints.filter(
 			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
 		);
 
-		if (!hasDependencyHit) {
+		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
 			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
 		}
 
@@ -204,17 +214,23 @@ export class JsHmrStrategy extends HmrStrategy {
 		let reloadRequired = false;
 
 		for (const entrypoint of buildableEntrypoints) {
-			const outputUrl = watchedFiles.get(entrypoint);
-			if (!outputUrl) continue;
+			const resolvedEntrypoint = path.resolve(entrypoint);
+			const derivedOutput = resolveHmrEntrypointOutputPaths(
+				this.context.getSrcDir(),
+				this.context.getDistDir(),
+				resolvedEntrypoint,
+			);
+			const outputUrl = watchedFiles.get(resolvedEntrypoint) ?? derivedOutput.outputUrl;
+			const outputPath = this.resolveEntrypointOutputPath(resolvedEntrypoint);
 
 			if (buildResult.dependencies) {
-				const entrypointDeps = buildResult.dependencies.get(path.resolve(entrypoint)) ?? [];
-				this.context.getEntrypointDependencyGraph().setEntrypointDependencies(entrypoint, entrypointDeps);
+				const entrypointDeps = buildResult.dependencies.get(resolvedEntrypoint) ?? [];
+				this.context
+					.getEntrypointDependencyGraph()
+					.setEntrypointDependencies(resolvedEntrypoint, entrypointDeps);
 			}
 
-			const outputPath = this.resolveEntrypointOutputPath(entrypoint);
-
-			const result = await this.processOutput(outputPath, outputUrl);
+			const result = await this.processOutput(outputPath, outputUrl, resolvedEntrypoint);
 			if (result.success) {
 				updates.push(outputUrl);
 				if (result.requiresReload) {
@@ -328,8 +344,17 @@ export class JsHmrStrategy extends HmrStrategy {
 	 * @param url - URL path for the bundled file
 	 * @returns True if processing was successful and update should be broadcast
 	 */
-	private async processOutput(filepath: string, url: string): Promise<{ success: boolean; requiresReload: boolean }> {
+	private async processOutput(
+		filepath: string,
+		url: string,
+		sourcePath?: string,
+	): Promise<{ success: boolean; requiresReload: boolean }> {
 		try {
+			if (sourcePath && !isHmrOutputFresh(filepath, sourcePath)) {
+				appLogger.warn(`[JsHmrStrategy] Skipping broadcast for stale HMR output ${url}`);
+				return { success: false, requiresReload: false };
+			}
+
 			const code = await fileSystem.readFile(filepath);
 
 			if (code.includes('/* [ecopages] hmr */')) {

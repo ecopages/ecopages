@@ -8,6 +8,7 @@ import {
 	DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
+import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 
@@ -213,8 +214,17 @@ export class ProjectWatcher {
 			}
 
 			this.uncacheModules();
+			const resolvedFilePath = path.resolve(filePath);
+			const isRegisteredScriptEdit = isRegisteredScriptEntrypoint(
+				this.hmrManager.getWatchedFiles(),
+				resolvedFilePath,
+			);
+
 			if (plan.invalidateServerModules) {
 				this.invalidationService.invalidateServerModules([filePath]);
+				if (isRegisteredScriptEdit) {
+					await this.invalidationService.notifyRegisteredScriptEntrypointChange(resolvedFilePath);
+				}
 			}
 
 			if (plan.refreshRoutes) {
@@ -227,10 +237,12 @@ export class ProjectWatcher {
 			}
 
 			const deferProcessorNotifications =
-				plan.category === 'include-source' || plan.category === 'explicit-server-view';
+				plan.category === 'include-source' ||
+				plan.category === 'explicit-server-view' ||
+				isRegisteredScriptEdit;
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
-				await this.prewarmServerRenderedTemplate(filePath, plan);
+				await this.prewarmBeforeHmr(resolvedFilePath, plan, isRegisteredScriptEdit);
 				await this.hmrManager.handleFileChange(filePath);
 				void this.notifyProcessors(filePath, event);
 				return;
@@ -254,24 +266,41 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Rebuilds server-rendered templates before broadcasting layout-update HMR so
-	 * the client refetch does not race a stale in-memory module import.
+	 * Re-imports server modules before HMR broadcast so reload/refetch does not
+	 * race stale in-memory imports or custom-element registry state.
 	 */
-	private async prewarmServerRenderedTemplate(filePath: string, plan: DevelopmentInvalidationPlan): Promise<void> {
+	private async prewarmBeforeHmr(
+		filePath: string,
+		plan: DevelopmentInvalidationPlan,
+		isRegisteredScriptEdit: boolean,
+	): Promise<void> {
+		if (isRegisteredScriptEdit) {
+			await this.prewarmServerModuleImports([filePath], { bypassCache: true, scope: 'registered script' });
+			return;
+		}
+
 		if (plan.category !== 'include-source' && plan.category !== 'explicit-server-view') {
 			return;
 		}
 
+		const modulePaths =
+			plan.category === 'include-source'
+				? [this.appConfig.absolutePaths.htmlTemplatePath]
+				: [path.resolve(filePath)];
+
+		await this.prewarmServerModuleImports(modulePaths, { scope: 'server template' });
+	}
+
+	private async prewarmServerModuleImports(
+		modulePaths: readonly string[],
+		options: { bypassCache?: boolean; scope: string },
+	): Promise<void> {
 		const appModuleLoader = this.appConfig.runtime?.appModuleLoader;
 		if (!appModuleLoader) {
 			return;
 		}
 
 		const outdir = path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules');
-		const modulePaths =
-			plan.category === 'include-source'
-				? [this.appConfig.absolutePaths.htmlTemplatePath]
-				: [path.resolve(filePath)];
 
 		for (const modulePath of modulePaths) {
 			if (!modulePath) {
@@ -284,10 +313,11 @@ export class ProjectWatcher {
 					rootDir: this.appConfig.rootDir,
 					outdir,
 					externalPackages: true,
+					bypassCache: options.bypassCache,
 				});
 			} catch (error) {
 				appLogger.error(
-					`Failed to prewarm server template ${modulePath}: ${error instanceof Error ? error.message : String(error)}`,
+					`Failed to prewarm ${options.scope} ${modulePath}: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			}
 		}

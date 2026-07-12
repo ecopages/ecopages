@@ -134,6 +134,7 @@ export class PageModuleImportService {
 	 */
 	invalidateDevelopmentGraph(): void {
 		this.clearImportCache();
+		this.dependencyHasher.clearMemo();
 		this.developmentInvalidationVersion += 1;
 	}
 
@@ -193,11 +194,12 @@ export class PageModuleImportService {
 		const cachedModule = this.importCache.get(cacheKey);
 
 		if (cachedModule) {
+			if (!cachedModule.dependencyHashes) {
+				return (await cachedModule.promise) as T;
+			}
+
 			this.dependencyHasher.clearMemo();
-			if (
-				!cachedModule.dependencyHashes ||
-				this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)
-			) {
+			if (this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)) {
 				return (await cachedModule.promise) as T;
 			}
 

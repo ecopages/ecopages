@@ -4,7 +4,11 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
-import { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
+import {
+	DevelopmentInvalidationService,
+	type DevelopmentInvalidationPlan,
+} from '../services/invalidation/development-invalidation.service.ts';
+import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 
 /**
@@ -222,6 +226,7 @@ export class ProjectWatcher {
 				plan.category === 'include-source' || plan.category === 'explicit-server-view';
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
+				await this.prewarmServerRenderedTemplate(filePath, plan);
 				await this.hmrManager.handleFileChange(filePath);
 				void this.notifyProcessors(filePath, event);
 				return;
@@ -240,6 +245,46 @@ export class ProjectWatcher {
 			if (error instanceof Error) {
 				this.bridge.error(error.message);
 				this.handleError(error);
+			}
+		}
+	}
+
+	/**
+	 * Rebuilds server-rendered templates before broadcasting layout-update HMR so
+	 * the client refetch does not race a stale in-memory module import.
+	 */
+	private async prewarmServerRenderedTemplate(filePath: string, plan: DevelopmentInvalidationPlan): Promise<void> {
+		if (plan.category !== 'include-source' && plan.category !== 'explicit-server-view') {
+			return;
+		}
+
+		const appModuleLoader = this.appConfig.runtime?.appModuleLoader;
+		if (!appModuleLoader) {
+			return;
+		}
+
+		const outdir = path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules');
+		const modulePaths =
+			plan.category === 'include-source'
+				? [this.appConfig.absolutePaths.htmlTemplatePath]
+				: [path.resolve(filePath)];
+
+		for (const modulePath of modulePaths) {
+			if (!modulePath) {
+				continue;
+			}
+
+			try {
+				await appModuleLoader.importModule({
+					filePath: modulePath,
+					rootDir: this.appConfig.rootDir,
+					outdir,
+					externalPackages: true,
+				});
+			} catch (error) {
+				appLogger.error(
+					`Failed to prewarm server template ${modulePath}: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		}
 	}

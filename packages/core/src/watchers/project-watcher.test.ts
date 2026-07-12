@@ -32,6 +32,7 @@ describe('ProjectWatcher', () => {
 			refreshRouterRoutesCallback: RefreshCallback,
 			hmrManager: HmrManager,
 			bridge: Bridge,
+			changeDebounceMs: 0,
 		});
 	});
 
@@ -111,6 +112,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			refreshRouterRoutesCallback: RefreshCallback,
 			hmrManager: HmrManager,
 			bridge: Bridge,
+			changeDebounceMs: 0,
 		});
 	});
 
@@ -203,6 +205,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 				refreshRouterRoutesCallback: asyncRefreshCallback,
 				hmrManager: HmrManager,
 				bridge: Bridge,
+				changeDebounceMs: 0,
 			});
 
 			const pendingChange = (watcher as any).handleFileChange(pageFilePath, 'add');
@@ -305,6 +308,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 				hmrManager: HmrManager as any,
 				bridge: Bridge as any,
 				hostOwnsDevClient: true,
+				changeDebounceMs: 0,
 			});
 			Config.additionalWatchPaths = ['**/*.config.ts'];
 
@@ -466,6 +470,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: HmrManager,
 			bridge: Bridge,
+			changeDebounceMs: 0,
 		});
 	});
 
@@ -562,6 +567,7 @@ describe('ProjectWatcher - Helper Methods', () => {
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: createMockHmrManager(),
 			bridge: createMockBridge(),
+			changeDebounceMs: 0,
 		});
 	});
 
@@ -680,8 +686,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 	test('should watch includes and src directories alongside processor paths', async () => {
 		const Config = await createMockConfig();
 		setAppDevGraphService(Config, new InMemoryDevGraphService());
-		const HmrManager = createMockHmrManager();
-		const Bridge = createMockBridge();
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
 			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir].includes(String(targetPath)),
 		);
@@ -704,8 +708,9 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		const watcher = new ProjectWatcher({
 			config: Config,
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
-			hmrManager: HmrManager,
-			bridge: Bridge,
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
 		});
 
 		await watcher.createWatcherSubscription();
@@ -744,6 +749,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: createMockHmrManager(),
 			bridge: createMockBridge(),
+			changeDebounceMs: 0,
 		});
 
 		await watcher.createWatcherSubscription();
@@ -772,6 +778,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager: HmrManager,
 			bridge: Bridge,
+			changeDebounceMs: 0,
 		});
 
 		await watcher.createWatcherSubscription();
@@ -804,6 +811,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			refreshRouterRoutesCallback,
 			hmrManager: HmrManager,
 			bridge: Bridge,
+			changeDebounceMs: 0,
 		});
 
 		await watcher.createWatcherSubscription();

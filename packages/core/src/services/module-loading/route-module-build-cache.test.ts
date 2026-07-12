@@ -194,7 +194,7 @@ describe('RouteModuleBuildCache', () => {
 		});
 
 		hashes.set('/app/layouts/shared.tsx', 'hash:shared.tsx-v2');
-		hasher.clearMemoForTests();
+		hasher.clearMemo();
 
 		assert.equal(cache.lookup(options), undefined);
 	});

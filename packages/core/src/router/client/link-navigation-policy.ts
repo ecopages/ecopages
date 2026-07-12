@@ -160,3 +160,26 @@ export function isHtmlPageResponse(response: Response): boolean {
 	const normalized = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
 	return normalized === 'text/html' || normalized === 'application/xhtml+xml';
 }
+
+/**
+ * @remarks
+ * Servers should send `text/html`. When the type is missing or the runtime
+ * defaults to `text/plain` (common in tests), a document-shaped body is accepted.
+ */
+export async function assertHtmlPageResponse(response: Response): Promise<void> {
+	if (isHtmlPageResponse(response)) {
+		return;
+	}
+
+	const contentType = response.headers.get('Content-Type');
+	const normalized = contentType?.split(';')[0]?.trim().toLowerCase() ?? '';
+
+	if (normalized === 'text/plain' || normalized === '') {
+		const sample = (await response.clone().text()).trimStart();
+		if (sample.startsWith('<')) {
+			return;
+		}
+	}
+
+	throw new Error(`Expected HTML page response, received ${contentType ?? 'unknown content type'}`);
+}

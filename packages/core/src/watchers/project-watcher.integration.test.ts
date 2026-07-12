@@ -223,6 +223,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
+				changeDebounceMs: 0,
 			});
 
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'sitemap.xml');
@@ -251,6 +252,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
+				changeDebounceMs: 0,
 			});
 
 			const sourceFile = path.join(config.absolutePaths.srcDir, 'components', 'Button.tsx');

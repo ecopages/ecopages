@@ -452,6 +452,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	): BunServeOptions['fetch'] {
 		const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
 		const hmrManager = this.hmrManager;
+		const waitForInit = this.waitForInitialization.bind(this);
 
 		return async function (this: Server<unknown>, request: Request, server: Server<unknown>) {
 			const url = new URL(request.url);
@@ -463,9 +464,23 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				}
 
 				if (url.pathname === '/_hmr_runtime.js') {
-					return new Response(fileSystem.readFileAsBuffer(hmrManager.getRuntimePath()) as BodyInit, {
-						headers: { 'Content-Type': 'application/javascript' },
-					});
+					await waitForInit();
+					const runtimePath = hmrManager.getRuntimePath();
+					if (!fileSystem.exists(runtimePath)) {
+						appLogger.warn(
+							`[HMR] Runtime script missing at ${runtimePath}; attempting to rebuild before serving.`,
+						);
+						await hmrManager.buildRuntime();
+					}
+					if (fileSystem.exists(runtimePath)) {
+						return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
+							headers: { 'Content-Type': 'application/javascript' },
+						});
+					}
+					appLogger.warn(
+						`[HMR] Runtime script not found at ${runtimePath}; the HMR runtime build likely failed during startup.`,
+					);
+					return new Response('Not Found', { status: 404 });
 				}
 			}
 

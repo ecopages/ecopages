@@ -70,6 +70,7 @@ export function defineCrossIntegrationFixture(
 				name: project.name,
 				testMatch: project.testMatch,
 				workers: 1,
+				fullyParallel: false,
 				timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
 				metadata: {
 					artifactScope: project.artifactScope,

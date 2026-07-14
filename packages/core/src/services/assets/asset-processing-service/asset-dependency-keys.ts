@@ -25,6 +25,17 @@ function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undef
 	return generateHash(JSON.stringify(signature));
 }
 
+/**
+ * Stable identity for dependency deduplication and {@link AssetProcessingService} cache lookups.
+ *
+ * @remarks
+ * Script dependencies include a build signature derived from bundle flags, grouped-bundle
+ * metadata, and selected `bundleOptions` fields (`naming`, `external`, `minify`, plugin names).
+ * Attributes, full plugin objects, and `NODE_ENV` are excluded from the key.
+ *
+ * This describes cache/dedupe identity only. Runtime minify in {@link ContentScriptProcessor}
+ * still follows `NODE_ENV` via `isProduction`, not `bundleOptions.minify`.
+ */
 export function getAssetDependencyKey(dep: AssetDefinition): string {
 	const parts: string[] = [dep.kind, dep.source];
 

@@ -479,6 +479,34 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 	expect(results.map((result) => result.srcUrl)).toEqual(['/assets/page-entry.js', '/assets/lazy-entry.js']);
 });
 
+test('AssetProcessingService - reuses service cache for content scripts across processDependencies calls', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/scripts/cached-content.js',
+		kind: 'script',
+		inline: false,
+		packageRole: 'page-script',
+		attributes: { type: 'module' },
+	}));
+	service.registerProcessor('script', 'content', { process: processMock });
+
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'console.log("cached")',
+		bundle: false,
+	};
+
+	await service.processDependencies([dependency], 'content-cache-key-1');
+	await service.processDependencies([dependency], 'content-cache-key-2');
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+});
+
 test('AssetProcessingService - clearCache clears all cached assets', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

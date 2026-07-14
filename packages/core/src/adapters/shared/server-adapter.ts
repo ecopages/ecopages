@@ -61,8 +61,21 @@ export abstract class SharedServerAdapter<
 		staticRoutes: StaticRoute[];
 		hmrManager?: any;
 	}): Promise<void> {
+		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
 		this.configureSharedResponseHandlers(options.staticRoutes, options.hmrManager);
+	}
+
+	private ensureRouteRendererFactory(): void {
+		if (this.routeRendererFactory) {
+			return;
+		}
+
+		this.routeRendererFactory = new RouteRendererFactory({
+			appConfig: this.appConfig,
+			rendererModules: this.appConfig.runtime?.rendererModuleContext,
+			runtimeOrigin: this.runtimeOrigin,
+		});
 	}
 
 	protected createSharedWatchRefreshCallback(options: {
@@ -114,18 +127,13 @@ export abstract class SharedServerAdapter<
 	}
 
 	private createRouteRegistryPageModuleAdapter(): RouteRegistryPageModuleAdapter {
-		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+		this.ensureRouteRendererFactory();
 
 		return {
 			loadPageModule: async (filePath) => {
-				const module = (await serverModuleTranspiler.importModule({
-					filePath,
-					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-route-modules'),
-					externalPackages: true,
-					transpileErrorMessage: (details) => `Error transpiling route module: ${details}`,
-					noOutputMessage: (targetFilePath) =>
-						`No transpiled output generated for route module: ${targetFilePath}`,
-				})) as EcoPageFile;
+				const module = (await this.routeRendererFactory
+					.getPageRenderer(filePath)
+					.loadPageModule(filePath)) as EcoPageFile;
 
 				const page = module.default;
 
@@ -152,11 +160,7 @@ export abstract class SharedServerAdapter<
 	 * @param hmrManager - The runtime-specific Hot Module Replacement orchestrator (if watching).
 	 */
 	protected configureSharedResponseHandlers(staticRoutes: StaticRoute[], hmrManager?: any): void {
-		this.routeRendererFactory = new RouteRendererFactory({
-			appConfig: this.appConfig,
-			rendererModules: this.appConfig.runtime?.rendererModuleContext,
-			runtimeOrigin: this.runtimeOrigin,
-		});
+		this.ensureRouteRendererFactory();
 
 		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } =
 			this.createSharedResponseHandlerDependencies(staticRoutes);

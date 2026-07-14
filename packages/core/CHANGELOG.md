@@ -25,7 +25,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
-- Fixed server bundle externalization so native addons (e.g. Tailwind platform binaries) and app-declared packages load correctly from installed dependencies.
+- Fixed RouteRegistry static path expansion to load page modules through integration renderers so Radiant SSR setup runs before JSX page imports during build.
 - Fixed app-owned server module loading so integration loaders (including React MDX) participate during request-time and static generation.
 - Fixed Node and Bun adapter stability for preview, static generation, HMR, and mixed-integration rendering across built-in integrations.
 - Fixed grouped page-browser graph builds so sibling routes reuse shared assets without cross-route leakage or stale partial caches.
@@ -49,6 +49,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Tests
 
 - Added regression coverage for `RouteRegistry`, explicit static routes, mixed boundaries, Node fallback, and cross-runtime invalidation.
+- Added regression coverage for RouteRegistry page module loading through integration renderers during static path expansion.
 
 ---
 

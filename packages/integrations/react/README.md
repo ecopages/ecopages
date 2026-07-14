@@ -218,3 +218,26 @@ Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`)
 - [src/layout-compose.ts](src/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.
 - [src/test/react-ssr-unified.test.tsx](src/test/react-ssr-unified.test.tsx): provider context through nested SSR layouts.
+
+### Client-only code in SSR trees
+
+Pages and layouts SSR through `renderToString`, which does not support `<Suspense>`. Do not use `React.lazy()` + `<Suspense>` in `eco.page()` or `eco.layout()` trees.
+
+Wrap browser-only UI in `ClientOnly`:
+
+```tsx
+import { ClientOnly } from '@ecopages/react/utils/client-only';
+
+export const QueryRootLayout = eco.layout({
+	render: ({ children }) => (
+		<QueryClientProvider client={queryClient}>
+			{children}
+			<ClientOnly fallback={null}>
+				<ReactQueryDevtools />
+			</ClientOnly>
+		</QueryClientProvider>
+	),
+});
+```
+
+For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.

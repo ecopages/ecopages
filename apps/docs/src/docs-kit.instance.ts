@@ -9,18 +9,14 @@ import { defineDocsKit } from '@/lib/docs-kit/config';
 import { DocsPagination } from '@/lib/docs-kit/layout/docs-layout/components/docs-pagination';
 import { DocsSidebar } from '@/lib/docs-kit/layout/docs-layout/components/navigation';
 import { DocsToc } from '@/lib/docs-kit/layout/docs-layout/components/toc';
-import { buildDocsSiteContent } from '@/lib/docs-kit/content/build-docs-site-content';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = moduleDir.includes(`${path.sep}.eco${path.sep}`)
 	? path.resolve(moduleDir, '../..')
 	: path.resolve(moduleDir, '..');
-const contentRoot = path.join(appRoot, 'src', 'content', 'docs');
 
 defineDocsKit({
 	rootDir: appRoot,
-	contentRoot,
-	content: buildDocsSiteContent(),
 	mdxComponents: {
 		Banner,
 		BannerTitle,

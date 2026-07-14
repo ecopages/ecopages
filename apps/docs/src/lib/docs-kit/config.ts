@@ -1,11 +1,5 @@
-import { join } from 'node:path';
-import type { DocsSiteContent } from '@/lib/docs-kit/content/docs-site-content.types';
-import { clearDocsManifestCache } from './manifest/get-docs-manifest';
-
 export type DocsKitConfig = {
 	rootDir: string;
-	contentRoot: string;
-	content: DocsSiteContent;
 	mdxComponents: Record<string, unknown>;
 	shellLayout: unknown;
 	layoutComponents: unknown[];
@@ -19,12 +13,8 @@ let kitConfig: DocsKitConfig | null = null;
  *
  * @remarks Call once from `docs-kit.instance.ts` before any docs-kit module runs.
  */
-export function defineDocsKit(options: Omit<DocsKitConfig, 'contentRoot'> & { contentRoot?: string }): void {
-	kitConfig = {
-		...options,
-		contentRoot: options.contentRoot ?? join(options.rootDir, 'src/content/docs'),
-	};
-	clearDocsManifestCache();
+export function defineDocsKit(options: DocsKitConfig): void {
+	kitConfig = options;
 }
 
 export function getDocsKit(): DocsKitConfig {

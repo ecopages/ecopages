@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import type { DocsNav } from '@/lib/content-nav';
 import { resolveDocsBreadcrumb } from './resolve-docs-breadcrumb';
 
 const sampleNav = {
@@ -7,15 +8,31 @@ const sampleNav = {
 		{
 			id: 'getting-started',
 			title: 'Getting Started',
-			pages: [{ slug: 'introduction', title: 'Introduction', description: 'Intro.', content: () => null }],
+			icon: () => null,
+			items: [
+				{
+					title: 'Introduction',
+					href: '/docs/getting-started/introduction',
+					section: 'getting-started',
+					slug: 'introduction',
+				},
+			],
 		},
 		{
 			id: 'core',
 			title: 'Core Concepts',
-			pages: [{ slug: 'hmr', title: 'HMR', description: 'Hot module replacement.', content: () => null }],
+			icon: () => null,
+			items: [
+				{
+					title: 'HMR',
+					href: '/docs/core/hmr',
+					section: 'core',
+					slug: 'hmr',
+				},
+			],
 		},
 	],
-};
+} satisfies DocsNav;
 
 test('resolveDocsBreadcrumb returns docs, section, and page labels', () => {
 	const crumbs = resolveDocsBreadcrumb(sampleNav, 'core', 'hmr');

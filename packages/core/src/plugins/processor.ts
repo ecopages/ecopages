@@ -29,7 +29,7 @@ export function mergeProcessorOptions<TDefaults, TOverrides>(
 	return deepMerge(defaults, overrides);
 }
 
-function resolveGeneratedPath(
+export function resolveGeneratedPath(
 	type: keyof typeof GENERATED_BASE_PATHS,
 	options: { root: string; module: string; subPath?: string },
 ): string {

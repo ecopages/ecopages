@@ -1,4 +1,5 @@
 import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.ts';
+import { SchemaError, validateStandardSchema } from './validate-standard-schema.ts';
 
 export interface ValidationResult<T = unknown> {
 	success: boolean;
@@ -167,29 +168,27 @@ export class SchemaValidationService {
 
 	/**
 	 * Validates a single value against a Standard Schema.
-	 *
-	 * @param schema - The Standard Schema validator
-	 * @param data - The data to validate
-	 * @returns Validation result with validated data or errors
 	 */
+	private mapSchemaIssue(issue: StandardSchemaIssue): { message: string; path?: Array<string | number> } {
+		return {
+			message: issue.message,
+			path: issue.path?.map((p) => (typeof p === 'object' && 'key' in p ? p.key : p)) as
+				Array<string | number> | undefined,
+		};
+	}
+
 	private async validateWithSchema<T>(schema: StandardSchema, data: unknown): Promise<ValidationResult<T>> {
 		try {
-			const resultOrPromise = schema['~standard'].validate(data);
-			const result = resultOrPromise instanceof Promise ? await resultOrPromise : resultOrPromise;
-
-			if (result.issues) {
+			const value = await validateStandardSchema(schema, data);
+			return { success: true, data: value as T };
+		} catch (error) {
+			if (error instanceof SchemaError) {
 				return {
 					success: false,
-					errors: result.issues.map((issue: StandardSchemaIssue) => ({
-						message: issue.message,
-						path: issue.path?.map((p) => (typeof p === 'object' && 'key' in p ? p.key : p)) as
-							Array<string | number> | undefined,
-					})),
+					errors: error.issues.map((issue) => this.mapSchemaIssue(issue)),
 				};
 			}
 
-			return { success: true, data: result.value as T };
-		} catch (error) {
 			return {
 				success: false,
 				errors: [

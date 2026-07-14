@@ -1,12 +1,14 @@
 import type { LayoutProps } from '@ecopages/core';
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import '@/docs-kit.instance';
-import { DocsBar } from '@/lib/docs-kit/components/docs-bar';
-import { getDocsKit } from '@/lib/docs-kit/config';
-import { getDocsLlmUrl } from '@/lib/docs-kit/llm/docs-llm-url';
-import { resolveDocsBreadcrumb } from '@/lib/docs-kit/navigation/resolve-docs-breadcrumb';
+import { ApiField } from '@/components/api-field/api-field';
+import { Banner } from '@/components/banner/banner';
+import { CodeTabs } from '@/components/code-tabs';
 import { docsNav, serializeDocsPaginationData } from '@/lib/content-nav';
+import { BaseLayout } from '@/layouts/base-layout';
+import { resolveDocsBreadcrumb } from '@/docs-kit/resolve-docs-breadcrumb';
+import { getDocsLlmUrl } from '@/docs-kit/docs-llm-url';
+import { DocsBar } from './docs-bar';
 import { DocsPagination } from './components/docs-pagination';
 import { DocsSidebar } from './components/navigation';
 import { DocsToc } from './components/toc';
@@ -24,14 +26,13 @@ type ShellLayoutProps = {
 	children?: JsxRenderable;
 };
 
-const { layoutComponents, shellLayout } = getDocsKit();
 const paginationData = serializeDocsPaginationData(docsNav);
-const ShellLayout = shellLayout as (props: ShellLayoutProps) => JsxRenderable;
+const ShellLayout = BaseLayout as (props: ShellLayoutProps) => JsxRenderable;
 
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
-		components: layoutComponents,
+		components: [BaseLayout, ApiField, Banner, CodeTabs, DocsBar, DocsSidebar, DocsToc, DocsPagination],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
@@ -39,7 +40,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 
 		return (
 			<ShellLayout class="docs-layout" showBurger={true}>
-				<script type="application/json" id="docs-manifest-data" safe>
+				<script type="application/json" id="docs-pagination-data" safe>
 					{paginationData}
 				</script>
 				<DocsSidebar />

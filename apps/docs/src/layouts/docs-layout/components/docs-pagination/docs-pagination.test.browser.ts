@@ -9,7 +9,7 @@ function resetDom(): void {
 
 function createManifestData(paths: string[]): void {
 	const script = document.createElement('script');
-	script.id = 'docs-manifest-data';
+	script.id = 'docs-pagination-data';
 	script.type = 'application/json';
 	script.textContent = JSON.stringify({
 		pages: paths.map((href) => ({

@@ -1,0 +1,94 @@
+# Content Processor
+
+The `@ecopages/content-processor` package scans MDX content collections at build time, validates frontmatter with [Standard Schema](https://standardschema.dev)-compatible libraries, and exposes each collection as a typed virtual module: `ecopages:content/<collection>`.
+
+This docs app uses it for every page under `src/content/docs/`.
+
+## Installation
+
+<CodeTabs
+	name="content-processor-install"
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/content-processor' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/content-processor' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/content-processor' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+Peer dependency: `@ecopages/core`.
+
+## Configuration
+
+Register the processor in `eco.config.ts`:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { compareEntriesByField } from '@ecopages/content-processor';
+import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
+import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
+import { docsContentSchema } from './src/content/docs/docs-content.schema';
+
+export default await new ConfigBuilder()
+	.setRootDir(import.meta.dir)
+	.setIntegrations([
+		ecopagesJsxPlugin({
+			mdx: {
+				enabled: true,
+				...withContentMdxPlugins({
+					remarkPlugins: [remarkGfm],
+				}),
+			},
+		}),
+	])
+	.setProcessors([
+		contentProcessorPlugin({
+			options: {
+				collections: {
+					docs: {
+						contentDir: 'content/docs',
+						schema: docsContentSchema,
+						orderBy: compareEntriesByField('order'),
+					},
+				},
+			},
+		}),
+	])
+	.build();
+```
+
+### Docs app wiring
+
+Navigation, section icons, and page metadata stay in `src/content/docs/content.meta.ts`. MDX modules resolve through the processor:
+
+```typescript
+import { getComponent } from 'ecopages:content/docs';
+
+const Content = getComponent('getting-started/introduction');
+```
+
+`attachDocsContentModules()` joins `content.meta.ts` entries with `getComponent('<section>/<slug>')` — no manual MDX import map in `content.ts`.
+
+## Package exports
+
+- `@ecopages/content-processor` — `ContentScanner`, sort helpers, types
+- `@ecopages/content-processor/plugin` — `contentProcessorPlugin()` for `eco.config.ts`
+- `@ecopages/content-processor/types` — `ContentEntry`, virtual module shapes
+- `@ecopages/content-processor/mdx` — `withContentMdxPlugins()` for MDX frontmatter
+
+## TypeScript
+
+Add generated virtual-module types to the app:
+
+```typescript
+/// modules.d.ts
+import '@ecopages/content-processor/types';
+```
+
+Run `ecopages dev` or `ecopages build` before expecting IDE types for `ecopages:content/*` imports.
+
+## Related
+
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run
+- [MDX Integration](/docs/integrations/mdx) — MDX compile pipeline

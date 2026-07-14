@@ -23,7 +23,7 @@ describe('content tree', () => {
 		const contentDir = join(import.meta.dirname, '../../../content/docs');
 		const files = await collectMdxFiles(contentDir);
 
-		expect(files.length).toBeGreaterThanOrEqual(43);
+		expect(files.length).toBeGreaterThanOrEqual(44);
 
 		for (const file of files) {
 			const source = await readFile(file, 'utf8');

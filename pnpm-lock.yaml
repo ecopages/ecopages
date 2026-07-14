@@ -64,6 +64,9 @@ importers:
             '@ecopages/browser-router':
                 specifier: workspace:*
                 version: link:../../packages/browser-router
+            '@ecopages/content-processor':
+                specifier: workspace:*
+                version: link:../../packages/processors/content-processor
             '@ecopages/core':
                 specifier: workspace:*
                 version: link:../../packages/core
@@ -148,6 +151,9 @@ importers:
             vitest:
                 specifier: ^4.0.16
                 version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+            zod:
+                specifier: ^4.4.3
+                version: 4.4.3
 
     e2e/fixtures/browser-router:
         dependencies:

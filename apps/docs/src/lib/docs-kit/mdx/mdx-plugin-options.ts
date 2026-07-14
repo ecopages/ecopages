@@ -1,4 +1,5 @@
 import type { Pluggable } from 'unified';
+import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { rehypeSimpleTableWrapper } from '@/lib/plugins/rehype-simple-table-wrapper';
@@ -21,7 +22,9 @@ const rehypePlugins = [
 export function getDocsMdxPluginOptions() {
 	return {
 		enabled: true as const,
-		remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
-		rehypePlugins,
+		...withContentMdxPlugins({
+			remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
+			rehypePlugins,
+		}),
 	};
 }

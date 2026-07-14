@@ -1,8 +1,8 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import { docsNav } from '@/content-nav';
-import { resolveDocsBreadcrumb } from '@/lib/docs/resolve-docs-breadcrumb';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DocsBar } from './docs-bar';
 
@@ -20,6 +20,34 @@ type ShellLayoutProps = {
 
 const ShellLayout = BaseLayout as (props: ShellLayoutProps) => JsxRenderable;
 
+function breadcrumbForPage(section: string | undefined, slug: string | undefined): BreadcrumbItem[] {
+	if (!section || !slug) {
+		return [];
+	}
+
+	const contentSection = docsNav.sections.find((entry) => entry.id === section);
+	const page = contentSection?.items.find((entry) => entry.slug === slug);
+
+	if (!contentSection || !page) {
+		return [];
+	}
+
+	const firstSection = docsNav.sections[0];
+	const firstPage = firstSection?.items[0];
+	const docsIndexHref =
+		firstSection && firstPage ? `${docsNav.rootDir}/${firstSection.id}/${firstPage.slug}` : docsNav.rootDir;
+	const firstSectionPage = contentSection.items[0];
+
+	return [
+		{ label: 'Docs', href: docsIndexHref },
+		{
+			label: contentSection.title,
+			href: firstSectionPage ? `${docsNav.rootDir}/${section}/${firstSectionPage.slug}` : undefined,
+		},
+		{ label: page.title },
+	];
+}
+
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
@@ -27,7 +55,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? `/docs-llm/${section}/${slug}.md` : undefined;
-		const crumbs = section && slug ? resolveDocsBreadcrumb(docsNav, section, slug) : [];
+		const crumbs = breadcrumbForPage(section, slug);
 
 		return (
 			<ShellLayout class="docs-layout">

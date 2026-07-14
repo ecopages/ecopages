@@ -11,13 +11,13 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ### What this package owns vs. what your app owns
 
-| Layer | Owned by |
-| :---- | :------- |
-| File discovery, frontmatter validation, manifest sort | `@ecopages/content-processor` |
-| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor` |
-| `ContentScanner` for build scripts (for example `llms.txt`) | `@ecopages/content-processor` |
-| Routes (`eco.page`), layouts, metadata, URL shape | Your app |
-| Sidebar, breadcrumbs, pagination | Your app — derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
+| Layer                                                                 | Owned by                                                                                      |
+| :-------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                                                                 |
+| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                                                                 |
+| `ContentScanner` for build scripts (for example `llms.txt`)           | `@ecopages/content-processor`                                                                 |
+| Routes (`eco.page`), layouts, metadata, URL shape                     | Your app                                                                                      |
+| Sidebar, breadcrumbs, pagination                                      | Your app — derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
 
 The processor gives you a typed manifest and MDX components at build time. Wire them into Ecopages routing and UI the same way you would any other data source.
 
@@ -237,7 +237,7 @@ const raw = await scanner.getRawContent('getting-started/intro');
 
 | Import                               | Purpose                                                       |
 | :----------------------------------- | :------------------------------------------------------------ |
-| `@ecopages/content-processor`        | `ContentScanner`, sort helpers, shared types.                   |
+| `@ecopages/content-processor`        | `ContentScanner`, sort helpers, shared types.                 |
 | `@ecopages/content-processor/plugin` | `contentProcessorPlugin()` for `eco.config.ts`.               |
 | `@ecopages/content-processor/types`  | `ContentEntry`, `ContentCollectionModule`, `EntryComparator`. |
 | `@ecopages/content-processor/mdx`    | `remarkFrontmatter`, `withContentMdxPlugins()`.               |

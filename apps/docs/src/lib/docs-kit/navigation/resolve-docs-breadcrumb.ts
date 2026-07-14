@@ -1,26 +1,26 @@
-import type { BreadcrumbItem } from '../../../components/breadcrumb/breadcrumb';
-import type { DocsSiteContent } from '../content/docs-site-content.types';
+import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
+import type { DocsNav } from '@/lib/content-nav';
 
-/** Builds docs breadcrumb items from site content and the current page. */
-export function resolveDocsBreadcrumb(content: DocsSiteContent, section: string, slug: string): BreadcrumbItem[] {
-	const contentSection = content.sections.find((entry) => entry.id === section);
-	const page = contentSection?.pages.find((entry) => entry.slug === slug);
+/** Builds docs breadcrumb items from navigation data and the current page. */
+export function resolveDocsBreadcrumb(nav: DocsNav, section: string, slug: string): BreadcrumbItem[] {
+	const contentSection = nav.sections.find((entry) => entry.id === section);
+	const page = contentSection?.items.find((entry) => entry.slug === slug);
 
 	if (!contentSection || !page) {
 		return [];
 	}
 
-	const firstSection = content.sections[0];
-	const firstPage = firstSection?.pages[0];
+	const firstSection = nav.sections[0];
+	const firstPage = firstSection?.items[0];
 	const docsIndexHref =
-		firstSection && firstPage ? `${content.rootDir}/${firstSection.id}/${firstPage.slug}` : content.rootDir;
-	const firstSectionPage = contentSection.pages[0];
+		firstSection && firstPage ? `${nav.rootDir}/${firstSection.id}/${firstPage.slug}` : nav.rootDir;
+	const firstSectionPage = contentSection.items[0];
 
 	return [
 		{ label: 'Docs', href: docsIndexHref },
 		{
 			label: contentSection.title,
-			href: firstSectionPage ? `${content.rootDir}/${section}/${firstSectionPage.slug}` : undefined,
+			href: firstSectionPage ? `${nav.rootDir}/${section}/${firstSectionPage.slug}` : undefined,
 		},
 		{ label: page.title },
 	];

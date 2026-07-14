@@ -4,14 +4,15 @@
 
 - Docs live under `src/content/docs/<section>/<slug>.mdx` with YAML frontmatter (`title`, `description`, `order`, optional `llms`).
 - Section titles and sidebar icons are configured in `src/content/docs.ts`.
-- MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`) via `buildDocsSiteContent()`.
+- MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`).
+- Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
 - Do not add per-page `export const config` in MDX files; routing and layout live in the catch-all page.
 - Shared JSX (`Banner`, `CodeTabs`, etc.) is injected via `getDocsMdxComponents()` at render time.
 - Add explicit imports only when content needs module bindings (for example `ecopages:images` spreads).
 
 ## Configuration
 
-- App-specific docs-kit wiring lives in `src/docs-kit.instance.ts` (`defineDocsKit()`).
+- App-specific MDX component wiring lives in `src/docs-kit.instance.ts` (`defineDocsKit()`).
 - Register `contentProcessorPlugin()` in `eco.config.ts` for the docs MDX collection.
 - Inject shell layout, MDX components, and burger events there — not inside `src/lib/docs-kit/`.
 

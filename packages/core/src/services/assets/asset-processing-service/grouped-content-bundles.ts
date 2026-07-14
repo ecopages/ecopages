@@ -1,8 +1,13 @@
 import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
+import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
 
-/** Forces grouped content scripts to run through the bundler even in development. */
+/** Forces grouped content scripts to run through the bundler in production builds. */
 export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): void {
+	if (isDevelopmentRuntime()) {
+		return;
+	}
+
 	for (const dependency of dependencies) {
 		if (dependency.kind !== 'script' || dependency.source !== 'content' || !dependency.groupedBundle?.id) {
 			continue;

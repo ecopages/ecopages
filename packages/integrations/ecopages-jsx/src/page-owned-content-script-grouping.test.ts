@@ -15,6 +15,7 @@ describe('page-owned-content-script-grouping', () => {
 				source: 'content',
 				name: 'module-ecopages-images',
 				content: 'import "ecopages:images";',
+				bundle: false,
 			},
 			{
 				kind: 'script',
@@ -50,6 +51,7 @@ describe('page-owned-content-script-grouping', () => {
 			id: createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME),
 			entryName: 'module-ecopages-images',
 		});
+		expect(moduleScript.bundle).toBe(true);
 		expect(lazyScript.groupedBundle).toBeUndefined();
 		expect(fileScript).not.toHaveProperty('groupedBundle');
 		expect(injectorScript.groupedBundle).toBeUndefined();

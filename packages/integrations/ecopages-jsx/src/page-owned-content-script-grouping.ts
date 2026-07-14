@@ -69,6 +69,10 @@ export function assignPageOwnedContentScriptGroupedBundles(dependencies: AssetDe
 			id: bundleId,
 			entryName: createPageOwnedGroupedEntryName(dependency, usedEntryNames),
 		};
+
+		if (dependency.bundle === false) {
+			dependency.bundle = true;
+		}
 	}
 
 	return dependencies;

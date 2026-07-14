@@ -14,10 +14,20 @@ import {
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
-import { renderCollectionModule, renderVirtualModuleTypes } from './codegen.ts';
+import {
+	renderCollectionComponentsModule,
+	renderCollectionEntriesModule,
+	renderVirtualModuleTypes,
+} from './codegen.ts';
 import { compareEntriesBySlug } from './sort.ts';
 import { ContentScanner } from './content-scanner.ts';
-import { createContentPlugin, createContentPluginBundler, getCollectionCachePath } from './content-plugins.ts';
+import {
+	createContentPlugin,
+	createContentPluginBundler,
+	getCollectionCachePath,
+	getCollectionServerCachePath,
+} from './content-plugins.ts';
+import { createContentServerBoundaryPlugin } from './content-server-boundary-plugin.ts';
 import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts';
 import type { ContentProcessorConfig } from './collection-types.ts';
 
@@ -42,10 +52,15 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	private readonly scanners = new Map<string, ContentScanner>();
 
 	/**
-	 * Absolute paths to generated collection modules, keyed by collection name.
+	 * Absolute paths to generated collection entry modules, keyed by collection name.
 	 * Virtual-module plugins close over this object so mutations stay live.
 	 */
 	public readonly collectionModules: Record<string, string> = {};
+
+	/**
+	 * Absolute paths to generated server-only component resolver modules.
+	 */
+	public readonly collectionServerModules: Record<string, string> = {};
 
 	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
@@ -65,11 +80,14 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	}
 
 	get buildPlugins(): EcoBuildPlugin[] {
-		return [createContentPluginBundler(this.collectionModules)];
+		return [
+			createContentServerBoundaryPlugin(),
+			createContentPluginBundler(this.collectionModules, this.collectionServerModules),
+		];
 	}
 
 	get plugins(): EcoBuildPlugin[] {
-		return [createContentPlugin(this.collectionModules)];
+		return [createContentPlugin(this.collectionModules, this.collectionServerModules)];
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -133,15 +151,20 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const entrySources = await scanner.getEntrySources();
 		const manifest = entrySources.map(({ entry }) => entry);
 		const outputFile = getCollectionCachePath(this.context.cache, collectionName);
+		const serverOutputFile = getCollectionServerCachePath(this.context.cache, collectionName);
 		const outputDir = path.dirname(outputFile);
-		const output = renderCollectionModule(collectionName, outputDir, manifest, entrySources);
+		const entriesOutput = renderCollectionEntriesModule(collectionName, manifest);
+		const componentsOutput = renderCollectionComponentsModule(collectionName, outputDir, entrySources);
 
-		this.writeGeneratedFile(outputFile, output);
+		this.writeGeneratedFile(outputFile, entriesOutput);
+		this.writeGeneratedFile(serverOutputFile, componentsOutput);
 		this.collectionModules[collectionName] = outputFile;
+		this.collectionServerModules[collectionName] = serverOutputFile;
 
 		logger.debug('Generated content collection module', {
 			collectionName,
 			outputFile,
+			serverOutputFile,
 			entryCount: manifest.length,
 		});
 	}

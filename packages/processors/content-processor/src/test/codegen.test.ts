@@ -1,36 +1,43 @@
 import { describe, expect, test } from 'vitest';
-import { renderCollectionModule, renderVirtualModuleTypes } from '../codegen.ts';
+import {
+	renderCollectionComponentsModule,
+	renderCollectionEntriesModule,
+	renderVirtualModuleTypes,
+} from '../codegen.ts';
 
 describe('codegen', () => {
-	test('renderCollectionModule emits static imports and accessors', () => {
-		const output = renderCollectionModule(
-			'docs',
-			'/tmp/cache',
-			[
-				{
+	test('renderCollectionEntriesModule emits metadata accessors without MDX imports', () => {
+		const output = renderCollectionEntriesModule('docs', [
+			{
+				title: 'Intro',
+				description: 'Welcome',
+				slug: 'intro',
+				segments: ['intro'],
+			},
+		]);
+
+		expect(output).not.toContain('import docs_intro from');
+		expect(output).toContain('export const entries = [');
+		expect(output).toContain('export function getEntryBySegments(segments: string[])');
+		expect(output).not.toContain('getComponent');
+	});
+
+	test('renderCollectionComponentsModule emits MDX imports and getComponent', () => {
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+			{
+				entry: {
 					title: 'Intro',
 					description: 'Welcome',
 					slug: 'intro',
 					segments: ['intro'],
 				},
-			],
-			[
-				{
-					entry: {
-						title: 'Intro',
-						description: 'Welcome',
-						slug: 'intro',
-						segments: ['intro'],
-					},
-					filePath: '/app/src/content/docs/intro.mdx',
-				},
-			],
-		);
+				filePath: '/app/src/content/docs/intro.mdx',
+			},
+		]);
 
 		expect(output).toContain("import docs_intro from '../../app/src/content/docs/intro.mdx';");
-		expect(output).toContain('export const entries = [');
-		expect(output).toContain('const entriesBySlug: Record<string, (typeof entries)[number]> = {');
 		expect(output).toContain('export function getComponent(slug: string)');
+		expect(output).not.toContain('export const entries');
 	});
 
 	test('renderVirtualModuleTypes resolves src entry types through the app alias', () => {
@@ -47,13 +54,16 @@ describe('codegen', () => {
 		expect(output).toContain("import type { DocsFrontmatter } from '@/content/docs-schema'");
 		expect(output).toContain('export type Entry = ContentEntry<DocsFrontmatter>');
 	});
-	test('renderVirtualModuleTypes declares one module per collection', () => {
+
+	test('renderVirtualModuleTypes declares entries and server modules per collection', () => {
 		const output = renderVirtualModuleTypes({
 			docs: {},
 			blog: { entryType: './src/content/blog-schema#BlogFrontmatter' },
 		});
 		expect(output).toContain('declare module "ecopages:content/docs"');
+		expect(output).toContain('declare module "ecopages:content/docs/server"');
 		expect(output).toContain('declare module "ecopages:content/blog"');
+		expect(output).toContain('declare module "ecopages:content/blog/server"');
 		expect(output).toContain("import type { ContentEntry } from '@ecopages/content-processor/types'");
 		expect(output).toContain("import type { BlogFrontmatter } from './src/content/blog-schema'");
 		expect(output).toContain('export type Entry = ContentEntry<BlogFrontmatter>');

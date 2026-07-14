@@ -516,3 +516,44 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	assert.equal(integration.setConfig.mock.calls.length, 0);
 	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
 });
+
+test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
+	const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
+	process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+
+	const processor = {
+		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setup: vi.fn(async () => {}),
+	};
+	const integration = {
+		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setHmrManager: vi.fn(),
+		setup: vi.fn(async () => {}),
+	};
+	const observedRuntimePlugins: string[] = [];
+
+	try {
+		await setupAppRuntimePlugins({
+			appConfig: {
+				loaders: new Map(),
+				processors: new Map([['processor', processor]]),
+				integrations: [integration],
+			} as any,
+			runtimeOrigin: 'http://localhost:3000',
+			onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
+		});
+
+		assert.equal(processor.setup.mock.calls.length, 0);
+		assert.equal(integration.setup.mock.calls.length, 1);
+		assert.equal(integration.setConfig.mock.calls.length, 1);
+		assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
+	} finally {
+		if (previousWorkerFlag === undefined) {
+			delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
+		} else {
+			process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
+		}
+	}
+});

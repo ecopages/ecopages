@@ -1,3 +1,9 @@
+---
+title: "Content Processor"
+description: "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules."
+order: 10
+---
+
 # Content Processor
 
 The `@ecopages/content-processor` package scans MDX content collections at build time, validates frontmatter with [Standard Schema](https://standardschema.dev)-compatible libraries, and exposes each collection as a typed virtual module: `ecopages:content/<collection>`.
@@ -24,10 +30,9 @@ Register the processor in `eco.config.ts`:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { compareEntriesByField } from '@ecopages/content-processor';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
-import { docsContentSchema } from './src/content/docs/docs-content.schema';
+import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 
 export default await new ConfigBuilder()
 	.setRootDir(import.meta.dir)
@@ -47,8 +52,9 @@ export default await new ConfigBuilder()
 				collections: {
 					docs: {
 						contentDir: 'content/docs',
-						schema: docsContentSchema,
-						orderBy: compareEntriesByField('order'),
+						schema: docsFrontmatterSchema,
+						orderBy: compareDocsEntries,
+						entryType: './src/content/docs#DocsFrontmatter',
 					},
 				},
 			},
@@ -59,7 +65,7 @@ export default await new ConfigBuilder()
 
 ### Docs app wiring
 
-Navigation, section icons, and page metadata stay in `src/content/docs/content.meta.ts`. MDX modules resolve through the processor:
+Page metadata lives in MDX frontmatter. Section titles and sidebar icons are configured in `src/content/docs.ts`. Docs-kit navigation is built from the processor collection:
 
 ```typescript
 import { getComponent } from 'ecopages:content/docs';
@@ -67,7 +73,17 @@ import { getComponent } from 'ecopages:content/docs';
 const Content = getComponent('getting-started/introduction');
 ```
 
-`attachDocsContentModules()` joins `content.meta.ts` entries with `getComponent('<section>/<slug>')` — no manual MDX import map in `content.ts`.
+`buildDocsSiteContent()` joins section config with `entries` and `getComponent('<section>/<slug>')`.
+
+Example frontmatter:
+
+```yaml
+---
+title: Introduction
+description: Get started with Ecopages.
+order: 1
+---
+```
 
 ## Package exports
 

@@ -1,12 +1,11 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { compareEntriesBySlug } from '@ecopages/content-processor';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { docsContentSchema } from './src/content/docs/docs-content.schema';
+import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 import { getDocsMdxPluginOptions } from './src/lib/docs-kit/mdx/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
@@ -31,9 +30,9 @@ const config = await new ConfigBuilder()
 				collections: {
 					docs: {
 						contentDir: 'content/docs',
-						schema: docsContentSchema,
-						orderBy: compareEntriesBySlug,
-						entryType: './src/content/docs/docs-content.schema#DocsContentFrontmatter',
+						schema: docsFrontmatterSchema,
+						orderBy: compareDocsEntries,
+						entryType: './src/content/docs#DocsFrontmatter',
 					},
 				},
 			},

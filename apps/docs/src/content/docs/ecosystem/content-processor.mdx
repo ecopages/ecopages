@@ -1,0 +1,153 @@
+---
+title: "Content Processor"
+description: "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules."
+order: 10
+---
+
+# Content Processor
+
+The `@ecopages/content-processor` package scans MDX content collections at build time, validates frontmatter with [Standard Schema](https://standardschema.dev)-compatible libraries, and exposes each collection as a typed virtual module: `ecopages:content/<collection>`.
+
+This docs app uses it for every page under `src/content/docs/`.
+
+## What the processor owns
+
+| Layer | Owner |
+| :---- | :---- |
+| File discovery, frontmatter validation, manifest sort | `@ecopages/content-processor` |
+| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor` |
+| `ContentScanner` for build scripts (for example `llms.txt`) | `@ecopages/content-processor` |
+| Routes, layouts, sidebar, breadcrumbs, pagination | Your app — derive from `entries` and frontmatter |
+
+## Installation
+
+<CodeTabs
+	name="content-processor-install"
+	tabs={[
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/content-processor' },
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/content-processor' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/content-processor' },
+	]}
+	defaultSelectedKey="pnpm"
+/>
+
+Peer dependency: `@ecopages/core`.
+
+## Configuration
+
+Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX integration:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
+import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
+import remarkGfm from 'remark-gfm';
+import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
+
+export default await new ConfigBuilder()
+	.setRootDir(import.meta.dirname)
+	.setIntegrations([
+		ecopagesJsxPlugin({
+			mdx: {
+				enabled: true,
+				...withContentMdxPlugins({
+					remarkPlugins: [remarkGfm],
+				}),
+			},
+		}),
+	])
+	.setProcessors([
+		contentProcessorPlugin({
+			options: {
+				collections: {
+					docs: {
+						contentDir: 'content/docs',
+						schema: docsFrontmatterSchema,
+						orderBy: compareDocsEntries,
+						entryType: './src/content/docs#DocsFrontmatter',
+					},
+				},
+			},
+		}),
+	])
+	.build();
+```
+
+Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
+
+Do not add `slug` or `segments` to your frontmatter schema — the processor derives them from the file path.
+
+### Docs app wiring
+
+- **Frontmatter schema and section config** — `src/content/docs.ts`
+- **Sidebar navigation** — `src/lib/content-nav.ts` joins section config with processor `entries`
+- **Catch-all route** — `src/pages/docs/[...slug]/index.tsx` resolves entries and renders MDX
+- **Shared MDX components** — `src/lib/docs/mdx-components.ts` exports `docsMdxComponents` passed at render time
+- **Layout chrome** — `src/layouts/docs-layout/`
+
+Example frontmatter:
+
+```yaml
+---
+title: Introduction
+description: Get started with Ecopages.
+order: 1
+---
+```
+
+Catch-all render pattern:
+
+```typescript
+import { getComponent } from 'ecopages:content/docs';
+import { docsMdxComponents } from '@/lib/docs/mdx-components';
+
+const Content = getComponent('getting-started/introduction');
+return await Content({ components: docsMdxComponents });
+```
+
+## Virtual module API
+
+Each collection exposes `ecopages:content/<collection>`:
+
+```typescript
+import { entries, getEntry, getEntryBySegments, getComponent } from 'ecopages:content/docs';
+import type { Entry } from 'ecopages:content/docs';
+```
+
+| Export | Description |
+| :----- | :---------- |
+| `entries` | Readonly manifest, sorted by `orderBy` |
+| `getEntry(slug)` | Lookup by joined slug, e.g. `'getting-started/introduction'` |
+| `getEntryBySegments(segments)` | Lookup by segment array |
+| `getComponent(slug)` | MDX component for the entry |
+| `Entry` | Type only — frontmatter fields plus `slug` and `segments` |
+
+Keep `Entry` on a separate `import type` line in bundled page files.
+
+## Package exports
+
+| Import | Purpose |
+| :----- | :------ |
+| `@ecopages/content-processor` | `ContentScanner`, sort helpers, shared types |
+| `@ecopages/content-processor/plugin` | `contentProcessorPlugin()` for `eco.config.ts` |
+| `@ecopages/content-processor/types` | `ContentEntry`, `ContentCollectionModule`, `EntryComparator` |
+| `@ecopages/content-processor/mdx` | `remarkFrontmatter`, `withContentMdxPlugins()` |
+
+## TypeScript
+
+Add generated virtual-module types in a root `modules.d.ts`:
+
+```typescript
+import '@ecopages/core/declarations';
+import '@ecopages/content-processor/types';
+```
+
+Run `ecopages dev` or `ecopages build` before expecting IDE types for `ecopages:content/*` imports.
+
+## Related
+
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run
+- [MDX Integration](/docs/integrations/mdx) — MDX compile pipeline
+- [docs-starter example](https://github.com/ecopages/ecopages/tree/main/examples/docs-starter) — minimal content-processor setup

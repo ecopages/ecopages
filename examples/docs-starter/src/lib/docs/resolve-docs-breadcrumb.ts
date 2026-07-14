@@ -1,4 +1,4 @@
-import type { BreadcrumbItem } from '../components/breadcrumb/breadcrumb';
+import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import type { DocsNav } from '@/content-nav';
 
 export function resolveDocsBreadcrumb(nav: DocsNav, section: string, slug: string): BreadcrumbItem[] {

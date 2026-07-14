@@ -83,7 +83,7 @@ Do not add `slug` or `segments` to your frontmatter schema — the processor der
 - **Frontmatter schema and section config** — `src/content/docs.ts`
 - **Sidebar navigation** — `src/lib/content-nav.ts` joins section config with processor `entries`
 - **Catch-all route** — `src/pages/docs/[...slug]/index.tsx` resolves entries and renders MDX
-- **Shared MDX components** — `src/docs-kit/mdx-components.ts` exports `docsMdxComponents` passed at render time
+- **Shared MDX components** — `src/lib/docs/mdx-components.ts` exports `docsMdxComponents` passed at render time
 - **Layout chrome** — `src/layouts/docs-layout/`
 
 Example frontmatter:
@@ -100,7 +100,7 @@ Catch-all render pattern:
 
 ```typescript
 import { getComponent } from 'ecopages:content/docs';
-import { getDocsMdxComponents } from '@/docs-kit/mdx-components';
+import { getDocsMdxComponents } from '@/lib/docs/mdx-components';
 
 const Content = getComponent('getting-started/introduction');
 return await Content({ components: getDocsMdxComponents() });

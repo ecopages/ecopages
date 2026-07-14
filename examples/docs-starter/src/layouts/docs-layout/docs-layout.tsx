@@ -2,10 +2,10 @@ import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { docsNav } from '@/content-nav';
-import { DocsBar } from '@/docs-kit/components/docs-bar';
-import { getDocsLlmUrl } from '@/docs-kit/llm/docs-llm-url';
-import { resolveDocsBreadcrumb } from '@/docs-kit/navigation/resolve-docs-breadcrumb';
+import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
+import { resolveDocsBreadcrumb } from '@/lib/docs/resolve-docs-breadcrumb';
 import { BaseLayout } from '@/layouts/base-layout';
+import { DocsBar } from './docs-bar';
 
 type DocsLayoutPageProps = {
 	section?: string;

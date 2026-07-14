@@ -7,15 +7,15 @@ Minimal Ecopages docs site using `@ecopages/content-processor`, frontmatter-driv
 - `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`)
 - `src/content/docs.ts` — frontmatter schema, section order, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
-- `src/docs-kit/**` — MDX component map, docs bar, and navigation helpers
-- `src/docs-kit/layout/` — docs layout shell
+- `src/lib/docs/` — MDX component map, LLM URLs, and routing helpers
+- `src/layouts/docs-layout/` — docs layout shell and docs bar
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
 - Add pages as `<section>/<slug>.mdx` with frontmatter; reorder with `order` and `DOCS_SECTION_ORDER`.
-- Add shared MDX components in `src/docs-kit/mdx-components.ts`.
+- Add shared MDX components in `src/lib/docs/mdx-components.ts`.
 
 ## Docs bar
 
@@ -39,4 +39,4 @@ Open `/docs/getting-started/introduction` after starting the dev server.
 
 ## Full docs app
 
-See `apps/docs` for the complete docs kit: sidebar icons, table of contents, and pagination.
+See `apps/docs` for the full docs app: sidebar icons, table of contents, and pagination.

@@ -4,11 +4,11 @@
  */
 
 import path from 'node:path';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	mergeProcessorOptions,
 	Processor,
+	resolveGeneratedPath,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
 	type ProcessorWatchConfig,
@@ -19,15 +19,6 @@ import { ImageProcessor } from './image-processor.ts';
 import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
 import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
-
-function resolveGeneratedPath(
-	type: keyof typeof GENERATED_BASE_PATHS,
-	options: { root: string; module: string; subPath?: string },
-): string {
-	const { root, module, subPath } = options;
-	const parts = [root, GENERATED_BASE_PATHS[type], module, subPath].filter(Boolean);
-	return path.join(...(parts as string[]));
-}
 
 const logger = new Logger('[@ecopages/image-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',

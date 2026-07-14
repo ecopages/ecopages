@@ -6,6 +6,8 @@ import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
+import { createBuildOptionsDedupeKey } from '../../build/deduping-build-executor.ts';
 
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
@@ -113,9 +115,13 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 		};
 
 		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
-		const result = await buildExecutor.build(request);
-		startupTrace.recordBrowserBundle(result.outputs);
-		return result;
+		const dedupeKey = createBuildOptionsDedupeKey(request);
+
+		return requestBuildDedupe.dedupeBuild(dedupeKey, async () => {
+			const result = await buildExecutor.build(request);
+			startupTrace.recordBrowserBundle(result.outputs);
+			return result;
+		});
 	}
 
 	async bundleGroupedEntries(

@@ -13,6 +13,10 @@ import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import {
+	getDevBrowserScriptCacheEntry,
+	setDevBrowserScriptCacheEntry,
+} from '../../../build/dev-browser-script-cache.ts';
+import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
 	FileScriptProcessor,
@@ -282,16 +286,23 @@ export class AssetProcessingService {
 		}
 
 		const cached = this.cache.get(depKey);
-		if (!cached) {
-			return null;
+		if (cached) {
+			if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
+				this.cache.delete(depKey);
+			} else {
+				return cached.asset;
+			}
 		}
 
-		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
-			this.cache.delete(depKey);
-			return null;
+		if (dep.kind === 'script' && dep.source === 'content') {
+			const diskCached = getDevBrowserScriptCacheEntry(this.config, depKey);
+			if (diskCached) {
+				this.cache.set(depKey, { asset: diskCached });
+				return diskCached;
+			}
 		}
 
-		return cached.asset;
+		return null;
 	}
 
 	/**
@@ -299,6 +310,10 @@ export class AssetProcessingService {
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		this.cache.set(depKey, { asset });
+
+		if (dep.kind === 'script' && dep.source === 'content') {
+			setDevBrowserScriptCacheEntry(this.config, depKey, asset);
+		}
 	}
 
 	/**

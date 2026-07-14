@@ -23,12 +23,6 @@ export type DocsContentSection = Omit<DocsContentSectionMeta, 'pages'> & {
 	pages: DocsContentPage[];
 };
 
-/** Navigation, metadata, and icons for the docs site (no MDX modules). */
-export type DocsSiteContentMeta = {
-	rootDir: string;
-	sections: DocsContentSectionMeta[];
-};
-
 /** Navigation, metadata, icons, and MDX modules for the docs site. */
 export type DocsSiteContent = {
 	rootDir: string;

@@ -3,28 +3,10 @@ import { join } from 'node:path';
 import { getDocsKit } from '@/lib/docs-kit/config';
 import type { DocsSiteContent } from '@/lib/docs-kit/content/docs-site-content.types';
 import type { DocsManifest, DocsManifestPage } from '@/lib/docs-kit/manifest/docs-manifest';
-import { contentPageKey, discoverContentFiles } from '@/lib/docs-kit/manifest/discover-content-files';
 import { projectDocsManifest } from '@/lib/docs-kit/manifest/project-docs-manifest';
 
 function resolveContentPath(contentRoot: string, section: string, slug: string): string {
 	return join(contentRoot, section, `${slug}.mdx`);
-}
-
-function collectConfiguredPageKeys(content: DocsSiteContent): Set<string> {
-	return new Set(
-		content.sections.flatMap((section) => section.pages.map((page) => contentPageKey(section.id, page.slug))),
-	);
-}
-
-async function assertNoOrphanContentFiles(contentRoot: string, content: DocsSiteContent): Promise<void> {
-	const discovered = await discoverContentFiles(contentRoot);
-	const configuredKeys = collectConfiguredPageKeys(content);
-	const orphans = discovered.filter((page) => !configuredKeys.has(contentPageKey(page.section, page.slug)));
-
-	if (orphans.length > 0) {
-		const listed = orphans.map((page) => contentPageKey(page.section, page.slug)).join(', ');
-		throw new Error(`Content files are not listed in docs site content: ${listed}`);
-	}
 }
 
 /**
@@ -36,10 +18,6 @@ export async function buildDocsManifest(contentOverride?: DocsSiteContent): Prom
 	const contentRoot = kit.contentRoot;
 	const projected = projectDocsManifest(content);
 	const sections = [];
-
-	if (!contentOverride) {
-		await assertNoOrphanContentFiles(contentRoot, content);
-	}
 
 	for (const section of projected.sections) {
 		const pages: DocsManifestPage[] = [];

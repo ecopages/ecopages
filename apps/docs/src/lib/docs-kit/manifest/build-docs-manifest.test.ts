@@ -128,34 +128,6 @@ test('buildDocsManifest throws when a content entry has no MDX file', async () =
 	).rejects.toThrow(/Docs content entry has no MDX file/);
 });
 
-test('buildDocsManifest throws when a content file is missing from site content', async () => {
-	const orphanRoot = await mkdtemp(join(tmpdir(), 'docs-content-orphan-'));
-	await mkdir(join(orphanRoot, 'getting-started'), { recursive: true });
-	await writeFile(join(orphanRoot, 'getting-started/orphan.mdx'), '# Orphan', 'utf8');
-
-	defineDocsKit({
-		rootDir: appRoot,
-		contentRoot: orphanRoot,
-		content: { rootDir: '/docs', sections: [] },
-		mdxComponents: {},
-		shellLayout: () => null,
-		layoutComponents: [],
-	});
-	clearDocsManifestCache();
-
-	await expect(buildDocsManifest()).rejects.toThrow(/Content files are not listed in docs site content/);
-
-	defineDocsKit({
-		rootDir: appRoot,
-		contentRoot,
-		content: testContent,
-		mdxComponents: {},
-		shellLayout: () => null,
-		layoutComponents: [],
-	});
-	clearDocsManifestCache();
-});
-
 test('buildDocsManifest carries llms:false from content tree', async () => {
 	clearDocsManifestCache();
 	const manifest = await buildDocsManifest(testContent);

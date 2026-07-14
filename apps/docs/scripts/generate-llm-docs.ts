@@ -1,33 +1,30 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { defineDocsKit } from '../src/lib/docs-kit/config';
-import type { DocsSiteContent, DocsSiteContentMeta } from '../src/lib/docs-kit/content/docs-site-content.types';
-import type { DocsMdxComponent } from '../src/lib/docs-kit/mdx/docs-mdx.types';
-import { getContentFilePath } from '../src/lib/docs-kit/manifest/build-docs-manifest';
-import { getDocsManifest } from '../src/lib/docs-kit/manifest/get-docs-manifest';
+import { ContentScanner } from '@ecopages/content-processor';
+import {
+	compareDocsEntries,
+	DOCS_SECTION_CONFIG,
+	docsFrontmatterSchema,
+	LLM_SECTION_ORDER,
+	type DocsFrontmatter,
+} from '../src/content/docs';
 import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
 
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
+const defaultContentRoot = join(docsRoot, 'src/content/docs');
 
-function withStubContent(meta: DocsSiteContentMeta): DocsSiteContent {
-	const stub: DocsMdxComponent = () => null;
+export type GenerateLlmDocsOptions = {
+	contentRoot?: string;
+};
 
-	return {
-		rootDir: meta.rootDir,
-		sections: meta.sections.map((section) => ({
-			...section,
-			pages: section.pages.map((page) => ({
-				...page,
-				content: stub,
-			})),
-		})),
-	};
-}
-
-async function ensureDir(path: string): Promise<void> {
-	await mkdir(path, { recursive: true });
+function createScanner(contentRoot: string): ContentScanner<DocsFrontmatter> {
+	return new ContentScanner({
+		contentRoot,
+		schema: docsFrontmatterSchema,
+		orderBy: compareDocsEntries,
+	});
 }
 
 /**
@@ -39,8 +36,9 @@ async function ensureDir(path: string): Promise<void> {
  * - Linked page bodies live under `docs-llm/<section>/<slug>.md`.
  * - Progressive build guidance lives under `skill.txt` and `skill/reference/*.md`.
  */
-export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
-	const manifest = await getDocsManifest();
+export async function generateLlmDocs(outputRoot = publicRoot, options: GenerateLlmDocsOptions = {}): Promise<void> {
+	const scanner = createScanner(options.contentRoot ?? defaultContentRoot);
+	const posts = await scanner.getManifest();
 	const llmRoot = join(outputRoot, 'docs-llm');
 	const lines: string[] = [
 		'# Ecopages Documentation',
@@ -55,22 +53,44 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 	];
 
 	const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'https://ecopages.app';
+	const sections = new Map<string, typeof posts>();
 
-	for (const section of manifest.sections) {
-		lines.push(`## ${section.title}`);
+	for (const post of posts) {
+		const sectionId = post.segments[0] ?? 'other';
+		if (!sections.has(sectionId)) {
+			sections.set(sectionId, []);
+		}
+		sections.get(sectionId)!.push(post);
+	}
 
-		for (const page of section.pages) {
+	const orderedSections = [
+		...LLM_SECTION_ORDER.filter((section) => sections.has(section)),
+		...Array.from(sections.keys())
+			.filter((section) => !LLM_SECTION_ORDER.includes(section as (typeof LLM_SECTION_ORDER)[number]))
+			.sort((a, b) => a.localeCompare(b)),
+	];
+
+	for (const sectionId of orderedSections) {
+		const sectionPosts = sections.get(sectionId);
+		if (!sectionPosts || sectionPosts.length === 0) {
+			continue;
+		}
+
+		const sectionTitle = DOCS_SECTION_CONFIG[sectionId as keyof typeof DOCS_SECTION_CONFIG]?.title ?? sectionId;
+		lines.push(`## ${sectionTitle}`);
+
+		for (const page of sectionPosts) {
 			if (page.llms === false) {
 				continue;
 			}
 
-			const sourcePath = getContentFilePath(page.section, page.slug);
-			const body = await readFile(sourcePath, 'utf8');
-			const outputPath = join(llmRoot, page.section, `${page.slug}.md`);
-			await ensureDir(dirname(outputPath));
+			const pageSlug = page.segments[page.segments.length - 1]!;
+			const body = await scanner.getRawContent(page.slug);
+			const outputPath = join(llmRoot, sectionId, `${pageSlug}.md`);
+			await mkdir(dirname(outputPath), { recursive: true });
 			await writeFile(outputPath, body, 'utf8');
 
-			const url = `${baseUrl}/docs-llm/${page.section}/${page.slug}.md`;
+			const url = `${baseUrl}/docs-llm/${sectionId}/${pageSlug}.md`;
 			lines.push(`- [${page.title}](${url})`);
 		}
 
@@ -92,22 +112,13 @@ export async function generateLlmDocs(outputRoot = publicRoot): Promise<void> {
 
 	lines.push('');
 
-	await ensureDir(outputRoot);
+	await mkdir(outputRoot, { recursive: true });
 	await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
-	const { docsSiteContentMeta } = await import('../src/content/docs/content.meta');
-
-	defineDocsKit({
-		rootDir: docsRoot,
-		content: withStubContent(docsSiteContentMeta),
-		mdxComponents: {},
-		shellLayout: () => null,
-		layoutComponents: [],
-	});
 	await generateLlmDocs();
 	console.log(`[llms] Generated ${join(publicRoot, 'llms.txt')} and ${join(publicRoot, 'docs-llm')}/`);
 }

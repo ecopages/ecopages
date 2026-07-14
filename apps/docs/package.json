@@ -13,6 +13,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/content-processor": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
@@ -40,6 +41,7 @@
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.1.0",
 		"vfile": "^6.0.3",
-		"vitest": "^4.0.16"
+		"vitest": "^4.0.16",
+		"zod": "^4.4.3"
 	}
 }

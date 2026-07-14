@@ -1,24 +1,19 @@
+import { getComponent } from 'ecopages:content/docs';
 import type { DocsSiteContent, DocsSiteContentMeta } from '@/lib/docs-kit/content/docs-site-content.types';
-import type { DocsMdxComponent } from '@/lib/docs-kit/mdx/docs-mdx.types';
 
-/** Joins site metadata with imported MDX modules for each configured page. */
-export function attachDocsContentModules(
-	meta: DocsSiteContentMeta,
-	modules: Record<string, DocsMdxComponent>,
-): DocsSiteContent {
+/** Joins site metadata with MDX modules from the content processor collection. */
+export function attachDocsContentModules(meta: DocsSiteContentMeta): DocsSiteContent {
 	return {
 		rootDir: meta.rootDir,
 		sections: meta.sections.map((section) => ({
 			...section,
 			pages: section.pages.map((page) => {
-				const key = `${section.id}/${page.slug}`;
-				const content = modules[key];
+				const slug = `${section.id}/${page.slug}`;
 
-				if (!content) {
-					throw new Error(`Missing MDX module for docs page: ${key}`);
-				}
-
-				return { ...page, content };
+				return {
+					...page,
+					content: getComponent(slug),
+				};
 			}),
 		})),
 	};

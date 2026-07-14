@@ -238,6 +238,12 @@ export const docsSiteContentMeta = {
 					title: 'Image Processor',
 					description: 'Optimize images at build time and render responsive EcoImage markup.',
 				},
+				{
+					slug: 'content-processor',
+					title: 'Content Processor',
+					description:
+						'Scan MDX collections at build time and expose typed ecopages:content/* virtual modules.',
+				},
 			],
 		},
 		{

@@ -13,7 +13,6 @@ export default defineConfig({
 	},
 	test: {
 		environment: 'node',
-		include: ['scripts/**/*.test.ts', 'src/lib/docs-kit/**/*.test.ts'],
-		setupFiles: ['./vitest.setup.ts'],
+		include: ['scripts/**/*.test.ts', 'src/lib/docs/**/*.test.ts'],
 	},
 });

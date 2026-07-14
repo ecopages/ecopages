@@ -4,12 +4,22 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ## Mental model
 
-1. **You declare collections** in `eco.config.ts` (content directory, schema, sort order).
-2. **The processor scans files at build time** and writes generated modules under `.eco/cache/`.
-3. **Pages import a virtual module** (`ecopages:content/docs`) for entries, metadata, and MDX components.
-4. **Frontmatter is yours; routing fields are not.** You define and validate frontmatter with any [Standard Schema](https://standardschema.dev)-compatible library (Zod, Valibot, ArkType, etc.). The processor adds `slug` and `segments` from the file path.
+1. **Declare collections** in `eco.config.ts` — content directory, frontmatter schema, and sort order.
+2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`.
+3. **Import the virtual module** — pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.
+4. **Own your frontmatter** — define fields with any [Standard Schema](https://standardschema.dev)-compatible library (Zod, Valibot, ArkType, etc.). The processor adds `slug` and `segments` from the file path.
 
-The processor does **not** ship page factories or navigation builders. You write `eco.page` routes and build nav from `entries` in app code.
+### What this package owns vs. what your app owns
+
+| Layer                                                                 | Owned by                                                                                      |
+| :-------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                                                                 |
+| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                                                                 |
+| `ContentScanner` for build scripts (for example `llms.txt`)           | `@ecopages/content-processor`                                                                 |
+| Routes (`eco.page`), layouts, metadata, URL shape                     | Your app                                                                                      |
+| Sidebar, breadcrumbs, pagination                                      | Your app — derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
+
+The processor gives you a typed manifest and MDX components at build time. Wire them into Ecopages routing and UI the same way you would any other data source.
 
 ## Features
 
@@ -156,7 +166,7 @@ import type { Entry } from 'ecopages:content/docs';
 
 ## Page usage
 
-Write routes with `eco.page`. The processor does not provide a `createContentPage` helper.
+Define a catch-all or per-entry route with `eco.page`. Import the collection manifest and MDX components from the virtual module:
 
 ```typescript
 import { eco } from '@ecopages/core';
@@ -191,18 +201,18 @@ export default eco.page<{ entry: Entry }>({
 
 ## Navigation (app-side)
 
-Build navigation from `entries` in your app. The processor does not generate nav trees.
+Navigation is app code. Map `entries` to links using the frontmatter and path fields the processor already validated:
 
 ```typescript
 import { entries } from 'ecopages:content/docs';
 
-export const docsNav = buildGroupedNav(entries, {
-	rootDir: '/docs',
-	groupOrder: groupOrderIndex,
-});
+export const docsNav = entries.map((entry) => ({
+	title: entry.title,
+	href: `/docs/${entry.segments.join('/')}`,
+}));
 ```
 
-Use `entry.group`, `entry.segments`, and `entry.title` from the manifest.
+Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `examples/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
 
 ## Build scripts
 
@@ -227,7 +237,7 @@ const raw = await scanner.getRawContent('getting-started/intro');
 
 | Import                               | Purpose                                                       |
 | :----------------------------------- | :------------------------------------------------------------ |
-| `@ecopages/content-processor`        | `ContentScanner`, sort helpers, plugin factory, shared types. |
+| `@ecopages/content-processor`        | `ContentScanner`, sort helpers, shared types.                 |
 | `@ecopages/content-processor/plugin` | `contentProcessorPlugin()` for `eco.config.ts`.               |
 | `@ecopages/content-processor/types`  | `ContentEntry`, `ContentCollectionModule`, `EntryComparator`. |
 | `@ecopages/content-processor/mdx`    | `remarkFrontmatter`, `withContentMdxPlugins()`.               |

@@ -17,6 +17,8 @@
 		"strict": true,
 		"target": "ES2021",
 		"useDefineForClassFields": true,
+		"types": ["ecopages-content-processor"],
 		"verbatimModuleSyntax": true
-	}
+	},
+	"include": ["src", "eco.config.ts", "modules.d.ts", "node_modules/@types/ecopages-content-processor"]
 }

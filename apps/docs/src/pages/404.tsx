@@ -1,6 +1,5 @@
 import { eco } from '@ecopages/core';
-import '@/docs-kit.instance';
-import { DocsLayout } from '@/lib/docs-kit/layout';
+import { DocsLayout } from '@/layouts/docs-layout';
 import type { Error404TemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 

@@ -1,32 +1,30 @@
 # Docs starter
 
-Minimal Ecopages docs site using a content tree, manifest-driven navigation, and a catch-all docs route.
+Minimal Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs route.
 
 ## Structure
 
-- `src/content/docs/**` — body-only MDX content
-- `src/docs-kit/**` — compile helpers, manifest, layout, and docs chrome (mirrors `apps/docs/src/lib/docs-kit` patterns)
-- `src/docs-kit.instance.ts` — app-specific wiring via `defineDocsKit()`
-- `src/pages/docs/[...slug]/index.tsx` — single catch-all route for all docs pages
+- `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`)
+- `src/content/docs.ts` — frontmatter schema, section order, and sort helpers
+- `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
+- `src/lib/docs/` — MDX component map and plugin options
+- `src/layouts/docs-layout/` — docs layout shell and docs bar
+- `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 
 ## Configuration
 
-- Edit `src/content/docs/content.meta.ts` to add, remove, or reorder pages (and register MDX modules in `content.ts`).
-- Every `.mdx` file under `src/content/docs` must appear in the manifest; orphan files fail `buildDocsManifest()`.
-- Inject shell layout and MDX components in `src/docs-kit.instance.ts`.
+- Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
+- Add pages as `<section>/<slug>.mdx` with frontmatter; reorder with `order` and `DOCS_SECTION_ORDER`.
+- Add shared MDX components in `src/lib/docs/mdx-components.ts`.
 
 ## Docs bar
 
-The docs layout composes kit-local components:
-
-- `Breadcrumb` — receives `items` via props (resolved server-side from the manifest)
-- `CopyForLlm` — SSR markup with a Radiant script for clipboard behavior only (no client render override)
-
-Markup lives in `eco.component` render functions so layout HMR updates text and structure immediately.
+- `Breadcrumb` — resolved server-side from `docsNav`
+- `CopyForLlm` — Radiant clipboard component (`radiant-copy-for-llm`) that fetches the LLM export URL
 
 ## LLM exports
 
-`scripts/generate-llm-docs.ts` writes `src/public/llms.txt` and `src/public/docs-llm/**/*.md` from the manifest before `dev` and `build`. Pages can opt out with `llms: false` in `content.meta.ts`.
+`scripts/generate-llm-docs.ts` uses `ContentScanner` to write `src/public/llms.txt` and `src/public/docs-llm/**/*.md` before `dev` and `build`. Set `llms: false` in frontmatter to exclude a page.
 
 ## Commands
 
@@ -41,4 +39,4 @@ Open `/docs/getting-started/introduction` after starting the dev server.
 
 ## Full docs app
 
-See `apps/docs` for the complete docs kit: sidebar icons, table of contents, and pagination.
+See `apps/docs` for the full docs app: sidebar icons, table of contents, and pagination.

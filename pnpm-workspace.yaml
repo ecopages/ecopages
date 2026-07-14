@@ -10,6 +10,7 @@ packages:
     - playground/*
     - e2e/fixtures/*
     - apps/*
+    - examples/docs-starter
 
 allowBuilds:
     bun: true

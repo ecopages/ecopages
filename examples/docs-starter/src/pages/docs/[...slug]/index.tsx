@@ -2,7 +2,7 @@ import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
-import { getDocsMdxComponents } from '@/lib/docs/mdx-components';
+import { docsMdxComponents } from '@/lib/docs/mdx-components';
 import { resolveFromCatchAll } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
@@ -46,6 +46,6 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	render: async ({ section, slug }) => {
 		const Content = getComponent(`${section}/${slug}`);
 
-		return await Content({ components: getDocsMdxComponents() });
+		return await Content({ components: docsMdxComponents });
 	},
 });

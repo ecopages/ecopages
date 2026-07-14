@@ -71,13 +71,8 @@ export function buildDocsNav(): DocsNav {
 
 export const docsNav = buildDocsNav();
 
-export function flattenDocsNavPages(nav: DocsNav): DocsNavItem[] {
-	return nav.sections.flatMap((section) => section.items);
-}
-
-/** JSON payload for client-side docs pagination. */
 export function serializeDocsPaginationData(nav: DocsNav): string {
-	const pages = flattenDocsNavPages(nav).map(({ href, title }) => ({ href, title }));
+	const pages = nav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title }));
 
 	return JSON.stringify({ pages });
 }

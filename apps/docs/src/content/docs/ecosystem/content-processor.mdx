@@ -100,10 +100,10 @@ Catch-all render pattern:
 
 ```typescript
 import { getComponent } from 'ecopages:content/docs';
-import { getDocsMdxComponents } from '@/lib/docs/mdx-components';
+import { docsMdxComponents } from '@/lib/docs/mdx-components';
 
 const Content = getComponent('getting-started/introduction');
-return await Content({ components: getDocsMdxComponents() });
+return await Content({ components: docsMdxComponents });
 ```
 
 ## Virtual module API

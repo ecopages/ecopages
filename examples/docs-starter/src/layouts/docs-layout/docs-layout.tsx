@@ -2,7 +2,6 @@ import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { docsNav } from '@/content-nav';
-import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
 import { resolveDocsBreadcrumb } from '@/lib/docs/resolve-docs-breadcrumb';
 import { BaseLayout } from '@/layouts/base-layout';
 import { DocsBar } from './docs-bar';
@@ -27,7 +26,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 		components: [BaseLayout, DocsBar],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
-		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
+		const llmUrl = section && slug ? `/docs-llm/${section}/${slug}.md` : undefined;
 		const crumbs = section && slug ? resolveDocsBreadcrumb(docsNav, section, slug) : [];
 
 		return (

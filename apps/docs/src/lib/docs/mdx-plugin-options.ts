@@ -18,13 +18,11 @@ const rehypePlugins = [
 	rehypeSimpleTableWrapper,
 ] satisfies Pluggable[];
 
-/** MDX plugin options wired into `ecopagesJsxPlugin({ mdx: getDocsMdxPluginOptions() })`. */
-export function getDocsMdxPluginOptions() {
-	return {
-		enabled: true as const,
-		...withContentMdxPlugins({
-			remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
-			rehypePlugins,
-		}),
-	};
-}
+/** MDX plugin options wired into `ecopagesJsxPlugin({ mdx: docsMdxPluginOptions })`. */
+export const docsMdxPluginOptions = {
+	enabled: true as const,
+	...withContentMdxPlugins({
+		remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
+		rehypePlugins,
+	}),
+};

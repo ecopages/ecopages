@@ -7,7 +7,7 @@
 - MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`).
 - Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
 - Do not add per-page `export const config` in MDX files; routing and layout live in the catch-all page.
-- Shared JSX (`Banner`, `CodeTabs`, etc.) is registered in `src/lib/docs/mdx-components.ts` and passed via `getDocsMdxComponents()` at render time.
+- Shared JSX (`Banner`, `CodeTabs`, etc.) is registered in `src/lib/docs/mdx-components.ts` and passed as `docsMdxComponents` at render time.
 - Add explicit imports only when content needs module bindings (for example `ecopages:images` spreads).
 
 ## Configuration
@@ -27,4 +27,4 @@
 
 ## Routing
 
-- The catch-all page resolves entries via `getEntryBySegments()` and renders `<Content components={getDocsMdxComponents()} />`.
+- The catch-all page resolves entries via `getEntryBySegments()` and renders `<Content components={docsMdxComponents} />`.

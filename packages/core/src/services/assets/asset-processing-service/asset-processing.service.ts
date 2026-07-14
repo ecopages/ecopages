@@ -3,15 +3,22 @@ import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
+import type { AssetDefinition, AssetKind, AssetSource, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
+	ensureGroupedContentScriptsBundle,
 	partitionGroupedContentScriptDependencies,
 	processGroupedDependencyBundles,
 } from './grouped-content-bundles.ts';
+import { resolveIntegrationPluginForProcessingKey } from './resolve-integration-plugin.ts';
 import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
+import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
+import {
+	getDevBrowserScriptCacheEntry,
+	setDevBrowserScriptCacheEntry,
+} from '../../../build/dev-browser-script-cache.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -87,10 +94,17 @@ export class AssetProcessingService {
 		fileSystem.ensureDir(depsDir);
 
 		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const results = await this.processDependenciesParallel(dedupedDeps, key);
+		const preparedDeps = this.prepareDependenciesForProcessing(dedupedDeps, key);
+		ensureGroupedContentScriptsBundle(preparedDeps);
+		const results = await this.processDependenciesParallel(preparedDeps);
 
 		await this.optimizeDependencies(results);
 		return results;
+	}
+
+	private prepareDependenciesForProcessing(deps: AssetDefinition[], processingKey: string): AssetDefinition[] {
+		const plugin = resolveIntegrationPluginForProcessingKey(this.config, processingKey);
+		return plugin?.prepareAssetDependencies?.(deps) ?? deps;
 	}
 
 	/**
@@ -101,7 +115,7 @@ export class AssetProcessingService {
 	 * pair, while still allowing the overall dependency set to resolve in
 	 * parallel.
 	 */
-	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
+	private async processDependenciesParallel(deps: AssetDefinition[]): Promise<ProcessedAsset[]> {
 		const grouped = this.groupDependenciesByType(deps);
 		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
@@ -109,7 +123,6 @@ export class AssetProcessingService {
 			const typePromises = ungroupedDeps.map((dep) =>
 				processUngroupedDependency({
 					dep,
-					key,
 					depKey: getAssetDependencyKey(dep),
 					getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
 					getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
@@ -134,7 +147,6 @@ export class AssetProcessingService {
 
 			const groupedResults = await processGroupedDependencyBundles({
 				bundles: Array.from(groupedBundleDeps.values()),
-				key,
 				getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
 				getDependencyKey: getAssetDependencyKey,
 				getGroupedProcessor: () =>
@@ -281,6 +293,10 @@ export class AssetProcessingService {
 			return null;
 		}
 
+		if (dep.kind === 'script' && dep.source === 'content') {
+			return this.getCachedContentScriptAsset(dep, depKey);
+		}
+
 		const cached = this.cache.get(depKey);
 		if (!cached) {
 			return null;
@@ -294,11 +310,43 @@ export class AssetProcessingService {
 		return cached.asset;
 	}
 
+	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
+		const filepath =
+			this.resolveCachedContentScriptFilepath(depKey) ??
+			getDevBrowserScriptCacheEntry(this.config, depKey)?.filepath;
+
+		if (!filepath) {
+			return null;
+		}
+
+		const materialized = materializeContentScriptAsset(dep, filepath);
+		this.cache.set(depKey, { asset: materialized });
+		return materialized;
+	}
+
+	private resolveCachedContentScriptFilepath(depKey: string): string | undefined {
+		const cached = this.cache.get(depKey);
+		if (!cached?.asset.filepath) {
+			return undefined;
+		}
+
+		if (!fileSystem.exists(cached.asset.filepath)) {
+			this.cache.delete(depKey);
+			return undefined;
+		}
+
+		return cached.asset.filepath;
+	}
+
 	/**
 	 * Stores one processed asset in the dependency cache.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		this.cache.set(depKey, { asset });
+
+		if (dep.kind === 'script' && dep.source === 'content') {
+			setDevBrowserScriptCacheEntry(this.config, depKey, asset);
+		}
 	}
 
 	/**

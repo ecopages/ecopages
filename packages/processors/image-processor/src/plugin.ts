@@ -13,6 +13,7 @@ import {
 	type ProcessorConfig,
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
+import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
@@ -213,7 +214,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
 		// Lit SSR workers import eco.config in an isolated thread; image outputs are
 		// already prepared on the main dev server thread.
-		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+		if (isLitStaticRenderWorkerThread()) {
 			this.buildContributionsPrepared = true;
 			return;
 		}
@@ -302,7 +303,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	 * Ensures optimized image outputs and virtual-module state exist on disk.
 	 */
 	async setup(): Promise<void> {
-		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+		if (isLitStaticRenderWorkerThread()) {
 			return;
 		}
 

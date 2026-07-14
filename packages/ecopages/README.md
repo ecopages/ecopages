@@ -34,14 +34,14 @@ bun dev
 
 Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
 
-| Option                     | Env Var                 | Description                         |
-| :------------------------- | :---------------------- | :---------------------------------- |
-| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)          |
-| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                     |
-| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                     |
-| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug-level logging         |
-| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh          |
-| `--runtime <runtime>`      |                         | Force execution via `bun` or `node` |
+| Option                     | Env Var                 | Description                                               |
+| :------------------------- | :---------------------- | :-------------------------------------------------------- |
+| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)                                |
+| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
+| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                                           |
+| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below) |
+| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh                                |
+| `--runtime <runtime>`      |                         | Force execution via `bun` or `node`                       |
 
 ### Runtime Detection
 
@@ -61,6 +61,36 @@ ecopages dev --port 8080 --debug
 
 # Dev server with React Fast Refresh enabled
 ecopages dev -r
+```
+
+### Debug logging and startup trace
+
+Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
+
+| Env var                       | CLI                    | What you get                                                                                   |
+| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+
+Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
+
+```text
+[ecopages:startup-trace] phase=config-ready wallMs=1271
+[ecopages:startup-trace] phase=setupAppRuntimePlugins durationMs=714 wallMs=1999
+[ecopages:startup-trace] phase=route-registry durationMs=1 wallMs=2000
+[ecopages:startup-trace] phase=server-listen durationMs=45 wallMs=2046
+[ecopages:startup-trace] phase=first-request-ssr durationMs=5296 wallMs=12495
+[ecopages:startup-trace] summary path=/docs/getting-started/introduction bundleCount=13 clientBundleBytes=858396 wallMs=12496
+```
+
+Phases: config ready → runtime plugins → route registry → server listening → first request SSR. The summary includes bundle count and total client JS bytes for that first request.
+
+```bash
+# Focused perf trace only
+ECOPAGES_STARTUP_TRACE=true pnpm dev
+
+# Full debug + trace
+ecopages dev --debug
 ```
 
 ## Ecosystem & Plugins

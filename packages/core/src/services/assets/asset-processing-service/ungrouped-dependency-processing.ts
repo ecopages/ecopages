@@ -1,10 +1,10 @@
 import { fileSystem } from '@ecopages/file-system';
+import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
 import type { AssetProcessor } from './processor.interface.ts';
 import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
 
 type ProcessUngroupedDependencyOptions = {
 	dep: AssetDefinition;
-	key: string;
 	depKey: string;
 	getCachedAsset: (dep: AssetDefinition, depKey: string) => ProcessedAsset | null;
 	getProcessor: (dep: AssetDefinition) => AssetProcessor | undefined;
@@ -20,7 +20,6 @@ export async function processUngroupedDependency(
 ): Promise<ProcessedAsset | null> {
 	const {
 		dep,
-		key,
 		depKey,
 		getCachedAsset,
 		getProcessor,
@@ -33,7 +32,7 @@ export async function processUngroupedDependency(
 	const cached = getCachedAsset(dep, depKey);
 
 	if (cached) {
-		return { key, ...cached } as ProcessedAsset;
+		return finalizeProcessedAsset(cached, resolveProcessedAssetSrcUrl);
 	}
 
 	const processor = getProcessor(dep);
@@ -49,15 +48,10 @@ export async function processUngroupedDependency(
 
 	try {
 		const processed = await processor.process(dep);
-		const srcUrl = resolveProcessedAssetSrcUrl(processed);
-		const processedWithKey = {
-			key,
-			...processed,
-			srcUrl,
-		};
+		const finalized = finalizeProcessedAsset(processed, resolveProcessedAssetSrcUrl);
 
-		setCachedAsset(dep, depKey, processedWithKey);
-		return processedWithKey as ProcessedAsset;
+		setCachedAsset(dep, depKey, finalized);
+		return finalized;
 	} catch (error) {
 		logProcessingError(dep, error);
 		return null;

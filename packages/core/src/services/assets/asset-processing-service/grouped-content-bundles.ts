@@ -1,4 +1,23 @@
 import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
+import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
+import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
+
+/** Forces grouped content scripts to run through the bundler in production builds. */
+export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): void {
+	if (isDevelopmentRuntime()) {
+		return;
+	}
+
+	for (const dependency of dependencies) {
+		if (dependency.kind !== 'script' || dependency.source !== 'content' || !dependency.groupedBundle?.id) {
+			continue;
+		}
+
+		if (dependency.bundle === false) {
+			dependency.bundle = true;
+		}
+	}
+}
 
 /**
  * Splits grouped content-script dependencies from ordinary dependencies so callers can
@@ -34,7 +53,6 @@ type GroupedBundleProcessor = {
 
 type ProcessGroupedDependencyBundlesOptions = {
 	bundles: AssetDefinition[][];
-	key: string;
 	getCachedAsset: (dep: AssetDefinition, depKey: string) => ProcessedAsset | null;
 	getDependencyKey: (dep: AssetDefinition) => string;
 	getGroupedProcessor: () => GroupedBundleProcessor | undefined;
@@ -54,7 +72,6 @@ export async function processGroupedDependencyBundles(
 ): Promise<ProcessedAsset[]> {
 	const {
 		bundles,
-		key,
 		getCachedAsset,
 		getDependencyKey,
 		getGroupedProcessor,
@@ -66,7 +83,7 @@ export async function processGroupedDependencyBundles(
 	const groupedPromises = bundles.map(async (bundleDeps) => {
 		const cachedResults = bundleDeps.map((dep) => {
 			const cached = getCachedAsset(dep, getDependencyKey(dep));
-			return cached ? ({ key, ...cached } as ProcessedAsset) : null;
+			return cached ? finalizeProcessedAsset(cached, resolveProcessedAssetSrcUrl) : null;
 		});
 
 		if (cachedResults.every((result) => result !== null)) {
@@ -84,15 +101,10 @@ export async function processGroupedDependencyBundles(
 			return processedResults.map((processed, index) => {
 				const dep = bundleDeps[index]!;
 				const depKey = getDependencyKey(dep);
-				const srcUrl = resolveProcessedAssetSrcUrl(processed);
-				const processedWithKey = {
-					key,
-					...processed,
-					srcUrl,
-				};
+				const finalized = finalizeProcessedAsset(processed, resolveProcessedAssetSrcUrl);
 
-				setCachedAsset(dep, depKey, processedWithKey);
-				return processedWithKey as ProcessedAsset;
+				setCachedAsset(dep, depKey, finalized);
+				return finalized;
 			});
 		} catch (error) {
 			logError(error);

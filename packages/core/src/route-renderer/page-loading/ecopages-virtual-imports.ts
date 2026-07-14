@@ -6,6 +6,18 @@ export type EcopagesVirtualImport = {
 	imports: string[] | undefined;
 };
 
+/** Matches `ecopages:content/<collection>/server` — SSR-only MDX resolver modules. */
+const CONTENT_SERVER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/server$/;
+
+/**
+ * @remarks
+ * Content server modules static-import every MDX entry. They must never become
+ * browser module-script dependencies discovered from page or component sources.
+ */
+export function isBrowserEcopagesVirtualImport(specifier: string): boolean {
+	return specifier.startsWith('ecopages:') && !CONTENT_SERVER_VIRTUAL_MODULE_PATTERN.test(specifier);
+}
+
 /**
  * Extracts runtime `ecopages:` virtual-module imports from a component source file.
  *
@@ -33,7 +45,7 @@ export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImpo
 		if (node.type !== 'ImportDeclaration') continue;
 		if (node.importKind === 'type') continue;
 		const specifier: string = node.source?.value ?? '';
-		if (!specifier.startsWith('ecopages:')) continue;
+		if (!isBrowserEcopagesVirtualImport(specifier)) continue;
 
 		if (found.get(specifier) === null) {
 			continue;

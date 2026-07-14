@@ -1025,6 +1025,86 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(processDependencies).toHaveBeenCalledTimes(2);
 	});
 
+	it('processes only the current route grouped deps under HMR while still collecting sibling routes', async () => {
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
+		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
+			if (key === 'react:grouped-page-browser-graph') {
+				return dependencies
+					.filter(isGroupedContentScriptDependency)
+					.map((dependency) =>
+						createProcessedGroupedScriptAsset(
+							dependency.groupedBundle,
+							`/assets/${dependency.groupedBundle.entryName}.js`,
+						),
+					);
+			}
+
+			return [];
+		});
+		const assetProcessingService = {
+			processDependencies,
+			getHmrManager: vi.fn(() => ({ isEnabled: () => true })),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [
+				{
+					name: 'react',
+					extensions: ['.tsx'],
+					initializeRenderer: vi.fn(),
+					getResolvedIntegrationDependencies: () => [],
+				},
+			],
+			absolutePaths: {
+				pagesDir: '/app/pages',
+			},
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		const collectPageBrowserGraphContribution = vi.fn(
+			async (routeFile: string): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [
+					createGroupedPageScriptDependency(`console.log("${routeFile}")`, `${routeFile}-entry`, {
+						id: 'react-router-pages',
+						entryName: routeFile.includes('dashboard') ? 'dashboard' : 'index',
+					}),
+				],
+			}),
+		);
+
+		await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			{
+				...createFlowAdapter({
+					resolvePageModule: async () => ({
+						Page,
+						integrationSpecificProps: {},
+					}),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({
+						props: {},
+						metadata: { title: 'Page', description: 'Page description' },
+					}),
+					resolveDependencies: async () => [],
+					collectPageBrowserGraphContribution,
+					shouldRenderPageComponent: () => false,
+					renderPageComponent: vi.fn(),
+				}),
+				name: 'react' as const,
+			},
+		);
+
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith('/app/pages/dashboard.tsx');
+		const groupedCall = processDependencies.mock.calls.find(
+			(call) => call[1] === 'react:grouped-page-browser-graph',
+		);
+		expect(groupedCall?.[0]).toHaveLength(1);
+		expect((groupedCall?.[0]?.[0] as { groupedBundle?: { entryName: string } })?.groupedBundle?.entryName).toBe(
+			'index',
+		);
+	});
+
 	it('should guard page locals for static pages and skip page-root rendering when disabled', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),

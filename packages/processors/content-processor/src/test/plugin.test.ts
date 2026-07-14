@@ -73,8 +73,14 @@ order: 1
 
 		expect(fileSystem.exists(cacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('export const entries = [');
+		expect(fileSystem.readFileSync(cacheFile)).not.toContain('getComponent');
+		const serverCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts');
+		expect(fileSystem.exists(serverCacheFile)).toBe(true);
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getComponent');
 		expect(fileSystem.exists(typesFile)).toBe(true);
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs"');
+		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs/server"');
 		expect(plugin.collectionModules.docs).toBe(cacheFile);
+		expect(plugin.collectionServerModules.docs).toBe(serverCacheFile);
 	});
 });

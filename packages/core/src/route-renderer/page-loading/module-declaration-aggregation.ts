@@ -1,4 +1,5 @@
 import { normalizeModuleDeclarations } from '../../eco/module-dependencies.ts';
+import { isBrowserEcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 import type { EcopagesVirtualImport } from './ecopages-virtual-imports.ts';
 
 type ModuleDeclarationInput = {
@@ -51,6 +52,9 @@ export function collectModuleDeclarations(
 	autoVirtualImports: EcopagesVirtualImport[],
 ): void {
 	for (const declaration of normalizeModuleDeclarations(getDeclaredModules(declaredModules))) {
+		if (declaration.from.startsWith('ecopages:') && !isBrowserEcopagesVirtualImport(declaration.from)) {
+			continue;
+		}
 		mergeModuleDeclaration(modulesMap, declaration);
 	}
 

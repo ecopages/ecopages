@@ -1,7 +1,8 @@
 import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
+import { entries, getEntryBySegments } from 'ecopages:content/docs';
+import { getComponent } from 'ecopages:content/docs/server';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
 import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';

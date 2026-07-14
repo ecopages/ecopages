@@ -171,6 +171,10 @@ export class PageBrowserGraphService {
 				continue;
 			}
 
+			if (this.isHmrEnabled()) {
+				continue;
+			}
+
 			if (!contribution?.dependencies?.length) {
 				continue;
 			}
@@ -203,16 +207,21 @@ export class PageBrowserGraphService {
 		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
 
 		for (const [routeFile, groupedAssetKeys] of groupedAssetKeysByRoute) {
-			groupedAssetsByRoute.set(
-				routeFile,
-				processedGroupedDependencies.filter((asset) => {
-					if (!asset.groupedBundle) {
-						return false;
-					}
+			const matchedAssets = processedGroupedDependencies.filter((asset) => {
+				if (!asset.groupedBundle) {
+					return false;
+				}
 
-					return groupedAssetKeys.has(getGroupedBundleAssetKey(asset.groupedBundle));
-				}),
-			);
+				return groupedAssetKeys.has(getGroupedBundleAssetKey(asset.groupedBundle));
+			});
+
+			if (groupedAssetKeys.size > 0 && matchedAssets.length === 0) {
+				appLogger.warn(
+					`Grouped page-browser assets for ${routeFile} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
+				);
+			}
+
+			groupedAssetsByRoute.set(routeFile, matchedAssets);
 		}
 
 		return {

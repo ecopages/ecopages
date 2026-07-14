@@ -3,6 +3,8 @@ import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { startupTrace } from '../diagnostics/startup-trace.ts';
+import { isLitStaticRenderWorkerThread } from './lit-static-render-worker-context.ts';
 
 function patchAppRuntime(
 	appConfig: EcoPagesAppConfig,
@@ -76,10 +78,17 @@ export async function setupAppRuntimePlugins(options: {
 	runtimeOrigin: string;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
+	startupTrace.markPhaseStart('setupAppRuntimePlugins');
+
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
 		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
+		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 		return;
+	}
+
+	if (isLitStaticRenderWorkerThread()) {
+		appLogger.debug('Lit static-render worker: skipping processor setup (main thread already prepared artifacts)');
 	}
 
 	appLogger.debugTime('setupAppRuntimePlugins');
@@ -89,8 +98,12 @@ export async function setupAppRuntimePlugins(options: {
 			options.onRuntimePlugin?.(loader);
 		}
 
+		const skipProcessorSetup = isLitStaticRenderWorkerThread();
+
 		for (const processor of options.appConfig.processors.values()) {
-			await processor.setup();
+			if (!skipProcessorSetup) {
+				await processor.setup();
+			}
 
 			if (processor.plugins) {
 				for (const plugin of processor.plugins) {
@@ -113,5 +126,6 @@ export async function setupAppRuntimePlugins(options: {
 		patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: true });
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
+		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 	}
 }

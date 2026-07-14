@@ -222,6 +222,10 @@
 			"types": "./src/build/jsx-ownership-plugins.ts",
 			"default": "./src/build/jsx-ownership-plugins.ts"
 		},
+		"./build/lit-static-render-worker-context": {
+			"types": "./src/build/lit-static-render-worker-context.ts",
+			"default": "./src/build/lit-static-render-worker-context.ts"
+		},
 		"./cache": {
 			"types": "./src/cache/index.ts",
 			"default": "./src/cache/index.ts"

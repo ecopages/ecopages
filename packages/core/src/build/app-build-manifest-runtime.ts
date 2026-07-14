@@ -3,6 +3,7 @@ import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { startupTrace } from '../diagnostics/startup-trace.ts';
 
 function patchAppRuntime(
 	appConfig: EcoPagesAppConfig,
@@ -76,9 +77,12 @@ export async function setupAppRuntimePlugins(options: {
 	runtimeOrigin: string;
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
+	startupTrace.markPhaseStart('setupAppRuntimePlugins');
+
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
 		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
+		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 		return;
 	}
 
@@ -113,5 +117,6 @@ export async function setupAppRuntimePlugins(options: {
 		patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: true });
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
+		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 	}
 }

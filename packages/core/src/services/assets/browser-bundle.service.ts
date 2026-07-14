@@ -5,6 +5,7 @@ import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
 
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
@@ -112,7 +113,9 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 		};
 
 		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
-		return await buildExecutor.build(request);
+		const result = await buildExecutor.build(request);
+		startupTrace.recordBrowserBundle(result.outputs);
+		return result;
 	}
 
 	async bundleGroupedEntries(

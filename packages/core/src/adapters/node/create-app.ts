@@ -9,6 +9,7 @@ import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
@@ -116,6 +117,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		}
 
 		const serveOptions = this.serverAdapter.getServerOptions();
+		startupTrace.beginServerListen();
 		this.server = await this.runtimeHost.start({
 			serveOptions,
 			handleRequest: async (request) => await this.serverAdapter!.handleRequest(request),

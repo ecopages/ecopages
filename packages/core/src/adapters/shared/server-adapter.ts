@@ -3,6 +3,7 @@ import { AbstractServerAdapter } from '../abstract/server-adapter.ts';
 import type { ServerAdapterOptions, ServerAdapterResult } from '../abstract/server-adapter.ts';
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../router/server/route-registry.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../services/validation/schema-validation-service.ts';
@@ -114,6 +115,8 @@ export abstract class SharedServerAdapter<
 	 * Web Requests (`Request`) to their corresponding internal execution paths.
 	 */
 	protected async initSharedRouter(): Promise<void> {
+		startupTrace.markPhaseStart('route-registry');
+
 		this.router = new RouteRegistry({
 			pagesDir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
 			appConfig: this.appConfig,
@@ -124,6 +127,7 @@ export abstract class SharedServerAdapter<
 		});
 
 		await this.router.init();
+		startupTrace.markPhaseEnd('route-registry');
 	}
 
 	private createRouteRegistryPageModuleAdapter(): RouteRegistryPageModuleAdapter {
@@ -567,16 +571,18 @@ export abstract class SharedServerAdapter<
 	 * native HTTP objects into Web Standard Requests.
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
-		const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
-		if (hmrResponse) {
-			return hmrResponse;
-		}
+		return startupTrace.traceFirstRequest(request, async () => {
+			const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+			if (hmrResponse) {
+				return hmrResponse;
+			}
 
-		const apiResponse = await this.tryHandleSharedApiRequest(request, context);
-		if (apiResponse) {
-			return apiResponse;
-		}
+			const apiResponse = await this.tryHandleSharedApiRequest(request, context);
+			if (apiResponse) {
+				return apiResponse;
+			}
 
-		return this.routeHandler.handleResponse(request);
+			return this.routeHandler.handleResponse(request);
+		});
 	}
 }

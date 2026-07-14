@@ -32,6 +32,7 @@ import {
 	type EcopagesRuntimeLabel,
 } from '../../dev/runtime-server-started-message.ts';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
 
 /**
  * Runtime bootstrap options layered on top of the app config.
@@ -174,6 +175,8 @@ export abstract class AbstractApplicationAdapter<
 		}
 
 		getAppModuleLoader(this.appConfig);
+
+		startupTrace.markConfigReady();
 
 		if (options.clearOutput) {
 			this.clearDistFolder().catch((error) => {
@@ -529,6 +532,8 @@ export abstract class AbstractApplicationAdapter<
 
 	protected notifyListening(origin: string): void {
 		const normalizedOrigin = origin.replace(/\/$/, '');
+
+		startupTrace.markServerListening();
 
 		if (!this.onAppStartCallback) {
 			this.logServerStarted(normalizedOrigin);

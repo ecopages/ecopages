@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"esModuleInterop": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noImplicitOverride": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2021",
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true,
+		"types": ["bun"]
+	},
+	"include": ["src"]
+}

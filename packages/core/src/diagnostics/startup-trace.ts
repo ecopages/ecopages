@@ -95,14 +95,7 @@ class StartupTrace {
 			try {
 				if (fileSystem.exists(output.path)) {
 					this.firstRequestClientBytes += statSync(output.path).size;
-					continue;
 				}
-			} catch {
-				// fall through
-			}
-
-			try {
-				this.firstRequestClientBytes += statSync(output.path).size;
 			} catch {
 				// ignore unreadable outputs
 			}

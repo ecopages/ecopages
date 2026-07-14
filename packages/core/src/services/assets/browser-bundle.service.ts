@@ -130,7 +130,7 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	): Promise<BuildResult> {
 		const request: BrowserBundleOptions = {
 			...options,
-			entrypoints: entries.map((entry) => entry.entrypoint),
+			entrypoints: Object.fromEntries(entries.map((entry) => [entry.entryName, entry.entrypoint])),
 		};
 
 		return this.bundle(request);

@@ -141,6 +141,54 @@ describe('BrowserBundleService', () => {
 		);
 	});
 
+	it('passes grouped entry names to the build executor as named entrypoints', async () => {
+		const build = vi.fn(async () => ({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/out/page-entry.js' }],
+		}));
+		const appConfig = {
+			runtime: {},
+			loaders: new Map(),
+		} as any;
+
+		setAppBuildAdapterForTest(appConfig, {
+			ownership: 'rolldown',
+			build,
+			resolve: () => '',
+			getTranspileOptions: () => ({
+				target: 'browser',
+				format: 'esm',
+				sourcemap: 'none',
+			}),
+		});
+		installBuildRuntime(appConfig);
+		buildRuntimeProfileSpy(appConfig, 'route-module', build);
+
+		const service = new BrowserBundleService(appConfig);
+		await service.bundleGroupedEntries(
+			[
+				{ entryName: 'page-entry', entrypoint: '/tmp/.eco/content-script-entries/abc123.js' },
+				{ entryName: 'module-images', entrypoint: '/tmp/.eco/content-script-entries/def456.js' },
+			],
+			{
+				profile: 'browser-script',
+				outdir: '/tmp/out',
+				minify: false,
+				naming: '[name]-[hash].[ext]',
+			},
+		);
+
+		expect(build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				entrypoints: {
+					'page-entry': '/tmp/.eco/content-script-entries/abc123.js',
+					'module-images': '/tmp/.eco/content-script-entries/def456.js',
+				},
+			}),
+		);
+	});
+
 	it('fails fast when a Vite-hosted app tries to use the Bun browser bundle seam', async () => {
 		const appConfig = {
 			runtime: {},

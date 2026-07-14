@@ -353,19 +353,14 @@ test('AssetProcessingService - ecopages-jsx page-owned content scripts use proce
 	fileSystem.exists = vi.fn(() => true);
 
 	const service = new AssetProcessingService(Config);
-	const processGroupedMock = vi.fn(async () => [
-		{
-			filepath: '/test/dist/assets/module-images.js',
+	const processGroupedMock = vi.fn(async (deps: { name?: string; excludeFromHtml?: boolean }[]) =>
+		deps.map((dep) => ({
+			filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
 			kind: 'script',
 			inline: false,
-		},
-		{
-			filepath: '/test/dist/assets/lazy-entry.js',
-			kind: 'script',
-			inline: false,
-			excludeFromHtml: true,
-		},
-	]);
+			...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
+		})),
+	);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/standalone.js',
 		kind: 'script',
@@ -405,7 +400,8 @@ test('AssetProcessingService - ecopages-jsx page-owned content scripts use proce
 	);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(1);
-	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(processGroupedMock).toHaveBeenCalledWith([expect.objectContaining({ name: 'module-images' })]);
+	expect(processMock).toHaveBeenCalledTimes(2);
 	expect(results).toHaveLength(3);
 });
 

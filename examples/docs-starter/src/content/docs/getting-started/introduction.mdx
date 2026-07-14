@@ -1,3 +1,9 @@
+---
+title: "Introduction"
+description: "Welcome to the docs starter — a minimal Ecopages docs site template."
+order: 1
+---
+
 # Introduction
 
 Welcome to the docs starter. Content files live under `src/content/docs` and are rendered through one catch-all route.
@@ -6,5 +12,5 @@ LLM exports: [`llms.txt`](/llms.txt) lists every page; full bodies live at `/doc
 
 ## Add a page
 
-1. Add MDX under `src/content/docs/<section>/<slug>.mdx`.
-2. Register the page in `src/content/docs/content.meta.ts` and add its MDX module to `content.ts`.
+1. Add MDX under `src/content/docs/<section>/<slug>.mdx` with frontmatter (`title`, `description`, `order`).
+2. Register new sections in `DOCS_SECTION_ORDER` (`src/content/docs.ts`) when needed.

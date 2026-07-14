@@ -6,8 +6,11 @@ import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
+	assignPageOwnedContentScriptGroupedBundles,
+	ensureGroupedContentScriptsBundle,
 	partitionGroupedContentScriptDependencies,
 	processGroupedDependencyBundles,
+	resolveGroupingIntegrationName,
 } from './grouped-content-bundles.ts';
 import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
@@ -91,6 +94,11 @@ export class AssetProcessingService {
 		fileSystem.ensureDir(depsDir);
 
 		const dedupedDeps = deduplicateAssetDependencies(deps);
+		const groupingIntegrationName = resolveGroupingIntegrationName(key);
+		if (groupingIntegrationName) {
+			assignPageOwnedContentScriptGroupedBundles(dedupedDeps, groupingIntegrationName);
+		}
+		ensureGroupedContentScriptsBundle(dedupedDeps);
 		const results = await this.processDependenciesParallel(dedupedDeps, key);
 
 		await this.optimizeDependencies(results);

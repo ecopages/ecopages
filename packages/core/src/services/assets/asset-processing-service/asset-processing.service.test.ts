@@ -347,6 +347,68 @@ test('AssetProcessingService - deduplication preserves package role distinctions
 	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'runtime']);
 });
 
+test('AssetProcessingService - ecopages-jsx page-owned content scripts use processGrouped once per request', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processGroupedMock = vi.fn(async () => [
+		{
+			filepath: '/test/dist/assets/module-images.js',
+			kind: 'script',
+			inline: false,
+		},
+		{
+			filepath: '/test/dist/assets/lazy-entry.js',
+			kind: 'script',
+			inline: false,
+			excludeFromHtml: true,
+		},
+	]);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/standalone.js',
+		kind: 'script',
+		inline: false,
+	}));
+
+	service.registerProcessor('script', 'content', {
+		process: processMock,
+		processGrouped: processGroupedMock,
+	});
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const results = await service.processDependencies(
+		[
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "ecopages:images";',
+				name: 'module-images',
+			},
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/lazy.ts";',
+				name: 'lazy-entry',
+				excludeFromHtml: true,
+				bundleOptions: { splitting: false },
+			},
+			{
+				kind: 'script',
+				source: 'file',
+				filepath: '/theme-toggle.script.ts',
+				packageRole: 'dynamic-chunk',
+			},
+		],
+		'ecopages-jsx',
+	);
+
+	expect(processGroupedMock).toHaveBeenCalledTimes(1);
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(results).toHaveLength(3);
+});
+
 test('AssetProcessingService - grouped content scripts use processGrouped once per bundle id', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

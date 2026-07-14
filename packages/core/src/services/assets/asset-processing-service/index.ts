@@ -1,4 +1,5 @@
 export * from './asset.factory.ts';
+export * from './grouped-content-bundles.ts';
 export * from './page-package.ts';
 export * from './asset-processing.service.ts';
 export * from './assets.types.ts';

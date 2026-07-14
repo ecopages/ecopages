@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import * as devBrowserScriptCache from '../../../build/dev-browser-script-cache.ts';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 
@@ -545,4 +546,53 @@ test('AssetProcessingService - skips missing file dependencies', async () => {
 
 	expect(processMock).not.toHaveBeenCalled();
 	expect(results.length).toBe(0);
+});
+
+test('AssetProcessingService - restores grouped content-script metadata from dev disk cache', async () => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'development';
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	vi.spyOn(devBrowserScriptCache, 'getDevBrowserScriptCacheEntry').mockReturnValue({
+		filepath: '/test/dist/assets/scripts/ecopages-react.js',
+	});
+	vi.spyOn(devBrowserScriptCache, 'setDevBrowserScriptCacheEntry').mockImplementation(() => {});
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/scripts/ecopages-react.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'content', {
+		process: processMock,
+		processGrouped: async () => [],
+	});
+
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'console.log("hydrate")',
+		name: 'ecopages-react-123',
+		bundle: false,
+		packageRole: 'page-script',
+		groupedBundle: { id: 'ecopages-react-router-pages', entryName: 'pages__index' },
+		attributes: { type: 'module', 'data-eco-page-bootstrap': 'react-router' },
+	};
+
+	const results = await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
+
+	expect(processMock).not.toHaveBeenCalled();
+	expect(results[0]?.groupedBundle).toEqual({
+		id: 'ecopages-react-router-pages',
+		entryName: 'pages__index',
+	});
+	expect(results[0]?.attributes).toEqual({
+		type: 'module',
+		'data-eco-page-bootstrap': 'react-router',
+	});
+
+	process.env.NODE_ENV = originalNodeEnv;
 });

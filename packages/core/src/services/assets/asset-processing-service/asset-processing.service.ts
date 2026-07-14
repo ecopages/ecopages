@@ -3,7 +3,7 @@ import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
+import type { AssetDefinition, AssetKind, AssetSource, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
 	ensureGroupedContentScriptsBundle,
@@ -14,6 +14,7 @@ import { resolveIntegrationPluginForProcessingKey } from './resolve-integration-
 import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
+import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
 import {
 	getDevBrowserScriptCacheEntry,
 	setDevBrowserScriptCacheEntry,
@@ -292,24 +293,49 @@ export class AssetProcessingService {
 			return null;
 		}
 
-		const cached = this.cache.get(depKey);
-		if (cached) {
-			if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
-				this.cache.delete(depKey);
-			} else {
-				return cached.asset;
-			}
-		}
-
 		if (dep.kind === 'script' && dep.source === 'content') {
-			const diskCached = getDevBrowserScriptCacheEntry(this.config, depKey);
-			if (diskCached) {
-				this.cache.set(depKey, { asset: diskCached });
-				return diskCached;
-			}
+			return this.getCachedContentScriptAsset(dep, depKey);
 		}
 
-		return null;
+		const cached = this.cache.get(depKey);
+		if (!cached) {
+			return null;
+		}
+
+		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
+			this.cache.delete(depKey);
+			return null;
+		}
+
+		return cached.asset;
+	}
+
+	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
+		const filepath =
+			this.resolveCachedContentScriptFilepath(depKey) ??
+			getDevBrowserScriptCacheEntry(this.config, depKey)?.filepath;
+
+		if (!filepath) {
+			return null;
+		}
+
+		const materialized = materializeContentScriptAsset(dep, filepath);
+		this.cache.set(depKey, { asset: materialized });
+		return materialized;
+	}
+
+	private resolveCachedContentScriptFilepath(depKey: string): string | undefined {
+		const cached = this.cache.get(depKey);
+		if (!cached?.asset.filepath) {
+			return undefined;
+		}
+
+		if (!fileSystem.exists(cached.asset.filepath)) {
+			this.cache.delete(depKey);
+			return undefined;
+		}
+
+		return cached.asset.filepath;
 	}
 
 	/**

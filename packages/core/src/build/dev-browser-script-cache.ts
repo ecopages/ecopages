@@ -17,12 +17,21 @@ import type { ProcessedAsset } from '../services/assets/asset-processing-service
 export const DEV_BROWSER_SCRIPT_CACHE_DIR = '.browser-script-bundles';
 export const DEV_BROWSER_SCRIPT_CACHE_FILENAME = '.build-cache.json';
 
+/** Output path restored from the dev disk cache before dependency metadata is merged. */
+export type DevBrowserScriptCacheHit = {
+	filepath: string;
+};
+
 /**
  * @remarks
  * Dev asset caching spans three scopes that should not be conflated:
  * - request dedupe (`request-build-dedupe.ts`) — one in-flight build per request key
  * - in-memory service cache (`AssetProcessingService`) — per-process reuse within one dev server
  * - this disk manifest (`.eco/.browser-script-bundles`) — cross-request reuse of content-script bundles
+ *
+ * Disk entries intentionally store only output file paths. Declarative fields such as
+ * `groupedBundle`, `attributes`, and `packageRole` live on the originating
+ * `ContentScriptAsset` and are merged via `materializeContentScriptAsset()` on lookup.
  */
 export interface DevBrowserScriptCacheEntry {
 	filepath: string;
@@ -90,8 +99,11 @@ export function shouldUseDevBrowserScriptCache(): boolean {
 	return isDevelopmentRuntime();
 }
 
-/** Looks up one persisted dev content-script bundle by dependency cache key. */
-export function getDevBrowserScriptCacheEntry(appConfig: EcoPagesAppConfig, depKey: string): ProcessedAsset | null {
+/** Looks up one persisted dev content-script output path by dependency cache key. */
+export function getDevBrowserScriptCacheEntry(
+	appConfig: EcoPagesAppConfig,
+	depKey: string,
+): DevBrowserScriptCacheHit | null {
 	if (!shouldUseDevBrowserScriptCache()) {
 		return null;
 	}
@@ -102,11 +114,7 @@ export function getDevBrowserScriptCacheEntry(appConfig: EcoPagesAppConfig, depK
 		return null;
 	}
 
-	return {
-		filepath: entry.filepath,
-		kind: 'script',
-		inline: false,
-	};
+	return { filepath: entry.filepath };
 }
 
 /** Persists one dev content-script bundle output for cross-request reuse. */

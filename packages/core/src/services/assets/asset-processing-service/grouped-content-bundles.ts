@@ -19,6 +19,10 @@ function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is Content
 		return false;
 	}
 
+	if (dep.excludeFromHtml) {
+		return false;
+	}
+
 	if (dep.groupedBundle?.id) {
 		return false;
 	}
@@ -52,8 +56,9 @@ function createPageOwnedGroupedEntryName(dep: ContentScriptAsset, usedEntryNames
  * Tags page-owned content scripts in one dependency batch with a shared grouped-build id.
  *
  * @remarks
- * Lazy component file scripts and integration runtime assets stay ungrouped. Integrations
- * that already assign a grouped id (for example React Router pages) are left unchanged.
+ * Lazy hydration entries (`excludeFromHtml`), component file scripts, and integration runtime
+ * assets stay ungrouped. Integrations that already assign a grouped id (for example React
+ * Router pages) are left unchanged.
  */
 export function assignPageOwnedContentScriptGroupedBundles(
 	dependencies: AssetDefinition[],

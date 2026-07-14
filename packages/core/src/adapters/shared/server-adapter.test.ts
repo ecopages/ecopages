@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, test } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import type { ApiHandler } from '../../types/public-types.ts';
@@ -131,4 +131,34 @@ test('SharedServerAdapter falls back to the route handler when no API handler ma
 
 	assert.equal(response.status, 200);
 	assert.equal(await response.text(), 'filesystem');
+});
+
+test('RouteRegistry page module adapter loads page modules through integration renderers', async () => {
+	const rootDir = createTempRoot('ecopages-route-registry-page-module-adapter');
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const adapter = new TestSharedServerAdapter('', rootDir);
+	(adapter as unknown as { appConfig: typeof config }).appConfig = config;
+
+	const loadPageModule = vi.fn(async () => ({
+		default: {
+			staticPaths: async () => ({ paths: [] }),
+		},
+	}));
+	const getPageRenderer = vi.fn(() => ({
+		loadPageModule,
+		execute: vi.fn(),
+	}));
+	(adapter as unknown as { routeRendererFactory: { getPageRenderer: typeof getPageRenderer } }).routeRendererFactory =
+		{ getPageRenderer };
+
+	const pageModuleAdapter = (
+		adapter as unknown as {
+			createRouteRegistryPageModuleAdapter: () => { loadPageModule: (filePath: string) => Promise<unknown> };
+		}
+	).createRouteRegistryPageModuleAdapter();
+	const result = await pageModuleAdapter.loadPageModule('/pages/blog/[slug].tsx');
+
+	assert.deepEqual(getPageRenderer.mock.calls, [['/pages/blog/[slug].tsx']]);
+	assert.deepEqual(loadPageModule.mock.calls, [['/pages/blog/[slug].tsx']]);
+	assert.equal(typeof (result as { staticPaths?: unknown }).staticPaths, 'function');
 });

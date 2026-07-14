@@ -80,9 +80,8 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				};
 			});
 
-			const primaryDep = deps[0]!;
 			const outputPaths = await this.bundleScripts({
-				...this.getBundlerOptions(primaryDep),
+				...this.getGroupedBundlerOptions(deps),
 				entries: tempEntries.map(({ dep, contentHash, tempFilepath }) => ({
 					entryName: dep.groupedBundle?.entryName ?? dep.name ?? contentHash,
 					entrypoint: tempFilepath,
@@ -110,6 +109,20 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				this.removeContentScriptEntry(contentHash);
 			}
 		}
+	}
+
+	private getGroupedBundlerOptions(deps: ContentScriptAsset[]): Record<string, unknown> {
+		const primaryDep = deps[0]!;
+		const options = this.getBundlerOptions(primaryDep);
+
+		if (deps.some((dep) => dep.bundleOptions?.splitting === false)) {
+			return {
+				...options,
+				splitting: false,
+			};
+		}
+
+		return options;
 	}
 
 	async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {

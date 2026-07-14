@@ -86,6 +86,7 @@ describe('ReactHydrationAssetService', () => {
 		);
 
 		expect(dependencies[0]).toMatchObject({
+			bundle: true,
 			groupedBundle: {
 				id: 'ecopages-react-router-pages',
 				entryName: 'pages__dashboard___project_',

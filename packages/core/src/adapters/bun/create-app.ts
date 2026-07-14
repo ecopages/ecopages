@@ -13,6 +13,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import type { RuntimeHost } from '../shared/runtime-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
@@ -167,6 +168,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		const enableHmr = dev || (!preview && !build);
 		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
 		const runtimeServerOptions = serverOptions;
+		startupTrace.beginServerListen();
 		this.server = await this.runtimeHost.start({
 			serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
 			handleRequest: async () => new Response(null, { status: 500 }),

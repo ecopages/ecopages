@@ -17,10 +17,18 @@ export type ContentEntry<T extends Record<string, unknown> = Record<string, unkn
 /** @deprecated Use {@link EntryComparator} instead. */
 export type OrderBy<T extends Record<string, unknown> = Record<string, unknown>> = EntryComparator<T>;
 
-/** Runtime shape of a generated `ecopages:content/<collection>` module. */
-export type ContentCollectionModule<TEntry extends Record<string, unknown> = Record<string, unknown>> = {
+/** Runtime shape of a generated `ecopages:content/<collection>` entries module. */
+export type ContentCollectionEntriesModule<TEntry extends Record<string, unknown> = Record<string, unknown>> = {
 	readonly entries: readonly ContentEntry<TEntry>[];
 	getEntry(slug: string): ContentEntry<TEntry>;
 	getEntryBySegments(segments: string[]): ContentEntry<TEntry>;
+};
+
+/** Runtime shape of a generated `ecopages:content/<collection>/server` module. */
+export type ContentCollectionComponentsModule = {
 	getComponent(slug: string): EcoComponent<Record<string, unknown>>;
 };
+
+/** @deprecated Import entries and server modules separately. */
+export type ContentCollectionModule<TEntry extends Record<string, unknown> = Record<string, unknown>> =
+	ContentCollectionEntriesModule<TEntry> & ContentCollectionComponentsModule;

@@ -11,6 +11,7 @@ export default defineExternalFixture(
 		command: `ECOPAGES_PORT=${reactPlaygroundE2ePort} pnpm --filter @ecopages/playground-react run dev`,
 		cwd: '.',
 		projectName: 'react-dev-e2e',
+		workers: 1,
 	},
 	devices['Desktop Chrome'],
 	{ reuseExistingServer: shouldReuseExistingTestServers() },

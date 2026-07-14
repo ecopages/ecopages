@@ -24,7 +24,7 @@ beforeStaticExport
        └─ preload SSR lazy scripts for Lit pages
 ```
 
-`ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment prevents nested worker creation during `LitPlugin.setup()`.
+`ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment prevents nested worker creation during `LitPlugin.setup()` and skips processor `.setup()` inside `setupAppRuntimePlugins` (main thread already prepared artifacts).
 
 ## Files
 

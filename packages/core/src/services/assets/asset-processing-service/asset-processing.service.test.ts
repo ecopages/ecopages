@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import * as devBrowserScriptCache from '../../../build/dev-browser-script-cache.ts';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 
@@ -64,7 +65,8 @@ test('AssetProcessingService - processDependencies', async () => {
 	);
 
 	expect(results.length).toBe(1);
-	expect((results[0] as any).key).toBe('test-key');
+	expect(results[0]?.kind).toBe('script');
+	expect(results[0]?.filepath).toBeDefined();
 });
 
 test('AssetProcessingService - createWithDefaultProcessors', () => {
@@ -211,7 +213,6 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 			kind: 'script',
 			inline: true,
 			content: 'console.log("inline");',
-			srcUrl: undefined,
 		}),
 	);
 
@@ -347,6 +348,81 @@ test('AssetProcessingService - deduplication preserves package role distinctions
 	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'runtime']);
 });
 
+test('AssetProcessingService - integration prepareAssetDependencies runs before grouped processing', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const prepareAssetDependencies = vi.fn((dependencies: AssetDefinition[]) => {
+		const moduleScript = dependencies.find(
+			(dep) => dep.kind === 'script' && dep.source === 'content' && 'name' in dep && dep.name === 'module-images',
+		);
+		if (moduleScript && moduleScript.kind === 'script' && moduleScript.source === 'content') {
+			moduleScript.groupedBundle = {
+				id: 'ecopages-ecopages-jsx-page-content-scripts',
+				entryName: 'module-images',
+			};
+		}
+		return dependencies;
+	});
+
+	const service = new AssetProcessingService({
+		...Config,
+		integrations: [{ name: 'ecopages-jsx', prepareAssetDependencies }],
+	});
+	const processGroupedMock = vi.fn(async (deps: { name?: string; excludeFromHtml?: boolean }[]) =>
+		deps.map((dep) => ({
+			filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
+			kind: 'script',
+			inline: false,
+			...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
+		})),
+	);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/standalone.js',
+		kind: 'script',
+		inline: false,
+	}));
+
+	service.registerProcessor('script', 'content', {
+		process: processMock,
+		processGrouped: processGroupedMock,
+	});
+	service.registerProcessor('script', 'file', { process: processMock });
+
+	const results = await service.processDependencies(
+		[
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "ecopages:images";',
+				name: 'module-images',
+			},
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/lazy.ts";',
+				name: 'lazy-entry',
+				excludeFromHtml: true,
+				bundleOptions: { splitting: false },
+			},
+			{
+				kind: 'script',
+				source: 'file',
+				filepath: '/theme-toggle.script.ts',
+				packageRole: 'dynamic-chunk',
+			},
+		],
+		'ecopages-jsx',
+	);
+
+	expect(prepareAssetDependencies).toHaveBeenCalledTimes(1);
+	expect(processGroupedMock).toHaveBeenCalledTimes(1);
+	expect(processGroupedMock).toHaveBeenCalledWith([expect.objectContaining({ name: 'module-images' })]);
+	expect(processMock).toHaveBeenCalledTimes(2);
+	expect(results).toHaveLength(3);
+});
+
 test('AssetProcessingService - grouped content scripts use processGrouped once per bundle id', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
@@ -470,4 +546,53 @@ test('AssetProcessingService - skips missing file dependencies', async () => {
 
 	expect(processMock).not.toHaveBeenCalled();
 	expect(results.length).toBe(0);
+});
+
+test('AssetProcessingService - restores grouped content-script metadata from dev disk cache', async () => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'development';
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	vi.spyOn(devBrowserScriptCache, 'getDevBrowserScriptCacheEntry').mockReturnValue({
+		filepath: '/test/dist/assets/scripts/ecopages-react.js',
+	});
+	vi.spyOn(devBrowserScriptCache, 'setDevBrowserScriptCacheEntry').mockImplementation(() => {});
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/scripts/ecopages-react.js',
+		kind: 'script',
+		inline: false,
+	}));
+	service.registerProcessor('script', 'content', {
+		process: processMock,
+		processGrouped: async () => [],
+	});
+
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'console.log("hydrate")',
+		name: 'ecopages-react-123',
+		bundle: false,
+		packageRole: 'page-script',
+		groupedBundle: { id: 'ecopages-react-router-pages', entryName: 'pages__index' },
+		attributes: { type: 'module', 'data-eco-page-bootstrap': 'react-router' },
+	};
+
+	const results = await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
+
+	expect(processMock).not.toHaveBeenCalled();
+	expect(results[0]?.groupedBundle).toEqual({
+		id: 'ecopages-react-router-pages',
+		entryName: 'pages__index',
+	});
+	expect(results[0]?.attributes).toEqual({
+		type: 'module',
+		'data-eco-page-bootstrap': 'react-router',
+	});
+
+	process.env.NODE_ENV = originalNodeEnv;
 });

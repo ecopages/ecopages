@@ -299,6 +299,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
+	 * Shapes one dependency batch before core asset processing runs.
+	 *
+	 * @remarks
+	 * Integrations use this to assign grouped-build metadata or other batch-level
+	 * policy without teaching core about integration-specific asset graphs.
+	 */
+	prepareAssetDependencies?(dependencies: AssetDefinition[]): AssetDefinition[];
+
+	/**
 	 * Prepares build-facing contributions before the app build manifest is sealed.
 	 *
 	 * @remarks

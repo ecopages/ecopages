@@ -5,6 +5,9 @@ import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
+import { createBuildOptionsDedupeKey } from '../../build/deduping-build-executor.ts';
 
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
@@ -112,7 +115,13 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 		};
 
 		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
-		return await buildExecutor.build(request);
+		const dedupeKey = createBuildOptionsDedupeKey(request);
+
+		return requestBuildDedupe.dedupeBuild(dedupeKey, async () => {
+			const result = await buildExecutor.build(request);
+			startupTrace.recordBrowserBundle(result.outputs);
+			return result;
+		});
 	}
 
 	async bundleGroupedEntries(
@@ -121,7 +130,7 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	): Promise<BuildResult> {
 		const request: BrowserBundleOptions = {
 			...options,
-			entrypoints: entries.map((entry) => entry.entrypoint),
+			entrypoints: Object.fromEntries(entries.map((entry) => [entry.entryName, entry.entrypoint])),
 		};
 
 		return this.bundle(request);

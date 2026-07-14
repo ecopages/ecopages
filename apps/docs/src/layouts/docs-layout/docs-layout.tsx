@@ -4,9 +4,10 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { ApiField } from '@/components/api-field/api-field';
 import { Banner } from '@/components/banner/banner';
 import { CodeTabs } from '@/components/code-tabs';
-import { docsNav, serializeDocsPaginationData } from '@/lib/content-nav';
-import { BaseLayout } from '@/layouts/base-layout';
+import { docsNav } from '@/lib/content-nav';
+import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
 import { resolveDocsBreadcrumb } from '@/lib/docs/resolve-docs-breadcrumb';
+import { BaseLayout } from '@/layouts/base-layout';
 import { DocsBar } from './docs-bar';
 import { DocsPagination } from './components/docs-pagination';
 import { DocsSidebar } from './components/navigation';
@@ -25,7 +26,9 @@ type ShellLayoutProps = {
 	children?: JsxRenderable;
 };
 
-const paginationData = serializeDocsPaginationData(docsNav);
+const paginationData = JSON.stringify({
+	pages: docsNav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
+});
 const ShellLayout = BaseLayout as (props: ShellLayoutProps) => JsxRenderable;
 
 export const DocsLayout = eco.layout<JsxRenderable>({
@@ -34,7 +37,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 		components: [BaseLayout, ApiField, Banner, CodeTabs, DocsBar, DocsSidebar, DocsToc, DocsPagination],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
-		const llmUrl = section && slug ? `/docs-llm/${section}/${slug}.md` : undefined;
+		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
 		const crumbs = section && slug ? resolveDocsBreadcrumb(docsNav, section, slug) : [];
 
 		return (

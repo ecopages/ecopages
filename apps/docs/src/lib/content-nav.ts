@@ -27,25 +27,25 @@ export type DocsNav = {
 	sections: DocsNavSection[];
 };
 
-/** Builds sidebar navigation from the content processor collection. */
-export function buildDocsNav(): DocsNav {
-	const itemsBySection = new Map<string, DocsNavItem[]>();
+const itemsBySection = new Map<string, DocsNavItem[]>();
 
-	for (const entry of [...entries].sort(compareDocsEntries)) {
-		const sectionId = entry.segments[0]!;
-		const pageSlug = entry.segments[entry.segments.length - 1]!;
-		const items = itemsBySection.get(sectionId) ?? [];
+for (const entry of [...entries].sort(compareDocsEntries)) {
+	const sectionId = entry.segments[0]!;
+	const pageSlug = entry.segments[entry.segments.length - 1]!;
+	const items = itemsBySection.get(sectionId) ?? [];
 
-		items.push({
-			title: entry.title,
-			href: `${DOCS_ROOT}/${sectionId}/${pageSlug}`,
-			section: sectionId,
-			slug: pageSlug,
-		});
-		itemsBySection.set(sectionId, items);
-	}
+	items.push({
+		title: entry.title,
+		href: `${DOCS_ROOT}/${sectionId}/${pageSlug}`,
+		section: sectionId,
+		slug: pageSlug,
+	});
+	itemsBySection.set(sectionId, items);
+}
 
-	const sections = DOCS_SECTION_ORDER.flatMap((sectionId) => {
+export const docsNav: DocsNav = {
+	rootDir: DOCS_ROOT,
+	sections: DOCS_SECTION_ORDER.flatMap((sectionId) => {
 		const items = itemsBySection.get(sectionId);
 		if (!items || items.length === 0) {
 			return [];
@@ -61,18 +61,5 @@ export function buildDocsNav(): DocsNav {
 				items,
 			},
 		];
-	});
-
-	return {
-		rootDir: DOCS_ROOT,
-		sections,
-	};
-}
-
-export const docsNav = buildDocsNav();
-
-export function serializeDocsPaginationData(nav: DocsNav): string {
-	const pages = nav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title }));
-
-	return JSON.stringify({ pages });
-}
+	}),
+};

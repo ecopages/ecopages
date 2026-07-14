@@ -3,7 +3,7 @@ import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
-import { resolveFromCatchAll } from '@/lib/docs/resolve-from-catch-all';
+import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 type DocsCatchAllProps = {
@@ -19,13 +19,13 @@ export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { title, de
 });
 
 const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
-	const resolved = resolveFromCatchAll(pathname.params.slug);
-	const entry = getEntryBySegments([resolved.section, resolved.slug]);
+	const segments = parseDocsCatchAllSegments(pathname.params.slug);
+	const entry = getEntryBySegments(segments);
 
 	return {
 		props: {
-			section: resolved.section,
-			slug: resolved.slug,
+			section: entry.segments[0]!,
+			slug: entry.segments[entry.segments.length - 1]!,
 			title: entry.title,
 			description: entry.description,
 		},

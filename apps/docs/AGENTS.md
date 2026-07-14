@@ -13,7 +13,7 @@
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
-- Docs layout chrome lives under `src/layouts/docs-layout/`; shared docs utilities under `src/lib/docs/`.
+- Docs layout chrome lives under `src/layouts/docs-layout/`; navigation helpers in `src/lib/content-nav.ts`; MDX config in `src/lib/docs/`.
 
 ## Navigation
 

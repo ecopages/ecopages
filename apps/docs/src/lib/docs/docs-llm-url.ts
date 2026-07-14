@@ -1,4 +1,6 @@
-/** Maps a docs page pathname to the static markdown URL under `/docs-llm/*`. */
+/**
+ * Maps a docs page pathname to the static markdown URL under `/docs-llm/*`.
+ */
 export function getDocsLlmUrlFromPathname(pathname: string): string | null {
 	const segments = pathname.replace(/\/$/, '').split('/').filter(Boolean);
 
@@ -13,5 +15,9 @@ export function getDocsLlmUrlFromPathname(pathname: string): string | null {
 		return null;
 	}
 
+	return getDocsLlmUrl(section, slug);
+}
+
+export function getDocsLlmUrl(section: string, slug: string): string {
 	return `/docs-llm/${section}/${slug}.md`;
 }

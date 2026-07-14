@@ -7,7 +7,7 @@ Minimal Ecopages docs site using `@ecopages/content-processor`, frontmatter-driv
 - `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`)
 - `src/content/docs.ts` — frontmatter schema, section order, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
-- `src/lib/docs/` — MDX component map, LLM URLs, and routing helpers
+- `src/lib/docs/` — MDX component map and plugin options
 - `src/layouts/docs-layout/` — docs layout shell and docs bar
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 

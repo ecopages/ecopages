@@ -7,13 +7,24 @@ export type ResolvedDocsSlug = {
 
 type CatchAllSlugParam = PageParams[string];
 
-/** Maps catch-all `slug` param segments to a docs section and page slug. */
-export function resolveFromCatchAll(slug: CatchAllSlugParam): ResolvedDocsSlug {
-	const segments = Array.isArray(slug) ? slug : slug ? slug.split('/') : [];
+/**
+ * Normalizes catch-all `slug` params and enforces the docs URL shape.
+ */
+export function parseDocsCatchAllSegments(slug: CatchAllSlugParam): string[] {
+	const segments = Array.isArray(slug) ? slug : slug ? slug.split('/').filter(Boolean) : [];
 
 	if (segments.length < 2) {
-		throw new Error(`Invalid docs slug: expected /docs/<section>/<page>, got ${segments.join('/')}`);
+		throw new Error(`Invalid docs slug: expected /docs/<section>/<page>, got ${segments.join('/') || '(empty)'}`);
 	}
+
+	return segments;
+}
+
+/**
+ * Maps catch-all `slug` param segments to a docs section and page slug.
+ */
+export function resolveFromCatchAll(slug: CatchAllSlugParam): ResolvedDocsSlug {
+	const segments = parseDocsCatchAllSegments(slug);
 
 	return {
 		section: segments[0]!,

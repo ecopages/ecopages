@@ -15,6 +15,11 @@ function patchAppRuntime(
 	};
 }
 
+/** Returns whether runtime plugin setup runs inside the Lit static-render worker thread. */
+function isLitStaticRenderWorkerThread(): boolean {
+	return process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true';
+}
+
 function registerRuntimePlugins(
 	appConfig: EcoPagesAppConfig,
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
@@ -86,6 +91,10 @@ export async function setupAppRuntimePlugins(options: {
 		return;
 	}
 
+	if (isLitStaticRenderWorkerThread()) {
+		appLogger.debug('Lit static-render worker: skipping processor setup (main thread already prepared artifacts)');
+	}
+
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
@@ -93,8 +102,12 @@ export async function setupAppRuntimePlugins(options: {
 			options.onRuntimePlugin?.(loader);
 		}
 
+		const skipProcessorSetup = isLitStaticRenderWorkerThread();
+
 		for (const processor of options.appConfig.processors.values()) {
-			await processor.setup();
+			if (!skipProcessorSetup) {
+				await processor.setup();
+			}
 
 			if (processor.plugins) {
 				for (const plugin of processor.plugins) {

@@ -13,3 +13,4 @@ export {
 	type EcoViteCompatiblePlugin,
 } from './plugins/source-transform.ts';
 export { createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
+export { SchemaError, validateStandardSchema } from './services/validation/validate-standard-schema.ts';

@@ -1,68 +1,19 @@
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+
 /**
- * Standard Schema interface for universal validation.
- * Compatible with Zod, Valibot, ArkType, Effect Schema, and other validation libraries.
- *
+ * Ecopages aliases for the official Standard Schema V1 types.
  * @see https://standardschema.dev
- *
- * @example Using with Zod
- * ```typescript
- * import { z } from 'zod';
- *
- * const bodySchema = z.object({
- *   title: z.string().min(1),
- *   content: z.string()
- * });
- *
- * app.post('/posts', async (ctx) => {
- *   const { title, content } = ctx.body;
- *   return ctx.json({ id: 1, title, content });
- * }, {
- *   schema: { body: bodySchema }
- * });
- * ```
  */
-export interface StandardSchema<Input = unknown, Output = Input> {
-	readonly '~standard': {
-		readonly version: 1;
-		readonly vendor: string;
-		readonly validate: (value: unknown) => StandardSchemaResult<Output> | Promise<StandardSchemaResult<Output>>;
-		readonly types?: {
-			readonly input: Input;
-			readonly output: Output;
-		};
-	};
-}
+export type StandardSchema<Input = unknown, Output = Input> = StandardSchemaV1<Input, Output>;
 
-/**
- * Result of Standard Schema validation.
- */
-export type StandardSchemaResult<Output> = StandardSchemaSuccessResult<Output> | StandardSchemaFailureResult;
+export type StandardSchemaResult<Output> = StandardSchemaV1.Result<Output>;
 
-/**
- * Successful validation result.
- */
-export interface StandardSchemaSuccessResult<Output> {
-	readonly value: Output;
-	readonly issues?: undefined;
-}
+export type StandardSchemaSuccessResult<Output> = StandardSchemaV1.SuccessResult<Output>;
 
-/**
- * Failed validation result.
- */
-export interface StandardSchemaFailureResult {
-	readonly value?: undefined;
-	readonly issues: ReadonlyArray<StandardSchemaIssue>;
-}
+export type StandardSchemaFailureResult = StandardSchemaV1.FailureResult;
 
-/**
- * Validation issue details.
- */
-export interface StandardSchemaIssue {
-	readonly message: string;
-	readonly path?: ReadonlyArray<PropertyKey | { key: PropertyKey }>;
-}
+export type StandardSchemaIssue = StandardSchemaV1.Issue;
 
-/**
- * Infers the output type from a Standard Schema.
- */
-export type InferOutput<T extends StandardSchema> = T extends StandardSchema<any, infer O> ? O : never;
+export type InferOutput<T extends StandardSchemaV1> = StandardSchemaV1.InferOutput<T>;
+
+export type { StandardSchemaV1 } from '@standard-schema/spec';

@@ -62,6 +62,7 @@ jobs:
                       packages/integrations/mdx/dist
                       packages/integrations/react/dist
                       packages/processors/image-processor/dist
+                      packages/processors/content-processor/dist
                       packages/processors/postcss-processor/dist
                       packages/react-router/dist
 
@@ -100,6 +101,9 @@ jobs:
 
             - name: Publish package @ecopages/image-processor
               run: pnpm --filter @ecopages/image-processor release:jsr
+
+            - name: Publish package @ecopages/content-processor
+              run: pnpm --filter @ecopages/content-processor release:jsr
 
             - name: Publish package @ecopages/kitajs
               run: pnpm --filter @ecopages/kitajs release:jsr
@@ -166,6 +170,9 @@ jobs:
 
             - name: Publish npm package @ecopages/image-processor
               run: pnpm run release:npm -- packages/processors/image-processor/dist
+
+            - name: Publish npm package @ecopages/content-processor
+              run: pnpm run release:npm -- packages/processors/content-processor/dist
 
             - name: Publish npm package @ecopages/kitajs
               run: pnpm run release:npm -- packages/integrations/kitajs/dist

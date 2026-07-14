@@ -5,7 +5,7 @@ import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { getDocsMdxPluginOptions } from './src/docs-kit/mdx/mdx-plugin-options';
+import { getDocsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 
 const appRoot = path.resolve(import.meta.dirname);
 
@@ -18,7 +18,7 @@ const config = await new ConfigBuilder()
 			mdx: getDocsMdxPluginOptions(),
 		}),
 	])
-	.setAdditionalWatchPaths(['src/content', 'src/docs-kit'])
+	.setAdditionalWatchPaths(['src/content', 'src/lib/docs', 'src/layouts/docs-layout'])
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({

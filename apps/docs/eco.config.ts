@@ -6,7 +6,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
-import { getDocsMdxPluginOptions } from './src/docs-kit/mdx-plugin-options';
+import { getDocsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)

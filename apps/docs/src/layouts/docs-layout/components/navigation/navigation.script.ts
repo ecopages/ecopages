@@ -2,7 +2,7 @@ import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import { docsKitBurgerEvents } from '../../../../docs-kit/chrome-events';
+import { BurgerEvents } from '@/components/burger/burger.events';
 
 @customElement('radiant-navigation')
 export class RadiantNavigation extends RadiantElement {
@@ -43,12 +43,12 @@ export class RadiantNavigation extends RadiantElement {
 		});
 	}
 
-	@onEvent({ window: true, type: docsKitBurgerEvents.TOGGLE_MENU })
+	@onEvent({ window: true, type: BurgerEvents.TOGGLE_MENU })
 	toggleNavigation(): void {
 		this.classList.toggle('hidden');
 	}
 
-	@onEvent({ window: true, type: docsKitBurgerEvents.CLOSE_MENU })
+	@onEvent({ window: true, type: BurgerEvents.CLOSE_MENU })
 	closeNavigation(): void {
 		this.classList.add('hidden');
 	}

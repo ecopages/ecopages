@@ -2,8 +2,8 @@ import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
-import { getDocsMdxComponents } from '@/docs-kit/mdx-components';
-import { resolveFromCatchAll } from '@/docs-kit/resolve-from-catch-all';
+import { getDocsMdxComponents } from '@/lib/docs/mdx-components';
+import { resolveFromCatchAll } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 type DocsCatchAllProps = {

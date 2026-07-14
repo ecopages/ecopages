@@ -7,7 +7,6 @@ import { CodeTabs } from '@/components/code-tabs';
 import { docsNav, serializeDocsPaginationData } from '@/lib/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { resolveDocsBreadcrumb } from '@/lib/docs/resolve-docs-breadcrumb';
-import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
 import { DocsBar } from './docs-bar';
 import { DocsPagination } from './components/docs-pagination';
 import { DocsSidebar } from './components/navigation';
@@ -35,7 +34,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 		components: [BaseLayout, ApiField, Banner, CodeTabs, DocsBar, DocsSidebar, DocsToc, DocsPagination],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
-		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
+		const llmUrl = section && slug ? `/docs-llm/${section}/${slug}.md` : undefined;
 		const crumbs = section && slug ? resolveDocsBreadcrumb(docsNav, section, slug) : [];
 
 		return (

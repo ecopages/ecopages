@@ -6,7 +6,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
-import { getDocsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
+import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
@@ -14,7 +14,7 @@ const config = await new ConfigBuilder()
 	.setIntegrations([
 		ecopagesJsxPlugin({
 			extensions: ['.tsx', '.kita.tsx'],
-			mdx: getDocsMdxPluginOptions(),
+			mdx: docsMdxPluginOptions,
 		}),
 	])
 	.setDefaultMetadata({

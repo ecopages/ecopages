@@ -12,8 +12,3 @@ export const docsMdxComponents = {
 	CodeTabs,
 	EcoImage,
 } satisfies MDXComponents;
-
-/** Returns the docs MDX component map for render calls. */
-export function getDocsMdxComponents(): MDXComponents {
-	return docsMdxComponents;
-}

@@ -4,6 +4,7 @@ import type { ServerAdapterOptions, ServerAdapterResult } from '../abstract/serv
 import { RouteRendererFactory } from '../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../router/server/route-registry.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
 import { MemoryCacheStore } from '../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../services/validation/schema-validation-service.ts';
@@ -571,18 +572,20 @@ export abstract class SharedServerAdapter<
 	 * native HTTP objects into Web Standard Requests.
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
-		return startupTrace.traceFirstRequest(request, async () => {
-			const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
-			if (hmrResponse) {
-				return hmrResponse;
-			}
+		return requestBuildDedupe.run(() =>
+			startupTrace.traceFirstRequest(request, async () => {
+				const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+				if (hmrResponse) {
+					return hmrResponse;
+				}
 
-			const apiResponse = await this.tryHandleSharedApiRequest(request, context);
-			if (apiResponse) {
-				return apiResponse;
-			}
+				const apiResponse = await this.tryHandleSharedApiRequest(request, context);
+				if (apiResponse) {
+					return apiResponse;
+				}
 
-			return this.routeHandler.handleResponse(request);
-		});
+				return this.routeHandler.handleResponse(request);
+			}),
+		);
 	}
 }

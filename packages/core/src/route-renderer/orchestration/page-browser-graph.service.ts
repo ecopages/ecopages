@@ -171,6 +171,10 @@ export class PageBrowserGraphService {
 				continue;
 			}
 
+			if (this.isHmrEnabled()) {
+				continue;
+			}
+
 			if (!contribution?.dependencies?.length) {
 				continue;
 			}

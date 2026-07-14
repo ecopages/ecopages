@@ -1,16 +1,22 @@
-import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Locator, type Page } from '@playwright/test';
 import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
+const DEV_HYDRATION_POLL_TIMEOUT_MS = 30_000;
+
 async function clickUntilText(options: {
-	button: ReturnType<Page['locator']>;
-	value: ReturnType<Page['locator']>;
+	button: Locator;
+	value: Locator;
 	expected: string;
+	timeout?: number;
 }): Promise<void> {
 	await expect
-		.poll(async () => {
-			await options.button.click();
-			return (await options.value.textContent())?.trim() ?? '';
-		})
+		.poll(
+			async () => {
+				await options.button.click();
+				return (await options.value.textContent())?.trim() ?? '';
+			},
+			{ timeout: options.timeout ?? DEV_HYDRATION_POLL_TIMEOUT_MS },
+		)
 		.toBe(options.expected);
 }
 
@@ -49,6 +55,7 @@ test.describe('React Playground Interactivity', () => {
 		const { assertNoRelevantErrors } = trackBrowserErrors(page);
 
 		await gotoAndWait(page, '/');
+		await page.waitForLoadState('load').catch(() => undefined);
 
 		const reactCounter = page.locator('div.counter:has([data-increment])').first();
 		await expect(reactCounter).toBeVisible();

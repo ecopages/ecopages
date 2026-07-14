@@ -6,7 +6,6 @@ export {
 	CONTENT_VIRTUAL_MODULE_PREFIX,
 	COLLECTION_NAME_PATTERN,
 } from './constants.ts';
-export { contentProcessorPlugin, ContentProcessorPlugin } from './plugin.ts';
 export { compareEntriesByField, compareEntriesBySlug, type EntryComparator } from './sort.ts';
 export type {
 	ContentCollectionDefinition,

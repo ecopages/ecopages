@@ -1,5 +1,3 @@
-import { codeToHtml } from 'shiki';
-
 export const configExampleCode = `import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -66,21 +64,3 @@ export default eco.page({
     </section>
   ),
 });`;
-
-export const configExample = await codeToHtml(configExampleCode, {
-	lang: 'tsx',
-	themes: { light: 'light-plus', dark: 'dark-plus' },
-	defaultColor: false,
-});
-
-export const componentExample = await codeToHtml(componentExampleCode, {
-	lang: 'tsx',
-	themes: { light: 'light-plus', dark: 'dark-plus' },
-	defaultColor: false,
-});
-
-export const pageExample = await codeToHtml(pageExampleCode, {
-	lang: 'tsx',
-	themes: { light: 'light-plus', dark: 'dark-plus' },
-	defaultColor: false,
-});

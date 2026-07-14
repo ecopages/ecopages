@@ -9,7 +9,7 @@ import {
 	configExampleCode,
 	pageExample,
 	pageExampleCode,
-} from '@/homepage/examples';
+} from '@/homepage/examples.server';
 import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 
 const HomeCard = ({

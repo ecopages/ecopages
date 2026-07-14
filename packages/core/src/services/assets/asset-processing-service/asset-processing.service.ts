@@ -6,12 +6,11 @@ import { fileSystem } from '@ecopages/file-system';
 import type { AssetDefinition, AssetKind, AssetSource, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
-	assignPageOwnedContentScriptGroupedBundles,
 	ensureGroupedContentScriptsBundle,
 	partitionGroupedContentScriptDependencies,
 	processGroupedDependencyBundles,
-	resolveGroupingIntegrationName,
 } from './grouped-content-bundles.ts';
+import { resolveIntegrationPluginForProcessingKey } from './resolve-integration-plugin.ts';
 import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
@@ -94,15 +93,17 @@ export class AssetProcessingService {
 		fileSystem.ensureDir(depsDir);
 
 		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const groupingIntegrationName = resolveGroupingIntegrationName(key);
-		if (groupingIntegrationName) {
-			assignPageOwnedContentScriptGroupedBundles(dedupedDeps, groupingIntegrationName);
-		}
-		ensureGroupedContentScriptsBundle(dedupedDeps);
-		const results = await this.processDependenciesParallel(dedupedDeps, key);
+		const preparedDeps = this.prepareDependenciesForProcessing(dedupedDeps, key);
+		ensureGroupedContentScriptsBundle(preparedDeps);
+		const results = await this.processDependenciesParallel(preparedDeps);
 
 		await this.optimizeDependencies(results);
 		return results;
+	}
+
+	private prepareDependenciesForProcessing(deps: AssetDefinition[], processingKey: string): AssetDefinition[] {
+		const plugin = resolveIntegrationPluginForProcessingKey(this.config, processingKey);
+		return plugin?.prepareAssetDependencies?.(deps) ?? deps;
 	}
 
 	/**
@@ -113,7 +114,7 @@ export class AssetProcessingService {
 	 * pair, while still allowing the overall dependency set to resolve in
 	 * parallel.
 	 */
-	private async processDependenciesParallel(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
+	private async processDependenciesParallel(deps: AssetDefinition[]): Promise<ProcessedAsset[]> {
 		const grouped = this.groupDependenciesByType(deps);
 		const groupPromises = Object.entries(grouped).map(async ([, typeDeps]) => {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
@@ -121,7 +122,6 @@ export class AssetProcessingService {
 			const typePromises = ungroupedDeps.map((dep) =>
 				processUngroupedDependency({
 					dep,
-					key,
 					depKey: getAssetDependencyKey(dep),
 					getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
 					getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
@@ -146,7 +146,6 @@ export class AssetProcessingService {
 
 			const groupedResults = await processGroupedDependencyBundles({
 				bundles: Array.from(groupedBundleDeps.values()),
-				key,
 				getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
 				getDependencyKey: getAssetDependencyKey,
 				getGroupedProcessor: () =>

@@ -4,6 +4,7 @@ import type { AppBuildManifest } from './build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
+import { isLitStaticRenderWorkerThread } from './lit-static-render-worker-context.ts';
 
 function patchAppRuntime(
 	appConfig: EcoPagesAppConfig,
@@ -13,11 +14,6 @@ function patchAppRuntime(
 		...(appConfig.runtime ?? {}),
 		...patch,
 	};
-}
-
-/** Returns whether runtime plugin setup runs inside the Lit static-render worker thread. */
-function isLitStaticRenderWorkerThread(): boolean {
-	return process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true';
 }
 
 function registerRuntimePlugins(

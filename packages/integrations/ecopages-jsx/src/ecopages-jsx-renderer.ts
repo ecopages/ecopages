@@ -19,7 +19,6 @@ import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-se
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
-import { createPageOwnedContentScriptBundleId } from '@ecopages/core/services/asset-processing-service';
 import {
 	isMdxFile,
 	normalizeMdxPageModule,
@@ -41,8 +40,6 @@ export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ec
  */
 export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	name = ECOPAGES_JSX_PLUGIN_NAME;
-	/** Grouped-build id for page-owned Ecopages JSX hydration content scripts. */
-	static readonly PAGE_CONTENT_BUNDLE_ID = createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME);
 	private readonly mdxExtensions: string[];
 	private readonly renderSession: EcopagesJsxRenderSession;
 	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;

@@ -18,6 +18,7 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
+import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
 
@@ -132,6 +133,11 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	/** Ensures MDX build hooks are ready before Ecopages collects contributions. */
 	override async prepareBuildContributions(): Promise<void> {
 		this.ensureMdxLoaderPlugin();
+	}
+
+	/** Assigns grouped-build metadata for page-owned JSX content scripts. */
+	override prepareAssetDependencies(dependencies: AssetDefinition[]): AssetDefinition[] {
+		return assignPageOwnedContentScriptGroupedBundles(dependencies);
 	}
 
 	/** Registers JSX HMR strategy and Radiant SSR invalidation hooks. */

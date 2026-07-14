@@ -64,7 +64,8 @@ test('AssetProcessingService - processDependencies', async () => {
 	);
 
 	expect(results.length).toBe(1);
-	expect((results[0] as any).key).toBe('test-key');
+	expect(results[0]?.kind).toBe('script');
+	expect(results[0]?.filepath).toBeDefined();
 });
 
 test('AssetProcessingService - createWithDefaultProcessors', () => {
@@ -211,7 +212,6 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 			kind: 'script',
 			inline: true,
 			content: 'console.log("inline");',
-			srcUrl: undefined,
 		}),
 	);
 
@@ -347,12 +347,28 @@ test('AssetProcessingService - deduplication preserves package role distinctions
 	expect(results.map((result) => result.packageRole)).toEqual(['page-script', 'runtime']);
 });
 
-test('AssetProcessingService - ecopages-jsx page-owned content scripts use processGrouped once per request', async () => {
+test('AssetProcessingService - integration prepareAssetDependencies runs before grouped processing', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
 	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(Config);
+	const prepareAssetDependencies = vi.fn((dependencies: AssetDefinition[]) => {
+		const moduleScript = dependencies.find(
+			(dep) => dep.kind === 'script' && dep.source === 'content' && 'name' in dep && dep.name === 'module-images',
+		);
+		if (moduleScript && moduleScript.kind === 'script' && moduleScript.source === 'content') {
+			moduleScript.groupedBundle = {
+				id: 'ecopages-ecopages-jsx-page-content-scripts',
+				entryName: 'module-images',
+			};
+		}
+		return dependencies;
+	});
+
+	const service = new AssetProcessingService({
+		...Config,
+		integrations: [{ name: 'ecopages-jsx', prepareAssetDependencies }],
+	});
 	const processGroupedMock = vi.fn(async (deps: { name?: string; excludeFromHtml?: boolean }[]) =>
 		deps.map((dep) => ({
 			filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
@@ -399,6 +415,7 @@ test('AssetProcessingService - ecopages-jsx page-owned content scripts use proce
 		'ecopages-jsx',
 	);
 
+	expect(prepareAssetDependencies).toHaveBeenCalledTimes(1);
 	expect(processGroupedMock).toHaveBeenCalledTimes(1);
 	expect(processGroupedMock).toHaveBeenCalledWith([expect.objectContaining({ name: 'module-images' })]);
 	expect(processMock).toHaveBeenCalledTimes(2);

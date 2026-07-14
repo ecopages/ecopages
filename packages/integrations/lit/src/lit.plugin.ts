@@ -9,6 +9,7 @@ import {
 	type IntegrationPluginConfig,
 	type StaticExportContext,
 } from '@ecopages/core/plugins/integration-plugin';
+import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
 import path from 'node:path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
@@ -84,7 +85,7 @@ export class LitPlugin extends IntegrationPlugin {
 			throw new Error('[ecopages][lit] Lit server rendering requires appConfig.absolutePaths.config');
 		}
 
-		if (process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER === 'true') {
+		if (isLitStaticRenderWorkerThread()) {
 			return;
 		}
 

@@ -17,6 +17,13 @@ import type { ProcessedAsset } from '../services/assets/asset-processing-service
 export const DEV_BROWSER_SCRIPT_CACHE_DIR = '.browser-script-bundles';
 export const DEV_BROWSER_SCRIPT_CACHE_FILENAME = '.build-cache.json';
 
+/**
+ * @remarks
+ * Dev asset caching spans three scopes that should not be conflated:
+ * - request dedupe (`request-build-dedupe.ts`) — one in-flight build per request key
+ * - in-memory service cache (`AssetProcessingService`) — per-process reuse within one dev server
+ * - this disk manifest (`.eco/.browser-script-bundles`) — cross-request reuse of content-script bundles
+ */
 export interface DevBrowserScriptCacheEntry {
 	filepath: string;
 	builtAt: number;

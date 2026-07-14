@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { getDocsLlmUrlFromPathname } from '@/lib/docs-kit/llm/docs-llm-url';
+import { getDocsLlmUrlFromPathname } from '@/docs-kit/docs-llm-url';
 
 test('getDocsLlmUrlFromPathname maps docs paths to markdown URLs', () => {
 	expect(getDocsLlmUrlFromPathname('/docs/getting-started/introduction')).toBe(

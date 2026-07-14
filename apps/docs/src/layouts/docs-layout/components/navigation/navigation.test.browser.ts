@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { docsKitBurgerEvents } from '../../../../chrome-events';
+import { docsKitBurgerEvents } from '../../../../docs-kit/chrome-events';
 import { RadiantNavigation } from './navigation.script';
 
 function resetDom(): void {

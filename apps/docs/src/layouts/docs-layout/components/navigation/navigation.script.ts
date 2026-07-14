@@ -2,7 +2,7 @@ import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import { docsKitBurgerEvents } from '../../../../chrome-events';
+import { docsKitBurgerEvents } from '../../../../docs-kit/chrome-events';
 
 @customElement('radiant-navigation')
 export class RadiantNavigation extends RadiantElement {

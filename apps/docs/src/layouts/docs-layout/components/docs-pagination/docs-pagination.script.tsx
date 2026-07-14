@@ -9,21 +9,21 @@ type PaginationLink = {
 	title: string;
 };
 
-type ManifestData = {
+type PaginationData = {
 	pages: Array<{
 		href: string;
 		title: string;
 	}>;
 };
 
-function readManifestPages(): ManifestData['pages'] {
-	const node = document.getElementById('docs-manifest-data');
+function readPaginationPages(): PaginationData['pages'] {
+	const node = document.getElementById('docs-pagination-data');
 	if (!node?.textContent) {
 		return [];
 	}
 
 	try {
-		const parsed = JSON.parse(node.textContent) as ManifestData;
+		const parsed = JSON.parse(node.textContent) as PaginationData;
 		return parsed.pages ?? [];
 	} catch {
 		return [];
@@ -51,7 +51,7 @@ export class RadiantDocsPagination extends RadiantElement {
 	}
 
 	renderPagination(): void {
-		const pages = readManifestPages();
+		const pages = readPaginationPages();
 		const currentPath = window.location.pathname;
 		const currentIndex = pages.findIndex((page) => page.href === currentPath);
 		if (currentIndex === -1) {

@@ -7,14 +7,13 @@
 - MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`).
 - Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
 - Do not add per-page `export const config` in MDX files; routing and layout live in the catch-all page.
-- Shared JSX (`Banner`, `CodeTabs`, etc.) is injected via `getDocsMdxComponents()` at render time.
+- Shared JSX (`Banner`, `CodeTabs`, etc.) is registered in `src/docs-kit/mdx-components.ts` and passed via `getDocsMdxComponents()` at render time.
 - Add explicit imports only when content needs module bindings (for example `ecopages:images` spreads).
 
 ## Configuration
 
-- App-specific MDX component wiring lives in `src/docs-kit.instance.ts` (`defineDocsKit()`).
-- Register `contentProcessorPlugin()` in `eco.config.ts` for the docs MDX collection.
-- Inject shell layout, MDX components, and burger events there — not inside `src/lib/docs-kit/`.
+- Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
+- Docs layout chrome lives under `src/layouts/docs-layout/`; MDX helpers under `src/docs-kit/`.
 
 ## Navigation
 

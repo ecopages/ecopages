@@ -6,7 +6,10 @@ import {
 import type { AssetDefinition, ContentScriptAsset } from './assets.types.ts';
 
 describe('grouped-content-bundles', () => {
-	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in development', () => {
+	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in production', () => {
+		const previousNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'production';
+
 		const dependency: ContentScriptAsset = {
 			kind: 'script',
 			source: 'content',
@@ -21,6 +24,30 @@ describe('grouped-content-bundles', () => {
 		ensureGroupedContentScriptsBundle([dependency]);
 
 		expect(dependency.bundle).toBe(true);
+
+		process.env.NODE_ENV = previousNodeEnv;
+	});
+
+	test('ensureGroupedContentScriptsBundle leaves grouped scripts unbundled in development', () => {
+		const previousNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'development';
+
+		const dependency: ContentScriptAsset = {
+			kind: 'script',
+			source: 'content',
+			content: 'console.log("hydrate");',
+			bundle: false,
+			groupedBundle: {
+				id: 'ecopages-react-router-pages',
+				entryName: 'pages__index',
+			},
+		};
+
+		ensureGroupedContentScriptsBundle([dependency]);
+
+		expect(dependency.bundle).toBe(false);
+
+		process.env.NODE_ENV = previousNodeEnv;
 	});
 
 	test('partitionGroupedContentScriptDependencies routes grouped scripts together', () => {

@@ -134,7 +134,7 @@ export class ReactHydrationAssetService {
 				}),
 				name: componentName,
 				packageRole: 'page-script',
-				bundle: groupedBundle ? true : !isDevelopment,
+				bundle: !isDevelopment,
 				groupedBundle,
 				bundleOptions,
 				attributes: {

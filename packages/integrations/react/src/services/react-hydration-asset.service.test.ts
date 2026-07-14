@@ -97,6 +97,54 @@ describe('ReactHydrationAssetService', () => {
 		});
 	});
 
+	it('keeps router-managed page entries unbundled in development', () => {
+		const service = new ReactHydrationAssetService({
+			srcDir: '/app/src',
+			routerAdapter: {
+				name: 'eco-router',
+				bundle: {
+					outputName: 'react-router-esm',
+					importPath: '@ecopages/react-router/browser',
+					externals: [],
+				},
+				components: {
+					router: 'EcoRouter',
+					pageContent: 'PageContent',
+				},
+				getRouterProps: () => '{}',
+			},
+			assetProcessingService: {
+				getHmrManager: () => ({ isEnabled: () => true }),
+			} as any,
+			bundleService: {
+				getRuntimeImports: () => ({
+					react: 'react',
+					reactDomClient: 'react-dom/client',
+					router: '/assets/vendors/react-router-esm.js',
+				}),
+			} as any,
+		});
+
+		const dependencies = service.createPageDependencies(
+			'/app/src/pages/docs/index.tsx',
+			'ecopages-react-docs',
+			'/assets/_hmr/pages/docs/index.js',
+			'"/assets/_hmr/pages/docs/index.js"',
+			{},
+			true,
+			true,
+			false,
+		);
+
+		expect(dependencies[0]).toMatchObject({
+			bundle: false,
+			groupedBundle: {
+				id: 'ecopages-react-router-pages',
+				entryName: 'pages__docs__index',
+			},
+		});
+	});
+
 	it('bundles the React runtime into production page browser graph entries', async () => {
 		const originalNodeEnv = process.env.NODE_ENV;
 		process.env.NODE_ENV = 'production';

@@ -8,6 +8,10 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Breaking Changes
 
+- Removed `@ecopages/core/build/runtime-build-executor`. Use `@ecopages/core/build/build-runtime` (`installBuildRuntime`, `requireBuildRuntime`) instead.
+- `BuildRuntime` profiles no longer inject app plugins. Pass complete options from `createServerBuildRequest` / `createBrowserBuildRequest` (or `BrowserBundleService`) before calling `getProfile(...).build()`.
+- Removed the open index signature from `BuildOptions` and `BrowserBundleOptions` so request identity can cover every field exhaustively.
+- Removed write-only Page Browser Graph disk manifest persistence (`.browser-pages-graph`). Production static export still prebuilds graphs into the in-memory `page-browser-graph-session`.
 - Removed deprecated `config.layout` innermost alias on page configs. Use `config.layouts` and `config.layoutEntries` instead.
 - `createAliasResolverPlugin` now takes the app **project root** (not `srcDir`) and resolves aliases from tsconfig `compilerOptions.paths` only. Apps without tsconfig `paths` get no alias resolver handlers. Hardcoded `@/` → `srcDir` mapping is removed.
 

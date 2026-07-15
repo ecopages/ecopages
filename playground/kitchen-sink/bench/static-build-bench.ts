@@ -1,10 +1,7 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
-import {
-	getInstalledServerEntryBuildExecutor,
-	installAppRuntimeBuildExecutor,
-} from '../../../packages/core/src/build/runtime-build-executor';
+import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/build-runtime';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
@@ -56,7 +53,7 @@ async function getBenchConfig(): Promise<Awaited<ReturnType<typeof loadStaticBui
 
 async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>): Promise<void> {
 	const { serverOutdir } = getServerBundleOutputPaths(appConfig);
-	installAppRuntimeBuildExecutor(appConfig);
+	installBuildRuntime(appConfig);
 
 	await build(
 		{
@@ -69,7 +66,7 @@ async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadSt
 			externalPackages: true,
 			root: appConfig.rootDir,
 		},
-		getInstalledServerEntryBuildExecutor(appConfig),
+		requireBuildRuntime(appConfig).getProfile('server-entry'),
 	);
 }
 
@@ -81,7 +78,7 @@ async function ensureServerEntryCacheSeeded(): Promise<void> {
 	const config = await loadStaticBuildBenchConfig();
 	const entryPath = SERVER_ENTRY;
 	const { serverOutdir, serverEntryPath } = getServerBundleOutputPaths(config);
-	installAppRuntimeBuildExecutor(config);
+	installBuildRuntime(config);
 
 	const result = await build(
 		{
@@ -94,7 +91,7 @@ async function ensureServerEntryCacheSeeded(): Promise<void> {
 			externalPackages: true,
 			root: config.rootDir,
 		},
-		getInstalledServerEntryBuildExecutor(config),
+		requireBuildRuntime(config).getProfile('server-entry'),
 	);
 
 	recordServerEntryBuildCache({
@@ -111,7 +108,7 @@ async function importStaticPageWarm(
 	appConfig: Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>,
 	filePath: string,
 ): Promise<void> {
-	installAppRuntimeBuildExecutor(appConfig);
+	installBuildRuntime(appConfig);
 	const loader = getAppModuleLoader(appConfig);
 	const outdir = path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
 

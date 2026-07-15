@@ -4,7 +4,7 @@ import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.ts';
-import { installAppRuntimeBuildExecutor } from './runtime-build-executor.ts';
+import { installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import { PageModuleImportService } from '../services/module-loading/page-module-import.service.ts';
 import {
@@ -80,7 +80,7 @@ describe('pages-unified-graph-build', () => {
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
-		installAppRuntimeBuildExecutor(appConfig);
+		installBuildRuntime(appConfig);
 
 		const entryPaths = [
 			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts'),
@@ -125,7 +125,7 @@ describe('pages-unified-graph-build', () => {
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
-		installAppRuntimeBuildExecutor(appConfig);
+		installBuildRuntime(appConfig);
 
 		const entryPaths = [
 			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts'),
@@ -175,7 +175,7 @@ describe('pages-unified-graph-build', () => {
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
-		installAppRuntimeBuildExecutor(appConfig);
+		installBuildRuntime(appConfig);
 
 		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts')];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);

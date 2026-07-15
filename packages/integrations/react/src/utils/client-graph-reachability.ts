@@ -2,6 +2,7 @@
  * Specifier classification and requested-export registry helpers for the client graph boundary.
  */
 
+import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/plugins/tsconfig-import-resolver';
 import { dirname, resolve } from 'node:path';
 import type { RequestedExportRules } from './client-graph-boundary-cache.ts';
 
@@ -12,8 +13,16 @@ export function isBareSpecifier(specifier: string): boolean {
 	return true;
 }
 
-export function isProjectAliasSpecifier(specifier: string): boolean {
-	return specifier.startsWith('@/') || specifier.startsWith('~/') || specifier.startsWith('ecopages:');
+export function isProjectAliasSpecifier(specifier: string, projectRoot?: string): boolean {
+	if (specifier.startsWith('ecopages:')) {
+		return true;
+	}
+
+	if (projectRoot) {
+		return matchesTsconfigPathPrefix(specifier, loadTsconfigPathPrefixes(projectRoot));
+	}
+
+	return false;
 }
 
 /**

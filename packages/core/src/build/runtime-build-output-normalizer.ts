@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isBarePackageImportSpecifier } from '../plugins/tsconfig-import-resolver.ts';
 
 const corePackageRequire = createRequire(new URL('../../package.json', import.meta.url));
 const appDeclaredPackageCache = new Map<string, Set<string>>();
@@ -27,19 +28,6 @@ function tryResolveRuntimeImport(specifier: string, resolver: NodeJS.Require): s
 	} catch {
 		return undefined;
 	}
-}
-
-function isBareRuntimeImport(specifier: string): boolean {
-	return (
-		!specifier.startsWith('.') &&
-		!path.isAbsolute(specifier) &&
-		!specifier.startsWith('/') &&
-		!specifier.startsWith('node:') &&
-		!specifier.startsWith('@/') &&
-		!specifier.startsWith('~/') &&
-		!specifier.startsWith('#') &&
-		!specifier.includes(':')
-	);
 }
 
 /**
@@ -198,7 +186,7 @@ function isDeclaredInResolutionChain(specifier: string, rootDir: string): boolea
 }
 
 function rewriteRuntimeImportSpecifier(specifier: string, quote: string, rootDir: string): string | undefined {
-	if (!isBareRuntimeImport(specifier)) {
+	if (!isBarePackageImportSpecifier(specifier, rootDir)) {
 		return undefined;
 	}
 

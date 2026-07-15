@@ -1,5 +1,10 @@
 import { LocalsAccessError } from '@ecopages/core/errors';
-import { serializePageDataScript } from '../serialize-page-data-script.ts';
+import {
+	ECO_PAGE_MODULE_PROP,
+	serializePageDataManifestScript,
+	serializePageDataScript,
+	type EcoPageDataProps,
+} from '../serialize-page-data-script.ts';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
@@ -8,32 +13,47 @@ type PagePayloadOptions = {
 	params: IntegrationRendererRenderOptions<ReactNode>['params'];
 	query: IntegrationRendererRenderOptions<ReactNode>['query'];
 	safeLocals?: RequestLocals;
+	pageModuleUrl?: string;
 };
 
 /**
  * Builds the serialized page payload React exposes to document shells and the browser.
  *
- * This keeps hydration payload shaping away from the renderer so the renderer can
- * stay focused on component orchestration instead of data serialization rules.
+ * @remarks
+ * Keeps hydration payload shaping away from the renderer so orchestration stays
+ * focused on component composition instead of document serialization rules.
  */
 export class ReactPagePayloadService {
 	/**
-	 * Creates the canonical page-props payload used by router hydration.
+	 * Creates the `__ECO_PAGE_DATA__` script for router hydration.
 	 *
-	 * React pages embedded in a non-React HTML shell still need to expose the same
-	 * page-data contract as fully React-owned documents so navigation and hydration
-	 * can read one shared document payload consistently.
+	 * @remarks
+	 * When `moduleUrl` (or {@link ECO_PAGE_MODULE_PROP} on `pageProps`) is present,
+	 * emits the v1 envelope. Otherwise emits legacy flat props for non-router shells.
+	 * The reserved module key is always stripped from the props object.
 	 */
-	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined): string {
-		return serializePageDataScript(pageProps as Record<string, unknown> | undefined);
+	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined, moduleUrl?: string): string {
+		const props = { ...((pageProps ?? {}) as EcoPageDataProps) };
+		const resolvedModuleUrl =
+			moduleUrl ?? (typeof props[ECO_PAGE_MODULE_PROP] === 'string' ? props[ECO_PAGE_MODULE_PROP] : undefined);
+		delete props[ECO_PAGE_MODULE_PROP];
+
+		if (!resolvedModuleUrl) {
+			return serializePageDataScript(props);
+		}
+
+		return serializePageDataManifestScript({
+			module: resolvedModuleUrl,
+			props,
+		});
 	}
 
 	/**
-	 * Builds the serialized page-props payload embedded into the final HTML.
+	 * Builds the browser-safe page-props object embedded into the final HTML.
 	 *
-	 * The document payload is intentionally narrower than the full server render
-	 * input: only routing data, public page props, and explicitly allowed locals are
-	 * exposed to the browser.
+	 * @remarks
+	 * Narrower than the full server render input: only routing data, public page
+	 * props, explicitly allowed locals, and the reserved module transport key.
 	 */
 	buildSerializedPageProps(options: PagePayloadOptions): HtmlTemplateProps['pageProps'] {
 		return {
@@ -41,20 +61,18 @@ export class ReactPagePayloadService {
 			params: options.params,
 			query: options.query,
 			...(options.safeLocals && { locals: options.safeLocals }),
+			...(options.pageModuleUrl && { [ECO_PAGE_MODULE_PROP]: options.pageModuleUrl }),
 		};
 	}
 
 	/**
-	 * Safely extracts the declared subset of locals for client-side hydration.
+	 * Extracts the declared subset of locals for client-side hydration.
 	 *
+	 * @remarks
 	 * On dynamic pages with `cache: 'dynamic'`, middleware populates `locals` with
-	 * request-scoped data (e.g., session). Only keys explicitly declared via
-	 * `Page.requires` are serialized to the client so sensitive request-only data
-	 * is not leaked into hydration payloads by default.
-	 *
-	 * On static pages, `locals` is a Proxy that throws `LocalsAccessError` on access
-	 * to prevent accidental use. This method safely detects that case and returns
-	 * `undefined` instead of throwing.
+	 * request-scoped data. Only keys declared via `Page.requires` are serialized.
+	 * On static pages, `locals` is a Proxy that throws `LocalsAccessError`; this
+	 * method returns `undefined` instead of throwing.
 	 */
 	getSerializableLocals(
 		locals: RequestLocals | undefined,

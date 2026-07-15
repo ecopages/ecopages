@@ -25,7 +25,8 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('activeRoot.unmount();');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");');
 		expect(script).toContain('if (window.__ECO_PAGES__.react?.pageRoot) {');
-		expect(script).toContain('const props = getPageData();');
+		expect(script).toContain('const initialPageData = readPageDataDocument();');
+		expect(script).toContain('const props = initialPageData.props;');
 		expect(script).toContain('window.__ECO_PAGES__.page = {');
 		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
@@ -51,12 +52,13 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('window.__ECO_PAGES__=window.__ECO_PAGES__||{};');
 		expect(script).toContain('export default P;');
-		expect(script).toContain('module:u');
 		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;');
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot=()=>{');
 		expect(script).toContain('a.unmount()');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router")');
-		expect(script).toContain('const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};');
+		expect(script).toContain(
+			'const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.module||u,props:pr};',
+		);
 		expect(script).toContain(
 			'if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}',
 		);
@@ -91,13 +93,14 @@ describe('createHydrationScript', () => {
 		expect(script).toContain("layout?.config?.__eco?.file ?? '').join('|')");
 		expect(script).toContain('clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey');
 		expect(script).toContain('moduleUrl: "/assets/page.js"');
-		expect(script).toContain('const props = getPageData();');
+		expect(script).toContain('const initialPageData = readPageDataDocument();');
+		expect(script).toContain('const props = initialPageData.props;');
 		expect(script).toContain('window.__ECO_PAGES__.page = {');
 		expect(script).toContain('const nextProps = getPageData();');
 		expect(script).toContain('root.render(createTree(NewPage, nextProps));');
 		expect(script).toContain('console.log("[ecopages] React component updated via router");');
 		expect(script).toContain('document.getElementById("__ECO_PAGE_DATA__")');
-		expect(script).toContain('module: pageModuleUrl');
+		expect(script).toContain('module: initialPageData.module || pageModuleUrl');
 		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
@@ -126,7 +129,9 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('const sr=()=>{');
-		expect(script).toContain('const pr=gd();window.__ECO_PAGES__.page={module:u,props:pr};');
+		expect(script).toContain(
+			'const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.module||u,props:pr};',
+		);
 		expect(script).toContain('if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}');
 	});
 
@@ -145,7 +150,7 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('const u="/src/pages/react-notes.react.tsx";');
-		expect(script).toContain('window.__ECO_PAGES__.page={module:u,props:pr};');
+		expect(script).toContain('window.__ECO_PAGES__.page={module:pd.module||u,props:pr};');
 	});
 });
 

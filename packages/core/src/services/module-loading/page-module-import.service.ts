@@ -2,8 +2,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
+import { createServerBuildRequest } from '../../build/build-request-policy.ts';
 import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
-import { normalizeNodeRuntimeBuildOutputFile } from '../../build/runtime-build-output-normalizer.ts';
 import {
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
@@ -12,11 +12,8 @@ import {
 import { recordPageModuleBuildInvocation } from '../../build/rolldown-build-invocation-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import {
-	resolvePageModuleOutputFileName,
-	createPluginCacheKey,
-	createJsxCacheKey,
-} from './route-module-build-cache.ts';
+import { resolvePageModuleOutputFileName } from './route-module-build-cache.ts';
+import { createPluginCacheKey, createJsxCacheKey } from '../../build/cache-keys.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,
@@ -247,11 +244,43 @@ export class PageModuleImportService {
 		});
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
 		const preferredOutputPath = path.join(outdir, outputFileName);
-		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
-		const cachedBuild = routeModuleBuildCache.lookup({
+		const buildOptions: BuildOptions = this.appConfig
+			? createServerBuildRequest(this.appConfig, {
+					profile: 'route-module',
+					entrypoints: [filePath],
+					outdir,
+					naming: outputNamingTemplate,
+					splitting: splitting ?? true,
+					jsx: options.jsx,
+					plugins: options.plugins,
+					root: rootDir,
+					...(externalPackages !== undefined ? { externalPackages } : {}),
+				})
+			: {
+					...resolveBuildProfileOptions('route-module', { rootDir } as EcoPagesAppConfig, {
+						entrypoints: [filePath],
+						outdir,
+						naming: outputNamingTemplate,
+						splitting: splitting ?? true,
+						jsx: options.jsx,
+						plugins: options.plugins,
+						...(externalPackages !== undefined ? { externalPackages } : {}),
+					}),
+					root: rootDir,
+					entrypoints: [filePath],
+				};
+		const cacheBuildOptions = {
 			...options,
+			rootDir: buildOptions.root ?? rootDir,
+			outdir: buildOptions.outdir ?? outdir,
+			splitting: buildOptions.splitting,
+			externalPackages: buildOptions.externalPackages,
+			jsx: buildOptions.jsx,
+			plugins: buildOptions.plugins,
 			fileHash,
-		});
+		};
+		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
+		const cachedBuild = routeModuleBuildCache.lookup(cacheBuildOptions);
 
 		if (cachedBuild) {
 			return (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
@@ -270,20 +299,6 @@ export class PageModuleImportService {
 		}
 
 		recordPageModuleBuildInvocation();
-
-		const buildOptions: BuildOptions = {
-			...resolveBuildProfileOptions('route-module', this.appConfig ?? ({ rootDir } as EcoPagesAppConfig), {
-				entrypoints: [filePath],
-				outdir,
-				naming: outputNamingTemplate,
-				splitting: splitting ?? true,
-				jsx: options.jsx,
-				plugins: options.plugins,
-				...(externalPackages !== undefined ? { externalPackages } : {}),
-			}),
-			root: rootDir,
-			entrypoints: [filePath],
-		};
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
 
 		if (!buildResult.success) {
@@ -299,7 +314,6 @@ export class PageModuleImportService {
 			throw new Error(noOutputMessage(filePath));
 		}
 
-		normalizeNodeRuntimeBuildOutputFile(compiledOutput, rootDir);
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[path.normalize(filePath)] = fileHash;
@@ -312,8 +326,7 @@ export class PageModuleImportService {
 		}
 
 		routeModuleBuildCache.recordBuild({
-			...options,
-			fileHash,
+			...cacheBuildOptions,
 			outputPath: compiledOutput,
 			dependencyModulePaths,
 		});

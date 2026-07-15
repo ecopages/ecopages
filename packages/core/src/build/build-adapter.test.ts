@@ -18,7 +18,6 @@ import {
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
 	updateAppBuildManifest,
-	withBuildExecutorPlugins,
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
@@ -159,68 +158,6 @@ test('getAppBuildOwnership defaults to rolldown when no adapter and no ownership
 	const appConfig = { runtime: {}, loaders: new Map() } as never;
 	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
 	assert.ok(getAppBuildAdapter(appConfig) instanceof RolldownBuildAdapter);
-});
-
-test('withBuildExecutorPlugins does not wrap when there are no app plugins to inject', async () => {
-	const adapter = {
-		build: vi.fn(async () => ({ success: true, logs: [], outputs: [] })),
-		resolve: vi.fn(),
-		getTranspileOptions: vi.fn(),
-	};
-	const executor = withBuildExecutorPlugins(adapter, () => []);
-	await executor.build({
-		entrypoints: ['/tmp/entry.ts'],
-		root: '/tmp',
-		outdir: '/tmp/out',
-		target: 'browser',
-		format: 'esm',
-		sourcemap: 'none',
-	});
-	assert.equal(adapter.build.mock.calls.length, 1, 'no extra wrapping layer is invoked');
-});
-
-test('withBuildExecutorPlugins injects app-owned plugins into builds', async () => {
-	const plugin = {
-		name: 'app-owned-plugin',
-		setup() {},
-	};
-	const adapter = {
-		build: vi.fn(async (options: { outdir?: string } & Record<string, unknown>) => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: options.outdir ? `${options.outdir}/entry.js` : '/tmp/entry.js' }],
-		})),
-		resolve: vi.fn(),
-		getTranspileOptions: vi.fn(),
-	};
-	const appConfig = {
-		loaders: new Map(),
-		runtime: {},
-	} as never;
-
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest({
-			runtimePlugins: [plugin],
-		}),
-	);
-	const executor = withBuildExecutorPlugins(adapter, () => getAppServerBuildPlugins(appConfig));
-
-	await executor.build({
-		entrypoints: ['/tmp/entry.ts'],
-		root: '/tmp',
-		outdir: '/tmp/out',
-		target: 'node',
-		format: 'esm',
-		sourcemap: 'none',
-		splitting: false,
-		minify: false,
-	});
-
-	assert.equal(adapter.build.mock.calls.length, 1);
-	const firstCall = adapter.build.mock.calls[0];
-	assert.ok(firstCall);
-	assert.deepEqual((firstCall[0] as { plugins?: unknown[] }).plugins, [plugin]);
 });
 
 test('build manifest separates server and browser plugin sets', () => {

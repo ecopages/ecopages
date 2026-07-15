@@ -1,9 +1,15 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/production-build-cache.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import { createJsxCacheKey, createPluginCacheKey, getCorePackageVersion } from '../../build/cache-keys.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
+
+export {
+	createJsxCacheKey,
+	createPluginCacheKey,
+	getCorePackageVersion,
+	hashPluginSetup,
+} from '../../build/cache-keys.ts';
 
 /** Filename written beside transpiled server modules that stores incremental build metadata. */
 export const ROUTE_MODULE_BUILD_CACHE_FILENAME = '.build-cache.json';
@@ -51,20 +57,6 @@ export type RouteModuleBuildCacheManifestWriter = (
 	manifestPath: string,
 	manifest: RouteModuleBuildCacheManifest,
 ) => void;
-
-let cachedCorePackageVersion: string | undefined;
-
-/** Returns the installed `@ecopages/core` package version used to invalidate persisted caches. */
-export function getCorePackageVersion(): string {
-	if (cachedCorePackageVersion) {
-		return cachedCorePackageVersion;
-	}
-
-	const packageJsonPath = new URL('../../../package.json', import.meta.url);
-	const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
-	cachedCorePackageVersion = packageJson.version ?? '0.0.0';
-	return cachedCorePackageVersion;
-}
 
 /** Normalizes filesystem paths used as manifest keys and build-key inputs. */
 export function normalizeRouteModuleCachePath(filePath: string): string {
@@ -154,39 +146,4 @@ function shouldVersionBuildOutputPath(invalidationVersion: number): boolean {
 
 function sanitizeCacheScope(cacheScope: string): string {
 	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
-}
-
-export function createJsxCacheKey(jsx: PageModuleBuildImportOptions['jsx']): string {
-	if (!jsx) {
-		return 'jsx:default';
-	}
-
-	return JSON.stringify({
-		development: jsx.development ?? false,
-		factory: jsx.factory ?? null,
-		fragment: jsx.fragment ?? null,
-		importSource: jsx.importSource ?? null,
-		runtime: jsx.runtime ?? null,
-		sideEffects: jsx.sideEffects ?? null,
-	});
-}
-
-export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
-	if (!plugins || plugins.length === 0) {
-		return 'plugins:default';
-	}
-
-	return `plugins:${plugins.map((plugin) => `${plugin.name}:${hashPluginSetup(plugin.setup)}`).join(',')}`;
-}
-
-/** Exported for in-process import caches that must match persisted build keys. */
-export function hashPluginSetup(setup: EcoBuildPlugin['setup']): string {
-	let hash = 0;
-	const source = setup.toString();
-
-	for (let index = 0; index < source.length; index += 1) {
-		hash = (hash * 31 + source.charCodeAt(index)) | 0;
-	}
-
-	return (hash >>> 0).toString(36);
 }

@@ -110,8 +110,11 @@ type RendererClass<C> = new (options: {
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
  * hooks on this class, while `ConfigBuilder.build()` and app startup decide when
- * those hooks run. For page-browser and document shaping, integrations should
- * prefer the contribution contracts re-exported from this module:
+ * those hooks run. Build plugins map to {@link AppBuildManifest} buckets:
+ * `plugins` → `runtimePlugins`, `browserBuildPlugins` → `browserBundlePlugins`,
+ * `browserRuntimeManifest` → client import rewrite map. For page-browser and
+ * document shaping, integrations should prefer the contribution contracts
+ * re-exported from this module:
  * `PageBrowserGraphContribution` / `PageBrowserGraphContributionContext` and
  * `HtmlDocumentContribution` / `HtmlDocumentContributionContext`.
  */
@@ -130,6 +133,14 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected hmrManager?: IHmrManager;
 	declare runtimeOrigin: string;
 
+	/**
+	 * Returns build plugins shared by server-oriented and browser-oriented builds.
+	 *
+	 * @remarks
+	 * Collected into {@link AppBuildManifest.runtimePlugins} during config finalization.
+	 * MDX loaders, virtual-module resolvers, and other transforms that must run during
+	 * route-module transpile belong here—not in {@link browserBuildPlugins}.
+	 */
 	get plugins(): EcoBuildPlugin[] {
 		return [];
 	}

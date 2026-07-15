@@ -124,7 +124,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - In development, each **Page Browser Graph** is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes; hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected
 - Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`; processors and loaders still initialize eagerly during `setupAppRuntimePlugins()`
-- Production static export prebuilds browser graphs from the finalized route list, then commits `pages-browser-graph` manifest only after the export transaction succeeds
+- Production static export prebuilds browser graphs from the finalized route list into the in-memory `page-browser-graph-session`; failed exports clear staged production session records so retries cannot reuse partial graph output
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
 
 ## Example dialogue
@@ -159,7 +159,7 @@ Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integr
 
 **Plugin Bridge**: Ecopages plugins (`EcoBuildPlugin`) are translated to Rolldown `Plugin` instances via `createRolldownPluginBridge()`. All eco plugins are consolidated into a **single** Rolldown plugin to minimize Rust→JS FFI overhead. Each plugin hook without a filter causes 3–4× slowdown per module.
 
-**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
+**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. With `'rolldown'` ownership, profiles use one-shot builds in both dev and production: route-module and browser-HMR builds run in parallel, while server-entry stays serialized single-flight. With `'vite-host'` ownership, profiles wrap a boundary marker that rejects framework-owned builds.
 
 **Registered client script HMR**: Declared layout/page scripts register through `HmrEntrypointRegistrar` and must resolve to verified `/assets/_hmr/` artifacts when HMR is enabled. Enabled HMR never silently falls back to static assets per entrypoint. See [docs/adr/hmr-registered-script-ownership.md](./docs/adr/hmr-registered-script-ownership.md).
 

@@ -18,6 +18,7 @@ import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
+import type { ResolvedReactPluginRuntimeModule } from '../utils/react-plugin-runtime-modules.ts';
 import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts';
 
 /**
@@ -28,6 +29,7 @@ export interface ReactBundleServiceConfig {
 	appConfig: EcoPagesAppConfig;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
+	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	mdxCompilerOptions?: CompileOptions;
 }
 
@@ -58,6 +60,7 @@ export class ReactBundleService {
 		this.runtimeBundleService = new ReactRuntimeBundleService({
 			rootDir: config.rootDir,
 			routerAdapter: config.routerAdapter,
+			runtimeModules: config.runtimeModules,
 		});
 	}
 
@@ -115,9 +118,13 @@ export class ReactBundleService {
 		}
 
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
+			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
 			absWorkingDir: this.config.rootDir,
 			declaredModules,
-			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers([], this.config.routerAdapter),
+			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(
+				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
+				this.config.routerAdapter,
+			),
 		});
 
 		const [foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(

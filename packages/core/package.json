@@ -33,12 +33,14 @@
 		"esbuild": "^0.28.0",
 		"ghtml": "^4.0.2",
 		"oxc-parser": "^0.124.0",
+		"oxc-resolver": "^11.24.2",
 		"rolldown": "^1.1.0",
 		"ws": "^8.20.1",
 		"@standard-schema/spec": "^1.1.0",
 		"@standard-schema/utils": "^0.3.0"
 	},
 	"devDependencies": {
+		"@tanstack/react-query": "^5.90.2",
 		"@types/bun": "latest",
 		"@types/ws": "^8.18.1",
 		"arktype": "^2.2.0",
@@ -233,6 +235,14 @@
 		"./plugins/foreign-jsx-override-plugin": {
 			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
 			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
+		},
+		"./plugins/alias-resolver-plugin": {
+			"types": "./src/plugins/alias-resolver-plugin.ts",
+			"default": "./src/plugins/alias-resolver-plugin.ts"
+		},
+		"./plugins/tsconfig-import-resolver": {
+			"types": "./src/plugins/tsconfig-import-resolver.ts",
+			"default": "./src/plugins/tsconfig-import-resolver.ts"
 		},
 		"./plugins/jsx-import-source.utils": {
 			"types": "./src/plugins/jsx-import-source.utils.ts",

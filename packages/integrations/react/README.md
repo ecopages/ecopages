@@ -218,3 +218,145 @@ Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`)
 - [src/layout-compose.ts](src/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.
 - [src/test/react-ssr-unified.test.tsx](src/test/react-ssr-unified.test.tsx): provider context through nested SSR layouts.
+
+### Shared runtime vendors (SPA + persisted layouts)
+
+#### Mental model
+
+With `ecoRouter()`, Ecopages keeps outer layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). Each page chunk still loads separately, but provider layouts stay alive in the DOM.
+
+That creates a module identity problem: if TanStack Query (or any shared provider library) is bundled into every page chunk separately, each chunk gets its own copy of the library and its own React context. Navigation then breaks with errors such as `No QueryClient set`, even though the provider component is still mounted.
+
+The fix is **shared browser runtime vendors**: selected npm packages are built once into `/assets/vendors/*.js` and every page chunk imports the same public URL. React, React DOM, the router bundle, and auto-discovered layout runtime packages all follow this path.
+
+Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
+
+#### When auto-discovery runs
+
+Auto-discovery runs at plugin setup when **both** are true:
+
+- `router` is passed to `reactPlugin()`
+- The app config exposes `absolutePaths.projectDir`, `layoutsDir`, and `componentsDir`
+
+Without `router`, only explicit `runtimeModules` entries are vendored.
+
+#### Discovery modes
+
+| Mode                               | Trigger                                          | Layout roots scanned                                       | npm packages collected                                      |
+| ---------------------------------- | ------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| **Runtime-provider** (recommended) | At least one layout sets `runtimeProvider: true` | Only flagged layouts                                       | Every reachable npm package in that layout's `render` graph |
+| **Provider-scoped fallback**       | No layout sets `runtimeProvider: true`           | All `eco.layout(` files under `layouts/` and `components/` | npm packages imported from provider/context modules only    |
+
+The fallback exists for backward compatibility. Ecopages logs a debug message when fallback mode is active. Prefer explicit `runtimeProvider: true` on provider root layouts (for example a query-client tier) and omit it from shell-only layouts.
+
+#### What gets discovered
+
+1. Select layout entry files using the mode above.
+2. From each root layout's **`render` client graph** (reachability analysis), follow relative imports and tsconfig path aliases. Type-only imports and `.server.ts` modules are skipped.
+3. Collect npm package roots (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
+4. Register each discovered package as a shared vendor.
+
+**Excluded automatically:** React, React DOM, jsx runtimes, the router bundle, `@ecopages/*`, workspace packages under `@techn.es/*`, `*-devtools` packages, and packages already vendored by the React plugin.
+
+Path aliases resolve from `tsconfig.json` `compilerOptions.paths` (oxc-resolver), same as the Ecopages alias resolver plugin.
+
+#### Recommended setup
+
+Plugin config — no manual vendor list when provider layouts are flagged:
+
+```ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: ecoRouter() })]).build();
+
+export default config;
+```
+
+Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:
+
+```tsx
+import type { ReactNode } from 'react';
+import { eco } from '@ecopages/core';
+import { QueryProvider } from '@/shared/query/query-provider';
+
+export const QueryRootLayout = eco.layout<ReactNode>({
+	runtimeProvider: true,
+	render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
+});
+```
+
+Shell layouts that do not mount shared runtime state omit the flag:
+
+```tsx
+export const AppShellLayout = eco.layout({
+	render: ({ children }) => <AppShell>{children}</AppShell>,
+});
+```
+
+Stack provider roots before shell tiers in page `layout` arrays so context wraps the shell on both SSR and persisted client navigation.
+
+Requires matching tsconfig paths when using aliases:
+
+```json
+{
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	}
+}
+```
+
+#### Overrides and escape hatches
+
+Use explicit `runtimeModules` when discovery misses a package, when `router` is not enabled, or when you need custom vendor output names or externals:
+
+```ts
+reactPlugin({
+	router: ecoRouter(),
+	runtimeModules: ['@tanstack/react-query', { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] }],
+});
+```
+
+Manual entries **override** auto-discovered entries for the same specifier.
+
+#### Troubleshooting
+
+| Symptom                                    | Likely cause                                                                     | Fix                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `No QueryClient set` after SPA navigation  | Provider library bundled per page chunk                                          | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors      |
+| Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root                                           | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                     |
+| Package not discovered                     | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry                                              |
+| `@/` alias not followed                    | Missing or invalid tsconfig paths                                                | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
+
+#### Tests
+
+- [src/utils/discover-layout-runtime-modules.test.ts](src/utils/discover-layout-runtime-modules.test.ts): discovery modes, provider scoping, tsconfig aliases, stacked layouts.
+- [src/services/react-runtime-bundle.service.test.ts](src/services/react-runtime-bundle.service.test.ts): vendor registration and manifest paths.
+- [../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts](../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts): ESM entry resolution and default-export policy for React vs TanStack Query.
+
+### Client-only code in SSR trees
+
+Pages and layouts SSR through `renderToString`, which does not support `<Suspense>`. Do not use `React.lazy()` + `<Suspense>` in `eco.page()` or `eco.layout()` trees.
+
+Wrap browser-only UI in `ClientOnly`:
+
+```tsx
+import { eco } from '@ecopages/core';
+import { ClientOnly } from '@ecopages/react/utils/client-only';
+
+export const RootLayout = eco.layout({
+	render: ({ children }) => (
+		<>
+			{children}
+			<ClientOnly fallback={null}>
+				<DevtoolsPanel />
+			</ClientOnly>
+		</>
+	),
+});
+```
+
+For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.

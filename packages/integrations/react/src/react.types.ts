@@ -2,6 +2,10 @@ import type { AssetDefinition } from '@ecopages/core/services/asset-processing-s
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
+import type {
+	ReactPluginRuntimeModule,
+	ResolvedReactPluginRuntimeModule,
+} from './utils/react-plugin-runtime-modules.ts';
 
 /**
  * MDX configuration options for the React plugin.
@@ -64,6 +68,50 @@ export type ReactPluginOptions = {
 	 */
 	router?: ReactRouterAdapter;
 	/**
+	 * Optional shared browser runtime vendors.
+	 *
+	 * With `router`, npm packages reachable from `eco.layout()` **render graphs**
+	 * under the app's configured `layouts/` and `components/` directories are
+	 * discovered automatically and registered as shared vendors (alongside React
+	 * and React DOM). This prevents duplicate module instances when persisted
+	 * layouts stay mounted across SPA navigation.
+	 *
+	 * Without `router`, only explicit entries here are vendored.
+	 *
+	 * @remarks
+	 * Discovery follows client reachability from each layout's `render` path,
+	 * resolves relative and tsconfig path aliases, and collects npm package roots
+	 * imported from provider/context modules in that graph (for example files named
+	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
+	 * It does not vendor every npm dependency reachable from shell or page UI.
+	 *
+	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
+	 * `eco.layout({ ... })`. Flagged layouts become the only discovery roots and
+	 * vendor every reachable npm package in that layout graph. When no layout opts
+	 * in, discovery falls back to scanning all layouts with provider-scoped npm
+	 * collection.
+	 *
+	 * @example
+	 * ```ts
+	 * export const QueryRootLayout = eco.layout({
+	 *   runtimeProvider: true,
+	 *   render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
+	 * });
+	 *
+	 * reactPlugin({
+	 *   router: ecoRouter(),
+	 * });
+	 * ```
+	 *
+	 * @example Advanced vendor config
+	 * ```ts
+	 * runtimeModules: [
+	 *   { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
+	 * ]
+	 * ```
+	 */
+	runtimeModules?: ReactPluginRuntimeModule[];
+	/**
 	 * MDX configuration for handling .mdx files within the React plugin.
 	 * When enabled, MDX files are treated as React pages with full router support.
 	 * @example
@@ -84,6 +132,7 @@ export type ReactPluginOptions = {
 
 export type ReactRendererConfig = {
 	routerAdapter?: ReactRouterAdapter;
+	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	mdxCompilerOptions?: CompileOptions;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;

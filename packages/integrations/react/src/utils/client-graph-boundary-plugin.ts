@@ -28,6 +28,8 @@ const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
  * from accidentally leaking into the browser compilation step, which would cause immediate crashes.
  */
 type ClientGraphBoundaryOptions = {
+	/** Absolute path to the app project root, used for tsconfig path alias classification. */
+	projectRoot?: string;
 	/** Absolute path to the current working directory, used as a root fallback for resolving inline file reads. */
 	absWorkingDir?: string;
 	/**
@@ -143,6 +145,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					args.path,
 					globallyDeclaredSources,
 					requestedExports,
+					options?.projectRoot,
 				);
 
 				if (importsModified) {

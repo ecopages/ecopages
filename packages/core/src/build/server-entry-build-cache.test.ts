@@ -4,6 +4,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
@@ -41,7 +42,7 @@ describe('server-entry-build-cache', () => {
 			},
 			processors: new Map(),
 			integrations: [],
-		} as never;
+		} as unknown as EcoPagesAppConfig;
 
 		const serverEntryPath = path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
 		fileSystem.ensureDir(path.dirname(serverEntryPath));
@@ -75,7 +76,7 @@ describe('server-entry-build-cache', () => {
 			},
 			processors: new Map(),
 			integrations: [],
-		} as never;
+		} as unknown as EcoPagesAppConfig;
 
 		const serverEntryPath = path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
 		fileSystem.ensureDir(path.dirname(serverEntryPath));
@@ -100,5 +101,17 @@ describe('server-entry-build-cache', () => {
 		const cached = lookupServerEntryBuildCache({ appConfig, entryPath });
 		assert.ok(cached);
 		assert.equal(cached?.outputPaths.includes(serverEntryPath), true);
+
+		appConfig.loaders = new Map([
+			[
+				'jsx-owner',
+				{
+					name: 'jsx-owner',
+					setup() {},
+				},
+			],
+		]);
+
+		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
 	});
 });

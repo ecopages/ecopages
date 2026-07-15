@@ -42,10 +42,9 @@ import {
 	composeLayoutPageTree,
 	assertComposablePage,
 	normalizePageLayoutComponents,
-	resolveLayoutContext,
-	resolveLayoutEntryProps,
 	type ComposablePage,
 } from '@ecopages/react/layout-compose';
+import type { EcoComponent } from '@ecopages/core';
 import {
 	getAnchorFromNavigationEvent,
 	isStaticAssetHref,
@@ -137,29 +136,19 @@ export const PageContent: FC = () => {
 	const composablePage = assertComposablePage(Page);
 	const layoutComponents = resolvePageLayoutStack(composablePage.config);
 	const shouldRefreshPersistedLayout = Boolean(refreshPersistedLayout);
+	const persistedTiers =
+		persistLayouts && layoutComponents.length > 0
+			? resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout)
+			: undefined;
 
-	if (persistLayouts && layoutComponents.length > 0) {
-		const pageElement = createElement(Page, props);
-		const layoutContext = resolveLayoutContext(props);
-		const layoutEntries = composablePage.config?.layoutEntries;
-		const fallbackLayoutProps = layoutContext.locals ? { locals: layoutContext.locals } : {};
-		const persistedTiers = resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout);
-
-		const tree = persistedTiers.reduceRight<ReactNode>(
-			(children, { layout: CachedLayout, key: layoutKey }, index) => {
-				const layoutEntry = layoutEntries?.[index];
-				const layoutProps = layoutEntry
-					? resolveLayoutEntryProps(layoutEntry, layoutContext)
-					: fallbackLayoutProps;
-				return createElement(CachedLayout, { key: layoutKey, ...layoutProps }, children);
-			},
-			pageElement,
-		);
-
-		return tree;
-	}
-
-	return composeLayoutPageTree(composablePage, props);
+	return composeLayoutPageTree(composablePage, props, {
+		resolvePersistedTier: persistedTiers
+			? (_layout, index) => ({
+					layout: persistedTiers[index]!.layout as EcoComponent,
+					key: persistedTiers[index]!.key,
+				})
+			: undefined,
+	});
 };
 
 function createDeferred<T>() {

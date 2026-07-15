@@ -94,6 +94,10 @@ export async function setupAppRuntimePlugins(options: {
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
+		if (options.onRuntimePlugin) {
+			patchAppRuntime(options.appConfig, { onRuntimePlugin: options.onRuntimePlugin });
+		}
+
 		for (const loader of options.appConfig.loaders.values()) {
 			options.onRuntimePlugin?.(loader);
 		}
@@ -112,20 +116,43 @@ export async function setupAppRuntimePlugins(options: {
 			}
 		}
 
-		for (const integration of options.appConfig.integrations) {
-			integration.setConfig(options.appConfig);
-			integration.setRuntimeOrigin(options.runtimeOrigin);
-
-			await integration.setup();
-
-			for (const plugin of integration.plugins) {
-				options.onRuntimePlugin?.(plugin);
-			}
-		}
-
 		patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: true });
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
 		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 	}
+}
+
+/**
+ * Activates one integration's runtime setup on first use.
+ */
+export async function ensureIntegrationRuntimeReady(options: {
+	appConfig: EcoPagesAppConfig;
+	integrationName: string;
+	runtimeOrigin: string;
+	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
+}): Promise<void> {
+	const runtime = options.appConfig.runtime ?? {};
+	options.appConfig.runtime = runtime;
+	runtime.activatedIntegrations ??= new Set<string>();
+
+	if (runtime.activatedIntegrations.has(options.integrationName)) {
+		return;
+	}
+
+	const integration = options.appConfig.integrations.find((plugin) => plugin.name === options.integrationName);
+	if (!integration) {
+		return;
+	}
+
+	integration.setConfig(options.appConfig);
+	integration.setRuntimeOrigin(options.runtimeOrigin);
+	await integration.setup();
+
+	const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
+	for (const plugin of integration.plugins ?? []) {
+		onRuntimePlugin?.(plugin);
+	}
+
+	runtime.activatedIntegrations.add(options.integrationName);
 }

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
-import { installBuildRuntime } from '../../../packages/core/src/build/build-runtime';
+import { installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
 import { createAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { KITCHEN_SINK_REPRESENTATIVE_PAGES } from './lib/kitchen-sink-fixture';

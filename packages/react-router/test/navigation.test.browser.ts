@@ -139,7 +139,7 @@ describe('extractProps', () => {
 		const doc = createMockDocument(`
 			<html><body>
 				<script id="__ECO_PAGE_DATA__" type="application/json">
-					{"v":1,"navigationOwner":"react-router","module":"/assets/docs.js","props":{"slug":"intro"}}
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/docs.js","props":{"slug":"intro"}}
 				</script>
 			</body></html>
 		`);
@@ -260,7 +260,7 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(`
 			<html><body>
 				<script id="__ECO_PAGE_DATA__" type="application/json">
-					{"v":1,"navigationOwner":"react-router","module":"/assets/pages/docs.js","props":{}}
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/pages/docs.js","props":{}}
 				</script>
 			</body></html>
 		`);

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-	ECO_PAGE_MODULE_PROP,
 	escapePageDataJson,
 	resolveEcoPageDataModuleUrl,
 	resolveEcoPageDataProps,
+	resolvePageDataDocumentPayload,
 	serializePageDataManifestScript,
 	serializePageDataScript,
 } from './serialize-page-data-script.ts';
@@ -24,34 +24,47 @@ describe('serialize-page-data-script', () => {
 	it('should emit a versioned manifest with module identity and props', () => {
 		expect(
 			serializePageDataManifestScript({
-				module: '/assets/pages/docs.js',
+				moduleUrl: '/assets/pages/docs.js',
 				props: { slug: 'intro' },
 			}),
 		).toBe(
-			'<script id="__ECO_PAGE_DATA__" type="application/json">{"v":1,"navigationOwner":"react-router","module":"/assets/pages/docs.js","props":{"slug":"intro"}}</script>',
+			'<script id="__ECO_PAGE_DATA__" type="application/json">{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/pages/docs.js","props":{"slug":"intro"}}</script>',
 		);
-		expect(ECO_PAGE_MODULE_PROP).toBe('__ecoPageModule');
 	});
 
 	it('should reject malformed envelopes instead of treating them as flat props', () => {
-		const malformed = { v: 1, module: '/x.js', props: null };
+		const malformed = { schemaVersion: 1, moduleUrl: '/x.js', props: null };
 		expect(resolveEcoPageDataProps(malformed)).toEqual({});
 		expect(resolveEcoPageDataModuleUrl(malformed)).toBeNull();
 	});
 
-	it('should keep legacy flat props that include a string v field', () => {
-		expect(resolveEcoPageDataProps({ v: '1.2.3', slug: 'x' })).toEqual({ v: '1.2.3', slug: 'x' });
+	it('should keep legacy flat props that include a string schemaVersion field', () => {
+		expect(resolveEcoPageDataProps({ schemaVersion: '1.2.3', slug: 'x' })).toEqual({
+			schemaVersion: '1.2.3',
+			slug: 'x',
+		});
 	});
 
 	it('should unwrap valid v1 envelopes and keep legacy flat props', () => {
 		expect(
 			resolveEcoPageDataProps({
-				v: 1,
+				schemaVersion: 1,
 				navigationOwner: 'react-router',
-				module: '/assets/page.js',
+				moduleUrl: '/assets/page.js',
 				props: { slug: 'intro' },
 			}),
 		).toEqual({ slug: 'intro' });
 		expect(resolveEcoPageDataProps({ slug: 'legacy' })).toEqual({ slug: 'legacy' });
+	});
+
+	it('should build envelopes from flat props and an explicit module URL', () => {
+		expect(
+			resolvePageDataDocumentPayload({ slug: 'intro' }, { moduleUrl: '/assets/page.js' }),
+		).toEqual({
+			schemaVersion: 1,
+			navigationOwner: 'react-router',
+			moduleUrl: '/assets/page.js',
+			props: { slug: 'intro' },
+		});
 	});
 });

@@ -31,7 +31,8 @@
 		"./runtime/use-sync-external-store-with-selector": "./src/runtime/use-sync-external-store-with-selector.ts",
 		"./router-adapter": "./src/router-adapter.ts",
 		"./layout-compose": "./src/layout-compose.ts",
-		"./serialize-page-data-script": "./src/serialize-page-data-script.ts"
+		"./serialize-page-data-script": "./src/serialize-page-data-script.ts",
+		"./page-data-reader": "./src/page-data-reader.ts"
 	},
 	"repository": {
 		"type": "git",

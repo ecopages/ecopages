@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { resolveInlineContentScriptBody } from '../../inline-content-script-body.ts';
 import { shouldUseDevBrowserScriptCache } from '../../../../../build/dev-browser-script-cache.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
@@ -15,26 +16,10 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		return path.join(this.getContentScriptEntryDir(), `${contentHash}.js`);
 	}
 
-	private createBundleConfigHash(dep: ContentScriptAsset, shouldBundle: boolean): string {
-		return this.generateHash(
-			JSON.stringify({
-				bundle: shouldBundle,
-				minify: shouldBundle && this.isProduction,
-				opts: dep.bundleOptions,
-			}),
-		);
-	}
-
-	private createContentScriptCacheKey(dep: ContentScriptAsset, shouldBundle: boolean): string {
-		const contentHash = this.generateHash(dep.content);
-		const configHash = this.createBundleConfigHash(dep, shouldBundle);
-		return `${this.buildCacheKey(`content-script:${contentHash}`, contentHash, dep)}:${configHash}`;
-	}
-
-	private toProcessedAsset(dep: ContentScriptAsset, filepath: string, inlineContent?: string): ProcessedAsset {
+	private toProcessedAsset(dep: ContentScriptAsset, filepath: string): ProcessedAsset {
 		return {
 			filepath,
-			content: dep.inline ? inlineContent : undefined,
+			content: resolveInlineContentScriptBody(dep, filepath),
 			kind: 'script',
 			position: dep.position,
 			attributes: dep.attributes,
@@ -98,11 +83,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 					throw new Error(`Missing grouped bundle output for ${entryName}`);
 				}
 
-				return this.toProcessedAsset(
-					dep,
-					bundledFilePath,
-					dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-				);
+				return this.toProcessedAsset(dep, bundledFilePath);
 			});
 		} finally {
 			for (const { contentHash } of tempEntries) {
@@ -125,47 +106,42 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		return options;
 	}
 
+	/**
+	 * Emits one content script asset. Cache reuse is owned by {@link AssetProcessingService}.
+	 */
 	async process(dep: ContentScriptAsset): Promise<ProcessedAsset> {
 		const shouldBundle = this.shouldBundle(dep);
-		const cacheKey = this.createContentScriptCacheKey(dep, shouldBundle);
+		const hash = this.generateHash(dep.content);
+		const filename = dep.name ? `${dep.name}.js` : `script-${hash}.js`;
+		const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
 
-		return this.getOrProcess(cacheKey, async () => {
-			const hash = this.generateHash(dep.content);
-			const filename = dep.name ? `${dep.name}.js` : `script-${hash}.js`;
-			const filepath = path.join(this.getAssetsDir(), 'scripts', filename);
-
-			if (!shouldBundle) {
-				if (!dep.inline) {
-					fileSystem.write(filepath, dep.content);
-				}
-
-				return this.toProcessedAsset(dep, filepath, dep.inline ? dep.content : undefined);
+		if (!shouldBundle) {
+			if (!dep.inline) {
+				fileSystem.write(filepath, dep.content);
 			}
 
-			if (!dep.content) {
-				throw new Error('No content found for script asset');
-			}
+			return this.toProcessedAsset(dep, filepath);
+		}
 
-			const entryPath = this.getContentScriptEntryPath(hash);
-			fileSystem.write(entryPath, dep.content);
+		if (!dep.content) {
+			throw new Error('No content found for script asset');
+		}
 
-			try {
-				const bundledFilePath = await this.bundleScript({
-					entrypoint: entryPath,
-					outdir: this.getAssetsDir(),
-					minify: this.isProduction,
-					naming: `${path.parse(filename).name}-[hash].[ext]`,
-					...this.getBundlerOptions(dep),
-				});
+		const entryPath = this.getContentScriptEntryPath(hash);
+		fileSystem.write(entryPath, dep.content);
 
-				return this.toProcessedAsset(
-					dep,
-					bundledFilePath,
-					dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-				);
-			} finally {
-				this.removeContentScriptEntry(hash);
-			}
-		});
+		try {
+			const bundledFilePath = await this.bundleScript({
+				entrypoint: entryPath,
+				outdir: this.getAssetsDir(),
+				minify: this.isProduction,
+				naming: `${path.parse(filename).name}-[hash].[ext]`,
+				...this.getBundlerOptions(dep),
+			});
+
+			return this.toProcessedAsset(dep, bundledFilePath);
+		} finally {
+			this.removeContentScriptEntry(hash);
+		}
 	}
 }

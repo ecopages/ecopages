@@ -2,6 +2,10 @@ import type { AssetDefinition, ProcessedAsset } from './assets.types.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
 
+function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string }): string {
+	return `${groupedBundle.id}:${groupedBundle.entryName}`;
+}
+
 /** Forces grouped content scripts to run through the bundler in production builds. */
 export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): void {
 	if (isDevelopmentRuntime()) {
@@ -97,14 +101,31 @@ export async function processGroupedDependencyBundles(
 
 		try {
 			const processedResults = await processor.processGrouped(bundleDeps);
+			const processedByEntryKey = new Map<string, ProcessedAsset>();
 
-			return processedResults.map((processed, index) => {
-				const dep = bundleDeps[index]!;
+			for (const processed of processedResults) {
+				if (!processed.groupedBundle) {
+					continue;
+				}
+
+				processedByEntryKey.set(getGroupedBundleAssetKey(processed.groupedBundle), processed);
+			}
+
+			return bundleDeps.flatMap((dep) => {
+				if (dep.kind !== 'script' || dep.source !== 'content' || !dep.groupedBundle) {
+					return [];
+				}
+
+				const processed = processedByEntryKey.get(getGroupedBundleAssetKey(dep.groupedBundle));
+				if (!processed) {
+					return [];
+				}
+
 				const depKey = getDependencyKey(dep);
 				const finalized = finalizeProcessedAsset(processed, resolveProcessedAssetSrcUrl);
 
 				setCachedAsset(dep, depKey, finalized);
-				return finalized;
+				return [finalized];
 			});
 		} catch (error) {
 			logError(error);

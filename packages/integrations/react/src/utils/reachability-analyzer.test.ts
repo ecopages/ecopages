@@ -231,4 +231,21 @@ describe('analyzeReachability', () => {
 		expect(result.isFallbackRoots).toBe(false);
 		expect(result.reachableImports.has('node:async_hooks')).toBe(false);
 	});
+
+	it('ignores type-only imports when building the reachability graph', () => {
+		const source = `
+			import type { Session } from './auth';
+			import { usedValue } from './used';
+
+			export default eco.page({
+				render: () => usedValue(),
+			});
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.analyzed).toBe(true);
+		expect(result.reachableImports.has('./auth')).toBe(false);
+		expect(result.reachableImports.get('./used')).toBeInstanceOf(Set);
+	});
 });

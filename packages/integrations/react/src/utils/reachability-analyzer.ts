@@ -141,6 +141,10 @@ export function analyzeReachability(
 
 	for (const statement of resolvedProgram.body) {
 		if (statement.type === 'ImportDeclaration') {
+			if ((statement as { importKind?: string }).importKind === 'type') {
+				continue;
+			}
+
 			const specifier = statement.source.value as string;
 			const bindings = new Map<string, string>();
 

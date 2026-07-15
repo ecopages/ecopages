@@ -169,6 +169,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		return [
 			createClientGraphBoundaryPlugin({
+				projectRoot: path.dirname(this.context.getSrcDir()),
 				absWorkingDir: path.dirname(this.context.getSrcDir()),
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,

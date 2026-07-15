@@ -1,8 +1,10 @@
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import type { ReactRuntimeImports } from '../services/react-runtime-bundle.service.ts';
+import type { ResolvedReactPluginRuntimeModule } from './react-plugin-runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
 	getBrowserRuntimeSpecifierMap,
+	type BrowserRuntimeAssetDeclaration,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build/browser-runtime-manifest';
 
@@ -18,7 +20,24 @@ export function buildReactRuntimeAliasMap(runtimeImports: ReactRuntimeImports): 
 	return Object.fromEntries(getBrowserRuntimeSpecifierMap(buildReactRuntimeManifest(runtimeImports)));
 }
 
-export function buildReactRuntimeManifest(runtimeImports: ReactRuntimeImports): BrowserRuntimeManifest {
+export function buildConfiguredRuntimeModuleManifestEntries(
+	modules: readonly ResolvedReactPluginRuntimeModule[],
+	getPublicPath: (outputName: string) => string,
+): BrowserRuntimeAssetDeclaration[] {
+	return modules.map((module) => ({
+		specifier: module.specifier,
+		owner: '@ecopages/react',
+		importPath: module.specifier,
+		publicPath: getPublicPath(module.outputName),
+		externals: [...getReactRuntimeExternalSpecifiers(), ...module.externals],
+	}));
+}
+
+export function buildReactRuntimeManifest(
+	runtimeImports: ReactRuntimeImports,
+	configuredRuntimeModules: readonly ResolvedReactPluginRuntimeModule[] = [],
+	getConfiguredRuntimeModulePublicPath: (outputName: string) => string = () => '',
+): BrowserRuntimeManifest {
 	return createBrowserRuntimeManifest([
 		{
 			specifier: 'react',
@@ -74,6 +93,7 @@ export function buildReactRuntimeManifest(runtimeImports: ReactRuntimeImports): 
 			importPath: 'use-sync-external-store/shim/with-selector.js',
 			publicPath: runtimeImports.useSyncExternalStoreWithSelector,
 		},
+		...buildConfiguredRuntimeModuleManifestEntries(configuredRuntimeModules, getConfiguredRuntimeModulePublicPath),
 	]);
 }
 

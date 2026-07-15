@@ -6,7 +6,7 @@
  * dependencies (imports, variables, functions, and classes) that begin from explicit client roots.
  *
  * In Ecopages, "client roots" are defined as the `render`, `errorBoundary`, or `loadingFallback`
- * properties passed into `eco.page()` or `eco.component()`. By tracing the execution path from
+ * properties passed into `eco.page()`, `eco.layout()`, or `eco.component()`. By tracing the execution path from
  * these roots, the analyzer determines exactly which modules and bindings are actually needed
  * by the browser to hydrate the page, and which imports are unused on the client (and thus can be pruned).
  */
@@ -70,7 +70,7 @@ type ExplicitlyRequestedExports = Set<string> | '*';
 
 /**
  * Analyzes a module using Oxc AST and extracts a strict reachability graph
- * starting from client roots (`render`, `errorBoundary`, `loadingFallback` of `eco.page` or `eco.component`).
+ * starting from client roots (`render`, `errorBoundary`, `loadingFallback` of `eco.page`, `eco.layout`, or `eco.component`).
  *
  * @param source - Raw source string of the module.
  * @param filename - Absolute or relative path to the module file.
@@ -141,6 +141,10 @@ export function analyzeReachability(
 
 	for (const statement of resolvedProgram.body) {
 		if (statement.type === 'ImportDeclaration') {
+			if ((statement as { importKind?: string }).importKind === 'type') {
+				continue;
+			}
+
 			const specifier = statement.source.value as string;
 			const bindings = new Map<string, string>();
 
@@ -220,7 +224,9 @@ export function analyzeReachability(
 				(obj as { type: string }).type === 'Identifier' &&
 				(obj as { name: string }).name === 'eco' &&
 				(prop as { type: string }).type === 'Identifier' &&
-				((prop as { name: string }).name === 'page' || (prop as { name: string }).name === 'component')
+				((prop as { name: string }).name === 'page' ||
+					(prop as { name: string }).name === 'component' ||
+					(prop as { name: string }).name === 'layout')
 			) {
 				potentialClientRoots.push((node as { callee: unknown }).callee);
 

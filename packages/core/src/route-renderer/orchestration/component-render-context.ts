@@ -4,9 +4,9 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
 /**
  * Result returned by a renderer-owned foreign-child runtime.
  *
- * `inline` keeps rendering inside the current integration. `resolved` returns a
- * renderer-owned value immediately, which can be final HTML or a renderer-local
- * transport token for later queue resolution.
+ * `inline` keeps rendering inside the current integration. `resolved.value` is
+ * opaque renderer-owned output, such as final HTML or a transport token for
+ * later queue resolution; callers must not coerce arbitrary values to strings.
  */
 export type ForeignChildInterceptionResult =
 	{ kind: 'inline'; props?: Record<string, unknown> } | { kind: 'resolved'; value: unknown } | undefined;

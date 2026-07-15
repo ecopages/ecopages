@@ -246,30 +246,6 @@ export class PageModuleImportService {
 		});
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
 		const preferredOutputPath = path.join(outdir, outputFileName);
-		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
-		const cachedBuild = routeModuleBuildCache.lookup({
-			...options,
-			fileHash,
-		});
-
-		if (cachedBuild) {
-			return (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
-		}
-
-		if (
-			!cacheScope &&
-			shouldBuildPagesUnifiedGraph() &&
-			this.appConfig &&
-			isPagesUnifiedGraphPage(filePath, this.appConfig)
-		) {
-			const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
-			if (graphModule !== undefined) {
-				return graphModule;
-			}
-		}
-
-		recordPageModuleBuildInvocation();
-
 		const buildOptions: BuildOptions = this.appConfig
 			? createServerBuildRequest(this.appConfig, {
 					profile: 'route-module',
@@ -295,6 +271,36 @@ export class PageModuleImportService {
 					root: rootDir,
 					entrypoints: [filePath],
 				};
+		const cacheBuildOptions = {
+			...options,
+			rootDir: buildOptions.root ?? rootDir,
+			outdir: buildOptions.outdir ?? outdir,
+			splitting: buildOptions.splitting,
+			externalPackages: buildOptions.externalPackages,
+			jsx: buildOptions.jsx,
+			plugins: buildOptions.plugins,
+			fileHash,
+		};
+		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
+		const cachedBuild = routeModuleBuildCache.lookup(cacheBuildOptions);
+
+		if (cachedBuild) {
+			return (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+		}
+
+		if (
+			!cacheScope &&
+			shouldBuildPagesUnifiedGraph() &&
+			this.appConfig &&
+			isPagesUnifiedGraphPage(filePath, this.appConfig)
+		) {
+			const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
+			if (graphModule !== undefined) {
+				return graphModule;
+			}
+		}
+
+		recordPageModuleBuildInvocation();
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
 
 		if (!buildResult.success) {
@@ -322,8 +328,7 @@ export class PageModuleImportService {
 		}
 
 		routeModuleBuildCache.recordBuild({
-			...options,
-			fileHash,
+			...cacheBuildOptions,
 			outputPath: compiledOutput,
 			dependencyModulePaths,
 		});

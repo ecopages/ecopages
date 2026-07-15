@@ -8,7 +8,7 @@ import {
 	isProductionCacheManifestCurrent,
 	matchesProductionCacheFingerprint,
 } from './production-build-cache.ts';
-import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
+import { getCorePackageVersion } from './cache-keys.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { isDevelopmentRuntime } from '../utils/runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';

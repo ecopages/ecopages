@@ -228,7 +228,14 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 	);
 }
 
-/** Installs the build manifest that should be visible to one app instance. */
+/** Installs the build manifest that should be visible to one app instance.
+ *
+ * @remarks
+ * Production apps are sealed via {@link updateAppBuildManifest} during
+ * {@link ConfigBuilder.build}. Call `setAppBuildManifest` directly only in tests or
+ * when replacing the entire manifest object; partial updates should use
+ * {@link updateAppBuildManifest}.
+ */
 export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
 	patchAppRuntime(appConfig, { buildManifest });
 }
@@ -258,6 +265,11 @@ export function createConfiguredAppBuildManifest(
 /**
  * Replaces the app-owned manifest using config-owned loaders and the
  * caller-supplied contribution input.
+ *
+ * @remarks
+ * Primary production entry: `ConfigBuilder.build()` passes the return value of
+ * {@link collectConfiguredAppBuildManifestContributions} here to seal
+ * `appConfig.runtime.buildManifest` before startup.
  */
 export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Partial<AppBuildManifest>): void {
 	setAppBuildManifest(appConfig, createConfiguredAppBuildManifest(appConfig, input));

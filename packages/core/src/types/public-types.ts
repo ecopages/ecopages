@@ -934,7 +934,6 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	dependencies?: EcoComponentDependencies;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
-	componentRender?: ComponentRenderResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;

@@ -3,7 +3,7 @@ import fs, { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
-import type { EcoBuildOnResolveResult } from '../build/build-types.ts';
+import type { EcoBuildOnResolveResult } from '../build/contracts/build-types.ts';
 import { createAliasResolverPlugin } from './alias-resolver-plugin.ts';
 import {
 	loadTsconfigPathPrefixes,

@@ -1,4 +1,4 @@
-import { requireBuildRuntime } from '../../build/build-runtime.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';

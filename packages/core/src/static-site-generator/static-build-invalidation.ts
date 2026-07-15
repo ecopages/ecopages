@@ -3,22 +3,26 @@ import {
 	createBuildInputsFingerprint,
 	hashAppConfigFile,
 	haveBuildInputsChanged,
-} from '../build/build-input-fingerprint.ts';
-import { clearPersistedProductionBuildCacheManifests } from '../build/production-build-cache.ts';
+} from '../build/cache/build-input-fingerprint.ts';
+import { clearPersistedProductionBuildCacheManifests } from '../build/cache/production-build-cache.ts';
 import { type RouteModuleStaticRenderCacheContext } from '../services/module-loading/route-module-build-manifest.ts';
 import {
 	getSharedRouteModuleBuildCache,
 	getServerModuleBuildCacheOutdir,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 
-export type { BuildInputChangeContributor, IntegrationPlugin, Processor } from '../build/build-input-fingerprint.ts';
+export type {
+	BuildInputChangeContributor,
+	IntegrationPlugin,
+	Processor,
+} from '../build/cache/build-input-fingerprint.ts';
 export {
 	collectBuildInputContributors,
 	createBuildInputsFingerprint,
 	didBuildInputContributorChange,
 	hashAppConfigFile,
 	haveBuildInputsChanged,
-} from '../build/build-input-fingerprint.ts';
+} from '../build/cache/build-input-fingerprint.ts';
 
 /** Builds the static-render invalidation context for one app config. */
 export function createRouteModuleStaticRenderCacheContext(

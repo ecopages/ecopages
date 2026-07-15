@@ -27,7 +27,7 @@
  */
 
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
-import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
 import { rapidhash } from '../utils/hash.ts';

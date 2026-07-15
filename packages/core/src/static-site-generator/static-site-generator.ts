@@ -19,7 +19,10 @@ import {
 	getSharedRouteModuleBuildCache,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 import type { StaticExportContext } from './static-export-context.ts';
-import { ensurePagesUnifiedGraphBuilt, shouldBuildPagesUnifiedGraph } from '../build/pages-unified-graph-build.ts';
+import {
+	ensurePagesUnifiedGraphBuilt,
+	shouldBuildPagesUnifiedGraph,
+} from '../build/cache/pages-unified-graph-build.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,

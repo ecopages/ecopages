@@ -17,7 +17,7 @@ import {
 	setAppBuildAdapter,
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';

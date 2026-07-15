@@ -1,12 +1,6 @@
 import { availableParallelism } from 'node:os';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import {
-	getAppBrowserBuildPlugins,
-	getAppBuildAdapter,
-	getAppServerBuildPlugins,
-	withBuildExecutorPlugins,
-	type BuildExecutor,
-} from './build-adapter.ts';
+import { getAppBuildAdapter, type BuildExecutor } from './build-adapter.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
@@ -39,13 +33,11 @@ class AppBuildRuntime implements BuildRuntime {
 
 	constructor(appConfig: EcoPagesAppConfig) {
 		const adapter = getAppBuildAdapter(appConfig);
-		const serverPlugins = withBuildExecutorPlugins(adapter, () => getAppServerBuildPlugins(appConfig));
-		const browserPlugins = withBuildExecutorPlugins(adapter, () => getAppBrowserBuildPlugins(appConfig));
 		const limit = resolveParallelismLimit();
 
-		this.serverEntryExecutor = new SerializedBuildExecutor(serverPlugins);
-		this.routeModuleExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(serverPlugins, limit));
-		this.hmrExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(browserPlugins, Math.min(3, limit)));
+		this.serverEntryExecutor = new SerializedBuildExecutor(adapter);
+		this.routeModuleExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(adapter, limit));
+		this.hmrExecutor = new DedupingBuildExecutor(new ParallelBuildExecutor(adapter, Math.min(3, limit)));
 	}
 
 	getProfile(profile: BuildProfile): BuildExecutor {
@@ -59,9 +51,13 @@ class AppBuildRuntime implements BuildRuntime {
 		}
 	}
 
-	async dispose(): Promise<void> {
-		// No long-lived engines to close; one-shot Rolldown builds per call.
-	}
+	/**
+	 * No-op for profile teardown.
+	 *
+	 * @remarks
+	 * Profiles use one-shot Rolldown; there is no long-lived engine to close.
+	 */
+	async dispose(): Promise<void> {}
 }
 
 export function getBuildRuntime(appConfig: EcoPagesAppConfig): BuildRuntime | undefined {
@@ -81,6 +77,9 @@ export function requireBuildRuntime(appConfig: EcoPagesAppConfig): BuildRuntime 
  * @remarks
  * All profiles use one-shot Rolldown. Server-entry stays serialized
  * single-flight; route-module and browser-HMR run in parallel.
+ * Profiles do not inject app plugins — assemble complete
+ * {@link BuildOptions} with {@link createServerBuildRequest} /
+ * {@link createBrowserBuildRequest} (or {@link BrowserBundleService}) first.
  */
 export function installBuildRuntime(appConfig: EcoPagesAppConfig): BuildRuntime {
 	const buildRuntime = new AppBuildRuntime(appConfig);

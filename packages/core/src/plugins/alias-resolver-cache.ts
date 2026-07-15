@@ -1,17 +1,14 @@
 /**
- * Per-plugin cache for `@/...` alias resolution.
+ * Per-plugin cache for tsconfig path alias resolution.
  *
  * @remarks
- * The `ecopages-alias-resolver` plugin resolves project aliases like
- * `@/components/Button` to concrete file paths under the app's `srcDir`.
- * Each resolution can trigger up to 22 `existsSync` calls and (when
- * the resolved path is a barrel) a `readFileSync` to detect
- * `export * from './...'` forwarding.
+ * The `ecopages-alias-resolver` plugin resolves project path aliases to
+ * concrete file paths using the app's tsconfig `paths`. Each resolution goes
+ * through oxc-resolver and may read barrel re-export targets.
  *
- * This cache memoizes the result keyed by `(srcDir, specifier)`. It is
+ * This cache memoizes the result keyed by `(projectRoot, specifier)`. It is
  * process-local and not currently invalidated by the file watcher —
- * `srcDir` contents are assumed to be stable for the lifetime of the
- * process.
+ * project contents are assumed to be stable for the lifetime of the process.
  */
 
 import path from 'node:path';

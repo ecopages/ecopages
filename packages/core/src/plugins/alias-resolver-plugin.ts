@@ -1,75 +1,57 @@
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/build-types.ts';
 import { AliasResolverCache } from './alias-resolver-cache.ts';
+import { loadTsconfigPathPrefixes, resolveProjectImportPath } from './tsconfig-import-resolver.ts';
 
-const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mdx', '.css', '.scss', '.sass', '.less'];
-
-function findResolvablePath(candidate: string): string | undefined {
-	if (path.extname(candidate)) {
-		if (existsSync(candidate)) {
-			return candidate;
-		}
-	}
-
-	for (const extension of RESOLVABLE_EXTENSIONS) {
-		const fileCandidate = `${candidate}${extension}`;
-		if (existsSync(fileCandidate)) {
-			return fileCandidate;
-		}
-	}
-
-	for (const extension of RESOLVABLE_EXTENSIONS) {
-		const indexCandidate = path.join(candidate, `index${extension}`);
-		if (existsSync(indexCandidate)) {
-			return indexCandidate;
-		}
-	}
-
-	return undefined;
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function resolveAliasedBarrelTarget(resolvedPath: string): string {
-	if (!path.basename(resolvedPath).startsWith('index.')) {
-		return resolvedPath;
+function buildPathPrefixFilter(prefix: string): RegExp {
+	if (prefix.endsWith('/')) {
+		return new RegExp(`^${escapeRegExp(prefix)}`);
 	}
 
-	const source = readFileSync(resolvedPath, 'utf8').trim();
-	const match = source.match(/^export\s+\*\s+from\s+['"]([^'"]+)['"]\s*;?$/);
-
-	if (!match?.[1]?.startsWith('.')) {
-		return resolvedPath;
-	}
-
-	const target = findResolvablePath(path.resolve(path.dirname(resolvedPath), match[1]));
-	return target ?? resolvedPath;
+	return new RegExp(`^${escapeRegExp(prefix)}(?:/|$)`);
 }
 
-export function resolveAppSourceAliasPath(srcDir: string, specifier: string): string | undefined {
-	if (!specifier.startsWith('@/')) {
-		return undefined;
-	}
-
-	const candidate = path.join(srcDir, specifier.slice(2));
-	const resolved = findResolvablePath(candidate);
-	return resolved ? resolveAliasedBarrelTarget(resolved) : undefined;
-}
-
-export function createAliasResolverPlugin(srcDir: string, options?: { cache?: AliasResolverCache }): EcoBuildPlugin {
+export function createAliasResolverPlugin(
+	projectRoot: string,
+	options?: { cache?: AliasResolverCache },
+): EcoBuildPlugin {
 	const cache = options?.cache ?? new AliasResolverCache();
+	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
+
 	return {
 		name: 'ecopages-alias-resolver',
 		setup(build) {
-			build.onResolve({ filter: /^@\// }, (args) => {
-				const cached = cache.get(srcDir, args.path);
-				if (cached.hit) {
-					return cached.resolved ? { path: cached.resolved } : {};
-				}
+			if (pathPrefixes.length === 0) {
+				return;
+			}
 
-				const resolved = resolveAppSourceAliasPath(srcDir, args.path);
-				cache.set(srcDir, args.path, resolved);
-				return resolved ? { path: resolved } : {};
-			});
+			for (const prefix of pathPrefixes) {
+				build.onResolve({ filter: buildPathPrefixFilter(prefix) }, (args) => {
+					if (!args.importer) {
+						return undefined;
+					}
+
+					const cached = cache.get(projectRoot, args.path);
+					if (cached.hit) {
+						return cached.resolved ? { path: cached.resolved } : undefined;
+					}
+
+					const resolved = resolveProjectImportPath(projectRoot, args.importer, args.path);
+					cache.set(projectRoot, args.path, resolved);
+					return resolved ? { path: resolved } : undefined;
+				});
+			}
 		},
 	};
 }
+
+export {
+	isBarePackageImportSpecifier,
+	matchesTsconfigPathPrefix,
+	loadTsconfigPathPrefixes,
+	resolveProjectImportPath,
+	resolveProjectModulePath,
+} from './tsconfig-import-resolver.ts';

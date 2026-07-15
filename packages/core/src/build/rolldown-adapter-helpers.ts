@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { InputOptions, OutputOptions } from 'rolldown';
+import { isBarePackageImportSpecifier } from '../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 import { collectBrowserRuntimeImportRewriteMap, rewriteBrowserRuntimeImports } from './browser-runtime-plugin.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
@@ -90,17 +91,8 @@ export function transpileProfileToOptions(profile: BuildTranspileProfile): Build
 	}
 }
 
-function isPackageImport(id: string): boolean {
-	return (
-		!id.startsWith('.') &&
-		!path.isAbsolute(id) &&
-		!id.startsWith('/') &&
-		!id.startsWith('node:') &&
-		!id.startsWith('@/') &&
-		!id.startsWith('~/') &&
-		!id.startsWith('#') &&
-		!id.includes(':')
-	);
+function isPackageImport(id: string, contextRoot: string): boolean {
+	return isBarePackageImportSpecifier(id, contextRoot);
 }
 
 function tryResolveModule(id: string, resolver: NodeJS.Require): string | undefined {
@@ -187,7 +179,7 @@ function createExternalMatcher(
 		if (explicitExternals.has(id)) {
 			return true;
 		}
-		if (!externalPackages || !isPackageImport(id)) {
+		if (!externalPackages || !isPackageImport(id, contextRoot)) {
 			return false;
 		}
 		return !shouldBundlePackageImport(id, contextRoot, appRootRequireCache);

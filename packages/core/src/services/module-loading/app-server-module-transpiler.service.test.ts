@@ -241,6 +241,10 @@ describe('app server module transpiler runtime state', () => {
 		fs.mkdirSync(pagesDir, { recursive: true });
 		const pageFilePath = path.join(pagesDir, 'index.tsx');
 		fs.writeFileSync(pageFilePath, 'export default { ok: true };', 'utf8');
+		fs.writeFileSync(
+			path.join(rootDir, 'tsconfig.json'),
+			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+		);
 
 		const observedPlugins: string[][] = [];
 		const buildExecutor: BuildExecutor = {
@@ -263,6 +267,7 @@ describe('app server module transpiler runtime state', () => {
 		const appConfig = {
 			rootDir,
 			absolutePaths: {
+				projectDir: rootDir,
 				srcDir: path.join(rootDir, 'src'),
 				componentsDir: path.join(rootDir, 'src', 'components'),
 				includesDir: path.join(rootDir, 'src', 'includes'),

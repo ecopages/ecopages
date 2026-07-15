@@ -26,6 +26,7 @@ import type { ForeignChildInterceptionInput } from '../../../../core/src/route-r
 import { kitajsPlugin } from '../../../kitajs/src/kitajs.plugin';
 import { litPlugin } from '../../../lit/src/lit.plugin';
 import { reactPlugin } from '../../../react/src/react.plugin';
+import { EcoEmbed } from '../eco-embed.tsx';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
 import { IntegrationCounterGroup as KitchenSinkIntegrationCounterGroup } from '../../../../../playground/kitchen-sink/src/components/integration-counter-group.kita';
@@ -475,23 +476,6 @@ describe('EcopagesJsxRenderer', () => {
 				resolvedIntegrationDependencies: [],
 			});
 
-			const RealKitaShell = KitchenSinkKitaShell as unknown as (props: {
-				id: string;
-				children?: JsxRenderable;
-			}) => JsxRenderable;
-			const RealLitShell = KitchenSinkLitShell as unknown as (props: {
-				id: string;
-				children?: JsxRenderable;
-			}) => JsxRenderable;
-			const RealReactShell = KitchenSinkReactShell as unknown as (props: {
-				id: string;
-				children?: JsxRenderable;
-			}) => JsxRenderable;
-			const RealCounterGroup = KitchenSinkIntegrationCounterGroup as unknown as (props: {
-				testId: string;
-				radiantId: string;
-			}) => JsxRenderable;
-
 			const Page = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',
 				dependencies: {
@@ -505,14 +489,19 @@ describe('EcopagesJsxRenderer', () => {
 				},
 				render: () => (
 					<div>
-						<KitchenSinkEcopagesJsxShell id="host-shell">
-							<RealKitaShell id="kita-shell">
-								<RealLitShell id="lit-shell">
-									<RealReactShell id="react-shell">Leaf</RealReactShell>
-								</RealLitShell>
-							</RealKitaShell>
-						</KitchenSinkEcopagesJsxShell>
-						<RealCounterGroup testId="kitchen-sink-counters" radiantId="kitchen-sink-radiant" />
+						<EcoEmbed component={KitchenSinkEcopagesJsxShell} props={{ id: 'host-shell' }}>
+							<EcoEmbed component={KitchenSinkKitaShell} props={{ id: 'kita-shell' }}>
+								<EcoEmbed component={KitchenSinkLitShell} props={{ id: 'lit-shell' }}>
+									<EcoEmbed component={KitchenSinkReactShell} props={{ id: 'react-shell' }}>
+										Leaf
+									</EcoEmbed>
+								</EcoEmbed>
+							</EcoEmbed>
+						</EcoEmbed>
+						<EcoEmbed
+							component={KitchenSinkIntegrationCounterGroup}
+							props={{ testId: 'kitchen-sink-counters', radiantId: 'kitchen-sink-radiant' }}
+						/>
 					</div>
 				),
 			});
@@ -528,6 +517,34 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('integration-shell__body');
 			expect(result.html).toContain('kitchen-sink-counters');
 			expect(result.html).not.toContain('[object Object]');
+		});
+
+		it('rejects opaque foreign children instead of coercing them to object text', () => {
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const ForeignShell = eco.component({
+				integration: 'kitajs',
+				render: () => '<section>Foreign shell</section>',
+			});
+			const runtime = renderer.createTestForeignChildRuntime({
+				component: ForeignShell,
+				props: {},
+			});
+
+			expect(() =>
+				runtime.interceptForeignChildSync?.({
+					currentIntegration: 'ecopages-jsx',
+					targetIntegration: 'kitajs',
+					component: ForeignShell,
+					props: { children: { opaque: true } },
+				}),
+			).toThrow(/refused to coerce opaque foreign children/);
 		});
 
 		it('preserves normalized props when the delegated child stays inline', async () => {

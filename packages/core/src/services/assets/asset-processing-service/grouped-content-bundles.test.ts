@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import {
 	ensureGroupedContentScriptsBundle,
 	partitionGroupedContentScriptDependencies,
+	processGroupedDependencyBundles,
 } from './grouped-content-bundles.ts';
-import type { AssetDefinition, ContentScriptAsset } from './assets.types.ts';
+import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
 
 describe('grouped-content-bundles', () => {
 	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in production', () => {
@@ -76,5 +77,55 @@ describe('grouped-content-bundles', () => {
 
 		expect(Array.from(groupedBundleDeps.values())).toEqual([dependencies.slice(0, 2)]);
 		expect(ungroupedDeps).toEqual([dependencies[2]]);
+	});
+
+	test('processGroupedDependencyBundles matches processor output by groupedBundle entry, not array index', async () => {
+		const bundleId = 'bundle-1';
+		const bundleDeps = [
+			{
+				kind: 'script' as const,
+				source: 'content' as const,
+				content: 'import "/page.js";',
+				groupedBundle: { id: bundleId, entryName: 'page-entry' },
+			},
+			{
+				kind: 'script' as const,
+				source: 'content' as const,
+				content: 'import "/lazy.js";',
+				groupedBundle: { id: bundleId, entryName: 'lazy-entry' },
+				excludeFromHtml: true,
+			},
+		];
+
+		const results = await processGroupedDependencyBundles({
+			bundles: [bundleDeps],
+			getCachedAsset: () => null,
+			getDependencyKey: (dep) => (dep.kind === 'script' && dep.source === 'content' ? dep.content : dep.kind),
+			getGroupedProcessor: () => ({
+				processGrouped: vi.fn(async (): Promise<ProcessedAsset[]> => [
+					{
+						filepath: '/test/dist/assets/lazy-entry.js',
+						kind: 'script',
+						inline: false,
+						groupedBundle: { id: bundleId, entryName: 'lazy-entry' },
+						excludeFromHtml: true,
+					},
+					{
+						filepath: '/test/dist/assets/page-entry.js',
+						kind: 'script',
+						inline: false,
+						groupedBundle: { id: bundleId, entryName: 'page-entry' },
+					},
+				]),
+			}),
+			resolveProcessedAssetSrcUrl: (processed) => processed.filepath?.replace('/test/dist', '') ?? undefined,
+			setCachedAsset: vi.fn(),
+			logError: vi.fn(),
+		});
+
+		expect(results.map((result) => result.filepath)).toEqual([
+			'/test/dist/assets/page-entry.js',
+			'/test/dist/assets/lazy-entry.js',
+		]);
 	});
 });

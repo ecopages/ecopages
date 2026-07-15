@@ -370,13 +370,21 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 		...Config,
 		integrations: [{ name: 'ecopages-jsx', prepareAssetDependencies }],
 	});
-	const processGroupedMock = vi.fn(async (deps: { name?: string; excludeFromHtml?: boolean }[]) =>
-		deps.map((dep) => ({
-			filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
-			kind: 'script',
-			inline: false,
-			...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
-		})),
+	const processGroupedMock = vi.fn(
+		async (
+			deps: {
+				name?: string;
+				excludeFromHtml?: boolean;
+				groupedBundle?: { id: string; entryName: string };
+			}[],
+		) =>
+			deps.map((dep) => ({
+				filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
+				kind: 'script',
+				inline: false,
+				groupedBundle: dep.groupedBundle,
+				...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
+			})),
 	);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/standalone.js',
@@ -429,20 +437,23 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 	fileSystem.exists = vi.fn(() => true);
 
 	const service = new AssetProcessingService(Config);
-	const processGroupedMock = vi.fn(async () => [
-		{
-			filepath: '/test/dist/assets/page-entry.js',
-			kind: 'script',
-			inline: false,
-			packageRole: 'page-script',
-		},
-		{
-			filepath: '/test/dist/assets/lazy-entry.js',
-			kind: 'script',
-			inline: false,
-			excludeFromHtml: true,
-		},
-	]);
+	const processGroupedMock = vi.fn(
+		async (
+			deps: {
+				groupedBundle?: { id: string; entryName: string };
+				excludeFromHtml?: boolean;
+				packageRole?: string;
+			}[],
+		) =>
+			deps.map((dep) => ({
+				filepath: `/test/dist/assets/${dep.groupedBundle?.entryName ?? 'entry'}.js`,
+				kind: 'script',
+				inline: false,
+				groupedBundle: dep.groupedBundle,
+				...(dep.packageRole ? { packageRole: dep.packageRole } : {}),
+				...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
+			})),
+	);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/standalone.js',
 		kind: 'script',
@@ -504,6 +515,40 @@ test('AssetProcessingService - reuses service cache for content scripts across p
 	await service.processDependencies([dependency], 'content-cache-key-1');
 	await service.processDependencies([dependency], 'content-cache-key-2');
 
+	expect(processMock).toHaveBeenCalledTimes(1);
+});
+
+test('AssetProcessingService - materializes inline bundled cache hits from bundled output', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn((filepath) => filepath === '/test/dist/assets/scripts/bootstrap.js');
+	fileSystem.readFileSync = vi.fn(() => 'console.log("bundled")');
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/scripts/bootstrap.js',
+		kind: 'script',
+		inline: true,
+		content: 'console.log("bundled")',
+		attributes: { type: 'module' },
+	}));
+	service.registerProcessor('script', 'content', { process: processMock });
+
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'import "/absolute/broken.js";',
+		inline: true,
+		bundle: true,
+		attributes: { type: 'module' },
+	};
+
+	const [firstResult] = await service.processDependencies([dependency], 'inline-bundled-cache-key-1');
+	expect(firstResult?.content).toBe('console.log("bundled")');
+
+	const [secondResult] = await service.processDependencies([dependency], 'inline-bundled-cache-key-2');
+	expect(secondResult?.content).toBe('console.log("bundled")');
+	expect(secondResult?.content).not.toContain('absolute/broken');
 	expect(processMock).toHaveBeenCalledTimes(1);
 });
 

@@ -114,6 +114,36 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		);
 	});
 
+	it('rejects opaque foreign children when queuing instead of string-coercing them', () => {
+		const service = new ForeignSubtreeExecutionService();
+		const shell = createComponent('shell', 'shell');
+		const deferredWidget = createComponent('deferred-widget', 'deferred');
+		const renderInput: ComponentRenderInput = {
+			component: shell,
+			props: {},
+			integrationContext: {
+				componentInstanceId: 'host',
+			},
+		};
+
+		const runtime = service.createQueueRuntime({
+			renderInput,
+			rendererCache: new Map(),
+			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
+			tokenPrefix: '__TEST_QUEUE__',
+			shouldQueueForeignChild: () => true,
+		});
+
+		expect(() =>
+			runtime.interceptForeignChildSync?.({
+				currentIntegration: 'shell',
+				targetIntegration: 'deferred',
+				component: deferredWidget,
+				props: { children: { opaque: true } },
+			}),
+		).toThrow(/refused to coerce opaque foreign children/);
+	});
+
 	it('preserves existing shared integration context fields when queue runtime state is attached', () => {
 		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');

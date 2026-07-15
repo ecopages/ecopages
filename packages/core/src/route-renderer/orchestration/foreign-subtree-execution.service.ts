@@ -11,7 +11,7 @@ import {
 	runWithComponentRenderContext,
 	type ForeignChildRuntime,
 } from './component-render-context.ts';
-import { isMarkupNodeLike } from './render-output.utils.ts';
+import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './render-output.utils.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
@@ -238,6 +238,10 @@ export class ForeignSubtreeExecutionService {
 				};
 			}
 
+			if ('children' in input.props) {
+				assertForeignChildrenNotOpaque(input.props.children, 'foreign-subtree queue');
+			}
+
 			runtimeContext.nextForeignSubtreeId += 1;
 			const foreignSubtreeId = runtimeContext.nextForeignSubtreeId;
 			const token = this.createForeignSubtreeToken(options.tokenPrefix, runtimeContext, foreignSubtreeId);
@@ -292,11 +296,12 @@ export class ForeignSubtreeExecutionService {
 				}
 
 				if (typeof children !== 'string' && !isMarkupNodeLike(children)) {
+					assertForeignChildrenNotOpaque(children, options.queueLabel);
 					return { assets: [], children };
 				}
 
 				const html = await this.resolveQueuedTokens(
-					typeof children === 'string' ? children : (children.outerHTML ?? String(children ?? '')),
+					typeof children === 'string' ? children : (children.outerHTML ?? ''),
 					queuedResolutionsByToken,
 					resolveToken,
 				);

@@ -87,6 +87,9 @@ export function resolveBrowserRuntimeEntryImport(options: {
  * Legacy CJS packages such as `react` assign `module.exports` directly and have
  * no `.default` under `require()`, but still need a default re-export for
  * `import React from 'react'` in browser bundles.
+ *
+ * ESM source inspection is a best-effort fast path; when it is inconclusive the
+ * policy falls back to the shape returned by `require()`.
  */
 export function inferBrowserRuntimeDefaultExportPolicy(options: {
 	specifier: string;

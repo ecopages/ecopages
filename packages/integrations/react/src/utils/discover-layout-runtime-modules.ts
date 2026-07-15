@@ -31,12 +31,20 @@ const PROVIDER_MODULE_PATH_PATTERN =
 
 const PROVIDER_MODULE_SOURCE_PATTERN = /\b(?:QueryClientProvider|(?:\w+Provider)|createContext|Context\.Provider)\b/;
 
+export type LayoutRuntimeDiscoveryMode = 'runtime-provider-layouts' | 'provider-scoped-fallback';
+
+export type LayoutRuntimeDiscoveryResult = {
+	specifiers: string[];
+	mode: LayoutRuntimeDiscoveryMode;
+};
+
+type LayoutEntryFiles = {
+	all: string[];
+	runtimeProvider: string[];
+};
+
 function isServerModulePath(filePath: string): boolean {
 	return /\.server\.(?:tsx?|jsx?|mts?|mjs|cjs)$/.test(filePath);
-}
-
-function isAutoRuntimeExcludedPackage(specifier: string): boolean {
-	return AUTO_RUNTIME_EXCLUDED_PACKAGE_PREFIXES.some((prefix) => specifier.startsWith(prefix));
 }
 
 function isEcoLayoutSource(source: string): boolean {
@@ -78,6 +86,14 @@ export function normalizeRuntimePackageSpecifier(specifier: string): string {
 	return specifier.split('/')[0] ?? specifier;
 }
 
+function isAutoRuntimeExcludedPackage(packageRoot: string): boolean {
+	if (AUTO_RUNTIME_EXCLUDED_PACKAGE_PREFIXES.some((prefix) => packageRoot.startsWith(prefix))) {
+		return true;
+	}
+
+	return packageRoot.endsWith('-devtools');
+}
+
 function shouldExcludeAutoRuntimeSpecifier(specifier: string, options: { routerImportPath?: string }): boolean {
 	if (AUTO_RUNTIME_EXCLUDED_SPECIFIERS.has(specifier)) {
 		return true;
@@ -87,23 +103,10 @@ function shouldExcludeAutoRuntimeSpecifier(specifier: string, options: { routerI
 		return true;
 	}
 
-	if (specifier.startsWith('@ecopages/')) {
-		return true;
-	}
-
-	const packageRoot = normalizeRuntimePackageSpecifier(specifier);
-	if (packageRoot.endsWith('-devtools')) {
-		return true;
-	}
-
-	return false;
+	return isAutoRuntimeExcludedPackage(normalizeRuntimePackageSpecifier(specifier));
 }
 
-function collectLayoutEntryFiles(
-	searchDir: string,
-	extensions: readonly string[],
-	files: { all: string[]; runtimeProvider: string[] },
-): void {
+function collectLayoutEntryFiles(searchDir: string, extensions: readonly string[], files: LayoutEntryFiles): void {
 	if (!existsSync(searchDir)) {
 		return;
 	}
@@ -139,11 +142,32 @@ function collectLayoutEntryFiles(
 	}
 }
 
+function resolveLayoutDiscoveryPlan(layoutEntries: LayoutEntryFiles): {
+	entryFiles: string[];
+	mode: LayoutRuntimeDiscoveryMode;
+	collectAllReachableNpm: boolean;
+} {
+	if (layoutEntries.runtimeProvider.length > 0) {
+		return {
+			entryFiles: layoutEntries.runtimeProvider,
+			mode: 'runtime-provider-layouts',
+			collectAllReachableNpm: true,
+		};
+	}
+
+	return {
+		entryFiles: layoutEntries.all,
+		mode: 'provider-scoped-fallback',
+		collectAllReachableNpm: false,
+	};
+}
+
 function collectReachableNpmSpecifiersFromFile(
 	filePath: string,
 	options: {
 		projectRoot?: string;
 		routerImportPath?: string;
+		collectAllReachableNpm: boolean;
 		visitedFiles: Set<string>;
 		queue: string[];
 		discovered: Set<string>;
@@ -171,7 +195,7 @@ function collectReachableNpmSpecifiersFromFile(
 		return;
 	}
 
-	const collectNpmFromModule = isProviderRuntimeModulePath(filePath, source);
+	const collectNpmFromModule = options.collectAllReachableNpm || isProviderRuntimeModulePath(filePath, source);
 
 	for (const specifier of reachability.reachableImports.keys()) {
 		if (options.projectRoot) {
@@ -186,16 +210,15 @@ function collectReachableNpmSpecifiersFromFile(
 			continue;
 		}
 
-		if (
-			!isBarePackageImportSpecifier(specifier, options.projectRoot) ||
-			shouldExcludeAutoRuntimeSpecifier(specifier, options) ||
-			isAutoRuntimeExcludedPackage(normalizeRuntimePackageSpecifier(specifier))
-		) {
+		if (!isBarePackageImportSpecifier(specifier, options.projectRoot)) {
 			continue;
 		}
 
-		const packageRoot = normalizeRuntimePackageSpecifier(specifier);
-		options.discovered.add(packageRoot);
+		if (shouldExcludeAutoRuntimeSpecifier(specifier, options)) {
+			continue;
+		}
+
+		options.discovered.add(normalizeRuntimePackageSpecifier(specifier));
 	}
 }
 
@@ -207,18 +230,18 @@ export function discoverLayoutRuntimeModuleSpecifiers(options: {
 	projectRoot?: string;
 	extensions?: readonly string[];
 	routerImportPath?: string;
-}): string[] {
+}): LayoutRuntimeDiscoveryResult {
 	const extensions = options.extensions ?? MODULE_EXTENSIONS;
-	const layoutEntries = { all: [] as string[], runtimeProvider: [] as string[] };
+	const layoutEntries: LayoutEntryFiles = { all: [], runtimeProvider: [] };
 
 	for (const searchDir of options.searchDirs) {
 		collectLayoutEntryFiles(searchDir, extensions, layoutEntries);
 	}
 
-	const entryFiles = layoutEntries.runtimeProvider.length > 0 ? layoutEntries.runtimeProvider : layoutEntries.all;
+	const plan = resolveLayoutDiscoveryPlan(layoutEntries);
 	const discovered = new Set<string>();
 
-	for (const entryFile of entryFiles) {
+	for (const entryFile of plan.entryFiles) {
 		const visitedFiles = new Set<string>();
 		const queue = [entryFile];
 
@@ -231,6 +254,7 @@ export function discoverLayoutRuntimeModuleSpecifiers(options: {
 			collectReachableNpmSpecifiersFromFile(filePath, {
 				projectRoot: options.projectRoot,
 				routerImportPath: options.routerImportPath,
+				collectAllReachableNpm: plan.collectAllReachableNpm,
 				visitedFiles,
 				queue,
 				discovered,
@@ -238,5 +262,8 @@ export function discoverLayoutRuntimeModuleSpecifiers(options: {
 		}
 	}
 
-	return [...discovered].sort();
+	return {
+		specifiers: [...discovered].sort(),
+		mode: plan.mode,
+	};
 }

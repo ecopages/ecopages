@@ -244,7 +244,8 @@ Without `router`, only explicit `runtimeModules` entries are vendored.
 Important:
 
 - Discovery is **reachability-based** and **provider-scoped**. Imports not reachable from the layout `render` path are ignored; npm packages imported only from shell, store, or form modules are not auto-vendored.
-- When any layout sets `runtimeProvider: true`, only those layouts are scanned as discovery roots. Use this on provider roots such as a query-client layout and omit it from shell-only layouts.
+- When any layout sets `runtimeProvider: true`, only those layouts are scanned as discovery roots and every reachable npm package in that layout graph is vendored. Use this on provider roots such as a query-client layout and omit it from shell-only layouts.
+- When no layout opts in, discovery falls back to scanning all layouts and only vendoring npm packages imported from provider/context modules.
 - Layout files outside the configured `layouts/` and `components/` directories are not scanned.
 
 Path aliases resolve from the app `tsconfig.json` `compilerOptions.paths` (via oxc-resolver), same as the Ecopages alias resolver plugin. Relative imports work without tsconfig aliases.

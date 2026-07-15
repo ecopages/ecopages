@@ -198,9 +198,17 @@ function isNodeBuiltinSpecifier(id: string): boolean {
  * Resolves Node builtins as external before Rolldown falls back to file resolution.
  *
  * @remarks
- * An `external` matcher runs after Rolldown attempts resolution, which emits an
- * `UNRESOLVED_IMPORT` warning for `node:` specifiers. Resolving the builtin in
- * this plugin preserves ordinary resolver warnings for actual missing packages.
+ * Rolldown documents two first-class externalization points: its `external`
+ * option is checked before resolution, and a plugin `resolveId` hook can return
+ * `{ id, external: true }`. Core uses the latter to keep Node-builtin ownership
+ * explicit in the Node-target plugin pipeline.
+ *
+ * The hook runs before Rolldown's internal filesystem resolver, leaving imports
+ * such as `node:fs` intact for the Node runtime. It is installed only for
+ * Node-target builds, so browser bundles still surface accidental Node builtin
+ * imports as resolver failures.
+ *
+ * See {@link https://rolldown.rs/in-depth/external-modules | Rolldown external modules}.
  */
 export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
 	return {

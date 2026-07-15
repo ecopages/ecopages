@@ -9,6 +9,13 @@ import { ConfigBuilder } from '../config/config-builder.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
 
+function expectHmrDelegated(hmrManager: IHmrManager, filePath: string): void {
+	expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
+		path.resolve(filePath),
+		expect.objectContaining({ graphIdentities: expect.any(Array) }),
+	);
+}
+
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();
 };
@@ -187,7 +194,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(pageFilePath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
+			expectHmrDelegated(HmrManager, pageFilePath);
 		});
 
 		test('should await route refresh before delegating page file changes to HMR', async () => {
@@ -217,7 +224,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			releaseRefresh();
 			await pendingChange;
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(pageFilePath));
+			expectHmrDelegated(HmrManager, pageFilePath);
 		});
 
 		test('should not refresh router for stylesheet changes inside the pages directory', async () => {
@@ -255,7 +262,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(includeFilePath));
+			expectHmrDelegated(HmrManager, includeFilePath);
 			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
@@ -280,7 +287,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(includeFilePath));
+			expectHmrDelegated(HmrManager, includeFilePath);
 			expect(Bridge.reload).not.toHaveBeenCalled();
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
@@ -312,7 +319,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(scriptPath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(scriptPath));
+			expectHmrDelegated(HmrManager, scriptPath);
 			expect(Bridge.reload).not.toHaveBeenCalled();
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
@@ -400,7 +407,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(jsFilePath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(jsFilePath));
+			expectHmrDelegated(HmrManager, jsFilePath);
 		});
 
 		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
@@ -424,7 +431,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(tsxFilePath);
 
 			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
+			expectHmrDelegated(HmrManager, tsxFilePath);
 		});
 
 		test('should route TSX through HMR even when no specific strategy matches', async () => {
@@ -448,7 +455,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(tsxFilePath);
 
 			expect(onChange).toHaveBeenCalled();
-			expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
+			expectHmrDelegated(HmrManager, tsxFilePath);
 			expect(HmrManager.broadcast).not.toHaveBeenCalledWith({ type: 'layout-update' });
 		});
 
@@ -591,7 +598,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 		await (watcher as any).handleFileChange(tsxFilePath);
 
 		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
-		expect(HmrManager.handleFileChange).toHaveBeenCalledWith(path.resolve(tsxFilePath));
+		expectHmrDelegated(HmrManager, tsxFilePath);
 	});
 });
 

@@ -301,7 +301,7 @@ describe('ServerStaticBuilder', () => {
 			});
 
 			expect(calls.processorSetup).toBe(1);
-			expect(calls.integrationSetup).toBe(1);
+			expect(calls.integrationSetup).toBe(0);
 			expect(appConfig.runtime?.runtimeAssetsPrepared).toBe(true);
 		});
 
@@ -435,7 +435,7 @@ describe('ServerStaticBuilder', () => {
 				routeRendererFactory: RouteRendererFactory,
 			});
 
-			assert.equal(calls.integrationSetup, 1);
+			assert.equal(calls.integrationSetup, 0);
 		});
 
 		it('should rebuild processor-owned assets after resetting the export directory', async () => {

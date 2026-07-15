@@ -418,7 +418,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(processDependencies).toHaveBeenCalledOnce();
 	});
 
-	it('bypasses the page browser graph cache when HMR is enabled', async () => {
+	it('reuses the page browser graph cache when HMR is enabled and sources are unchanged', async () => {
 		const pageBrowserAsset = {
 			kind: 'script',
 			srcUrl: '/assets/page.js',
@@ -474,7 +474,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(2);
-		expect(processDependencies).toHaveBeenCalledTimes(2);
+		expect(processDependencies).toHaveBeenCalledOnce();
 	});
 
 	it('threads the structured page browser graph through the returned page package', async () => {
@@ -937,7 +937,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		]);
 	});
 
-	it('rebuilds grouped page-browser assets on each request when HMR is enabled', async () => {
+	it('rebuilds grouped page-browser assets when the contribution fingerprint changes under HMR', async () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
 		let groupedVersion = 1;
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
@@ -1029,7 +1029,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(processDependencies).toHaveBeenCalledTimes(2);
 	});
 
-	it('processes only the current route grouped deps under HMR while still collecting sibling routes', async () => {
+	it('processes only the current route grouped deps under HMR', async () => {
 		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
 		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
 			if (key === 'react:grouped-page-browser-graph') {
@@ -1099,7 +1099,8 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			},
 		);
 
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith('/app/pages/dashboard.tsx');
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith('/app/pages/index.tsx');
 		const groupedCall = processDependencies.mock.calls.find(
 			(call) => call[1] === 'react:grouped-page-browser-graph',
 		);

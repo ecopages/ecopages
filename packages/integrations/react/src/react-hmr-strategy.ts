@@ -26,7 +26,6 @@ import { someInConfigTree } from './utils/component-config-traversal.ts';
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
-import { PagesIndex } from './services/pages-index.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
@@ -127,7 +126,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private explicitGraphEnabled: boolean;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
-	private readonly pagesIndex: PagesIndex;
 
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
@@ -136,11 +134,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.runtimeManifest = options.runtimeManifest;
 		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
 		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
-		this.pagesIndex = new PagesIndex({
-			pagesDir: this.context.getPagesDir(),
-			extensions: options.allTemplateExtensions,
-			isPageEntrypoint: (file) => this.isPageEntrypoint(file),
-		});
 		this.mdxCompilerOptions = options.mdxCompilerOptions;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -349,12 +342,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private async collectReactPageBuildTargets(): Promise<ReactHmrBuildTarget[]> {
-		await this.pagesIndex.refresh();
-		const indexed = this.pagesIndex.list();
 		const targets = new Map<string, ReactHmrBuildTarget>();
 
-		for (const entrypointPath of indexed) {
-			this.pageMetadataCache.markOwnedEntrypoint(entrypointPath);
+		for (const entrypointPath of this.pageMetadataCache.getOwnedEntrypoints()) {
+			if (!this.isPageEntrypoint(entrypointPath)) {
+				continue;
+			}
+
 			targets.set(entrypointPath, {
 				entrypointPath,
 				outputUrl: this.getEntrypointOutput(entrypointPath).outputUrl,

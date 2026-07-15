@@ -16,6 +16,7 @@ import {
 	setAppBuildOwnership,
 	setAppBuildManifest,
 	setupAppRuntimePlugins,
+	ensureIntegrationRuntimeReady,
 	updateAppBuildManifest,
 	withBuildExecutorPlugins,
 	ViteHostBuildAdapter,
@@ -473,17 +474,8 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
-	assert.deepEqual(contributionOrder, [
-		'processor-setup',
-		'integration-config',
-		'integration-origin',
-		'integration-setup',
-	]);
-	assert.deepEqual(observedRuntimePlugins, [
-		'loader-plugin',
-		'processor-runtime-plugin',
-		'integration-runtime-plugin',
-	]);
+	assert.deepEqual(contributionOrder, ['processor-setup']);
+	assert.deepEqual(observedRuntimePlugins, ['loader-plugin', 'processor-runtime-plugin']);
 });
 
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
@@ -517,6 +509,36 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
 });
 
+test('ensureIntegrationRuntimeReady activates one integration exactly once', async () => {
+	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+	const integration = {
+		name: 'react',
+		plugins: [integrationRuntimePlugin],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setup: vi.fn(async () => {}),
+	};
+
+	const appConfig = {
+		integrations: [integration],
+	} as any;
+
+	await ensureIntegrationRuntimeReady({
+		appConfig,
+		integrationName: 'react',
+		runtimeOrigin: 'http://localhost:3000',
+	});
+
+	await ensureIntegrationRuntimeReady({
+		appConfig,
+		integrationName: 'react',
+		runtimeOrigin: 'http://localhost:3000',
+	});
+
+	assert.equal(integration.setup.mock.calls.length, 1);
+	assert.equal(appConfig.runtime?.activatedIntegrations?.has('react'), true);
+});
+
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
 	const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
 	process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
@@ -546,9 +568,9 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 		});
 
 		assert.equal(processor.setup.mock.calls.length, 0);
-		assert.equal(integration.setup.mock.calls.length, 1);
-		assert.equal(integration.setConfig.mock.calls.length, 1);
-		assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
+		assert.equal(integration.setup.mock.calls.length, 0);
+		assert.equal(integration.setConfig.mock.calls.length, 0);
+		assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin']);
 	} finally {
 		if (previousWorkerFlag === undefined) {
 			delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;

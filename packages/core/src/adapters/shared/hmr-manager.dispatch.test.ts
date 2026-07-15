@@ -43,7 +43,7 @@ type BridgeSpy = {
 function createBridgeSpy(): BridgeSpy {
 	const broadcasts: ClientBridgeEvent[] = [];
 	const bridge = {
-		subscriberCount: 0,
+		subscriberCount: 1,
 		broadcast(event: ClientBridgeEvent) {
 			broadcasts.push(event);
 		},
@@ -200,6 +200,27 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		fs.writeFileSync(customFile, 'export const silent = true;\n', 'utf8');
 		manager.registerStrategy(
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (f) => f === customFile, { type: 'none' }),
+		);
+
+		await manager.handleFileChange(customFile);
+
+		assert.equal(spy.broadcasts.length, 0);
+	});
+
+	test('defers client rebuilds when no subscribers are connected', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-no-subscribers');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const spy = createBridgeSpy();
+		spy.bridge.subscriberCount = 0;
+		using manager = await create(rootDir, spy);
+
+		const customFile = path.join(rootDir, 'src', 'deferred.ts');
+		fs.writeFileSync(customFile, 'export const deferred = true;\n', 'utf8');
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (f) => f === customFile, {
+				type: 'broadcast',
+				events: [{ type: 'update', path: '/assets/_hmr/deferred.js', timestamp: 1 }],
+			}),
 		);
 
 		await manager.handleFileChange(customFile);

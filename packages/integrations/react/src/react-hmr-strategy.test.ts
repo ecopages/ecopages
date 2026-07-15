@@ -41,16 +41,26 @@ const defaultRuntimeManifest = createBrowserRuntimeManifest([
 
 function createPageMetadataCache(
 	overrides: {
+		initialOwnedEntrypoints?: string[];
 		getDeclaredModules?: (entrypointPath: string) => string[] | undefined;
 		ownsEntrypoint?: (entrypointPath: string) => boolean;
 		markOwnedEntrypoint?: (entrypointPath: string) => void;
 		setDeclaredModules?: (entrypointPath: string, declaredModules: string[]) => void;
 	} = {},
 ) {
+	const owned = new Set(
+		(overrides.initialOwnedEntrypoints ?? []).map((entrypointPath) => path.resolve(entrypointPath)),
+	);
+
 	return {
 		getDeclaredModules: overrides.getDeclaredModules ?? (() => undefined),
-		ownsEntrypoint: overrides.ownsEntrypoint ?? (() => false),
-		markOwnedEntrypoint: overrides.markOwnedEntrypoint ?? (() => undefined),
+		getOwnedEntrypoints: () => [...owned].sort((left, right) => left.localeCompare(right)),
+		ownsEntrypoint:
+			overrides.ownsEntrypoint ?? ((entrypointPath: string) => owned.has(path.resolve(entrypointPath))),
+		markOwnedEntrypoint: (entrypointPath: string) => {
+			owned.add(path.resolve(entrypointPath));
+			overrides.markOwnedEntrypoint?.(entrypointPath);
+		},
 		setDeclaredModules: overrides.setDeclaredModules ?? (() => undefined),
 	};
 }
@@ -92,6 +102,7 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 			reset: () => {},
 		}),
 		importServerModule: createImportServerModuleMock({ config: {} }),
+		seedResolvedEntrypoint: vi.fn(),
 		...overrides,
 	};
 }
@@ -450,13 +461,13 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
+				initialOwnedEntrypoints: [changedEntrypoint],
 			}) as any,
 			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.react.tsx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
 
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['react-lab.react.tsx']);
 		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
 
 		const action = await strategy.process(changedEntrypoint);
@@ -493,6 +504,7 @@ describe('ReactHmrStrategy', () => {
 			}),
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
+				initialOwnedEntrypoints: [entrypointA, entrypointB],
 			}) as any,
 			runtimeManifest: defaultRuntimeManifest,
 			mdxCompilerOptions: {},
@@ -500,7 +512,6 @@ describe('ReactHmrStrategy', () => {
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
 
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['react-lab.react.tsx', 'react-content.mdx']);
 		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 			'/assets/_hmr/pages/react-lab.react.js',
 			'/assets/_hmr/pages/react-content.js',
@@ -537,11 +548,11 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
+				initialOwnedEntrypoints: [changedEntrypoint, '/tmp/src/pages/dashboard.tsx'],
 			}) as any,
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
 		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 			'/assets/_hmr/pages/index.js',
 			'/assets/_hmr/pages/dashboard.js',
@@ -585,11 +596,11 @@ describe('ReactHmrStrategy', () => {
 			}),
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
+				initialOwnedEntrypoints: [pageEntrypoint, '/tmp/src/pages/dashboard.tsx'],
 			}) as any,
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
 		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 			'/assets/_hmr/pages/index.js',
 			'/assets/_hmr/pages/dashboard.js',
@@ -936,6 +947,7 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
+					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA ||
 						entrypointPath === entrypointB ||
@@ -944,7 +956,6 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
 			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 				'/assets/_hmr/pages/page-a.js',
 				'/assets/_hmr/pages/page-b.js',
@@ -1018,13 +1029,13 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
+					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}) as any,
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
 			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 				'/assets/_hmr/pages/page-a.js',
 				'/assets/_hmr/pages/page-b.js',
@@ -1065,13 +1076,13 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
+					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}) as any,
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
 			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 				'/assets/_hmr/pages/page-a.js',
 				'/assets/_hmr/pages/page-b.js',
@@ -1147,13 +1158,13 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
+					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
 				}) as any,
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
 			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 				'/assets/_hmr/pages/page-a.js',
 				'/assets/_hmr/pages/page-b.js',
@@ -1223,6 +1234,7 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
+					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA ||
 						entrypointPath === entrypointB ||
@@ -1231,7 +1243,6 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['page-a.tsx', 'page-b.tsx']);
 			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
 				'/assets/_hmr/pages/page-a.js',
 				'/assets/_hmr/pages/page-b.js',

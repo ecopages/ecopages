@@ -122,6 +122,9 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - **Dependencies** on a Component are separate from JavaScript imports; both may be needed
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
+- In development, each **Page Browser Graph** is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes; hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected
+- Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`; processors and loaders still initialize eagerly during `setupAppRuntimePlugins()`
+- Production static export prebuilds browser graphs from the finalized route list, then commits `pages-browser-graph` manifest only after the export transaction succeeds
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
 
 ## Example dialogue

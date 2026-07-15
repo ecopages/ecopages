@@ -47,6 +47,6 @@ describe('startupTrace', () => {
 		expect(output).toContain('phase=config-ready');
 		expect(output).toContain('phase=setupAppRuntimePlugins');
 		expect(output).toContain('phase=first-request-ssr');
-		expect(output).toContain('summary path=/docs/foo bundleCount=0 clientBundleBytes=0');
+		expect(output).toContain('summary path=/docs/foo bundleCount=0 clientBundleBytes=0 graphBuildCount=0');
 	});
 });

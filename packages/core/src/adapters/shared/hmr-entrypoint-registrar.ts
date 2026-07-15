@@ -61,6 +61,23 @@ export class HmrEntrypointRegistrar {
 		this.registered.delete(path.resolve(entrypointPath));
 	}
 
+	/**
+	 * Registers an already-materialized HMR entrypoint without running the emit hook.
+	 *
+	 * @remarks
+	 * Cold dev batches build entrypoints in grouped Rolldown passes and then seed
+	 * the registrar so the first SSR can resolve the artifact without rebuilding.
+	 * The source path is committed verbatim so `getResolvedScriptOutput()` and the
+	 * file watcher see it as a regular watched entrypoint.
+	 */
+	seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void {
+		this.registered.set(path.resolve(resolved.sourcePath), {
+			sourcePath: resolved.sourcePath,
+			outputPath: resolved.outputPath,
+			outputUrl: resolved.outputUrl,
+		});
+	}
+
 	clearAll(): void {
 		this.inFlight.clear();
 		this.registered.clear();
@@ -106,6 +123,7 @@ export class HmrEntrypointRegistrar {
 		entrypointPath: string,
 		registrationOptions: HmrEntrypointRegistrationOptions,
 	): Promise<ResolvedHmrEntrypoint> {
+		const previous = this.registered.get(entrypointPath);
 		const { outputPath, outputUrl } = resolveHmrEntrypointOutputPaths(
 			this.options.srcDir,
 			this.options.distDir,
@@ -114,18 +132,25 @@ export class HmrEntrypointRegistrar {
 
 		removeStaleHmrEntrypointOutput(outputPath, 'HMR');
 
-		await registrationOptions.emit(entrypointPath, outputPath);
+		try {
+			await registrationOptions.emit(entrypointPath, outputPath);
 
-		if (!fileSystem.exists(outputPath)) {
-			throw registrationOptions.getMissingOutputError(entrypointPath, outputPath);
+			if (!fileSystem.exists(outputPath)) {
+				throw registrationOptions.getMissingOutputError(entrypointPath, outputPath);
+			}
+
+			const resolved: ResolvedHmrEntrypoint = {
+				sourcePath: entrypointPath,
+				outputPath,
+				outputUrl,
+			};
+			this.registered.set(entrypointPath, resolved);
+			return resolved;
+		} catch (error) {
+			if (previous && fileSystem.exists(previous.outputPath)) {
+				this.registered.set(entrypointPath, previous);
+			}
+			throw error;
 		}
-
-		const resolved: ResolvedHmrEntrypoint = {
-			sourcePath: entrypointPath,
-			outputPath,
-			outputUrl,
-		};
-		this.registered.set(entrypointPath, resolved);
-		return resolved;
 	}
 }

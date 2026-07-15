@@ -46,7 +46,7 @@ describe('JsHmrStrategy integration', () => {
 		using manager = new BunHmrManager({
 			appConfig: config,
 			bridge: {
-				subscriberCount: 0,
+				subscriberCount: 1,
 				broadcast: (event: ClientBridgeEvent) => {
 					broadcasts.push(event);
 				},
@@ -112,7 +112,7 @@ describe('JsHmrStrategy integration', () => {
 		using manager = new BunHmrManager({
 			appConfig: config,
 			bridge: {
-				subscriberCount: 0,
+				subscriberCount: 1,
 				broadcast: (event: ClientBridgeEvent) => {
 					broadcasts.push(event);
 				},

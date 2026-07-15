@@ -321,6 +321,7 @@ export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Par
 
 export {
 	collectConfiguredAppBuildManifestContributions,
+	ensureIntegrationRuntimeReady,
 	setupAppRuntimePlugins,
 } from './app-build-manifest-runtime.ts';
 

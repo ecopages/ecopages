@@ -1,18 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { restoreBenchEnv, snapshotBenchEnv, summarize, withBenchEnv } from './_bench-utils';
+import { restoreBenchEnv, snapshotBenchEnv, withBenchEnv } from './bench-env';
 
-describe('_bench-utils', () => {
-	it('summarizes duration samples', () => {
-		const stats = summarize([10, 20, 30, 40]);
-		expect(stats).toMatchObject({
-			count: 4,
-			min: 10,
-			max: 40,
-			mean: 25,
-			median: 25,
-		});
-	});
-
+describe('bench-env', () => {
 	it('restores bench env flags after withBenchEnv', async () => {
 		const snapshot = snapshotBenchEnv();
 		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;

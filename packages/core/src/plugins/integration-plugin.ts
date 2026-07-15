@@ -229,6 +229,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
+	 * Optional hook for dev-only client graph prewarm completion.
+	 */
+	async awaitDevClientGraphPrewarm(): Promise<void> {}
+
+	/**
 	 * Creates the asset-processing service used for global integration dependencies.
 	 */
 	initializeAssetDefinitionService(): void {

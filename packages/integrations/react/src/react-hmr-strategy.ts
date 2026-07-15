@@ -7,6 +7,7 @@
  * @module
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
@@ -27,9 +28,17 @@ import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { getReactClientGraphAllowSpecifiers } from './utils/react-runtime-alias-map.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
 import { PagesIndex } from './services/pages-index.ts';
+import {
+	getDevHmrEntrypointCacheEntry,
+	setDevHmrEntrypointCacheEntry,
+	type DevHmrEntrypointCache,
+} from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
+
+/** Entrypoints emitted per grouped Rolldown pass during the cold client graph build. */
+const COLD_BATCH_CHUNK_SIZE = 25;
 
 export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
@@ -364,6 +373,173 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return Array.from(targets.values()).sort((left, right) =>
 			left.entrypointPath.localeCompare(right.entrypointPath),
 		);
+	}
+
+	/**
+	 * Walks `srcDir` for `eco.component` / `eco.layout` / `eco.page` sources owned by React.
+	 *
+	 * @remarks
+	 * Mirrors the prior per-file prewarm discovery but routes each candidate
+	 * through {@link isReactEntrypoint} and {@link pageMetadataCache.markOwnedEntrypoint}
+	 * so the cold graph matches what SSR would register on demand.
+	 */
+	private async discoverReactEntrypoints(): Promise<string[]> {
+		const srcDir = this.context.getSrcDir();
+		const files: string[] = [];
+
+		const walk = (dir: string): void => {
+			if (!fileSystem.exists(dir)) {
+				return;
+			}
+
+			let entries: fs.Dirent[];
+			try {
+				entries = fs.readdirSync(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+
+			for (const entry of entries) {
+				const entryPath = path.join(dir, entry.name);
+				if (entry.isDirectory()) {
+					if (entry.name === 'node_modules') {
+						continue;
+					}
+					walk(entryPath);
+					continue;
+				}
+
+				if (/\.(tsx?|jsx?|mdx)$/.test(entry.name)) {
+					files.push(entryPath);
+				}
+			}
+		};
+
+		walk(srcDir);
+
+		const seen = new Set<string>();
+		const entrypoints: string[] = [];
+
+		for (const filePath of files) {
+			let source: string;
+			try {
+				source = fs.readFileSync(filePath, 'utf8');
+			} catch {
+				continue;
+			}
+
+			if (!/\beco\.(component|layout|page)(?:<[^>]*>)?\s*\(/.test(source)) {
+				continue;
+			}
+
+			if (!this.isReactEntrypoint(filePath)) {
+				continue;
+			}
+
+			const normalized = path.resolve(filePath);
+			if (seen.has(normalized)) {
+				continue;
+			}
+
+			seen.add(normalized);
+			this.pageMetadataCache.markOwnedEntrypoint(filePath);
+			entrypoints.push(filePath);
+		}
+
+		return entrypoints.sort((left, right) => left.localeCompare(right));
+	}
+
+	/**
+	 * Builds the full client HMR graph in a handful of grouped Rolldown passes.
+	 *
+	 * @remarks
+	 * Replaces the per-file prewarm. Entrypoints are scanned once, then emitted in
+	 * chunks of {@link COLD_BATCH_CHUNK_SIZE} through the existing grouped React
+	 * build. Each materialized output is seeded into the registrar so the first
+	 * SSR resolves it from disk instead of triggering a rebuild. Cache hits skip
+	 * the build entirely, so a second dev session with unchanged sources pays
+	 * almost nothing.
+	 *
+	 * Runs in the background; the dev server starts listening while it completes.
+	 */
+	async prepareColdClientGraph(cache: DevHmrEntrypointCache): Promise<void> {
+		const entrypoints = await this.discoverReactEntrypoints();
+		if (entrypoints.length === 0) {
+			return;
+		}
+
+		for (let i = 0; i < entrypoints.length; i += COLD_BATCH_CHUNK_SIZE) {
+			const chunk = entrypoints.slice(i, i + COLD_BATCH_CHUNK_SIZE);
+
+			const targets = chunk.map((entrypointPath) => {
+				const { outputPath, outputUrl } = this.getEntrypointOutput(entrypointPath);
+				return { entrypointPath, outputPath, outputUrl };
+			});
+
+			const cachedTargets: typeof targets = [];
+			const uncachedTargets: typeof targets = [];
+
+			for (const target of targets) {
+				const hit = getDevHmrEntrypointCacheEntry(cache, target.entrypointPath);
+				if (hit && fileSystem.exists(hit.outputPath)) {
+					cachedTargets.push(target);
+				} else {
+					uncachedTargets.push(target);
+				}
+			}
+
+			for (const target of cachedTargets) {
+				const hit = getDevHmrEntrypointCacheEntry(cache, target.entrypointPath);
+				if (!hit) {
+					continue;
+				}
+
+				this.context.seedResolvedEntrypoint({
+					sourcePath: target.entrypointPath,
+					outputPath: hit.outputPath,
+					outputUrl: hit.outputUrl,
+				});
+			}
+
+			if (uncachedTargets.length === 0) {
+				continue;
+			}
+
+			const builtUrls = await this.bundleReactBuildTargets(
+				uncachedTargets.map((target) => ({
+					entrypointPath: target.entrypointPath,
+					outputUrl: target.outputUrl,
+				})),
+				{ grouped: true },
+			);
+			const builtUrlSet = new Set(builtUrls);
+
+			for (const target of uncachedTargets) {
+				if (!builtUrlSet.has(target.outputUrl)) {
+					continue;
+				}
+
+				this.context.seedResolvedEntrypoint({
+					sourcePath: target.entrypointPath,
+					outputPath: target.outputPath,
+					outputUrl: target.outputUrl,
+				});
+
+				let sourceMtimeMs = 0;
+				try {
+					sourceMtimeMs = fs.statSync(target.entrypointPath).mtimeMs;
+				} catch {
+					// leave mtime at 0; the next session will rebuild defensively
+				}
+
+				setDevHmrEntrypointCacheEntry(cache, target.entrypointPath, {
+					outputPath: target.outputPath,
+					outputUrl: target.outputUrl,
+					sourceMtimeMs,
+					builtAt: Date.now(),
+				});
+			}
+		}
 	}
 
 	/**

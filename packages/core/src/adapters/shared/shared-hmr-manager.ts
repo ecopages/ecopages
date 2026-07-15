@@ -355,6 +355,18 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	/**
+	 * Registers an already-materialized HMR entrypoint without rebuilding it.
+	 *
+	 * @remarks
+	 * Cold dev batches build grouped Rolldown passes up front and then seed the
+	 * registrar so the first SSR resolves the artifact from disk. The entrypoint
+	 * is also added to the watched files so subsequent source edits still rebuild.
+	 */
+	public seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void {
+		this.entrypointRegistrar.seedResolvedEntrypoint(resolved);
+	}
+
+	/**
 	 * Returns the emitted HMR script output when the entrypoint is already registered
 	 * and its browser bundle exists on disk.
 	 *
@@ -391,6 +403,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			getBuildExecutor: () => requireBuildRuntime(this.appConfig).getProfile('browser-hmr'),
 			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
+			seedResolvedEntrypoint: (resolved: ResolvedHmrEntrypoint) => this.seedResolvedEntrypoint(resolved),
 			importServerModule: async <T>(filePath: string) =>
 				await this.serverModuleTranspiler.importModule<T>({
 					filePath,

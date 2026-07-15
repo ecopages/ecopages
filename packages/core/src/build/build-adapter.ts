@@ -333,8 +333,8 @@ export {
  * bundle.
  */
 export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	const srcDir = appConfig.absolutePaths?.srcDir;
-	const aliasPlugin = srcDir ? [createAliasResolverPlugin(srcDir)] : [];
+	const projectDir = appConfig.absolutePaths?.projectDir;
+	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
 	return [...aliasPlugin, ...getServerBuildPlugins(getAppBuildManifest(appConfig))];
 }
 
@@ -354,8 +354,8 @@ export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuil
 	const manifest = getAppBuildManifest(appConfig);
 	const sourceTransformNames = new Set(getAppSourceTransforms(appConfig).map((transform) => transform.name));
 	const browserPlugins = getBrowserBuildPlugins(manifest).filter((plugin) => !sourceTransformNames.has(plugin.name));
-	const srcDir = appConfig.absolutePaths?.srcDir;
-	const aliasPlugin = srcDir ? [createAliasResolverPlugin(srcDir)] : [];
+	const projectDir = appConfig.absolutePaths?.projectDir;
+	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
 	return [...aliasPlugin, ...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
 }
 

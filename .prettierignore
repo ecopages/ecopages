@@ -1,1 +1,3 @@
 **/*.mdx
+pnpm-lock.yaml
+bun.lock

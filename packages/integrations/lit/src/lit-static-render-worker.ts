@@ -3,8 +3,9 @@ import { pathToFileURL } from 'node:url';
 import { setupAppRuntimePlugins } from '@ecopages/core/build/build-adapter';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
-import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { EcoPagesAppConfig, PageQuery } from '@ecopages/core';
 import type {
+	LitStaticRenderCacheStrategy,
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
@@ -37,7 +38,11 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 	});
 }
 
-async function renderPage(filePath: string, params: Record<string, string>): Promise<string> {
+async function renderPage(
+	filePath: string,
+	params: Record<string, string>,
+	query?: PageQuery,
+): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
 	if (!routeRendererFactory) {
 		throw new Error('Lit static render worker is not initialized');
 	}
@@ -45,19 +50,20 @@ async function renderPage(filePath: string, params: Record<string, string>): Pro
 	const result = await routeRendererFactory.getPageRenderer(filePath).execute({
 		file: filePath,
 		params,
+		query,
 	});
 
 	const body = result.body;
 	if (typeof body === 'string') {
-		return body;
+		return { html: body, cacheStrategy: result.cacheStrategy };
 	}
 
 	if (Buffer.isBuffer(body)) {
-		return body.toString('utf8');
+		return { html: body.toString('utf8'), cacheStrategy: result.cacheStrategy };
 	}
 
 	if (body instanceof ReadableStream) {
-		return new Response(body).text();
+		return { html: await new Response(body).text(), cacheStrategy: result.cacheStrategy };
 	}
 
 	throw new TypeError(`Unsupported Lit static render body type: ${typeof body}`);
@@ -85,8 +91,8 @@ parentPort.on('message', async (message: LitStaticRenderWorkerRequestMessage) =>
 		}
 
 		if (message.type === 'render') {
-			const html = await renderPage(message.filePath, message.params);
-			postMessage({ type: 'result', id: message.id, html });
+			const result = await renderPage(message.filePath, message.params, message.query);
+			postMessage({ type: 'result', id: message.id, ...result });
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);

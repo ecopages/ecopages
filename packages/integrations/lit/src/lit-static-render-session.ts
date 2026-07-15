@@ -1,10 +1,13 @@
 import path from 'node:path';
-import type { EcoComponent, EcoPagesAppConfig } from '@ecopages/core';
+import type { EcoComponent, EcoPagesAppConfig, PageQuery } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
+import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
+
+type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
 
 type LitStaticRenderSessionOptions = {
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
@@ -13,17 +16,24 @@ type LitStaticRenderSessionOptions = {
 		integrationName: string,
 	) => Promise<Array<{ filepath?: string }>>;
 	preferSourceImports?: boolean;
+	createWorkerClient?: (input: {
+		configModulePath: string;
+		runtimeOrigin: string;
+	}) => LitStaticRenderWorkerClientContract;
 };
 
 /**
- * Build-scoped Lit server render session.
+ * Plugin-runtime-scoped Lit server render session.
  *
- * Preloads SSR-eligible lazy scripts and renders Lit page routes through a
- * dedicated worker thread for both static export and runtime/dev requests.
+ * @remarks
+ * Owns worker lifecycle and SSR preload for Lit page routes during static export
+ * and runtime/dev requests. Injected into `LitRenderer` by `LitPlugin`; there is
+ * no process-global coordinator.
  */
 export class LitStaticRenderSession {
 	private readonly preloader: LitSsrLazyPreloader;
-	private workerClient: LitStaticRenderWorkerClient | null = null;
+	private readonly createWorkerClient: NonNullable<LitStaticRenderSessionOptions['createWorkerClient']>;
+	private workerClient: LitStaticRenderWorkerClientContract | null = null;
 
 	constructor(options: LitStaticRenderSessionOptions) {
 		this.preloader = new LitSsrLazyPreloader({
@@ -31,6 +41,13 @@ export class LitStaticRenderSession {
 			processDependencies: options.processDependencies,
 			preferSourceImports: options.preferSourceImports,
 		});
+		this.createWorkerClient =
+			options.createWorkerClient ??
+			((input) =>
+				new LitStaticRenderWorkerClient({
+					configModulePath: input.configModulePath,
+					runtimeOrigin: input.runtimeOrigin,
+				}));
 	}
 
 	async ensureWorker(input: { configModulePath: string; runtimeOrigin: string }): Promise<void> {
@@ -38,7 +55,7 @@ export class LitStaticRenderSession {
 			return;
 		}
 
-		this.workerClient = new LitStaticRenderWorkerClient({
+		this.workerClient = this.createWorkerClient({
 			configModulePath: input.configModulePath,
 			runtimeOrigin: input.runtimeOrigin,
 		});
@@ -57,7 +74,11 @@ export class LitStaticRenderSession {
 		return this.preloader.collectSsrPreloadScripts(components);
 	}
 
-	async renderPageInWorker(input: { filePath: string; params: Record<string, string> }): Promise<string> {
+	async renderPageInWorker(input: {
+		filePath: string;
+		params: Record<string, string>;
+		query?: PageQuery;
+	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
 		if (!this.workerClient) {
 			throw new Error('Lit static render worker is not active');
 		}

@@ -144,7 +144,7 @@ export class RouteRenderOrchestrator {
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
-		const { Page, HtmlTemplate, Layouts, Layout } = resolvedInputs;
+		const { Page, HtmlTemplate, Layouts } = resolvedInputs;
 		const validationErrors = this.ownershipValidationService.validate({
 			currentIntegrationName: adapter.name,
 			roots: [

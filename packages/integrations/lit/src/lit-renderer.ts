@@ -18,8 +18,8 @@ import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-se
 import './dom-shim.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
 import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
-import { getActiveLitStaticRenderSession } from './lit-static-render-coordinator.ts';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
+import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
 	injectLitRenderedChildren,
@@ -28,22 +28,34 @@ import {
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
 
+export type LitRendererOptions = ConstructorParameters<typeof IntegrationRenderer>[0] & {
+	renderSession?: LitStaticRenderSession;
+};
+
 /**
  * A renderer for the Lit integration.
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = LIT_PLUGIN_NAME;
+	private readonly renderSession?: LitStaticRenderSession;
+
+	constructor(options: LitRendererOptions) {
+		const { renderSession, ...rendererOptions } = options;
+		super(rendererOptions);
+		this.renderSession = renderSession;
+	}
 
 	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		const session = getActiveLitStaticRenderSession();
-		if (session) {
-			const html = await session.renderPageInWorker({
+		if (this.renderSession) {
+			const result = await this.renderSession.renderPageInWorker({
 				filePath: options.file,
 				params: (options.params ?? {}) as Record<string, string>,
+				query: options.query,
 			});
 
 			return {
-				body: html,
+				body: result.html,
+				cacheStrategy: result.cacheStrategy,
 			};
 		}
 
@@ -101,10 +113,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			assets: [],
 			html: renderedChildren,
 		};
-	}
-
-	private isLitManagedComponent(component: EcoComponent | undefined): boolean {
-		return component?.config?.integration === this.name || component?.config?.__eco?.integration === this.name;
 	}
 
 	/**
@@ -197,9 +205,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
 	protected async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
-		const session = getActiveLitStaticRenderSession();
-		if (session) {
-			await session.preloadSsrLazyScripts(components);
+		if (this.renderSession) {
+			await this.renderSession.preloadSsrLazyScripts(components);
 			return;
 		}
 
@@ -261,54 +268,17 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
 		try {
-			if (ctx.partial) {
-				return this.renderPartialViewResponse({
-					view,
-					props,
-					ctx,
-					transformHtml: normalizeLitHtml,
-				});
-			}
-
-			const viewConfig = view.config;
-			const layouts = viewConfig?.layouts;
+			const layouts = view.config?.layouts;
 			const Layout = layouts?.[layouts.length - 1];
-			const HtmlTemplate = await this.getHtmlTemplate();
-			const metadata = await this.resolveViewMetadata(view, props);
-			const normalizedProps = (props ?? {}) as Record<string, unknown>;
-
 			await this.preloadSsrLazyScripts([view, Layout]);
 
-			await this.prepareViewDependencies(view, Layout);
-
-			const pageRender = await this.renderComponentWithForeignChildren({
-				component: view,
-				props: normalizedProps,
+			return await this.renderViewWithDocumentShell({
+				view,
+				props,
+				ctx,
+				layout: Layout,
+				transformDocumentHtml: normalizeLitHtml,
 			});
-			const layoutRender = Layout
-				? await this.renderComponentWithForeignChildren({
-						component: Layout,
-						props: {},
-						children: pageRender.html,
-					})
-				: undefined;
-			const documentRender = await this.renderComponentWithForeignChildren({
-				component: HtmlTemplate,
-				props: {
-					metadata,
-					pageProps: normalizedProps,
-				},
-				children: layoutRender?.html ?? pageRender.html,
-			});
-
-			this.appendProcessedDependencies(pageRender.assets, layoutRender?.assets, documentRender.assets);
-
-			const body = await this.finalizeResolvedHtml({
-				html: `${this.DOC_TYPE}${normalizeLitHtml(documentRender.html)}`,
-				partial: false,
-			});
-
-			return this.createHtmlResponse(body, ctx);
 		} catch (error) {
 			throw this.createRenderError('Error rendering view', error);
 		}

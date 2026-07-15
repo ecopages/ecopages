@@ -1,12 +1,14 @@
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
+import type { PageQuery } from '@ecopages/core';
 import type {
+	LitStaticRenderCacheStrategy,
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
 
 type PendingRender = {
-	resolve: (html: string) => void;
+	resolve: (result: { html: string; cacheStrategy?: LitStaticRenderCacheStrategy }) => void;
 	reject: (error: Error) => void;
 };
 
@@ -70,7 +72,7 @@ export class LitStaticRenderWorkerClient {
 					}
 
 					this.pending.delete(message.id);
-					pending.resolve(message.html);
+					pending.resolve({ html: message.html, cacheStrategy: message.cacheStrategy });
 				}
 			});
 
@@ -101,7 +103,11 @@ export class LitStaticRenderWorkerClient {
 		return this.readyPromise;
 	}
 
-	async renderPage(input: { filePath: string; params: Record<string, string> }): Promise<string> {
+	async renderPage(input: {
+		filePath: string;
+		params: Record<string, string>;
+		query?: PageQuery;
+	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
 		await this.start();
 
 		const worker = this.worker;
@@ -111,7 +117,7 @@ export class LitStaticRenderWorkerClient {
 
 		const id = String(++this.nextRenderId);
 
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }>((resolve, reject) => {
 			this.pending.set(id, { resolve, reject });
 
 			const renderMessage: LitStaticRenderWorkerRequestMessage = {
@@ -119,6 +125,7 @@ export class LitStaticRenderWorkerClient {
 				id,
 				filePath: input.filePath,
 				params: input.params,
+				query: input.query,
 			};
 			worker.postMessage(renderMessage);
 		});

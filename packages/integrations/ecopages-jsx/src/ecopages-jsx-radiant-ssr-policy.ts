@@ -51,6 +51,19 @@ export class EcopagesJsxRadiantSsrPolicy {
 	}
 
 	/**
+	 * Clears process-wide Radiant module caches between isolated tests.
+	 *
+	 * @remarks
+	 * The SSR runtime is process-global by design (shared custom-element
+	 * constructors). Tests that flip import order must reset these caches so
+	 * later cases do not inherit an earlier activation.
+	 */
+	static resetForTests(): void {
+		EcopagesJsxRadiantSsrPolicy.runtimeModules = undefined;
+		EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = undefined;
+	}
+
+	/**
 	 * Ensures the Radiant SSR runtime is installed before a render needs it.
 	 */
 	async prepareRuntime(): Promise<void> {

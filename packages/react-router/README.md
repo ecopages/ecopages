@@ -123,10 +123,10 @@ Standard relative links are intercepted natively. To bypass the router and force
 import { useRouter } from '@ecopages/react-router';
 
 const MyComponent = () => {
-	const { navigate, isPending } = useRouter();
+	const { navigate, isNavigating } = useRouter();
 
 	return (
-		<button onClick={() => navigate('/about')} disabled={isPending}>
+		<button onClick={() => navigate('/about')} disabled={isNavigating}>
 			Go to About
 		</button>
 	);

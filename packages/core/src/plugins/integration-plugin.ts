@@ -1,5 +1,8 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import { createBrowserRuntimeManifest, type BrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
+import {
+	createBrowserRuntimeManifest,
+	type BrowserRuntimeManifest,
+} from '../build/browser/browser-runtime-manifest.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { EcoPagesElement } from '../types/public-types.ts';

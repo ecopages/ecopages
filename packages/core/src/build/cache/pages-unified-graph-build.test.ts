@@ -4,7 +4,7 @@ import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
-import { installBuildRuntime, requireBuildRuntime } from '../runtime/build-runtime.ts';
+import { installBuildRuntime } from '../runtime/build-runtime.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
 import {

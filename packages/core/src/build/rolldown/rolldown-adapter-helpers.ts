@@ -9,10 +9,10 @@
  * @module
  */
 
-import { createRequire } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { InputOptions, OutputOptions, RolldownLog } from 'rolldown';
+import type { InputOptions, OutputOptions, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import {
@@ -37,6 +37,7 @@ import type {
 } from '../build-adapter.ts';
 
 const corePackageRequire = createRequire(new URL('../../../package.json', import.meta.url));
+const nodeBuiltinSpecifiers = new Set(builtinModules);
 
 let corePackageNames: Set<string> | undefined;
 
@@ -177,13 +178,9 @@ function createExternalMatcher(
 	const explicitExternals = new Set(options.external ?? []);
 	const externalPackages = options.externalPackages === true;
 	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
-	const nodePlatform = mapRolldownPlatform(options.target) === 'node';
 
 	return (id: string): boolean => {
 		if (explicitExternals.has(id)) {
-			return true;
-		}
-		if (nodePlatform && id.startsWith('node:')) {
 			return true;
 		}
 		if (!externalPackages || !isPackageImport(id, contextRoot)) {
@@ -193,21 +190,25 @@ function createExternalMatcher(
 	};
 }
 
-type RolldownLogLike = Pick<RolldownLog, 'code' | 'id' | 'message'>;
+function isNodeBuiltinSpecifier(id: string): boolean {
+	return id.startsWith('node:') || nodeBuiltinSpecifiers.has(id);
+}
 
-/** @remarks Rolldown warns before honoring `external` for node builtins; suppress expected noise. */
-export function shouldSuppressRolldownLog(log: RolldownLogLike): boolean {
-	if (log.code !== 'UNRESOLVED_IMPORT') {
-		return false;
-	}
-
-	if (typeof log.id === 'string' && log.id.startsWith('node:')) {
-		return true;
-	}
-
-	const message = log.message ?? '';
-	const match = /Could not resolve '([^']+)'/u.exec(message);
-	return match?.[1]?.startsWith('node:') ?? false;
+/**
+ * Resolves Node builtins as external before Rolldown falls back to file resolution.
+ *
+ * @remarks
+ * An `external` matcher runs after Rolldown attempts resolution, which emits an
+ * `UNRESOLVED_IMPORT` warning for `node:` specifiers. Resolving the builtin in
+ * this plugin preserves ordinary resolver warnings for actual missing packages.
+ */
+export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
+	return {
+		name: 'ecopages-node-builtin-external',
+		resolveId(id) {
+			return isNodeBuiltinSpecifier(id) ? { id, external: true } : null;
+		},
+	};
 }
 
 function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
@@ -350,24 +351,17 @@ export function resolveRolldownOptions(
 	const bundlePlugins = options.plugins ?? [];
 	const sourceTransforms = options.target === 'browser' ? (options.sourceTransforms ?? []) : [];
 	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
-	const allPlugins = [...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []), ...appPlugins];
+	const allPlugins = [
+		...(mapRolldownPlatform(options.target) === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
+		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
+		...appPlugins,
+	];
 
 	const inputOptions: InputOptions = {
 		input: options.entrypoints,
 		cwd: contextRoot,
 		external,
 		platform: mapRolldownPlatform(options.target),
-		logLevel:
-			process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1' ? 'silent' : undefined,
-		onLog(level, log, defaultHandler) {
-			if (shouldSuppressRolldownLog(log)) {
-				return;
-			}
-			if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
-				return;
-			}
-			defaultHandler(level, log);
-		},
 		transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,

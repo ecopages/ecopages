@@ -24,8 +24,35 @@ const AUTO_RUNTIME_EXCLUDED_SPECIFIERS = new Set<string>([
 	'use-sync-external-store/shim/with-selector.js',
 ]);
 
+const AUTO_RUNTIME_EXCLUDED_PACKAGE_PREFIXES = ['@ecopages/', '@techn.es/'] as const;
+
+const PROVIDER_MODULE_PATH_PATTERN =
+	/(?:^|[/\\])(?:[^/\\]*provider[^/\\]*|[^/\\]*context[^/\\]*)\.(?:tsx?|jsx?|mts?|mjs)$/i;
+
+const PROVIDER_MODULE_SOURCE_PATTERN = /\b(?:QueryClientProvider|(?:\w+Provider)|createContext|Context\.Provider)\b/;
+
+function isServerModulePath(filePath: string): boolean {
+	return /\.server\.(?:tsx?|jsx?|mts?|mjs|cjs)$/.test(filePath);
+}
+
+function isAutoRuntimeExcludedPackage(specifier: string): boolean {
+	return AUTO_RUNTIME_EXCLUDED_PACKAGE_PREFIXES.some((prefix) => specifier.startsWith(prefix));
+}
+
 function isEcoLayoutSource(source: string): boolean {
-	return /\beco\.layout\s*\(/.test(source);
+	return /\beco\.layout(?:<[^>]*>)?\s*\(/.test(source);
+}
+
+/**
+ * Returns true when a module looks like it mounts shared client runtime state
+ * (React context providers, query clients, etc.).
+ */
+export function isProviderRuntimeModulePath(filePath: string, source: string): boolean {
+	if (PROVIDER_MODULE_PATH_PATTERN.test(filePath)) {
+		return true;
+	}
+
+	return PROVIDER_MODULE_SOURCE_PATTERN.test(source);
 }
 
 /**
@@ -54,6 +81,11 @@ function shouldExcludeAutoRuntimeSpecifier(specifier: string, options: { routerI
 	}
 
 	if (specifier.startsWith('@ecopages/')) {
+		return true;
+	}
+
+	const packageRoot = normalizeRuntimePackageSpecifier(specifier);
+	if (packageRoot.endsWith('-devtools')) {
 		return true;
 	}
 
@@ -101,6 +133,10 @@ function collectReachableNpmSpecifiersFromFile(
 		discovered: Set<string>;
 	},
 ): void {
+	if (isServerModulePath(filePath)) {
+		return;
+	}
+
 	if (options.visitedFiles.has(filePath)) {
 		return;
 	}
@@ -119,6 +155,8 @@ function collectReachableNpmSpecifiersFromFile(
 		return;
 	}
 
+	const collectNpmFromModule = isProviderRuntimeModulePath(filePath, source);
+
 	for (const specifier of reachability.reachableImports.keys()) {
 		if (options.projectRoot) {
 			const resolvedLocalModule = resolveProjectModulePath(options.projectRoot, filePath, specifier);
@@ -128,14 +166,20 @@ function collectReachableNpmSpecifiersFromFile(
 			}
 		}
 
+		if (!collectNpmFromModule) {
+			continue;
+		}
+
 		if (
 			!isBarePackageImportSpecifier(specifier, options.projectRoot) ||
-			shouldExcludeAutoRuntimeSpecifier(specifier, options)
+			shouldExcludeAutoRuntimeSpecifier(specifier, options) ||
+			isAutoRuntimeExcludedPackage(normalizeRuntimePackageSpecifier(specifier))
 		) {
 			continue;
 		}
 
-		options.discovered.add(normalizeRuntimePackageSpecifier(specifier));
+		const packageRoot = normalizeRuntimePackageSpecifier(specifier);
+		options.discovered.add(packageRoot);
 	}
 }
 

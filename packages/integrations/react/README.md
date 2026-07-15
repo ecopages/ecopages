@@ -219,6 +219,92 @@ Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`)
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.
 - [src/test/react-ssr-unified.test.tsx](src/test/react-ssr-unified.test.tsx): provider context through nested SSR layouts.
 
+### Shared runtime vendors (SPA + persisted layouts)
+
+When `reactPlugin({ router: ecoRouter() })` is enabled, Ecopages registers selected npm packages as **shared browser runtime vendors** alongside React and React DOM. Each page chunk imports those packages through the same public vendor URL instead of bundling a private copy.
+
+This matters when `@ecopages/react-router` keeps layout tiers mounted across navigation (`persistLayouts` defaults to `true` with `ecoRouter()`). If a context provider library such as TanStack Query is bundled separately into every page chunk, React context breaks on client navigation (`No QueryClient set`, duplicate React runtimes, etc.).
+
+#### When auto-discovery runs
+
+Auto-discovery runs at plugin setup when **both** are true:
+
+- `router` is passed to `reactPlugin()`
+- The app config exposes `absolutePaths.projectDir`, `layoutsDir`, and `componentsDir`
+
+Without `router`, only explicit `runtimeModules` entries are vendored.
+
+#### What gets discovered
+
+1. Scan **`layoutsDir` and `componentsDir`** for source files whose contents include `eco.layout(`.
+2. From each layout's **`render` client graph** (via reachability analysis), follow relative imports and tsconfig path aliases.
+3. Collect **npm package roots** reachable from that graph (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
+4. Register each discovered package as a shared vendor. React, React DOM, the router bundle, and `@ecopages/*` packages are excluded automatically.
+
+Important:
+
+- Discovery is **reachability-based**. Imports not reachable from the layout `render` path are ignored.
+- Discovery is **not limited to context providers**. Any npm package in the layout render graph may be vendored.
+- Layout files outside the configured `layouts/` and `components/` directories are not scanned.
+
+Path aliases resolve from the app `tsconfig.json` `compilerOptions.paths` (via oxc-resolver), same as the Ecopages alias resolver plugin. Relative imports work without tsconfig aliases.
+
+#### Configuration
+
+Normal SPA setup — no manual vendor list required when providers live in scanned layout trees:
+
+```ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { reactPlugin } from '@ecopages/react';
+import { ecoRouter } from '@ecopages/react-router';
+
+const config = await new ConfigBuilder()
+	.setIntegrations([reactPlugin({ router: ecoRouter() })])
+	.build();
+
+export default config;
+```
+
+Layout with a shared provider (tsconfig alias example):
+
+```tsx
+import { eco } from '@ecopages/core';
+import { QueryProvider } from '@/shared/query/query-provider';
+
+export const QueryRootLayout = eco.layout({
+	render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
+});
+```
+
+Requires matching tsconfig paths, for example:
+
+```json
+{
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	}
+}
+```
+
+Override when discovery misses a package, or when `router` is not enabled:
+
+```ts
+reactPlugin({
+	router: ecoRouter(),
+	runtimeModules: [
+		'@tanstack/react-query',
+		{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
+	],
+})
+```
+
+Manual `runtimeModules` entries **override** auto-discovered entries for the same specifier.
+
+- [src/utils/discover-layout-runtime-modules.test.ts](src/utils/discover-layout-runtime-modules.test.ts): layout graph discovery and tsconfig alias following.
+- [src/services/react-runtime-bundle.service.test.ts](src/services/react-runtime-bundle.service.test.ts): configured runtime modules registered as shared vendors.
+
 ### Client-only code in SSR trees
 
 Pages and layouts SSR through `renderToString`, which does not support `<Suspense>`. Do not use `React.lazy()` + `<Suspense>` in `eco.page()` or `eco.layout()` trees.
@@ -226,20 +312,19 @@ Pages and layouts SSR through `renderToString`, which does not support `<Suspens
 Wrap browser-only UI in `ClientOnly`:
 
 ```tsx
+import { eco } from '@ecopages/core';
 import { ClientOnly } from '@ecopages/react/utils/client-only';
 
-export const QueryRootLayout = eco.layout({
+export const RootLayout = eco.layout({
 	render: ({ children }) => (
-		<QueryClientProvider client={queryClient}>
+		<>
 			{children}
 			<ClientOnly fallback={null}>
-				<ReactQueryDevtools />
+				<DevtoolsPanel />
 			</ClientOnly>
-		</QueryClientProvider>
+		</>
 	),
 });
 ```
 
 For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.
-
-With `persistLayouts: true` (the `@ecopages/react-router` default), npm packages imported from shared `eco.layout()` trees are auto-vendored so context providers keep one module instance across page chunks. Path aliases resolve from the app `tsconfig.json` `paths` (via oxc-resolver), same as the bundler plugin.

@@ -68,9 +68,21 @@ export type ReactPluginOptions = {
 	 */
 	router?: ReactRouterAdapter;
 	/**
-	 * Optional extra browser runtime vendors. With `router`, npm packages imported
-	 * from `eco.layout()` trees under `layouts/` and `components/` are discovered
-	 * automatically for persisted layout context sharing.
+	 * Optional shared browser runtime vendors.
+	 *
+	 * With `router`, npm packages reachable from `eco.layout()` **render graphs**
+	 * under the app's configured `layouts/` and `components/` directories are
+	 * discovered automatically and registered as shared vendors (alongside React
+	 * and React DOM). This prevents duplicate module instances when persisted
+	 * layouts stay mounted across SPA navigation.
+	 *
+	 * Without `router`, only explicit entries here are vendored.
+	 *
+	 * @remarks
+	 * Discovery follows client reachability from each layout's `render` path,
+	 * resolves relative and tsconfig path aliases, and collects npm package roots.
+	 * It is not limited to context-provider libraries. Manual entries override
+	 * auto-discovered specifiers with the same package root.
 	 *
 	 * @example
 	 * ```ts
@@ -79,6 +91,13 @@ export type ReactPluginOptions = {
 	 *   // Optional override when discovery misses a package:
 	 *   runtimeModules: ['@tanstack/react-query'],
 	 * })
+	 * ```
+	 *
+	 * @example Advanced vendor config
+	 * ```ts
+	 * runtimeModules: [
+	 *   { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
+	 * ]
 	 * ```
 	 */
 	runtimeModules?: ReactPluginRuntimeModule[];

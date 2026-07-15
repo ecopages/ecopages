@@ -5,12 +5,12 @@ import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/pages-unified-graph-build';
 import { resetRolldownBuildInvocationCounts } from '../../../packages/core/src/build/rolldown-build-invocation-metrics';
-import { KITCHEN_SINK_REPRESENTATIVE_PAGES, loadKitchenSinkConfig } from './_kitchen-sink-fixture';
+import { KITCHEN_SINK_REPRESENTATIVE_PAGES, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 import {
 	clearBenchProductionCaches,
 	loadStaticBuildBenchConfigWithScope,
 	runStaticSiteGeneration,
-} from './_static-build-fixture';
+} from './lib/static-build-fixture';
 
 const PARITY_SCOPE_BASELINE = '__bench-unified-graph-baseline__';
 const PARITY_SCOPE_GRAPH = '__bench-unified-graph-treatment__';

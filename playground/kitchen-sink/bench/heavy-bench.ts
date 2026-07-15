@@ -1,26 +1,8 @@
-/**
- * Heavy-library bundle benchmark.
- *
- * Simulates a page that pulls in many large dependencies. Measures how
- * bundle time scales with the size of the import graph — the user
- * reported 2s HMR for apps with heavy libraries; this bench reproduces
- * that scenario.
- *
- * Approach: write a virtual entrypoint into a dedicated bench fixtures
- * dir (NOT pages/, so the dev server's route discovery does not pick it
- * up). The `entrypoints` option in `bundle()` is what matters, not the
- * file location.
- *
- * Run with:
- *
- *   pnpm test:bench
- */
-
-import { bench, describe } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { bench, group } from 'mitata';
 import { BrowserBundleService } from '../../../packages/core/src/services/assets/browser-bundle.service';
-import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './_kitchen-sink-fixture';
+import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 
 const DIST_TMP = path.join(KITCHEN_SINK_PATHS.dist, '__bench-heavy__');
 mkdirSync(DIST_TMP, { recursive: true });
@@ -29,7 +11,9 @@ const HEAVY_FIXTURES_DIR = path.join(KITCHEN_SINK_PATHS.dist, '__bench-heavy-fix
 mkdirSync(HEAVY_FIXTURES_DIR, { recursive: true });
 
 const HEAVY_VIRTUAL_FILE = path.join(HEAVY_FIXTURES_DIR, 'heavy-bench-entry.react.tsx');
-const HEAVY_VIRTUAL_CONTENT = `/** @jsxImportSource react */
+writeFileSync(
+	HEAVY_VIRTUAL_FILE,
+	`/** @jsxImportSource react */
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import * as ReactDOM from 'react-dom';
@@ -52,24 +36,22 @@ export default eco.page({
   },
   metadata: () => ({ title: 'heavy bench', description: 'bench' }),
 });
-`;
-
-writeFileSync(HEAVY_VIRTUAL_FILE, HEAVY_VIRTUAL_CONTENT, 'utf-8');
+`,
+	'utf-8',
+);
 
 let browser: BrowserBundleService | undefined;
-const setupBrowser = async () => {
-	if (browser) return browser;
-	const config = await loadKitchenSinkConfig();
-	browser = new BrowserBundleService(config);
-	return browser;
-};
 
-describe('heavy-bench', () => {
-	bench(
-		'heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)',
-		async () => {
-			const b = await setupBrowser();
-			await b.bundle({
+async function setupBrowser(): Promise<BrowserBundleService> {
+	browser ??= new BrowserBundleService(await loadKitchenSinkConfig());
+	return browser;
+}
+
+export function registerHeavyBench(): void {
+	group('heavy-bench', () => {
+		bench('heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)', async () => {
+			const service = await setupBrowser();
+			await service.bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: [HEAVY_VIRTUAL_FILE],
 				outdir: DIST_TMP,
@@ -77,7 +59,6 @@ describe('heavy-bench', () => {
 				minify: false,
 				root: KITCHEN_SINK_PATHS.root,
 			});
-		},
-		{ time: 2000, warmupTime: 500, warmupIterations: 2 },
-	);
-});
+		});
+	});
+}

@@ -1,20 +1,8 @@
-/**
- * Production build benchmark for the React integration.
- *
- * Uses Vitest's native `bench()` API for production-style bundles
- * (minify + treeshake). Compares against the HMR scenarios to show the
- * perf gap between dev and prod paths.
- *
- * Run with:
- *
- *   pnpm test:bench
- */
-
-import { bench, describe } from 'vitest';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { bench, group } from 'mitata';
 import { BrowserBundleService } from '../../../packages/core/src/services/assets/browser-bundle.service';
-import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './_kitchen-sink-fixture';
+import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 
 const DIST_TMP = path.join(KITCHEN_SINK_PATHS.dist, '__bench-prod__');
 mkdirSync(DIST_TMP, { recursive: true });
@@ -26,19 +14,17 @@ const REACT_PAGES = [
 ];
 
 let browser: BrowserBundleService | undefined;
-const setupBrowser = async () => {
-	if (browser) return browser;
-	const config = await loadKitchenSinkConfig();
-	browser = new BrowserBundleService(config);
-	return browser;
-};
 
-describe('build-bench', () => {
-	bench(
-		'production single page (minify + treeshake)',
-		async () => {
-			const b = await setupBrowser();
-			await b.bundle({
+async function setupBrowser(): Promise<BrowserBundleService> {
+	browser ??= new BrowserBundleService(await loadKitchenSinkConfig());
+	return browser;
+}
+
+export function registerBuildBench(): void {
+	group('build-bench', () => {
+		bench('production single page (minify + treeshake)', async () => {
+			const service = await setupBrowser();
+			await service.bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: [REACT_PAGES[0]!],
 				outdir: DIST_TMP,
@@ -47,15 +33,11 @@ describe('build-bench', () => {
 				treeshaking: true,
 				root: KITCHEN_SINK_PATHS.root,
 			});
-		},
-		{ time: 1500, warmupTime: 300, warmupIterations: 2 },
-	);
+		});
 
-	bench(
-		'production all pages (minify + treeshake + splitting)',
-		async () => {
-			const b = await setupBrowser();
-			await b.bundle({
+		bench('production all pages (minify + treeshake + splitting)', async () => {
+			const service = await setupBrowser();
+			await service.bundle({
 				profile: 'hmr-entrypoint',
 				entrypoints: REACT_PAGES,
 				outdir: DIST_TMP,
@@ -65,7 +47,6 @@ describe('build-bench', () => {
 				splitting: true,
 				root: KITCHEN_SINK_PATHS.root,
 			});
-		},
-		{ time: 1500, warmupTime: 300, warmupIterations: 2 },
-	);
-});
+		});
+	});
+}

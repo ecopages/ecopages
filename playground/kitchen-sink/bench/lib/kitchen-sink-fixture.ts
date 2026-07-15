@@ -9,10 +9,10 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { EcoPagesAppConfig } from '../../../packages/core/src/types/internal-types.ts';
-import { createKitchenSinkConfig } from '../kitchen-sink-config.ts';
+import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
+import { createKitchenSinkConfig } from '../../kitchen-sink-config';
 
-const KITCHEN_SINK_DIR = fileURLToPath(new URL('..', import.meta.url));
+const KITCHEN_SINK_DIR = fileURLToPath(new URL('../..', import.meta.url));
 
 const configCache = new Map<string, EcoPagesAppConfig>();
 

@@ -1,6 +1,6 @@
 /**
  * Root Vitest config: `shared-core` (node), `browser`, optional `bun-adapter`,
- * and `bench` (inactive unless `--project bench`).
+ * and optional `bun-adapter`.
  *
  * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
  */
@@ -14,7 +14,6 @@ export default defineConfig({
 		silent: 'passed-only',
 		projects: [
 			'vitest.browser.config.ts',
-			'vitest.bench.config.ts',
 			{
 				test: {
 					name: 'shared-core',
@@ -36,15 +35,10 @@ export default defineConfig({
 						'packages/react-router/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
-						'playground/kitchen-sink/bench/_*.test.ts',
+						'playground/kitchen-sink/bench/lib/**/*.test.ts',
 						...getOptionalVitestIncludes(),
 					],
-					exclude: [
-						...configDefaults.exclude,
-						'packages/**/*.test.node.ts',
-						'packages/**/*.test.bun.ts',
-						'playground/kitchen-sink/bench/**/*.bench.ts',
-					],
+					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},
 			},
 			...(isBunRuntime

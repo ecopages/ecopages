@@ -1,6 +1,6 @@
 # ecopages bundle benchmark
 
-Lean Vitest-based benchmark suite for the **kitchen-sink** project
+Lean [mitata](https://github.com/evanwashere/mitata)-based benchmark suite for the **kitchen-sink** project
 (`playground/kitchen-sink`) — the full integration demo app, not a synthetic
 fixture. All benches read from the real `src/` tree and use
 `kitchen-sink-config.ts` (same factory as `eco.config.ts`).
@@ -23,8 +23,8 @@ fixture. All benches read from the real `src/` tree and use
 - `BrowserBundleService.bundle()` cost for the four HMR scenarios that the
   watcher actually triggers
 - Production build cost (single page and all pages, minify + treeshake)
-- **Route-module disk cache** warm import cost (`build-speed-bench.bench.ts`)
-- **Static production build segments** (`static-build-bench.bench.ts`):
+- **Route-module disk cache** warm import cost (`build-speed-bench.ts`)
+- **Static production build segments** (`static-build-bench.ts`):
   server-entry Rolldown cold/warm, route-module Rolldown cold vs warm,
   `StaticSiteGenerator.run`, and full `buildStatic` cold/warm
 - Heavy-library scenario (page that pulls in `react-dom`, `lit`, `kitajs`,
@@ -47,25 +47,31 @@ fixture. All benches read from the real `src/` tree and use
 ## Run
 
 ```bash
-# Run the bench (gated by ECOPAGES_BENCH=1 or by passing 'bench' to vitest)
+# Run the bench (gated by ECOPAGES_BENCH=1; runs from kitchen-sink package root)
 pnpm test:bench
 
 # Diff against the committed baseline
 pnpm test:bench:compare
+
+# Process-level startup benchmark (isolated artifact scopes + Playwright)
+# Requires Playwright Chromium: pnpm exec playwright install chromium
+# The runner binds the dev server to 127.0.0.1 so browser probes match the Node default hostname behavior on macOS.
+ECOPAGES_BENCH=1 pnpm test:bench:startup
+pnpm test:bench:startup:compare
 ```
 
-Without the gate, vitest excludes the bench path. The bench never runs in
-default CI.
+Without the gate, `run.mts` exits immediately. The bench never runs in default CI.
 
 ## Output
 
 | File                          | Purpose                                                                                                                                                           |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `results/vitest-bench.json`   | Raw vitest `outputJson` from the latest run. Gitignored (regenerate freely).                                                                                      |
+| `results/mitata-bench.json`   | Raw mitata report from the latest run. Gitignored (regenerate freely).                                                                                            |
 | `results/bench-baseline.json` | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
 
-The vitest `--compare` flag diffs the latest run against the baseline and
-prints per-scenario ratios (e.g. `1.10x slower than baseline`).
+The consolidated baseline diff (`pnpm test:bench:compare`) reads
+`results/bench-baseline.json` and compares it against the latest
+`results/mitata-bench.json` using `scripts/compare-baseline.ts`.
 
 ## Versioning policy
 
@@ -151,7 +157,7 @@ preservation are different from esbuild's.
 
 ## Static production build baseline (kitchen-sink, 2026-06-24)
 
-Measured via `static-build-bench.bench.ts` on Node after Build Performance Plan
+Measured via `static-build-bench.ts` on Node after Build Performance Plan
 work (probe dedupe, server-entry cache, parallel SSG, setup dedupe).
 
 ```
@@ -181,7 +187,7 @@ buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0
 
 ### Unified pages graph baseline (kitchen-sink, 2026-06-25)
 
-Measured via `static-build-bench.bench.ts` and `static-build-unified-graph-parity.test.ts`.
+Measured via `static-build-bench.ts` and `static-build-unified-graph-parity.test.ts`.
 
 ```
 Scenario                                          | Notes
@@ -194,20 +200,39 @@ StaticSiteGenerator.run cold unified graph        | Asserts 0 per-page route-mod
 Parity suite compares normalized HTML for all static routes with graph on vs `ECOPAGES_UNIFIED_PAGES_GRAPH=0`.
 Primary success metric: `getPageModuleRolldownBuildInvocations() === 0` during SSG after one graph build.
 
+## Layout
+
+```
+bench/
+  run.mts                 # mitata entry point
+  *-bench.ts              # mitata scenario groups
+  lib/                    # fixtures and shared helpers
+  scripts/                # baseline consolidate / compare CLIs
+  startup/                # process-level startup bench
+  results/                # generated output + committed baselines
+```
+
 ## Files
 
-- `_kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
+- `run.mts` — mitata entry point; registers all bench groups and writes `mitata-bench.json`.
+- `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
+- `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
   via the public `ConfigBuilder` API.
-- `_consolidate.ts` — reads `vitest-bench.json`, writes `bench-baseline.json`.
-- `build-bench.bench.ts` — production bundle scenarios.
-- `hmr-bench.bench.ts` — HMR scenarios (the 4 cases the watcher actually triggers).
-- `heavy-bench.bench.ts` — heavy-library scenario.
-- `integration-bench.bench.ts` — one representative page per integration.
-- `memory-snap.bench.ts` — 100-iteration memory stability.
-- `build-speed-bench.bench.ts` — route-module disk cache warm hits.
-- `static-build-bench.bench.ts` — static production build segments (server entry,
+- `lib/static-build-fixture.ts` — bootstrap for static-build benches.
+- `lib/bench-env.ts` — temporary env overrides for graph on/off scenarios.
+- `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.
+- `scripts/compare-baseline.ts` — diffs `mitata-bench.json` against `bench-baseline.json`.
+- `startup/run.mjs` — process-level dev startup + first-page interactive timing.
+- `startup/consolidate-baseline.ts` — writes `startup-baseline.json`.
+- `startup/compare-baseline.ts` — diffs `startup-bench.json` against `startup-baseline.json`.
+- `build-bench.ts` — production bundle scenarios.
+- `hmr-bench.ts` — HMR scenarios (the 4 cases the watcher actually triggers).
+- `heavy-bench.ts` — heavy-library scenario.
+- `integration-bench.ts` — one representative page per integration.
+- `memory-snap-bench.ts` — repeated rebuild stability.
+- `build-speed-bench.ts` — route-module disk cache warm hits.
+- `static-build-bench.ts` — static production build segments (server entry,
   route-module Rolldown, SSG, full `buildStatic`, unified graph on/off). Uses isolated
   `dist/__bench-static-build__` / `.eco/__bench-static-build__` dirs.
-- `_static-build-fixture.ts` — bootstrap for static-build benches.
 - `static-build-unified-graph-parity.test.ts` — HTML parity and eligibility for unified graph.
 - `results/bench-baseline.json` — versioned baseline.

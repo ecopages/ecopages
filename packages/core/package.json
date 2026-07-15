@@ -40,6 +40,7 @@
 		"@standard-schema/utils": "^0.3.0"
 	},
 	"devDependencies": {
+		"@tanstack/react-query": "^5.90.2",
 		"@types/bun": "latest",
 		"@types/ws": "^8.18.1",
 		"arktype": "^2.2.0",

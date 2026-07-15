@@ -1,7 +1,5 @@
 import { appLogger } from '../../../../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
-import { getAppBrowserBuildPlugins } from '../../../../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../../../../build/build-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
@@ -31,16 +29,6 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		return dep.bundleOptions || {};
 	}
 
-	protected collectBuildPlugins(excludePluginNames?: string[]): EcoBuildPlugin[] {
-		const buildPlugins = getAppBrowserBuildPlugins(this.appConfig);
-		if (!excludePluginNames || excludePluginNames.length === 0) {
-			return buildPlugins;
-		}
-
-		const excluded = new Set(excludePluginNames);
-		return buildPlugins.filter((plugin) => !excluded.has(plugin.name));
-	}
-
 	protected async bundleScript({
 		entrypoint,
 		outdir,
@@ -51,9 +39,6 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		entrypoint: string;
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<string> {
-		const buildPlugins = this.collectBuildPlugins(excludeAppBuildPlugins);
-		const allPlugins = additionalPlugins ? [...additionalPlugins, ...buildPlugins] : buildPlugins;
-
 		const buildResult = await this.browserBundleService.bundle({
 			profile: 'browser-script',
 			entrypoints: [entrypoint],
@@ -62,7 +47,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			excludeAppBuildPlugins,
 			splitting: true,
 			naming: '[name]-[hash].[ext]',
-			plugins: allPlugins,
+			plugins: additionalPlugins,
 			...rest,
 		});
 
@@ -118,9 +103,6 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		entries: BrowserBundleGroupedEntry[];
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<Map<string, string>> {
-		const buildPlugins = this.collectBuildPlugins(excludeAppBuildPlugins);
-		const allPlugins = additionalPlugins ? [...additionalPlugins, ...buildPlugins] : buildPlugins;
-
 		const buildResult = await this.browserBundleService.bundleGroupedEntries(entries, {
 			profile: 'browser-script',
 			outdir,
@@ -129,7 +111,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			...rest,
 			splitting: true,
 			naming: '[name]-[hash].[ext]',
-			plugins: allPlugins,
+			plugins: additionalPlugins,
 		});
 
 		if (!buildResult.success) {

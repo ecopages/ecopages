@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildDependencyGraph, BuildResult } from './build-adapter.ts';
-import { getAppServerBuildPlugins } from './build-adapter.ts';
+import { resolveServerAppBuildPlugins } from './build-request-policy.ts';
 import { createBuildInputsFingerprint } from './build-input-fingerprint.ts';
 import {
 	isProductionCacheManifestCurrent,
@@ -10,7 +10,7 @@ import {
 	readProductionCacheManifest,
 	writeProductionCacheManifest,
 } from './production-build-cache.ts';
-import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
+import { createPluginCacheKey, getCorePackageVersion } from './cache-keys.ts';
 import {
 	RouteModuleDependencyHasher,
 	createRouteModuleDependencyHashes,
@@ -68,16 +68,25 @@ function hashDependencyGraph(
 	return createRouteModuleDependencyHashes(hasher, { dependencyGraph }, entryPath, rootDir);
 }
 
+/**
+ * Fingerprints the app-owned output-affecting server request policy.
+ *
+ * @remarks
+ * Includes ordered server plugins and JSX ownership plugins via
+ * {@link resolveServerAppBuildPlugins}. The versioned prefix intentionally
+ * invalidates manifests written before server requests included JSX ownership.
+ */
 function createServerEntryBuildKey(appConfig: EcoPagesAppConfig): string {
 	try {
-		const plugins = getAppServerBuildPlugins(appConfig);
-		const pluginNames = plugins
-			.map((plugin) => plugin.name)
-			.sort()
-			.join('|');
-		return ['node', 'esm', 'external-packages', pluginNames].join('::');
+		return [
+			'server-entry-request-v2',
+			'node',
+			'esm',
+			'external-packages',
+			createPluginCacheKey(resolveServerAppBuildPlugins(appConfig)),
+		].join('::');
 	} catch {
-		return 'node::esm::external-packages';
+		return 'server-entry-request-v2::node::esm::external-packages';
 	}
 }
 

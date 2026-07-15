@@ -10,9 +10,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import { build, getAppServerBuildPlugins, type BuildOptions } from './build-adapter.ts';
+import { build } from './build-adapter.ts';
 import { requireBuildRuntime } from './build-runtime.ts';
-import { resolveBuildProfileOptions } from './build-profile-options.ts';
+import { createServerBuildRequest, resolveServerAppBuildPlugins } from './build-request-policy.ts';
 import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
 import {
 	isProductionCacheManifestCurrent,
@@ -21,14 +21,12 @@ import {
 	readProductionCacheManifest,
 	writeProductionCacheManifest,
 } from './production-build-cache.ts';
-import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
+import { getCorePackageVersion } from './cache-keys.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { BuildResult } from './build-adapter.ts';
 import { getSharedRouteModuleBuildCache } from '../services/module-loading/route-module-build-cache-registry.ts';
-import { normalizeNodeRuntimeBuildOutputFile } from './runtime-build-output-normalizer.ts';
 import { resolveRouteModuleDependencyPaths } from '../services/module-loading/route-module-dependency-hasher.ts';
-import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
 
 export const PAGES_UNIFIED_GRAPH_CACHE_DIR = '.server-pages-graph';
 export const PAGES_UNIFIED_GRAPH_CACHE_FILENAME = '.build-cache.json';
@@ -72,8 +70,7 @@ function getPagesUnifiedGraphCachePath(appConfig: EcoPagesAppConfig): string {
 }
 
 function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: string): string {
-	const plugins = appConfig.runtime?.buildManifest ? getAppServerBuildPlugins(appConfig) : [];
-	const pluginNames = [...plugins, ...getJsxOwnershipPlugins(appConfig)]
+	const pluginNames = resolveServerAppBuildPlugins(appConfig)
 		.map((plugin) => plugin.name)
 		.sort()
 		.join('|');
@@ -192,8 +189,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		return existingManifest;
 	}
 
-	const plugins = options.appConfig.runtime?.buildManifest ? getAppServerBuildPlugins(options.appConfig) : [];
-	const mergedPlugins = [...plugins, ...getJsxOwnershipPlugins(options.appConfig)];
 	const routeModuleBuildCache = getSharedRouteModuleBuildCache(outdir, options.appConfig);
 	const entryRecord: Record<string, string> = {};
 	const entryKeysByPath = new Map<string, string>();
@@ -205,16 +200,14 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	}
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
-	const buildOptions: BuildOptions = {
-		...resolveBuildProfileOptions('route-module', options.appConfig, {
-			entrypoints: entryRecord,
-			outdir,
-			splitting: true,
-			naming: '[name]-[hash].[ext]',
-			plugins: mergedPlugins.length > 0 ? mergedPlugins : undefined,
-		}),
+	const buildOptions = createServerBuildRequest(options.appConfig, {
+		profile: 'route-module',
 		entrypoints: entryRecord,
-	};
+		outdir,
+		splitting: true,
+		naming: '[name]-[hash].[ext]',
+	});
+	const plugins = buildOptions.plugins ?? [];
 	const buildResult = await build(buildOptions, requireBuildRuntime(options.appConfig).getProfile('route-module'));
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
 
@@ -233,7 +226,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}
 
-		normalizeNodeRuntimeBuildOutputFile(compiledOutput, options.appConfig.rootDir);
 		outputs[entryPath] = compiledOutput;
 
 		routeModuleBuildCache.recordBuild({
@@ -244,7 +236,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 			outputPath: compiledOutput,
 			dependencyModulePaths: resolveRouteModuleDependencyPaths(buildResult, entryPath, options.appConfig.rootDir),
 			externalPackages: true,
-			plugins: mergedPlugins,
+			plugins,
 		});
 	}
 

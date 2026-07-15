@@ -2,7 +2,7 @@ import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { installBuildRuntime } from '../../build/build-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
@@ -186,7 +186,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    processors during their `setup()` calls.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig);
+		installBuildRuntime(this.appConfig);
 
 		prepareRuntimePublicDir(this.appConfig);
 		if (!this.deferRuntimeAssetSetup) {

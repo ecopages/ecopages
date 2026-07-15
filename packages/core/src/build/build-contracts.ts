@@ -80,7 +80,6 @@ export interface BuildOptions {
 	};
 	plugins?: EcoBuildPlugin[];
 	sourceTransforms?: EcoSourceTransform[];
-	[key: string]: unknown;
 }
 
 /** Stable profile identifiers for `BuildAdapter.getTranspileOptions`. */

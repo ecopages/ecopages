@@ -151,6 +151,54 @@ export function isMarkupNodeLike(value: unknown): value is MarkupNodeLikeShape {
 	return isMarkupNodeLikeShape(value);
 }
 
+/**
+ * Returns whether a value is a plain opaque object that string serializers would
+ * coerce via `String(value)` rather than render as markup.
+ *
+ * @remarks
+ * Template results (`strings`/`values`), markup nodes, arrays, and framework
+ * element markers (`$$typeof`) are not opaque. Cross-integration children that
+ * are only plain objects must use EcoEmbed or already-serialized HTML.
+ */
+export function isOpaqueForeignChildValue(children: unknown): boolean {
+	if (children === null || typeof children !== 'object') {
+		return false;
+	}
+
+	if (Array.isArray(children)) {
+		return false;
+	}
+
+	if ('$$typeof' in children) {
+		return false;
+	}
+
+	if ('strings' in children && Array.isArray((children as { strings: unknown }).strings)) {
+		return false;
+	}
+
+	if (isMarkupNodeLikeShape(children)) {
+		return false;
+	}
+
+	const prototype = Object.getPrototypeOf(children);
+	return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Throws when foreign-path children would be coerced from an opaque object.
+ */
+export function assertForeignChildrenNotOpaque(children: unknown, context: string): void {
+	if (!isOpaqueForeignChildValue(children)) {
+		return;
+	}
+
+	const childTag = Object.prototype.toString.call(children);
+	throw new TypeError(
+		`[ecopages] ${context} refused to coerce opaque foreign children (${childTag}). Use EcoEmbed for cross-integration children or pass already-serialized HTML.`,
+	);
+}
+
 function injectTriggerAttributeIntoString(content: string, triggerId: string): string {
 	const str = content;
 	let i = 0;

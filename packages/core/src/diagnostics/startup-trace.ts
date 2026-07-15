@@ -1,8 +1,14 @@
 import { statSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
 
 export type StartupTracePhase =
-	'config-ready' | 'setupAppRuntimePlugins' | 'route-registry' | 'server-listen' | 'first-request-ssr';
+	| 'config-ready'
+	| 'setupAppRuntimePlugins'
+	| 'route-registry'
+	| 'server-listen'
+	| 'dev-cold-client-graph'
+	| 'first-request-ssr';
 
 type PhaseRecord = {
 	durationMs: number;
@@ -17,6 +23,15 @@ function isStartupTraceEnabled(): boolean {
 
 function wallMsSinceProcessStart(): number {
 	return Math.round(process.uptime() * 1000);
+}
+
+function resolveTraceBuildParallelism(): string {
+	const fromEnv = process.env.ECOPAGES_DEV_BUILD_PARALLELISM ?? process.env.ECOPAGES_DEV_HMR_PARALLELISM;
+	if (fromEnv) {
+		return fromEnv;
+	}
+
+	return String(Math.max(1, availableParallelism()));
 }
 
 function writeTraceLine(message: string): void {
@@ -73,7 +88,7 @@ class StartupTrace {
 			wallMs: wallMsSinceProcessStart(),
 		};
 		this.phases.set('config-ready', record);
-		writeTraceLine(`phase=config-ready wallMs=${record.wallMs}`);
+		writeTraceLine(`phase=config-ready wallMs=${record.wallMs} buildParallelism=${resolveTraceBuildParallelism()}`);
 	}
 
 	markServerListening(): void {
@@ -145,6 +160,19 @@ class StartupTrace {
 		this.firstRequestBundleCount = 0;
 		this.firstRequestClientBytes = 0;
 		this.summaryEmitted = false;
+	}
+
+	/**
+	 * Resets only the first-request bundle counters.
+	 *
+	 * @remarks
+	 * Called after the background cold client graph finishes so the first SSR
+	 * summary reflects just the browser bundles it triggers, not the boot-time
+	 * grouped builds. Phase records are left intact.
+	 */
+	resetFirstRequestCounters(): void {
+		this.firstRequestBundleCount = 0;
+		this.firstRequestClientBytes = 0;
 	}
 }
 

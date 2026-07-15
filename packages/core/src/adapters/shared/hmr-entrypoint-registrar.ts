@@ -61,6 +61,23 @@ export class HmrEntrypointRegistrar {
 		this.registered.delete(path.resolve(entrypointPath));
 	}
 
+	/**
+	 * Registers an already-materialized HMR entrypoint without running the emit hook.
+	 *
+	 * @remarks
+	 * Cold dev batches build entrypoints in grouped Rolldown passes and then seed
+	 * the registrar so the first SSR can resolve the artifact without rebuilding.
+	 * The source path is committed verbatim so `getResolvedScriptOutput()` and the
+	 * file watcher see it as a regular watched entrypoint.
+	 */
+	seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void {
+		this.registered.set(path.resolve(resolved.sourcePath), {
+			sourcePath: resolved.sourcePath,
+			outputPath: resolved.outputPath,
+			outputUrl: resolved.outputUrl,
+		});
+	}
+
 	clearAll(): void {
 		this.inFlight.clear();
 		this.registered.clear();

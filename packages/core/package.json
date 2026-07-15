@@ -132,6 +132,10 @@
 			"types": "./src/config/constants.ts",
 			"default": "./src/config/constants.ts"
 		},
+		"./diagnostics/startup-trace": {
+			"types": "./src/diagnostics/startup-trace.ts",
+			"default": "./src/diagnostics/startup-trace.ts"
+		},
 		"./bun": {
 			"types": "./src/adapters/bun/index.ts",
 			"default": "./src/adapters/bun/index.ts"
@@ -203,6 +207,10 @@
 		"./build/production-build-cache": {
 			"types": "./src/build/production-build-cache.ts",
 			"default": "./src/build/production-build-cache.ts"
+		},
+		"./build/dev-hmr-entrypoint-cache": {
+			"types": "./src/build/dev-hmr-entrypoint-cache.ts",
+			"default": "./src/build/dev-hmr-entrypoint-cache.ts"
 		},
 		"./build/server-entry-build-cache": {
 			"types": "./src/build/server-entry-build-cache.ts",

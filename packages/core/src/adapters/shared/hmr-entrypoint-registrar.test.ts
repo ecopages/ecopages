@@ -105,3 +105,38 @@ test('HmrEntrypointRegistrar deduplicates concurrent registrations', async () =>
 	assert.equal(emitCalls, 1);
 	assert.equal(first.outputUrl, second.outputUrl);
 });
+
+test('seedResolvedEntrypoint registers without invoking emit', async () => {
+	const rootDir = createTempRoot('hmr-registrar-seed');
+	const srcDir = path.join(rootDir, 'src');
+	const distDir = path.join(rootDir, '.eco', 'assets', '_hmr');
+	fs.mkdirSync(srcDir, { recursive: true });
+	fs.mkdirSync(distDir, { recursive: true });
+
+	const entrypointPath = path.join(srcDir, 'seeded.script.ts');
+	fs.writeFileSync(entrypointPath, 'export {}', 'utf8');
+	const outputPath = path.join(distDir, 'seeded.script.js');
+	fs.writeFileSync(outputPath, 'bundled', 'utf8');
+
+	const registrar = new HmrEntrypointRegistrar({ srcDir, distDir });
+	let emitCalls = 0;
+	registrar.seedResolvedEntrypoint({
+		sourcePath: entrypointPath,
+		outputPath,
+		outputUrl: '/assets/_hmr/seeded.script.js',
+	});
+
+	const registered = registrar.getRegistered().get(path.resolve(entrypointPath));
+	assert.equal(registered?.outputUrl, '/assets/_hmr/seeded.script.js');
+	assert.equal(registrar.getWatchedFiles().has(path.resolve(entrypointPath)), true);
+
+	// A later registerEntrypoint for the same entrypoint must reuse the seed, not rebuild.
+	await registrar.registerEntrypoint(entrypointPath, {
+		emit: async () => {
+			emitCalls += 1;
+		},
+		getMissingOutputError: (source, output) => new Error(`missing ${source} -> ${output}`),
+	});
+
+	assert.equal(emitCalls, 0);
+});

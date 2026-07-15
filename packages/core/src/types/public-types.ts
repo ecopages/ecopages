@@ -231,6 +231,15 @@ export interface DefaultHmrContext {
 	 * Entrypoint dependency graph for selective HMR invalidation.
 	 */
 	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
+
+	/**
+	 * Registers an already-materialized HMR entrypoint without rebuilding it.
+	 *
+	 * @remarks
+	 * Cold dev batches seed the registrar after grouped builds so the first SSR
+	 * resolves the artifact from disk instead of triggering a rebuild.
+	 */
+	seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void;
 }
 
 /**
@@ -335,6 +344,15 @@ export interface IHmrManager {
 	 * Returns an existing emitted HMR script artifact without registering it.
 	 */
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
+
+	/**
+	 * Registers an already-materialized HMR entrypoint without rebuilding it.
+	 *
+	 * @remarks
+	 * Cold dev batches seed the registrar after grouped builds so the first SSR
+	 * resolves the artifact from disk instead of triggering a rebuild.
+	 */
+	seedResolvedEntrypoint?(resolved: ResolvedHmrEntrypoint): void;
 
 	/**
 	 * Gets the map of watched files.

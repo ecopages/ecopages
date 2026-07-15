@@ -10,6 +10,7 @@ import {
 } from '@ecopages/core/plugins/integration-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
+import type { IHmrManager } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
@@ -29,10 +30,20 @@ import {
 	mergeReactPluginRuntimeModules,
 	resolveReactPluginRuntimeModules,
 } from './utils/react-plugin-runtime-modules.ts';
+import { startupTrace } from '@ecopages/core/diagnostics/startup-trace';
+import { createDevHmrEntrypointCache } from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
 const appLogger = new Logger('[ReactPlugin]');
+
+function isColdClientGraphEnabled(): boolean {
+	return process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH === 'true';
+}
+
+function isColdClientGraphBlocking(): boolean {
+	return process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING === 'true';
+}
 
 type ResolvedReactPluginConfig = Omit<
 	IntegrationPluginConfig,
@@ -114,6 +125,8 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly runtimeBundleService: ReactRuntimeBundleService;
 	private readonly hmrPageMetadataCache: ReactHmrPageMetadataCache;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
+	private hmrStrategy?: ReactHmrStrategy;
+	private devClientGraphPrewarmPromise: Promise<void> | undefined;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
@@ -274,23 +287,56 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 *
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
+	override setHmrManager(hmrManager: IHmrManager): void {
+		super.setHmrManager(hmrManager);
+
+		const appConfig = this.appConfig;
+		if (appConfig && isColdClientGraphEnabled()) {
+			const strategy = this.getHmrStrategy() as ReactHmrStrategy | undefined;
+			if (strategy) {
+				const cache = createDevHmrEntrypointCache(appConfig);
+				startupTrace.markPhaseStart('dev-cold-client-graph');
+				this.devClientGraphPrewarmPromise = strategy
+					.prepareColdClientGraph(cache)
+					.catch((error: unknown) => {
+						appLogger.warn(
+							'[ReactPlugin] Cold client graph build failed; first SSR will build entrypoints on demand.',
+							error as Error,
+						);
+					})
+					.finally(() => {
+						startupTrace.markPhaseEnd('dev-cold-client-graph');
+						startupTrace.resetFirstRequestCounters();
+					});
+			}
+		}
+	}
+
+	override async awaitDevClientGraphPrewarm(): Promise<void> {
+		if (isColdClientGraphBlocking()) {
+			await this.devClientGraphPrewarmPromise;
+		}
+	}
+
 	override getHmrStrategy(): HmrStrategy | undefined {
 		if (!this.hmrManager || !this.appConfig) {
 			return undefined;
 		}
 
-		const context = this.hmrManager.getDefaultContext();
+		if (!this.hmrStrategy) {
+			this.hmrStrategy = new ReactHmrStrategy({
+				context: this.hmrManager.getDefaultContext(),
+				pageMetadataCache: this.hmrPageMetadataCache,
+				runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
+				mdxCompilerOptions: this.mdxCompilerOptions,
+				ownedTemplateExtensions: this.extensions,
+				allTemplateExtensions: this.appConfig.templatesExt,
+				explicitGraphEnabled: this.explicitGraphEnabled,
+				clientGraphBoundaryCache: this.clientGraphBoundaryCache,
+			});
+		}
 
-		return new ReactHmrStrategy({
-			context,
-			pageMetadataCache: this.hmrPageMetadataCache,
-			runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
-			mdxCompilerOptions: this.mdxCompilerOptions,
-			ownedTemplateExtensions: this.extensions,
-			allTemplateExtensions: this.appConfig.templatesExt,
-			explicitGraphEnabled: this.explicitGraphEnabled,
-			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
-		});
+		return this.hmrStrategy;
 	}
 }
 

@@ -44,9 +44,7 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 }
 
 /** Stable fingerprint for ordered source transforms. */
-export function createSourceTransformCacheKey(
-	sourceTransforms: BuildOptions['sourceTransforms'],
-): string {
+export function createSourceTransformCacheKey(sourceTransforms: BuildOptions['sourceTransforms']): string {
 	if (!sourceTransforms || sourceTransforms.length === 0) {
 		return 'sourceTransforms:default';
 	}

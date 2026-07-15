@@ -38,7 +38,6 @@ import {
 	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
 } from '../shared/runtime-server-lifecycle.ts';
-import { awaitDevClientGraphPrewarm } from '../shared/await-dev-client-graph-prewarm.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
 import { setAppHmrManager } from '../../dev/hmr-manager-registry.ts';
@@ -321,7 +320,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 			if (options?.watch) {
 				attachHmrToIntegrations(this.appConfig, this.hmrManager);
-				await awaitDevClientGraphPrewarm(this.appConfig);
 			}
 		} catch (error) {
 			appLogger.error(`Failed to initialize plugins: ${error instanceof Error ? error.message : String(error)}`);

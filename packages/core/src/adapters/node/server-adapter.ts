@@ -25,7 +25,6 @@ import {
 	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
 } from '../shared/runtime-server-lifecycle.ts';
-import { awaitDevClientGraphPrewarm } from '../shared/await-dev-client-graph-prewarm.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
@@ -409,7 +408,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			}
 
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
-			await awaitDevClientGraphPrewarm(this.appConfig);
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

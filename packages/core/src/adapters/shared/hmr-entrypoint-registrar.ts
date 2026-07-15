@@ -123,6 +123,7 @@ export class HmrEntrypointRegistrar {
 		entrypointPath: string,
 		registrationOptions: HmrEntrypointRegistrationOptions,
 	): Promise<ResolvedHmrEntrypoint> {
+		const previous = this.registered.get(entrypointPath);
 		const { outputPath, outputUrl } = resolveHmrEntrypointOutputPaths(
 			this.options.srcDir,
 			this.options.distDir,
@@ -131,18 +132,25 @@ export class HmrEntrypointRegistrar {
 
 		removeStaleHmrEntrypointOutput(outputPath, 'HMR');
 
-		await registrationOptions.emit(entrypointPath, outputPath);
+		try {
+			await registrationOptions.emit(entrypointPath, outputPath);
 
-		if (!fileSystem.exists(outputPath)) {
-			throw registrationOptions.getMissingOutputError(entrypointPath, outputPath);
+			if (!fileSystem.exists(outputPath)) {
+				throw registrationOptions.getMissingOutputError(entrypointPath, outputPath);
+			}
+
+			const resolved: ResolvedHmrEntrypoint = {
+				sourcePath: entrypointPath,
+				outputPath,
+				outputUrl,
+			};
+			this.registered.set(entrypointPath, resolved);
+			return resolved;
+		} catch (error) {
+			if (previous && fileSystem.exists(previous.outputPath)) {
+				this.registered.set(entrypointPath, previous);
+			}
+			throw error;
 		}
-
-		const resolved: ResolvedHmrEntrypoint = {
-			sourcePath: entrypointPath,
-			outputPath,
-			outputUrl,
-		};
-		this.registered.set(entrypointPath, resolved);
-		return resolved;
 	}
 }

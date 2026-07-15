@@ -12,6 +12,7 @@ import type { DevGraphService } from '../services/runtime-state/dev-graph.servic
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { SourceModuleLoader } from '../services/module-loading/module-loading-types.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph-session.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
@@ -158,6 +159,7 @@ export type EcoPagesAppConfig = {
 		buildManifest?: AppBuildManifest;
 		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
+		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
 		hostModuleLoader?: SourceModuleLoader;
 		rendererModuleContext?: unknown;
 		serverInvalidationState?: ServerInvalidationState;
@@ -167,6 +169,10 @@ export type EcoPagesAppConfig = {
 		buildRuntime?: BuildRuntime;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
+		/** Registers integration runtime plugins when lazy activation completes. */
+		onRuntimePlugin?: (plugin: import('../build/build-types.ts').EcoBuildPlugin) => void;
+		/** Integration names that completed lazy runtime activation. */
+		activatedIntegrations?: Set<string>;
 		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
 		devClientOwner?: 'core' | 'host';
 		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */
@@ -247,4 +253,10 @@ export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown
 }
 
 // Re-export HMR types from public-types for internal use
-export type { ClientBridgeEvent, DefaultHmrContext, IHmrManager, IClientBridge } from './public-types.ts';
+export type {
+	ClientBridgeEvent,
+	DefaultHmrContext,
+	HmrFileChangeOptions,
+	IHmrManager,
+	IClientBridge,
+} from './public-types.ts';

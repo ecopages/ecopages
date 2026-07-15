@@ -47,6 +47,7 @@ import { createIntegrationRouteRenderAdapter } from './integration-route-render-
 import { loadPageBrowserGraphContribution } from './page-browser-graph-contribution.loader.ts';
 import type { ForeignChildRuntime } from './component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './render-output.utils.ts';
+import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
 	ForeignSubtreeExecutionService,
 	type ForeignSubtreeExecutionOwningRenderer,
@@ -120,12 +121,34 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
 	private runRenderExclusive<T>(operation: () => Promise<T>): Promise<T> {
-		const run = this.renderExclusiveChain.then(operation, operation);
+		const run = this.renderExclusiveChain.then(async () => {
+			await this.ensureIntegrationRuntimeActivated();
+			return operation();
+		});
 		this.renderExclusiveChain = run.then(
 			() => undefined,
 			() => undefined,
 		);
 		return run;
+	}
+
+	/**
+	 * Activates the owning integration runtime on first render or graph use.
+	 */
+	protected async ensureIntegrationRuntimeActivated(): Promise<void> {
+		await ensureIntegrationRuntimeReady({
+			appConfig: this.appConfig,
+			integrationName: this.name,
+			runtimeOrigin: this.runtimeOrigin,
+		});
+	}
+
+	/**
+	 * Prebuilds the production Page Browser Graph for one route file.
+	 */
+	public async prebuildProductionPageBrowserGraph(routeFile: string): Promise<void> {
+		await this.ensureIntegrationRuntimeActivated();
+		await this.resolvePageBrowserGraphForFile(routeFile);
 	}
 
 	/**
@@ -405,6 +428,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		ctx: RenderToResponseContext;
 		layout?: EcoComponent;
 	}): Promise<Response> {
+		await this.ensureIntegrationRuntimeActivated();
 		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
 
 		if (input.ctx.partial) {

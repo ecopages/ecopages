@@ -231,6 +231,15 @@ export interface DefaultHmrContext {
 	 * Entrypoint dependency graph for selective HMR invalidation.
 	 */
 	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
+
+	/**
+	 * Registers an already-materialized HMR entrypoint without rebuilding it.
+	 *
+	 * @remarks
+	 * Cold dev batches seed the registrar after grouped builds so the first SSR
+	 * resolves the artifact from disk instead of triggering a rebuild.
+	 */
+	seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void;
 }
 
 /**
@@ -253,6 +262,23 @@ export type ClientBridgeEvent = {
 	 * Timestamp for cache busting
 	 */
 	timestamp?: number;
+	/**
+	 * Page Browser Graph identities invalidated by the originating file change.
+	 */
+	graphIdentities?: Array<{
+		integrationName: string;
+		routeFile: string;
+		policy: 'development' | 'production';
+		entryFingerprint: string;
+	}>;
+};
+
+/**
+ * Options for handling a development file change through HMR.
+ */
+export type HmrFileChangeOptions = {
+	broadcast?: boolean;
+	graphIdentities?: ClientBridgeEvent['graphIdentities'];
 };
 
 /**
@@ -337,6 +363,15 @@ export interface IHmrManager {
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
 
 	/**
+	 * Registers an already-materialized HMR entrypoint without rebuilding it.
+	 *
+	 * @remarks
+	 * Cold dev batches seed the registrar after grouped builds so the first SSR
+	 * resolves the artifact from disk instead of triggering a rebuild.
+	 */
+	seedResolvedEntrypoint?(resolved: ResolvedHmrEntrypoint): void;
+
+	/**
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;
@@ -354,7 +389,7 @@ export interface IHmrManager {
 	/**
 	 * Handles a file change event.
 	 */
-	handleFileChange(path: string): Promise<void>;
+	handleFileChange(path: string, options?: HmrFileChangeOptions): Promise<void>;
 }
 
 /**

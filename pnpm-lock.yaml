@@ -41,6 +41,9 @@ importers:
       lint-staged:
         specifier: ^15.5.2
         version: 15.5.2
+      mitata:
+        specifier: ^1.0.34
+        version: 1.0.34
       oxlint:
         specifier: ^1.64.0
         version: 1.73.0

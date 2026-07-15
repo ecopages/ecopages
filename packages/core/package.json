@@ -132,6 +132,10 @@
 			"types": "./src/config/constants.ts",
 			"default": "./src/config/constants.ts"
 		},
+		"./diagnostics/startup-trace": {
+			"types": "./src/diagnostics/startup-trace.ts",
+			"default": "./src/diagnostics/startup-trace.ts"
+		},
 		"./bun": {
 			"types": "./src/adapters/bun/index.ts",
 			"default": "./src/adapters/bun/index.ts"
@@ -139,6 +143,10 @@
 		"./hmr/hmr-strategy": {
 			"types": "./src/hmr/hmr-strategy.ts",
 			"default": "./src/hmr/hmr-strategy.ts"
+		},
+		"./hmr/hmr-file-change-prep": {
+			"types": "./src/hmr/hmr-file-change-prep.ts",
+			"default": "./src/hmr/hmr-file-change-prep.ts"
 		},
 		"./hmr/client/hmr-runtime": {
 			"types": "./src/hmr/client/hmr-runtime.ts",

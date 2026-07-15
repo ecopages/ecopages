@@ -8,6 +8,14 @@ import {
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import {
+	collectPageBrowserGraphDependencyPaths,
+	createPageBrowserGraphEntryFingerprint,
+	getAppPageBrowserGraphSession,
+	type GraphBuildResult,
+	type GraphPolicy,
+} from './page-browser-graph-session.ts';
 
 function isGroupedContentScriptAsset(asset: AssetDefinition): asset is Extract<
 	AssetDefinition,
@@ -27,6 +35,7 @@ function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string
 
 type GroupedPageBrowserAssetsResult = {
 	assetsByRoute: Map<string, ProcessedAsset[]>;
+	dependencyPaths: ReadonlySet<string>;
 	hasCollectionFailures: boolean;
 };
 
@@ -34,6 +43,7 @@ export type PageBrowserGraphResolveInput = {
 	routeFile: string;
 	integrationName: string;
 	collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
+	policy?: GraphPolicy;
 };
 
 /**
@@ -42,8 +52,6 @@ export type PageBrowserGraphResolveInput = {
 export class PageBrowserGraphService {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
-	private readonly pageBrowserGraphCache = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
-	private readonly groupedPageBrowserGraphCache = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
 
 	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
 		this.appConfig = appConfig;
@@ -51,24 +59,43 @@ export class PageBrowserGraphService {
 	}
 
 	async resolvePageBrowserGraph(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {
-		if (this.isHmrEnabled()) {
-			return await this.buildPageBrowserGraph(input);
+		return await this.getOrBuild(input);
+	}
+
+	/**
+	 * Resolves or builds one Page Browser Graph under the given policy.
+	 */
+	async getOrBuild(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {
+		const policy = input.policy ?? this.resolveGraphPolicy();
+		const session = getAppPageBrowserGraphSession(this.appConfig);
+
+		if (!this.isHmrEnabled()) {
+			const cachedByRoute = session.getGraphByRoute(input.integrationName, input.routeFile, policy);
+			if (cachedByRoute) {
+				return cachedByRoute;
+			}
 		}
 
-		const cacheKey = `${input.integrationName}:${input.routeFile}`;
-		const cachedGraph = this.pageBrowserGraphCache.get(cacheKey);
-
-		if (cachedGraph) {
-			return await cachedGraph;
+		const contribution = await input.collectContribution(input.routeFile);
+		if (!contribution) {
+			return undefined;
 		}
 
-		const pendingGraph = this.buildPageBrowserGraph(input).catch((error) => {
-			this.pageBrowserGraphCache.delete(cacheKey);
-			throw error;
-		});
-		this.pageBrowserGraphCache.set(cacheKey, pendingGraph);
+		const entryFingerprint = createPageBrowserGraphEntryFingerprint(contribution);
 
-		return await pendingGraph;
+		return await session.resolveGraph(
+			{
+				integrationName: input.integrationName,
+				routeFile: input.routeFile,
+				entryFingerprint,
+				policy,
+			},
+			async () => this.buildPageBrowserGraphRecord(input, contribution),
+		);
+	}
+
+	private resolveGraphPolicy(): GraphPolicy {
+		return this.isHmrEnabled() ? 'development' : 'production';
 	}
 
 	private isHmrEnabled(): boolean {
@@ -78,22 +105,31 @@ export class PageBrowserGraphService {
 		);
 	}
 
-	private async buildPageBrowserGraph(
+	private async buildPageBrowserGraphRecord(
 		input: PageBrowserGraphResolveInput,
-	): Promise<PageBrowserGraphResult | undefined> {
-		const contribution = await input.collectContribution(input.routeFile);
-
-		if (!contribution) {
+		contribution: PageBrowserGraphContribution,
+	): Promise<GraphBuildResult | undefined> {
+		const result = await this.materializePageBrowserGraph(input, contribution);
+		if (!result) {
 			return undefined;
 		}
 
+		startupTrace.markFirstPageBrowserGraphReady(getAppPageBrowserGraphSession(this.appConfig).getBuildCount());
+		return result;
+	}
+
+	private async materializePageBrowserGraph(
+		input: PageBrowserGraphResolveInput,
+		contribution: PageBrowserGraphContribution,
+	): Promise<GraphBuildResult | undefined> {
 		const groupedDependencies = (contribution.dependencies ?? []).filter((dep) => isGroupedContentScriptAsset(dep));
 		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
 			(dep) => !isGroupedContentScriptAsset(dep),
 		);
 
 		const groupedAssets = groupedDependencies.length
-			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).get(input.routeFile) ?? [])
+			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).assetsByRoute.get(input.routeFile) ??
+				[])
 			: [];
 
 		const processedDependencies = ungroupedDependencies.length
@@ -103,50 +139,61 @@ export class PageBrowserGraphService {
 				)
 			: [];
 		const resolvedAssets = [...processedDependencies, ...groupedAssets, ...(contribution.assets ?? [])];
+		const result = this.partitionPageBrowserGraphAssets(resolvedAssets);
+		const dependencyPaths = collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, resolvedAssets);
 
-		return this.partitionPageBrowserGraphAssets(resolvedAssets);
+		return {
+			result,
+			dependencyPaths,
+		};
 	}
 
 	private async resolveGroupedPageBrowserAssets(
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
-	): Promise<Map<string, ProcessedAsset[]>> {
+	): Promise<GroupedPageBrowserAssetsResult> {
 		if (this.isHmrEnabled()) {
-			const result = await this.buildGroupedPageBrowserAssets(input, currentContribution);
-			return result.assetsByRoute;
+			return await this.buildGroupedPageBrowserAssets(input, currentContribution);
 		}
 
-		const cacheKey = input.integrationName;
-		let pending = this.groupedPageBrowserGraphCache.get(cacheKey);
-		if (!pending) {
-			pending = this.buildGroupedPageBrowserAssets(input, currentContribution)
-				.then((result) => {
-					if (result.hasCollectionFailures) {
-						this.groupedPageBrowserGraphCache.delete(cacheKey);
-					}
+		const session = getAppPageBrowserGraphSession(this.appConfig);
+		const assetsByRoute = await session.resolveGroupedGraph(input.integrationName, async () => {
+			const built = await this.buildGroupedPageBrowserAssets(input, currentContribution);
+			if (built.hasCollectionFailures) {
+				return {
+					skipCache: true,
+					assetsByRoute: built.assetsByRoute,
+					dependencyPaths: built.dependencyPaths,
+				};
+			}
 
-					return result.assetsByRoute;
-				})
-				.catch((error) => {
-					this.groupedPageBrowserGraphCache.delete(cacheKey);
-					throw error;
-				});
-			this.groupedPageBrowserGraphCache.set(cacheKey, pending);
-		}
+			return {
+				assetsByRoute: built.assetsByRoute,
+				dependencyPaths: built.dependencyPaths,
+				generation: 0,
+			};
+		});
 
-		return await pending;
+		return {
+			assetsByRoute,
+			dependencyPaths: new Set(),
+			hasCollectionFailures: false,
+		};
 	}
 
 	private async buildGroupedPageBrowserAssets(
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
 	): Promise<GroupedPageBrowserAssetsResult> {
-		const routeFiles = await this.listIntegrationRouteFiles(input.integrationName);
+		const routeFiles = this.isHmrEnabled()
+			? [input.routeFile]
+			: await this.listIntegrationRouteFiles(input.integrationName);
 		const currentRouteGroupedDependencies = (currentContribution.dependencies ?? []).filter((dep) =>
 			isGroupedContentScriptAsset(dep),
 		);
 		const groupedDependencies: AssetDefinition[] = [...currentRouteGroupedDependencies];
 		const groupedAssetKeysByRoute = new Map<string, Set<string>>();
+		const dependencyPaths = new Set<string>([path.resolve(input.routeFile)]);
 		let hasCollectionFailures = false;
 		if (currentRouteGroupedDependencies.length > 0) {
 			groupedAssetKeysByRoute.set(
@@ -171,10 +218,6 @@ export class PageBrowserGraphService {
 				continue;
 			}
 
-			if (this.isHmrEnabled()) {
-				continue;
-			}
-
 			if (!contribution?.dependencies?.length) {
 				continue;
 			}
@@ -191,13 +234,21 @@ export class PageBrowserGraphService {
 				routeFile,
 				new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
 			);
+			dependencyPaths.add(path.resolve(routeFile));
 		}
 
 		if (groupedDependencies.length === 0) {
 			return {
 				assetsByRoute: new Map(),
+				dependencyPaths,
 				hasCollectionFailures,
 			};
+		}
+
+		for (const dependency of groupedDependencies) {
+			if (dependency.source === 'file') {
+				dependencyPaths.add(path.resolve(dependency.filepath));
+			}
 		}
 
 		const processedGroupedDependencies = await this.assetProcessingService.processDependencies(
@@ -224,8 +275,19 @@ export class PageBrowserGraphService {
 			groupedAssetsByRoute.set(routeFile, matchedAssets);
 		}
 
+		for (const asset of processedGroupedDependencies) {
+			if (asset.sourceFilepath) {
+				dependencyPaths.add(path.resolve(asset.sourceFilepath));
+			}
+
+			for (const bundledSourceFilepath of asset.bundledSourceFilepaths ?? []) {
+				dependencyPaths.add(path.resolve(bundledSourceFilepath));
+			}
+		}
+
 		return {
 			assetsByRoute: groupedAssetsByRoute,
+			dependencyPaths,
 			hasCollectionFailures,
 		};
 	}

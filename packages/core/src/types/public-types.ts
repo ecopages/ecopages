@@ -427,11 +427,15 @@ export type EcoPagesElement = string | Promise<string>;
 /**
  * Serializable child payloads accepted by cross-integration deferred rendering.
  *
+ * @remarks
  * This models the broad value shapes that EcoPages already flattens when a
  * foreign component boundary serializes its children for another integration.
  * It is intentionally transport-oriented rather than framework-native, so it
  * can be shared across Kita, Lit, React, and Ecopages JSX authoring surfaces
  * without coupling core types to any one renderer.
+ *
+ * Do not treat `EcoChildren` as trusted serialized HTML. Opaque objects must be
+ * intercepted at composition boundaries before framework serializers coerce them.
  */
 export type EcoChildren =
 	| string
@@ -1045,6 +1049,16 @@ export interface BaseIntegrationContext {
 	componentInstanceId?: string;
 }
 
+/**
+ * Shared input for renderer-owned component execution.
+ *
+ * @remarks
+ * `children` stays `unknown` at this boundary so integrations can receive
+ * queued tokens, already-serialized HTML, or framework-native values before
+ * their own placement rules apply. Opaque values must be rejected or converted
+ * by foreign-child interception before string serializers run; adapters keep
+ * framework-specific placement (React raw HTML, Lit slot markers).
+ */
 export interface ComponentRenderInput<TIntegrationContext extends BaseIntegrationContext = BaseIntegrationContext> {
 	component: EcoComponent;
 	props: Record<string, unknown>;

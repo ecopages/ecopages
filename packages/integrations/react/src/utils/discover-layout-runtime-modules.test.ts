@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
 	discoverLayoutRuntimeModuleSpecifiers,
 	isProviderRuntimeModulePath,
+	isRuntimeProviderLayoutSource,
 	normalizeRuntimePackageSpecifier,
 } from './discover-layout-runtime-modules.ts';
 
@@ -390,6 +391,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 				"import { eco } from '@ecopages/core';",
 				"import { QueryProvider } from '@/shared/query-provider';",
 				'export default eco.layout({',
+				'  runtimeProvider: true,',
 				'  render: ({ children }) => <QueryProvider>{children}</QueryProvider>,',
 				'});',
 			].join('\n'),
@@ -401,6 +403,68 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 				"import { AppShell } from '@/shell/app-shell';",
 				'export default eco.layout({',
 				'  render: () => <AppShell />',
+				'});',
+			].join('\n'),
+		);
+
+		expect(
+			discoverLayoutRuntimeModuleSpecifiers({
+				searchDirs: [layoutsDir],
+				projectRoot,
+			}),
+		).toEqual(['@tanstack/react-query']);
+	});
+
+	it('scopes discovery to runtimeProvider layouts when any layout opts in', () => {
+		tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-layout-runtime-'));
+		const projectRoot = tempDir;
+		const layoutsDir = path.join(projectRoot, 'src', 'layouts');
+		const sharedDir = path.join(projectRoot, 'src', 'shared');
+		const shellDir = path.join(projectRoot, 'src', 'shell');
+		mkdirSync(layoutsDir, { recursive: true });
+		mkdirSync(sharedDir, { recursive: true });
+		mkdirSync(shellDir, { recursive: true });
+		writeFileSync(
+			path.join(projectRoot, 'tsconfig.json'),
+			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+		);
+
+		writeFileSync(
+			path.join(sharedDir, 'query-provider.tsx'),
+			[
+				"import { QueryClientProvider } from '@tanstack/react-query';",
+				'export function QueryProvider({ children }) {',
+				'  return <QueryClientProvider client={{}}>{children}</QueryClientProvider>;',
+				'}',
+			].join('\n'),
+		);
+		writeFileSync(
+			path.join(shellDir, 'theme-provider.tsx'),
+			[
+				"import { ThemeProvider } from '@mui/material';",
+				'export function ShellThemeProvider({ children }) {',
+				'  return <ThemeProvider theme={{}}>{children}</ThemeProvider>;',
+				'}',
+			].join('\n'),
+		);
+		writeFileSync(
+			path.join(layoutsDir, 'query-root-layout.tsx'),
+			[
+				"import { eco } from '@ecopages/core';",
+				"import { QueryProvider } from '@/shared/query-provider';",
+				'export default eco.layout({',
+				'  runtimeProvider: true,',
+				'  render: ({ children }) => <QueryProvider>{children}</QueryProvider>,',
+				'});',
+			].join('\n'),
+		);
+		writeFileSync(
+			path.join(layoutsDir, 'app-shell-layout.tsx'),
+			[
+				"import { eco } from '@ecopages/core';",
+				"import { ShellThemeProvider } from '@/shell/theme-provider';",
+				'export default eco.layout({',
+				'  render: ({ children }) => <ShellThemeProvider>{children}</ShellThemeProvider>,',
 				'});',
 			].join('\n'),
 		);
@@ -440,6 +504,15 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 				routerImportPath: '@ecopages/react-router/browser',
 			}),
 		).toEqual([]);
+	});
+});
+
+describe('isRuntimeProviderLayoutSource', () => {
+	it('detects runtimeProvider layouts', () => {
+		expect(
+			isRuntimeProviderLayoutSource('export default eco.layout({ runtimeProvider: true, render: () => null });'),
+		).toBe(true);
+		expect(isRuntimeProviderLayoutSource('export default eco.layout({ render: () => null });')).toBe(false);
 	});
 });
 

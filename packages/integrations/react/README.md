@@ -238,13 +238,12 @@ Without `router`, only explicit `runtimeModules` entries are vendored.
 
 1. Scan **`layoutsDir` and `componentsDir`** for source files whose contents include `eco.layout(`.
 2. From each layout's **`render` client graph** (via reachability analysis), follow relative imports and tsconfig path aliases.
-3. Collect **npm package roots** reachable from that graph (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
-4. Register each discovered package as a shared vendor. React, React DOM, the router bundle, and `@ecopages/*` packages are excluded automatically.
+3. Collect **npm package roots** imported from **provider/context modules** in that graph (for example `@tanstack/react-query` from `query-provider.tsx`, not every shell or store dependency).
+4. Register each discovered package as a shared vendor. React, React DOM, the router bundle, workspace packages under the app scope, devtools packages, and `@ecopages/*` packages are excluded automatically.
 
 Important:
 
-- Discovery is **reachability-based**. Imports not reachable from the layout `render` path are ignored.
-- Discovery is **not limited to context providers**. Any npm package in the layout render graph may be vendored.
+- Discovery is **reachability-based** and **provider-scoped**. Imports not reachable from the layout `render` path are ignored; npm packages imported only from shell, store, or form modules are not auto-vendored.
 - Layout files outside the configured `layouts/` and `components/` directories are not scanned.
 
 Path aliases resolve from the app `tsconfig.json` `compilerOptions.paths` (via oxc-resolver), same as the Ecopages alias resolver plugin. Relative imports work without tsconfig aliases.

@@ -80,9 +80,10 @@ export type ReactPluginOptions = {
 	 *
 	 * @remarks
 	 * Discovery follows client reachability from each layout's `render` path,
-	 * resolves relative and tsconfig path aliases, and collects npm package roots.
-	 * It is not limited to context-provider libraries. Manual entries override
-	 * auto-discovered specifiers with the same package root.
+	 * resolves relative and tsconfig path aliases, and collects npm package roots
+	 * imported from provider/context modules in that graph (for example files named
+	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
+	 * It does not vendor every npm dependency reachable from shell or page UI.
 	 *
 	 * @example
 	 * ```ts

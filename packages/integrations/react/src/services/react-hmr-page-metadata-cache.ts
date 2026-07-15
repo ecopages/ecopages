@@ -35,6 +35,13 @@ export class ReactHmrPageMetadataCache {
 	}
 
 	/**
+	 * Returns React-owned page entrypoints discovered during development renders.
+	 */
+	getOwnedEntrypoints(): string[] {
+		return [...this.ownedEntrypoints].sort((left, right) => left.localeCompare(right));
+	}
+
+	/**
 	 * Returns true when the watched entrypoint is owned by the React integration.
 	 */
 	ownsEntrypoint(entrypointPath: string): boolean {

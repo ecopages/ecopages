@@ -109,10 +109,16 @@ class TestReactRenderer extends ReactRenderer {
 		this.assetProcessingService.processDependencies = vi.fn(
 			async (...args) =>
 				(this.pageBrowserGraphOverride
-					? [...this.pageBrowserGraphOverride.entryAssets, ...this.pageBrowserGraphOverride.chunkAssets]
+					? [...this.pageBrowserGraphOverride.entryAssets]
 					: undefined) ??
 				originalProcessDependencies(...(args as Parameters<typeof originalProcessDependencies>)),
 		) as typeof this.assetProcessingService.processDependencies;
+	}
+
+	protected override async resolvePageBrowserGraphForFile(
+		filePath: string,
+	): Promise<PageBrowserGraphResult | undefined> {
+		return this.pageBrowserGraphOverride ?? super.resolvePageBrowserGraphForFile(filePath);
 	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps, JSX.Element>> {

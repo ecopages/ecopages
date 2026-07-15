@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
-import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/build-runtime';
+import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,

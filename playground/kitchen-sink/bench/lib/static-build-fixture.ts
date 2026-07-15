@@ -10,7 +10,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installBuildRuntime } from '../../../../packages/core/src/build/build-runtime';
+import { installBuildRuntime } from '../../../../packages/core/src/build/runtime/build-runtime';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';

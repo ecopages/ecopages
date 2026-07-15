@@ -10,7 +10,7 @@ import {
 	readProductionCacheManifest,
 	writeProductionCacheManifest,
 } from './production-build-cache.ts';
-import { getCorePackageVersion } from '../services/module-loading/route-module-build-manifest.ts';
+import { getCorePackageVersion } from './cache-keys.ts';
 import {
 	RouteModuleDependencyHasher,
 	createRouteModuleDependencyHashes,

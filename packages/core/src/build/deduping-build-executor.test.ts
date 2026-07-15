@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { BuildExecutor, BuildOptions, BuildResult } from './build-adapter.ts';
-import { createBuildOptionsDedupeKey, DedupingBuildExecutor } from './deduping-build-executor.ts';
+import { createBuildRequestIdentity, DedupingBuildExecutor } from './deduping-build-executor.ts';
 
 const buildOptions: BuildOptions = {
 	entrypoints: ['/in/a.ts'],
@@ -12,12 +12,12 @@ const buildOptions: BuildOptions = {
 	sourcemap: 'none',
 };
 
-test('createBuildOptionsDedupeKey treats entrypoint order as equivalent', () => {
-	const keyA = createBuildOptionsDedupeKey({
+test('createBuildRequestIdentity treats entrypoint order as equivalent', () => {
+	const keyA = createBuildRequestIdentity({
 		...buildOptions,
 		entrypoints: ['/in/a.ts', '/in/b.ts'],
 	});
-	const keyB = createBuildOptionsDedupeKey({
+	const keyB = createBuildRequestIdentity({
 		...buildOptions,
 		entrypoints: ['/in/b.ts', '/in/a.ts'],
 	});

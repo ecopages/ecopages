@@ -42,6 +42,8 @@ import {
 	composeLayoutPageTree,
 	assertComposablePage,
 	normalizePageLayoutComponents,
+	resolveLayoutContext,
+	resolveLayoutEntryProps,
 	type ComposablePage,
 } from '@ecopages/react/layout-compose';
 import {
@@ -74,6 +76,11 @@ const PersistLayoutsContext = createContext<boolean>(false);
  * Eco declared layouts widen to React callables for the persistence cache.
  */
 function resolvePageLayoutStack(pageConfig?: ComposablePage['config']): LayoutComponent[] {
+	const layoutEntries = pageConfig?.layoutEntries;
+	if (layoutEntries && layoutEntries.length > 0) {
+		return layoutEntries.map((entry) => entry.component) as LayoutComponent[];
+	}
+
 	return normalizePageLayoutComponents(pageConfig?.layouts) as LayoutComponent[];
 }
 
@@ -133,12 +140,21 @@ export const PageContent: FC = () => {
 
 	if (persistLayouts && layoutComponents.length > 0) {
 		const pageElement = createElement(Page, props);
-		const layoutProps = props?.locals ? { locals: props.locals } : null;
+		const layoutContext = resolveLayoutContext(props);
+		const layoutEntries = composablePage.config?.layoutEntries;
+		const fallbackLayoutProps = layoutContext.locals ? { locals: layoutContext.locals } : {};
 		const persistedTiers = resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout);
 
-		const tree = persistedTiers.reduceRight<ReactNode>((children, { layout: CachedLayout, key: layoutKey }) => {
-			return createElement(CachedLayout, { key: layoutKey, ...(layoutProps ?? {}) }, children);
-		}, pageElement);
+		const tree = persistedTiers.reduceRight<ReactNode>(
+			(children, { layout: CachedLayout, key: layoutKey }, index) => {
+				const layoutEntry = layoutEntries?.[index];
+				const layoutProps = layoutEntry
+					? resolveLayoutEntryProps(layoutEntry, layoutContext)
+					: fallbackLayoutProps;
+				return createElement(CachedLayout, { key: layoutKey, ...layoutProps }, children);
+			},
+			pageElement,
+		);
 
 		return tree;
 	}

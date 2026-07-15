@@ -242,10 +242,10 @@ Without `router`, only explicit `runtimeModules` entries are vendored.
 
 #### Discovery modes
 
-| Mode | Trigger | Layout roots scanned | npm packages collected |
-| --- | --- | --- | --- |
-| **Runtime-provider** (recommended) | At least one layout sets `runtimeProvider: true` | Only flagged layouts | Every reachable npm package in that layout's `render` graph |
-| **Provider-scoped fallback** | No layout sets `runtimeProvider: true` | All `eco.layout(` files under `layouts/` and `components/` | npm packages imported from provider/context modules only |
+| Mode                               | Trigger                                          | Layout roots scanned                                       | npm packages collected                                      |
+| ---------------------------------- | ------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| **Runtime-provider** (recommended) | At least one layout sets `runtimeProvider: true` | Only flagged layouts                                       | Every reachable npm package in that layout's `render` graph |
+| **Provider-scoped fallback**       | No layout sets `runtimeProvider: true`           | All `eco.layout(` files under `layouts/` and `components/` | npm packages imported from provider/context modules only    |
 
 The fallback exists for backward compatibility. Ecopages logs a debug message when fallback mode is active. Prefer explicit `runtimeProvider: true` on provider root layouts (for example a query-client tier) and omit it from shell-only layouts.
 
@@ -324,12 +324,12 @@ Manual entries **override** auto-discovered entries for the same specifier.
 
 #### Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| `No QueryClient set` after SPA navigation | Provider library bundled per page chunk | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors |
-| Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged |
-| Package not discovered | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry |
-| `@/` alias not followed | Missing or invalid tsconfig paths | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
+| Symptom                                    | Likely cause                                                                     | Fix                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `No QueryClient set` after SPA navigation  | Provider library bundled per page chunk                                          | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors      |
+| Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root                                           | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                     |
+| Package not discovered                     | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry                                              |
+| `@/` alias not followed                    | Missing or invalid tsconfig paths                                                | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
 
 #### Tests
 

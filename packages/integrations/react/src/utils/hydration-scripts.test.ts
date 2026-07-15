@@ -92,16 +92,17 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('const currentPageLayoutStack = (Component) =>');
 		expect(script).toContain("layout?.config?.__eco?.file ?? '').join('|')");
 		expect(script).toContain('clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey');
-		expect(script).toContain('moduleUrl: "/assets/page.js"');
+		expect(script).toContain('moduleUrl: newUrl');
 		expect(script).toContain('const initialPageData = readPageDataDocument();');
 		expect(script).toContain('const props = initialPageData.props;');
 		expect(script).toContain('window.__ECO_PAGES__.page = {');
 		expect(script).toContain('const nextProps = getPageData();');
 		expect(script).toContain('root.render(createTree(NewPage, nextProps));');
 		expect(script).toContain('console.log("[ecopages] React component updated via router");');
-		expect(script).toContain(
-			'import { readPageDataDocument, getPageDataFromDocument as getPageData } from "@ecopages/react/page-data-reader"',
-		);
+		expect(script).toContain('const readPageDataDocument = () => {');
+		expect(script).toContain('parsed.schemaVersion === 1');
+		expect(script).toContain('moduleUrl: parsed.moduleUrl');
+		expect(script).not.toContain('@ecopages/react/page-data-reader');
 		expect(script).toContain('module: initialPageData.moduleUrl || pageModuleUrl');
 		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});

@@ -24,7 +24,8 @@ export interface EcoPropsScriptProps {
  *
  * @remarks
  * The hydration script reads this and sets `window.__ECO_PAGES__.page`.
- * Using `application/json` allows direct parsing without regex.
+ * Clients parse `#__ECO_PAGE_DATA__` as JSON; module discovery uses the v1
+ * envelope `moduleUrl`, the runtime page marker, or the page bootstrap script `src`.
  */
 export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data, module: moduleUrl }) => {
 	const payload = resolvePageDataDocumentPayload(data, { moduleUrl });

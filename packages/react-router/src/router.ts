@@ -488,10 +488,11 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						window.location.assign(fetchedPage.finalPath);
 					}
 				}
+			} finally {
 				if (!isStale()) {
 					setIsNavigating(false);
 				}
-			} finally {
+
 				const shouldReplayQueuedNavigation = activeNavigationRef.current?.id === navigationId;
 				const queuedNavigationHref = shouldReplayQueuedNavigation ? queuedNavigationHrefRef.current : null;
 				const queuedNavigationPath = queuedNavigationHref

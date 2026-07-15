@@ -1,6 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import type { PageQuery } from '@ecopages/core';
+import type { PageParams, PageQuery } from '@ecopages/core';
 import type {
 	LitStaticRenderCacheStrategy,
 	LitStaticRenderWorkerRequestMessage,
@@ -105,7 +105,7 @@ export class LitStaticRenderWorkerClient {
 
 	async renderPage(input: {
 		filePath: string;
-		params: Record<string, string>;
+		params: PageParams;
 		query?: PageQuery;
 	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
 		await this.start();

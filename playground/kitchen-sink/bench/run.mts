@@ -41,3 +41,14 @@ if (!benchFormat) {
 	printMitataBenchReport(report);
 }
 console.log(`Wrote ${MITATA_BENCH_JSON} (${Object.keys(report.scenarios).length} scenarios).`);
+
+await new Promise<void>((resolve, reject) => {
+	process.stdout.write('', (error) => {
+		if (error) {
+			reject(error);
+		} else {
+			resolve();
+		}
+	});
+});
+process.exit(0);

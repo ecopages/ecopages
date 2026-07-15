@@ -9,9 +9,7 @@ import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './rend
  * must not treat arbitrary objects as resolved output.
  */
 export type ForeignChildInterceptionResult =
-	| { kind: 'inline'; props?: Record<string, unknown> }
-	| { kind: 'resolved'; value: string }
-	| undefined;
+	{ kind: 'inline'; props?: Record<string, unknown> } | { kind: 'resolved'; value: string } | undefined;
 
 /**
  * Foreign-child metadata passed into the active renderer-owned runtime.

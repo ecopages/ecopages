@@ -58,9 +58,7 @@ export function isEcoPageDataManifestV1(value: unknown): value is EcoPageDataMan
  * wiped. Near-miss numeric envelopes must not fall through to the flat-props path.
  */
 function isMalformedPageDataEnvelope(payload: object): boolean {
-	return (
-		'schemaVersion' in payload && typeof (payload as { schemaVersion: unknown }).schemaVersion === 'number'
-	);
+	return 'schemaVersion' in payload && typeof (payload as { schemaVersion: unknown }).schemaVersion === 'number';
 }
 
 /**

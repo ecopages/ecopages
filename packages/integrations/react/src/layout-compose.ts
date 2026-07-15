@@ -154,15 +154,13 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	const layouts = Page.config?.layouts;
 	if (layouts && layouts.length > 0) {
 		const layoutProps = context.locals ? { locals: context.locals } : {};
-		return [...layouts]
-			.reverse()
-			.reduce<ReactElement>((children, Layout, reverseIndex) => {
-				const index = layouts.length - 1 - reverseIndex;
-				const tier = resolvePersistedTier?.(Layout, index);
-				const ResolvedLayout = toReactComponent(tier?.layout ?? Layout);
-				const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
-				return createElement(ResolvedLayout, elementProps, children);
-			}, pageElement);
+		return [...layouts].reverse().reduce<ReactElement>((children, Layout, reverseIndex) => {
+			const index = layouts.length - 1 - reverseIndex;
+			const tier = resolvePersistedTier?.(Layout, index);
+			const ResolvedLayout = toReactComponent(tier?.layout ?? Layout);
+			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
+			return createElement(ResolvedLayout, elementProps, children);
+		}, pageElement);
 	}
 
 	return pageElement;

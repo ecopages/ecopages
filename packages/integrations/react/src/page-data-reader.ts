@@ -1,8 +1,4 @@
-import {
-	resolveEcoPageDataModuleUrl,
-	resolveEcoPageDataProps,
-	type EcoPageDataProps,
-} from './page-data-manifest.ts';
+import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps, type EcoPageDataProps } from './page-data-manifest.ts';
 
 export type ReadPageDataDocumentResult = {
 	moduleUrl?: string;

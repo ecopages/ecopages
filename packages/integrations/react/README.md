@@ -258,9 +258,7 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([reactPlugin({ router: ecoRouter() })])
-	.build();
+const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: ecoRouter() })]).build();
 
 export default config;
 ```
@@ -293,11 +291,8 @@ Override when discovery misses a package, or when `router` is not enabled:
 ```ts
 reactPlugin({
 	router: ecoRouter(),
-	runtimeModules: [
-		'@tanstack/react-query',
-		{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
-	],
-})
+	runtimeModules: ['@tanstack/react-query', { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] }],
+});
 ```
 
 Manual `runtimeModules` entries **override** auto-discovered entries for the same specifier.

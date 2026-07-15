@@ -9,6 +9,7 @@ All notable changes to `@ecopages/core` are documented here.
 ### Breaking Changes
 
 - Removed deprecated `config.layout` innermost alias on page configs. Use `config.layouts` and `config.layoutEntries` instead.
+- `createAliasResolverPlugin` now takes the app **project root** (not `srcDir`) and resolves aliases from tsconfig `compilerOptions.paths` only. Apps without tsconfig `paths` get no alias resolver handlers. Hardcoded `@/` → `srcDir` mapping is removed.
 
 ### Features
 
@@ -22,7 +23,7 @@ All notable changes to `@ecopages/core` are documented here.
 - Added boundary-plan metadata and mixed-renderer `renderBoundary()` payload contract for cross-integration pages.
 - Added `@ecopages/core/dev/host-runtime` for Vite and other host integrations.
 - Replaced filesystem route discovery with `RouteRegistry` for matching, static-generation planning, and dev reload.
-- Added `@ecopages/core/plugins/tsconfig-import-resolver` for tsconfig `paths` resolution and bare-import classification via oxc-resolver.
+- Added `@ecopages/core/plugins/tsconfig-import-resolver` for tsconfig `paths` resolution, project module path resolution, and bare npm import classification via oxc-resolver.
 
 ### Bug Fixes
 

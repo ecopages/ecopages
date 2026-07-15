@@ -103,10 +103,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		};
 	}
 
-	protected override shouldRenderPageComponent(): boolean {
-		return false;
-	}
-
 	private isLitManagedComponent(component: EcoComponent | undefined): boolean {
 		return component?.config?.integration === this.name || component?.config?.__eco?.integration === this.name;
 	}

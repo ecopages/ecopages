@@ -42,23 +42,17 @@ flowchart TD
   C --> D[ownershipValidationService.validate]
   D --> E[resolvePageData]
   E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
-  F --> G[resolveDependencies]
-  G --> H[buildPageBrowserGraph]
-  H --> I{shouldRenderPageComponent?}
-  I -- Yes --> J[renderPageComponent]
-  I -- No --> K[skip page-root render]
-  J --> L[merge component assets]
-  K --> L
-  L --> M[collect injector and eager SSR lazy assets]
-  M --> N[build pagePackage and prepared render options]
-  N --> O[callbacks.render]
-  O --> P[capture rendered body as html]
-  P --> Q[inspect unresolved marker artifacts]
-  Q --> R{unresolved eco-marker remains?}
-  R -- Yes --> S[throw unresolved artifact error]
-  R -- No --> T[stamp root or document attributes when needed]
-  T --> U[htmlTransformer transform]
-  U --> V[final body and cache strategy]
+  F --> G[resolveDependencies + buildPageBrowserGraph]
+  G --> H[collect injector and eager SSR lazy assets]
+  H --> I[build pagePackage and prepared render options]
+  I --> J[IntegrationRenderer.render via document shell]
+  J --> K[capture rendered body as html]
+  K --> L[inspect unresolved marker artifacts]
+  L --> M{unresolved eco-marker remains?}
+  M -- Yes --> N[throw unresolved artifact error]
+  M -- No --> O[stamp document attributes when needed]
+  O --> P[htmlTransformer transform]
+  P --> Q[final body and cache strategy]
 ```
 
 ## 3) Mixed-Integration Render Model
@@ -124,7 +118,7 @@ The most useful reading order is:
 2. `orchestration/route-render-orchestrator.ts`
 3. `orchestration/integration-renderer.ts`
 4. `orchestration/ownership-validation.service.ts`
-5. `orchestration/ownership-planning.service.ts`
+5. `orchestration/component-graph.ts`
 6. `orchestration/component-render-context.ts`
 7. `orchestration/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
@@ -137,7 +131,7 @@ The most useful reading order is:
 - `packages/core/src/route-renderer/orchestration/route-render-orchestrator.ts`
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-validation.service.ts`
-- `packages/core/src/route-renderer/orchestration/ownership-planning.service.ts`
+- `packages/core/src/route-renderer/orchestration/component-graph.ts`
 - `packages/core/src/route-renderer/orchestration/component-render-context.ts`
 - `packages/core/src/route-renderer/orchestration/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`

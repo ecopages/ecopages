@@ -4,6 +4,7 @@ import { eco } from '../../eco/eco.ts';
 import {
 	composeDocumentShell,
 	composeSequentialLayoutChildren,
+	applyDocumentShellAttributeStamping,
 	type DocumentShellComposeChildrenContext,
 } from './document-shell-render.service.ts';
 
@@ -187,5 +188,34 @@ describe('document-shell-render.service', () => {
 			children: '<page />',
 			integrationContext: { rendererCache },
 		});
+	});
+
+	it('stamps component-root and document attributes through applyDocumentShellAttributeStamping', () => {
+		const stamped = applyDocumentShellAttributeStamping(
+			'<html><body><main>Page</main></body></html>',
+			{
+				applyAttributesToFirstBodyElement: (html, attributes) =>
+					html.replace(
+						'<main',
+						`<main ${Object.entries(attributes)
+							.map(([key, value]) => `${key}="${value}"`)
+							.join(' ')}`,
+					),
+				applyAttributesToHtmlElement: (html, attributes) =>
+					html.replace(
+						'<html',
+						`<html ${Object.entries(attributes)
+							.map(([key, value]) => `${key}="${value}"`)
+							.join(' ')}`,
+					),
+			},
+			{
+				componentRootAttributes: { 'data-eco-component-id': 'eco-page-root' },
+				documentAttributes: { 'data-eco-document-owner': 'react-router' },
+			},
+		);
+
+		expect(stamped).toContain('<html data-eco-document-owner="react-router"><body>');
+		expect(stamped).toContain('<main data-eco-component-id="eco-page-root">Page</main>');
 	});
 });

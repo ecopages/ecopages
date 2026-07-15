@@ -197,10 +197,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		});
 	}
 
-	protected override shouldRenderPageComponent(): boolean {
-		return false;
-	}
-
 	/**
 	 * Reads the declared integration name for a component or layout.
 	 *

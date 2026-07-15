@@ -1282,33 +1282,24 @@ describe('IntegrationRenderer', () => {
 			expect(body).toContain('<main>Stream Body</main>');
 		});
 
-		it('should include renderComponent assets and apply root attributes', async () => {
+		it('should apply document attributes during route finalization', async () => {
 			const appConfig = {
 				...AppConfig,
 			} as EcoPagesAppConfig;
 
-			const renderer = new TestIntegrationRenderer({
+			class DocumentAttributeRenderer extends TestIntegrationRenderer {
+				protected override getDocumentAttributes(): Record<string, string> | undefined {
+					return { 'data-eco-document-owner': 'react-router' };
+				}
+			}
+
+			const renderer = new DocumentAttributeRenderer({
 				appConfig,
 				assetProcessingService: AssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
-			renderer.MockComponentRenderResult = {
-				html: '<main>Test Page</main>',
-				canAttachAttributes: true,
-				rootTag: 'main',
-				integrationName: 'test-renderer',
-				rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
-				assets: [
-					{
-						kind: 'script',
-						srcUrl: '/assets/island.js',
-						position: 'head',
-					} as ProcessedAsset,
-				],
-			};
-
 			renderer.PageModule = {
 				default: (() => '<main>Test Page</main>') as unknown as EcoPageComponent<any>,
 			};
@@ -1322,10 +1313,8 @@ describe('IntegrationRenderer', () => {
 			});
 
 			const body = await new Response(result.body as BodyInit).text();
-			expect(body).toContain('<main data-eco-component-id="eco-page-root">Test Page</main>');
-
-			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
-			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/island.js')).toBe(true);
+			expect(body).toContain('<html data-eco-document-owner="react-router"><body>');
+			expect(body).toContain('<main>Test Page</main>');
 		});
 
 		it('should not force render nested dependency components without resolved props context', async () => {
@@ -1398,7 +1387,7 @@ describe('IntegrationRenderer', () => {
 			expect((explicitRenderer.renderComponent as any).mock.calls).toHaveLength(0);
 
 			const body = await new Response(result.body as BodyInit).text();
-			expect(body).toContain('<main data-eco-component-id="eco-page-root">Test Page</main>');
+			expect(body).toContain('<main>Test Page</main>');
 
 			const processedDeps = (renderer as any).htmlTransformer.getProcessedDependencies();
 			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-explicit.js')).toBe(

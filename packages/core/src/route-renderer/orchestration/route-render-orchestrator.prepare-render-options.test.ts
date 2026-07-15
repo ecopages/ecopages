@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -306,9 +307,12 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const assetProcessingService = {
 			processDependencies,
 		} as unknown as AssetProcessingService;
+		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
 		const appConfig = {
 			cache: { defaultStrategy: 'static' },
 			integrations: [],
+			rootDir: fixtureRootDir,
+			absolutePaths: { projectDir: fixtureRootDir },
 		} as unknown as EcoPagesAppConfig;
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ReactRuntimeBundleService } from './react-runtime-bundle.service.ts';
+import { resolveReactPluginRuntimeModules } from '../utils/react-plugin-runtime-modules.ts';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const fixtureAppRoot = path.resolve(import.meta.dirname, '../../../../core/__fixtures__/app');
@@ -128,5 +129,36 @@ describe('ReactRuntimeBundleService', () => {
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.development.js');
 		expect(service.getRuntimeImports().reactDomClient).toBe('/assets/vendors/react-dom.development.js');
+	});
+
+	it('registers configured runtime modules as shared browser vendors', () => {
+		process.env.NODE_ENV = 'development';
+		const service = new ReactRuntimeBundleService({
+			rootDir: fixtureAppRoot,
+			runtimeModules: resolveReactPluginRuntimeModules(['@mdx-js/mdx']),
+		});
+
+		expect(service.getConfiguredRuntimeModuleSpecifiers()).toEqual(['@mdx-js/mdx']);
+		expect(service.getRuntimeManifest().bySpecifier.get('@mdx-js/mdx')).toEqual({
+			specifier: '@mdx-js/mdx',
+			owner: '@ecopages/react',
+			importPath: '@mdx-js/mdx',
+			publicPath: '/assets/vendors/mdx-js-mdx.development.js',
+			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+		});
+
+		const dependencies = service.getDependencies();
+		expect(dependencies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'mdx-js-mdx',
+					bundleOptions: expect.objectContaining({
+						naming: 'mdx-js-mdx.development.js',
+						external: expect.any(Array),
+						plugins: expect.any(Array),
+					}),
+				}),
+			]),
+		);
 	});
 });

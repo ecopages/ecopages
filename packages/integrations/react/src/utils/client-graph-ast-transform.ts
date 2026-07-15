@@ -154,6 +154,7 @@ export function transformModuleImports(
 	filename: string,
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
+	projectRoot?: string,
 ): { transformed: string; modified: boolean } {
 	/**
 	 * Parse the source
@@ -280,7 +281,7 @@ export function transformModuleImports(
 			return { allowed: false };
 		}
 
-		if (isProjectAliasSpecifier(specifier)) return { allowed: true, rules: explicitRules ?? '*' };
+		if (isProjectAliasSpecifier(specifier, projectRoot)) return { allowed: true, rules: explicitRules ?? '*' };
 		if (!isBareSpecifier(specifier)) return { allowed: true, rules: explicitRules ?? '*' };
 
 		/** By default, bare specifiers (NPM modules) are allowed entirely. */

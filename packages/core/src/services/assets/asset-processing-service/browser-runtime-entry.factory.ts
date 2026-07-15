@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../../../config/constants.ts';
+import {
+	inferBrowserRuntimeDefaultExportPolicy,
+	listBrowserRuntimeModuleExportNames,
+	resolveBrowserRuntimeEntryImport,
+} from './browser-runtime-entry-resolution.ts';
 
 export type BrowserRuntimeEntryModuleConfig = {
 	specifier: string;
@@ -46,14 +51,23 @@ export function createBrowserRuntimeEntryModule(options: {
 	const entryDir = path.dirname(filePath);
 
 	for (const module of options.modules) {
-		const importSpecifier = resolveEntryImportSpecifier(module.specifier, requireFromRoot, entryDir);
+		const importSpecifier = resolveBrowserRuntimeEntryImport({
+			specifier: module.specifier,
+			requireFromRoot,
+			entryDir,
+			rootDir,
+		});
 
-		if (module.defaultExport) {
+		if (
+			module.defaultExport &&
+			inferBrowserRuntimeDefaultExportPolicy({ specifier: module.specifier, requireFromRoot, rootDir }) ===
+				'emit-default'
+		) {
 			statements.push(`import __ecopages_default_export__ from '${importSpecifier}';`);
 			statements.push('export default __ecopages_default_export__;');
 		}
 
-		const exportNames = getModuleExportNames(module.specifier, requireFromRoot).filter(
+		const exportNames = listBrowserRuntimeModuleExportNames(module.specifier, requireFromRoot).filter(
 			(name) => !seenExports.has(name),
 		);
 
@@ -70,41 +84,4 @@ export function createBrowserRuntimeEntryModule(options: {
 		fs.writeFileSync(filePath, content, 'utf-8');
 	}
 	return filePath;
-}
-
-function resolveEntryImportSpecifier(
-	specifier: string,
-	requireFromRoot: ReturnType<typeof createRequire>,
-	entryDir: string,
-): string {
-	if (specifier.startsWith('node:') || specifier.startsWith('file:')) {
-		return specifier;
-	}
-
-	const resolvedPath = requireFromRoot.resolve(specifier);
-	let relativePath = path.relative(entryDir, resolvedPath).replace(/\\/g, '/');
-
-	if (!relativePath.startsWith('.')) {
-		relativePath = `./${relativePath}`;
-	}
-
-	return relativePath;
-}
-
-/**
- * Reads the named runtime exports that should be re-exported from a generated
- * runtime entry module.
- *
- * @remarks
- * Default exports are handled separately because generated runtime entry files
- * need to emit a synthetic default binding only when the caller explicitly asks
- * for it.
- */
-function getModuleExportNames(specifier: string, requireFromRoot: ReturnType<typeof createRequire>): string[] {
-	const moduleExports = requireFromRoot(specifier);
-
-	return Object.keys(moduleExports)
-		.filter((name) => name !== '__esModule' && name !== 'default')
-		.filter((name) => /^[$A-Z_a-z][$\w]*$/.test(name))
-		.sort();
 }

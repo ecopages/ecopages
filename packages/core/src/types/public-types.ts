@@ -262,6 +262,23 @@ export type ClientBridgeEvent = {
 	 * Timestamp for cache busting
 	 */
 	timestamp?: number;
+	/**
+	 * Page Browser Graph identities invalidated by the originating file change.
+	 */
+	graphIdentities?: Array<{
+		integrationName: string;
+		routeFile: string;
+		policy: 'development' | 'production';
+		entryFingerprint: string;
+	}>;
+};
+
+/**
+ * Options for handling a development file change through HMR.
+ */
+export type HmrFileChangeOptions = {
+	broadcast?: boolean;
+	graphIdentities?: ClientBridgeEvent['graphIdentities'];
 };
 
 /**
@@ -372,7 +389,7 @@ export interface IHmrManager {
 	/**
 	 * Handles a file change event.
 	 */
-	handleFileChange(path: string): Promise<void>;
+	handleFileChange(path: string, options?: HmrFileChangeOptions): Promise<void>;
 }
 
 /**

@@ -30,20 +30,10 @@ import {
 	mergeReactPluginRuntimeModules,
 	resolveReactPluginRuntimeModules,
 } from './utils/react-plugin-runtime-modules.ts';
-import { startupTrace } from '@ecopages/core/diagnostics/startup-trace';
-import { createDevHmrEntrypointCache } from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
 const appLogger = new Logger('[ReactPlugin]');
-
-function isColdClientGraphEnabled(): boolean {
-	return process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH === 'true';
-}
-
-function isColdClientGraphBlocking(): boolean {
-	return process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING === 'true';
-}
 
 type ResolvedReactPluginConfig = Omit<
 	IntegrationPluginConfig,
@@ -126,7 +116,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly hmrPageMetadataCache: ReactHmrPageMetadataCache;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 	private hmrStrategy?: ReactHmrStrategy;
-	private devClientGraphPrewarmPromise: Promise<void> | undefined;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
@@ -289,33 +278,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 */
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
-
-		const appConfig = this.appConfig;
-		if (appConfig && isColdClientGraphEnabled()) {
-			const strategy = this.getHmrStrategy() as ReactHmrStrategy | undefined;
-			if (strategy) {
-				const cache = createDevHmrEntrypointCache(appConfig);
-				startupTrace.markPhaseStart('dev-cold-client-graph');
-				this.devClientGraphPrewarmPromise = strategy
-					.prepareColdClientGraph(cache)
-					.catch((error: unknown) => {
-						appLogger.warn(
-							'[ReactPlugin] Cold client graph build failed; first SSR will build entrypoints on demand.',
-							error as Error,
-						);
-					})
-					.finally(() => {
-						startupTrace.markPhaseEnd('dev-cold-client-graph');
-						startupTrace.resetFirstRequestCounters();
-					});
-			}
-		}
-	}
-
-	override async awaitDevClientGraphPrewarm(): Promise<void> {
-		if (isColdClientGraphBlocking()) {
-			await this.devClientGraphPrewarmPromise;
-		}
 	}
 
 	override getHmrStrategy(): HmrStrategy | undefined {

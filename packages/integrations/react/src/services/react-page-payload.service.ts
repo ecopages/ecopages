@@ -1,6 +1,6 @@
 import { LocalsAccessError } from '@ecopages/core/errors';
 import {
-	resolvePageDataDocumentPayload,
+	serializePageDataManifestScript,
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from '../serialize-page-data-script.ts';
@@ -52,12 +52,16 @@ export class ReactPagePayloadService {
 	 * Creates the `__ECO_PAGE_DATA__` script for router hydration.
 	 *
 	 * @remarks
-	 * When `moduleUrl` is present, emits the v1 envelope. Otherwise emits legacy flat props
+	 * When `moduleUrl` is present, emits the v1 envelope via
+	 * {@link serializePageDataManifestScript}. Otherwise emits legacy flat props
 	 * for non-router shells.
 	 */
 	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined, moduleUrl?: string): string {
 		const props = { ...((pageProps ?? {}) as EcoPageDataProps) };
-		return serializePageDataScript(resolvePageDataDocumentPayload(props, { moduleUrl }));
+		if (moduleUrl) {
+			return serializePageDataManifestScript({ moduleUrl, props });
+		}
+		return serializePageDataScript(props);
 	}
 
 	/**

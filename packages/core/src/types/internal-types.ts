@@ -253,4 +253,10 @@ export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown
 }
 
 // Re-export HMR types from public-types for internal use
-export type { ClientBridgeEvent, DefaultHmrContext, HmrFileChangeOptions, IHmrManager, IClientBridge } from './public-types.ts';
+export type {
+	ClientBridgeEvent,
+	DefaultHmrContext,
+	HmrFileChangeOptions,
+	IHmrManager,
+	IClientBridge,
+} from './public-types.ts';

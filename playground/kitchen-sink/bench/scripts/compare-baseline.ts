@@ -7,12 +7,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import {
-	BENCH_RESULTS_DIR,
-	MITATA_BENCH_JSON,
-	type BenchStats,
-	type MitataBenchReport,
-} from '../lib/mitata-report';
+import { BENCH_RESULTS_DIR, MITATA_BENCH_JSON, type BenchStats, type MitataBenchReport } from '../lib/mitata-report';
 
 const BASELINE_FILE = path.join(BENCH_RESULTS_DIR, 'bench-baseline.json');
 

@@ -16,7 +16,9 @@ describe('kitchen-sink graph lifecycle regression contract', () => {
 	});
 
 	test('invalidates cached graphs before HMR dispatch for tracked dependencies', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir(path.join(repoRoot, 'playground', 'kitchen-sink')).build();
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(path.join(repoRoot, 'playground', 'kitchen-sink'))
+			.build();
 		const session = getAppPageBrowserGraphSession(appConfig);
 		const routeFile = path.join(appConfig.absolutePaths.pagesDir, 'index.kita.tsx');
 

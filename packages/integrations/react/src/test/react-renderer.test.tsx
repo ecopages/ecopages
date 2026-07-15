@@ -108,9 +108,7 @@ class TestReactRenderer extends ReactRenderer {
 			originalCollectPageDeclaredModules(pageModule)) as typeof this.pageModuleService.collectPageDeclaredModules;
 		this.assetProcessingService.processDependencies = vi.fn(
 			async (...args) =>
-				(this.pageBrowserGraphOverride
-					? [...this.pageBrowserGraphOverride.entryAssets]
-					: undefined) ??
+				(this.pageBrowserGraphOverride ? [...this.pageBrowserGraphOverride.entryAssets] : undefined) ??
 				originalProcessDependencies(...(args as Parameters<typeof originalProcessDependencies>)),
 		) as typeof this.assetProcessingService.processDependencies;
 	}

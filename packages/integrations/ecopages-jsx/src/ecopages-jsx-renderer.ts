@@ -48,9 +48,10 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	 * Serializes foreign-child props for string-first boundaries.
 	 *
 	 * @remarks
-	 * Plain objects that are neither DOM nodes nor JSX-renderable values are
-	 * rejected before `renderToString`. Cross-integration children must use
-	 * `EcoEmbed`; silent `String(object)` coercion is not supported.
+	 * DOM nodes become `outerHTML`. JSX trees, arrays, and template results are
+	 * stringified here. Other values are left for core foreign-child interception,
+	 * which rejects opaque plain objects before queueing. Cross-integration
+	 * children must use `EcoEmbed`.
 	 */
 	private normalizeForeignChildProps(props: Record<string, unknown>): Record<string, unknown> {
 		if (!('children' in props)) {
@@ -76,41 +77,34 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			};
 		}
 
-		if (this.isOpaqueForeignChildValue(children)) {
-			const childTag = Object.prototype.toString.call(children);
-			throw new TypeError(
-				`[ecopages] ${this.name} renderer refused to coerce opaque foreign children (${childTag}). Use EcoEmbed for cross-integration JSX children.`,
-			);
+		if (this.isJsxSerializableForeignChild(children)) {
+			return {
+				...props,
+				children: renderToString(children as JsxRenderable),
+			};
 		}
 
-		return {
-			...props,
-			children: renderToString(children as JsxRenderable),
-		};
+		return props;
 	}
 
 	/**
-	 * Returns whether a child value is a plain object that string serializers
-	 * would coerce rather than render.
+	 * Returns whether children are a JSX/template shape this renderer can
+	 * serialize before foreign-child queueing.
 	 */
-	private isOpaqueForeignChildValue(children: unknown): boolean {
+	private isJsxSerializableForeignChild(children: unknown): boolean {
+		if (Array.isArray(children)) {
+			return true;
+		}
+
 		if (children === null || typeof children !== 'object') {
 			return false;
 		}
 
-		if (Array.isArray(children)) {
-			return false;
-		}
-
 		if ('$$typeof' in children) {
-			return false;
+			return true;
 		}
 
-		if ('strings' in children && Array.isArray((children as { strings: unknown }).strings)) {
-			return false;
-		}
-
-		return Object.getPrototypeOf(children) === Object.prototype || Object.getPrototypeOf(children) === null;
+		return 'strings' in children && Array.isArray((children as { strings: unknown }).strings);
 	}
 
 	/**

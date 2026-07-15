@@ -44,6 +44,13 @@ function isEcoLayoutSource(source: string): boolean {
 }
 
 /**
+ * Returns true when a layout opts into runtime-provider auto-vendoring discovery.
+ */
+export function isRuntimeProviderLayoutSource(source: string): boolean {
+	return isEcoLayoutSource(source) && /\bruntimeProvider\s*:\s*true\b/.test(source);
+}
+
+/**
  * Returns true when a module looks like it mounts shared client runtime state
  * (React context providers, query clients, etc.).
  */
@@ -92,7 +99,11 @@ function shouldExcludeAutoRuntimeSpecifier(specifier: string, options: { routerI
 	return false;
 }
 
-function collectLayoutEntryFiles(searchDir: string, extensions: readonly string[], files: string[]): void {
+function collectLayoutEntryFiles(
+	searchDir: string,
+	extensions: readonly string[],
+	files: { all: string[]; runtimeProvider: string[] },
+): void {
 	if (!existsSync(searchDir)) {
 		return;
 	}
@@ -114,8 +125,13 @@ function collectLayoutEntryFiles(searchDir: string, extensions: readonly string[
 
 		try {
 			const source = readFileSync(entryPath, 'utf8');
-			if (isEcoLayoutSource(source)) {
-				files.push(entryPath);
+			if (!isEcoLayoutSource(source)) {
+				continue;
+			}
+
+			files.all.push(entryPath);
+			if (isRuntimeProviderLayoutSource(source)) {
+				files.runtimeProvider.push(entryPath);
 			}
 		} catch {
 			continue;
@@ -193,29 +209,33 @@ export function discoverLayoutRuntimeModuleSpecifiers(options: {
 	routerImportPath?: string;
 }): string[] {
 	const extensions = options.extensions ?? MODULE_EXTENSIONS;
-	const entryFiles: string[] = [];
+	const layoutEntries = { all: [] as string[], runtimeProvider: [] as string[] };
 
 	for (const searchDir of options.searchDirs) {
-		collectLayoutEntryFiles(searchDir, extensions, entryFiles);
+		collectLayoutEntryFiles(searchDir, extensions, layoutEntries);
 	}
 
+	const entryFiles = layoutEntries.runtimeProvider.length > 0 ? layoutEntries.runtimeProvider : layoutEntries.all;
 	const discovered = new Set<string>();
-	const visitedFiles = new Set<string>();
-	const queue = [...entryFiles];
 
-	while (queue.length > 0) {
-		const filePath = queue.shift();
-		if (!filePath) {
-			continue;
+	for (const entryFile of entryFiles) {
+		const visitedFiles = new Set<string>();
+		const queue = [entryFile];
+
+		while (queue.length > 0) {
+			const filePath = queue.shift();
+			if (!filePath) {
+				continue;
+			}
+
+			collectReachableNpmSpecifiersFromFile(filePath, {
+				projectRoot: options.projectRoot,
+				routerImportPath: options.routerImportPath,
+				visitedFiles,
+				queue,
+				discovered,
+			});
 		}
-
-		collectReachableNpmSpecifiersFromFile(filePath, {
-			projectRoot: options.projectRoot,
-			routerImportPath: options.routerImportPath,
-			visitedFiles,
-			queue,
-			discovered,
-		});
 	}
 
 	return [...discovered].sort();

@@ -85,13 +85,20 @@ export type ReactPluginOptions = {
 	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
 	 * It does not vendor every npm dependency reachable from shell or page UI.
 	 *
+	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
+	 * `eco.layout({ ... })`. When any layout opts in, only flagged layouts are used
+	 * as discovery roots.
+	 *
 	 * @example
 	 * ```ts
+	 * export const QueryRootLayout = eco.layout({
+	 *   runtimeProvider: true,
+	 *   render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
+	 * });
+	 *
 	 * reactPlugin({
 	 *   router: ecoRouter(),
-	 *   // Optional override when discovery misses a package:
-	 *   runtimeModules: ['@tanstack/react-query'],
-	 * })
+	 * });
 	 * ```
 	 *
 	 * @example Advanced vendor config

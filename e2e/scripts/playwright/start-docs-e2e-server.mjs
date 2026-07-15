@@ -21,6 +21,7 @@ const DOCS_BUILD_INPUT_ROOTS = [
 	path.join(repoRoot, 'packages', 'integrations', 'react', 'src'),
 	path.join(repoRoot, 'packages', 'integrations', 'ecopages-jsx', 'src'),
 	path.join(repoRoot, 'packages', 'react-router', 'src'),
+	path.join(repoRoot, 'packages', 'browser-router', 'src'),
 ];
 
 const EXCLUDED_NAMES = new Set(['node_modules', 'dist', '.eco', '.eco-config']);

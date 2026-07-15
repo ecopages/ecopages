@@ -87,7 +87,9 @@ export class AssetProcessingService {
 	 * @remarks
 	 * Dependencies are deduplicated before processor execution so repeated
 	 * declarations across the render tree reuse the same emitted outputs and cache
-	 * entries.
+	 * entries. Returned asset order is unspecified — consumers must re-associate
+	 * outputs with inputs via dependency metadata such as `groupedBundle`, not by
+	 * array index alignment with the input list.
 	 */
 	async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);

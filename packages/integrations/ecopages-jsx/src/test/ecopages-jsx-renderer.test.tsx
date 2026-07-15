@@ -544,7 +544,7 @@ describe('EcopagesJsxRenderer', () => {
 					component: ForeignShell,
 					props: { children: { opaque: true } },
 				}),
-			).toThrow(/refused to coerce opaque foreign children/);
+			).toThrow(/foreign-subtree queue refused to coerce opaque foreign children/);
 		});
 
 		it('preserves normalized props when the delegated child stays inline', async () => {

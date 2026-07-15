@@ -1,6 +1,4 @@
-import { getAppServerBuildPlugins } from '../../build/build-adapter.ts';
 import { requireBuildRuntime } from '../../build/build-runtime.ts';
-import { getJsxOwnershipPlugins } from '../../build/jsx-ownership-plugins.ts';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';
@@ -47,16 +45,20 @@ export function setAppHostModuleLoader(appConfig: EcoPagesAppConfig, hostModuleL
 	};
 }
 
+/**
+ * Creates the app module loader that imports route modules through the build pipeline.
+ *
+ * @remarks
+ * Caller `plugins` are treated as contributions only.
+ * {@link PageModuleImportService} assembles the complete server request via
+ * {@link createServerBuildRequest}; this loader does not merge app plugins.
+ */
 export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLoader {
 	const invalidationService = new DevelopmentInvalidationService(appConfig);
 	const pageModuleImportService = new PageModuleImportService(appConfig, {
 		canLoadSourceModuleFromHost: (filePath) => shouldAppUseHostModuleLoader(appConfig, filePath),
 		getHostModuleLoader: () => getAppHostModuleLoader(appConfig),
 	});
-	const appServerBuildPlugins = appConfig.runtime?.buildManifest
-		? getAppServerBuildPlugins(appConfig)
-		: Array.from(appConfig.loaders?.values() ?? []);
-	const jsxOwnershipPlugins = getJsxOwnershipPlugins(appConfig);
 	const appModuleLoader: AppModuleLoader & {
 		pageModuleImportService: PageModuleImportService;
 	} = {
@@ -67,11 +69,9 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 		async importModule<T = unknown>(options: PageModuleBuildImportOptions) {
 			const invalidationVersion =
 				options.invalidationVersion ?? invalidationService.getServerModuleInvalidationVersion();
-			const mergedPlugins = [...appServerBuildPlugins, ...jsxOwnershipPlugins, ...(options.plugins ?? [])];
 
 			return await pageModuleImportService.importModule<T>({
 				...options,
-				...(mergedPlugins.length > 0 ? { plugins: mergedPlugins } : {}),
 				buildExecutor: options.buildExecutor ?? requireBuildRuntime(appConfig).getProfile('route-module'),
 				invalidationVersion,
 			});

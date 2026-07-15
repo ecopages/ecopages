@@ -1,14 +1,30 @@
-import type { BuildExecutor, BuildOptions, BuildResult, BuildTranspileProfile } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { getAppBrowserBuildPlugins, getAppTranspileOptions } from '../../build/build-adapter.ts';
+import type { BuildExecutor, BuildResult } from '../../build/build-adapter.ts';
+import { createBrowserBuildRequest } from '../../build/build-request-policy.ts';
 import { requireBuildRuntime } from '../../build/build-runtime.ts';
-import { mergeEcoBuildPlugins } from '../../build/build-manifest.ts';
-import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
+import type { BuildTranspileProfile } from '../../build/build-adapter.ts';
+import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
-import { createBuildOptionsDedupeKey } from '../../build/deduping-build-executor.ts';
+import { createBuildRequestIdentity } from '../../build/build-request-identity.ts';
 
+/**
+ * Browser-oriented build request accepted by {@link BrowserBundleService}.
+ *
+ * @remarks
+ * `profile` is a {@link BuildTranspileProfile} (transpile settings only).
+ * `executor` selects the {@link BuildRuntime} concurrency slot:
+ * - `'hmr'` + (`hmr-entrypoint` | `hmr-runtime`) → `'browser-hmr'`
+ * - everything else (including `browser-script`, and `'build'`) → `'route-module'`
+ *
+ * Defaults `executor` to `'hmr'`. Request options are always assembled with
+ * browser-hmr *defaults* via {@link createBrowserBuildRequest}; only the
+ * concurrency/dedupe wrapper differs.
+ *
+ * Uses request-scope {@link requestBuildDedupe} plus in-flight
+ * {@link DedupingBuildExecutor} coalescing; both key on
+ * {@link createBuildRequestIdentity}.
+ */
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
 	outdir?: string;
@@ -25,29 +41,11 @@ export type BrowserBundleOptions = {
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
 	executor?: 'build' | 'hmr';
-	[key: string]: unknown;
 	profile: BuildTranspileProfile;
 	excludeAppBuildPlugins?: string[];
 };
 
-type BrowserBundleGroupedOptions = {
-	outdir?: string;
-	outbase?: string;
-	naming?: string;
-	conditions?: string[];
-	define?: Record<string, string>;
-	minify?: boolean;
-	treeshaking?: boolean;
-	splitting?: boolean;
-	root?: string;
-	bundle?: boolean;
-	externalPackages?: boolean;
-	external?: string[];
-	plugins?: EcoBuildPlugin[];
-	[key: string]: unknown;
-	profile: BuildTranspileProfile;
-	excludeAppBuildPlugins?: string[];
-};
+type BrowserBundleGroupedOptions = Omit<BrowserBundleOptions, 'entrypoints'>;
 
 export interface BrowserBundleExecutor {
 	bundle(options: BrowserBundleOptions): Promise<BuildResult>;
@@ -76,16 +74,13 @@ function resolveBrowserBundleExecutor(
  * App-owned boundary for browser-oriented bundle work.
  *
  * @remarks
- * This service owns the shared browser transpile defaults and ensures browser
- * builds always run through the app-owned executor rather than direct backend
- * calls scattered across HMR and asset processing paths.
+ * Owns shared browser transpile defaults and ensures browser builds run through
+ * the app-owned executor rather than direct backend calls. Assembles a complete
+ * request via {@link createBrowserBuildRequest} before scheduling.
  */
 export class BrowserBundleService implements BrowserBundleExecutor {
 	private readonly appConfig: EcoPagesAppConfig;
 
-	/**
-	 * Creates the browser bundle boundary for one finalized app instance.
-	 */
 	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
 	}
@@ -94,28 +89,19 @@ export class BrowserBundleService implements BrowserBundleExecutor {
 	 * Runs one browser-targeted build through the app-owned executor.
 	 *
 	 * @remarks
-	 * Browser defaults and app-owned browser build plugins are applied here so HMR
-	 * and runtime asset generation do not have to recreate that policy at each call
-	 * site. Also forwards {@link getAppSourceTransforms | app source transforms} so
-	 * metadata injection runs after boundary/runtime `onLoad` rewrites.
+	 * Browser defaults, app-owned browser plugins, and
+	 * {@link getAppSourceTransforms | app source transforms} are applied here
+	 * so HMR and asset generation do not recreate that policy at each call site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, excludeAppBuildPlugins, plugins, executor = 'hmr', ...rawBuildOptions } = options;
-		const appBrowserPlugins = getAppBrowserBuildPlugins(this.appConfig);
-		const filteredAppBrowserPlugins =
-			excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
-				? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
-				: appBrowserPlugins;
-		const request: BuildOptions = {
-			...rawBuildOptions,
-			entrypoints: options.entrypoints,
-			...getAppTranspileOptions(this.appConfig, profile),
-			plugins: mergeEcoBuildPlugins(plugins, filteredAppBrowserPlugins),
-			sourceTransforms: getAppSourceTransforms(this.appConfig),
-		};
+		const { profile, executor = 'hmr', ...requestInput } = options;
+		const request = createBrowserBuildRequest(this.appConfig, {
+			...requestInput,
+			profile,
+		});
 
 		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
-		const dedupeKey = createBuildOptionsDedupeKey(request);
+		const dedupeKey = createBuildRequestIdentity(request);
 
 		return requestBuildDedupe.dedupeBuild(dedupeKey, async () => {
 			const result = await buildExecutor.build(request);

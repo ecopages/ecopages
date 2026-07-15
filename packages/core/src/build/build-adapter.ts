@@ -17,7 +17,6 @@
  */
 
 import type { EcoBuildPlugin } from './build-types.ts';
-import { normalizeNodeRuntimeBuildOutputs } from './runtime-build-output-normalizer.ts';
 import {
 	type BuildAdapter,
 	type BuildExecutor,
@@ -50,61 +49,6 @@ import { createAliasResolverPlugin } from '../plugins/alias-resolver-plugin.ts';
 import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
 import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-
-/**
- * Merges `appPlugins` into an existing `plugins` array, deduping by
- * `plugin.name` so the app-owned manifest always wins on collision.
- *
- * @remarks
- * The last write wins because the function intentionally lets the
- * caller-supplied list override a manifest entry. Tests that exercise
- * this behavior live in `build-adapter.test.ts`.
- */
-function mergeBuildExecutorPlugins(
-	existing: EcoBuildPlugin[] | undefined,
-	appPlugins: EcoBuildPlugin[],
-): EcoBuildPlugin[] {
-	if (!existing || existing.length === 0) {
-		return appPlugins;
-	}
-	const byName = new Map<string, EcoBuildPlugin>();
-	for (const plugin of existing) {
-		byName.set(plugin.name, plugin);
-	}
-	for (const plugin of appPlugins) {
-		byName.set(plugin.name, plugin);
-	}
-	return Array.from(byName.values());
-}
-
-/**
- * Wraps a {@link BuildExecutor} so each call to `build` receives the
- * union of the caller's `options.plugins` and the plugins sourced
- * from `getPlugins()`.
- *
- * @remarks
- * The single point of plugin injection in the runtime path: the
- * `ConfigBuilder` stores a raw adapter on
- * `appConfig.runtime.buildAdapter` and the
- * `installAppRuntimeBuildExecutor` step wraps that adapter with this
- * helper. Callers that issue builds through
- * `requireBuildRuntime(appConfig).getProfile(...)` get the merged plugin set
- * without further ceremony.
- */
-export function withBuildExecutorPlugins(executor: BuildExecutor, getPlugins: () => EcoBuildPlugin[]): BuildExecutor {
-	return {
-		async build(options: BuildOptions): Promise<BuildResult> {
-			const appPlugins = getPlugins();
-			if (appPlugins.length === 0) {
-				return executor.build(options);
-			}
-			return executor.build({
-				...options,
-				plugins: mergeBuildExecutorPlugins(options.plugins, appPlugins),
-			});
-		},
-	};
-}
 
 /**
  * @remarks
@@ -372,16 +316,7 @@ export function build(
 	options: BuildOptions,
 	executor: BuildExecutor = defaultRolldownBuildAdapter,
 ): Promise<BuildResult> {
-	return executor.build(options).then((result) => {
-		if (result.success) {
-			normalizeNodeRuntimeBuildOutputs(
-				result.outputs.map((output) => output.path),
-				options.root ?? process.cwd(),
-			);
-		}
-
-		return result;
-	});
+	return executor.build(options);
 }
 
 /**

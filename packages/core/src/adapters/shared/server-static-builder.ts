@@ -2,16 +2,16 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { build, getAppBuildAdapter, setupAppRuntimePlugins, type BuildOptions } from '../../build/build-adapter.ts';
+import { build, getAppBuildAdapter, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { createServerBuildRequest } from '../../build/build-request-policy.ts';
+import { requireBuildRuntime } from '../../build/build-runtime.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
-import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
 	recordServerEntryBuildCache,
 	writeServerBundleDeployManifest,
 } from '../../build/server-entry-build-cache.ts';
-import { getInstalledServerEntryBuildExecutor } from '../../build/runtime-build-executor.ts';
 import {
 	clearProductionBuildCaches,
 	shouldResetStaticExportDirectory,
@@ -200,17 +200,15 @@ export class ServerStaticBuilder {
 
 		this.logger.info('Bundling server entry file...');
 
-		const buildOptions: BuildOptions = {
-			...resolveBuildProfileOptions('server-entry', this.appConfig, {
-				entrypoints: [entryPath],
-				outdir: serverOutdir,
-				naming: SERVER_BUNDLE_FILENAME,
-				sourcemap: 'hidden',
-			}),
+		const buildOptions = createServerBuildRequest(this.appConfig, {
+			profile: 'server-entry',
 			entrypoints: [entryPath],
-		};
+			outdir: serverOutdir,
+			naming: SERVER_BUNDLE_FILENAME,
+			sourcemap: 'hidden',
+		});
 
-		const result = await build(buildOptions, getInstalledServerEntryBuildExecutor(this.appConfig));
+		const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
 
 		if (!result.success) {
 			const errorMessages = result.logs.map((log) => log.message).join('\n');

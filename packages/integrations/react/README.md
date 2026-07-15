@@ -221,9 +221,15 @@ Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`)
 
 ### Shared runtime vendors (SPA + persisted layouts)
 
-When `reactPlugin({ router: ecoRouter() })` is enabled, Ecopages registers selected npm packages as **shared browser runtime vendors** alongside React and React DOM. Each page chunk imports those packages through the same public vendor URL instead of bundling a private copy.
+#### Mental model
 
-This matters when `@ecopages/react-router` keeps layout tiers mounted across navigation (`persistLayouts` defaults to `true` with `ecoRouter()`). If a context provider library such as TanStack Query is bundled separately into every page chunk, React context breaks on client navigation (`No QueryClient set`, duplicate React runtimes, etc.).
+With `ecoRouter()`, Ecopages keeps outer layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). Each page chunk still loads separately, but provider layouts stay alive in the DOM.
+
+That creates a module identity problem: if TanStack Query (or any shared provider library) is bundled into every page chunk separately, each chunk gets its own copy of the library and its own React context. Navigation then breaks with errors such as `No QueryClient set`, even though the provider component is still mounted.
+
+The fix is **shared browser runtime vendors**: selected npm packages are built once into `/assets/vendors/*.js` and every page chunk imports the same public URL. React, React DOM, the router bundle, and auto-discovered layout runtime packages all follow this path.
+
+Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
 
 #### When auto-discovery runs
 
@@ -234,25 +240,29 @@ Auto-discovery runs at plugin setup when **both** are true:
 
 Without `router`, only explicit `runtimeModules` entries are vendored.
 
+#### Discovery modes
+
+| Mode | Trigger | Layout roots scanned | npm packages collected |
+| --- | --- | --- | --- |
+| **Runtime-provider** (recommended) | At least one layout sets `runtimeProvider: true` | Only flagged layouts | Every reachable npm package in that layout's `render` graph |
+| **Provider-scoped fallback** | No layout sets `runtimeProvider: true` | All `eco.layout(` files under `layouts/` and `components/` | npm packages imported from provider/context modules only |
+
+The fallback exists for backward compatibility. Ecopages logs a debug message when fallback mode is active. Prefer explicit `runtimeProvider: true` on provider root layouts (for example a query-client tier) and omit it from shell-only layouts.
+
 #### What gets discovered
 
-1. Scan **`layoutsDir` and `componentsDir`** for source files whose contents include `eco.layout(`.
-2. From each layout's **`render` client graph** (via reachability analysis), follow relative imports and tsconfig path aliases.
-3. Collect **npm package roots** imported from **provider/context modules** in that graph (for example `@tanstack/react-query` from `query-provider.tsx`, not every shell or store dependency).
-4. Register each discovered package as a shared vendor. React, React DOM, the router bundle, workspace packages under the app scope, devtools packages, and `@ecopages/*` packages are excluded automatically.
+1. Select layout entry files using the mode above.
+2. From each root layout's **`render` client graph** (reachability analysis), follow relative imports and tsconfig path aliases. Type-only imports and `.server.ts` modules are skipped.
+3. Collect npm package roots (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
+4. Register each discovered package as a shared vendor.
 
-Important:
+**Excluded automatically:** React, React DOM, jsx runtimes, the router bundle, `@ecopages/*`, workspace packages under `@techn.es/*`, `*-devtools` packages, and packages already vendored by the React plugin.
 
-- Discovery is **reachability-based** and **provider-scoped**. Imports not reachable from the layout `render` path are ignored; npm packages imported only from shell, store, or form modules are not auto-vendored.
-- When any layout sets `runtimeProvider: true`, only those layouts are scanned as discovery roots and every reachable npm package in that layout graph is vendored. Use this on provider roots such as a query-client layout and omit it from shell-only layouts.
-- When no layout opts in, discovery falls back to scanning all layouts and only vendoring npm packages imported from provider/context modules.
-- Layout files outside the configured `layouts/` and `components/` directories are not scanned.
+Path aliases resolve from `tsconfig.json` `compilerOptions.paths` (oxc-resolver), same as the Ecopages alias resolver plugin.
 
-Path aliases resolve from the app `tsconfig.json` `compilerOptions.paths` (via oxc-resolver), same as the Ecopages alias resolver plugin. Relative imports work without tsconfig aliases.
+#### Recommended setup
 
-#### Configuration
-
-Normal SPA setup — no manual vendor list required when providers live in scanned layout trees:
+Plugin config — no manual vendor list when provider layouts are flagged:
 
 ```ts
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -264,18 +274,30 @@ const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: 
 export default config;
 ```
 
-Layout with a shared provider (tsconfig alias example):
+Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:
 
 ```tsx
+import type { ReactNode } from 'react';
 import { eco } from '@ecopages/core';
 import { QueryProvider } from '@/shared/query/query-provider';
 
-export const QueryRootLayout = eco.layout({
+export const QueryRootLayout = eco.layout<ReactNode>({
+	runtimeProvider: true,
 	render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
 });
 ```
 
-Requires matching tsconfig paths, for example:
+Shell layouts that do not mount shared runtime state omit the flag:
+
+```tsx
+export const AppShellLayout = eco.layout({
+	render: ({ children }) => <AppShell>{children}</AppShell>,
+});
+```
+
+Stack provider roots before shell tiers in page `layout` arrays so context wraps the shell on both SSR and persisted client navigation.
+
+Requires matching tsconfig paths when using aliases:
 
 ```json
 {
@@ -287,7 +309,9 @@ Requires matching tsconfig paths, for example:
 }
 ```
 
-Override when discovery misses a package, or when `router` is not enabled:
+#### Overrides and escape hatches
+
+Use explicit `runtimeModules` when discovery misses a package, when `router` is not enabled, or when you need custom vendor output names or externals:
 
 ```ts
 reactPlugin({
@@ -296,10 +320,22 @@ reactPlugin({
 });
 ```
 
-Manual `runtimeModules` entries **override** auto-discovered entries for the same specifier.
+Manual entries **override** auto-discovered entries for the same specifier.
 
-- [src/utils/discover-layout-runtime-modules.test.ts](src/utils/discover-layout-runtime-modules.test.ts): layout graph discovery and tsconfig alias following.
-- [src/services/react-runtime-bundle.service.test.ts](src/services/react-runtime-bundle.service.test.ts): configured runtime modules registered as shared vendors.
+#### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| `No QueryClient set` after SPA navigation | Provider library bundled per page chunk | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors |
+| Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged |
+| Package not discovered | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry |
+| `@/` alias not followed | Missing or invalid tsconfig paths | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
+
+#### Tests
+
+- [src/utils/discover-layout-runtime-modules.test.ts](src/utils/discover-layout-runtime-modules.test.ts): discovery modes, provider scoping, tsconfig aliases, stacked layouts.
+- [src/services/react-runtime-bundle.service.test.ts](src/services/react-runtime-bundle.service.test.ts): vendor registration and manifest paths.
+- [../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts](../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts): ESM entry resolution and default-export policy for React vs TanStack Query.
 
 ### Client-only code in SSR trees
 

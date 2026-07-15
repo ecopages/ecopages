@@ -647,7 +647,14 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 	language?: string;
 	headContent?: T;
 	pageProps: Record<string, unknown>;
-	/** Browser-importable page module URL for router-enabled documents. */
+	/**
+	 * Browser-importable page module URL for router-enabled documents.
+	 *
+	 * @remarks
+	 * Transport-only: threaded into HTML shells (for example `EcoPropsScript`
+	 * `moduleUrl`) and serialized as the page-data envelope `moduleUrl`. Not page
+	 * component state.
+	 */
 	pageModuleUrl?: string;
 }
 

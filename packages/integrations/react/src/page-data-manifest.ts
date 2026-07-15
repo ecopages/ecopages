@@ -107,6 +107,8 @@ export function createEcoPageDataManifestV1(input: {
  *
  * @remarks
  * Shared by server serializers and `EcoPropsScript` so envelope rules stay in one place.
+ * A valid v1 envelope is returned as-is; `options.moduleUrl` is ignored in that case.
+ * Flat props wrap into a v1 envelope only when `options.moduleUrl` is provided.
  */
 export function resolvePageDataDocumentPayload(
 	data: EcoPageDataDocumentPayload,

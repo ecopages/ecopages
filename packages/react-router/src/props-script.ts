@@ -10,24 +10,24 @@ export interface EcoPropsScriptProps {
 	 * Page props or a versioned page-data envelope.
 	 *
 	 * @remarks
-	 * When `module` is passed, the script emits the v1 envelope so SPA navigation can
-	 * discover the page module without parsing hydration JavaScript. Legacy flat props
-	 * remain supported for older documents.
+	 * When `moduleUrl` is passed and `data` is not already a v1 envelope, the script
+	 * emits `schemaVersion:1` with that field. Passing `moduleUrl` alongside an
+	 * existing envelope does not rewrite the envelope's `moduleUrl`.
 	 */
 	data: EcoPageDataDocumentPayload;
-	/** Browser-importable page module URL for router-enabled documents. */
-	module?: string;
+	/** Browser-importable page module URL; serialized as envelope field `moduleUrl`. */
+	moduleUrl?: string;
 }
 
 /**
  * Serializes page props as JSON for SPA navigation.
  *
  * @remarks
- * The hydration script reads this and sets `window.__ECO_PAGES__.page`.
- * Clients parse `#__ECO_PAGE_DATA__` as JSON; module discovery uses the v1
- * envelope `moduleUrl`, the runtime page marker, or the page bootstrap script `src`.
+ * Emits `#__ECO_PAGE_DATA__`. Hydration scripts and SPA commit write
+ * `window.__ECO_PAGES__.page` from that payload. Module discovery uses envelope
+ * `moduleUrl`, then the runtime page marker, then the page bootstrap script `src`.
  */
-export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data, module: moduleUrl }) => {
+export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data, moduleUrl }) => {
 	const payload = resolvePageDataDocumentPayload(data, { moduleUrl });
 
 	return createElement('script', {

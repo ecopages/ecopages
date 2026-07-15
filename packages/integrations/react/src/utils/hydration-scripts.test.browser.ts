@@ -167,6 +167,7 @@ describe('createHydrationScript browser execution', () => {
 			isDevelopment: true,
 			isMdx: false,
 			router: routerAdapter,
+			pageDataReaderImportPath: new URL('../page-data-reader.ts', import.meta.url).href,
 		});
 
 		const moduleUrl = createModuleUrl(script);
@@ -247,6 +248,7 @@ describe('createHydrationScript browser execution', () => {
 			isDevelopment: true,
 			isMdx: false,
 			router: routerAdapter,
+			pageDataReaderImportPath: new URL('../page-data-reader.ts', import.meta.url).href,
 		});
 
 		const moduleUrl = createModuleUrl(script);

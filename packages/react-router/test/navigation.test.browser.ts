@@ -266,7 +266,7 @@ describe('extractComponentUrl', () => {
 		`);
 		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-		await expect(extractComponentUrl(doc)).resolves.toBe('/assets/pages/docs.js');
+		expect(extractComponentUrl(doc)).toBe('/assets/pages/docs.js');
 		expect(fetchSpy).not.toHaveBeenCalled();
 		fetchSpy.mockRestore();
 	});

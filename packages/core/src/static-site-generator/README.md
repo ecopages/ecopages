@@ -33,7 +33,7 @@ It should not invent a parallel rendering stack just for build mode.
 | `static-export-context.ts`     | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
 | `static-build-invalidation.ts` | `dist/` reset policy, production cache clearing, static-render cache context |
 
-Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
+Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
 
 ## Incremental static export
 

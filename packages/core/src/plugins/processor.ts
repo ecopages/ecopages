@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { GENERATED_BASE_PATHS } from '../config/constants.ts';
@@ -16,7 +16,7 @@ export type {
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
-} from '../build/build-types.ts';
+} from '../build/contracts/build-types.ts';
 
 export const PROCESSOR_ERRORS = {
 	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',

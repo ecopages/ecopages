@@ -3,22 +3,22 @@ import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { build, getAppBuildAdapter, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import { createServerBuildRequest } from '../../build/build-request-policy.ts';
-import { requireBuildRuntime } from '../../build/build-runtime.ts';
+import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
 	recordServerEntryBuildCache,
 	writeServerBundleDeployManifest,
-} from '../../build/server-entry-build-cache.ts';
+} from '../../build/cache/server-entry-build-cache.ts';
 import {
 	clearProductionBuildCaches,
 	shouldResetStaticExportDirectory,
 } from '../../static-site-generator/static-build-invalidation.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.ts';
-import { RolldownBuildAdapter } from '../../build/rolldown-build-adapter.ts';
+import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { setAppBuildAdapter } from '../../build/build-adapter.ts';
-import { requireBuildRuntime } from '../../build/build-runtime.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader, setAppHostModuleLoader } from './app-server-module-transpiler.service.ts';

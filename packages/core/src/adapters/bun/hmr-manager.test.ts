@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/build-runtime.ts';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { HmrManager } from './hmr-manager.ts';

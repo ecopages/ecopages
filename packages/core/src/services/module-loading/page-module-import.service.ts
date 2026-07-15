@@ -2,18 +2,18 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
-import { createServerBuildRequest } from '../../build/build-request-policy.ts';
-import { resolveBuildProfileOptions } from '../../build/build-profile-options.ts';
+import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
+import { resolveBuildProfileOptions } from '../../build/runtime/build-profile-options.ts';
 import {
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
-} from '../../build/pages-unified-graph-build.ts';
-import { recordPageModuleBuildInvocation } from '../../build/rolldown-build-invocation-metrics.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+} from '../../build/cache/pages-unified-graph-build.ts';
+import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolvePageModuleOutputFileName } from './route-module-build-cache.ts';
-import { createPluginCacheKey, createJsxCacheKey } from '../../build/cache-keys.ts';
+import { createPluginCacheKey, createJsxCacheKey } from '../../build/cache/cache-keys.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,

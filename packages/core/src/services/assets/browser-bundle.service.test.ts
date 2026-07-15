@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ViteHostBuildAdapter } from '../../build/build-adapter.ts';
-import { installBuildRuntime } from '../../build/build-runtime.ts';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ConfigBuilder } from '../../config/config-builder.ts';
-import { getServerBundleOutputPaths, resolveProductionServerEntry } from '../../build/server-entry-build-cache.ts';
+import { getServerBundleOutputPaths, resolveProductionServerEntry } from '../../build/cache/server-entry-build-cache.ts';
 import { SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';
 import type { RouteRegistry } from '../../router/server/route-registry.ts';

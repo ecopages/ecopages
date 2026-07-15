@@ -20,8 +20,8 @@ import {
 	getAppServerModuleTranspiler,
 } from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/services/module-loading/route-module-build-manifest';
-import { SERVER_ENTRY_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/build/server-entry-build-cache';
-import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/pages-unified-graph-build';
+import { SERVER_ENTRY_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/server-entry-build-cache';
+import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
 import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';

@@ -1,7 +1,7 @@
-import type { EcoBuildPlugin } from '../build/build-types.ts';
-import type { AppBuildManifest } from '../build/build-manifest.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import type { BuildAdapter, BuildOwnership } from '../build/build-adapter.ts';
-import type { BuildRuntime } from '../build/build-runtime.ts';
+import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -170,7 +170,7 @@ export type EcoPagesAppConfig = {
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
 		/** Registers integration runtime plugins when lazy activation completes. */
-		onRuntimePlugin?: (plugin: import('../build/build-types.ts').EcoBuildPlugin) => void;
+		onRuntimePlugin?: (plugin: import('../build/contracts/build-types.ts').EcoBuildPlugin) => void;
 		/** Integration names that completed lazy runtime activation. */
 		activatedIntegrations?: Set<string>;
 		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */

@@ -18,7 +18,7 @@ import { materializeContentScriptAsset } from './materialize-content-script-asse
 import {
 	getDevBrowserScriptCacheEntry,
 	setDevBrowserScriptCacheEntry,
-} from '../../../build/dev-browser-script-cache.ts';
+} from '../../../build/cache/dev-browser-script-cache.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 import { Processor, type ProcessorConfig } from './processor.ts';
 

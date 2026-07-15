@@ -18,7 +18,7 @@ import {
 import {
 	isProductionCacheManifestCurrent,
 	matchesProductionCacheFingerprint,
-} from '../../build/production-build-cache.ts';
+} from '../../build/cache/production-build-cache.ts';
 
 export type { RouteModuleDependencyHashes };
 

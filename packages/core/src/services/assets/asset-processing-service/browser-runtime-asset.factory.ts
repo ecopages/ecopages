@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '../../../build/build-types.ts';
+import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
 import { AssetFactory } from './asset.factory.ts';
 import type { AssetDefinition } from './assets.types.ts';
 import {

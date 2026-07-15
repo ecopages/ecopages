@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '../../../build/build-types.ts';
+import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
 
 export type AssetSource = 'content' | 'file' | 'node-module';
 export type AssetKind = 'script' | 'stylesheet';

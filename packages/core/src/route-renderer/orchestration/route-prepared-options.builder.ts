@@ -1,6 +1,5 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
-	ComponentRenderResult,
 	EcoComponent,
 	EcoPageComponent,
 	EcoPageFile,
@@ -36,18 +35,9 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 	resolvedDependencies: ProcessedAsset[];
 	allDependencies: ProcessedAsset[];
 	pageBrowserGraph?: PageBrowserGraphResult;
-	componentRender?: ComponentRenderResult;
 	appConfig: EcoPagesAppConfig;
 }): IntegrationRendererRenderOptions<C> {
-	const {
-		routeOptions,
-		resolvedInputs,
-		resolvedDependencies,
-		allDependencies,
-		pageBrowserGraph,
-		componentRender,
-		appConfig,
-	} = input;
+	const { routeOptions, resolvedInputs, resolvedDependencies, allDependencies, pageBrowserGraph, appConfig } = input;
 	const { Page, HtmlTemplate, Layouts, Layout, layoutEntries, props, metadata, integrationSpecificProps } =
 		resolvedInputs;
 
@@ -72,7 +62,6 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		...routeOptions,
 		resolvedDependencies,
 		pagePackage,
-		componentRender,
 		HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,
 		Layouts,
 		Layout,

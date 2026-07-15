@@ -1,6 +1,5 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
-	ComponentRenderResult,
 	EcoComponent,
 	EcoPageComponent,
 	EcoPageFile,
@@ -73,15 +72,6 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	 */
 	collectPageBrowserGraphContribution(routeFile: string): Promise<PageBrowserGraphContribution | undefined>;
 	/**
-	 * Resolves the optional page-root render through the foreign-child-aware component contract.
-	 */
-	resolveRoutePageComponentRender(input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-	}): Promise<ComponentRenderResult | undefined>;
-	/**
 	 * Executes the Integration-specific route render.
 	 */
 	renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
@@ -146,8 +136,8 @@ export class RouteRenderOrchestrator {
 	 * Builds normalized route render options before the integration render runs.
 	 *
 	 * This preparation step validates route-root ownership, resolves page data,
-	 * collects processed assets, captures optional page-root render metadata, and
-	 * produces the page package consumed by downstream HTML transformation.
+	 * collects processed assets, and produces the page package consumed by downstream
+	 * HTML transformation.
 	 */
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
@@ -166,7 +156,7 @@ export class RouteRenderOrchestrator {
 		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
-		const [{ resolvedDependencies }, pageBrowserGraph, componentRender] = await Promise.all([
+		const [{ resolvedDependencies }, pageBrowserGraph] = await Promise.all([
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,
 			}),
@@ -175,22 +165,12 @@ export class RouteRenderOrchestrator {
 				integrationName: adapter.name,
 				collectContribution: async (routeFile) => await adapter.collectPageBrowserGraphContribution(routeFile),
 			}),
-			adapter.resolveRoutePageComponentRender({
-				Page: Page as EcoComponent,
-				Layout,
-				props: resolvedInputs.props,
-				routeOptions,
-			}),
 		]);
 
 		const allDependencies = [
 			...resolvedDependencies,
 			...collectUsedIntegrationDependenciesFromGraph(this.appConfig, componentsToResolve, adapter.name),
 		];
-
-		if (componentRender?.assets?.length) {
-			allDependencies.push(...componentRender.assets);
-		}
 
 		const triggers = collectResolvedLazyTriggersFromGraph(componentsToResolve, adapter.name);
 		const [globalAssets, eagerSsrLazyAssets] = await Promise.all([
@@ -207,7 +187,6 @@ export class RouteRenderOrchestrator {
 			resolvedDependencies,
 			allDependencies,
 			pageBrowserGraph,
-			componentRender,
 			appConfig: this.appConfig,
 		});
 	}

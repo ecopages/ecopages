@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
 	HtmlTemplateProps,
+	IntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../types/public-types.ts';
+import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import {
 	type RouteHtmlFinalization,
 	type RouteRenderOrchestratorAdapter,
@@ -31,17 +33,6 @@ function createFlowAdapter(input: {
 	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
 	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<any[]>;
 	collectPageBrowserGraphContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-	shouldRenderPageComponent: (input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		options: RouteRendererOptions;
-	}) => boolean;
-	renderPageComponent: (input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-	}) => Promise<any>;
 	renderRouteBody: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
 	transformRouteResponse: (response: Response) => Promise<RouteRendererBody>;
@@ -64,11 +55,6 @@ function createFlowAdapter(input: {
 				props,
 				metadata,
 				integrationSpecificProps: pageModule.integrationSpecificProps,
-				shouldRenderPageComponent: input.shouldRenderPageComponent({
-					Page: pageModule.Page,
-					Layout,
-					options: routeOptions,
-				}),
 			};
 		},
 		resolveRouteDependencies: async ({ components }) => ({
@@ -76,19 +62,6 @@ function createFlowAdapter(input: {
 		}),
 		collectPageBrowserGraphContribution: async (routeFile) =>
 			await input.collectPageBrowserGraphContribution(routeFile),
-		resolveRoutePageComponentRender: async (renderInput) => {
-			if (
-				!input.shouldRenderPageComponent({
-					Page: renderInput.Page,
-					Layout: renderInput.Layout,
-					options: renderInput.routeOptions,
-				})
-			) {
-				return undefined;
-			}
-
-			return await input.renderPageComponent(renderInput);
-		},
 		renderRouteBody: input.renderRouteBody,
 		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),
 		transformRouteResponse: input.transformRouteResponse,
@@ -123,7 +96,7 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.html).toContain('<main>Streamed</main>');
 	});
 
-	it('preserves streamed bodies when no foreign-subtree resolution or attribute stamping is required', async () => {
+	it('executes prepared route renders and preserves cache strategy', async () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const encoder = new TextEncoder();
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -142,12 +115,6 @@ describe('RouteRenderOrchestrator', () => {
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => undefined,
-				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({
-					html: '<main>Page</main>',
-					canAttachAttributes: true,
-					integrationName: 'ghtml',
-				}),
 				renderRouteBody: async () =>
 					new ReadableStream({
 						start(controller) {
@@ -164,7 +131,7 @@ describe('RouteRenderOrchestrator', () => {
 		expect(await new Response(result.body as BodyInit).text()).toContain('<main>Streamed</main>');
 	});
 
-	it('applies root and document attributes to fully resolved route HTML', async () => {
+	it('applies document attributes to fully resolved route HTML', async () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
@@ -182,27 +149,27 @@ describe('RouteRenderOrchestrator', () => {
 				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => undefined,
-				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({
-					html: '<main>Page</main>',
-					canAttachAttributes: true,
-					integrationName: 'ghtml',
-					rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
-				}),
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
-				getRouteHtmlFinalization: () => ({
-					finalizeHtml: (html) =>
-						html
-							.replace('<html', '<html data-eco-document-owner="react-router"')
-							.replace('<main', '<main data-eco-component-id="eco-page-root"'),
-				}),
+				getRouteHtmlFinalization: () =>
+					buildRouteHtmlFinalization({
+						renderOptions: {} as IntegrationRendererRenderOptions,
+						getDocumentAttributes: () => ({ 'data-eco-document-owner': 'react-router' }),
+						getHtmlDocumentContributions: () => undefined,
+						applyAttributesToHtmlElement: (html, attributes) =>
+							html.replace(
+								'<html',
+								`<html ${Object.entries(attributes)
+									.map(([key, value]) => `${key}="${value}"`)
+									.join(' ')}`,
+							),
+					}),
 				transformRouteResponse: async (response) => await response.text(),
 			}),
 		);
 
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
 		expect(result.body).toContain('<html data-eco-document-owner="react-router"><body>');
-		expect(result.body).toContain('<main data-eco-component-id="eco-page-root">Resolved</main>');
+		expect(result.body).toContain('<main>Resolved</main>');
 	});
 
 	it('throws when route HTML contains escaped unresolved eco-marker artifacts', async () => {
@@ -223,12 +190,6 @@ describe('RouteRenderOrchestrator', () => {
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => undefined,
-					shouldRenderPageComponent: () => true,
-					renderPageComponent: async () => ({
-						html: '<main>Page</main>',
-						canAttachAttributes: true,
-						integrationName: 'ghtml',
-					}),
 					renderRouteBody: async () =>
 						'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
 					transformRouteResponse: async (response) => await response.text(),
@@ -255,12 +216,6 @@ describe('RouteRenderOrchestrator', () => {
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => undefined,
-					shouldRenderPageComponent: () => true,
-					renderPageComponent: async () => ({
-						html: '<main>Page</main>',
-						canAttachAttributes: true,
-						integrationName: 'ghtml',
-					}),
 					renderRouteBody: async () =>
 						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
 					transformRouteResponse: async (response) => await response.text(),

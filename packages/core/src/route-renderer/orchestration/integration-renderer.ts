@@ -9,7 +9,6 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
-	EcoComponentDependencies,
 	EcoFunctionComponent,
 	EcoPageFile,
 	EcoPagesElement,
@@ -667,24 +666,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Returns the HTML path from the provided file path.
-	 * It extracts the path relative to the pages directory and removes the 'index' part if present.
-	 *
-	 * @param file - The file path to extract the HTML path from.
-	 * @returns The extracted HTML path.
-	 */
-	protected getHtmlPath({ file }: { file: string }): string {
-		const pagesDir = this.appConfig.absolutePaths.pagesDir;
-		const pagesIndex = file.indexOf(pagesDir);
-		if (pagesIndex === -1) return file;
-		const startIndex = file.indexOf(pagesDir) + pagesDir.length;
-		const endIndex = file.lastIndexOf('/');
-		const path = file.substring(startIndex, endIndex);
-		if (path === '/index') return '';
-		return path;
-	}
-
-	/**
 	 * Returns the HTML template component.
 	 * It imports the HTML template from the specified path in the app configuration.
 	 *
@@ -751,59 +732,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Extracts the dependencies from the provided component configuration.
-	 * It resolves the paths for scripts and stylesheets based on the component directory.
-	 *
-	 * @param componentDir - The component directory path.
-	 * @param scripts - The scripts to extract.
-	 * @param stylesheets - The stylesheets to extract.
-	 * @returns The extracted dependencies.
-	 */
-	protected extractDependencies({
-		componentDir,
-		scripts,
-		stylesheets,
-	}: {
-		componentDir: string;
-	} & EcoComponentDependencies): EcoComponentDependencies {
-		const scriptsPaths = [
-			...new Set(
-				(scripts ?? [])
-					.filter((script) => (typeof script === 'string' ? true : !script.lazy))
-					.map((script) => (typeof script === 'string' ? script : script.src))
-					.filter((script): script is string => Boolean(script))
-					.map((script) => this.resolveDependencyPath(componentDir, script)),
-			),
-		];
-
-		const stylesheetsPaths = [
-			...new Set(
-				(stylesheets ?? [])
-					.map((style) => (typeof style === 'string' ? style : style.src))
-					.filter((style): style is string => Boolean(style))
-					.map((style) => this.resolveDependencyPath(componentDir, style)),
-			),
-		];
-
-		return {
-			scripts: scriptsPaths,
-			stylesheets: stylesheetsPaths,
-		};
-	}
-
-	/**
-	 * Resolves lazy script paths to public asset URLs.
-	 * Converts source paths to their final bundled output paths.
-	 *
-	 * @param componentDir - The component directory path.
-	 * @param scripts - The lazy script paths to resolve.
-	 * @returns Comma-separated string of resolved public script paths.
-	 */
-	protected resolveLazyScripts(componentDir: string, scripts: string[]): string {
-		return this.dependencyResolverService.resolveLazyScripts(componentDir, scripts);
-	}
-
-	/**
 	 * Collects the dependencies for the provided components.
 	 * Combines component-specific dependencies with global integration dependencies.
 	 *
@@ -843,12 +771,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),
 			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
-			resolveRoutePageComponentRender: (input) => this.resolveRoutePageComponentRender(input),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
-			applyAttributesToFirstBodyElement: (html, attributes) =>
-				this.applyAttributesToFirstBodyElement(html, attributes),
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: (response, htmlContributions, pagePackage) =>
 				this.transformRouteResponse(response, htmlContributions, pagePackage),
@@ -891,29 +816,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	protected async resolveRoutePageComponentRender(input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-	}): Promise<ComponentRenderResult | undefined> {
-		if (!this.shouldRenderPageComponent({ Page: input.Page, Layout: input.Layout, options: input.routeOptions })) {
-			return undefined;
-		}
-
-		return this.renderComponentWithForeignChildren({
-			component: input.Page,
-			props: {
-				...input.props,
-				params: input.routeOptions.params || {},
-				query: input.routeOptions.query || {},
-			},
-			integrationContext: {
-				componentInstanceId: 'eco-page-root',
-			},
-		});
-	}
-
 	protected async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		return this.render(renderOptions);
 	}
@@ -950,29 +852,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Controls whether the page root should be rendered through `renderComponent()`
-	 * during route option preparation in component-capable modes.
-	 *
-	 * Integrations that already own page-level hydration (for example router-driven
-	 * React rendering) can override this and return `false` to avoid duplicate root
-	 * mount assets and competing hydration entrypoints.
-	 */
-	protected shouldRenderPageComponent(_input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		options: RouteRendererOptions;
-	}): boolean {
-		return true;
-	}
-
-	/**
 	 * Executes the integration renderer with the provided options.
 	 *
 	 * Execution flow:
 	 * 1. Build normalized render options (`prepareRenderOptions`).
 	 * 2. Render the route body once.
 	 * 3. Reject unresolved route-level eco-marker artifacts.
-	 * 4. Optionally apply root attributes for page/component root boundaries.
+	 * 4. Optionally apply document attributes for integration-owned document boundaries.
 	 * 5. Run HTML transformer with final dependency set.
 	 *
 	 * Stream-safety note: the first render result is normalized to a string once,

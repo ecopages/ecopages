@@ -135,6 +135,18 @@ describe('extractProps', () => {
 		expect(props).toEqual({ params: { slug: 'test-post' }, query: {} });
 	});
 
+	it('should extract props from a v1 page-data envelope', () => {
+		const doc = createMockDocument(`
+			<html><body>
+				<script id="__ECO_PAGE_DATA__" type="application/json">
+					{"v":1,"navigationOwner":"react-router","module":"/assets/docs.js","props":{"slug":"intro"}}
+				</script>
+			</body></html>
+		`);
+
+		expect(extractProps(doc)).toEqual({ slug: 'intro' });
+	});
+
 	it('should ignore legacy fallback props scripts for fetched documents', () => {
 		const html = `
 			<html>
@@ -242,6 +254,21 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(html);
 		const url = await extractComponentUrl(doc);
 		expect(url).toBeNull();
+	});
+
+	it('should discover the page module from a v1 page-data envelope', async () => {
+		const doc = createMockDocument(`
+			<html><body>
+				<script id="__ECO_PAGE_DATA__" type="application/json">
+					{"v":1,"navigationOwner":"react-router","module":"/assets/pages/docs.js","props":{}}
+				</script>
+			</body></html>
+		`);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		await expect(extractComponentUrl(doc)).resolves.toBe('/assets/pages/docs.js');
+		expect(fetchSpy).not.toHaveBeenCalled();
+		fetchSpy.mockRestore();
 	});
 
 	it('should extract from inline hydration script in fetched document', async () => {

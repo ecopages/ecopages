@@ -44,6 +44,14 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	private readonly renderSession: EcopagesJsxRenderSession;
 	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;
 
+	/**
+	 * Serializes foreign-child props for string-first boundaries.
+	 *
+	 * @remarks
+	 * Plain objects that are neither DOM nodes nor JSX-renderable values are
+	 * rejected before `renderToString`. Cross-integration children must use
+	 * `EcoEmbed`; silent `String(object)` coercion is not supported.
+	 */
 	private normalizeForeignChildProps(props: Record<string, unknown>): Record<string, unknown> {
 		if (!('children' in props)) {
 			return props;
@@ -68,10 +76,41 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			};
 		}
 
+		if (this.isOpaqueForeignChildValue(children)) {
+			const childTag = Object.prototype.toString.call(children);
+			throw new TypeError(
+				`[ecopages] ${this.name} renderer refused to coerce opaque foreign children (${childTag}). Use EcoEmbed for cross-integration JSX children.`,
+			);
+		}
+
 		return {
 			...props,
 			children: renderToString(children as JsxRenderable),
 		};
+	}
+
+	/**
+	 * Returns whether a child value is a plain object that string serializers
+	 * would coerce rather than render.
+	 */
+	private isOpaqueForeignChildValue(children: unknown): boolean {
+		if (children === null || typeof children !== 'object') {
+			return false;
+		}
+
+		if (Array.isArray(children)) {
+			return false;
+		}
+
+		if ('$$typeof' in children) {
+			return false;
+		}
+
+		if ('strings' in children && Array.isArray((children as { strings: unknown }).strings)) {
+			return false;
+		}
+
+		return Object.getPrototypeOf(children) === Object.prototype || Object.getPrototypeOf(children) === null;
 	}
 
 	/**

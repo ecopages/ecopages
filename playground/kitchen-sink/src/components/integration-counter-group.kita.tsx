@@ -1,3 +1,4 @@
+/** @jsxImportSource @kitajs/html */
 import { eco } from '@ecopages/core';
 import type { EcoPagesElement } from '@ecopages/core';
 import { KitaCounter } from './kita-counter.kita';

@@ -426,12 +426,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		props: P;
 		ctx: RenderToResponseContext;
 		layout?: EcoComponent;
+		transformDocumentHtml?: (html: string) => string;
 	}): Promise<Response> {
 		await this.ensureIntegrationRuntimeActivated();
 		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
 
 		if (input.ctx.partial) {
-			return this.renderPartialViewResponse(input);
+			return this.renderPartialViewResponse({
+				...input,
+				transformHtml: input.transformDocumentHtml,
+			});
 		}
 
 		await this.prepareViewDependencies(input.view, input.layout);
@@ -461,8 +465,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			},
 		);
 
+		const transformedDocumentHtml = input.transformDocumentHtml
+			? input.transformDocumentHtml(documentHtml)
+			: documentHtml;
 		const html = await this.finalizeResolvedHtml({
-			html: `${this.DOC_TYPE}${documentHtml}`,
+			html: `${this.DOC_TYPE}${transformedDocumentHtml}`,
 			partial: false,
 		});
 
@@ -531,7 +538,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
 		const content = await component(props);
-		const html = String(content);
+		if (typeof content !== 'string') {
+			const componentFile = input.component.config?.__eco?.file ?? 'unknown component';
+			const contentTag = Object.prototype.toString.call(content);
+
+			throw new TypeError(
+				`[ecopages] ${this.name} renderer expected a string render result for ${componentFile}, received ${contentTag}.`,
+			);
+		}
+		const html = content;
 		const assets =
 			input.component.config?.dependencies &&
 			typeof this.assetProcessingService?.processDependencies === 'function'

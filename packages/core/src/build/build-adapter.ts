@@ -16,7 +16,7 @@
  *   `appConfig.runtime.buildRuntime`.
  */
 
-import type { EcoBuildPlugin } from './build-types.ts';
+import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import {
 	type BuildAdapter,
 	type BuildExecutor,
@@ -25,7 +25,7 @@ import {
 	type BuildResult,
 	type BuildTranspileOptions,
 	type BuildTranspileProfile,
-} from './build-contracts.ts';
+} from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
 	BuildDependencyGraph,
@@ -37,17 +37,17 @@ export type {
 	BuildResult,
 	BuildTranspileOptions,
 	BuildTranspileProfile,
-} from './build-contracts.ts';
+} from './contracts/build-contracts.ts';
 import {
 	createAppBuildManifest,
 	getBrowserBuildPlugins,
 	getServerBuildPlugins,
 	type AppBuildManifest,
-} from './build-manifest.ts';
+} from './contracts/build-manifest.ts';
 import { getAppSourceTransforms } from '../plugins/source-transform.ts';
 import { createAliasResolverPlugin } from '../plugins/alias-resolver-plugin.ts';
-import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
-import { createRolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { getJsxOwnershipPlugins } from './browser/jsx-ownership-plugins.ts';
+import { createRolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 /**

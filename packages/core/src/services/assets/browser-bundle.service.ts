@@ -1,12 +1,12 @@
 import type { BuildExecutor, BuildResult } from '../../build/build-adapter.ts';
-import { createBrowserBuildRequest } from '../../build/build-request-policy.ts';
-import { requireBuildRuntime } from '../../build/build-runtime.ts';
+import { createBrowserBuildRequest } from '../../build/runtime/build-request-policy.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import type { BuildTranspileProfile } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
-import { createBuildRequestIdentity } from '../../build/build-request-identity.ts';
+import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 
 /**
  * Browser-oriented build request accepted by {@link BrowserBundleService}.

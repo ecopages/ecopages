@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { resolveInlineContentScriptBody } from '../../inline-content-script-body.ts';
-import { shouldUseDevBrowserScriptCache } from '../../../../../build/dev-browser-script-cache.ts';
+import { shouldUseDevBrowserScriptCache } from '../../../../../build/cache/dev-browser-script-cache.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
 export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAsset> {

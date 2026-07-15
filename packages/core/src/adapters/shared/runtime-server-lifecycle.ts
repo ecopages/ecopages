@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { IHmrManager } from '../../types/public-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
-import { disposeAppBuildRuntime } from '../../build/build-runtime.ts';
+import { disposeAppBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import type { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { clearAppDevClientBridge } from '../../dev/client-bridge-registry.ts';

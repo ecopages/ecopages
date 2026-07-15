@@ -189,48 +189,48 @@
 			"default": "./src/plugins/source-transform.ts"
 		},
 		"./build/build-types": {
-			"types": "./src/build/build-types.ts",
-			"default": "./src/build/build-types.ts"
+			"types": "./src/build/contracts/build-types.ts",
+			"default": "./src/build/contracts/build-types.ts"
 		},
 		"./build/build-adapter": {
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
 		},
 		"./build/build-runtime": {
-			"types": "./src/build/build-runtime.ts",
-			"default": "./src/build/build-runtime.ts"
+			"types": "./src/build/runtime/build-runtime.ts",
+			"default": "./src/build/runtime/build-runtime.ts"
 		},
 		"./build/build-contracts": {
-			"types": "./src/build/build-contracts.ts",
-			"default": "./src/build/build-contracts.ts"
+			"types": "./src/build/contracts/build-contracts.ts",
+			"default": "./src/build/contracts/build-contracts.ts"
 		},
 		"./build/production-build-cache": {
-			"types": "./src/build/production-build-cache.ts",
-			"default": "./src/build/production-build-cache.ts"
+			"types": "./src/build/cache/production-build-cache.ts",
+			"default": "./src/build/cache/production-build-cache.ts"
 		},
 		"./build/server-entry-build-cache": {
-			"types": "./src/build/server-entry-build-cache.ts",
-			"default": "./src/build/server-entry-build-cache.ts"
+			"types": "./src/build/cache/server-entry-build-cache.ts",
+			"default": "./src/build/cache/server-entry-build-cache.ts"
 		},
 		"./build/runtime-build-output-normalizer": {
-			"types": "./src/build/runtime-build-output-normalizer.ts",
-			"default": "./src/build/runtime-build-output-normalizer.ts"
+			"types": "./src/build/rolldown/runtime-build-output-normalizer.ts",
+			"default": "./src/build/rolldown/runtime-build-output-normalizer.ts"
 		},
 		"./build/browser-runtime-manifest": {
-			"types": "./src/build/browser-runtime-manifest.ts",
-			"default": "./src/build/browser-runtime-manifest.ts"
+			"types": "./src/build/browser/browser-runtime-manifest.ts",
+			"default": "./src/build/browser/browser-runtime-manifest.ts"
 		},
 		"./build/browser-runtime-plugin": {
-			"types": "./src/build/browser-runtime-plugin.ts",
-			"default": "./src/build/browser-runtime-plugin.ts"
+			"types": "./src/build/browser/browser-runtime-plugin.ts",
+			"default": "./src/build/browser/browser-runtime-plugin.ts"
 		},
 		"./build/jsx-ownership-plugins": {
-			"types": "./src/build/jsx-ownership-plugins.ts",
-			"default": "./src/build/jsx-ownership-plugins.ts"
+			"types": "./src/build/browser/jsx-ownership-plugins.ts",
+			"default": "./src/build/browser/jsx-ownership-plugins.ts"
 		},
 		"./build/lit-static-render-worker-context": {
-			"types": "./src/build/lit-static-render-worker-context.ts",
-			"default": "./src/build/lit-static-render-worker-context.ts"
+			"types": "./src/build/browser/lit-static-render-worker-context.ts",
+			"default": "./src/build/browser/lit-static-render-worker-context.ts"
 		},
 		"./cache": {
 			"types": "./src/cache/index.ts",

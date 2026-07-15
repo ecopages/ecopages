@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installBuildRuntime } from '../../build/build-runtime.ts';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';

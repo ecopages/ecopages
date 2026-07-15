@@ -9,7 +9,7 @@ import {
 	getAppBuildManifest,
 	ViteHostBuildAdapter,
 } from '../build/build-adapter.ts';
-import { createBrowserRuntimeManifest } from '../build/browser-runtime-manifest.ts';
+import { createBrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
 import { createVitePluginsFromAppSourceTransforms } from '../plugins/source-transform.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';

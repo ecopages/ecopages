@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import * as devBrowserScriptCache from '../../../build/dev-browser-script-cache.ts';
+import * as devBrowserScriptCache from '../../../build/cache/dev-browser-script-cache.ts';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 

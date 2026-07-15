@@ -66,6 +66,8 @@ By default, mitata prints its console report (boxplots/tables) and `run.mts` add
 median/p99 summary. Results are also written to `results/mitata-bench.json`. Set
 `ECOPAGES_BENCH_FORMAT=json` for JSON-only mitata output (useful in CI). Set
 `ECOPAGES_BENCH_VERBOSE=1` to keep core/image-processor info logs during bench runs.
+The runner flushes its report and exits explicitly after completion, so development
+workers or plugin handles cannot keep the terminal command alive.
 
 ## Output
 

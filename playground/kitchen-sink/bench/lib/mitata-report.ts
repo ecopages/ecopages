@@ -93,7 +93,15 @@ export function writeMitataBenchReport(benchmarks: MitataTrial[]): MitataBenchRe
 	return report;
 }
 
-/** Prints a compact median/p99 table after mitata's own console report. */
+function truncateLabel(value: string, maxLength: number): string {
+	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function formatMilliseconds(value: number): string {
+	return `${value.toFixed(value < 10 ? 3 : 1)} ms`;
+}
+
+/** Prints a width-aware median/p99 table after mitata's own console report. */
 export function printMitataBenchReport(report: MitataBenchReport): void {
 	const rows = Object.entries(report.scenarios).sort(([left], [right]) => left.localeCompare(right));
 	if (rows.length === 0) {
@@ -101,15 +109,21 @@ export function printMitataBenchReport(report: MitataBenchReport): void {
 		return;
 	}
 
+	const terminalWidth = process.stdout.columns ?? 100;
+	const scenarioWidth = Math.min(70, Math.max(32, terminalWidth - 38));
+	const separator = '─'.repeat(scenarioWidth + 37);
+
 	console.log(`\nKitchen-sink summary (${report.runtime}, ${report.platform})`);
-	console.log('─'.repeat(80));
-	console.log(`${'Scenario'.padEnd(52)} ${'median'.padStart(8)} ${'p99'.padStart(8)} ${'ops/s'.padStart(8)}`);
+	console.log(separator);
+	console.log(
+		`${'Scenario'.padEnd(scenarioWidth)} ${'median'.padStart(10)} ${'p99'.padStart(10)} ${'ops/s'.padStart(8)}`,
+	);
 	for (const [name, stats] of rows) {
 		console.log(
-			`${name.padEnd(52)} ${`${stats.median}ms`.padStart(8)} ${`${stats.p99}ms`.padStart(8)} ${String(stats.hz).padStart(8)}`,
+			`${truncateLabel(name, scenarioWidth).padEnd(scenarioWidth)} ${formatMilliseconds(stats.median).padStart(10)} ${formatMilliseconds(stats.p99).padStart(10)} ${String(stats.hz).padStart(8)}`,
 		);
 	}
-	console.log('─'.repeat(80));
+	console.log(separator);
 }
 
 export function quantile(sorted: number[], q: number): number {

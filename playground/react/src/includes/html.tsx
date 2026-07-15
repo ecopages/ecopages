@@ -9,12 +9,12 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 		components: [Head],
 	},
 
-	render: ({ children, metadata, headContent, pageProps, language = 'en' }) => {
+	render: ({ children, metadata, headContent, pageProps, pageModuleUrl, language = 'en' }) => {
 		return (
 			<html lang={language as string}>
 				<Head metadata={metadata}>
 					{headContent}
-					<EcoPropsScript data={pageProps} />
+					<EcoPropsScript data={pageProps} module={pageModuleUrl} />
 				</Head>
 				{children as ReactNode}
 			</html>

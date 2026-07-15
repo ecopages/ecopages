@@ -77,41 +77,28 @@ function parsePageDataPayload(doc: Document): unknown {
 	}
 }
 
-/**
- * Matches default import: `import Content from './Content'`
- * Used to extract module path from hydration script for fetched documents.
- */
-const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
-
-/**
- * Matches namespace import: `import * as Content from './Content'`
- * Used for MDX components. Also handles minified: `import*as Content from'./Content'`
- */
-const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
-
-/**
- * Matches explicit page-module markers written by hydration scripts.
- */
-const PAGE_MODULE_MARKER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
-const PAGE_MODULE_IDENTIFIER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
 const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
 
 /**
- * Extracts import path from hydration script code using regex.
- *
- * @remarks
- * Compatibility fallback only. Prefer the v1 `__ECO_PAGE_DATA__` envelope.
- * Remove this path in a later compatibility release once all producers emit
- * `module` in the page-data manifest. Regex discovery is less reliable under
- * minification.
+ * @deprecated
+ * Regex-based hydration script discovery for one compatibility release. Prefer the
+ * v1 `__ECO_PAGE_DATA__` envelope (`schemaVersion` + `moduleUrl`). Remove once all
+ * producers emit the manifest.
  */
-function extractModulePathFromCode(code: string, fallbackUrl?: string): string | null {
-	const markerMatch = code.match(PAGE_MODULE_MARKER_REGEX);
+function deprecatedExtractModuleUrlFromHydrationScriptCode(code: string, fallbackUrl?: string): string | null {
+	/** Matches default import: `import Content from './Content'` */
+	const defaultImportRegex = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
+	/** Matches namespace import: `import * as Content from './Content'` */
+	const namespaceImportRegex = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
+	const pageModuleMarkerRegex = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
+	const pageModuleIdentifierRegex = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
+
+	const markerMatch = code.match(pageModuleMarkerRegex);
 	if (markerMatch) {
 		return markerMatch[1] ?? null;
 	}
 
-	const moduleIdentifier = code.match(PAGE_MODULE_IDENTIFIER_REGEX)?.[1];
+	const moduleIdentifier = code.match(pageModuleIdentifierRegex)?.[1];
 	if (moduleIdentifier) {
 		const assignmentRegex = new RegExp(
 			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['"]([^'"]+)['"]|(import\\.meta\\.url))`,
@@ -130,8 +117,8 @@ function extractModulePathFromCode(code: string, fallbackUrl?: string): string |
 		return fallbackUrl;
 	}
 
-	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
-	const namespaceMatch = code.match(NAMESPACE_IMPORT_REGEX);
+	const defaultMatch = code.match(defaultImportRegex);
+	const namespaceMatch = code.match(namespaceImportRegex);
 	return (defaultMatch || namespaceMatch)?.[2] ?? null;
 }
 
@@ -169,9 +156,9 @@ function addCacheBuster(url: string): string {
 /**
  * Extracts component module URL using multi-tier strategy.
  *
- * 1. Read the v1 page-data envelope
+ * 1. Read the v1 page-data envelope (`schemaVersion` + `moduleUrl`)
  * 2. Read bootstrap/page markers on the current document
- * 3. Parse hydration scripts with the documented regex fallback for one release
+ * 3. Fall back to {@link deprecatedExtractModuleUrlFromHydrationScriptCode} for one release
  *
  * @remarks
  * EcoRouter transition-state extraction remains a separate follow-up. This
@@ -196,7 +183,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 	);
 
 	if (inlineHydrationScript?.textContent) {
-		return extractModulePathFromCode(inlineHydrationScript.textContent);
+		return deprecatedExtractModuleUrlFromHydrationScriptCode(inlineHydrationScript.textContent);
 	}
 
 	const hydrationScript =
@@ -208,7 +195,7 @@ export async function extractComponentUrl(doc: Document): Promise<string | null>
 		const scriptUrl = addCacheBuster(hydrationScript.src);
 		const res = await fetch(scriptUrl);
 		const code = await res.text();
-		return extractModulePathFromCode(code, hydrationScript.src);
+		return deprecatedExtractModuleUrlFromHydrationScriptCode(code, hydrationScript.src);
 	} catch {
 		return null;
 	}

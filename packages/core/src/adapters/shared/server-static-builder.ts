@@ -57,6 +57,7 @@ export interface ServerStaticBuilderParams {
 export interface ServerStaticBuilderLogger {
 	warn(message: string, detail?: string): unknown;
 	info(message: string): unknown;
+	debug(message: string): unknown;
 	error(message: string): unknown;
 }
 

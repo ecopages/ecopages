@@ -11,7 +11,11 @@ import {
 	getServerModuleBuildCacheOutdir,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 
-export type { BuildInputChangeContributor, IntegrationPlugin, Processor } from '../build/cache/build-input-fingerprint.ts';
+export type {
+	BuildInputChangeContributor,
+	IntegrationPlugin,
+	Processor,
+} from '../build/cache/build-input-fingerprint.ts';
 export {
 	collectBuildInputContributors,
 	createBuildInputsFingerprint,

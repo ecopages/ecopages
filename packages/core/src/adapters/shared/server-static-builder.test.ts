@@ -98,6 +98,7 @@ function createMockDependencies() {
 		info: (message: string) => {
 			calls.info.push(message);
 		},
+		debug: () => {},
 		error: (message: string) => {
 			calls.error.push(message);
 		},

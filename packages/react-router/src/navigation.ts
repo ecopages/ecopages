@@ -10,7 +10,7 @@ import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
-import { type ComponentType } from 'react';
+import { createElement, type ComponentType } from 'react';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
 const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
@@ -23,8 +23,17 @@ export type PageState = {
 	props: PageProps;
 };
 
+/**
+ * Fully resolved page module ready for SPA commit.
+ *
+ * @remarks
+ * `config` is carried explicitly so layout composition does not depend on
+ * mutating the imported module namespace. `Component` may be a thin wrapper
+ * that exposes the resolved config for {@link PageContent}.
+ */
 export type LoadedPageModule = {
 	Component: NavigablePageComponent;
+	config?: EcoComponentConfig;
 	props: PageProps;
 	doc: Document;
 	finalPath: string;
@@ -147,10 +156,13 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * Adapts supported module export shapes to the router's page-component contract.
  *
  * @remarks
- * Config attachment is isolated here because imported component functions may
- * need module-level layout metadata copied onto them before normalization.
+ * Never mutates the imported component function. When module-level config is
+ * present but missing on the export, a thin wrapper carries `config` for layout
+ * composition while rendering the original component.
  */
-function adaptPageModule(moduleNamespace: unknown): NavigablePageComponent | null {
+function adaptPageModule(
+	moduleNamespace: unknown,
+): { Component: NavigablePageComponent; config?: EcoComponentConfig } | null {
 	const module = asRecord(moduleNamespace);
 	if (!module) {
 		return null;
@@ -163,13 +175,20 @@ function adaptPageModule(moduleNamespace: unknown): NavigablePageComponent | nul
 		return null;
 	}
 
-	const Component = rawComponent as NavigablePageComponent;
-	const config = (module.config ?? defaultRecord?.config ?? Component.config) as EcoComponentConfig | undefined;
-	if (config && !Component.config) {
-		Component.config = config;
+	const Imported = rawComponent as NavigablePageComponent;
+	const config = (module.config ?? defaultRecord?.config ?? Imported.config) as EcoComponentConfig | undefined;
+	if (config) {
+		ensurePageConfigLayouts(config);
 	}
-	ensurePageConfigLayouts(Component.config);
-	return Component;
+
+	if (!config || Imported.config === config) {
+		return { Component: Imported, config: Imported.config ?? config };
+	}
+
+	const Page = ((props: PageProps) => createElement(Imported, props)) as NavigablePageComponent;
+	Page.config = config;
+	Page.displayName = Imported.displayName ?? Imported.name ?? 'EcoRouterPage';
+	return { Component: Page, config };
 }
 
 /**
@@ -248,11 +267,18 @@ export async function loadPageModuleFromDocument(
 
 	const moduleUrl = addCacheBuster(componentUrl);
 	const module = (await import(/* @vite-ignore */ moduleUrl)) as unknown;
-	const Component = adaptPageModule(module);
-	if (!Component) {
+	const adapted = adaptPageModule(module);
+	if (!adapted) {
 		console.error('[EcoRouter] No component found in module');
 		return null;
 	}
 
-	return { Component, props, doc, finalPath, moduleUrl: componentUrl };
+	return {
+		Component: adapted.Component,
+		config: adapted.config,
+		props,
+		doc,
+		finalPath,
+		moduleUrl: componentUrl,
+	};
 }

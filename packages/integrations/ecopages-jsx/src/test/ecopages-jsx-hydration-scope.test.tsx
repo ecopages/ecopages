@@ -126,14 +126,15 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			withServerRadiantElementSsrRuntime: <T,>(render: () => T) => render(),
 		};
 
+		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(true);
 		(
-			EcopagesJsxRadiantSsrPolicy as unknown as {
+			radiantSsrPolicy as unknown as {
 				runtimeModules?: typeof runtimeModules;
 				runtimeModulesPromise?: Promise<typeof runtimeModules>;
 			}
 		).runtimeModules = runtimeModules;
 		(
-			EcopagesJsxRadiantSsrPolicy as unknown as {
+			radiantSsrPolicy as unknown as {
 				runtimeModules?: typeof runtimeModules;
 				runtimeModulesPromise?: Promise<typeof runtimeModules>;
 			}
@@ -177,7 +178,7 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 			jsxConfig: {
-				radiantSsrEnabled: true,
+				radiantSsrPolicy,
 			},
 		});
 

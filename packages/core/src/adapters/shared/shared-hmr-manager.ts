@@ -17,7 +17,7 @@ import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { ClientBridgeEvent } from '../../types/public-types.ts';
+import type { ClientBridgeEvent, HmrFileChangeOptions } from '../../types/public-types.ts';
 import { HmrEntrypointRegistrar } from './hmr-entrypoint-registrar.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import { getAppServerModuleTranspiler } from '../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -29,9 +29,7 @@ import {
 import type { ServerModuleTranspiler } from '../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
-type HandleFileChangeOptions = {
-	broadcast?: boolean;
-};
+type HandleFileChangeOptions = HmrFileChangeOptions;
 
 type SharedHmrManagerParams = {
 	appConfig: EcoPagesAppConfig;
@@ -230,6 +228,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			await this.prepareRegisteredScriptChange(resolvedFilePath);
 		}
 
+		const shouldBroadcast = options.broadcast ?? true;
 		const strategy = this.selectChangeStrategy(filePath);
 
 		if (!strategy) {
@@ -240,11 +239,20 @@ export abstract class SharedHmrManager implements IHmrManager {
 		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
 
 		const action = await strategy.process(filePath);
-		const shouldBroadcast = options.broadcast ?? true;
 
 		if (shouldBroadcast && action.type === 'broadcast' && action.events) {
+			if (this.bridge.subscriberCount === 0) {
+				appLogger.debug(
+					`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
+				);
+				return;
+			}
+
 			for (const event of action.events) {
-				this.broadcast(event);
+				const graphIdentities = event.graphIdentities ?? options.graphIdentities;
+				this.broadcast(
+					graphIdentities === undefined ? event : { ...event, graphIdentities },
+				);
 			}
 		}
 	}

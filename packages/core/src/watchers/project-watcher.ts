@@ -8,6 +8,8 @@ import {
 	DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
+import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph-session.ts';
 import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
@@ -215,6 +217,13 @@ export class ProjectWatcher {
 
 			this.uncacheModules();
 			const resolvedFilePath = path.resolve(filePath);
+			const graphPreparation = this.hmrManager.isEnabled()
+				? prepareHmrFileChange(this.appConfig, resolvedFilePath)
+				: undefined;
+
+			if (plan.refreshRoutes && (event === 'unlink' || event === 'add')) {
+				getAppPageBrowserGraphSession(this.appConfig).invalidateByRouteFile(resolvedFilePath);
+			}
 			const isRegisteredScriptEdit = isRegisteredScriptEntrypoint(
 				this.hmrManager.getWatchedFiles(),
 				resolvedFilePath,
@@ -240,7 +249,9 @@ export class ProjectWatcher {
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
 				await this.prewarmBeforeHmr(resolvedFilePath, plan);
-				await this.hmrManager.handleFileChange(filePath);
+				await this.hmrManager.handleFileChange(filePath, {
+					graphIdentities: graphPreparation?.affectedGraphIdentities,
+				});
 				await this.notifyProcessors(filePath, event);
 				return;
 			}
@@ -252,7 +263,9 @@ export class ProjectWatcher {
 			}
 
 			if (plan.delegateToHmr) {
-				await this.hmrManager.handleFileChange(filePath);
+				await this.hmrManager.handleFileChange(filePath, {
+					graphIdentities: graphPreparation?.affectedGraphIdentities,
+				});
 			}
 		} catch (error) {
 			if (error instanceof Error) {

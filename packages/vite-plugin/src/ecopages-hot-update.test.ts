@@ -381,7 +381,9 @@ describe('ecopagesHotUpdate', () => {
 
 		await Promise.resolve();
 
-		expect(handleFileChange).toHaveBeenCalledWith('/app/src/pages/index.kita.tsx');
+		expect(handleFileChange).toHaveBeenCalledWith('/app/src/pages/index.kita.tsx', {
+			graphIdentities: [],
+		});
 	});
 
 	it('dispatches script changes through the host HMR manager when the host owns the dev client', async () => {
@@ -425,6 +427,8 @@ describe('ecopagesHotUpdate', () => {
 
 		await Promise.resolve();
 
-		expect(handleFileChange).toHaveBeenCalledWith('/app/src/components/theme-toggle.script.tsx');
+		expect(handleFileChange).toHaveBeenCalledWith('/app/src/components/theme-toggle.script.tsx', {
+			graphIdentities: [],
+		});
 	});
 });

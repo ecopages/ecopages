@@ -4,6 +4,7 @@ import { hostOwnsDevClient } from '@ecopages/core/dev/dev-client-ownership';
 import { getAppHmrManager } from '@ecopages/core/dev/hmr-manager-registry';
 import { createDevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
 import type { DevelopmentHostRuntime } from '@ecopages/core/dev/host-runtime';
+import { prepareHmrFileChange } from '@ecopages/core/hmr/hmr-file-change-prep';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import type { EcopagesVitePlugin } from './types.ts';
 
@@ -41,7 +42,11 @@ type ProcessFileChangeOptions = {
 	invalidateClientModule?: (module: EnvironmentModuleNode) => void;
 };
 
-function dispatchHostOwnedHmr(api: EcopagesPluginApi, file: string): void {
+function dispatchHostOwnedHmr(
+	api: EcopagesPluginApi,
+	file: string,
+	graphIdentities?: ReturnType<typeof prepareHmrFileChange>['affectedGraphIdentities'],
+): void {
 	void api.getDevHostReady().then(async () => {
 		const hmrManager = getAppHmrManager(api.appConfig);
 		if (!hmrManager?.isEnabled()) {
@@ -49,7 +54,7 @@ function dispatchHostOwnedHmr(api: EcopagesPluginApi, file: string): void {
 		}
 
 		try {
-			await hmrManager.handleFileChange(file);
+			await hmrManager.handleFileChange(file, { graphIdentities });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			hmrManager.broadcast({ type: 'error', message });
@@ -78,6 +83,8 @@ function processEcopagesFileChange(
 
 	const plan = hostRuntime.planFileChange(file);
 	const hmrManager = getAppHmrManager(api.appConfig);
+	const graphPreparation =
+		hmrManager?.isEnabled() === true ? prepareHmrFileChange(api.appConfig, file) : undefined;
 	const watchedFiles = hmrManager?.getWatchedFiles?.();
 	const isRegisteredScriptEdit = hmrManager?.isEnabled() === true && watchedFiles?.has(path.resolve(file)) === true;
 
@@ -120,7 +127,7 @@ function processEcopagesFileChange(
 	}
 
 	if (hostOwnsClient()) {
-		dispatchHostOwnedHmr(api, file);
+		dispatchHostOwnedHmr(api, file, graphPreparation?.affectedGraphIdentities);
 		return [];
 	}
 

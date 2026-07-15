@@ -1,7 +1,6 @@
 import type { ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import type {
-	ComponentRenderResult,
 	EcoComponent,
 	EcoPageFile,
 	IntegrationRendererRenderOptions,
@@ -32,19 +31,12 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution | undefined>;
-	resolveRoutePageComponentRender(input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-	}): Promise<ComponentRenderResult | undefined>;
 	renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
 	getHtmlDocumentContributions(options: {
 		renderOptions: IntegrationRendererRenderOptions<C>;
 		partial: boolean;
 	}): HtmlDocumentContribution[] | undefined;
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 	transformRouteResponse(
 		response: Response,
@@ -69,15 +61,12 @@ export function createIntegrationRouteRenderAdapter<C>(
 				(file) => host.importPageFile(file),
 				(context) => host.collectPageBrowserGraphContribution(context),
 			),
-		resolveRoutePageComponentRender: (input) => host.resolveRoutePageComponentRender(input),
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),
 		getRouteHtmlFinalization: (renderOptions) =>
 			buildRouteHtmlFinalization({
 				renderOptions,
 				getDocumentAttributes: (options) => host.getDocumentAttributes(options),
 				getHtmlDocumentContributions: (options) => host.getHtmlDocumentContributions(options),
-				applyAttributesToFirstBodyElement: (html, attributes) =>
-					host.applyAttributesToFirstBodyElement(html, attributes),
 				applyAttributesToHtmlElement: (html, attributes) => host.applyAttributesToHtmlElement(html, attributes),
 			}),
 		transformRouteResponse: (response, htmlContributions, pagePackage) =>

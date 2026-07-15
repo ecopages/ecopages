@@ -46,17 +46,6 @@ function createFlowAdapter<C>(input: {
 	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
 	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<ProcessedAsset[]>;
 	collectPageBrowserGraphContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
-	shouldRenderPageComponent: (input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		options: RouteRendererOptions;
-	}) => boolean;
-	renderPageComponent: (input: {
-		Page: EcoComponent;
-		Layout?: EcoComponent;
-		props: Record<string, unknown>;
-		routeOptions: RouteRendererOptions;
-	}) => Promise<any>;
 }): RouteRenderOrchestratorAdapter<C> {
 	return {
 		name: 'ghtml',
@@ -76,11 +65,6 @@ function createFlowAdapter<C>(input: {
 				props,
 				metadata,
 				integrationSpecificProps: pageModule.integrationSpecificProps,
-				shouldRenderPageComponent: input.shouldRenderPageComponent({
-					Page: pageModule.Page as EcoComponent,
-					Layout,
-					options: routeOptions,
-				}),
 			};
 		},
 		resolveRouteDependencies: async ({ components }) => ({
@@ -88,19 +72,6 @@ function createFlowAdapter<C>(input: {
 		}),
 		collectPageBrowserGraphContribution: async (routeFile) =>
 			await input.collectPageBrowserGraphContribution(routeFile),
-		resolveRoutePageComponentRender: async (renderInput) => {
-			if (
-				!input.shouldRenderPageComponent({
-					Page: renderInput.Page,
-					Layout: renderInput.Layout,
-					options: renderInput.routeOptions,
-				})
-			) {
-				return undefined;
-			}
-
-			return await input.renderPageComponent(renderInput);
-		},
 		renderRouteBody: async () => '',
 		getRouteHtmlFinalization: () => ({}),
 		transformRouteResponse: async (response) => await response.text(),
@@ -146,11 +117,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const integrationDependency = {
 			kind: 'script',
 			srcUrl: '/assets/react-runtime.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const componentAsset = {
-			kind: 'script',
-			srcUrl: '/assets/page-root.js',
 			position: 'head',
 		} as ProcessedAsset;
 		const resolvedDependency = {
@@ -210,14 +176,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [resolvedDependency],
 				collectPageBrowserGraphContribution: async () => ({ assets: [pageDependency] }),
-				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({
-					html: '<main>Page</main>',
-					canAttachAttributes: true,
-					rootTag: 'main',
-					integrationName: 'ghtml',
-					assets: [componentAsset],
-				}),
 			}),
 		);
 
@@ -225,71 +183,15 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(result.pageLocals).toEqual({ user: 'andee' });
 		expect(result.pageProps).toEqual({ title: 'Hello', params: { slug: 'hello' }, query: { preview: '1' } });
 		expect((result as typeof result & { layoutMode?: string }).layoutMode).toBe('full');
-		expect(result.componentRender?.assets).toEqual([componentAsset]);
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				assets: expect.arrayContaining([
-					resolvedDependency,
-					integrationDependency,
-					pageDependency,
-					componentAsset,
-				]),
+				assets: expect.arrayContaining([resolvedDependency, integrationDependency, pageDependency]),
 				pageBrowserGraph: {
 					entryAssets: [pageDependency],
 					chunkAssets: [],
 				},
 			}),
 		);
-	});
-
-	it('renders page-root output directly during preparation', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const DeferredChild = eco.component<{}, string>({
-			integration: 'react',
-			render: () => '<span>Deferred</span>',
-		});
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => true,
-				renderPageComponent: async () => ({
-					html: DeferredChild({}),
-					canAttachAttributes: true,
-					rootTag: 'span',
-					integrationName: 'ghtml',
-				}),
-			}),
-		);
-
-		expect(result.componentRender).toEqual(
-			expect.objectContaining({
-				canAttachAttributes: true,
-				rootTag: 'span',
-				integrationName: 'ghtml',
-			}),
-		);
-		expect(result.componentRender?.html).toBe('<span>Deferred</span>');
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
@@ -340,8 +242,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -401,8 +301,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 			resolveDependencies: async () => [],
 			collectPageBrowserGraphContribution,
-			shouldRenderPageComponent: () => false,
-			renderPageComponent: vi.fn(),
 		});
 
 		await flow.prepareRenderOptions(
@@ -460,8 +358,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 			resolveDependencies: async () => [],
 			collectPageBrowserGraphContribution,
-			shouldRenderPageComponent: () => false,
-			renderPageComponent: vi.fn(),
 		});
 
 		await flow.prepareRenderOptions(
@@ -528,8 +424,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					],
 					assets: [chunkAsset],
 				}),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -619,8 +513,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution,
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 			name: 'react' as const,
 		});
@@ -712,8 +604,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution,
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 			name: 'react' as const,
 		});
@@ -814,8 +704,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution,
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 			name: 'react' as const,
 		});
@@ -907,8 +795,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution,
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 			name: 'react' as const,
 		});
@@ -1002,8 +888,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution,
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 			name: 'react' as const,
 		});
@@ -1092,8 +976,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					}),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution,
-					shouldRenderPageComponent: () => false,
-					renderPageComponent: vi.fn(),
 				}),
 				name: 'react' as const,
 			},
@@ -1110,7 +992,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it('should guard page locals for static pages and skip page-root rendering when disabled', async () => {
+	it('should guard page locals for static pages', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),
 		} as unknown as AssetProcessingService;
@@ -1121,7 +1003,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const renderPageComponent = vi.fn();
 
 		const result = await flow.prepareRenderOptions(
 			{
@@ -1142,15 +1023,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent,
 			}),
 		);
 
 		expect(result.locals).toBeUndefined();
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
-		expect(result.componentRender).toBeUndefined();
-		expect(renderPageComponent).not.toHaveBeenCalled();
 	});
 
 	it('eagerly emits lazy SSR component scripts for shared non-owning routes', async () => {
@@ -1208,8 +1085,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -1281,8 +1156,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -1340,8 +1213,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					}),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-					shouldRenderPageComponent: () => false,
-					renderPageComponent: vi.fn(),
 				}),
 			),
 		).resolves.toEqual(
@@ -1364,8 +1235,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -1407,8 +1276,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				}),
 				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				shouldRenderPageComponent: () => false,
-				renderPageComponent: vi.fn(),
 			}),
 		);
 
@@ -1461,8 +1328,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					}),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-					shouldRenderPageComponent: () => false,
-					renderPageComponent: vi.fn(),
 				}),
 			),
 		).rejects.toThrow(
@@ -1521,8 +1386,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 						return [];
 					},
 					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-					shouldRenderPageComponent: () => false,
-					renderPageComponent: vi.fn(),
 				}),
 				name: 'react',
 			},

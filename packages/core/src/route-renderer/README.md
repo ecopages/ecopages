@@ -72,7 +72,7 @@ The route-render contract is:
 3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves page data, resolves dependencies, and builds the page browser graph.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps root or document attributes when needed, and runs the HTML transformer.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
 
 Important:
 

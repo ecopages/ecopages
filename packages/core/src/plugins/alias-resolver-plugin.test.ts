@@ -50,6 +50,32 @@ test('resolveProjectImportPath resolves tsconfig paths via oxc-resolver', () => 
 	}
 });
 
+test('loadTsconfigPathPrefixes parses tsconfig files with glob patterns in include', () => {
+	const projectRoot = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-tsconfig-glob-'));
+	fs.writeFileSync(
+		path.join(projectRoot, 'tsconfig.json'),
+		JSON.stringify(
+			{
+				compilerOptions: {
+					paths: {
+						'@/*': ['./src/*'],
+					},
+				},
+				include: ['**/*.ts', '**/*.tsx', '../../packages/ui/src/**/*.tsx'],
+			},
+			null,
+			2,
+		),
+		'utf8',
+	);
+
+	try {
+		assert.deepEqual(loadTsconfigPathPrefixes(projectRoot), ['@/']);
+	} finally {
+		fs.rmSync(projectRoot, { recursive: true, force: true });
+	}
+});
+
 test('isBarePackageImportSpecifier distinguishes npm packages from tsconfig path aliases', () => {
 	const projectRoot = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-bare-import-'));
 	writeTsconfig(projectRoot, {

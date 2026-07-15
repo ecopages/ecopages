@@ -31,6 +31,55 @@ test('createBrowserRuntimeEntryModule writes a shared runtime entry file', () =>
 	}
 });
 
+test('createBrowserRuntimeEntryModule emits ESM default re-export for installed react', () => {
+	const reactPackageDir = path.resolve(import.meta.dirname, '../../../../../integrations/react/node_modules/react');
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-entry-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+	fs.mkdirSync(path.join(rootDir, 'node_modules'), { recursive: true });
+	fs.symlinkSync(reactPackageDir, path.join(rootDir, 'node_modules', 'react'));
+
+	try {
+		const filePath = createBrowserRuntimeEntryModule({
+			rootDir,
+			cacheDirName: 'ecopages-react-runtime-test',
+			fileName: 'runtime-entry.mjs',
+			modules: [{ specifier: 'react', defaultExport: true }],
+		});
+
+		const contents = fs.readFileSync(filePath, 'utf8');
+		assert.match(contents, /export default __ecopages_default_export__;/);
+		assert.match(contents, /from '\.\..*node_modules\/react\/index\.js';/);
+		assert.doesNotMatch(contents, /index\.cjs/);
+		assert.doesNotMatch(contents, /__require|require\(/);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('createBrowserRuntimeEntryModule skips default re-export for installed @tanstack/react-query', () => {
+	const reactQueryPackageDir = path.resolve(import.meta.dirname, '../../../../node_modules/@tanstack/react-query');
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-entry-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+	fs.mkdirSync(path.join(rootDir, 'node_modules', '@tanstack'), { recursive: true });
+	fs.symlinkSync(reactQueryPackageDir, path.join(rootDir, 'node_modules', '@tanstack', 'react-query'));
+
+	try {
+		const filePath = createBrowserRuntimeEntryModule({
+			rootDir,
+			cacheDirName: 'ecopages-react-runtime-test',
+			fileName: 'runtime-entry.mjs',
+			modules: [{ specifier: '@tanstack/react-query', defaultExport: true }],
+		});
+
+		const contents = fs.readFileSync(filePath, 'utf8');
+		assert.doesNotMatch(contents, /export default/);
+		assert.match(contents, /from '\.\..*node_modules\/@tanstack\/react-query\/.*\.js';/);
+		assert.doesNotMatch(contents, /index\.cjs/);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('createBrowserRuntimeEntryModule preserves a default export and deduplicates named exports', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-entry-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), '{}', 'utf8');

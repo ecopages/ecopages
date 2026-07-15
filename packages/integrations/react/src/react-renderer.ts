@@ -166,6 +166,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			appConfig: this.appConfig,
 			hostIntegrationName: this.name,
 			routerAdapter: this.routerAdapter,
+			runtimeModules: reactConfig?.runtimeModules,
 			mdxCompilerOptions: this.mdxCompilerOptions,
 		});
 

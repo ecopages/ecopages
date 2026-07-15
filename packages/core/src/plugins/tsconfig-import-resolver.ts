@@ -17,7 +17,12 @@ function findTsconfigPath(projectRoot: string): string | undefined {
 }
 
 function readJsonFile(filePath: string): unknown {
-	return JSON.parse(stripJsonComments(readFileSync(filePath, 'utf8')));
+	const source = readFileSync(filePath, 'utf8');
+	try {
+		return JSON.parse(source);
+	} catch {
+		return JSON.parse(stripJsonComments(source));
+	}
 }
 
 /**

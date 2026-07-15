@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponent } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 const workerStart = vi.fn(async () => {});
-const workerRenderPage = vi.fn(async () => '<html>Lit worker</html>');
+const workerRenderPage = vi.fn(async () => ({
+	html: '<html>Lit worker</html>',
+	cacheStrategy: { revalidate: 60 },
+}));
 const workerDispose = vi.fn(async () => {});
 
-vi.mock('../lit-static-render-worker-client.ts', () => ({
-	LitStaticRenderWorkerClient: class {
-		start = workerStart;
-		renderPage = workerRenderPage;
-		dispose = workerDispose;
-	},
-}));
-
-const { LitStaticRenderSession } = await import('../lit-static-render-session.ts');
+const createWorkerClient = () => ({
+	start: workerStart,
+	renderPage: workerRenderPage,
+	dispose: workerDispose,
+});
 
 describe('LitStaticRenderSession', () => {
 	it('preloads SSR scripts and always starts the render worker', async () => {
@@ -30,6 +30,7 @@ describe('LitStaticRenderSession', () => {
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 			preferSourceImports: true,
+			createWorkerClient,
 		});
 
 		const preloadSpy = vi.spyOn(session, 'preloadSsrLazyScripts').mockResolvedValue(undefined);
@@ -72,11 +73,20 @@ describe('LitStaticRenderSession', () => {
 
 		expect(preloadSpy).toHaveBeenCalledWith([lazyScriptComponent]);
 
-		const html = await session.renderPageInWorker({
+		const result = await session.renderPageInWorker({
 			filePath: '/app/src/pages/integration-matrix/lit-entry.lit.tsx',
 			params: {},
+			query: { preview: '1' },
 		});
-		expect(html).toBe('<html>Lit worker</html>');
+		expect(workerRenderPage).toHaveBeenCalledWith({
+			filePath: '/app/src/pages/integration-matrix/lit-entry.lit.tsx',
+			params: {},
+			query: { preview: '1' },
+		});
+		expect(result).toEqual({
+			html: '<html>Lit worker</html>',
+			cacheStrategy: { revalidate: 60 },
+		});
 
 		await session.dispose();
 		expect(workerDispose).toHaveBeenCalledTimes(1);

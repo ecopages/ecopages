@@ -1,3 +1,7 @@
+import type { PageQuery, RouteRenderResult } from '@ecopages/core';
+
+export type LitStaticRenderCacheStrategy = RouteRenderResult['cacheStrategy'];
+
 export type LitStaticRenderWorkerInitMessage = {
 	type: 'init';
 	configModulePath: string;
@@ -9,6 +13,8 @@ export type LitStaticRenderWorkerRenderMessage = {
 	id: string;
 	filePath: string;
 	params: Record<string, string>;
+	/** Serializable route query; preserves multi-value keys as `string[]`. */
+	query?: PageQuery;
 };
 
 export type LitStaticRenderWorkerShutdownMessage = {
@@ -26,6 +32,7 @@ export type LitStaticRenderWorkerResultMessage = {
 	type: 'result';
 	id: string;
 	html: string;
+	cacheStrategy?: LitStaticRenderCacheStrategy;
 };
 
 export type LitStaticRenderWorkerErrorMessage = {

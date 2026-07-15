@@ -15,7 +15,6 @@ import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asse
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { LitRenderer } from './lit-renderer.ts';
-import { setActiveLitStaticRenderSession } from './lit-static-render-coordinator.ts';
 import { LitStaticRenderSession } from './lit-static-render-session.ts';
 
 /**
@@ -78,6 +77,14 @@ export class LitPlugin extends IntegrationPlugin {
 		});
 	}
 
+	override initializeRenderer(options?: { rendererModules?: unknown }): LitRenderer {
+		const renderer = new this.renderer({
+			...this.createRendererOptions(options),
+			renderSession: this.renderSession ?? undefined,
+		});
+		return this.attachRendererRuntimeServices(renderer);
+	}
+
 	override async setup(): Promise<void> {
 		await super.setup();
 
@@ -94,13 +101,11 @@ export class LitPlugin extends IntegrationPlugin {
 			configModulePath: this.appConfig.absolutePaths.config,
 			runtimeOrigin: this.runtimeOrigin,
 		});
-		setActiveLitStaticRenderSession(this.renderSession);
 	}
 
 	override async teardown(): Promise<void> {
 		await this.renderSession?.dispose();
 		this.renderSession = null;
-		setActiveLitStaticRenderSession(null);
 		await super.teardown();
 	}
 
@@ -111,7 +116,6 @@ export class LitPlugin extends IntegrationPlugin {
 				configModulePath: context.appConfig.absolutePaths.config,
 				runtimeOrigin: context.baseUrl,
 			});
-			setActiveLitStaticRenderSession(this.renderSession);
 		}
 
 		await this.renderSession.preloadStaticRoutes(context);

@@ -269,6 +269,10 @@ export class ServerStaticBuilder {
 			preserveExportDirectory,
 		});
 
-		this.logger.info('Build completed');
+		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+			this.logger.debug('Build completed');
+		} else {
+			this.logger.info('Build completed');
+		}
 	}
 }

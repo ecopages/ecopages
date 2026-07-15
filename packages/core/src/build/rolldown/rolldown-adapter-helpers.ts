@@ -177,9 +177,13 @@ function createExternalMatcher(
 	const explicitExternals = new Set(options.external ?? []);
 	const externalPackages = options.externalPackages === true;
 	const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
+	const nodePlatform = mapRolldownPlatform(options.target) === 'node';
 
 	return (id: string): boolean => {
 		if (explicitExternals.has(id)) {
+			return true;
+		}
+		if (nodePlatform && id.startsWith('node:')) {
 			return true;
 		}
 		if (!externalPackages || !isPackageImport(id, contextRoot)) {

@@ -12,9 +12,7 @@ import {
 import { recordPageModuleBuildInvocation } from '../../build/rolldown-build-invocation-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import {
-	resolvePageModuleOutputFileName,
-} from './route-module-build-cache.ts';
+import { resolvePageModuleOutputFileName } from './route-module-build-cache.ts';
 import { createPluginCacheKey, createJsxCacheKey } from '../../build/cache-keys.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import {

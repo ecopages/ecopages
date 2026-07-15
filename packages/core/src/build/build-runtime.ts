@@ -76,9 +76,9 @@ export function requireBuildRuntime(appConfig: EcoPagesAppConfig): BuildRuntime 
  * Installs profile-based build executors for one app instance.
  *
  * @remarks
-	 * For Rolldown ownership, server-entry stays serialized single-flight while
-	 * route-module and browser-HMR run in parallel one-shot builds. Vite-host
-	 * profiles wrap a boundary marker and reject framework-owned build attempts.
+ * For Rolldown ownership, server-entry stays serialized single-flight while
+ * route-module and browser-HMR run in parallel one-shot builds. Vite-host
+ * profiles wrap a boundary marker and reject framework-owned build attempts.
  * Profiles do not inject app plugins — assemble complete
  * {@link BuildOptions} with {@link createServerBuildRequest} /
  * {@link createBrowserBuildRequest} (or {@link BrowserBundleService}) first.

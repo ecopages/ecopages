@@ -442,7 +442,6 @@ export class StaticSiteGenerator {
 			if (preserveExportDirectory) {
 				this.pruneStaleStaticOutputs(activeStaticPathnames);
 			}
-
 		} catch (error) {
 			if (shouldPrebuildProductionPageBrowserGraphs()) {
 				clearProductionPageBrowserGraphSession(this.appConfig);

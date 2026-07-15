@@ -30,7 +30,11 @@ test('createBuildRequestIdentity treats entrypoint order as equivalent', () => {
 test('createBuildRequestIdentity distinguishes output-affecting fields', () => {
 	const cases: Array<{ field: keyof BuildOptions; left: unknown; right: unknown }> = [
 		{ field: 'conditions', left: ['browser'], right: ['node'] },
-		{ field: 'define', left: { 'process.env.NODE_ENV': '"production"' }, right: { 'process.env.NODE_ENV': '"development"' } },
+		{
+			field: 'define',
+			left: { 'process.env.NODE_ENV': '"production"' },
+			right: { 'process.env.NODE_ENV': '"development"' },
+		},
 		{ field: 'external', left: ['react'], right: ['react-dom'] },
 		{ field: 'jsx', left: { importSource: 'react' }, right: { importSource: 'preact' } },
 		{ field: 'minify', left: true, right: false },
@@ -104,7 +108,14 @@ test('createBuildRequestIdentity fingerprints plugin setup and source transforms
 		}),
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [{ name: 'same-name', setup(build) { build.onLoad({ filter: /\.ts$/u }, () => undefined); } }],
+			plugins: [
+				{
+					name: 'same-name',
+					setup(build) {
+						build.onLoad({ filter: /\.ts$/u }, () => undefined);
+					},
+				},
+			],
 		}),
 	);
 	assert.notEqual(

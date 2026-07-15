@@ -1,11 +1,7 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 import type { BuildOptions, BuildTranspileProfile } from './build-contracts.ts';
-import {
-	getAppBrowserBuildPlugins,
-	getAppServerBuildPlugins,
-	getAppTranspileOptions,
-} from './build-adapter.ts';
+import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOptions } from './build-adapter.ts';
 import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from './jsx-ownership-plugins.ts';
@@ -66,10 +62,7 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * {@link createBrowserBuildRequest}. Pass the returned options into
  * {@link BuildRuntime.getProfile}; the runtime no longer injects plugins.
  */
-export function createServerBuildRequest(
-	appConfig: EcoPagesAppConfig,
-	input: ServerBuildRequestInput,
-): BuildOptions {
+export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const profile = input.profile ?? 'route-module';
 	const plugins = mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins);
 	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
@@ -97,10 +90,7 @@ export function createServerBuildRequest(
  * `excludeAppBuildPlugins` to omit app-owned names. Caller plugins cannot
  * replace app-manifest names ({@link mergeCallerBuildPlugins}).
  */
-export function createBrowserBuildRequest(
-	appConfig: EcoPagesAppConfig,
-	input: BrowserBuildRequestInput,
-): BuildOptions {
+export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { profile, excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
 	const appBrowserPlugins = getAppBrowserBuildPlugins(appConfig);
 	const filteredAppBrowserPlugins =

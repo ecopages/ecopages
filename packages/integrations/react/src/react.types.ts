@@ -86,8 +86,10 @@ export type ReactPluginOptions = {
 	 * It does not vendor every npm dependency reachable from shell or page UI.
 	 *
 	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
-	 * `eco.layout({ ... })`. When any layout opts in, only flagged layouts are used
-	 * as discovery roots.
+	 * `eco.layout({ ... })`. Flagged layouts become the only discovery roots and
+	 * vendor every reachable npm package in that layout graph. When no layout opts
+	 * in, discovery falls back to scanning all layouts with provider-scoped npm
+	 * collection.
 	 *
 	 * @example
 	 * ```ts

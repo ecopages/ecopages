@@ -196,7 +196,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			return manualModules;
 		}
 
-		const autoSpecifiers = discoverLayoutRuntimeModuleSpecifiers({
+		const discovery = discoverLayoutRuntimeModuleSpecifiers({
 			searchDirs: [this.appConfig.absolutePaths.layoutsDir, this.appConfig.absolutePaths.componentsDir].filter(
 				Boolean,
 			),
@@ -204,12 +204,18 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			routerImportPath: this.routerAdapter.bundle.importPath,
 		});
 
-		const merged = mergeReactPluginRuntimeModules(manualModules, autoSpecifiers);
+		const merged = mergeReactPluginRuntimeModules(manualModules, discovery.specifiers);
 		this.rendererConfig.runtimeModules = merged;
 
-		if (autoSpecifiers.length > 0) {
+		if (discovery.mode === 'provider-scoped-fallback') {
 			appLogger.debug(
-				`Auto-vendoring layout runtime modules for persisted SPA layouts: ${autoSpecifiers.join(', ')}`,
+				'Layout runtime auto-vendoring is using provider-scoped fallback discovery. Set runtimeProvider: true on provider root layouts to scope discovery explicitly.',
+			);
+		}
+
+		if (discovery.specifiers.length > 0) {
+			appLogger.debug(
+				`Auto-vendoring layout runtime modules for persisted SPA layouts: ${discovery.specifiers.join(', ')}`,
 			);
 		}
 

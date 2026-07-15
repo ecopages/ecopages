@@ -57,7 +57,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -99,7 +99,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -144,7 +144,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -198,7 +198,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -247,7 +247,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual([]);
 	});
 
@@ -296,7 +296,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -342,7 +342,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -411,7 +411,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -473,7 +473,7 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				projectRoot,
-			}),
+			}).specifiers,
 		).toEqual(['@tanstack/react-query']);
 	});
 
@@ -502,8 +502,94 @@ describe('discoverLayoutRuntimeModuleSpecifiers', () => {
 			discoverLayoutRuntimeModuleSpecifiers({
 				searchDirs: [layoutsDir],
 				routerImportPath: '@ecopages/react-router/browser',
-			}),
+			}).specifiers,
 		).toEqual([]);
+	});
+
+	it('vendors all reachable npm packages in runtimeProvider layout graphs', () => {
+		tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-layout-runtime-'));
+		const projectRoot = tempDir;
+		const layoutsDir = path.join(projectRoot, 'src', 'layouts');
+		const sharedDir = path.join(projectRoot, 'src', 'shared');
+		mkdirSync(layoutsDir, { recursive: true });
+		mkdirSync(sharedDir, { recursive: true });
+		writeFileSync(
+			path.join(projectRoot, 'tsconfig.json'),
+			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+		);
+
+		writeFileSync(
+			path.join(sharedDir, 'session.tsx'),
+			[
+				"import { QueryClient, QueryClientProvider } from '@tanstack/react-query';",
+				'export function SessionRoot({ children }) {',
+				'  const client = new QueryClient();',
+				'  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;',
+				'}',
+			].join('\n'),
+		);
+
+		writeFileSync(
+			path.join(layoutsDir, 'session-root-layout.tsx'),
+			[
+				"import { eco } from '@ecopages/core';",
+				"import { SessionRoot } from '@/shared/session';",
+				'export default eco.layout({',
+				'  runtimeProvider: true,',
+				'  render: ({ children }) => <SessionRoot>{children}</SessionRoot>,',
+				'});',
+			].join('\n'),
+		);
+
+		const discovery = discoverLayoutRuntimeModuleSpecifiers({
+			searchDirs: [layoutsDir],
+			projectRoot,
+		});
+
+		expect(discovery.mode).toBe('runtime-provider-layouts');
+		expect(discovery.specifiers).toEqual(['@tanstack/react-query']);
+	});
+
+	it('uses provider-scoped fallback when no layout opts into runtimeProvider', () => {
+		tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-layout-runtime-'));
+		const projectRoot = tempDir;
+		const layoutsDir = path.join(projectRoot, 'src', 'layouts');
+		const sharedDir = path.join(projectRoot, 'src', 'shared');
+		mkdirSync(layoutsDir, { recursive: true });
+		mkdirSync(sharedDir, { recursive: true });
+		writeFileSync(
+			path.join(projectRoot, 'tsconfig.json'),
+			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+		);
+
+		writeFileSync(
+			path.join(sharedDir, 'query-provider.tsx'),
+			[
+				"import { QueryClientProvider } from '@tanstack/react-query';",
+				'export function QueryProvider({ children }) {',
+				'  return <QueryClientProvider client={{}}>{children}</QueryClientProvider>;',
+				'}',
+			].join('\n'),
+		);
+
+		writeFileSync(
+			path.join(layoutsDir, 'query-root-layout.tsx'),
+			[
+				"import { eco } from '@ecopages/core';",
+				"import { QueryProvider } from '@/shared/query-provider';",
+				'export default eco.layout({',
+				'  render: ({ children }) => <QueryProvider>{children}</QueryProvider>,',
+				'});',
+			].join('\n'),
+		);
+
+		const discovery = discoverLayoutRuntimeModuleSpecifiers({
+			searchDirs: [layoutsDir],
+			projectRoot,
+		});
+
+		expect(discovery.mode).toBe('provider-scoped-fallback');
+		expect(discovery.specifiers).toEqual(['@tanstack/react-query']);
 	});
 });
 

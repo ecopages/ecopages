@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	assertForeignChildrenNotOpaque,
-	isOpaqueForeignChildValue,
-} from './render-output.utils.ts';
+import { assertForeignChildrenNotOpaque, isOpaqueForeignChildValue } from './render-output.utils.ts';
 
 describe('opaque foreign children', () => {
 	it('treats plain objects as opaque and allows template and markup shapes', () => {

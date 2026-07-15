@@ -155,6 +155,44 @@ By default, we impose a "clean morph", disabling default cross-fade ghosting. To
 </div>
 ```
 
+## Page data protocol
+
+Router-enabled documents emit a JSON script that SPA navigation reads without parsing hydration JavaScript:
+
+```html
+<script id="__ECO_PAGE_DATA__" type="application/json">
+	{
+		"schemaVersion": 1,
+		"navigationOwner": "react-router",
+		"moduleUrl": "/assets/pages/about.js",
+		"props": { "params": {}, "query": {} }
+	}
+</script>
+```
+
+In a React HTML shell, pass the transport field explicitly:
+
+```tsx
+import { EcoPropsScript } from '@ecopages/react-router';
+
+render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => (
+	<html lang={language}>
+		<head>
+			{/* … */}
+			<EcoPropsScript data={pageProps} module={pageModuleUrl} />
+		</head>
+		<body>{children}</body>
+	</html>
+);
+```
+
+Important:
+
+- Hydration uses `props` only. `moduleUrl` is for navigation module discovery.
+- `pageModuleUrl` on `HtmlTemplateProps` is transport-only; it is not page component state.
+- When the envelope is absent, the router may still use `window.__ECO_PAGES__.page.module` or `script[data-eco-page-bootstrap="react-router"]` `src`.
+- HMR reloads can pass an explicit `moduleUrlOverride` and bypass document discovery.
+
 ## How It Works
 
 The router relies on **HTML-First** navigation to sync perfectly with SSR:
@@ -163,7 +201,7 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
 2. **Hydration**: Client hydrates and the router attaches.
 3. **Navigation**: On click, the router:
     - Fetches the raw HTML of the next route.
-    - Extracts page-level serialized props and metadata.
-    - Preloads the next page component via dynamic import.
+    - Extracts page-level serialized props and metadata from `#__ECO_PAGE_DATA__`.
+    - Preloads the next page component via dynamic import of `moduleUrl`.
     - Updates React state, syncs `<head>`, and triggers `startViewTransition`.
     - The React graph reconciles and the animation plays.

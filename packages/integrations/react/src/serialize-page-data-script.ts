@@ -2,7 +2,6 @@ import {
 	type EcoPageDataDocumentPayload,
 	type EcoPageDataProps,
 	createEcoPageDataManifestV1,
-	resolvePageDataDocumentPayload,
 } from './page-data-manifest.ts';
 
 export {

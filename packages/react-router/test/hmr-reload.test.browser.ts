@@ -1024,12 +1024,7 @@ describe('EcoRouter HMR Integration', () => {
 					pageProps: {},
 					options: { viewTransitions: false },
 					// oxlint-disable-next-line no-children-prop
-					children: createElement(
-						'div',
-						null,
-						createElement(PageContent),
-						createElement(NavigatingProbe),
-					),
+					children: createElement('div', null, createElement(PageContent), createElement(NavigatingProbe)),
 				}),
 			);
 

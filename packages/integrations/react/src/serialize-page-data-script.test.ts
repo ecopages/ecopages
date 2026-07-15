@@ -58,9 +58,7 @@ describe('serialize-page-data-script', () => {
 	});
 
 	it('should build envelopes from flat props and an explicit module URL', () => {
-		expect(
-			resolvePageDataDocumentPayload({ slug: 'intro' }, { moduleUrl: '/assets/page.js' }),
-		).toEqual({
+		expect(resolvePageDataDocumentPayload({ slug: 'intro' }, { moduleUrl: '/assets/page.js' })).toEqual({
 			schemaVersion: 1,
 			navigationOwner: 'react-router',
 			moduleUrl: '/assets/page.js',

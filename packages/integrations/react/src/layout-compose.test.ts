@@ -97,9 +97,13 @@ describe('layout-compose', () => {
 			render: () => 'page',
 		});
 
-		const tree = composeLayoutPageTree(pageComponent(Page), {}, {
-			resolvePersistedTier: () => ({ layout: CachedLayout, key: 'layout-key' }),
-		});
+		const tree = composeLayoutPageTree(
+			pageComponent(Page),
+			{},
+			{
+				resolvePersistedTier: () => ({ layout: CachedLayout, key: 'layout-key' }),
+			},
+		);
 
 		expect(tree.type).toBe(CachedLayout);
 		expect(tree.key).toBe('layout-key');

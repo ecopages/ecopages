@@ -35,11 +35,11 @@ beforeStaticExport
 
 ## Ownership
 
-| Concern | Owner |
-| ------- | ----- |
-| Session + worker lifecycle | `LitPlugin` (`renderSession`) |
-| Lazy session lookup | `LitRenderer` via `getRenderSession` |
-| Worker identity | First `{ configModulePath, runtimeOrigin }`; same identity is sticky; different identity recreates |
+| Concern                    | Owner                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| Session + worker lifecycle | `LitPlugin` (`renderSession`)                                                                      |
+| Lazy session lookup        | `LitRenderer` via `getRenderSession`                                                               |
+| Worker identity            | First `{ configModulePath, runtimeOrigin }`; same identity is sticky; different identity recreates |
 
 Renderers created before plugin `setup()` still use the worker after setup assigns the session, because `execute` activates the integration runtime then reads the accessor.
 
@@ -58,10 +58,10 @@ When `RouteRendererOptions.locals` is present, `LitRenderer.execute` forces the 
 
 ## Protocol
 
-| Message            | Direction     | Purpose                                                                 |
-| ------------------ | ------------- | ----------------------------------------------------------------------- |
+| Message            | Direction     | Purpose                                                                       |
+| ------------------ | ------------- | ----------------------------------------------------------------------------- |
 | `init`             | main → worker | Load `eco.config.ts`, bootstrap runtime (`configModulePath`, `runtimeOrigin`) |
-| `ready`            | worker → main | Worker initialized                                                      |
-| `render`           | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`) |
-| `result` / `error` | worker → main | HTML body plus optional `cacheStrategy`, or an error message            |
-| `shutdown`         | main → worker | Exit worker thread                                                      |
+| `ready`            | worker → main | Worker initialized                                                            |
+| `render`           | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)    |
+| `result` / `error` | worker → main | HTML body plus optional `cacheStrategy`, or an error message                  |
+| `shutdown`         | main → worker | Exit worker thread                                                            |

@@ -25,6 +25,11 @@ export const PLUGIN_NAME = LIT_PLUGIN_NAME;
 /**
  * The Lit plugin class
  * This plugin provides support for Lit components in Ecopages
+ *
+ * @remarks
+ * Owns the {@link LitStaticRenderSession} for worker SSR. Renderers receive a
+ * lazy `getRenderSession` accessor so construction before {@link setup} still
+ * observes the session once setup assigns it.
  */
 export class LitPlugin extends IntegrationPlugin {
 	renderer = LitRenderer;
@@ -80,7 +85,7 @@ export class LitPlugin extends IntegrationPlugin {
 	override initializeRenderer(options?: { rendererModules?: unknown }): LitRenderer {
 		const renderer = new this.renderer({
 			...this.createRendererOptions(options),
-			renderSession: this.renderSession ?? undefined,
+			getRenderSession: () => this.renderSession ?? undefined,
 		});
 		return this.attachRendererRuntimeServices(renderer);
 	}

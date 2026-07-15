@@ -92,6 +92,72 @@ describe('LitStaticRenderSession', () => {
 		expect(workerDispose).toHaveBeenCalledTimes(1);
 	});
 
+	it('recreates the worker when init identity changes', async () => {
+		workerStart.mockClear();
+		workerDispose.mockClear();
+
+		const createClient = vi.fn(() => createWorkerClient());
+		const session = new LitStaticRenderSession({
+			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			createWorkerClient: createClient,
+		});
+
+		await session.ensureWorker({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+		});
+		await session.ensureWorker({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+		});
+
+		expect(createClient).toHaveBeenCalledTimes(1);
+		expect(workerStart).toHaveBeenCalledTimes(1);
+
+		await session.ensureWorker({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:4000',
+		});
+
+		expect(workerDispose).toHaveBeenCalledTimes(1);
+		expect(createClient).toHaveBeenCalledTimes(2);
+		expect(workerStart).toHaveBeenCalledTimes(2);
+		expect(createClient).toHaveBeenLastCalledWith({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:4000',
+		});
+
+		await session.dispose();
+	});
+
+	it('forwards array PageParams and PageQuery to the worker client', async () => {
+		workerRenderPage.mockClear();
+
+		const session = new LitStaticRenderSession({
+			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			createWorkerClient,
+		});
+
+		await session.ensureWorker({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+		});
+
+		await session.renderPageInWorker({
+			filePath: '/app/src/pages/catch-all.lit.tsx',
+			params: { slug: ['docs', 'intro'] },
+			query: { tag: ['a', 'b'], preview: '1' },
+		});
+
+		expect(workerRenderPage).toHaveBeenCalledWith({
+			filePath: '/app/src/pages/catch-all.lit.tsx',
+			params: { slug: ['docs', 'intro'] },
+			query: { tag: ['a', 'b'], preview: '1' },
+		});
+
+		await session.dispose();
+	});
+
 	it('preloads SSR scripts only for Lit template routes', async () => {
 		const litComponent = {
 			config: {

@@ -4,16 +4,17 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 
 ## Mental Model
 
-Three concentric shapes, plus profile executors and a plugin injector:
+Three concentric shapes, plus profile executors and request policy:
 
-| Shape                      | Lives in                       | Purpose                                                                                                                                                             |
-| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BuildAdapter`             | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
-| `BuildRuntime`             | `build-runtime.ts`             | Profile-based executor registry. Single entry point on `appConfig.runtime.buildRuntime`.                                                                            |
-| `BuildExecutor`            | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
-| `SerializedBuildExecutor`  | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
-| `ParallelBuildExecutor`    | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
-| `withBuildExecutorPlugins` | `build-adapter.ts`             | Merges app-owned plugins into every `build` call. The single point of plugin injection.                                                                             |
+| Shape                     | Lives in                       | Purpose                                                                                                                                                             |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`            | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
+| `BuildRuntime`            | `build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                            |
+| `BuildExecutor`           | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
+| `build-request-policy.ts`   | `build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership. Browser: plugins + source transforms + transpile overlay. |
+| `build-request-identity.ts` | `build-request-identity.ts`  | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
+| `SerializedBuildExecutor` | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
+| `ParallelBuildExecutor`   | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
 
 Plus one translation bridge:
 
@@ -21,32 +22,38 @@ Plus one translation bridge:
 
 ## Files
 
-- `build-adapter.ts`: types, factories, app-owned helpers, `withBuildExecutorPlugins`.
+- `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
 - `build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
+- `build-request-policy.ts`: server/browser request constructors and plugin collision rules.
+- `build-request-identity.ts` / `cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
-- `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult` (outputs, dependency graph, logs).
+- `rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler, normalizes Node output imports, and exposes a normalized `BuildResult`.
 - `rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `serialized-build-executor.ts`: FIFO queue primitive.
-- `runtime-build-executor.ts`: server-adapter entrypoint that installs `BuildRuntime` via `installAppRuntimeBuildExecutor()`.
 - `server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
 - `*.test.ts`: regression coverage.
 
 ## Default Flow
 
-`ConfigBuilder.build()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installAppRuntimeBuildExecutor(appConfig)`, which installs `BuildRuntime`:
+`ConfigBuilder.build()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildRuntime(appConfig)`:
 
 ```
-BuildRuntime.getProfile(...)
-  ├─ server-entry  → SerializedBuildExecutor → withBuildExecutorPlugins → RolldownBuildAdapter
-  ├─ route-module  → ParallelBuildExecutor   → withBuildExecutorPlugins → RolldownBuildAdapter
-  └─ browser-hmr   → ParallelBuildExecutor   → withBuildExecutorPlugins → RolldownBuildAdapter
+Caller intent
+  → createServerBuildRequest / createBrowserBuildRequest (plugins + transforms assembled once)
+  → BuildRuntime.getProfile(...)
+      ├─ server-entry  → SerializedBuildExecutor → RolldownBuildAdapter
+      ├─ route-module  → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
+      └─ browser-hmr   → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
+  → RolldownBuildAdapter rewrites Node/browser runtime imports in emitted outputs
 ```
 
 All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
 
-Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-module' | 'browser-hmr' | 'server-entry')` instead of reading legacy executor slots.
+Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-module' | 'browser-hmr' | 'server-entry')` with a complete `BuildOptions` object from the request-policy helpers. Profiles are scheduling-only: bare `getProfile(...).build()` does **not** inject app plugins.
 
-The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildRuntime()`, and `getAppTranspileOptions()`.
+The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildRuntime()`, `createServerBuildRequest()`, `createBrowserBuildRequest()`, and `getAppTranspileOptions()`.
+
+`BuildTranspileProfile` (`browser-script` | `hmr-runtime` | `hmr-entrypoint`) selects transpile settings only. `BuildProfile` (`server-entry` | `route-module` | `browser-hmr`) selects the concurrency/dedupe wrapper. `BrowserBundleService` maps `hmr` + (`hmr-entrypoint` | `hmr-runtime`) to the `browser-hmr` profile; all other browser work (including `browser-script`) uses `route-module`.
 
 ## Vite-Host Boundary
 
@@ -71,9 +78,7 @@ Vite-based apps (or any future host runtime) should:
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-Namespace handling: the shared plugin contract scopes handlers with a `namespace` string; the bundler encodes namespaces into the module id. The bridge prepends `<namespace>:` to resolved ids and matches filters against that prefix, then strips it before forwarding back to callbacks. Plugin code keeps the same `path` shape it had on the shared contract.
-
-Plugin ordering: the bundler's `resolveId` and `load` are "first" hooks. The bridge translates each `EcoBuildPlugin` into its own plugin and preserves the array order, so position determines priority: index 0 wins first, the last index is the lowest priority. Security-critical plugins (e.g. `ecopages-client-graph-boundary`) should be placed before general-purpose loaders in the array.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
 
 ## BuildOptions Caveats
 
@@ -87,7 +92,7 @@ These fields are kept in the type so existing call-sites compile. The proper fix
 
 ## Dev / watch path
 
-`installBuildRuntime` (via `installAppRuntimeBuildExecutor`) installs profile-based executors:
+`installBuildRuntime` installs profile-based executors:
 
 | Profile        | Backend           | Concurrency          |
 | -------------- | ----------------- | -------------------- |
@@ -95,7 +100,7 @@ These fields are kept in the type so existing call-sites compile. The proper fix
 | `route-module` | Rolldown one-shot | Parallel             |
 | `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3) |
 
-`hmr-entrypoint` rebuilds use the `browser-hmr` profile. Other browser builds (`browser-script`, `hmr-runtime`) use `route-module`.
+`hmr-entrypoint` and `hmr-runtime` rebuilds with `executor: 'hmr'` use the `browser-hmr` profile. Other browser builds (`browser-script`, and any build with `executor: 'build'`) use `route-module`.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 
@@ -112,7 +117,7 @@ Two persisted cache layers accelerate production builds. Both use `.build-cache.
 | Server-entry bundle                    | `.eco/.server-entry/.build-cache.json`              | `server-entry-build-cache.ts`       |
 | Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` |
 
-`getInstalledServerEntryBuildExecutor()` returns the `server-entry` profile from `BuildRuntime`. `clearProductionBuildCaches()` wipes both manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
+`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes both manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
 
 The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
 
@@ -125,7 +130,7 @@ Production static exports compile all template pages in one Rolldown invocation 
 | Graph manifest | `.eco/.server-pages-graph/.build-cache.json`          |
 | Chunk outputs  | `.eco/.server-modules/` (shared with per-route cache) |
 
-`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
+`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 
@@ -147,8 +152,9 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 
 - `rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
 - `rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
-- `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, the `withBuildExecutorPlugins` injection, and the default-fallback behaviour.
+- `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
 - `build-runtime.test.ts` covers profile executor installation and parallelism.
-- `runtime-build-executor.test.ts` covers the runtime wrapper: plugin injection and the Vite-host rejection path.
+- `build-request-policy.test.ts` and `build-request-identity.test.ts` cover request assembly and dedupe identity.
+- `runtime-build-output-normalizer.test.ts` covers Node output finalization.
 
 If you change option mapping or plugin-bridge semantics, update the adapter and bridge tests first. If you change the app-owned helper contracts, update `build-adapter.test.ts` first.

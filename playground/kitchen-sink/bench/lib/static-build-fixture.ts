@@ -10,7 +10,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installAppRuntimeBuildExecutor } from '../../../../packages/core/src/build/runtime-build-executor';
+import { installBuildRuntime } from '../../../../packages/core/src/build/build-runtime';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
@@ -99,7 +99,7 @@ export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {
 }
 
 export async function importRouteModuleDiskCold(appConfig: EcoPagesAppConfig, filePath: string): Promise<void> {
-	installAppRuntimeBuildExecutor(appConfig);
+	installBuildRuntime(appConfig);
 	const loader = createAppModuleLoader(appConfig);
 
 	await loader.importModule({
@@ -123,7 +123,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const runtimeOrigin = 'http://127.0.0.1:3000';
 
-	installAppRuntimeBuildExecutor(appConfig);
+	installBuildRuntime(appConfig);
 	await setupAppRuntimePlugins({
 		appConfig,
 		runtimeOrigin,

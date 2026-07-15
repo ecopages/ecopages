@@ -19,7 +19,7 @@ import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { installAppRuntimeBuildExecutor } from '../../build/runtime-build-executor.ts';
+import { installBuildRuntime } from '../../build/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';
@@ -269,7 +269,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Initializes the server adapter's core runtime components.
 	 */
 	public async initialize(): Promise<void> {
-		installAppRuntimeBuildExecutor(this.appConfig);
+		installBuildRuntime(this.appConfig);
 
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		prepareRuntimePublicDir(this.appConfig);

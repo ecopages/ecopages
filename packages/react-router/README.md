@@ -199,9 +199,11 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
 
 1. **SSR**: Initial page arrives completely rendered.
 2. **Hydration**: Client hydrates and the router attaches.
-3. **Navigation**: On click, the router:
+3. **Navigation**: On click, the router resolves an explicit outcome (`spa`, `handoff`, `hard-navigation`, or `stale`), then:
     - Fetches the raw HTML of the next route.
     - Extracts page-level serialized props and metadata from `#__ECO_PAGE_DATA__`.
     - Preloads the next page component via dynamic import of `moduleUrl`.
+    - Commits head/history/React state for SPA outcomes, or hands off to browser-router.
+    - Clears `isNavigating` on every non-stale terminal, including handoff and hard fallback.
     - Updates React state, syncs `<head>`, and triggers `startViewTransition`.
     - The React graph reconciles and the animation plays.

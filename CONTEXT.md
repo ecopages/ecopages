@@ -159,7 +159,7 @@ Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integr
 
 **Plugin Bridge**: Ecopages plugins (`EcoBuildPlugin`) are translated to Rolldown `Plugin` instances via `createRolldownPluginBridge()`. All eco plugins are consolidated into a **single** Rolldown plugin to minimize Rust→JS FFI overhead. Each plugin hook without a filter causes 3–4× slowdown per module.
 
-**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. All profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
+**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. With `'rolldown'` ownership, profiles use one-shot builds in both dev and production: route-module and browser-HMR builds run in parallel, while server-entry stays serialized single-flight. With `'vite-host'` ownership, profiles wrap a boundary marker that rejects framework-owned builds.
 
 **Registered client script HMR**: Declared layout/page scripts register through `HmrEntrypointRegistrar` and must resolve to verified `/assets/_hmr/` artifacts when HMR is enabled. Enabled HMR never silently falls back to static assets per entrypoint. See [docs/adr/hmr-registered-script-ownership.md](./docs/adr/hmr-registered-script-ownership.md).
 

@@ -39,6 +39,10 @@ describe('serialize-page-data-script', () => {
 		expect(resolveEcoPageDataModuleUrl(malformed)).toBeNull();
 	});
 
+	it('should keep legacy flat props that include a string v field', () => {
+		expect(resolveEcoPageDataProps({ v: '1.2.3', slug: 'x' })).toEqual({ v: '1.2.3', slug: 'x' });
+	});
+
 	it('should unwrap valid v1 envelopes and keep legacy flat props', () => {
 		expect(
 			resolveEcoPageDataProps({

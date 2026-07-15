@@ -12,9 +12,11 @@
  *   hydration markers/regex for one compatibility release
  * - old client / new document: old clients that only read flat props should be
  *   upgraded; envelope consumers must unwrap `props` before hydration
- * - malformed / unknown schema (`v` present but envelope invalid): empty props
- *   and no module URL
+ * - malformed / unknown schema (numeric `v` present but envelope invalid): empty
+ *   props and no module URL from the manifest; navigation may still discover a
+ *   module via bootstrap markers or the temporary regex fallback
  * - HMR: `moduleUrlOverride` still bypasses document discovery
+ * - legacy flat props may include a string `v` field without being treated as an envelope
  */
 export const ECO_PAGE_DATA_SCHEMA_VERSION = 1 as const;
 
@@ -49,14 +51,15 @@ export function isEcoPageDataManifestV1(value: unknown): value is EcoPageDataMan
 }
 
 /**
- * Returns whether a payload claims a schema version field without being a valid v1 envelope.
+ * Returns whether a payload claims a numeric schema version without being a valid v1 envelope.
  *
  * @remarks
- * Near-miss objects must not fall through to the legacy flat-props path; that
- * would hydrate garbage keys like `v` / `module` as React page props.
+ * Only numeric `v` values are treated as envelope attempts. Legacy flat props may
+ * legitimately include a string `v` field (e.g. a version string) and must not be
+ * wiped. Near-miss numeric envelopes must not fall through to the flat-props path.
  */
 function isMalformedPageDataEnvelope(payload: object): boolean {
-	return 'v' in payload;
+	return 'v' in payload && typeof (payload as { v: unknown }).v === 'number';
 }
 
 /**

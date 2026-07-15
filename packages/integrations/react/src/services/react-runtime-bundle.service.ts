@@ -18,7 +18,12 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from '../utils/react-dom-runtime-interop-plugin.ts';
-import { buildReactRuntimeAliasMap, buildReactRuntimeManifest } from '../utils/react-runtime-alias-map.ts';
+import {
+	buildReactRuntimeAliasMap,
+	buildReactRuntimeManifest,
+	getReactRuntimeExternalSpecifiers,
+} from '../utils/react-runtime-alias-map.ts';
+import type { ResolvedReactPluginRuntimeModule } from '../utils/react-plugin-runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
@@ -36,6 +41,7 @@ export type ReactRuntimeImports = {
 
 export interface ReactRuntimeBundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
+	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	rootDir?: string;
 	workDir?: string;
 }
@@ -55,6 +61,10 @@ export class ReactRuntimeBundleService {
 
 	setWorkDir(workDir: string | undefined): void {
 		this.config.workDir = workDir;
+	}
+
+	setRuntimeModules(runtimeModules: ResolvedReactPluginRuntimeModule[]): void {
+		this.config.runtimeModules = runtimeModules;
 	}
 
 	private get isDevelopment(): boolean {
@@ -90,6 +100,30 @@ export class ReactRuntimeBundleService {
 		return mode === 'development'
 			? `${this.config.routerAdapter.bundle.outputName}.development.js`
 			: `${this.config.routerAdapter.bundle.outputName}.js`;
+	}
+
+	private getConfiguredRuntimeModuleFileName(outputName: string, mode: RuntimeMode): string {
+		return mode === 'development' ? `${outputName}.development.js` : `${outputName}.js`;
+	}
+
+	private getConfiguredRuntimeModules(): ResolvedReactPluginRuntimeModule[] {
+		return this.config.runtimeModules ?? [];
+	}
+
+	getConfiguredRuntimeModuleSpecifiers(): string[] {
+		return this.getConfiguredRuntimeModules().map((module) => module.specifier);
+	}
+
+	private getRuntimeModuleBundleExternals(
+		module: ResolvedReactPluginRuntimeModule,
+		mappedSpecifiers: Set<string>,
+	): string[] {
+		return [
+			...getReactRuntimeExternalSpecifiers(),
+			...(this.config.routerAdapter?.bundle.externals ?? []),
+			...(this.config.routerAdapter ? [this.config.routerAdapter.bundle.importPath] : []),
+			...module.externals,
+		].filter((external) => !mappedSpecifiers.has(external));
 	}
 
 	private getUseSyncExternalStoreWithSelectorVendorFileName(mode: RuntimeMode): string {
@@ -138,7 +172,11 @@ export class ReactRuntimeBundleService {
 	}
 
 	getRuntimeManifest(mode = this.getCurrentRuntimeMode()): BrowserRuntimeManifest {
-		return buildReactRuntimeManifest(this.getRuntimeImports(mode));
+		return buildReactRuntimeManifest(
+			this.getRuntimeImports(mode),
+			this.getConfiguredRuntimeModules(),
+			(outputName) => buildBrowserRuntimeAssetUrl(this.getConfiguredRuntimeModuleFileName(outputName, mode)),
+		);
 	}
 
 	getDependencies(options?: { modes?: RuntimeMode[] }): AssetDefinition[] {
@@ -222,6 +260,25 @@ export class ReactRuntimeBundleService {
 						bundleOptions: {
 							define: this.createRuntimeDefines(mode),
 							external: unresolvedExternals,
+							plugins: [runtimeAliasPlugin],
+						},
+					}),
+				);
+			}
+
+			for (const runtimeModule of this.getConfiguredRuntimeModules()) {
+				dependencies.push(
+					createBrowserRuntimeModuleAsset({
+						modules: [{ specifier: runtimeModule.specifier, defaultExport: true }],
+						name: runtimeModule.outputName,
+						fileName: this.getConfiguredRuntimeModuleFileName(runtimeModule.outputName, mode),
+						cacheDirName: `ecopages-react-runtime-module-${runtimeModule.outputName}-${mode}`,
+						rootDir: this.config.rootDir,
+						workDir: this.config.workDir,
+						bundleOptions: {
+							define: this.createRuntimeDefines(mode),
+							external: this.getRuntimeModuleBundleExternals(runtimeModule, mappedSpecifiers),
+							excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 							plugins: [runtimeAliasPlugin],
 						},
 					}),

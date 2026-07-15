@@ -241,3 +241,5 @@ export const QueryRootLayout = eco.layout({
 ```
 
 For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.
+
+With `persistLayouts: true` (the `@ecopages/react-router` default), npm packages imported from shared `eco.layout()` trees are auto-vendored so context providers keep one module instance across page chunks. Path aliases resolve from the app `tsconfig.json` `paths` (via oxc-resolver), same as the bundler plugin.

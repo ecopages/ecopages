@@ -100,7 +100,7 @@ interface HMRPayload {
 
 			await import(url);
 
-			if (await navigationRuntime.reloadCurrentPage({ clearCache: false })) {
+			if (await navigationRuntime.reloadCurrentPage({ clearCache: false, moduleUrl: url })) {
 			}
 		} catch (e) {
 			console.error('[ecopages] Failed to apply HMR update:', e);

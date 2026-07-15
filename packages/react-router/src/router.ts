@@ -203,7 +203,10 @@ function useNavigationCoordinator(
 		}
 
 		const currentUrl = window.location.pathname + window.location.search;
-		await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
+		await navigate(currentUrl, {
+			moduleUrlOverride: request?.moduleUrl,
+			skipViewTransition: true,
+		});
 		return true;
 	});
 
@@ -376,6 +379,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			};
 
 			try {
+				isNavigatingRef.current = true;
 				setIsNavigating(true);
 
 				const outcome = await resolveReactNavigation({
@@ -471,6 +475,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				});
 			} finally {
 				if (!isStale()) {
+					isNavigatingRef.current = false;
 					setIsNavigating(false);
 				}
 

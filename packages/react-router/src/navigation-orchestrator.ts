@@ -56,7 +56,11 @@ export type SpaCommitEffects = {
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
 	commitPageData: (moduleUrl: string, props: Record<string, unknown>) => void;
-	setCurrentPage: (page: { Component: LoadedPageModule['Component']; props: Record<string, unknown>; refreshPersistedLayout: boolean }) => void;
+	setCurrentPage: (page: {
+		Component: LoadedPageModule['Component'];
+		props: Record<string, unknown>;
+		refreshPersistedLayout: boolean;
+	}) => void;
 	waitForRender: (page: {
 		Component: LoadedPageModule['Component'];
 		props: Record<string, unknown>;
@@ -85,9 +89,7 @@ export type HandoffEffects = {
 export type HandoffResult = 'handed-off' | 'hard-fallback' | 'stale';
 
 export type QueueReplayDecision =
-	| { kind: 'none' }
-	| { kind: 'local-navigate'; href: string }
-	| { kind: 'coordinator-navigate'; href: string };
+	{ kind: 'none' } | { kind: 'local-navigate'; href: string } | { kind: 'coordinator-navigate'; href: string };
 
 function resolveDirection(isPopState: boolean, pushHistory: boolean): NavigationDirection {
 	if (isPopState) {
@@ -99,9 +101,7 @@ function resolveDirection(isPopState: boolean, pushHistory: boolean): Navigation
 /**
  * Resolves fetch + module discovery into an explicit navigation outcome.
  */
-export async function resolveReactNavigation(
-	input: ResolveReactNavigationInput,
-): Promise<ReactNavigationOutcome> {
+export async function resolveReactNavigation(input: ResolveReactNavigationInput): Promise<ReactNavigationOutcome> {
 	if (isStaticAssetHref(input.url)) {
 		return {
 			kind: 'hard-navigation',
@@ -200,6 +200,7 @@ export async function applySpaNavigation(
 			});
 			await renderPromise;
 			if (effects.isStale()) {
+				cleanupHead();
 				return;
 			}
 			finalizeCommittedNavigation();

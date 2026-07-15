@@ -487,30 +487,27 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 					activeNavigationRef.current = null;
 				}
 
-				if (replay.kind === 'none') {
-					return;
+				if (replay.kind !== 'none') {
+					queuedNavigationHrefRef.current = null;
+
+					if (replay.kind === 'local-navigate') {
+						void navigate(replay.href, { pushHistory: true });
+					} else {
+						// React finished after cleanup-before-handoff released ownership.
+						// Replay through the coordinator so the active owner receives the intent.
+						void navigationRuntime
+							.requestNavigation({
+								href: replay.href,
+								direction: 'forward',
+								source: 'react-router',
+							})
+							.then((handled) => {
+								if (!handled) {
+									window.location.assign(replay.href);
+								}
+							});
+					}
 				}
-
-				queuedNavigationHrefRef.current = null;
-
-				if (replay.kind === 'local-navigate') {
-					void navigate(replay.href, { pushHistory: true });
-					return;
-				}
-
-				// React finished after cleanup-before-handoff released ownership.
-				// Replay through the coordinator so the active owner receives the intent.
-				void navigationRuntime
-					.requestNavigation({
-						href: replay.href,
-						direction: 'forward',
-						source: 'react-router',
-					})
-					.then((handled) => {
-						if (!handled) {
-							window.location.assign(replay.href);
-						}
-					});
 			}
 		},
 		[options.viewTransitions],

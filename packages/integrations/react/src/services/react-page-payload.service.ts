@@ -1,7 +1,6 @@
 import { LocalsAccessError } from '@ecopages/core/errors';
 import {
 	resolvePageDataDocumentPayload,
-	serializePageDataManifestScript,
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from '../serialize-page-data-script.ts';
@@ -58,15 +57,7 @@ export class ReactPagePayloadService {
 	 */
 	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined, moduleUrl?: string): string {
 		const props = { ...((pageProps ?? {}) as EcoPageDataProps) };
-
-		if (!moduleUrl) {
-			return serializePageDataScript(resolvePageDataDocumentPayload(props));
-		}
-
-		return serializePageDataManifestScript({
-			moduleUrl,
-			props: resolvePageDataDocumentPayload(props).props as EcoPageDataProps,
-		});
+		return serializePageDataScript(resolvePageDataDocumentPayload(props, { moduleUrl }));
 	}
 
 	/**

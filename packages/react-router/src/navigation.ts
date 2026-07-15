@@ -131,7 +131,7 @@ function addCacheBuster(url: string): string {
  * Hydration JavaScript is never parsed. Documents without an explicit module
  * source return `null`.
  */
-export async function extractComponentUrl(doc: Document): Promise<string | null> {
+export function extractComponentUrl(doc: Document): string | null {
 	const manifestUrl = resolveEcoPageDataModuleUrl(parsePageDataPayload(doc));
 	if (manifestUrl) {
 		return manifestUrl;
@@ -256,7 +256,7 @@ export async function loadPageModuleFromDocument(
 	options: LoadPageModuleFromDocumentOptions = {},
 ): Promise<LoadedPageModule | null> {
 	const props = extractProps(doc);
-	const componentUrl = options.moduleUrlOverride ?? (await extractComponentUrl(doc));
+	const componentUrl = options.moduleUrlOverride ?? extractComponentUrl(doc);
 
 	if (!componentUrl) {
 		if (isReactRouteDocument(doc)) {

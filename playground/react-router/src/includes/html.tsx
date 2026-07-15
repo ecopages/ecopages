@@ -16,7 +16,7 @@ const HtmlTemplate = eco.html<ReactNode>({
 			<html lang={language}>
 				<Head metadata={metadata}>
 					{headContent}
-					<EcoPropsScript data={pageProps} module={pageModuleUrl} />
+					<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
 				</Head>
 				<body>{children}</body>
 			</html>

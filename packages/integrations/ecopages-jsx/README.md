@@ -99,7 +99,7 @@ Ecopages JSX can own the outer page shell or just a nested foreign subtree. When
 
 Important:
 
-- Cross-integration JSX children must use `EcoEmbed`. Opaque plain objects fail fast; Ecopages JSX does not coerce them with `String(object)`.
+- Cross-integration JSX children must use `EcoEmbed`. Opaque plain objects fail fast at core foreign-child queue boundaries; they are not coerced with `String(object)`.
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not treat rendered HTML alone as the source of truth.
 - Ecopages JSX keeps raw-markup preservation and asset collection inside the JSX renderer.

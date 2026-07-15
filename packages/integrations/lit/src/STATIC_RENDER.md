@@ -26,7 +26,7 @@ LitRenderer.execute() (main)
                                           (no active session in worker)
 
 beforeStaticExport
-  └─ ensureWorker() (recreate if identity changed)
+  └─ ensureWorker() only when `renderSession` is still null
   └─ preloadStaticRoutes()
        └─ preload SSR lazy scripts for Lit pages
 ```
@@ -35,13 +35,15 @@ beforeStaticExport
 
 ## Ownership
 
-| Concern                    | Owner                                                                                              |
-| -------------------------- | -------------------------------------------------------------------------------------------------- |
-| Session + worker lifecycle | `LitPlugin` (`renderSession`)                                                                      |
-| Lazy session lookup        | `LitRenderer` via `getRenderSession`                                                               |
-| Worker identity            | First `{ configModulePath, runtimeOrigin }`; same identity is sticky; different identity recreates |
+| Concern                    | Owner                                                                                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session + worker lifecycle | `LitPlugin` (`renderSession`)                                                                                                                                          |
+| Lazy session lookup        | `LitRenderer` via `getRenderSession`                                                                                                                                   |
+| Worker identity            | First `{ configModulePath, runtimeOrigin }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
 
 Renderers created before plugin `setup()` still use the worker after setup assigns the session, because `execute` activates the integration runtime then reads the accessor.
+
+`beforeStaticExport` does not re-call `ensureWorker` when setup already created the session, so a different `context.baseUrl` at export time will not recreate an existing worker.
 
 ## Locals policy
 

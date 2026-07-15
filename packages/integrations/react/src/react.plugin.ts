@@ -24,6 +24,11 @@ import { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-ca
 import { createReactMdxLoaderPlugin } from './utils/react-mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
 import { ClientGraphBoundaryCache } from './utils/client-graph-boundary-cache.ts';
+import { discoverLayoutRuntimeModuleSpecifiers } from './utils/discover-layout-runtime-modules.ts';
+import {
+	mergeReactPluginRuntimeModules,
+	resolveReactPluginRuntimeModules,
+} from './utils/react-plugin-runtime-modules.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
@@ -56,10 +61,19 @@ const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOpt
  * - `mdx.extensions`: `['.mdx']`
  */
 const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactPluginConfig => {
-	const { extensions: userExtensions, router, mdx, explicitGraph, dependencies, ...baseConfig } = options ?? {};
+	const {
+		extensions: userExtensions,
+		router,
+		mdx,
+		explicitGraph,
+		dependencies,
+		runtimeModules,
+		...baseConfig
+	} = options ?? {};
 	const extensions = [...(userExtensions ?? ['.tsx'])];
 	const mdxEnabled = mdx?.enabled ?? false;
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
+	const resolvedRuntimeModules = resolveReactPluginRuntimeModules(runtimeModules);
 
 	if (mdxEnabled) {
 		appendMdxExtensions(extensions, mdxExtensions);
@@ -71,6 +85,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 
 	const rendererConfig: ReactRendererConfig = {
 		routerAdapter: router,
+		runtimeModules: resolvedRuntimeModules,
 		mdxCompilerOptions: mdxEnabled && mdx ? resolveReactMdxCompilerOptions(mdx) : undefined,
 		mdxExtensions,
 		hmrPageMetadataCache: new ReactHmrPageMetadataCache(),
@@ -138,6 +153,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 
 		this.runtimeBundleService = new ReactRuntimeBundleService({
 			routerAdapter: this.routerAdapter,
+			runtimeModules: this.rendererConfig.runtimeModules,
 		});
 	}
 
@@ -168,9 +184,36 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 					? path.join(this.appConfig.rootDir, this.appConfig.workDir ?? '.eco')
 					: undefined),
 		);
+		this.runtimeBundleService.setRuntimeModules(this.resolveEffectiveRuntimeModules());
 
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 		this.runtimeDependenciesInitialized = true;
+	}
+
+	private resolveEffectiveRuntimeModules() {
+		const manualModules = this.rendererConfig.runtimeModules ?? [];
+		if (!this.routerAdapter || !this.appConfig) {
+			return manualModules;
+		}
+
+		const autoSpecifiers = discoverLayoutRuntimeModuleSpecifiers({
+			searchDirs: [this.appConfig.absolutePaths.layoutsDir, this.appConfig.absolutePaths.componentsDir].filter(
+				Boolean,
+			),
+			projectRoot: this.appConfig.absolutePaths.projectDir,
+			routerImportPath: this.routerAdapter.bundle.importPath,
+		});
+
+		const merged = mergeReactPluginRuntimeModules(manualModules, autoSpecifiers);
+		this.rendererConfig.runtimeModules = merged;
+
+		if (autoSpecifiers.length > 0) {
+			appLogger.debug(
+				`Auto-vendoring layout runtime modules for persisted SPA layouts: ${autoSpecifiers.join(', ')}`,
+			);
+		}
+
+		return merged;
 	}
 
 	override get plugins(): EcoBuildPlugin[] {

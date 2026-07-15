@@ -2,6 +2,10 @@ import type { AssetDefinition } from '@ecopages/core/services/asset-processing-s
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactRouterAdapter } from './router-adapter.ts';
 import type { ReactHmrPageMetadataCache } from './services/react-hmr-page-metadata-cache.ts';
+import type {
+	ReactPluginRuntimeModule,
+	ResolvedReactPluginRuntimeModule,
+} from './utils/react-plugin-runtime-modules.ts';
 
 /**
  * MDX configuration options for the React plugin.
@@ -64,6 +68,21 @@ export type ReactPluginOptions = {
 	 */
 	router?: ReactRouterAdapter;
 	/**
+	 * Optional extra browser runtime vendors. With `router`, npm packages imported
+	 * from `eco.layout()` trees under `layouts/` and `components/` are discovered
+	 * automatically for persisted layout context sharing.
+	 *
+	 * @example
+	 * ```ts
+	 * reactPlugin({
+	 *   router: ecoRouter(),
+	 *   // Optional override when discovery misses a package:
+	 *   runtimeModules: ['@tanstack/react-query'],
+	 * })
+	 * ```
+	 */
+	runtimeModules?: ReactPluginRuntimeModule[];
+	/**
 	 * MDX configuration for handling .mdx files within the React plugin.
 	 * When enabled, MDX files are treated as React pages with full router support.
 	 * @example
@@ -84,6 +103,7 @@ export type ReactPluginOptions = {
 
 export type ReactRendererConfig = {
 	routerAdapter?: ReactRouterAdapter;
+	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	mdxCompilerOptions?: CompileOptions;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;

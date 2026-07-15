@@ -140,10 +140,14 @@ describe('createClientGraphBoundaryPlugin', () => {
 	it('keeps project alias imports untouched', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const filePath = join(tempDir, 'entry.tsx');
+		writeFileSync(
+			join(tempDir, 'tsconfig.json'),
+			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./*'] } } }),
+		);
 		writeFileSync(filePath, "import { Counter } from '@/components/counter';\nexport default Counter;\n", 'utf-8');
 
 		try {
-			const harness = createPluginTestHarness();
+			const harness = createPluginTestHarness({ projectRoot: tempDir });
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeUndefined();

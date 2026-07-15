@@ -36,7 +36,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Features
 
-- Auto-vendor npm packages imported from persisted `eco.layout()` trees when `router` is enabled, with optional `runtimeModules` overrides.
+- Auto-vendor npm packages reachable from `eco.layout()` client render graphs under configured `layouts/` and `components/` directories when `router` is enabled; optional `runtimeModules` overrides manual entries for the same specifier.
 - Added nested layout arrays on `eco.page()` with unified React SSR composition via `composeDocumentShell` `composeChildren`.
 - Added `composeLayoutPageTree` and `serializePageDataScript` exports for shared client/SSR layout and hydration payloads.
 - Added per-tier `persistLayouts` support in `@ecopages/react-router` for nested layout stacks.

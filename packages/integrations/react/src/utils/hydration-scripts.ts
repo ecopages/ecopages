@@ -38,7 +38,7 @@ function getDevPageDataReaderScript(): string {
       ) {
         return { module: parsed.module, props: parsed.props };
       }
-      if (parsed && typeof parsed === "object" && "v" in parsed) {
+      if (parsed && typeof parsed === "object" && typeof parsed.v === "number") {
         return { props: {} };
       }
       return { props: parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {} };
@@ -53,7 +53,7 @@ const getPageData = () => readPageDataDocument().props;`;
  * Minified equivalent of {@link getDevPageDataReaderScript}.
  */
 function getProdPageDataReaderScript(): string {
-	return `const rd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{const p=JSON.parse(e.textContent);if(p&&p.v===1&&p.navigationOwner==="react-router"&&typeof p.module==="string"&&p.props&&typeof p.props==="object"&&!Array.isArray(p.props))return{module:p.module,props:p.props};if(p&&typeof p==="object"&&"v"in p)return{props:{}};return{props:p&&typeof p==="object"&&!Array.isArray(p)?p:{}}}catch{}}return{props:{}}};const gd=()=>rd().props;`;
+	return `const rd=()=>{const e=document.getElementById("__ECO_PAGE_DATA__");if(e?.textContent){try{const p=JSON.parse(e.textContent);if(p&&p.v===1&&p.navigationOwner==="react-router"&&typeof p.module==="string"&&p.props&&typeof p.props==="object"&&!Array.isArray(p.props))return{module:p.module,props:p.props};if(p&&typeof p==="object"&&typeof p.v==="number")return{props:{}};return{props:p&&typeof p==="object"&&!Array.isArray(p)?p:{}}}catch{}}return{props:{}}};const gd=()=>rd().props;`;
 }
 
 /**

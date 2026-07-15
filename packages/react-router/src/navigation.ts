@@ -11,9 +11,10 @@ import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normaliz
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
 import { type ComponentType } from 'react';
-import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
+const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
+
 type PageProps = Record<string, unknown>;
 type NavigablePageComponent = ComponentType<PageProps> & { config?: EcoComponentConfig };
 
@@ -43,7 +44,7 @@ type LoadPageModuleOptions = {
 type LoadPageModuleFromDocumentOptions = {
 	/**
 	 * Explicit page module URL to import instead of extracting one from the
-	 * document's hydration assets.
+	 * document page-data payload.
 	 *
 	 * React Router uses this during HMR-driven reloads so the active hot module
 	 * entry wins over any static bootstrap asset references embedded in the HTML.
@@ -52,9 +53,7 @@ type LoadPageModuleFromDocumentOptions = {
 };
 
 /**
- * Extracts component module URL from window.__ECO_PAGES__.page.
- * For current document, returns the module path set by hydration script.
- * For fetched documents, parses the hydration script to extract the module path.
+ * Reads the runtime page-module marker set by hydration for the current document.
  */
 function extractComponentUrlFromMarker(doc: Document): string | null {
 	if (doc === document && window.__ECO_PAGES__?.page?.module) {
@@ -77,55 +76,12 @@ function parsePageDataPayload(doc: Document): unknown {
 	}
 }
 
-const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
-
-/**
- * @deprecated
- * Regex-based hydration script discovery for one compatibility release. Prefer the
- * v1 `__ECO_PAGE_DATA__` envelope (`schemaVersion` + `moduleUrl`). Remove once all
- * producers emit the manifest.
- */
-function deprecatedExtractModuleUrlFromHydrationScriptCode(code: string, fallbackUrl?: string): string | null {
-	/** Matches default import: `import Content from './Content'` */
-	const defaultImportRegex = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
-	/** Matches namespace import: `import * as Content from './Content'` */
-	const namespaceImportRegex = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
-	const pageModuleMarkerRegex = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
-	const pageModuleIdentifierRegex = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
-
-	const markerMatch = code.match(pageModuleMarkerRegex);
-	if (markerMatch) {
-		return markerMatch[1] ?? null;
-	}
-
-	const moduleIdentifier = code.match(pageModuleIdentifierRegex)?.[1];
-	if (moduleIdentifier) {
-		const assignmentRegex = new RegExp(
-			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['"]([^'"]+)['"]|(import\\.meta\\.url))`,
-		);
-		const assignmentMatch = code.match(assignmentRegex);
-		if (assignmentMatch?.[1]) {
-			return assignmentMatch[1];
-		}
-
-		if (fallbackUrl && assignmentMatch?.[2]) {
-			return fallbackUrl;
-		}
-	}
-
-	if (fallbackUrl && code.includes('module:import.meta.url')) {
-		return fallbackUrl;
-	}
-
-	const defaultMatch = code.match(defaultImportRegex);
-	const namespaceMatch = code.match(namespaceImportRegex);
-	return (defaultMatch || namespaceMatch)?.[2] ?? null;
-}
-
 /**
  * Extracts serialized page props from window.__ECO_PAGES__.page or fetched document.
- * For current document, returns props set by hydration script.
- * For fetched documents, parses the JSON script tag directly.
+ *
+ * @remarks
+ * For the current document, returns props set by the hydration script.
+ * For fetched documents, parses `#__ECO_PAGE_DATA__` directly.
  */
 export function extractProps(doc: Document): PageProps {
 	if (doc === document && window.__ECO_PAGES__?.page?.props) {
@@ -142,6 +98,7 @@ function isReactRouteDocument(doc: Document): boolean {
 /**
  * Adds cache-busting timestamp for HMR in development.
  *
+ * @remarks
  * Prevents loading stale cached modules when navigating to previously visited pages.
  * Disabled in production where filenames have content hashes.
  */
@@ -154,51 +111,30 @@ function addCacheBuster(url: string): string {
 }
 
 /**
- * Extracts component module URL using multi-tier strategy.
- *
- * 1. Read the v1 page-data envelope (`schemaVersion` + `moduleUrl`)
- * 2. Read bootstrap/page markers on the current document
- * 3. Fall back to {@link deprecatedExtractModuleUrlFromHydrationScriptCode} for one release
+ * Extracts the browser-importable page module URL from a document.
  *
  * @remarks
- * EcoRouter transition-state extraction remains a separate follow-up. This
- * module only owns document → module/props discovery for React navigation.
+ * Discovery order:
+ * 1. `#__ECO_PAGE_DATA__` envelope (`schemaVersion` + `moduleUrl`)
+ * 2. `window.__ECO_PAGES__.page.module` on the current document
+ * 3. `script[data-eco-page-bootstrap="react-router"]` `src` (the page entry asset)
+ *
+ * Hydration JavaScript is never parsed. Documents without an explicit module
+ * source return `null`.
  */
 export async function extractComponentUrl(doc: Document): Promise<string | null> {
 	const manifestUrl = resolveEcoPageDataModuleUrl(parsePageDataPayload(doc));
-	if (manifestUrl) return manifestUrl;
+	if (manifestUrl) {
+		return manifestUrl;
+	}
 
 	const markerUrl = extractComponentUrlFromMarker(doc);
-	if (markerUrl) return markerUrl;
-
-	const scripts = Array.from(doc.querySelectorAll('script'));
-
-	const inlineHydrationScript = scripts.find(
-		(s) =>
-			!s.src &&
-			!!s.textContent &&
-			s.textContent.includes('__ECO_PAGES__') &&
-			s.textContent.includes('hydrateRoot') &&
-			s.textContent.includes('import'),
-	);
-
-	if (inlineHydrationScript?.textContent) {
-		return deprecatedExtractModuleUrlFromHydrationScriptCode(inlineHydrationScript.textContent);
+	if (markerUrl) {
+		return markerUrl;
 	}
 
-	const hydrationScript =
-		doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR) ??
-		scripts.find((s) => isReactPageHydrationAssetSrc(s.src ?? ''));
-	if (!hydrationScript?.src) return null;
-
-	try {
-		const scriptUrl = addCacheBuster(hydrationScript.src);
-		const res = await fetch(scriptUrl);
-		const code = await res.text();
-		return deprecatedExtractModuleUrlFromHydrationScriptCode(code, hydrationScript.src);
-	} catch {
-		return null;
-	}
+	const bootstrapScript = doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR);
+	return bootstrapScript?.src || null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -239,13 +175,9 @@ function adaptPageModule(moduleNamespace: unknown): NavigablePageComponent | nul
 /**
  * Fetches and parses a page, returning its component, props, and document.
  *
- * Flow: Fetch HTML → Parse → Extract props → Extract component URL → Import module
- *
- * Handles multiple export patterns (Content, default.Content, default) for different
- * integration setups. Does NOT update DOM - caller applies changes.
- *
- * @param url - The URL to load
- * @returns Object with Component, props, doc, and finalPath, or null on error
+ * @remarks
+ * Flow: fetch HTML → parse → extract props → extract module URL → import module.
+ * Does not update the DOM; the caller applies changes.
  */
 export async function loadPageModule(
 	url: string,
@@ -293,16 +225,11 @@ export async function fetchPageDocument(
 /**
  * Loads the page module for a fetched or current document.
  *
- * The router normally extracts the page module URL from the document's
- * hydration assets. Callers can provide `options.moduleUrlOverride` when the
+ * @remarks
+ * The router extracts the page module URL from the document page-data payload or
+ * bootstrap marker. Callers can provide `options.moduleUrlOverride` when the
  * document is stale with respect to the active runtime module identity, such as
  * during HMR-driven current-page reloads.
- *
- * @param doc - Parsed destination document.
- * @param finalPath - Final route path after redirects.
- * @param options - Module loading overrides.
- * @returns Loaded page module payload or `null` when the document is not a
- * React-router page or no page component can be resolved.
  */
 export async function loadPageModuleFromDocument(
 	doc: Document,

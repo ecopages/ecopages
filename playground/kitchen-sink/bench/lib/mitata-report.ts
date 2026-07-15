@@ -93,6 +93,25 @@ export function writeMitataBenchReport(benchmarks: MitataTrial[]): MitataBenchRe
 	return report;
 }
 
+/** Prints a compact median/p99 table after mitata's own console report. */
+export function printMitataBenchReport(report: MitataBenchReport): void {
+	const rows = Object.entries(report.scenarios).sort(([left], [right]) => left.localeCompare(right));
+	if (rows.length === 0) {
+		console.warn('No benchmark scenarios recorded.');
+		return;
+	}
+
+	console.log(`\nKitchen-sink summary (${report.runtime}, ${report.platform})`);
+	console.log('─'.repeat(80));
+	console.log(`${'Scenario'.padEnd(52)} ${'median'.padStart(8)} ${'p99'.padStart(8)} ${'ops/s'.padStart(8)}`);
+	for (const [name, stats] of rows) {
+		console.log(
+			`${name.padEnd(52)} ${`${stats.median}ms`.padStart(8)} ${`${stats.p99}ms`.padStart(8)} ${String(stats.hz).padStart(8)}`,
+		);
+	}
+	console.log('─'.repeat(80));
+}
+
 export function quantile(sorted: number[], q: number): number {
 	if (sorted.length === 0) {
 		return 0;

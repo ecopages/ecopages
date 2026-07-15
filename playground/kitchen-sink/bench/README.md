@@ -62,6 +62,11 @@ pnpm test:bench:startup:compare
 
 Without the gate, `run.mts` exits immediately. The bench never runs in default CI.
 
+By default, mitata prints its console report (boxplots/tables) and `run.mts` adds a compact
+median/p99 summary. Results are also written to `results/mitata-bench.json`. Set
+`ECOPAGES_BENCH_FORMAT=json` for JSON-only mitata output (useful in CI). Set
+`ECOPAGES_BENCH_VERBOSE=1` to keep core/image-processor info logs during bench runs.
+
 ## Output
 
 | File                          | Purpose                                                                                                                                                           |
@@ -214,7 +219,7 @@ bench/
 
 ## Files
 
-- `run.mts` — mitata entry point; registers all bench groups and writes `mitata-bench.json`.
+- `run.mts` — mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
 - `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
 - `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
   via the public `ConfigBuilder` API.

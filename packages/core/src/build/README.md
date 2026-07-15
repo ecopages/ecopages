@@ -6,15 +6,15 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 
 Three concentric shapes, plus profile executors and request policy:
 
-| Shape                     | Lives in                       | Purpose                                                                                                                                                             |
-| ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BuildAdapter`            | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
-| `BuildRuntime`            | `build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                            |
-| `BuildExecutor`           | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
-| `build-request-policy.ts`   | `build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership. Browser: plugins + source transforms + transpile overlay. |
-| `build-request-identity.ts` | `build-request-identity.ts`  | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
-| `SerializedBuildExecutor` | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
-| `ParallelBuildExecutor`   | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
+| Shape                       | Lives in                       | Purpose                                                                                                                                                             |
+| --------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`              | `build-adapter.ts`             | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
+| `BuildRuntime`              | `build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                          |
+| `BuildExecutor`             | `build-contracts.ts`           | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
+| `build-request-policy.ts`   | `build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership. Browser: plugins + source transforms + transpile overlay.                     |
+| `build-request-identity.ts` | `build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
+| `SerializedBuildExecutor`   | `serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
+| `ParallelBuildExecutor`     | `parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
 
 Plus one translation bridge:
 
@@ -22,6 +22,7 @@ Plus one translation bridge:
 
 ## Files
 
+- `build-manifest.ts` / `app-build-manifest-runtime.ts`: sealed `AppBuildManifest` buckets and contributor collection.
 - `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
 - `build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
 - `build-request-policy.ts`: server/browser request constructors and plugin collision rules.
@@ -36,6 +37,31 @@ Plus one translation bridge:
 ## Default Flow
 
 `ConfigBuilder.build()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildRuntime(appConfig)`:
+
+## App build manifest
+
+`AppBuildManifest` is the sealed registry of build plugins and browser runtime assets on `appConfig.runtime.buildManifest`. Integrations and processors declare contributions through getters; core maps them into manifest buckets during `ConfigBuilder.build()`.
+
+| Integration getter       | Processor getter | Manifest bucket          | Used in                                                          |
+| ------------------------ | ---------------- | ------------------------ | ---------------------------------------------------------------- |
+| — (loaders on config)    | —                | `loaderPlugins`          | Server and browser                                               |
+| `plugins`                | `plugins`        | `runtimePlugins`         | Server and browser                                               |
+| `browserBuildPlugins`    | `buildPlugins`   | `browserBundlePlugins`   | Browser only                                                     |
+| `browserRuntimeManifest` | —                | `browserRuntimeManifest` | Browser (rewrite map; core synthesizes `browser-runtime-plugin`) |
+
+**Sealing flow**
+
+1. `collectConfiguredAppBuildManifestContributions(config)` walks processors and integrations (after `prepareBuildContributions()`).
+2. `updateAppBuildManifest(config, contributions)` merges loader plugins from `config.loaders` with the collected buckets.
+3. `createServerBuildRequest` / `createBrowserBuildRequest` read the sealed manifest through `getAppServerBuildPlugins` / `getAppBrowserBuildPlugins`.
+
+**Rule of thumb**
+
+- Shared transforms (MDX loaders, virtual modules, route-module hooks) → `plugins` / `runtimePlugins`.
+- Client-bundle-only work (vendor aliasing, async production CSS) → `browserBuildPlugins` or `buildPlugins` / `browserBundlePlugins`.
+- Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
+
+Direct `setAppBuildManifest` is for tests and full manifest replacement. Production code should rely on `updateAppBuildManifest` during config build.
 
 ```
 Caller intent

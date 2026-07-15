@@ -39,6 +39,23 @@ function registerRuntimePlugins(
 	}
 }
 
+/**
+ * Collects integration and processor contributions before the app build manifest is sealed.
+ *
+ * @remarks
+ * Called from {@link ConfigBuilder.build} via {@link updateAppBuildManifest}. Walks
+ * processors first, then integrations, invoking {@link Processor.prepareBuildContributions}
+ * and {@link IntegrationPlugin.prepareBuildContributions} so dynamic plugin lists can be
+ * materialized before sealing.
+ *
+ * Maps contributor getters to manifest buckets:
+ * - `processor.plugins` / `integration.plugins` → `runtimePlugins`
+ * - `processor.buildPlugins` / `integration.browserBuildPlugins` → `browserBundlePlugins`
+ * - `integration.browserRuntimeManifest` → merged `browserRuntimeManifest`
+ *
+ * Loaders are not collected here; {@link createConfiguredAppBuildManifest} always takes
+ * them from `appConfig.loaders`.
+ */
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
 ): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {

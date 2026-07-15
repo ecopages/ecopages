@@ -28,3 +28,6 @@ dist
 **/*.log
 **/*.bun
 
+# generated benchmark traces
+bench/results/startup-trace-*.json.*.json
+

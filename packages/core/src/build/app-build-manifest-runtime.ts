@@ -1,10 +1,10 @@
-import type { EcoBuildPlugin } from './build-types.ts';
-import { mergeBrowserRuntimeManifests } from './browser-runtime-manifest.ts';
-import type { AppBuildManifest } from './build-manifest.ts';
+import type { EcoBuildPlugin } from './contracts/build-types.ts';
+import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
+import type { AppBuildManifest } from './contracts/build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
-import { isLitStaticRenderWorkerThread } from './lit-static-render-worker-context.ts';
+import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
 
 function patchAppRuntime(
 	appConfig: EcoPagesAppConfig,

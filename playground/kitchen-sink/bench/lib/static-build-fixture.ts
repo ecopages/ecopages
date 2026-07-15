@@ -10,7 +10,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installBuildRuntime } from '../../../../packages/core/src/build/build-runtime';
+import { installBuildRuntime } from '../../../../packages/core/src/build/runtime/build-runtime';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
@@ -20,8 +20,8 @@ import {
 	getAppServerModuleTranspiler,
 } from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/services/module-loading/route-module-build-manifest';
-import { SERVER_ENTRY_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/build/server-entry-build-cache';
-import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/pages-unified-graph-build';
+import { SERVER_ENTRY_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/server-entry-build-cache';
+import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
 import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';

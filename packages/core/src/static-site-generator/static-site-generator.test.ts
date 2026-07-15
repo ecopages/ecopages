@@ -15,8 +15,8 @@ const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
 );
 const shouldBuildPagesUnifiedGraphMock = vi.hoisted(() => vi.fn(() => true));
 
-vi.mock('../build/pages-unified-graph-build.ts', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../build/pages-unified-graph-build.ts')>();
+vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../build/cache/pages-unified-graph-build.ts')>();
 	return {
 		...actual,
 		ensurePagesUnifiedGraphBuilt: ensurePagesUnifiedGraphBuiltMock,

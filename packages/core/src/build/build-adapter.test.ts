@@ -20,9 +20,9 @@ import {
 	updateAppBuildManifest,
 	ViteHostBuildAdapter,
 } from './build-adapter.ts';
-import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
-import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
-import { createAppBuildManifest } from './build-manifest.ts';
+import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
+import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
+import { createAppBuildManifest } from './contracts/build-manifest.ts';
 
 test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
 	assert.ok(defaultBuildAdapter instanceof RolldownBuildAdapter);

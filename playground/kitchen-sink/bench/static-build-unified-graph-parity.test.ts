@@ -3,8 +3,8 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/pages-unified-graph-build';
-import { resetRolldownBuildInvocationCounts } from '../../../packages/core/src/build/rolldown-build-invocation-metrics';
+import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/cache/pages-unified-graph-build';
+import { resetRolldownBuildInvocationCounts } from '../../../packages/core/src/build/rolldown/rolldown-build-invocation-metrics';
 import { KITCHEN_SINK_REPRESENTATIVE_PAGES, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 import {
 	clearBenchProductionCaches,

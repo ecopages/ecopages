@@ -18,8 +18,8 @@ import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
-import { installBuildRuntime } from '../../build/build-runtime.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/server-adapter.ts';

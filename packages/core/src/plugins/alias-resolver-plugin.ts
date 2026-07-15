@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '../build/build-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { AliasResolverCache } from './alias-resolver-cache.ts';
 import { loadTsconfigPathPrefixes, resolveProjectImportPath } from './tsconfig-import-resolver.ts';
 

@@ -1,5 +1,5 @@
 import type { BuildExecutor } from '../../build/build-adapter.ts';
-import type { EcoBuildPlugin } from '../../build/build-types.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';

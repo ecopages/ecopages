@@ -1,5 +1,8 @@
-import type { EcoBuildPlugin } from '../build/build-types.ts';
-import { createBrowserRuntimeManifest, type BrowserRuntimeManifest } from '../build/browser-runtime-manifest.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import {
+	createBrowserRuntimeManifest,
+	type BrowserRuntimeManifest,
+} from '../build/browser/browser-runtime-manifest.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { EcoPagesElement } from '../types/public-types.ts';
@@ -20,7 +23,7 @@ export type {
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
-} from '../build/build-types.ts';
+} from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
 export type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
 export type {

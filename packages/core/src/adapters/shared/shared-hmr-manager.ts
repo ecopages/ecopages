@@ -8,7 +8,7 @@ import {
 	isBrowserOnlyRegisteredScriptEntrypoint,
 	type ResolvedHmrEntrypoint,
 } from '../../hmr/hmr-entrypoint-output.ts';
-import { requireBuildRuntime } from '../../build/build-runtime.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager, IClientBridge } from '../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrStrategy } from '../../hmr/hmr-strategy.ts';

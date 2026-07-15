@@ -1,12 +1,12 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
-import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/build-runtime';
+import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
 	recordServerEntryBuildCache,
-} from '../../../packages/core/src/build/server-entry-build-cache';
+} from '../../../packages/core/src/build/cache/server-entry-build-cache';
 import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { SERVER_BUNDLE_FILENAME } from '../../../packages/core/src/utils/resolve-entry-file';
@@ -23,7 +23,7 @@ import {
 	getPageModuleRolldownBuildInvocations,
 	getTotalRolldownBuildInvocations,
 	resetRolldownBuildInvocationCounts,
-} from '../../../packages/core/src/build/rolldown-build-invocation-metrics';
+} from '../../../packages/core/src/build/rolldown/rolldown-build-invocation-metrics';
 import { withBenchEnv } from './lib/bench-env';
 
 process.env.NODE_ENV = 'production';

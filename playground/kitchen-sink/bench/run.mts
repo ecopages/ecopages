@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { run } from 'mitata';
-import { shouldRunBench, writeMitataBenchReport, MITATA_BENCH_JSON } from './lib/mitata-report';
+import { printMitataBenchReport, shouldRunBench, writeMitataBenchReport, MITATA_BENCH_JSON } from './lib/mitata-report';
 import { registerBuildBench } from './build-bench';
 import { registerBuildSpeedBench } from './build-speed-bench';
 import { registerHeavyBench } from './heavy-bench';
@@ -29,10 +29,15 @@ registerMemorySnapBench();
 registerStaticBuildBench();
 await registerBuildSpeedBench();
 
+const benchFormat = process.env.ECOPAGES_BENCH_FORMAT === 'json' ? 'json' : undefined;
+
 const { benchmarks } = await run({
-	format: 'quiet',
 	throw: true,
+	...(benchFormat ? { format: benchFormat } : {}),
 });
 
 const report = writeMitataBenchReport(benchmarks);
-console.log(`Wrote ${MITATA_BENCH_JSON} with ${Object.keys(report.scenarios).length} scenarios.`);
+if (!benchFormat) {
+	printMitataBenchReport(report);
+}
+console.log(`Wrote ${MITATA_BENCH_JSON} (${Object.keys(report.scenarios).length} scenarios).`);

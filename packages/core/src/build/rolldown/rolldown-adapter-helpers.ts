@@ -12,7 +12,7 @@
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { InputOptions, OutputOptions } from 'rolldown';
+import type { InputOptions, OutputOptions, RolldownLog } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import {
@@ -193,6 +193,23 @@ function createExternalMatcher(
 	};
 }
 
+type RolldownLogLike = Pick<RolldownLog, 'code' | 'id' | 'message'>;
+
+/** @remarks Rolldown warns before honoring `external` for node builtins; suppress expected noise. */
+export function shouldSuppressRolldownLog(log: RolldownLogLike): boolean {
+	if (log.code !== 'UNRESOLVED_IMPORT') {
+		return false;
+	}
+
+	if (typeof log.id === 'string' && log.id.startsWith('node:')) {
+		return true;
+	}
+
+	const message = log.message ?? '';
+	const match = /Could not resolve '([^']+)'/u.exec(message);
+	return match?.[1]?.startsWith('node:') ?? false;
+}
+
 function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
 	switch (value) {
 		case 'cjs':
@@ -340,6 +357,17 @@ export function resolveRolldownOptions(
 		cwd: contextRoot,
 		external,
 		platform: mapRolldownPlatform(options.target),
+		logLevel:
+			process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1' ? 'silent' : undefined,
+		onLog(level, log, defaultHandler) {
+			if (shouldSuppressRolldownLog(log)) {
+				return;
+			}
+			if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+				return;
+			}
+			defaultHandler(level, log);
+		},
 		transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,

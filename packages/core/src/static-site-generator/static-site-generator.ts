@@ -21,11 +21,10 @@ import {
 import type { StaticExportContext } from './static-export-context.ts';
 import { ensurePagesUnifiedGraphBuilt, shouldBuildPagesUnifiedGraph } from '../build/pages-unified-graph-build.ts';
 import {
-	clearPagesBrowserGraphManifest,
-	commitPagesBrowserGraphManifest,
+	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,
-	shouldPersistPagesBrowserGraphManifest,
-} from '../build/pages-browser-graph-build.ts';
+	shouldPrebuildProductionPageBrowserGraphs,
+} from './production-page-browser-graph-prebuild.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
@@ -387,8 +386,8 @@ export class StaticSiteGenerator {
 			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
 		}
 
-		if (shouldPersistPagesBrowserGraphManifest() && force) {
-			clearPagesBrowserGraphManifest(this.appConfig);
+		if (shouldPrebuildProductionPageBrowserGraphs() && force) {
+			clearProductionPageBrowserGraphSession(this.appConfig);
 		}
 
 		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
@@ -414,7 +413,7 @@ export class StaticSiteGenerator {
 		await this.invokeStaticExportHook('beforeStaticExport', staticExportContext);
 
 		try {
-			if (shouldPersistPagesBrowserGraphManifest() && routeRendererFactory) {
+			if (shouldPrebuildProductionPageBrowserGraphs() && routeRendererFactory) {
 				await prebuildProductionPageBrowserGraphs(
 					routes.map((route) => route.templateRoute.filePath),
 					routeRendererFactory,
@@ -444,12 +443,9 @@ export class StaticSiteGenerator {
 				this.pruneStaleStaticOutputs(activeStaticPathnames);
 			}
 
-			if (shouldPersistPagesBrowserGraphManifest()) {
-				commitPagesBrowserGraphManifest(this.appConfig);
-			}
 		} catch (error) {
-			if (shouldPersistPagesBrowserGraphManifest()) {
-				clearPagesBrowserGraphManifest(this.appConfig);
+			if (shouldPrebuildProductionPageBrowserGraphs()) {
+				clearProductionPageBrowserGraphSession(this.appConfig);
 			}
 			throw error;
 		} finally {

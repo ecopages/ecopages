@@ -347,6 +347,45 @@ describe('EcoRouter HMR Integration', () => {
 			expect(container.textContent).toContain('Andee');
 		});
 
+		it('applies layout entry prop factories when persistLayouts is enabled', async () => {
+			const Layout = ({ children, label }: { children: ReactNode; label?: string }) =>
+				createElement('section', { 'data-testid': 'factory-layout' }, label, children);
+			const Page = (() => createElement('div', null, 'Factory page')) as ReturnType<
+				typeof createMockPageComponent
+			> & {
+				config?: {
+					layouts: [typeof Layout];
+					layoutEntries: Array<{
+						component: typeof Layout;
+						props: (context: { query?: Record<string, string> }) => { label: string };
+					}>;
+				};
+			};
+			Page.config = {
+				layouts: [Layout],
+				layoutEntries: [
+					{
+						component: Layout,
+						props: ({ query }) => ({ label: `preview:${query?.preview ?? 'off'}` }),
+					},
+				],
+			};
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: { query: { preview: '1' } },
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('preview:1');
+		});
+
 		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
 			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
 			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');

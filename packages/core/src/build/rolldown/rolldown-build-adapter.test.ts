@@ -163,6 +163,29 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('from-transitive-dep');
 	});
 
+	test('externalPackages keeps node builtins external for node-target builds', async () => {
+		const entrypoint = writeFixture(
+			'node-builtin-entry.ts',
+			"import { readFileSync } from 'node:fs';\nexport const read = readFileSync;\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+		expect(code).toMatch(/from ['"]node:fs['"]/);
+	});
+
 	test('externalPackages rewrites undeclared core-owned runtime packages to file URLs', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 		const adapter = new RolldownBuildAdapter();

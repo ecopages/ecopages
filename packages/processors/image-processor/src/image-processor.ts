@@ -189,7 +189,11 @@ export class ImageProcessor {
 		).filter(Boolean) as [string, ImageSpecifications][];
 
 		appLogger.debugTimeEnd('Processing images');
-		appLogger.info(`Processed ${results.length} images`);
+		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+			appLogger.debug(`Processed ${results.length} images`);
+		} else {
+			appLogger.info(`Processed ${results.length} images`);
+		}
 
 		return Object.fromEntries(results);
 	}

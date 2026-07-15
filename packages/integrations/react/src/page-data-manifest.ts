@@ -8,13 +8,12 @@
  *
  * Compatibility matrix:
  * - new client / new document: prefer `schemaVersion:1` envelope (`moduleUrl` + `props`)
- * - new client / old document: accept legacy flat props; module falls back to
- *   hydration markers/regex for one compatibility release
+ * - new client / old document: accept legacy flat props; module discovery uses
+ *   `window.__ECO_PAGES__.page.module` or `script[data-eco-page-bootstrap="react-router"]`
  * - old client / new document: old clients that only read flat props should be
  *   upgraded; envelope consumers must unwrap `props` before hydration
- * - malformed / unknown schema (numeric `schemaVersion` present but envelope invalid): empty
- *   props and no module URL from the manifest; navigation may still discover a
- *   module via bootstrap markers or the temporary regex fallback
+ * - malformed / unknown schema (numeric `schemaVersion` present but envelope invalid):
+ *   empty props and no module URL from the manifest
  * - HMR: `moduleUrlOverride` still bypasses document discovery
  * - legacy flat props may include a string `schemaVersion` field without being treated as an envelope
  */

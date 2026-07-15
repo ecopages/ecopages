@@ -19,8 +19,16 @@ const warmupIterations = Number(process.env.ECOPAGES_STARTUP_BENCH_WARMUP ?? 1);
 const STARTUP_PAGES = [
 	{ name: 'kita-home', path: '/', selector: '[data-testid="page-home"]' },
 	{ name: 'react-lab', path: '/react-lab', selector: '[data-testid="page-react-lab"]' },
-	{ name: 'lit-entry', path: '/integration-matrix/lit-entry', selector: '[data-testid="page-integration-matrix-lit-entry"]' },
-	{ name: 'ecopages-jsx-entry', path: '/integration-matrix/ecopages-jsx-entry', selector: '[data-testid="page-integration-matrix-ecopages-jsx-entry"]' },
+	{
+		name: 'lit-entry',
+		path: '/integration-matrix/lit-entry',
+		selector: '[data-testid="page-integration-matrix-lit-entry"]',
+	},
+	{
+		name: 'ecopages-jsx-entry',
+		path: '/integration-matrix/ecopages-jsx-entry',
+		selector: '[data-testid="page-integration-matrix-ecopages-jsx-entry"]',
+	},
 	{ name: 'docs-mdx', path: '/docs', selector: '[data-testid="page-docs"]' },
 ];
 

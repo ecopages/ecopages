@@ -1,11 +1,8 @@
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { afterEach, afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './react-hmr-strategy.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -51,7 +48,9 @@ function createPageMetadataCache(
 		setDeclaredModules?: (entrypointPath: string, declaredModules: string[]) => void;
 	} = {},
 ) {
-	const owned = new Set((overrides.initialOwnedEntrypoints ?? []).map((entrypointPath) => path.resolve(entrypointPath)));
+	const owned = new Set(
+		(overrides.initialOwnedEntrypoints ?? []).map((entrypointPath) => path.resolve(entrypointPath)),
+	);
 
 	return {
 		getDeclaredModules: overrides.getDeclaredModules ?? (() => undefined),

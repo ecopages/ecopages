@@ -88,7 +88,10 @@ describe('SessionPageBrowserGraphCache', () => {
 			builds += 1;
 			await buildGate;
 			return {
-				result: { entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/index.js' }], chunkAssets: [] },
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/index.js' }],
+					chunkAssets: [],
+				},
 				dependencyPaths: new Set(['/app/pages/index.tsx']),
 			};
 		});
@@ -158,7 +161,10 @@ describe('SessionPageBrowserGraphCache', () => {
 		const firstBuild = session.resolveGraph(key, async () => {
 			await firstBuildGate;
 			return {
-				result: { entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/stale.js' }], chunkAssets: [] },
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/stale.js' }],
+					chunkAssets: [],
+				},
 				dependencyPaths: new Set(['/app/pages/index.tsx']),
 			};
 		});
@@ -172,7 +178,10 @@ describe('SessionPageBrowserGraphCache', () => {
 		const freshResult = await session.resolveGraph(key, async () => {
 			rebuilds += 1;
 			return {
-				result: { entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }], chunkAssets: [] },
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
+					chunkAssets: [],
+				},
 				dependencyPaths: new Set(['/app/pages/index.tsx']),
 			};
 		});

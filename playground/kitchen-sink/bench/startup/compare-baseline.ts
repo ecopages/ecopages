@@ -62,7 +62,9 @@ function main(): void {
 	}
 
 	if (!existsSync(BASELINE_FILE)) {
-		console.error(`No startup-baseline.json found in ${RESULTS_DIR}. Run "pnpm test:bench:startup:baseline" first.`);
+		console.error(
+			`No startup-baseline.json found in ${RESULTS_DIR}. Run "pnpm test:bench:startup:baseline" first.`,
+		);
 		process.exit(1);
 	}
 

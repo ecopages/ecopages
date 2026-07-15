@@ -114,9 +114,7 @@ export class PageBrowserGraphService {
 			return undefined;
 		}
 
-		startupTrace.markFirstPageBrowserGraphReady(
-			getAppPageBrowserGraphSession(this.appConfig).getBuildCount(),
-		);
+		startupTrace.markFirstPageBrowserGraphReady(getAppPageBrowserGraphSession(this.appConfig).getBuildCount());
 		return result;
 	}
 
@@ -130,7 +128,8 @@ export class PageBrowserGraphService {
 		);
 
 		const groupedAssets = groupedDependencies.length
-			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).assetsByRoute.get(input.routeFile) ?? [])
+			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).assetsByRoute.get(input.routeFile) ??
+				[])
 			: [];
 
 		const processedDependencies = ungroupedDependencies.length

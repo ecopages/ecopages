@@ -83,8 +83,7 @@ function processEcopagesFileChange(
 
 	const plan = hostRuntime.planFileChange(file);
 	const hmrManager = getAppHmrManager(api.appConfig);
-	const graphPreparation =
-		hmrManager?.isEnabled() === true ? prepareHmrFileChange(api.appConfig, file) : undefined;
+	const graphPreparation = hmrManager?.isEnabled() === true ? prepareHmrFileChange(api.appConfig, file) : undefined;
 	const watchedFiles = hmrManager?.getWatchedFiles?.();
 	const isRegisteredScriptEdit = hmrManager?.isEnabled() === true && watchedFiles?.has(path.resolve(file)) === true;
 

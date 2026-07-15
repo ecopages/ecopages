@@ -63,7 +63,10 @@ export function shouldPersistPagesBrowserGraphManifest(): boolean {
 /**
  * Commits production Page Browser Graph records after a successful build transaction.
  */
-export function commitPagesBrowserGraphManifest(appConfig: EcoPagesAppConfig, policy: GraphPolicy = 'production'): void {
+export function commitPagesBrowserGraphManifest(
+	appConfig: EcoPagesAppConfig,
+	policy: GraphPolicy = 'production',
+): void {
 	if (!shouldPersistPagesBrowserGraphManifest()) {
 		return;
 	}

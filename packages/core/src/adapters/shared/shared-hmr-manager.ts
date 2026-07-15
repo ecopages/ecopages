@@ -250,9 +250,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 			for (const event of action.events) {
 				const graphIdentities = event.graphIdentities ?? options.graphIdentities;
-				this.broadcast(
-					graphIdentities === undefined ? event : { ...event, graphIdentities },
-				);
+				this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
 			}
 		}
 	}

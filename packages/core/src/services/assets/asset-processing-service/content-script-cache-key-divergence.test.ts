@@ -1,7 +1,43 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { rapidhash } from '../../../utils/hash.ts';
 import { getAssetDependencyKey } from './asset-dependency-keys.ts';
-import { getContentScriptProcessorCacheKey } from './content-script-cache-keys.ts';
 import type { ContentScriptAsset } from './assets.types.ts';
+
+function generateHash(content: string): string {
+	return rapidhash(content).toString();
+}
+
+function buildProcessorIdentitySegment(contentHash: string, dep: ContentScriptAsset): string {
+	const attrsHash = dep.attributes ? generateHash(JSON.stringify(dep.attributes)) : '';
+	const position = dep.position ?? '';
+	const packageRole = dep.packageRole ?? '';
+
+	return `content-script:${contentHash}:${contentHash}:${position}:${attrsHash}:${packageRole}`;
+}
+
+function createBundleConfigHash(
+	dep: ContentScriptAsset,
+	options: { shouldBundle: boolean; isProduction: boolean },
+): string {
+	return generateHash(
+		JSON.stringify({
+			bundle: options.shouldBundle,
+			minify: options.shouldBundle && options.isProduction,
+			opts: dep.bundleOptions,
+		}),
+	);
+}
+
+/** Snapshot of the removed {@link ContentScriptProcessor} cache key for divergence tests. */
+function getContentScriptProcessorCacheKey(
+	dep: ContentScriptAsset,
+	options: { shouldBundle: boolean; isProduction: boolean },
+): string {
+	const contentHash = generateHash(dep.content);
+	const configHash = createBundleConfigHash(dep, options);
+
+	return `${buildProcessorIdentitySegment(contentHash, dep)}:${configHash}`;
+}
 
 function createContentScriptDep(overrides: Partial<ContentScriptAsset> = {}): ContentScriptAsset {
 	return {
@@ -54,14 +90,14 @@ describe('content-script cache key divergence', () => {
 		expect(getAssetDependencyKey({ ...dep, bundleOptions: { minify: true } })).not.toBe(serviceKey);
 	});
 
-	test('processor key includes attributes while service key does not', () => {
+	test('service key includes HTML attributes for cache identity', () => {
 		const withoutAttributes = createContentScriptDep({ attributes: undefined });
 		const withAttributes = createContentScriptDep({
 			attributes: { type: 'module', defer: '', 'data-eco-page-bootstrap': 'react-router' },
 		});
 
 		expect(processorKey(withoutAttributes)).not.toBe(processorKey(withAttributes));
-		expect(getAssetDependencyKey(withoutAttributes)).toBe(getAssetDependencyKey(withAttributes));
+		expect(getAssetDependencyKey(withoutAttributes)).not.toBe(getAssetDependencyKey(withAttributes));
 	});
 
 	test('service key includes groupedBundle while processor key does not', () => {

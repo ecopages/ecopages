@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { resolveInlineContentScriptBody } from '../../inline-content-script-body.ts';
 import { shouldUseDevBrowserScriptCache } from '../../../../../build/dev-browser-script-cache.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
@@ -15,10 +16,10 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		return path.join(this.getContentScriptEntryDir(), `${contentHash}.js`);
 	}
 
-	private toProcessedAsset(dep: ContentScriptAsset, filepath: string, inlineContent?: string): ProcessedAsset {
+	private toProcessedAsset(dep: ContentScriptAsset, filepath: string): ProcessedAsset {
 		return {
 			filepath,
-			content: dep.inline ? inlineContent : undefined,
+			content: resolveInlineContentScriptBody(dep, filepath),
 			kind: 'script',
 			position: dep.position,
 			attributes: dep.attributes,
@@ -82,11 +83,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 					throw new Error(`Missing grouped bundle output for ${entryName}`);
 				}
 
-				return this.toProcessedAsset(
-					dep,
-					bundledFilePath,
-					dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-				);
+				return this.toProcessedAsset(dep, bundledFilePath);
 			});
 		} finally {
 			for (const { contentHash } of tempEntries) {
@@ -123,7 +120,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				fileSystem.write(filepath, dep.content);
 			}
 
-			return this.toProcessedAsset(dep, filepath, dep.inline ? dep.content : undefined);
+			return this.toProcessedAsset(dep, filepath);
 		}
 
 		if (!dep.content) {
@@ -142,11 +139,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				...this.getBundlerOptions(dep),
 			});
 
-			return this.toProcessedAsset(
-				dep,
-				bundledFilePath,
-				dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
-			);
+			return this.toProcessedAsset(dep, bundledFilePath);
 		} finally {
 			this.removeContentScriptEntry(hash);
 		}

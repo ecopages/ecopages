@@ -937,11 +937,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			pageModuleUrl,
 		});
 
-		return this.buildNonReactDocumentContributions(
-			options.renderOptions.HtmlTemplate,
-			allPageProps,
-			pageModuleUrl,
-		);
+		return this.buildNonReactDocumentContributions(options.renderOptions.HtmlTemplate, allPageProps, pageModuleUrl);
 	}
 
 	protected override getDocumentAttributes(): Record<string, string> | undefined {

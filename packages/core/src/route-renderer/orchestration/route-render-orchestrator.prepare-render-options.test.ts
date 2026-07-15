@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { eco } from '../../eco/eco.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	EcoComponent,

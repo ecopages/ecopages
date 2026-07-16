@@ -25,7 +25,7 @@ import { ReactShell as KitchenSinkReactShell } from '@ecopages/testing/kitchen-s
 import type { ForeignChildInterceptionInput } from '../../../../core/src/route-renderer/orchestration/component-render-context';
 import { kitajsPlugin } from '../../../kitajs/src/kitajs.plugin';
 import { litPlugin } from '../../../lit/src/lit.plugin';
-import { reactPlugin } from '../../../react/src/react.plugin';
+import { reactPlugin } from '../../../react/src/plugin/react.plugin.ts';
 import { EcoEmbed } from '../eco-embed.tsx';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';

@@ -139,7 +139,7 @@ Important:
 
 ### AST Pipeline Order
 
-The browser-bound transform in [src/utils/client-graph-boundary-plugin.ts](src/utils/client-graph-boundary-plugin.ts) follows this order:
+The browser-bound transform in [src/client-graph/boundary-plugin.ts](src/client-graph/boundary-plugin.ts) follows this order:
 
 1. Parse the module and build a reachability view of the client render graph.
 2. Remove imports that are not allowed or not reachable from the client graph.
@@ -174,7 +174,7 @@ The fix is to strip server-only `eco.page(...)` options after import pruning, wh
 
 The browser must not receive arbitrary request-scoped data.
 
-The React renderer in [src/react-renderer.ts](src/react-renderer.ts) serializes only the top-level `locals` keys explicitly declared by `Page.requires`. If a page does not declare `requires`, no `locals` are serialized for hydration.
+The React renderer in [src/render/react-renderer.ts](src/render/react-renderer.ts) serializes only the top-level `locals` keys explicitly declared by `Page.requires`. If a page does not declare `requires`, no `locals` are serialized for hydration.
 
 Example:
 
@@ -199,7 +199,7 @@ Hydration must rebuild the same tree the server rendered.
 
 That applies to both:
 
-- non-router hydration scripts in [src/utils/hydration-scripts.ts](src/utils/hydration-scripts.ts)
+- non-router hydration scripts in [src/hydration/hydration-scripts.ts](src/hydration/hydration-scripts.ts)
 - router-backed hydration in [../../react-router/src/router.ts](../../react-router/src/router.ts)
 
 If the page render receives `locals` on the server and the layout also depends on those values, the client must pass the same serialized `locals` into the layout during hydration. Otherwise React will detect a mismatch.
@@ -208,9 +208,9 @@ If the page render receives `locals` on the server and the layout also depends o
 
 The main regression coverage lives in:
 
-- [src/utils/client-graph-boundary-plugin.test.ts](src/utils/client-graph-boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
-- [src/react-renderer.locals.test.ts](src/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
-- [src/utils/hydration-scripts.test.ts](src/utils/hydration-scripts.test.ts): verifies non-router hydration passes serialized `locals` into layouts.
+- [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
+- [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
+- [src/hydration/hydration-scripts.test.ts](src/hydration/hydration-scripts.test.ts): verifies non-router hydration passes serialized `locals` into layouts.
 - [../../react-router/test/hmr-reload.test.browser.ts](../../react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 
 If you change the AST transform or hydration flow, update the corresponding tests in the same change.
@@ -223,7 +223,7 @@ During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeL
 
 Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`). Route-scoped `locals` are passed to layout tiers via document-shell props during SSR; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
 
-- [src/layout-compose.ts](src/layout-compose.ts): shared client/SSR tree builder.
+- [src/render/layout-compose.ts](src/render/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.
 - [src/test/react-ssr-unified.test.tsx](src/test/react-ssr-unified.test.tsx): provider context through nested SSR layouts.
 
@@ -341,8 +341,8 @@ Manual entries **override** auto-discovered entries for the same specifier.
 
 #### Tests
 
-- [src/utils/discover-layout-runtime-modules.test.ts](src/utils/discover-layout-runtime-modules.test.ts): discovery modes, provider scoping, tsconfig aliases, stacked layouts.
-- [src/services/react-runtime-bundle.service.test.ts](src/services/react-runtime-bundle.service.test.ts): vendor registration and manifest paths.
+- [src/bundling/discover-layout-runtime-modules.test.ts](src/bundling/discover-layout-runtime-modules.test.ts): discovery modes, provider scoping, tsconfig aliases, stacked layouts.
+- [src/bundling/runtime-bundle.test.ts](src/bundling/runtime-bundle.test.ts): vendor registration and manifest paths.
 - [../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts](../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts): ESM entry resolution and default-export policy for React vs TanStack Query.
 
 ### Client-only code in SSR trees

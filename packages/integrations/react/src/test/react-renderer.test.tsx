@@ -17,9 +17,9 @@ import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import React, { type JSX } from 'react';
-import { ReactRenderer, type ReactRendererConfig } from '../react-renderer';
-import type { ReactRuntime } from '../layout-compose.ts';
-import { getReactIslandComponentKey } from '../services/react-hydration-asset.service.ts';
+import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
+import type { ReactRuntime } from '../render/layout-compose.ts';
+import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
 
@@ -262,7 +262,7 @@ describe('ReactRenderer', () => {
 			expect(result.html).not.toContain('<div');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
 			expect(result.rootAttributes?.['data-eco-component-key']).toBe(
-				getReactIslandComponentKey(pageFilePath, Component.config),
+				getIslandComponentKey(pageFilePath, Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
@@ -471,7 +471,7 @@ describe('ReactRenderer', () => {
 				rootTag: 'h3',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
-					'data-eco-component-key': getReactIslandComponentKey(pageFilePath, Component.config),
+					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),
 					'data-eco-props': btoa(JSON.stringify({ title: 'Island' })),
 				},
 				attachmentPolicy: { kind: 'first-element' },

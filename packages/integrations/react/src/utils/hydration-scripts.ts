@@ -194,10 +194,7 @@ window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}] = mount;`;
  * HMR handler for router pages: prefers coordinator reload when layouts change,
  * otherwise re-renders the existing root.
  */
-function getRouterHmrHandlerScript(options: {
-	importPath: string;
-	isMdx: boolean;
-}): string {
+function getRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean }): string {
 	const { importPath, isMdx } = options;
 	return `  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
     try {

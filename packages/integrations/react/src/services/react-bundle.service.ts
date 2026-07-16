@@ -20,6 +20,7 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import { ReactRuntimeBundleService, type ReactRuntimeImports } from './react-runtime-bundle.service.ts';
 import type { ResolvedReactPluginRuntimeModule } from '../utils/react-plugin-runtime-modules.ts';
 import { createReactMdxLoaderPlugin } from '../utils/react-mdx-loader-plugin.ts';
+import { isReactProductionRuntime } from '../utils/react-runtime-mode.ts';
 
 /**
  * Configuration for the ReactBundleService.
@@ -93,7 +94,7 @@ export class ReactBundleService {
 		const options: Record<string, unknown> = {
 			mainFields: ['module', 'browser', 'main'],
 			naming: `${componentName}.[ext]`,
-			...(import.meta.env?.NODE_ENV === 'production' && {
+			...(isReactProductionRuntime() && {
 				minify: true,
 				treeshaking: true,
 			}),

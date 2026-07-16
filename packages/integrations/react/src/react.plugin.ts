@@ -10,7 +10,6 @@ import {
 } from '@ecopages/core/plugins/integration-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { IHmrManager } from '@ecopages/core';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
@@ -90,7 +89,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		mdxCompilerOptions: mdxEnabled && mdx ? resolveReactMdxCompilerOptions(mdx) : undefined,
 		mdxExtensions,
 		hmrPageMetadataCache: new ReactHmrPageMetadataCache(),
-		explicitGraphEnabled: explicitGraph ?? false,
+		forceBrowserGraph: explicitGraph ?? false,
 	};
 
 	return {
@@ -118,9 +117,12 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private hmrStrategy?: ReactHmrStrategy;
 	private runtimeDependenciesInitialized = false;
 	/**
-	 * Indicates whether React explicit graph mode is enabled for renderer/HMR behavior.
+	 * When true, always emit page browser graph / hydration assets.
+	 *
+	 * @remarks
+	 * Mapped from public `explicitGraph`. Does not skip client-graph AST stripping.
 	 */
-	private readonly explicitGraphEnabled: boolean;
+	private readonly forceBrowserGraph: boolean;
 	private readonly rendererConfig: ReactRendererConfig;
 
 	constructor(options?: ReactPluginOptions) {
@@ -141,12 +143,12 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new ReactHmrPageMetadataCache();
 		this.clientGraphBoundaryCache = new ClientGraphBoundaryCache();
-		this.explicitGraphEnabled = rendererConfig.explicitGraphEnabled ?? false;
+		this.forceBrowserGraph = rendererConfig.forceBrowserGraph ?? false;
 		this.rendererConfig = {
 			...rendererConfig,
 			mdxExtensions: this.mdxExtensions,
 			hmrPageMetadataCache: this.hmrPageMetadataCache,
-			explicitGraphEnabled: this.explicitGraphEnabled,
+			forceBrowserGraph: this.forceBrowserGraph,
 		};
 
 		if (this.mdxEnabled) {
@@ -276,10 +278,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 *
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
-	override setHmrManager(hmrManager: IHmrManager): void {
-		super.setHmrManager(hmrManager);
-	}
-
 	override getHmrStrategy(): HmrStrategy | undefined {
 		if (!this.hmrManager || !this.appConfig) {
 			return undefined;
@@ -293,7 +291,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 				mdxCompilerOptions: this.mdxCompilerOptions,
 				ownedTemplateExtensions: this.extensions,
 				allTemplateExtensions: this.appConfig.templatesExt,
-				explicitGraphEnabled: this.explicitGraphEnabled,
 				clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 			});
 		}

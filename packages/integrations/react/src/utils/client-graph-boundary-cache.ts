@@ -195,12 +195,6 @@ export class ClientGraphBoundaryCache {
 }
 
 /**
- * Default shared cache. The React plugin owns one of these; tests can
- * create their own.
- */
-export const clientGraphBoundaryCache = new ClientGraphBoundaryCache();
-
-/**
  * Hash a list of globally-allowed specifiers. The order of iteration
  * must be stable for the hash to be deterministic; we sort before
  * hashing.

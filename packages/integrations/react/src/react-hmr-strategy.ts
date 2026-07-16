@@ -37,7 +37,6 @@ export interface ReactHmrStrategyOptions {
 	mdxCompilerOptions?: CompileOptions;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
-	explicitGraphEnabled?: boolean;
 	/**
 	 * Per-app cache for client-graph-boundary transform results. Owned by
 	 * the React plugin for the app's lifetime. When omitted, the strategy
@@ -123,7 +122,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 */
 	private context: DefaultHmrContext;
 	private pageMetadataCache: ReactHmrPageMetadataCache;
-	private explicitGraphEnabled: boolean;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 
@@ -132,7 +130,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.context = options.context;
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
-		this.explicitGraphEnabled = options.explicitGraphEnabled ?? false;
 		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
 		this.mdxCompilerOptions = options.mdxCompilerOptions;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);

@@ -109,6 +109,14 @@ Think about each React page as two related graphs:
 
 The React integration builds the client graph conservatively. If a server-only module becomes reachable from the hydrated render path, the build should fail rather than silently shipping unsafe code.
 
+### `explicitGraph` option
+
+`reactPlugin({ explicitGraph: true })` forces the page browser graph (hydration assets) to emit for every React page, even when the page does not declare `dependencies.modules` and no router is configured.
+
+It does **not** disable the client-graph AST boundary. Server-only `eco.page(...)` options such as `middleware` and `requires` are still stripped from browser bundles. With a router adapter, page hydration is already always on, so the option is redundant for SPA apps.
+
+The option name is historical — it forces hydration asset emission, it does not mean “skip graph transforms.”
+
 ### What Stays and What Goes
 
 The client bundle keeps:

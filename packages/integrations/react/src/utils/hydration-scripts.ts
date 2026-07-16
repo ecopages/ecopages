@@ -5,28 +5,25 @@
  */
 
 import type { ReactRouterAdapter } from '../router-adapter.ts';
-import { getDevPageDataReaderBootstrapSource, getProdPageDataReaderBootstrapSource } from '../page-data-reader.ts';
+import { getDevPageDataReaderBootstrapSource } from '../page-data-reader.ts';
 
 const DEFAULT_LAYOUT_COMPOSE_IMPORT_PATH = '@ecopages/react/layout-compose';
 const PAGE_LAYOUT_NORMALIZATION_IMPORT = '@ecopages/core/eco/page-layout-normalization';
 
-function getDevPageDataReaderSource(options: HydrationScriptOptions): string {
+function getPageDataReaderSource(options: HydrationScriptOptions): string {
 	if (options.pageDataReaderImportPath) {
 		return `import { readPageDataDocument, getPageDataFromDocument as getPageData } from "${options.pageDataReaderImportPath}";`;
 	}
 	return getDevPageDataReaderBootstrapSource();
 }
 
-function getProdPageDataReaderSource(options: HydrationScriptOptions): string {
-	if (options.pageDataReaderImportPath) {
-		return `import{readPageDataDocument as rd,getPageDataFromDocument as gd}from"${options.pageDataReaderImportPath}";`;
-	}
-	return getProdPageDataReaderBootstrapSource();
-}
-
 function resolveLayoutComposeImportPath(options: HydrationScriptOptions): string {
 	return options.layoutComposeImportPath ?? DEFAULT_LAYOUT_COMPOSE_IMPORT_PATH;
 }
+
+/**
+ * Options for generating a hydration script.
+ */
 export type HydrationScriptOptions = {
 	/** The module path imported by the page entry module. */
 	importPath: string;
@@ -40,8 +37,14 @@ export type HydrationScriptOptions = {
 	reactDomClientImportPath: string;
 	/** Direct import path for router runtime module */
 	routerImportPath?: string;
-	/** Whether running in development mode with HMR support */
-	isDevelopment: boolean;
+	/**
+	 * When true, emit HMR registration and hot-reload handlers.
+	 *
+	 * @remarks
+	 * The asset layer uses the same flag to leave HMR entries unbundled. When
+	 * false, this generator emits the same readable bootstrap without HMR hooks.
+	 */
+	hmrEnabled: boolean;
 	/** Whether the source file is an MDX file */
 	isMdx: boolean;
 	/** Optional router adapter for SPA navigation */
@@ -74,13 +77,22 @@ export type IslandHydrationScriptOptions = {
 	componentRef?: string;
 	/** Optional source file hint used as fallback for component resolution. */
 	componentFile?: string;
-	/** Enables development-oriented non-minified output. */
-	isDevelopment: boolean;
+	/**
+	 * When true, emit a compact source string.
+	 *
+	 * @remarks
+	 * Island bootstraps use `bundle: false`, so compact output must be generated
+	 * here rather than delegated to the bundler.
+	 */
+	minify: boolean;
 };
 
 /**
- * Generates the import statement for the page component.
- * MDX files use namespace imports to access the config export.
+ * Generates the page component import for the hydration entry.
+ *
+ * @remarks
+ * MDX pages need a namespace import so `config` can be copied onto the default
+ * export before layout normalization runs.
  */
 function getImportStatement(importPath: string, isMdx: boolean): string {
 	return isMdx
@@ -95,8 +107,7 @@ if (MDXModule.config) {
 }
 
 /**
- * Generates the HMR import statement for hot-reloading.
- * MDX files need to extract config from the new module.
+ * Assigns `NewPage` from a hot-reloaded module, including MDX `config` reattach.
  */
 function getHmrImportStatement(isMdx: boolean): string {
 	return isMdx
@@ -108,39 +119,30 @@ if (newModule.config) {
 		: 'const NewPage = newModule.default;';
 }
 
-/**
- * Returns the component type label for logging.
- */
 function getComponentType(isMdx: boolean): string {
 	return isMdx ? 'MDX' : 'React';
 }
 
 /**
- * Generates the development cleanup hook for the page-level React root.
+ * Browser hook that unmounts the page React root and releases navigation ownership.
  *
- * Why this exists:
- * browser-router and React-router hand document ownership back and forth. The
- * client runtime therefore needs a single cleanup entry point that can unmount
- * the active React root, clear ownership flags, and discard serialized page data
- * before a non-React renderer or a fresh React bootstrap takes over.
- *
- * Why it is emitted as a string:
- * this module generates browser bootstraps, so the cleanup behavior must be
- * embedded directly into the emitted module source.
+ * @remarks
+ * Emitted into the page bootstrap so browser-router / react-router handoff can
+ * tear down React without knowing React root internals.
  */
-function getDevPageRootCleanupScript(): string {
+function getPageRootCleanupScript(): string {
 	return `window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
 window.__ECO_PAGES__.react.cleanupPageRoot = () => {
   const activeRoot = window.__ECO_PAGES__.react?.pageRoot || root;
   if (!activeRoot) {
     window.__ECO_PAGES__.react.pageRoot = null;
-	    window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");
+    window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");
     delete window.__ECO_PAGES__.page;
     return;
   }
   window.__ECO_PAGES__.react.pageRoot = null;
-	  window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");
+  window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");
   delete window.__ECO_PAGES__.page;
   root = null;
   activeRoot.unmount();
@@ -148,16 +150,10 @@ window.__ECO_PAGES__.react.cleanupPageRoot = () => {
 }
 
 /**
- * Minified production variant of the page-root cleanup hook.
- *
- * It mirrors the development behavior exactly so navigation ownership semantics
- * remain identical across environments while keeping the emitted payload small.
+ * Registers react-router with the shared navigation coordinator when it does
+ * not already own SPA navigation.
  */
-function getProdPageRootCleanupScript(): string {
-	return 'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.cleanupPageRoot=()=>{const a=window.__ECO_PAGES__.react?.pageRoot||root;if(!a){window.__ECO_PAGES__.react.pageRoot=null;window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");delete window.__ECO_PAGES__.page;return}window.__ECO_PAGES__.react.pageRoot=null;window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");delete window.__ECO_PAGES__.page;root=null;a.unmount()};';
-}
-
-function getDevRouterBootstrapRegistrationScript(): string {
+function getRouterBootstrapRegistrationScript(): string {
 	return `const currentOwnerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();
 if (!(currentOwnerState?.owner === "react-router" && currentOwnerState.canHandleSpaNavigation)) {
 window.__ECO_PAGES__?.navigation?.register({
@@ -170,11 +166,11 @@ window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");
 }`;
 }
 
-function getProdRouterBootstrapRegistrationScript(): string {
-	return 'const o=window.__ECO_PAGES__?.navigation?.getOwnerState?.();if(!(o?.owner==="react-router"&&o.canHandleSpaNavigation)){window.__ECO_PAGES__?.navigation?.register({owner:"react-router",cleanupBeforeHandoff:async()=>{window.__ECO_PAGES__?.react?.cleanupPageRoot?.()}});window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router")}';
-}
-
-function getDevReuseExistingRouterRootScript(): string {
+/**
+ * Predicate used by router bootstraps to keep a long-lived hydrateRoot across
+ * client navigations when react-router already owns the document.
+ */
+function getReuseExistingRouterRootScript(): string {
 	return `const shouldReuseExistingRouterRoot = () => {
   const ownerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();
   return Boolean(
@@ -185,50 +181,111 @@ function getDevReuseExistingRouterRootScript(): string {
 };`;
 }
 
-function getProdReuseExistingRouterRootScript(): string {
-	return 'const sr=()=>{const o=window.__ECO_PAGES__?.navigation?.getOwnerState?.();return!!(window.__ECO_PAGES__.react?.pageRoot&&o?.owner==="react-router"&&o.canHandleSpaNavigation)};';
-}
-
-function getDevRerunRegistrationScript(scriptId: string): string {
+/**
+ * Registers `mount` under `window.__ECO_PAGES__.rerunScripts` for after-swap re-execution.
+ */
+function getRerunRegistrationScript(scriptId: string): string {
 	return `window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
 window.__ECO_PAGES__.rerunScripts = window.__ECO_PAGES__.rerunScripts || {};
 window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}] = mount;`;
 }
 
-function getProdRerunRegistrationScript(scriptId: string): string {
-	return `window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.rerunScripts=window.__ECO_PAGES__.rerunScripts||{};window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}]=m;`;
+/**
+ * HMR handler for router pages: prefers coordinator reload when layouts change,
+ * otherwise re-renders the existing root.
+ */
+function getRouterHmrHandlerScript(options: {
+	importPath: string;
+	isMdx: boolean;
+}): string {
+	const { importPath, isMdx } = options;
+	return `  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
+    try {
+      const newModule = await import(newUrl);
+      const nextProps = getPageData();
+      ${getHmrImportStatement(isMdx)}
+      const currentPageLayoutStack = (Component) =>
+        (Component.config?.layouts ?? []).map((layout) => layout?.config?.__eco?.file ?? '').join('|');
+      const currentPageLayoutStackKey = currentPageLayoutStack(Page);
+      const nextPageLayoutStackKey = currentPageLayoutStack(NewPage);
+
+      if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
+        await window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({
+          clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey,
+          moduleUrl: newUrl,
+          source: "react-router"
+        });
+        console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
+        return;
+      }
+
+      const nextPageData = readPageDataDocument();
+      window.__ECO_PAGES__.page = {
+        module: nextPageData.moduleUrl || pageModuleUrl,
+        props: nextProps
+      };
+      root.render(createTree(NewPage, nextProps));
+      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
+    } catch (e) {
+      console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
+    }
+  };`;
 }
 
 /**
- * Creates development hydration script with router support.
- *
- * Why this branch exists:
- * router-managed React pages keep a long-lived root across client-side
- * navigations. The bootstrap therefore hydrates once, reuses that root for
- * future renders, exposes cleanup for ownership handoff, and lets the router
- * adapter reconstruct page content instead of rebuilding layout trees here.
- *
- * How it works:
- * - imports the page module and router runtime pieces
- * - reads serialized page props from the server payload
- * - hydrates or re-renders the shared page root
- * - installs HMR handlers that either ask the router to reload the active page
- *   or patch the current root directly when the router is inactive
+ * HMR handler for non-router pages: hot-imports the module and re-renders the layout tree.
  */
-function createDevScriptWithRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath, scriptId } =
-		options;
+function getNonRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean }): string {
+	const { importPath, isMdx } = options;
+	return `  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
+    try {
+      const newModule = await import(newUrl);
+      ${getHmrImportStatement(isMdx)}
+      root.render(createTree(NewPage, props));
+      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
+    } catch (e) {
+      console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
+    }
+  };`;
+}
+
+/**
+ * Creates a readable hydration script with router support.
+ *
+ * @remarks
+ * Router-managed pages keep a long-lived root across client navigations.
+ * When `hmrEnabled` is true, HMR handlers are included. Otherwise the same
+ * semantic source is emitted without HMR hooks; the asset layer bundles it and
+ * production builds minify it.
+ */
+function createScriptWithRouter(options: HydrationScriptOptions): string {
+	const {
+		importPath,
+		isMdx,
+		router,
+		reactImportPath,
+		reactDomClientImportPath,
+		routerImportPath,
+		scriptId,
+		hmrEnabled,
+	} = options;
 	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
 	const { components, getRouterProps } = router!;
 	if (!routerImportPath) {
 		throw new Error('routerImportPath is required when router adapter is configured');
 	}
 
+	const hmrInit = hmrEnabled
+		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
+`
+		: '';
+	const hmrHandler = hmrEnabled ? getRouterHmrHandlerScript({ importPath, isMdx }) : '';
+
 	return `
 import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { ${components.router}, ${components.pageContent} } from "${routerImportPath}";
-${getDevPageDataReaderSource(options)}
+${getPageDataReaderSource(options)}
 ${getImportStatement(importPath, isMdx)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
@@ -238,13 +295,12 @@ const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script
 if (isActivePageEntry) {
 
 window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
-window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
-window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
+${hmrInit}window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
 window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;
 let root = window.__ECO_PAGES__.react.pageRoot;
-${getDevPageRootCleanupScript()}
-${getDevRouterBootstrapRegistrationScript()}
-${getDevReuseExistingRouterRootScript()}
+${getPageRootCleanupScript()}
+${getRouterBootstrapRegistrationScript()}
+${getReuseExistingRouterRootScript()}
 
 const initialPageData = readPageDataDocument();
 const props = initialPageData.props;
@@ -281,40 +337,10 @@ const mount = () => {
     onRecoverableError: (err) => console.warn("[ecopages] Hydration error:", err)
   });
   window.__ECO_PAGES__.react.pageRoot = root;
-  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
-    try {
-      const newModule = await import(newUrl);
-      const nextProps = getPageData();
-      ${getHmrImportStatement(isMdx)}
-      const currentPageLayoutStack = (Component) =>
-        (Component.config?.layouts ?? []).map((layout) => layout?.config?.__eco?.file ?? '').join('|');
-      const currentPageLayoutStackKey = currentPageLayoutStack(Page);
-      const nextPageLayoutStackKey = currentPageLayoutStack(NewPage);
-
-      if (window.__ECO_PAGES__?.navigation?.getOwnerState().owner === "react-router") {
-        await window.__ECO_PAGES__?.navigation?.reloadCurrentPage?.({
-          clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey,
-          moduleUrl: newUrl,
-          source: "react-router"
-        });
-        console.log("[ecopages] ${getComponentType(isMdx)} component updated via router");
-        return;
-      }
-
-      const nextPageData = readPageDataDocument();
-      window.__ECO_PAGES__.page = {
-        module: nextPageData.moduleUrl || pageModuleUrl,
-        props: nextProps
-      };
-      root.render(createTree(NewPage, nextProps));
-      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
-    } catch (e) {
-      console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
-    }
-  };
+${hmrHandler}
 };
 
-${getDevRerunRegistrationScript(scriptId)}
+${getRerunRegistrationScript(scriptId)}
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mount);
@@ -326,29 +352,28 @@ if (document.readyState === "loading") {
 }
 
 /**
- * Creates development hydration script without router.
+ * Creates a readable hydration script without router.
  *
- * Why this branch exists:
- * non-router React pages rebuild their layout tree directly from the page
- * module on the client. That means the bootstrap must recreate the page and its
- * optional layout so hydration matches the server HTML exactly.
- *
- * How it works:
- * - imports the page module directly
- * - reconstructs the layout wrapper from `Page.config?.layouts`
- * - hydrates a single document root
- * - patches that root during HMR without involving a router adapter
+ * @remarks
+ * Reconstructs the page and layout tree via `composeLayoutPageTree` so hydration
+ * matches SSR. HMR handlers are included only when `hmrEnabled` is true.
  */
-function createDevScriptWithoutRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId } = options;
+function createScriptWithoutRouter(options: HydrationScriptOptions): string {
+	const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId, hmrEnabled } = options;
 	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
 	const layoutComposeImportPath = resolveLayoutComposeImportPath(options);
+
+	const hmrInit = hmrEnabled
+		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
+`
+		: '';
+	const hmrHandler = hmrEnabled ? getNonRouterHmrHandlerScript({ importPath, isMdx }) : '';
 
 	return `
 import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { composeLayoutPageTree } from "${layoutComposeImportPath}";
-${getDevPageDataReaderSource(options)}
+${getPageDataReaderSource(options)}
 ${getImportStatement(importPath, isMdx)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
@@ -358,11 +383,10 @@ const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script
 if (isActivePageEntry) {
 
 window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
-window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
-window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
+${hmrInit}window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
 window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;
 let root = window.__ECO_PAGES__.react.pageRoot;
-${getDevPageRootCleanupScript()}
+${getPageRootCleanupScript()}
 
 const initialPageData = readPageDataDocument();
 const props = initialPageData.props;
@@ -391,19 +415,10 @@ const mount = () => {
     });
     window.__ECO_PAGES__.react.pageRoot = root;
   }
-  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
-    try {
-      const newModule = await import(newUrl);
-      ${getHmrImportStatement(isMdx)}
-      root.render(createTree(NewPage, props));
-      console.log("[ecopages] ${getComponentType(isMdx)} component updated");
-    } catch (e) {
-      console.error("[ecopages] Failed to hot-reload ${getComponentType(isMdx)} component:", e);
-    }
-  };
+${hmrHandler}
 };
 
-${getDevRerunRegistrationScript(scriptId)}
+${getRerunRegistrationScript(scriptId)}
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mount);
@@ -415,101 +430,22 @@ if (document.readyState === "loading") {
 }
 
 /**
- * Creates minified production hydration script with router support.
+ * Creates a page hydration entry module.
  *
- * This is the production counterpart to `createDevScriptWithRouter()`. The
- * ownership and hydration behavior is the same; only the emitted source is
- * compressed for delivery.
- */
-function createProdScriptWithRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, router, reactImportPath, reactDomClientImportPath, routerImportPath, scriptId } =
-		options;
-	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
-	const { components, getRouterProps } = router!;
-	if (!routerImportPath) {
-		throw new Error('routerImportPath is required when router adapter is configured');
-	}
-
-	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import{ensurePageConfigLayouts as epl}from"${PAGE_LAYOUT_NORMALIZATION_IMPORT}";import*as M from"${importPath}";${getProdPageDataReaderSource(options)}const P=M.default;if(M.config){P.config=M.config;epl(P.config);}const u=${pageModuleUrlExpression};export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}${getProdReuseExistingRouterRootScript()}const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};${getProdRerunRegistrationScript(scriptId)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
-	}
-
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{${components.router} as R,${components.pageContent} as PC}from"${routerImportPath}";import P from"${importPath}";${getProdPageDataReaderSource(options)}const u=${pageModuleUrlExpression};export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}${getProdRouterBootstrapRegistrationScript()}${getProdReuseExistingRouterRootScript()}const ct=(C,p)=>ce(R,${getRouterProps('C', 'p')},ce(PC));const m=()=>{const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};${getProdRerunRegistrationScript(scriptId)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
-}
-
-/**
- * Creates the minified production hydration script for non-router pages.
- *
- * In this mode the page module is responsible for reconstructing its own layout
- * tree. If the server serialized request `locals`, the script forwards those
- * values to the layout as well as the page so hydration matches the server HTML.
- * The runtime semantics mirror the development path; only the emitted source is
- * condensed.
- */
-function createProdScriptWithoutRouter(options: HydrationScriptOptions): string {
-	const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId } = options;
-	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
-	const layoutComposeImportPath = resolveLayoutComposeImportPath(options);
-
-	if (isMdx) {
-		return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{composeLayoutPageTree as clp}from"${layoutComposeImportPath}";import{ensurePageConfigLayouts as epl}from"${PAGE_LAYOUT_NORMALIZATION_IMPORT}";import*as M from"${importPath}";${getProdPageDataReaderSource(options)}const P=M.default;if(M.config){P.config=M.config;epl(P.config);}const u=${pageModuleUrlExpression};export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const ct=(C,p)=>clp(C,p);const m=()=>{const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};${getProdRerunRegistrationScript(scriptId)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
-	}
-
-	return `import{hydrateRoot as hr}from"${reactDomClientImportPath}";import{createElement as ce}from"${reactImportPath}";import{composeLayoutPageTree as clp}from"${layoutComposeImportPath}";import P from"${importPath}";${getProdPageDataReaderSource(options)}const u=${pageModuleUrlExpression};export default P;export const config=P.config;const a=!!document.querySelector('script[data-eco-script-id="${scriptId}"]');if(a){window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.react=window.__ECO_PAGES__.react||{};window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;let root=window.__ECO_PAGES__.react.pageRoot;${getProdPageRootCleanupScript()}const ct=(C,p)=>clp(C,p);const m=()=>{const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}root=hr(document.body,ct(P,pr),{onRecoverableError:(e)=>console.warn("[ecopages] Hydration error:",e)});window.__ECO_PAGES__.react.pageRoot=root};${getProdRerunRegistrationScript(scriptId)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m):m()}`;
-}
-
-/**
- * Creates a hydration script for client-side React hydration.
- *
- * Why this dispatcher exists:
- * the runtime matrix is small but behaviorally different across development vs
- * production and router vs non-router pages. Keeping that branch here preserves
- * a compact public API while allowing each emitted script to stay focused.
- *
- * Selection rules:
- * - development uses readable scripts with HMR hooks
- * - production uses minified equivalents
- * - router presence decides whether page updates flow through the router runtime
- *   or rebuild directly from the page module
- *
- * @param options - Configuration options for script generation
- * @returns The generated hydration script as a string
+ * @remarks
+ * Always emits readable source. Production page assets set `bundle: true` so
+ * core's content-script processor minifies the result. Do not hand-minify here.
  */
 export function createHydrationScript(options: HydrationScriptOptions): string {
-	const { isDevelopment, router } = options;
-
-	if (isDevelopment) {
-		return router ? createDevScriptWithRouter(options) : createDevScriptWithoutRouter(options);
-	}
-
-	return router ? createProdScriptWithRouter(options) : createProdScriptWithoutRouter(options);
+	return options.router ? createScriptWithRouter(options) : createScriptWithoutRouter(options);
 }
 
 /**
  * Creates the client bootstrap for component-level React islands.
  *
- * The island runtime intentionally uses `createRoot()` (not `hydrateRoot()`) and
- * mounts into the SSR element identified by `targetSelector`.
- *
- * Rationale:
- * - No synthetic wrapper element is introduced in SSR output.
- * - DOM structure remains identical to authored component markup.
- * - Runtime ownership is isolated per island instance.
- *
- * Generated script behavior:
- * - resolves the component export by metadata (`componentRef`, `componentFile`)
- *   before falling back to default/first function export
- * - selects island root using `targetSelector`
- * - replaces the SSR host with a dedicated client-owned container
- * - creates a fresh React root and renders with serialized `props`
- *
- * Why it remounts instead of hydrating:
- * island SSR intentionally avoids synthetic wrapper elements. The runtime swaps
- * the authored SSR node for a dedicated client-owned container before mounting
- * so the server markup stays clean while the client still gets a stable root.
- *
- * @param options Island script generation options.
- * @returns Browser-executable JavaScript module source.
+ * @remarks
+ * Island scripts use `bundle: false`, so compact output still needs a
+ * handwritten string.
  */
 export function createIslandHydrationScript(options: IslandHydrationScriptOptions): string {
 	const targetSelector = JSON.stringify(options.targetSelector);
@@ -517,8 +453,11 @@ export function createIslandHydrationScript(options: IslandHydrationScriptOption
 	const componentFile = JSON.stringify(options.componentFile ?? '');
 	const scriptId = options.scriptId;
 
-	if (options.isDevelopment) {
-		return `
+	if (options.minify) {
+		return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.rerunScripts=window.__ECO_PAGES__.rerunScripts||{};window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}]=m;document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
+	}
+
+	return `
 import { createRoot } from "${options.reactDomClientImportPath}";
 import { createElement } from "${options.reactImportPath}";
 import * as ComponentModule from "${options.importPath}";
@@ -570,7 +509,7 @@ const mount = () => {
   });
 };
 
-${getDevRerunRegistrationScript(scriptId)}
+${getRerunRegistrationScript(scriptId)}
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mount, { once: true });
@@ -578,7 +517,4 @@ if (document.readyState === "loading") {
   mount();
 }
 `.trim();
-	}
-
-	return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};${getProdRerunRegistrationScript(scriptId)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
 }

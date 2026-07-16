@@ -103,6 +103,33 @@ async function incrementLitCounter(counter: Locator, expectedValue: string) {
 		.toBe(expectedValue);
 }
 
+async function waitForRadiantCounterReady(counter: Locator) {
+	await expect(counter).toHaveCount(1);
+	await expect
+		.poll(
+			async () =>
+				counter.evaluate(async (element) => {
+					const tagName = 'radiant-counter';
+					if (!customElements.get(tagName)) {
+						await customElements.whenDefined(tagName);
+					}
+
+					const RadiantCounter = customElements.get(tagName);
+					if (!RadiantCounter || !(element instanceof RadiantCounter)) {
+						return false;
+					}
+
+					const value = element.querySelector('[data-radiant-value]')?.textContent?.trim() ?? '';
+					return value !== '';
+				}),
+			{
+				intervals: [100, 200, 350, 500],
+				timeout: 5000,
+			},
+		)
+		.toBe(true);
+}
+
 export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {
 	await expect
 		.poll(
@@ -149,6 +176,7 @@ export async function assertRadiantCounterInteractivity(counter: Locator, initia
 	const increment = counter.locator('[data-radiant-inc]');
 
 	await expect(counter).toBeVisible();
+	await waitForRadiantCounterReady(counter);
 	await expect(value).toHaveText(initialValue);
 	await incrementCounter(increment, value, String(Number(initialValue) + 1));
 }
@@ -167,6 +195,7 @@ export async function assertFourCountersVisible(root: Locator) {
 	await waitForLitCounterReady(litCounter);
 	await expect(reactCounter).toHaveCount(1);
 	await expect(radiantCounter).toHaveCount(1);
+	await waitForRadiantCounterReady(radiantCounter);
 
 	await expect(kitaCounter).toBeVisible();
 	await expect.poll(() => readLitCounterValue(litCounter), { timeout: 5000 }).not.toBe('');

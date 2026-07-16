@@ -8,31 +8,31 @@
 		"plugin"
 	],
 	"license": "MIT",
-	"main": "./src/react.plugin.ts",
-	"types": "./src/react.plugin.ts",
+	"main": "./src/plugin/react.plugin.ts",
+	"types": "./src/plugin/react.plugin.ts",
 	"type": "module",
 	"files": [
 		"src"
 	],
 	"exports": {
 		".": {
-			"default": "./src/react.plugin.ts",
-			"types": "./src/react.plugin.ts"
+			"default": "./src/plugin/react.plugin.ts",
+			"types": "./src/plugin/react.plugin.ts"
 		},
 		"./eco-embed": {
-			"default": "./src/eco-embed.tsx",
-			"types": "./src/eco-embed.tsx"
+			"default": "./src/render/eco-embed.tsx",
+			"types": "./src/render/eco-embed.tsx"
 		},
 		"./declarations": {
-			"types": "./src/declarations.d.ts"
+			"types": "./src/contracts/declarations.d.ts"
 		},
-		"./utils/dynamic": "./src/utils/dynamic.ts",
-		"./utils/client-only": "./src/utils/client-only.ts",
+		"./utils/dynamic": "./src/app/dynamic.ts",
+		"./utils/client-only": "./src/app/client-only.ts",
 		"./runtime/use-sync-external-store-with-selector": "./src/runtime/use-sync-external-store-with-selector.ts",
-		"./router-adapter": "./src/router-adapter.ts",
-		"./layout-compose": "./src/layout-compose.ts",
-		"./serialize-page-data-script": "./src/serialize-page-data-script.ts",
-		"./page-data-reader": "./src/page-data-reader.ts"
+		"./router-adapter": "./src/contracts/router-adapter.ts",
+		"./layout-compose": "./src/render/layout-compose.ts",
+		"./serialize-page-data-script": "./src/hydration/serialize-page-data-script.ts",
+		"./page-data-reader": "./src/hydration/page-data-reader.ts"
 	},
 	"repository": {
 		"type": "git",

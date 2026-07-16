@@ -3,8 +3,8 @@ import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import { ReactRenderer } from '../react-renderer';
-import { reactPlugin } from '../react.plugin';
+import { ReactRenderer } from '../render/react-renderer.ts';
+import { reactPlugin } from '../plugin/react.plugin.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};

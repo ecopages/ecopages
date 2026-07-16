@@ -26,7 +26,13 @@ import {
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
-import { type PageState, fetchPageDocument, loadPageModuleFromDocument } from './navigation.ts';
+import { type PageState } from './navigation.ts';
+import {
+	applyHandoffNavigation,
+	applySpaNavigation,
+	decideQueuedNavigationReplay,
+	resolveReactNavigation,
+} from './navigation-orchestrator.ts';
 import { morphHead } from './head-morpher.ts';
 import { applyViewTransitionNames } from '@ecopages/core/client/view-transitions';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
@@ -42,13 +48,11 @@ import {
 	composeLayoutPageTree,
 	assertComposablePage,
 	normalizePageLayoutComponents,
-	resolveLayoutContext,
-	resolveLayoutEntryProps,
 	type ComposablePage,
 } from '@ecopages/react/layout-compose';
+import type { EcoComponent } from '@ecopages/core';
 import {
 	getAnchorFromNavigationEvent,
-	isStaticAssetHref,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
@@ -137,29 +141,19 @@ export const PageContent: FC = () => {
 	const composablePage = assertComposablePage(Page);
 	const layoutComponents = resolvePageLayoutStack(composablePage.config);
 	const shouldRefreshPersistedLayout = Boolean(refreshPersistedLayout);
+	const persistedTiers =
+		persistLayouts && layoutComponents.length > 0
+			? resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout)
+			: undefined;
 
-	if (persistLayouts && layoutComponents.length > 0) {
-		const pageElement = createElement(Page, props);
-		const layoutContext = resolveLayoutContext(props);
-		const layoutEntries = composablePage.config?.layoutEntries;
-		const fallbackLayoutProps = layoutContext.locals ? { locals: layoutContext.locals } : {};
-		const persistedTiers = resolvePersistedLayoutStack(layoutComponents, shouldRefreshPersistedLayout);
-
-		const tree = persistedTiers.reduceRight<ReactNode>(
-			(children, { layout: CachedLayout, key: layoutKey }, index) => {
-				const layoutEntry = layoutEntries?.[index];
-				const layoutProps = layoutEntry
-					? resolveLayoutEntryProps(layoutEntry, layoutContext)
-					: fallbackLayoutProps;
-				return createElement(CachedLayout, { key: layoutKey, ...layoutProps }, children);
-			},
-			pageElement,
-		);
-
-		return tree;
-	}
-
-	return composeLayoutPageTree(composablePage, props);
+	return composeLayoutPageTree(composablePage, props, {
+		resolvePersistedTier: persistedTiers
+			? (_layout, index) => ({
+					layout: persistedTiers[index]!.layout as EcoComponent,
+					key: persistedTiers[index]!.key,
+				})
+			: undefined,
+	});
 };
 
 function createDeferred<T>() {
@@ -209,7 +203,10 @@ function useNavigationCoordinator(
 		}
 
 		const currentUrl = window.location.pathname + window.location.search;
-		await navigate(currentUrl, { moduleUrlOverride: request?.moduleUrl });
+		await navigate(currentUrl, {
+			moduleUrlOverride: request?.moduleUrl,
+			skipViewTransition: true,
+		});
 		return true;
 	});
 
@@ -370,14 +367,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			activeNavigationRef.current = navigation;
 			const navigationId = navigation.id;
 			const isStale = () => !navigation.isCurrent();
-			const commitPageData = (moduleUrl: string, props: Record<string, unknown>) => {
-				window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
-				window.__ECO_PAGES__.page = {
-					module: moduleUrl,
-					props,
-				};
-			};
-			const preparePendingRender = (nextPage: RouterPageState) => {
+			const waitForRender = (nextPage: RouterPageState) => {
 				pendingRenderRef.current?.resolve();
 				const renderDfd = createDeferred<void>();
 				pendingRenderRef.current = {
@@ -387,151 +377,138 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 				};
 				return renderDfd.promise;
 			};
-			let navigationCommitPromise: Promise<void> | null = null;
 
 			try {
+				isNavigatingRef.current = true;
 				setIsNavigating(true);
 
-				if (isStaticAssetHref(url)) {
-					window.location.assign(new URL(url, window.location.origin).href);
-					return;
-				}
-
-				const fetchedPage = await fetchPageDocument(url, { signal: navigation.signal });
-
-				if (isStale()) return;
-
-				if (!fetchedPage) {
-					window.location.href = url;
-					return;
-				}
-
-				const result = await loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath, {
+				const outcome = await resolveReactNavigation({
+					url,
+					signal: navigation.signal,
+					isStale,
+					isPopState,
+					pushHistory,
 					moduleUrlOverride,
 				});
 
-				if (isStale()) return;
-
-				if (result) {
-					const { Component, props, doc, finalPath, moduleUrl } = result;
-					const nextPage = { Component, props, refreshPersistedLayout: Boolean(moduleUrlOverride) };
-					const { cleanup: cleanupHead, flushRerunScripts } = await morphHead(doc);
-					const finalizeCommittedNavigation = () => {
-						committedPathRef.current = finalPath;
-						flushRerunScripts();
-						cleanupHead();
-						applyViewTransitionNames();
-						restoreScrollPositions(finalPath, isPopState);
-					};
-					const commitNextPage = () => {
-						commitPageData(moduleUrl, props);
-						setCurrentPage(nextPage);
-					};
-
-					if (isStale()) {
-						cleanupHead();
-						return;
-					}
-
-					applyViewTransitionNames();
-
-					saveScrollPositions();
-
-					if (pushHistory) {
-						window.history.pushState(null, '', finalPath);
-					} else if (finalPath !== url) {
-						window.history.replaceState(null, '', finalPath);
-					}
-
-					if (!skipViewTransition && options.viewTransitions && document.startViewTransition) {
-						const renderPromise = preparePendingRender(nextPage);
-
-						navigationCommitPromise = new Promise<void>((resolve) => {
-							document.startViewTransition(async () => {
-								try {
-									if (isStale()) {
-										if (pendingRenderRef.current?.navigationId === navigationId) {
-											pendingRenderRef.current.resolve();
-											pendingRenderRef.current = null;
-										}
-										cleanupHead();
-										return;
-									}
-									startTransition(() => {
-										commitNextPage();
-									});
-									await renderPromise;
-									if (isStale()) {
-										return;
-									}
-									finalizeCommittedNavigation();
-								} finally {
-									resolve();
-								}
-							});
-						});
-						await navigationCommitPromise;
-					} else {
-						const renderPromise = preparePendingRender(nextPage);
-						commitNextPage();
-						await renderPromise;
-						if (isStale()) {
-							cleanupHead();
-							return;
-						}
-						finalizeCommittedNavigation();
-					}
-				} else {
-					if (isStale()) return;
-
-					const handled = await navigationRuntime.requestHandoff({
-						href: url,
-						finalHref: fetchedPage.finalPath,
-						direction: isPopState ? 'back' : pushHistory ? 'forward' : 'replace',
-						source: 'react-router',
-						targetOwner: 'browser-router',
-						document: fetchedPage.doc,
-						html: fetchedPage.html,
-						isStaleSourceNavigation: isStale,
-					});
-
-					if (!handled) {
-						window.location.assign(fetchedPage.finalPath);
-					}
+				if (outcome.kind === 'stale') {
+					return;
 				}
+
+				if (outcome.kind === 'hard-navigation') {
+					if (outcome.mode === 'assign') {
+						window.location.assign(outcome.href);
+					} else {
+						window.location.href = outcome.href;
+					}
+					return;
+				}
+
+				if (outcome.kind === 'spa') {
+					await applySpaNavigation(
+						outcome,
+						{
+							isStale,
+							morphHead,
+							applyViewTransitionNames,
+							saveScrollPositions,
+							restoreScrollPositions,
+							updateHistory: (finalPath, requestedUrl, direction) => {
+								if (direction === 'forward') {
+									window.history.pushState(null, '', finalPath);
+								} else if (finalPath !== requestedUrl) {
+									window.history.replaceState(null, '', finalPath);
+								}
+							},
+							commitPageData: (moduleUrl, props) => {
+								window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
+								window.__ECO_PAGES__.page = {
+									module: moduleUrl,
+									props,
+								};
+							},
+							setCurrentPage,
+							waitForRender,
+							runInReactTransition: (update) => {
+								startTransition(update);
+							},
+							startViewTransition:
+								!skipViewTransition && options.viewTransitions && document.startViewTransition
+									? (update) =>
+											new Promise<void>((resolve) => {
+												document.startViewTransition(async () => {
+													try {
+														await update();
+													} finally {
+														if (
+															isStale() &&
+															pendingRenderRef.current?.navigationId === navigationId
+														) {
+															pendingRenderRef.current.resolve();
+															pendingRenderRef.current = null;
+														}
+														resolve();
+													}
+												});
+											})
+									: undefined,
+							onCommittedPath: (finalPath) => {
+								committedPathRef.current = finalPath;
+							},
+						},
+						{ skipViewTransition, isPopState },
+					);
+					return;
+				}
+
+				await applyHandoffNavigation(outcome, {
+					isStale,
+					requestHandoff: (request) =>
+						navigationRuntime.requestHandoff({
+							...request,
+							source: 'react-router',
+							targetOwner: 'browser-router',
+						}),
+					hardAssign: (href) => {
+						window.location.assign(href);
+					},
+				});
+			} finally {
 				if (!isStale()) {
+					isNavigatingRef.current = false;
 					setIsNavigating(false);
 				}
-			} finally {
+
 				const shouldReplayQueuedNavigation = activeNavigationRef.current?.id === navigationId;
 				const queuedNavigationHref = shouldReplayQueuedNavigation ? queuedNavigationHrefRef.current : null;
-				const queuedNavigationPath = queuedNavigationHref
-					? new URL(queuedNavigationHref, window.location.origin).pathname +
-						new URL(queuedNavigationHref, window.location.origin).search
-					: null;
+				const replay = decideQueuedNavigationReplay({
+					queuedHref: queuedNavigationHref,
+					committedPath: committedPathRef.current,
+					runtimeActive: runtimeActiveRef.current,
+				});
+
 				navigation.complete();
 				if (activeNavigationRef.current?.id === navigationId) {
 					activeNavigationRef.current = null;
 				}
 
-				if (queuedNavigationHref && queuedNavigationPath !== committedPathRef.current) {
+				if (replay.kind !== 'none') {
 					queuedNavigationHrefRef.current = null;
 
-					if (runtimeActiveRef.current) {
-						void navigate(queuedNavigationHref, { pushHistory: true });
+					if (replay.kind === 'local-navigate') {
+						void navigate(replay.href, { pushHistory: true });
 					} else {
-						// React may finish after control has already moved to another runtime.
-						// In that case replay the queued click through the shared coordinator
-						// so the newest navigation still lands on its intended owner.
+						// React finished after cleanup-before-handoff released ownership.
+						// Replay through the coordinator so the active owner receives the intent.
 						void navigationRuntime
 							.requestNavigation({
-								href: queuedNavigationHref,
+								href: replay.href,
 								direction: 'forward',
 								source: 'react-router',
 							})
 							.then((handled) => {
 								if (!handled) {
-									window.location.assign(queuedNavigationHref);
+									window.location.assign(replay.href);
 								}
 							});
 					}

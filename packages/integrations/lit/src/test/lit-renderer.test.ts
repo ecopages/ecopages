@@ -9,10 +9,12 @@ import {
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
 import { LitRenderer } from '../lit-renderer.ts';
+import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 let customElementIndex = 0;
 
@@ -958,6 +960,95 @@ describe('LitRenderer', () => {
 			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
 				'Error rendering view: View failed to render',
 			);
+		});
+	});
+
+	describe('lazy worker session', () => {
+		it('uses the worker after plugin setup assigns a session to a pre-created renderer', async () => {
+			const sessionHolder: { current?: Pick<LitStaticRenderSession, 'renderPageInWorker'> } = {};
+			const renderPageInWorker = vi.fn(async () => ({
+				html: '<html>lazy-worker</html>',
+				cacheStrategy: { revalidate: 15 },
+			}));
+
+			const renderer = new LitRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
+			});
+
+			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
+				body: '<html>in-process</html>',
+			});
+
+			try {
+				await renderer.execute({ file: '/app/pages/index.lit.tsx', params: {} });
+				expect(renderPageInWorker).not.toHaveBeenCalled();
+				expect(inProcessSpy).toHaveBeenCalledTimes(1);
+
+				sessionHolder.current = { renderPageInWorker };
+				inProcessSpy.mockClear();
+
+				const result = await renderer.execute({
+					file: '/app/pages/index.lit.tsx',
+					params: { slug: ['a', 'b'] },
+					query: { tag: ['x', 'y'] },
+				});
+
+				expect(inProcessSpy).not.toHaveBeenCalled();
+				expect(renderPageInWorker).toHaveBeenCalledWith({
+					filePath: '/app/pages/index.lit.tsx',
+					params: { slug: ['a', 'b'] },
+					query: { tag: ['x', 'y'] },
+				});
+				expect(result).toEqual({
+					body: '<html>lazy-worker</html>',
+					cacheStrategy: { revalidate: 15 },
+				});
+			} finally {
+				inProcessSpy.mockRestore();
+			}
+		});
+
+		it('forces in-process execute when locals are present', async () => {
+			const renderPageInWorker = vi.fn(async () => ({
+				html: '<html>worker</html>',
+			}));
+
+			const renderer = new LitRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				getRenderSession: () =>
+					({
+						renderPageInWorker,
+					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			});
+
+			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
+				body: '<html>locals-in-process</html>',
+			});
+
+			try {
+				const result = await renderer.execute({
+					file: '/app/pages/index.lit.tsx',
+					params: { id: '1' },
+					locals: { requestId: 'req-1' },
+				});
+
+				expect(renderPageInWorker).not.toHaveBeenCalled();
+				expect(inProcessSpy).toHaveBeenCalledWith({
+					file: '/app/pages/index.lit.tsx',
+					params: { id: '1' },
+					locals: { requestId: 'req-1' },
+				});
+				expect(result).toEqual({ body: '<html>locals-in-process</html>' });
+			} finally {
+				inProcessSpy.mockRestore();
+			}
 		});
 	});
 });

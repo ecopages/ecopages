@@ -139,7 +139,7 @@ describe('extractProps', () => {
 		const doc = createMockDocument(`
 			<html><body>
 				<script id="__ECO_PAGE_DATA__" type="application/json">
-					{"v":1,"navigationOwner":"react-router","module":"/assets/docs.js","props":{"slug":"intro"}}
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/docs.js","props":{"slug":"intro"}}
 				</script>
 			</body></html>
 		`);
@@ -260,176 +260,49 @@ describe('extractComponentUrl', () => {
 		const doc = createMockDocument(`
 			<html><body>
 				<script id="__ECO_PAGE_DATA__" type="application/json">
-					{"v":1,"navigationOwner":"react-router","module":"/assets/pages/docs.js","props":{}}
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/pages/docs.js","props":{}}
 				</script>
 			</body></html>
 		`);
 		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-		await expect(extractComponentUrl(doc)).resolves.toBe('/assets/pages/docs.js');
+		expect(extractComponentUrl(doc)).toBe('/assets/pages/docs.js');
 		expect(fetchSpy).not.toHaveBeenCalled();
 		fetchSpy.mockRestore();
 	});
 
-	it('should extract from inline hydration script in fetched document', async () => {
-		const html = `
-			<html>
-				<body>
-					<script type="module" src="/assets/scripts/ecopages-react-123-hydration.js">
-						import Content from './pages/about.js';
-					</script>
-				</body>
-			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi
-			.spyOn(globalThis, 'fetch')
-			.mockResolvedValue(new Response("import Content from './pages/about.js';", { status: 200 }));
-
-		const url = await extractComponentUrl(doc);
-		expect(url).toBe('./pages/about.js');
-
-		fetchSpy.mockRestore();
-	});
-
-	it('should extract from explicit page-module markers in fetched hydration scripts', async () => {
-		const html = `
-			<html>
-				<body>
-					<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module"></script>
-				</body>
-			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(
-				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"/assets/pages/about.js",props:{}};',
-				{
-					status: 200,
-				},
-			),
-		);
-
-		const url = await extractComponentUrl(doc);
-		expect(url).toBe('/assets/pages/about.js');
-
-		fetchSpy.mockRestore();
-	});
-
-	it('should fall back to the hydration script URL for self-owned bundled page entries', async () => {
-		const html = `
-			<html>
-				<body>
-					<script src="/assets/scripts/ecopages-react-123-page.js" type="module"></script>
-				</body>
-			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(
-				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};',
-				{
-					status: 200,
-				},
-			),
-		);
-
-		const url = await extractComponentUrl(doc);
-		expect(url).toBe('http://localhost:63315/assets/scripts/ecopages-react-123-page.js');
-
-		fetchSpy.mockRestore();
-	});
-
-	it('should prefer the explicit page bootstrap marker when grouped route assets do not match legacy filenames', async () => {
-		const html = `
+	it('should use the explicit page bootstrap script src when the envelope is absent', async () => {
+		const doc = createMockDocument(`
 			<html>
 				<body>
 					<script src="/assets/grouped/react-pages-dashboard.js" type="module" data-eco-page-bootstrap="react-router"></script>
 				</body>
 			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(
-				'window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:import.meta.url,props:{}};',
-				{
-					status: 200,
-				},
-			),
-		);
+		`);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 		const url = await extractComponentUrl(doc);
 		expect(url).toBe('http://localhost:63315/assets/grouped/react-pages-dashboard.js');
-
+		expect(fetchSpy).not.toHaveBeenCalled();
 		fetchSpy.mockRestore();
 	});
 
-	it('should resolve aliased import.meta.url markers in generated production route bootstrap scripts', async () => {
+	it('should ignore hydration scripts that are not the page bootstrap entry', async () => {
 		const html = `
 			<html>
 				<body>
-					<script src="/assets/ecopages-react-123.js" type="module"></script>
-				</body>
-			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(
-				'var N=import.meta.url,V=p;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:N,props:{}};',
-				{
-					status: 200,
-				},
-			),
-		);
-
-		const url = await extractComponentUrl(doc);
-		expect(url).toBe('http://localhost:63315/assets/ecopages-react-123.js');
-
-		fetchSpy.mockRestore();
-	});
-
-	it('should ignore unrelated Vite noModule fragments when resolving the page module marker', async () => {
-		const html = `
-			<html>
-				<body>
-					<script src="/assets/ecopages-react-123.js" type="module"></script>
-				</body>
-			</html>
-		`;
-		const doc = createMockDocument(html);
-
-		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(
-				'var attrs={module:noModule,nomodule:"noModule"};var u=import.meta.url;window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:u,props:{}};',
-				{
-					status: 200,
-				},
-			),
-		);
-
-		const url = await extractComponentUrl(doc);
-		expect(url).toBe('http://localhost:63315/assets/ecopages-react-123.js');
-
-		fetchSpy.mockRestore();
-	});
-
-	it('should ignore island hydration assets when extracting a page module URL', async () => {
-		const html = `
-			<html>
-				<body>
+					<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module"></script>
 					<script src="/assets/scripts/ecopages-react-island-123-hydration.js" type="module"></script>
 				</body>
 			</html>
 		`;
 		const doc = createMockDocument(html);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 		const url = await extractComponentUrl(doc);
 		expect(url).toBeNull();
+		expect(fetchSpy).not.toHaveBeenCalled();
+		fetchSpy.mockRestore();
 	});
 });
 
@@ -522,8 +395,7 @@ describe('loadPageModule', () => {
 			[
 				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
 				'<body>',
-				'<script id="__ECO_PAGE_DATA__" type="application/json">{"message":"hello"}</script>',
-				`<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:"${moduleUrl}",props:{message:"hello"}};import Page from "${moduleUrl}"; hydrateRoot(document, Page);</script>`,
+				`<script id="__ECO_PAGE_DATA__" type="application/json">{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"${moduleUrl}","props":{"message":"hello"}}</script>`,
 				'</body>',
 				'</html>',
 			].join(''),
@@ -717,41 +589,5 @@ describe('getLinkNavigationDecision', () => {
 		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
-	});
-});
-
-describe('Cache busting in development', () => {
-	let fetchSpy: ReturnType<typeof vi.spyOn>;
-
-	beforeEach(() => {
-		fetchSpy = vi.spyOn(globalThis, 'fetch');
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it('should add cache buster timestamp to hydration script URL in development', async () => {
-		const mockHtml = `
-			<html>
-				<body>
-					<script type="module" src="/assets/scripts/ecopages-react-123-hydration.js">
-						import Content from './page.js';
-					</script>
-				</body>
-			</html>
-		`;
-
-		fetchSpy.mockResolvedValue(new Response("import Content from './page.js';", { status: 200 }));
-
-		const doc = createMockDocument(mockHtml);
-		await extractComponentUrl(doc);
-
-		const hydrationCalls = fetchSpy.mock.calls.filter((call: [RequestInfo | URL, RequestInit?]) =>
-			call[0].toString().includes('ecopages-react-123-hydration.js'),
-		);
-
-		expect(hydrationCalls.length).toBe(1);
-		expect(hydrationCalls[0][0].toString()).toMatch(/ecopages-react-123-hydration\.js\?t=\d+/);
 	});
 });

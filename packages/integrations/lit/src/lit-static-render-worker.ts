@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { setupAppRuntimePlugins } from '@ecopages/core/build/build-adapter';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
-import type { EcoPagesAppConfig, PageQuery } from '@ecopages/core';
+import type { EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type {
 	LitStaticRenderCacheStrategy,
 	LitStaticRenderWorkerRequestMessage,
@@ -40,7 +40,7 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 
 async function renderPage(
 	filePath: string,
-	params: Record<string, string>,
+	params: PageParams,
 	query?: PageQuery,
 ): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
 	if (!routeRendererFactory) {

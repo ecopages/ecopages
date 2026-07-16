@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { useRouter } from '../src/context.ts';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
@@ -141,6 +142,17 @@ function createMultiLinkPage(name: string, links: Array<{ href: string; label: s
 	return Component;
 }
 
+function createNavigablePageHtml(moduleUrl: string, props: Record<string, unknown> = {}) {
+	return `<html data-eco-document-owner="react-router"><body>
+		<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+			schemaVersion: 1,
+			navigationOwner: 'react-router',
+			moduleUrl,
+			props,
+		})}</script>
+	</body></html>`;
+}
+
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
 	let resolve!: () => void;
 	const promise = new Promise<void>((innerResolve) => {
@@ -245,10 +257,14 @@ describe('EcoRouter HMR Integration', () => {
 			const PageA = createMockPageComponent('PageA');
 			const moduleUrl = new URL('./fixtures/reloaded-page.tsx', import.meta.url).toString();
 			const mockHtml = `
-				<html>
+				<html data-eco-document-owner="react-router">
 					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">{}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:{}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+							schemaVersion: 1,
+							navigationOwner: 'react-router',
+							moduleUrl,
+							props: {},
+						})}</script>
 					</body>
 				</html>
 			`;
@@ -271,10 +287,14 @@ describe('EcoRouter HMR Integration', () => {
 
 			expect(result).toBeInstanceOf(Promise);
 			await expect(result).resolves.toBe(true);
+			await vi.waitFor(() => {
+				expect(container.textContent).toContain('Reloaded page');
+			});
 		});
 
 		it('ignores coordinator reloads while a navigation is still in flight', async () => {
 			const Page = createMultiLinkPage('BusyPage', [{ href: '/next', label: 'next-link' }]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
 			let resolveFetch!: (response: Response) => void;
 			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
 				() =>
@@ -305,8 +325,22 @@ describe('EcoRouter HMR Integration', () => {
 			expect(reloadResult).toBe(false);
 			expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-			resolveFetch(htmlPageResponse('<html><body><main>Done</main></body></html>', { status: 200 }));
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			resolveFetch(
+				htmlPageResponse(
+					`<html data-eco-document-owner="react-router"><body>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+							schemaVersion: 1,
+							navigationOwner: 'react-router',
+							moduleUrl,
+							props: { label: 'done' },
+						})}</script>
+					</body></html>`,
+					{ status: 200 },
+				),
+			);
+			await vi.waitFor(() => {
+				expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'done' });
+			});
 		});
 
 		it('passes locals to layouts when persistLayouts is disabled', async () => {
@@ -660,14 +694,7 @@ describe('EcoRouter HMR Integration', () => {
 		it('intercepts clicks that originate from a text node inside the anchor', async () => {
 			const Page = createMultiLinkPage('TextNodeClick', [{ href: '/fast', label: 'fast-link' }]);
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-			const createHtml = (label: string) => `
-				<html>
-					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
-					</body>
-				</html>
-			`;
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
 			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createHtml('fast'), { status: 200 }));
 
@@ -707,14 +734,7 @@ describe('EcoRouter HMR Integration', () => {
 				{ href: '/fast', label: 'fast-link' },
 			]);
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-			const createHtml = (label: string) => `
-				<html>
-					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
-					</body>
-				</html>
-			`;
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 			const slowFetch = createDeferred();
 			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
 				const url = input.toString();
@@ -785,14 +805,7 @@ describe('EcoRouter HMR Integration', () => {
 				{ href: '/hovered-c', label: 'hovered-c-link' },
 			]);
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-			const createHtml = (label: string) => `
-				<html>
-					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
-					</body>
-				</html>
-			`;
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 			const slowFetch = createDeferred();
 			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
 				const url = input.toString();
@@ -879,14 +892,7 @@ describe('EcoRouter HMR Integration', () => {
 				{ href: '/fast', label: 'fast-link' },
 			]);
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-			const createHtml = (label: string) => `
-				<html>
-					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
-					</body>
-				</html>
-			`;
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = input.toString();
@@ -949,14 +955,7 @@ describe('EcoRouter HMR Integration', () => {
 				owner: 'browser-router',
 				handoffNavigation: handoffSpy,
 			});
-			const createHtml = (label: string) => `
-				<html>
-					<body>
-						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({ label })}</script>
-						<script type="module">window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.page={module:'${moduleUrl}',props:${JSON.stringify({ label })}};import Page from '${moduleUrl}'; hydrateRoot(document, Page);</script>
-					</body>
-				</html>
-			`;
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = input.toString();
@@ -1004,6 +1003,42 @@ describe('EcoRouter HMR Integration', () => {
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
 			unregister();
+		});
+
+		it('clears isNavigating after a successful SPA navigation', async () => {
+			const Page = createMultiLinkPage('NavTerminal', [{ href: '/next', label: 'next-link' }]);
+			const NavigatingProbe = () => {
+				const { isNavigating } = useRouter();
+				return createElement('span', { 'data-testid': 'is-navigating' }, isNavigating ? 'yes' : 'no');
+			};
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+				htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'next' }), { status: 200 }),
+			);
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement('div', null, createElement(PageContent), createElement(NavigatingProbe)),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="is-navigating"]')?.textContent).toBe('no');
+
+			const link = container.querySelector('[data-testid="NavTerminal-next-link"]') as HTMLAnchorElement | null;
+			expect(link).not.toBeNull();
+			await user.click(link as HTMLAnchorElement);
+
+			await vi.waitFor(() => {
+				expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'next' });
+				expect(container.querySelector('[data-testid="is-navigating"]')?.textContent).toBe('no');
+			});
 		});
 	});
 });

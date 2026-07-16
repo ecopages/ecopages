@@ -9,7 +9,7 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 		components: [Head],
 	},
 
-	render: ({ children, metadata, headContent, language = 'en', pageProps }) => (
+	render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => (
 		<html lang={language}>
 			<Head metadata={metadata}>
 				{headContent}
@@ -19,7 +19,7 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 					data-eco-rerun="true"
 					data-eco-script-id="shared-chunk-probe"
 				></script>
-				<EcoPropsScript data={pageProps} />
+				<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
 			</Head>
 			<body>{children}</body>
 		</html>

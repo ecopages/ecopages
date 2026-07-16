@@ -89,6 +89,26 @@ describe('layout-compose', () => {
 		expect(tree.type).toBe(Outer);
 	});
 
+	it('should apply persisted layout tiers when a resolver is provided', () => {
+		const Layout = ({ children }: { children?: string }) => createElement('section', null, children);
+		const CachedLayout = ({ children }: { children?: string }) => createElement('cached', null, children);
+		const Page = eco.page({
+			layout: Layout,
+			render: () => 'page',
+		});
+
+		const tree = composeLayoutPageTree(
+			pageComponent(Page),
+			{},
+			{
+				resolvePersistedTier: () => ({ layout: CachedLayout, key: 'layout-key' }),
+			},
+		);
+
+		expect(tree.type).toBe(CachedLayout);
+		expect(tree.key).toBe('layout-key');
+	});
+
 	it('should derive layout locals from shell props instead of pageProps.locals', () => {
 		const Layout = ({ locals, children }: { locals?: { role: string }; children?: string }) =>
 			createElement('section', null, locals?.role, children);

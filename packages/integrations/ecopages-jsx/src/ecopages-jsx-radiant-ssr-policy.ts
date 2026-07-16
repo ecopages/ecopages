@@ -31,13 +31,14 @@ type RadiantServerRuntimeModules = {
  *
  * @remarks
  * Radiant's server bridge and light-DOM shim are loaded lazily because most JSX
- * renders do not need them. Once enabled, the resolved runtime modules are
- * cached statically so repeated page and component renders do not keep paying
- * module-resolution or shim-installation costs.
+ * renders do not need them. Resolved runtime modules are cached on the policy
+ * instance so repeated renders on the same renderer reuse one load without
+ * process-wide mutable class state. Light-DOM constructor installation remains
+ * process-global and idempotent via {@link ensureRadiantLightDomGlobals}.
  */
 export class EcopagesJsxRadiantSsrPolicy {
-	private static runtimeModules: RadiantServerRuntimeModules | undefined;
-	private static runtimeModulesPromise:
+	private runtimeModules: RadiantServerRuntimeModules | undefined;
+	private runtimeModulesPromise:
 		| Promise<{
 				installLightDomShim: () => RadiantLightDomShimWindow;
 				withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
@@ -48,19 +49,6 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 	constructor(enabled: boolean) {
 		this.enabled = enabled;
-	}
-
-	/**
-	 * Clears process-wide Radiant module caches between isolated tests.
-	 *
-	 * @remarks
-	 * The SSR runtime is process-global by design (shared custom-element
-	 * constructors). Tests that flip import order must reset these caches so
-	 * later cases do not inherit an earlier activation.
-	 */
-	static resetForTests(): void {
-		EcopagesJsxRadiantSsrPolicy.runtimeModules = undefined;
-		EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = undefined;
 	}
 
 	/**
@@ -82,7 +70,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 			return render();
 		}
 
-		const runtimeModules = await EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise;
+		const runtimeModules = await this.runtimeModulesPromise;
 		if (!runtimeModules) {
 			return render();
 		}
@@ -98,7 +86,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 	 * generated host HTML without escaping it back into plain text.
 	 */
 	renderIntrinsicElementMarkup(instance: unknown): ReturnType<typeof createMarkupNodeLike> | undefined {
-		const renderBridge = EcopagesJsxRadiantSsrPolicy.runtimeModules?.resolveRadiantElementRenderBridge(instance);
+		const renderBridge = this.runtimeModules?.resolveRadiantElementRenderBridge(instance);
 		if (!renderBridge) {
 			return undefined;
 		}
@@ -113,14 +101,14 @@ export class EcopagesJsxRadiantSsrPolicy {
 	}
 
 	private async ensureRuntimeInstalled(): Promise<void> {
-		if (!EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise) {
+		if (!this.runtimeModulesPromise) {
 			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
 			const radiantElementSsrRuntimeModuleUrl = new URL(
 				'./radiant-element-ssr-bridge.js',
 				radiantLightDomShimEntry,
 			).href;
 
-			EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise = (async () => {
+			this.runtimeModulesPromise = (async () => {
 				const lightDomShimModule = await import(radiantLightDomShimEntry);
 				ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
 
@@ -141,20 +129,28 @@ export class EcopagesJsxRadiantSsrPolicy {
 						radiantElementSsrRuntimeModule.withServerRadiantElementSsrRuntime,
 				};
 
-				EcopagesJsxRadiantSsrPolicy.runtimeModules = modules;
+				this.runtimeModules = modules;
 				return modules;
 			})();
 		}
 
-		await EcopagesJsxRadiantSsrPolicy.runtimeModulesPromise;
+		await this.runtimeModulesPromise;
 
-		const lightDomShimModule = EcopagesJsxRadiantSsrPolicy.runtimeModules;
+		const lightDomShimModule = this.runtimeModules;
 		if (lightDomShimModule) {
 			ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
 		}
 	}
 }
 
+/**
+ * Installs Radiant light-DOM constructors on `globalThis` once.
+ *
+ * @remarks
+ * Custom-element constructors must be process-global; undoing them between tests
+ * is unsafe. Callers that clear globals for isolation must rely on a fresh policy
+ * instance so {@link EcopagesJsxRadiantSsrPolicy.prepareRuntime} re-runs install.
+ */
 function ensureRadiantLightDomGlobals(installLightDomShim: () => RadiantLightDomShimWindow): void {
 	if (typeof globalThis.HTMLElement !== 'undefined') {
 		return;

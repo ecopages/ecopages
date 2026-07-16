@@ -53,7 +53,6 @@ function createAppConfig(rootDir: string): EcoPagesAppConfig {
 
 async function withClearedLightDomGlobals<T>(run: () => Promise<T>): Promise<T> {
 	const descriptors = new Map<LightDomGlobalKey, PropertyDescriptor | undefined>();
-	EcopagesJsxRadiantSsrPolicy.resetForTests();
 
 	for (const key of lightDomGlobalKeys) {
 		descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -63,7 +62,6 @@ async function withClearedLightDomGlobals<T>(run: () => Promise<T>): Promise<T> 
 	try {
 		return await run();
 	} finally {
-		EcopagesJsxRadiantSsrPolicy.resetForTests();
 		for (const key of lightDomGlobalKeys) {
 			Reflect.deleteProperty(globalThis, key);
 			const descriptor = descriptors.get(key);

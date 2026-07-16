@@ -10,6 +10,7 @@ import type {
 	EcoFunctionComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
+	PageParams,
 	RouteRenderResult,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -29,7 +30,15 @@ import {
 } from './utils/lit-html-rendering.ts';
 
 export type LitRendererOptions = ConstructorParameters<typeof IntegrationRenderer>[0] & {
-	renderSession?: LitStaticRenderSession;
+	/**
+	 * Lazy session lookup owned by {@link LitPlugin}.
+	 *
+	 * @remarks
+	 * Must not snapshot the session at construction time. Plugin `setup()` may
+	 * assign the session after the renderer is created; `execute` activates the
+	 * integration runtime then reads this accessor so worker dispatch still works.
+	 */
+	getRenderSession?: () => LitStaticRenderSession | undefined;
 };
 
 /**
@@ -37,19 +46,32 @@ export type LitRendererOptions = ConstructorParameters<typeof IntegrationRendere
  */
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = LIT_PLUGIN_NAME;
-	private readonly renderSession?: LitStaticRenderSession;
+	private readonly getRenderSession?: () => LitStaticRenderSession | undefined;
 
 	constructor(options: LitRendererOptions) {
-		const { renderSession, ...rendererOptions } = options;
+		const { getRenderSession, ...rendererOptions } = options;
 		super(rendererOptions);
-		this.renderSession = renderSession;
+		this.getRenderSession = getRenderSession;
 	}
 
+	/**
+	 * Renders a Lit page route, preferring the plugin worker when available.
+	 *
+	 * @remarks
+	 * Activates the integration runtime before reading {@link getRenderSession}
+	 * so a renderer constructed before plugin setup still sees the session.
+	 * When `options.locals` is present, rendering stays in-process: request locals
+	 * are not structured-cloned across the worker boundary.
+	 */
 	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		if (this.renderSession) {
-			const result = await this.renderSession.renderPageInWorker({
+		await this.ensureIntegrationRuntimeActivated();
+		const renderSession = this.getRenderSession?.();
+
+		if (renderSession && options.locals === undefined) {
+			const params: PageParams = options.params ?? {};
+			const result = await renderSession.renderPageInWorker({
 				filePath: options.file,
-				params: (options.params ?? {}) as Record<string, string>,
+				params,
 				query: options.query,
 			});
 
@@ -205,8 +227,9 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
 	protected async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
-		if (this.renderSession) {
-			await this.renderSession.preloadSsrLazyScripts(components);
+		const renderSession = this.getRenderSession?.();
+		if (renderSession) {
+			await renderSession.preloadSsrLazyScripts(components);
 			return;
 		}
 

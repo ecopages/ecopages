@@ -1,4 +1,5 @@
 /** @jsxImportSource @ecopages/jsx */
+import '@ecopages/radiant/client/install-hydrator';
 import { RadiantElement, query, onEvent, onUpdated } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { prop } from '@ecopages/radiant/decorators/prop';

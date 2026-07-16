@@ -4,7 +4,12 @@ import {
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from './serialize-page-data-script.ts';
-import type { EcoComponentConfig, HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
+import type {
+	EcoComponentConfig,
+	HtmlTemplateProps,
+	IntegrationRendererRenderOptions,
+	RequestLocals,
+} from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { HtmlDocumentContribution } from '@ecopages/core/route-renderer/integration-renderer';
 import type { ReactNode } from 'react';
@@ -77,10 +82,7 @@ export class PagePayloadService {
 		reactIntegrationName: string;
 		routerEnabled: boolean;
 	}): HtmlDocumentContribution[] | undefined {
-		if (
-			isReactManagedComponent(options.htmlTemplate, options.reactIntegrationName) ||
-			!options.routerEnabled
-		) {
+		if (isReactManagedComponent(options.htmlTemplate, options.reactIntegrationName) || !options.routerEnabled) {
 			return undefined;
 		}
 

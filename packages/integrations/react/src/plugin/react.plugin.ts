@@ -25,10 +25,7 @@ import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
 import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { discoverLayoutRuntimeModuleSpecifiers } from '../bundling/discover-layout-runtime-modules.ts';
-import {
-	mergeReactPluginRuntimeModules,
-	resolveReactPluginRuntimeModules,
-} from '../bundling/runtime-modules.ts';
+import { mergeReactPluginRuntimeModules, resolveReactPluginRuntimeModules } from '../bundling/runtime-modules.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 

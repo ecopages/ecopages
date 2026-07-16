@@ -15,11 +15,7 @@ import type { ReactNode } from 'react';
 import { isValidElement } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { getIslandComponentKey, type HydrationAssetService } from '../hydration/hydration-asset.ts';
-import {
-	asNonReactShellComponent,
-	asReactComponent,
-	type SerializableProps,
-} from './component-ownership.ts';
+import { asNonReactShellComponent, asReactComponent, type SerializableProps } from './component-ownership.ts';
 import { ReactRenderError } from './errors.ts';
 import type { ReactRuntimeModules } from './react-runtime.ts';
 
@@ -334,10 +330,7 @@ export async function renderReactManagedComponent(options: {
 		};
 	}
 
-	const mergedAssets = dedupeProcessedAssets([
-		...(assets ?? []),
-		...queuedForeignSubtreeResolution.assets,
-	]);
+	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);
 
 	return {
 		html,

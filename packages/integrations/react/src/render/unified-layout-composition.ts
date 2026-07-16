@@ -35,8 +35,7 @@ export function composeReactLayoutPageTree(
 	shellEntries: Array<{ component: EcoComponent; props?: Record<string, unknown> }>,
 	options: LayoutComposeOptions,
 ): ReactElement {
-	const hasNormalizedLayouts =
-		Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
+	const hasNormalizedLayouts = Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
 
 	if (hasNormalizedLayouts) {
 		return composeLayoutPageTree(Page, pageProps, options);
@@ -58,12 +57,9 @@ export function shouldUseUnifiedReactLayoutComposition(options: {
 
 	const composablePage = assertComposablePage(page);
 	const configLayouts =
-		composablePage.config?.layouts ??
-		composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
-		[];
+		composablePage.config?.layouts ?? composablePage.config?.layoutEntries?.map((entry) => entry.component) ?? [];
 
-	const layoutComponents =
-		shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
+	const layoutComponents = shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
 
 	if (layoutComponents.length === 0) {
 		return false;

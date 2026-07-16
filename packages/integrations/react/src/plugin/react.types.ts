@@ -2,10 +2,7 @@ import type { AssetDefinition } from '@ecopages/core/services/asset-processing-s
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
-import type {
-	ReactPluginRuntimeModule,
-	ResolvedReactPluginRuntimeModule,
-} from '../bundling/runtime-modules.ts';
+import type { ReactPluginRuntimeModule, ResolvedReactPluginRuntimeModule } from '../bundling/runtime-modules.ts';
 
 /**
  * MDX configuration options for the React plugin.

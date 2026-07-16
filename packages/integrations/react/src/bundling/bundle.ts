@@ -8,10 +8,7 @@
  */
 
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import {
-	getReactClientGraphAllowSpecifiers,
-	getReactRuntimeExternalSpecifiers,
-} from './runtime-alias-map.ts';
+import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
 import type { EcoPagesAppConfig } from '@ecopages/core';

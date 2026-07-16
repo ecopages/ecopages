@@ -58,10 +58,7 @@ import {
 } from './component-ssr.ts';
 import { BundleError, ReactRenderError } from './errors.ts';
 import { resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
-import {
-	composeReactLayoutPageChildren,
-	resolveComposeChildren,
-} from './unified-layout-composition.ts';
+import { composeReactLayoutPageChildren, resolveComposeChildren } from './unified-layout-composition.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
 export { BundleError, ReactRenderError } from './errors.ts';
@@ -191,8 +188,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					resolveToken,
 					runtime: this.getReactRuntimeModules(),
 					integrationName: this.name,
-					normalizeUnresolvedMarkerArtifactHtml: (value) =>
-						this.normalizeUnresolvedMarkerArtifactHtml(value),
+					normalizeUnresolvedMarkerArtifactHtml: (value) => this.normalizeUnresolvedMarkerArtifactHtml(value),
 					resolveQueuedTokens: (value, tokens, resolve) =>
 						this.foreignSubtreeExecutionService.resolveQueuedTokens(value, tokens, resolve),
 				}),

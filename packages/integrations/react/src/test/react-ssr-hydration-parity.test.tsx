@@ -5,8 +5,8 @@ import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { ReactNode } from 'react';
-import { composeLayoutPageTree, assertComposablePage } from '../layout-compose.ts';
-import { ReactRenderer } from '../react-renderer.ts';
+import { composeLayoutPageTree, assertComposablePage } from '../render/layout-compose.ts';
+import { ReactRenderer } from '../render/react-renderer.ts';
 
 class TestReactRenderer extends ReactRenderer {
 	protected override async getHtmlTemplate() {

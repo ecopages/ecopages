@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { ReactRenderer } from '../react-renderer.ts';
+import { ReactRenderer } from '../render/react-renderer.ts';
 
 const DataContext = createContext('missing');
 

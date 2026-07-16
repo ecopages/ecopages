@@ -139,6 +139,10 @@ class TestReactRenderer extends ReactRenderer {
 		return await this.prepareRenderOptions({ file: filePath, params: {}, query: {} });
 	}
 
+	public async testCollectPageBrowserGraphContribution(filePath: string, pageModule: EcoPageFile) {
+		return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
+	}
+
 	public getCurrentPagePackageForTest() {
 		return this.htmlTransformer.getPagePackage();
 	}
@@ -175,8 +179,9 @@ const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 
 describe('ReactRenderer', () => {
 	describe('renderComponent', () => {
-		it('should configure the page module service to use the work directory for internal outputs', () => {
-			expect((renderer.pageModuleService as any).config.workDir).toBe(Config.absolutePaths.workDir);
+		it('should configure the page module service with app layout and component directories', () => {
+			expect((renderer.pageModuleService as any).config.layoutsDir).toBe(Config.absolutePaths.layoutsDir);
+			expect((renderer.pageModuleService as any).config.componentsDir).toBe(Config.absolutePaths.componentsDir);
 		});
 
 		it('should render a single React component with structured output', async () => {
@@ -595,6 +600,30 @@ describe('ReactRenderer', () => {
 		} finally {
 			process.env.NODE_ENV = originalNodeEnv;
 		}
+	});
+
+	it('skips hydration assets for pages without declared modules unless forceBrowserGraph is set', async () => {
+		const withoutForce = createRenderer();
+		const withForce = createRenderer({ forceBrowserGraph: true });
+		const pageWithoutModules = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+
+		const withoutForceSpy = vi.spyOn(withoutForce.hydrationAssetService, 'createPageBrowserGraphDependencies');
+		const withForceSpy = vi
+			.spyOn(withForce.hydrationAssetService, 'createPageBrowserGraphDependencies')
+			.mockResolvedValue([]);
+
+		await expect(
+			withoutForce.testCollectPageBrowserGraphContribution(pageFilePath, pageWithoutModules),
+		).resolves.toEqual({ assets: [] });
+		await expect(
+			withForce.testCollectPageBrowserGraphContribution(pageFilePath, pageWithoutModules),
+		).resolves.toEqual({ dependencies: [], assets: [] });
+
+		expect(withoutForceSpy).not.toHaveBeenCalled();
+		expect(withForceSpy).toHaveBeenCalledWith(pageFilePath, false, []);
 	});
 
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {

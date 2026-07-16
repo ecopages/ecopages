@@ -50,10 +50,18 @@ export type ReactPluginOptions = {
 	extensions?: string[];
 	dependencies?: AssetDefinition[];
 	/**
-	 * Enables explicit client graph mode for React page entries.
+	 * When true, always emit the page browser graph / hydration assets for React
+	 * page entries, even when the page does not declare `dependencies.modules`
+	 * and no router adapter is configured.
 	 *
-	 * When enabled, React page-entry bundling relies on explicit dependency declarations
-	 * and skips AST-based `middleware`/`requires` stripping in the React path.
+	 * @remarks
+	 * This does not skip the client-graph AST boundary. Server-only
+	 * `eco.page(...)` options such as `middleware` and `requires` are still
+	 * stripped from browser bundles.
+	 *
+	 * With a router adapter, page hydration is already always enabled, so this
+	 * option is redundant for SPA apps.
+	 *
 	 * @default false
 	 */
 	explicitGraph?: boolean;
@@ -136,5 +144,12 @@ export type ReactRendererConfig = {
 	mdxCompilerOptions?: CompileOptions;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;
-	explicitGraphEnabled?: boolean;
+	/**
+	 * When true, always emit page browser graph / hydration assets for React pages.
+	 *
+	 * @remarks
+	 * Mapped from the public `explicitGraph` plugin option. Does not skip the
+	 * client-graph AST strip of server-only `eco.page(...)` options.
+	 */
+	forceBrowserGraph?: boolean;
 };

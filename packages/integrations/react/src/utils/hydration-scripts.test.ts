@@ -13,7 +13,7 @@ describe('createHydrationScript', () => {
 	test('development output passes serialized locals to layout hydration for non-router pages', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: true,
+			hmrEnabled: true,
 		});
 
 		expect(script).toContain('window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};');
@@ -31,12 +31,13 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('root.render(createTree(Page, props));');
 		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
 		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
+		expect(script).toContain('window.__ECO_PAGES__.hmrHandlers');
 	});
 
 	test('development output passes serialized locals to layout hydration for non-router MDX pages', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: true,
+			hmrEnabled: true,
 			isMdx: true,
 		});
 
@@ -44,32 +45,29 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
 	});
 
-	test('production output passes serialized locals to layout hydration for non-router pages', () => {
+	test('non-HMR output is readable and omits HMR handlers for non-router pages', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: false,
+			hmrEnabled: false,
 		});
 
-		expect(script).toContain('window.__ECO_PAGES__=window.__ECO_PAGES__||{};');
-		expect(script).toContain('export default P;');
-		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot=window.__ECO_PAGES__.react.pageRoot||null;');
-		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot=()=>{');
-		expect(script).toContain('a.unmount()');
-		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router")');
-		expect(script).toContain(
-			'const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};',
-		);
-		expect(script).toContain(
-			'if(window.__ECO_PAGES__.react?.pageRoot){root=window.__ECO_PAGES__.react.pageRoot;root.render(ct(P,pr));return}',
-		);
-		expect(script).toContain('import{composeLayoutPageTree as clp}from"@ecopages/react/layout-compose"');
-		expect(script).toContain('const ct=(C,p)=>clp(C,p)');
+		expect(script).toContain('window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};');
+		expect(script).toContain('export default Page;');
+		expect(script).toContain('module: initialPageData.moduleUrl || pageModuleUrl');
+		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;');
+		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
+		expect(script).toContain('activeRoot.unmount();');
+		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");');
+		expect(script).toContain('root.render(createTree(Page, props));');
+		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
+		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
+		expect(script).not.toContain('hmrHandlers');
 	});
 
 	test('router development output exposes page-root cleanup before reuse', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: true,
+			hmrEnabled: true,
 			router: {
 				name: 'eco-router',
 				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
@@ -107,21 +105,22 @@ describe('createHydrationScript', () => {
 		expect(script).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
-	test('production output passes serialized locals to layout hydration for non-router MDX pages', () => {
+	test('non-HMR output passes serialized locals to layout hydration for non-router MDX pages', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: false,
+			hmrEnabled: false,
 			isMdx: true,
 		});
 
-		expect(script).toContain('import{composeLayoutPageTree as clp}from"@ecopages/react/layout-compose"');
-		expect(script).toContain('const ct=(C,p)=>clp(C,p)');
+		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
+		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
+		expect(script).toContain('import * as MDXModule from "/assets/page.js";');
 	});
 
-	test('router production output reuses an active router-owned root during rerun bootstraps', () => {
+	test('router non-HMR output reuses an active router-owned root during rerun bootstraps', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: false,
+			hmrEnabled: false,
 			router: {
 				name: 'eco-router',
 				bundle: { importPath: '/assets/router.js', outputName: 'router', externals: [] },
@@ -131,17 +130,17 @@ describe('createHydrationScript', () => {
 			routerImportPath: '/assets/router.js',
 		});
 
-		expect(script).toContain('const sr=()=>{');
-		expect(script).toContain(
-			'const pd=rd();const pr=pd.props;window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};',
-		);
-		expect(script).toContain('if(sr()){root=window.__ECO_PAGES__.react.pageRoot;return}');
+		expect(script).toContain('const shouldReuseExistingRouterRoot = () => {');
+		expect(script).toContain('if (shouldReuseExistingRouterRoot()) {');
+		expect(script).toContain('window.__ECO_PAGES__.page = {');
+		expect(script).toContain('module: pageData.moduleUrl || pageModuleUrl');
+		expect(script).not.toContain('hmrHandlers');
 	});
 
-	test('router production output can emit an explicit page module URL expression', () => {
+	test('router non-HMR output can emit an explicit page module URL expression', () => {
 		const script = createHydrationScript({
 			...baseOptions,
-			isDevelopment: false,
+			hmrEnabled: false,
 			pageModuleUrlExpression: '"/src/pages/react-notes.react.tsx"',
 			router: {
 				name: 'eco-router',
@@ -152,8 +151,8 @@ describe('createHydrationScript', () => {
 			routerImportPath: '/assets/router.js',
 		});
 
-		expect(script).toContain('const u="/src/pages/react-notes.react.tsx";');
-		expect(script).toContain('window.__ECO_PAGES__.page={module:pd.moduleUrl||u,props:pr};');
+		expect(script).toContain('const pageModuleUrl = "/src/pages/react-notes.react.tsx";');
+		expect(script).toContain('module: pageData.moduleUrl || pageModuleUrl');
 	});
 });
 
@@ -168,10 +167,10 @@ describe('createIslandHydrationScript', () => {
 		componentFile: '/app/component.tsx',
 	};
 
-	test('development output mounts on initial load and after swap', () => {
+	test('readable island output mounts on initial load and after swap', () => {
 		const script = createIslandHydrationScript({
 			...baseOptions,
-			isDevelopment: true,
+			minify: false,
 		});
 
 		expect(script).not.toContain('eco:after-swap');
@@ -184,10 +183,10 @@ describe('createIslandHydrationScript', () => {
 		expect(script).toContain('document.addEventListener("DOMContentLoaded", mount, { once: true });');
 	});
 
-	test('production output mounts on initial load and after swap', () => {
+	test('compact island output mounts on initial load and after swap', () => {
 		const script = createIslandHydrationScript({
 			...baseOptions,
-			isDevelopment: false,
+			minify: true,
 		});
 
 		expect(script).not.toContain('eco:after-swap');

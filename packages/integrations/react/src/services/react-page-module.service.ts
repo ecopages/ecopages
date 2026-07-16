@@ -13,15 +13,12 @@ import type { EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
 import { fileSystem } from '@ecopages/file-system';
 import { someInConfigTree } from '../utils/component-config-traversal.ts';
-import { collectDeclaredModulesInConfig } from '../utils/declared-modules.ts';
+import { collectPageDeclaredModulesFromModule } from '../utils/declared-modules.ts';
 
 /**
  * Configuration for the ReactPageModuleService.
  */
 export interface ReactPageModuleServiceConfig {
-	rootDir: string;
-	distDir: string;
-	workDir: string;
 	layoutsDir?: string;
 	componentsDir?: string;
 	mdxExtensions: string[];
@@ -113,11 +110,6 @@ export class ReactPageModuleService {
 	collectPageDeclaredModules(
 		pageModule: EcoPageFile<{ config?: EcoComponentConfig }> & { config?: EcoComponentConfig },
 	): string[] {
-		const declarations = [
-			...collectDeclaredModulesInConfig(pageModule.default?.config),
-			...collectDeclaredModulesInConfig(pageModule.config),
-		];
-
-		return Array.from(new Set(declarations));
+		return collectPageDeclaredModulesFromModule(pageModule);
 	}
 }

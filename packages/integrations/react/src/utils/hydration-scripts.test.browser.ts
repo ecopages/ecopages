@@ -164,7 +164,7 @@ describe('createHydrationScript browser execution', () => {
 		const script = createHydrationScript({
 			...runtimeModules,
 			scriptId: 'ecopages-react-page',
-			isDevelopment: true,
+			hmrEnabled: true,
 			isMdx: false,
 			router: routerAdapter,
 			pageDataReaderImportPath: new URL('../page-data-reader.ts', import.meta.url).href,
@@ -245,7 +245,7 @@ describe('createHydrationScript browser execution', () => {
 		const script = createHydrationScript({
 			...runtimeModules,
 			scriptId: 'ecopages-react-page-rerun',
-			isDevelopment: true,
+			hmrEnabled: true,
 			isMdx: false,
 			router: routerAdapter,
 			pageDataReaderImportPath: new URL('../page-data-reader.ts', import.meta.url).href,

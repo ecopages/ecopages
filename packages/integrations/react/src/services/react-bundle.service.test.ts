@@ -8,6 +8,20 @@ import type { EcoBuildOnLoadResult } from '@ecopages/core/build/build-types';
 import { ReactBundleService } from './react-bundle.service.ts';
 import { resolveReactPluginRuntimeModules } from '../utils/react-plugin-runtime-modules.ts';
 
+const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	if (nodeEnv === undefined) {
+		delete process.env.NODE_ENV;
+	} else {
+		process.env.NODE_ENV = nodeEnv;
+	}
+	try {
+		return await run();
+	} finally {
+		process.env.NODE_ENV = originalNodeEnv;
+	}
+};
+
 const testAppConfig = {
 	rootDir: '/app',
 	absolutePaths: {
@@ -58,6 +72,27 @@ describe('ReactBundleService', () => {
 		expect(pluginNames).not.toContain('react-runtime-import-alias');
 		expect(options.external).toEqual(expect.arrayContaining(Object.values(runtimeImports)));
 		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
+	});
+
+	it('enables minify only for production runtimes', async () => {
+		const service = new ReactBundleService({
+			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
+		});
+
+		const developmentOptions = await withNodeEnv('development', () =>
+			service.createBundleOptions('ecopages-react-page', false, []),
+		);
+		const productionOptions = await withNodeEnv('production', () =>
+			service.createBundleOptions('ecopages-react-page', false, []),
+		);
+
+		expect(developmentOptions.minify).toBeUndefined();
+		expect(productionOptions).toMatchObject({
+			minify: true,
+			treeshaking: true,
+		});
 	});
 
 	it('can bundle runtime specifiers directly into page-owned entries', async () => {

@@ -5,7 +5,6 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import { test } from 'vitest';
-import { EcopagesJsxRadiantSsrPolicy } from '../ecopages-jsx-radiant-ssr-policy.ts';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');

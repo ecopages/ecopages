@@ -428,14 +428,11 @@ export type EcoPagesElement = string | Promise<string>;
  * Serializable child payloads accepted by cross-integration deferred rendering.
  *
  * @remarks
- * This models the broad value shapes that EcoPages already flattens when a
- * foreign component boundary serializes its children for another integration.
- * It is intentionally transport-oriented rather than framework-native, so it
- * can be shared across Kita, Lit, React, and Ecopages JSX authoring surfaces
- * without coupling core types to any one renderer.
- *
- * Do not treat `EcoChildren` as trusted serialized HTML. Opaque objects must be
- * intercepted at composition boundaries before framework serializers coerce them.
+ * Covers primitives, arrays, and Kita/Lit-style template results (`strings` /
+ * optional `values`). Plain opaque objects are intentionally excluded; foreign
+ * composition boundaries reject them before serializers can coerce `String(object)`.
+ * Framework-native trees (React nodes, JSX elements) stay outside this type and
+ * use EcoEmbed or already-serialized HTML at the boundary.
  */
 export type EcoChildren =
 	| string
@@ -449,9 +446,6 @@ export type EcoChildren =
 	| {
 			strings: readonly string[];
 			values?: readonly EcoChildren[];
-	  }
-	| {
-			[key: string]: EcoChildren;
 	  };
 
 /**
@@ -653,6 +647,15 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 	language?: string;
 	headContent?: T;
 	pageProps: Record<string, unknown>;
+	/**
+	 * Browser-importable page module URL for router-enabled documents.
+	 *
+	 * @remarks
+	 * Transport-only: threaded into HTML shells (for example `EcoPropsScript`
+	 * `moduleUrl`) and serialized as the page-data envelope `moduleUrl`. Not page
+	 * component state.
+	 */
+	pageModuleUrl?: string;
 }
 
 /**

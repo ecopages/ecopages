@@ -1,52 +1,34 @@
 import { createElement, type FC } from 'react';
 import {
-	createEcoPageDataManifestV1,
-	ECO_PAGE_MODULE_PROP,
 	escapePageDataJson,
-	isEcoPageDataManifestV1,
+	resolvePageDataDocumentPayload,
 	type EcoPageDataDocumentPayload,
-	type EcoPageDataProps,
 } from '@ecopages/react/serialize-page-data-script';
-
-export { ECO_PAGE_MODULE_PROP } from '@ecopages/react/serialize-page-data-script';
 
 export interface EcoPropsScriptProps {
 	/**
 	 * Page props or a versioned page-data envelope.
 	 *
 	 * @remarks
-	 * Flat props may include the reserved {@link ECO_PAGE_MODULE_PROP} key. When
-	 * present (or when `module` is passed explicitly), the script emits the v1
-	 * envelope so SPA navigation can discover the page module without parsing
-	 * hydration JavaScript. Legacy flat props remain supported for older documents.
+	 * When `moduleUrl` is passed and `data` is not already a v1 envelope, the script
+	 * emits `schemaVersion:1` with that field. Passing `moduleUrl` alongside an
+	 * existing envelope does not rewrite the envelope's `moduleUrl`.
 	 */
 	data: EcoPageDataDocumentPayload;
-	/** Browser-importable page module URL for router-enabled documents. */
-	module?: string;
+	/** Browser-importable page module URL; serialized as envelope field `moduleUrl`. */
+	moduleUrl?: string;
 }
 
 /**
  * Serializes page props as JSON for SPA navigation.
  *
  * @remarks
- * The hydration script reads this and sets `window.__ECO_PAGES__.page`.
- * Using `application/json` allows direct parsing without regex.
+ * Emits `#__ECO_PAGE_DATA__`. Hydration scripts and SPA commit write
+ * `window.__ECO_PAGES__.page` from that payload. Module discovery uses envelope
+ * `moduleUrl`, then the runtime page marker, then the page bootstrap script `src`.
  */
-export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data, module }) => {
-	let payload: EcoPageDataDocumentPayload = data;
-
-	if (!isEcoPageDataManifestV1(data)) {
-		const propsRecord = { ...(data as EcoPageDataProps) };
-		const inferredModule =
-			module ??
-			(typeof propsRecord[ECO_PAGE_MODULE_PROP] === 'string' ? propsRecord[ECO_PAGE_MODULE_PROP] : undefined);
-		if (typeof propsRecord[ECO_PAGE_MODULE_PROP] !== 'undefined') {
-			delete propsRecord[ECO_PAGE_MODULE_PROP];
-		}
-		payload = inferredModule
-			? createEcoPageDataManifestV1({ module: inferredModule, props: propsRecord })
-			: propsRecord;
-	}
+export const EcoPropsScript: FC<EcoPropsScriptProps> = ({ data, moduleUrl }) => {
+	const payload = resolvePageDataDocumentPayload(data, { moduleUrl });
 
 	return createElement('script', {
 		id: '__ECO_PAGE_DATA__',

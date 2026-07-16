@@ -13,12 +13,12 @@ const HtmlTemplate = eco.html<ReactNode>({
 		scripts: [{ content: themeScript }, { content: announcementScript }],
 	},
 
-	render: ({ children, metadata, headContent, language = 'en', pageProps }) => {
+	render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => {
 		return (
 			<html lang={language} suppressHydrationWarning>
 				<Head metadata={metadata}>
 					{headContent}
-					<EcoPropsScript data={pageProps} />
+					<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
 				</Head>
 				<body>{children}</body>
 			</html>

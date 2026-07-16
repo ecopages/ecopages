@@ -1,4 +1,4 @@
-import type { PageQuery, RouteRenderResult } from '@ecopages/core';
+import type { PageParams, PageQuery, RouteRenderResult } from '@ecopages/core';
 
 export type LitStaticRenderCacheStrategy = RouteRenderResult['cacheStrategy'];
 
@@ -12,7 +12,8 @@ export type LitStaticRenderWorkerRenderMessage = {
 	type: 'render';
 	id: string;
 	filePath: string;
-	params: Record<string, string>;
+	/** Route params; multi-value keys stay as `string[]`. */
+	params: PageParams;
 	/** Serializable route query; preserves multi-value keys as `string[]`. */
 	query?: PageQuery;
 };

@@ -7,25 +7,24 @@
  * documents may still contain a flat props object; consumers must detect both.
  *
  * Compatibility matrix:
- * - new client / new document: prefer `v:1` envelope (`module` + `props`)
- * - new client / old document: accept legacy flat props; module falls back to
- *   hydration markers/regex for one compatibility release
+ * - new client / new document: prefer `schemaVersion:1` envelope (`moduleUrl` + `props`)
+ * - new client / old document: accept legacy flat props; module discovery uses
+ *   `window.__ECO_PAGES__.page.module` or `script[data-eco-page-bootstrap="react-router"]`
  * - old client / new document: old clients that only read flat props should be
  *   upgraded; envelope consumers must unwrap `props` before hydration
- * - malformed / unknown schema (numeric `v` present but envelope invalid): empty
- *   props and no module URL from the manifest; navigation may still discover a
- *   module via bootstrap markers or the temporary regex fallback
+ * - malformed / unknown schema (numeric `schemaVersion` present but envelope invalid):
+ *   empty props and no module URL from the manifest
  * - HMR: `moduleUrlOverride` still bypasses document discovery
- * - legacy flat props may include a string `v` field without being treated as an envelope
+ * - legacy flat props may include a string `schemaVersion` field without being treated as an envelope
  */
 export const ECO_PAGE_DATA_SCHEMA_VERSION = 1 as const;
 
 export type EcoPageDataProps = Record<string, unknown>;
 
 export type EcoPageDataManifestV1 = {
-	v: typeof ECO_PAGE_DATA_SCHEMA_VERSION;
+	schemaVersion: typeof ECO_PAGE_DATA_SCHEMA_VERSION;
 	navigationOwner: 'react-router';
-	module: string;
+	moduleUrl: string;
 	props: EcoPageDataProps;
 };
 
@@ -41,9 +40,9 @@ export function isEcoPageDataManifestV1(value: unknown): value is EcoPageDataMan
 
 	const candidate = value as Partial<EcoPageDataManifestV1>;
 	return (
-		candidate.v === ECO_PAGE_DATA_SCHEMA_VERSION &&
+		candidate.schemaVersion === ECO_PAGE_DATA_SCHEMA_VERSION &&
 		candidate.navigationOwner === 'react-router' &&
-		typeof candidate.module === 'string' &&
+		typeof candidate.moduleUrl === 'string' &&
 		typeof candidate.props === 'object' &&
 		candidate.props !== null &&
 		!Array.isArray(candidate.props)
@@ -54,12 +53,12 @@ export function isEcoPageDataManifestV1(value: unknown): value is EcoPageDataMan
  * Returns whether a payload claims a numeric schema version without being a valid v1 envelope.
  *
  * @remarks
- * Only numeric `v` values are treated as envelope attempts. Legacy flat props may
- * legitimately include a string `v` field (e.g. a version string) and must not be
+ * Only numeric `schemaVersion` values are treated as envelope attempts. Legacy flat props may
+ * legitimately include a string `schemaVersion` field (e.g. a version string) and must not be
  * wiped. Near-miss numeric envelopes must not fall through to the flat-props path.
  */
 function isMalformedPageDataEnvelope(payload: object): boolean {
-	return 'v' in payload && typeof (payload as { v: unknown }).v === 'number';
+	return 'schemaVersion' in payload && typeof (payload as { schemaVersion: unknown }).schemaVersion === 'number';
 }
 
 /**
@@ -85,17 +84,46 @@ export function resolveEcoPageDataProps(payload: unknown): EcoPageDataProps {
  * Extracts the page module URL from a v1 envelope when present.
  */
 export function resolveEcoPageDataModuleUrl(payload: unknown): string | null {
-	return isEcoPageDataManifestV1(payload) ? payload.module : null;
+	return isEcoPageDataManifestV1(payload) ? payload.moduleUrl : null;
 }
 
 /**
  * Builds the canonical v1 page-data envelope for React documents.
  */
-export function createEcoPageDataManifestV1(input: { module: string; props: EcoPageDataProps }): EcoPageDataManifestV1 {
+export function createEcoPageDataManifestV1(input: {
+	moduleUrl: string;
+	props: EcoPageDataProps;
+}): EcoPageDataManifestV1 {
 	return {
-		v: ECO_PAGE_DATA_SCHEMA_VERSION,
+		schemaVersion: ECO_PAGE_DATA_SCHEMA_VERSION,
 		navigationOwner: 'react-router',
-		module: input.module,
+		moduleUrl: input.moduleUrl,
 		props: input.props,
 	};
+}
+
+/**
+ * Normalizes flat page props or an existing envelope into the document payload shape.
+ *
+ * @remarks
+ * Shared by server serializers and `EcoPropsScript` so envelope rules stay in one place.
+ * A valid v1 envelope is returned as-is; `options.moduleUrl` is ignored in that case.
+ * Flat props wrap into a v1 envelope only when `options.moduleUrl` is provided.
+ */
+export function resolvePageDataDocumentPayload(
+	data: EcoPageDataDocumentPayload,
+	options?: { moduleUrl?: string },
+): EcoPageDataDocumentPayload {
+	if (isEcoPageDataManifestV1(data)) {
+		return data;
+	}
+
+	const props = { ...(data as EcoPageDataProps) };
+	const moduleUrl = options?.moduleUrl;
+
+	if (!moduleUrl) {
+		return props;
+	}
+
+	return createEcoPageDataManifestV1({ moduleUrl, props });
 }

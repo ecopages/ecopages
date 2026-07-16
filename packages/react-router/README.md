@@ -155,15 +155,54 @@ By default, we impose a "clean morph", disabling default cross-fade ghosting. To
 </div>
 ```
 
+## Page data protocol
+
+Router-enabled documents emit a JSON script that SPA navigation reads without parsing hydration JavaScript:
+
+```html
+<script id="__ECO_PAGE_DATA__" type="application/json">
+	{
+		"schemaVersion": 1,
+		"navigationOwner": "react-router",
+		"moduleUrl": "/assets/pages/about.js",
+		"props": { "params": {}, "query": {} }
+	}
+</script>
+```
+
+In a React HTML shell, pass the transport field explicitly:
+
+```tsx
+import { EcoPropsScript } from '@ecopages/react-router';
+
+render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => (
+	<html lang={language}>
+		<head>
+			{/* … */}
+			<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
+		</head>
+		<body>{children}</body>
+	</html>
+);
+```
+
+Important:
+
+- Hydration uses envelope `props` only. Envelope `moduleUrl` is for navigation module discovery.
+- Pass `HtmlTemplateProps.pageModuleUrl` into `<EcoPropsScript moduleUrl={...} />`.
+- `pageModuleUrl` is transport-only; it is not page component state.
+- When `#__ECO_PAGE_DATA__` yields no valid envelope `moduleUrl`, discovery falls back to `window.__ECO_PAGES__.page.module`, then `script[data-eco-page-bootstrap="react-router"]` `src`.
+- HMR reloads can pass an explicit `moduleUrlOverride` and bypass document discovery.
+
 ## How It Works
 
 The router relies on **HTML-First** navigation to sync perfectly with SSR:
 
 1. **SSR**: Initial page arrives completely rendered.
 2. **Hydration**: Client hydrates and the router attaches.
-3. **Navigation**: On click, the router:
-    - Fetches the raw HTML of the next route.
-    - Extracts page-level serialized props and metadata.
-    - Preloads the next page component via dynamic import.
-    - Updates React state, syncs `<head>`, and triggers `startViewTransition`.
-    - The React graph reconciles and the animation plays.
+3. **Navigation**: On click, `resolveReactNavigation` returns an explicit outcome:
+    - `spa`: fetch HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → morph `<head>`, update history, commit React state (optional `startViewTransition`).
+    - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
+    - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
+    - `stale`: a newer navigation superseded this attempt.
+    - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.

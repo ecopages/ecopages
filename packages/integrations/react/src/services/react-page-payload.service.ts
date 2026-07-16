@@ -1,11 +1,11 @@
 import { LocalsAccessError } from '@ecopages/core/errors';
 import {
-	ECO_PAGE_MODULE_PROP,
 	serializePageDataManifestScript,
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from '../serialize-page-data-script.ts';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
+import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { ReactNode } from 'react';
 
 type PagePayloadOptions = {
@@ -13,8 +13,9 @@ type PagePayloadOptions = {
 	params: IntegrationRendererRenderOptions<ReactNode>['params'];
 	query: IntegrationRendererRenderOptions<ReactNode>['query'];
 	safeLocals?: RequestLocals;
-	pageModuleUrl?: string;
 };
+
+type PagePackage = IntegrationRendererRenderOptions<ReactNode>['pagePackage'];
 
 /**
  * Builds the serialized page payload React exposes to document shells and the browser.
@@ -25,27 +26,42 @@ type PagePayloadOptions = {
  */
 export class ReactPagePayloadService {
 	/**
+	 * Resolves the browser-importable page module URL from processed page entry assets.
+	 */
+	resolvePageModuleUrl(
+		pagePackage: PagePackage | undefined,
+		options: { routerEnabled: boolean },
+	): string | undefined {
+		if (!options.routerEnabled) {
+			return undefined;
+		}
+
+		const entryScripts =
+			pagePackage?.pageBrowserGraph?.entryAssets.filter(
+				(asset): asset is ProcessedAsset & { srcUrl: string } =>
+					asset.kind === 'script' && typeof asset.srcUrl === 'string',
+			) ?? [];
+		const bootstrapScript = entryScripts.find(
+			(asset) => asset.attributes?.['data-eco-page-bootstrap'] === 'react-router',
+		);
+
+		return bootstrapScript?.srcUrl ?? entryScripts[0]?.srcUrl;
+	}
+
+	/**
 	 * Creates the `__ECO_PAGE_DATA__` script for router hydration.
 	 *
 	 * @remarks
-	 * When `moduleUrl` (or {@link ECO_PAGE_MODULE_PROP} on `pageProps`) is present,
-	 * emits the v1 envelope. Otherwise emits legacy flat props for non-router shells.
-	 * The reserved module key is always stripped from the props object.
+	 * When `moduleUrl` is present, emits the v1 envelope via
+	 * {@link serializePageDataManifestScript}. Otherwise emits legacy flat props
+	 * for non-router shells.
 	 */
 	buildRouterPageDataScript(pageProps: HtmlTemplateProps['pageProps'] | undefined, moduleUrl?: string): string {
 		const props = { ...((pageProps ?? {}) as EcoPageDataProps) };
-		const resolvedModuleUrl =
-			moduleUrl ?? (typeof props[ECO_PAGE_MODULE_PROP] === 'string' ? props[ECO_PAGE_MODULE_PROP] : undefined);
-		delete props[ECO_PAGE_MODULE_PROP];
-
-		if (!resolvedModuleUrl) {
-			return serializePageDataScript(props);
+		if (moduleUrl) {
+			return serializePageDataManifestScript({ moduleUrl, props });
 		}
-
-		return serializePageDataManifestScript({
-			module: resolvedModuleUrl,
-			props,
-		});
+		return serializePageDataScript(props);
 	}
 
 	/**
@@ -53,7 +69,8 @@ export class ReactPagePayloadService {
 	 *
 	 * @remarks
 	 * Narrower than the full server render input: only routing data, public page
-	 * props, explicitly allowed locals, and the reserved module transport key.
+	 * props, and explicitly allowed locals. Page module identity is threaded via
+	 * `HtmlTemplateProps.pageModuleUrl`, not serialized page props.
 	 */
 	buildSerializedPageProps(options: PagePayloadOptions): HtmlTemplateProps['pageProps'] {
 		return {
@@ -61,7 +78,6 @@ export class ReactPagePayloadService {
 			params: options.params,
 			query: options.query,
 			...(options.safeLocals && { locals: options.safeLocals }),
-			...(options.pageModuleUrl && { [ECO_PAGE_MODULE_PROP]: options.pageModuleUrl }),
 		};
 	}
 

@@ -17,6 +17,11 @@ export type LayoutComposeOptions = {
 	context?: LayoutComposeContext;
 	/** @remarks Pass the app-resolved React runtime during SSR so composition matches `renderToString`. */
 	react?: ReactRuntime;
+	/**
+	 * Optional resolver that substitutes cached layout instances and React keys
+	 * for SPA layout persistence.
+	 */
+	resolvePersistedTier?: (layout: EcoComponent, index: number) => { layout: EcoComponent; key?: string };
 };
 
 function resolveReact(options?: LayoutComposeOptions): ReactRuntime {
@@ -133,23 +138,29 @@ export function composeLayoutPageTree<P extends Record<string, unknown>>(
 	const context = options?.context ?? resolveLayoutContext(pageProps);
 	const pageElement = createElement(Page, pageProps);
 	const layoutEntries = Page.config?.layoutEntries;
+	const resolvePersistedTier = options?.resolvePersistedTier;
 
 	if (layoutEntries && layoutEntries.length > 0) {
-		return [...layoutEntries].reverse().reduce<ReactElement>((children, entry) => {
+		return [...layoutEntries].reverse().reduce<ReactElement>((children, entry, reverseIndex) => {
+			const index = layoutEntries.length - 1 - reverseIndex;
 			const layoutProps = resolveLayoutEntryProps(entry, context);
-			return createElement(toReactComponent(entry.component), layoutProps, children);
+			const tier = resolvePersistedTier?.(entry.component, index);
+			const Layout = toReactComponent(tier?.layout ?? entry.component);
+			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
+			return createElement(Layout, elementProps, children);
 		}, pageElement);
 	}
 
 	const layouts = Page.config?.layouts;
 	if (layouts && layouts.length > 0) {
 		const layoutProps = context.locals ? { locals: context.locals } : {};
-		return [...layouts]
-			.reverse()
-			.reduce<ReactElement>(
-				(children, Layout) => createElement(toReactComponent(Layout), layoutProps, children),
-				pageElement,
-			);
+		return [...layouts].reverse().reduce<ReactElement>((children, Layout, reverseIndex) => {
+			const index = layouts.length - 1 - reverseIndex;
+			const tier = resolvePersistedTier?.(Layout, index);
+			const ResolvedLayout = toReactComponent(tier?.layout ?? Layout);
+			const elementProps = tier?.key ? { key: tier.key, ...layoutProps } : layoutProps;
+			return createElement(ResolvedLayout, elementProps, children);
+		}, pageElement);
 	}
 
 	return pageElement;

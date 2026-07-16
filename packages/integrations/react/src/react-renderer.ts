@@ -484,25 +484,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return hydrationProps;
 	}
 
-	private resolvePageModuleUrl(
-		pagePackage: IntegrationRendererRenderOptions<ReactNode>['pagePackage'] | undefined,
-	): string | undefined {
-		if (!this.routerAdapter) {
-			return undefined;
-		}
-
-		const entryScripts =
-			pagePackage?.pageBrowserGraph?.entryAssets.filter(
-				(asset): asset is ProcessedAsset & { srcUrl: string } =>
-					asset.kind === 'script' && typeof asset.srcUrl === 'string',
-			) ?? [];
-		const bootstrapScript = entryScripts.find(
-			(asset) => asset.attributes?.['data-eco-page-bootstrap'] === 'react-router',
-		);
-
-		return bootstrapScript?.srcUrl ?? entryScripts[0]?.srcUrl;
-	}
-
 	/**
 	 * Builds shared document html contributions for router-backed React pages rendered
 	 * through a non-React HTML shell.
@@ -887,14 +868,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		pagePackage,
 	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
-			const pageModuleUrl = this.resolvePageModuleUrl(pagePackage);
+			const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(pagePackage, {
+				routerEnabled: Boolean(this.routerAdapter),
+			});
 			const safeLocals = this.pagePayloadService.getSerializableLocals(locals, this.getComponentRequires(Page));
 			const allPageProps = this.pagePayloadService.buildSerializedPageProps({
 				pageProps,
 				params,
 				query,
 				safeLocals,
-				pageModuleUrl,
 			});
 
 			return await this.renderPageWithDocumentShell({
@@ -911,6 +893,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: allPageProps,
+				documentProps: pageModuleUrl ? { pageModuleUrl } : undefined,
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
@@ -928,13 +911,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			options.renderOptions.locals,
 			this.getComponentRequires(options.renderOptions.Page),
 		);
-		const pageModuleUrl = this.resolvePageModuleUrl(options.renderOptions.pagePackage);
+		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(options.renderOptions.pagePackage, {
+			routerEnabled: Boolean(this.routerAdapter),
+		});
 		const allPageProps = this.pagePayloadService.buildSerializedPageProps({
 			pageProps: options.renderOptions.pageProps,
 			params: options.renderOptions.params,
 			query: options.renderOptions.query,
 			safeLocals,
-			pageModuleUrl,
 		});
 
 		return this.buildNonReactDocumentContributions(options.renderOptions.HtmlTemplate, allPageProps, pageModuleUrl);
@@ -969,13 +953,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const pageModuleUrl = this.resolvePageModuleUrl(this.htmlTransformer.getPagePackage());
+		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(this.htmlTransformer.getPagePackage(), {
+			routerEnabled: Boolean(this.routerAdapter),
+		});
 		const serializedPageProps = this.pagePayloadService.buildSerializedPageProps({
 			pageProps: normalizedProps,
 			params: {},
 			query: {},
 			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, this.getComponentRequires(input.view)),
-			pageModuleUrl,
 		});
 		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
 		const composeChildren = this.resolveComposeChildren(
@@ -1004,6 +989,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				documentProps: {
 					metadata,
 					pageProps: serializedPageProps,
+					...(pageModuleUrl && { pageModuleUrl }),
 				},
 			},
 		);

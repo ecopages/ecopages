@@ -10,10 +10,11 @@ import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
-import { type ComponentType } from 'react';
-import { isReactPageHydrationAssetSrc } from './hydration-assets.ts';
+import { createElement, type ComponentType } from 'react';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
+const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
+
 type PageProps = Record<string, unknown>;
 type NavigablePageComponent = ComponentType<PageProps> & { config?: EcoComponentConfig };
 
@@ -22,8 +23,17 @@ export type PageState = {
 	props: PageProps;
 };
 
+/**
+ * Fully resolved page module ready for SPA commit.
+ *
+ * @remarks
+ * `config` is carried explicitly so layout composition does not depend on
+ * mutating the imported module namespace. `Component` may be a thin wrapper
+ * that exposes the resolved config for {@link PageContent}.
+ */
 export type LoadedPageModule = {
 	Component: NavigablePageComponent;
+	config?: EcoComponentConfig;
 	props: PageProps;
 	doc: Document;
 	finalPath: string;
@@ -43,7 +53,7 @@ type LoadPageModuleOptions = {
 type LoadPageModuleFromDocumentOptions = {
 	/**
 	 * Explicit page module URL to import instead of extracting one from the
-	 * document's hydration assets.
+	 * document page-data payload.
 	 *
 	 * React Router uses this during HMR-driven reloads so the active hot module
 	 * entry wins over any static bootstrap asset references embedded in the HTML.
@@ -52,9 +62,7 @@ type LoadPageModuleFromDocumentOptions = {
 };
 
 /**
- * Extracts component module URL from window.__ECO_PAGES__.page.
- * For current document, returns the module path set by hydration script.
- * For fetched documents, parses the hydration script to extract the module path.
+ * Reads the runtime page-module marker set by hydration for the current document.
  */
 function extractComponentUrlFromMarker(doc: Document): string | null {
 	if (doc === document && window.__ECO_PAGES__?.page?.module) {
@@ -78,67 +86,11 @@ function parsePageDataPayload(doc: Document): unknown {
 }
 
 /**
- * Matches default import: `import Content from './Content'`
- * Used to extract module path from hydration script for fetched documents.
- */
-const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
-
-/**
- * Matches namespace import: `import * as Content from './Content'`
- * Used for MDX components. Also handles minified: `import*as Content from'./Content'`
- */
-const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
-
-/**
- * Matches explicit page-module markers written by hydration scripts.
- */
-const PAGE_MODULE_MARKER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*['"]([^'"]+)['"]/;
-const PAGE_MODULE_IDENTIFIER_REGEX = /__ECO_PAGES__\.page\s*=\s*\{\s*module\s*:\s*([A-Za-z_$][\w$]*)\s*,/;
-const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
-
-/**
- * Extracts import path from hydration script code using regex.
+ * Extracts serialized page props from window.__ECO_PAGES__.page or fetched document.
  *
  * @remarks
- * Compatibility fallback only. Prefer the v1 `__ECO_PAGE_DATA__` envelope.
- * Remove this path in a later compatibility release once all producers emit
- * `module` in the page-data manifest. Regex discovery is less reliable under
- * minification.
- */
-function extractModulePathFromCode(code: string, fallbackUrl?: string): string | null {
-	const markerMatch = code.match(PAGE_MODULE_MARKER_REGEX);
-	if (markerMatch) {
-		return markerMatch[1] ?? null;
-	}
-
-	const moduleIdentifier = code.match(PAGE_MODULE_IDENTIFIER_REGEX)?.[1];
-	if (moduleIdentifier) {
-		const assignmentRegex = new RegExp(
-			`(?:const|let|var)[^;]*\\b${moduleIdentifier}\\s*=\\s*(?:['"]([^'"]+)['"]|(import\\.meta\\.url))`,
-		);
-		const assignmentMatch = code.match(assignmentRegex);
-		if (assignmentMatch?.[1]) {
-			return assignmentMatch[1];
-		}
-
-		if (fallbackUrl && assignmentMatch?.[2]) {
-			return fallbackUrl;
-		}
-	}
-
-	if (fallbackUrl && code.includes('module:import.meta.url')) {
-		return fallbackUrl;
-	}
-
-	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
-	const namespaceMatch = code.match(NAMESPACE_IMPORT_REGEX);
-	return (defaultMatch || namespaceMatch)?.[2] ?? null;
-}
-
-/**
- * Extracts serialized page props from window.__ECO_PAGES__.page or fetched document.
- * For current document, returns props set by hydration script.
- * For fetched documents, parses the JSON script tag directly.
+ * For the current document, returns props set by the hydration script.
+ * For fetched documents, parses `#__ECO_PAGE_DATA__` directly.
  */
 export function extractProps(doc: Document): PageProps {
 	if (doc === document && window.__ECO_PAGES__?.page?.props) {
@@ -155,6 +107,7 @@ function isReactRouteDocument(doc: Document): boolean {
 /**
  * Adds cache-busting timestamp for HMR in development.
  *
+ * @remarks
  * Prevents loading stale cached modules when navigating to previously visited pages.
  * Disabled in production where filenames have content hashes.
  */
@@ -167,51 +120,30 @@ function addCacheBuster(url: string): string {
 }
 
 /**
- * Extracts component module URL using multi-tier strategy.
- *
- * 1. Read the v1 page-data envelope
- * 2. Read bootstrap/page markers on the current document
- * 3. Parse hydration scripts with the documented regex fallback for one release
+ * Extracts the browser-importable page module URL from a document.
  *
  * @remarks
- * EcoRouter transition-state extraction remains a separate follow-up. This
- * module only owns document → module/props discovery for React navigation.
+ * Discovery order:
+ * 1. `#__ECO_PAGE_DATA__` envelope (`schemaVersion` + `moduleUrl`)
+ * 2. `window.__ECO_PAGES__.page.module` on the current document
+ * 3. `script[data-eco-page-bootstrap="react-router"]` `src` (the page entry asset)
+ *
+ * Hydration JavaScript is never parsed. Documents without an explicit module
+ * source return `null`.
  */
-export async function extractComponentUrl(doc: Document): Promise<string | null> {
+export function extractComponentUrl(doc: Document): string | null {
 	const manifestUrl = resolveEcoPageDataModuleUrl(parsePageDataPayload(doc));
-	if (manifestUrl) return manifestUrl;
+	if (manifestUrl) {
+		return manifestUrl;
+	}
 
 	const markerUrl = extractComponentUrlFromMarker(doc);
-	if (markerUrl) return markerUrl;
-
-	const scripts = Array.from(doc.querySelectorAll('script'));
-
-	const inlineHydrationScript = scripts.find(
-		(s) =>
-			!s.src &&
-			!!s.textContent &&
-			s.textContent.includes('__ECO_PAGES__') &&
-			s.textContent.includes('hydrateRoot') &&
-			s.textContent.includes('import'),
-	);
-
-	if (inlineHydrationScript?.textContent) {
-		return extractModulePathFromCode(inlineHydrationScript.textContent);
+	if (markerUrl) {
+		return markerUrl;
 	}
 
-	const hydrationScript =
-		doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR) ??
-		scripts.find((s) => isReactPageHydrationAssetSrc(s.src ?? ''));
-	if (!hydrationScript?.src) return null;
-
-	try {
-		const scriptUrl = addCacheBuster(hydrationScript.src);
-		const res = await fetch(scriptUrl);
-		const code = await res.text();
-		return extractModulePathFromCode(code, hydrationScript.src);
-	} catch {
-		return null;
-	}
+	const bootstrapScript = doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR);
+	return bootstrapScript?.src || null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -224,10 +156,13 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * Adapts supported module export shapes to the router's page-component contract.
  *
  * @remarks
- * Config attachment is isolated here because imported component functions may
- * need module-level layout metadata copied onto them before normalization.
+ * Never mutates the imported component function. When module-level config is
+ * present but missing on the export, a thin wrapper carries `config` for layout
+ * composition while rendering the original component.
  */
-function adaptPageModule(moduleNamespace: unknown): NavigablePageComponent | null {
+function adaptPageModule(
+	moduleNamespace: unknown,
+): { Component: NavigablePageComponent; config?: EcoComponentConfig } | null {
 	const module = asRecord(moduleNamespace);
 	if (!module) {
 		return null;
@@ -240,25 +175,28 @@ function adaptPageModule(moduleNamespace: unknown): NavigablePageComponent | nul
 		return null;
 	}
 
-	const Component = rawComponent as NavigablePageComponent;
-	const config = (module.config ?? defaultRecord?.config ?? Component.config) as EcoComponentConfig | undefined;
-	if (config && !Component.config) {
-		Component.config = config;
+	const Imported = rawComponent as NavigablePageComponent;
+	const config = (module.config ?? defaultRecord?.config ?? Imported.config) as EcoComponentConfig | undefined;
+	if (config) {
+		ensurePageConfigLayouts(config);
 	}
-	ensurePageConfigLayouts(Component.config);
-	return Component;
+
+	if (!config || Imported.config === config) {
+		return { Component: Imported, config: Imported.config ?? config };
+	}
+
+	const Page = ((props: PageProps) => createElement(Imported, props)) as NavigablePageComponent;
+	Page.config = config;
+	Page.displayName = Imported.displayName ?? Imported.name ?? 'EcoRouterPage';
+	return { Component: Page, config };
 }
 
 /**
  * Fetches and parses a page, returning its component, props, and document.
  *
- * Flow: Fetch HTML → Parse → Extract props → Extract component URL → Import module
- *
- * Handles multiple export patterns (Content, default.Content, default) for different
- * integration setups. Does NOT update DOM - caller applies changes.
- *
- * @param url - The URL to load
- * @returns Object with Component, props, doc, and finalPath, or null on error
+ * @remarks
+ * Flow: fetch HTML → parse → extract props → extract module URL → import module.
+ * Does not update the DOM; the caller applies changes.
  */
 export async function loadPageModule(
 	url: string,
@@ -306,16 +244,11 @@ export async function fetchPageDocument(
 /**
  * Loads the page module for a fetched or current document.
  *
- * The router normally extracts the page module URL from the document's
- * hydration assets. Callers can provide `options.moduleUrlOverride` when the
+ * @remarks
+ * The router extracts the page module URL from the document page-data payload or
+ * bootstrap marker. Callers can provide `options.moduleUrlOverride` when the
  * document is stale with respect to the active runtime module identity, such as
  * during HMR-driven current-page reloads.
- *
- * @param doc - Parsed destination document.
- * @param finalPath - Final route path after redirects.
- * @param options - Module loading overrides.
- * @returns Loaded page module payload or `null` when the document is not a
- * React-router page or no page component can be resolved.
  */
 export async function loadPageModuleFromDocument(
 	doc: Document,
@@ -323,7 +256,7 @@ export async function loadPageModuleFromDocument(
 	options: LoadPageModuleFromDocumentOptions = {},
 ): Promise<LoadedPageModule | null> {
 	const props = extractProps(doc);
-	const componentUrl = options.moduleUrlOverride ?? (await extractComponentUrl(doc));
+	const componentUrl = options.moduleUrlOverride ?? extractComponentUrl(doc);
 
 	if (!componentUrl) {
 		if (isReactRouteDocument(doc)) {
@@ -334,11 +267,18 @@ export async function loadPageModuleFromDocument(
 
 	const moduleUrl = addCacheBuster(componentUrl);
 	const module = (await import(/* @vite-ignore */ moduleUrl)) as unknown;
-	const Component = adaptPageModule(module);
-	if (!Component) {
+	const adapted = adaptPageModule(module);
+	if (!adapted) {
 		console.error('[EcoRouter] No component found in module');
 		return null;
 	}
 
-	return { Component, props, doc, finalPath, moduleUrl: componentUrl };
+	return {
+		Component: adapted.Component,
+		config: adapted.config,
+		props,
+		doc,
+		finalPath,
+		moduleUrl: componentUrl,
+	};
 }

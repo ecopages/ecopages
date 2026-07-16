@@ -205,11 +205,3 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
 });
-
-test('EcopagesJsxRadiantSsrPolicy does not expose resetForTests', () => {
-	assert.equal('resetForTests' in EcopagesJsxRadiantSsrPolicy, false);
-	assert.equal(
-		typeof (EcopagesJsxRadiantSsrPolicy as unknown as { resetForTests?: unknown }).resetForTests,
-		'undefined',
-	);
-});

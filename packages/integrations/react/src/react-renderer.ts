@@ -133,12 +133,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	private readonly mdxExtensions: string[];
 	private readonly hmrPageMetadataCache?: ReactHmrPageMetadataCache;
 	/**
-	 * Enables explicit graph behavior for React page-entry bundling.
+	 * When true, always emit page browser graph / hydration assets for React pages.
 	 *
-	 * When true, page-entry bundles disable AST server-only stripping and rely
-	 * on explicit dependency declarations for browser graph composition.
+	 * Mapped from the public `explicitGraph` plugin option. Does not disable the
+	 * client-graph AST boundary.
 	 */
-	private readonly explicitGraphEnabled: boolean;
+	private readonly forceBrowserGraph: boolean;
 
 	/** @internal */
 	readonly bundleService: ReactBundleService;
@@ -159,7 +159,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		this.mdxCompilerOptions = reactConfig?.mdxCompilerOptions;
 		this.mdxExtensions = reactConfig?.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = reactConfig?.hmrPageMetadataCache;
-		this.explicitGraphEnabled = reactConfig?.explicitGraphEnabled ?? false;
+		this.forceBrowserGraph = reactConfig?.forceBrowserGraph ?? false;
 
 		this.bundleService = new ReactBundleService({
 			rootDir: this.appConfig.rootDir,
@@ -171,9 +171,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		});
 
 		this.pageModuleService = new ReactPageModuleService({
-			rootDir: this.appConfig.rootDir,
-			distDir: this.appConfig.absolutePaths.distDir,
-			workDir: this.appConfig.absolutePaths.workDir,
 			layoutsDir: this.appConfig.absolutePaths.layoutsDir,
 			componentsDir: this.appConfig.absolutePaths.componentsDir,
 			mdxExtensions: this.mdxExtensions,
@@ -684,7 +681,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
 		try {
 			const { file: pagePath, pageModule } = context;
-			const shouldHydrate = this.explicitGraphEnabled
+			const shouldHydrate = this.forceBrowserGraph
 				? true
 				: this.pageModuleService.shouldHydratePage(pageModule);
 			if (!shouldHydrate) {

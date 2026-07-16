@@ -11,6 +11,7 @@ import path from 'node:path';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
+import { isReactProductionRuntime } from '../utils/react-runtime-mode.ts';
 import {
 	AssetFactory,
 	type AssetDefinition,
@@ -33,6 +34,17 @@ export interface ReactHydrationAssetServiceConfig {
 	bundleService: ReactBundleService;
 	hmrPageMetadataCache?: ReactHmrPageMetadataCache;
 }
+
+type PageDependencyOptions = {
+	pagePath: string;
+	componentName: string;
+	importPath: string;
+	pageModuleUrlExpression: string;
+	bundleOptions: Record<string, unknown>;
+	hmrEnabled: boolean;
+	useBrowserRuntimeImports: boolean;
+	isMdx: boolean;
+};
 
 export function getReactIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
 	return rapidhash(`${componentFile}:${config?.__eco?.id ?? ''}`).toString();
@@ -67,11 +79,11 @@ export class ReactHydrationAssetService {
 
 	/**
 	 * Resolves the browser import path used for a React-owned page or island module.
-	 * Uses HMR manager for development or constructs static path for production.
 	 *
-	 * @param pagePath - Absolute path to the page source file
-	 * @param assetName - Generated asset name
-	 * @returns The resolved browser import path for the module
+	 * @remarks
+	 * When HMR is enabled, registers the source file as an HMR entrypoint and returns
+	 * that URL. Otherwise returns the static resolved-assets path for the generated
+	 * asset name.
 	 */
 	async resolveAssetImportPath(pagePath: string, assetName: string): Promise<string> {
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
@@ -88,25 +100,18 @@ export class ReactHydrationAssetService {
 
 	/**
 	 * Creates the page-owned route entry asset for hydration and client navigation.
-	 *
-	 * @param pagePath - Absolute path to the page source file
-	 * @param componentName - Generated unique component name
-	 * @param importPath - Resolved browser import path used by development HMR
-	 * @param bundleOptions - Bundle configuration options
-	 * @param isDevelopment - Whether running in development mode with HMR
-	 * @param isMdx - Whether the source file is an MDX file
-	 * @returns One page-owned asset definition for processing
 	 */
-	createPageDependencies(
-		pagePath: string,
-		componentName: string,
-		importPath: string,
-		pageModuleUrlExpression: string,
-		bundleOptions: Record<string, unknown>,
-		isDevelopment: boolean,
-		useBrowserRuntimeImports: boolean,
-		isMdx: boolean,
-	): AssetDefinition[] {
+	createPageDependencies(options: PageDependencyOptions): AssetDefinition[] {
+		const {
+			pagePath,
+			componentName,
+			importPath,
+			pageModuleUrlExpression,
+			bundleOptions,
+			hmrEnabled,
+			useBrowserRuntimeImports,
+			isMdx,
+		} = options;
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
 		const groupedBundle = this.config.routerAdapter
 			? {
@@ -118,7 +123,7 @@ export class ReactHydrationAssetService {
 			AssetFactory.createContentScript({
 				position: 'head',
 				content: createHydrationScript({
-					importPath: isDevelopment ? importPath : pagePath,
+					importPath: hmrEnabled ? importPath : pagePath,
 					pageModuleUrlExpression,
 					reactImportPath: useBrowserRuntimeImports ? runtimeImports.react : 'react',
 					reactDomClientImportPath: useBrowserRuntimeImports
@@ -127,14 +132,14 @@ export class ReactHydrationAssetService {
 					routerImportPath: useBrowserRuntimeImports
 						? runtimeImports.router
 						: this.config.routerAdapter?.bundle.importPath,
-					isDevelopment,
+					hmrEnabled,
 					isMdx,
 					router: this.config.routerAdapter,
 					scriptId: componentName,
 				}),
 				name: componentName,
 				packageRole: 'page-script',
-				bundle: !isDevelopment,
+				bundle: !hmrEnabled,
 				groupedBundle,
 				bundleOptions,
 				attributes: {
@@ -163,8 +168,8 @@ export class ReactHydrationAssetService {
 		const componentKey = getReactIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
-		const isDevelopment = hmrManager?.isEnabled() ?? false;
-		if (isDevelopment) {
+		const hmrEnabled = hmrManager?.isEnabled() ?? false;
+		if (hmrEnabled) {
 			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(componentFile);
 		}
 		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
@@ -201,7 +206,7 @@ export class ReactHydrationAssetService {
 					targetSelector: `[data-eco-component-key="${componentKey}"]`,
 					componentRef: config?.__eco?.id,
 					componentFile,
-					isDevelopment,
+					minify: !hmrEnabled,
 				}),
 				name: hydrationName,
 				packageRole: 'keep-separate',
@@ -224,12 +229,17 @@ export class ReactHydrationAssetService {
 	}
 
 	/**
-	 * Creates the Page Browser Graph dependency declarations for a React page.
+	 * Creates the page browser graph dependency declarations for a React page.
+	 *
+	 * @remarks
+	 * Chooses shared vendor import URLs when HMR is on, when running a non-production
+	 * hosted runtime with HMR off, or when a router adapter is configured (router
+	 * pages always externalize to shared runtimes). Production non-router pages
+	 * may inline React into the page bundle instead.
 	 *
 	 * @param pagePath - Absolute file path of the page
 	 * @param isMdx - Whether the page is an MDX file
 	 * @param declaredModules - Explicitly declared browser module specifiers
-	 * @returns Declarative assets for core-owned processing
 	 */
 	async createPageBrowserGraphDependencies(
 		pagePath: string,
@@ -238,55 +248,33 @@ export class ReactHydrationAssetService {
 	): Promise<AssetDefinition[]> {
 		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
-		const isDevelopment = hmrManager?.isEnabled() ?? false;
-		const isHostedDevelopment = !isDevelopment && process.env.NODE_ENV !== 'production';
+		const hmrEnabled = hmrManager?.isEnabled() ?? false;
+		const productionRuntime = isReactProductionRuntime();
 		const usesRouterRuntime = Boolean(this.config.routerAdapter);
-		const useBrowserRuntimeImports = isDevelopment || isHostedDevelopment || usesRouterRuntime;
-		if (isDevelopment) {
+		const useBrowserRuntimeImports = hmrEnabled || !productionRuntime || usesRouterRuntime;
+		if (hmrEnabled) {
 			this.config.hmrPageMetadataCache?.setDeclaredModules(pagePath, declaredModules);
 		}
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
-		const pageModuleUrlExpression = isDevelopment ? JSON.stringify(importPath) : 'import.meta.url';
+		const pageModuleUrlExpression = hmrEnabled ? JSON.stringify(importPath) : 'import.meta.url';
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
 			isMdx,
 			declaredModules,
 			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
 		);
-		const dependencies = this.createPageDependencies(
+		const dependencies = this.createPageDependencies({
 			pagePath,
 			componentName,
 			importPath,
 			pageModuleUrlExpression,
 			bundleOptions,
-			isDevelopment,
+			hmrEnabled,
 			useBrowserRuntimeImports,
 			isMdx,
-		);
+		});
 
 		return dependencies;
-	}
-
-	/**
-	 * Builds the Page Browser Graph assets for a React page.
-	 *
-	 * @remarks
-	 * Kept as a compatibility wrapper while callers migrate to core-owned page
-	 * graph assembly.
-	 */
-	async buildPageBrowserGraphAssets(
-		pagePath: string,
-		isMdx: boolean,
-		declaredModules: string[],
-	): Promise<ProcessedAsset[]> {
-		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
-		const dependencies = await this.createPageBrowserGraphDependencies(pagePath, isMdx, declaredModules);
-
-		if (!this.config.assetProcessingService) {
-			throw new Error('AssetProcessingService is not set');
-		}
-
-		return this.config.assetProcessingService.processDependencies(dependencies, componentName);
 	}
 }

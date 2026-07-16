@@ -4,9 +4,11 @@ import {
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from './serialize-page-data-script.ts';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
+import type { EcoComponentConfig, HtmlTemplateProps, IntegrationRendererRenderOptions, RequestLocals } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { HtmlDocumentContribution } from '@ecopages/core/route-renderer/integration-renderer';
 import type { ReactNode } from 'react';
+import { isReactManagedComponent } from '../render/component-ownership.ts';
 
 type PagePayloadOptions = {
 	pageProps?: HtmlTemplateProps['pageProps'];
@@ -62,6 +64,32 @@ export class PagePayloadService {
 			return serializePageDataManifestScript({ moduleUrl, props });
 		}
 		return serializePageDataScript(props);
+	}
+
+	/**
+	 * Builds shared document html contributions for router-backed React pages rendered
+	 * through a non-React HTML shell.
+	 */
+	buildNonReactDocumentContributions(options: {
+		htmlTemplate: { config?: EcoComponentConfig } | null | undefined;
+		pageProps: Record<string, unknown>;
+		pageModuleUrl?: string;
+		reactIntegrationName: string;
+		routerEnabled: boolean;
+	}): HtmlDocumentContribution[] | undefined {
+		if (
+			isReactManagedComponent(options.htmlTemplate, options.reactIntegrationName) ||
+			!options.routerEnabled
+		) {
+			return undefined;
+		}
+
+		return [
+			{
+				placement: 'head-append',
+				html: this.buildRouterPageDataScript(options.pageProps, options.pageModuleUrl),
+			},
+		];
 	}
 
 	/**

@@ -1,5 +1,11 @@
 /**
- * This module contains the React renderer
+ * React IntegrationRenderer orchestrator.
+ *
+ * @remarks
+ * Wires services and delegates SSR / layout composition / ownership details to
+ * focused modules under `render/`. Prefer changing those modules for
+ * implementation work; keep this file as the IntegrationRenderer seam.
+ *
  * @module
  */
 
@@ -9,7 +15,6 @@ import type {
 	EcoComponent,
 	EcoComponentConfig,
 	EcoPageFile,
-	EcoPagesElement,
 	IntegrationRendererRenderOptions,
 	PageMetadataProps,
 	RouteRendererBody,
@@ -25,21 +30,17 @@ import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import type { FunctionComponent, ReactElement, ReactNode } from 'react';
-import { isValidElement } from 'react';
 import type { CompileOptions } from '@mdx-js/mdx';
+import type { ReactNode } from 'react';
 import { REACT_PLUGIN_NAME } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import { hasSingleRootElement } from './html-boundary.ts';
 import { BundleService } from '../bundling/bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { MdxConfigDependencyService } from '../mdx/mdx-config-dependency.ts';
 import { PageModuleService } from '../page/page-module.ts';
 import { PagePayloadService } from '../hydration/page-payload.ts';
-import { getIslandComponentKey, HydrationAssetService } from '../hydration/hydration-asset.ts';
+import { HydrationAssetService } from '../hydration/hydration-asset.ts';
 import {
 	composeDocumentShell,
 	renderPageDocumentShell,
@@ -47,78 +48,27 @@ import {
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/route-renderer/orchestration/document-shell-render.service';
+import { asReactComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
-	composeLayoutPageTree,
-	composeLayoutPageTreeFromShell,
-	assertComposablePage,
-	resolveLayoutContextFromShell,
-	type ComposablePage,
-	type LayoutComposeOptions,
-	type ReactRuntime,
-} from './layout-compose.ts';
+	createForeignSubtreeRuntimeContext,
+	renderForeignComponentWithSerializedHtml,
+	renderReactManagedComponent,
+	renderReactQueuedForeignSubtreeChildren,
+	type ReactForeignSubtreeResolutionContext,
+} from './component-ssr.ts';
+import { BundleError, ReactRenderError } from './errors.ts';
+import { resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
+import {
+	composeReactLayoutPageChildren,
+	resolveComposeChildren,
+} from './unified-layout-composition.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
-
-type ReactComponentRenderContext = {
-	componentInstanceId?: string;
-};
-
-type ReactForeignSubtreeResolutionContext = {
-	rendererCache: Map<string, IntegrationRenderer<any>>;
-	componentInstanceScope?: string;
-	nextForeignSubtreeId: number;
-	queuedResolutions: Array<{
-		token: string;
-		component: EcoComponent;
-		props: Record<string, unknown>;
-		componentInstanceId: string;
-	}>;
-	rawChildrenToken?: string;
-	rawChildrenHtml?: string;
-};
-
-type SerializableProps = Record<string, unknown>;
-
-type ReactRenderableComponent<P extends SerializableProps = SerializableProps> = FunctionComponent<P> & {
-	config?: EcoComponentConfig;
-	requires?: string | readonly string[];
-};
-
-type ReactRuntimeModules = {
-	react: ReactRuntime;
-	reactDomServer: typeof import('react-dom/server');
-};
-
-type RequiresAwareComponent = {
-	requires?: string | readonly string[];
-};
+export { BundleError, ReactRenderError } from './errors.ts';
 
 export type ReactRendererOptions = ConstructorParameters<typeof IntegrationRenderer>[0] & {
 	reactConfig?: ReactRendererConfig;
 };
-
-/**
- * Error thrown when an error occurs while rendering a React component.
- */
-export class ReactRenderError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = 'ReactRenderError';
-	}
-}
-
-/**
- * Error thrown when an error occurs while bundling a React component.
- */
-export class BundleError extends Error {
-	public readonly logs: string[];
-
-	constructor(message: string, logs: string[]) {
-		super(message);
-		this.name = 'BundleError';
-		this.logs = logs;
-	}
-}
 
 /**
  * Renderer for React components.
@@ -194,33 +144,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		});
 	}
 
-	/**
-	 * Reads the declared integration name for a component or layout.
-	 *
-	 * We honor both the explicit `config.integration` override and injected
-	 * `config.__eco.integration` metadata because pages can arrive here through
-	 * authored config as well as build-time component metadata.
-	 */
-	private getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
-		return component?.config?.integration ?? component?.config?.__eco?.integration;
-	}
-
-	/**
-	 * Returns whether a component should stay inside the React render lane.
-	 *
-	 * Components without explicit integration metadata are treated as React-owned
-	 * here because this renderer only receives them after the route pipeline has
-	 * already selected the React integration.
-	 */
-	private isReactManagedComponent(component?: { config?: EcoComponentConfig } | null): boolean {
-		const integration = this.getComponentIntegration(component);
-		return integration === undefined || integration === this.name;
-	}
-
-	private getComponentRequires(component?: (EcoComponent & RequiresAwareComponent) | null) {
-		return component?.requires;
-	}
-
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
 		if (!this.routerAdapter) {
 			return undefined;
@@ -231,49 +154,8 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		};
 	}
 
-	/**
-	 * Commits a framework-agnostic component to React semantics.
-	 *
-	 * This is one of the two real cast boundaries in this file. Core keeps
-	 * `EcoComponent` broad so integrations can share the same public surface; once
-	 * the React renderer is executing, `createElement()` needs a concrete React
-	 * component signature.
-	 */
-	private asReactComponent<P extends SerializableProps>(component: unknown): ReactRenderableComponent<P> {
-		return component as ReactRenderableComponent<P>;
-	}
-
-	/**
-	 * Commits a mixed-shell component to the string-returning contract required by
-	 * non-React layouts and HTML templates.
-	 *
-	 * This is the second real cast boundary: once we decide a shell is not managed
-	 * by React, we call it directly and require serialized HTML back.
-	 */
-	private asNonReactShellComponent<P extends SerializableProps>(
-		component: unknown,
-	): (props: P) => EcoPagesElement | Promise<EcoPagesElement> {
-		return component as (props: P) => EcoPagesElement | Promise<EcoPagesElement>;
-	}
-
 	protected resolveReactRuntimeModules(): ReactRuntimeModules {
-		const appPackageJsonPath = path.resolve(this.appConfig.rootDir || process.cwd(), 'package.json');
-
-		try {
-			const requireFromApp = createRequire(appPackageJsonPath);
-
-			return {
-				react: requireFromApp('react') as ReactRuntime,
-				reactDomServer: requireFromApp('react-dom/server'),
-			};
-		} catch {
-			const requireFromIntegration = createRequire(import.meta.url);
-
-			return {
-				react: requireFromIntegration('react') as ReactRuntime,
-				reactDomServer: requireFromIntegration('react-dom/server'),
-			};
-		}
+		return resolveReactRuntimeModules(this.appConfig.rootDir);
 	}
 
 	private getReactRuntimeModules(): ReactRuntimeModules {
@@ -294,166 +176,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		this.mergePageBrowserGraphIntoPagePackage(pageBrowserGraph);
 	}
 
-	/**
-	 * Renders a non-React layout or HTML template and enforces that mixed shells
-	 * return serialized HTML.
-	 *
-	 * The React renderer can compose through another integration's shell, but only
-	 * if that shell yields a string that can be inserted into the final document.
-	 */
-	private async renderNonReactShellComponent<P extends SerializableProps>(
-		Component: (props: P) => EcoPagesElement | Promise<EcoPagesElement>,
-		props: P,
-		label: 'Layout' | 'HtmlTemplate' | 'Component',
-	): Promise<string> {
-		const output = await Component(props);
-		if (typeof output === 'string') {
-			return output;
-		}
-
-		throw new ReactRenderError(`${label} must return a string when used as a mixed shell for React pages.`);
-	}
-
-	/**
-	 * Renders one React component while preserving already-resolved child HTML.
-	 *
-	 * When nested foreign-subtree resolution has already produced child HTML for this
-	 * component, the child payload must remain raw SSR output rather than a React
-	 * string child, otherwise React would escape it. This helper renders a unique
-	 * token through React and swaps that token back to the resolved HTML
-	 * afterward.
-	 *
-	 * @param input Component render input for the current render step.
-	 * @param context React-specific render context for stable token generation.
-	 * @returns Serialized component HTML with resolved child markup preserved.
-	 */
-	private renderComponentHtml(
-		input: ComponentRenderInput,
-		context: ReactComponentRenderContext,
-		runtimeContext?: ReactForeignSubtreeResolutionContext,
-	): string {
-		const { react, reactDomServer } = this.getReactRuntimeModules();
-
-		if (input.children === undefined) {
-			return this.normalizeUnresolvedMarkerArtifactHtml(
-				reactDomServer.renderToString(react.createElement(this.asReactComponent(input.component), input.props)),
-			);
-		}
-
-		if (isValidElement(input.children)) {
-			return this.normalizeUnresolvedMarkerArtifactHtml(
-				reactDomServer.renderToString(
-					react.createElement(this.asReactComponent(input.component), input.props, input.children),
-				),
-			);
-		}
-
-		const resolvedChildHtml = typeof input.children === 'string' ? input.children : String(input.children ?? '');
-		const rawChildrenToken = `__ECO_RAW_HTML_CHILD_${context.componentInstanceId ?? 'component'}__`;
-		if (runtimeContext) {
-			runtimeContext.rawChildrenToken = rawChildrenToken;
-			runtimeContext.rawChildrenHtml = resolvedChildHtml;
-		}
-		const html = reactDomServer.renderToString(
-			react.createElement(this.asReactComponent(input.component), input.props, rawChildrenToken),
-		);
-		return this.normalizeUnresolvedMarkerArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
-	}
-
-	private toReactNode(children: unknown): ReactNode {
-		if (
-			children === null ||
-			typeof children === 'string' ||
-			typeof children === 'number' ||
-			typeof children === 'boolean' ||
-			isValidElement(children) ||
-			Array.isArray(children)
-		) {
-			return children;
-		}
-
-		throw new TypeError(`[ecopages] ${this.name} renderer expected a React node child.`);
-	}
-
-	/**
-	 *
-	 * Queued foreign-subtree resolution may render children through a fragment path before all
-	 * nested integration tokens are resolved. When that happens, React must never see
-	 * the resolved child HTML as a normal string child or it would escape it. The
-	 * runtime context stores the placeholder token and the raw child HTML so the
-	 * fragment render path can reinsert it before foreign-subtree tokens are handled.
-	 */
-	private restoreRuntimeChildHtml(
-		html: string,
-		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	): string {
-		if (!runtimeContext?.rawChildrenToken || runtimeContext.rawChildrenHtml === undefined) {
-			return html;
-		}
-
-		return html.split(runtimeContext.rawChildrenToken).join(runtimeContext.rawChildrenHtml);
-	}
-
-	/**
-	 * Renders queued child content through React and then resolves nested foreign-subtree tokens.
-	 *
-	 * This path is only used for children that were deferred while React rendered the
-	 * parent component. It first restores any raw child HTML placeholders owned by the
-	 * current runtime context, then asks the shared queued foreign-subtree resolver to swap
-	 * foreign integration tokens with their resolved HTML.
-	 */
-	private async renderQueuedChildrenToHtml(
-		children: unknown,
-		runtimeContext: ReactForeignSubtreeResolutionContext,
-		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<string | undefined> {
-		if (children === undefined) {
-			return undefined;
-		}
-
-		const { react, reactDomServer } = this.getReactRuntimeModules();
-
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(react.createElement(react.Fragment, null, this.toReactNode(children))),
-		);
-		html = this.restoreRuntimeChildHtml(html, runtimeContext);
-
-		html = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-			html,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
-
-		return html;
-	}
-
-	/**
-	 * Resolves queued renderer-owned foreign-subtree tokens produced during React component rendering.
-	 */
-	private async renderReactQueuedForeignSubtreeChildren(
-		children: unknown,
-		currentRuntimeContext: ReactForeignSubtreeResolutionContext,
-		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
-		const renderedHtml = await this.renderQueuedChildrenToHtml(
-			children,
-			currentRuntimeContext,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
-
-		if (renderedHtml === undefined) {
-			return { assets: [] };
-		}
-
-		return {
-			assets: [],
-			html: renderedHtml,
-		};
-	}
-
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
@@ -462,146 +184,20 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			html,
 			runtimeContext,
 			(children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) =>
-				this.renderReactQueuedForeignSubtreeChildren(
+				renderReactQueuedForeignSubtreeChildren({
 					children,
 					currentRuntimeContext,
 					queuedResolutionsByToken,
 					resolveToken,
-				),
+					runtime: this.getReactRuntimeModules(),
+					integrationName: this.name,
+					normalizeUnresolvedMarkerArtifactHtml: (value) =>
+						this.normalizeUnresolvedMarkerArtifactHtml(value),
+					resolveQueuedTokens: (value, tokens, resolve) =>
+						this.foreignSubtreeExecutionService.resolveQueuedTokens(value, tokens, resolve),
+				}),
 			'React',
 		);
-	}
-
-	private buildHydrationProps(props: SerializableProps | undefined): SerializableProps {
-		if (!props || !Object.prototype.hasOwnProperty.call(props, 'locals')) {
-			return props ?? {};
-		}
-
-		const { locals: _locals, ...hydrationProps } = props;
-		return hydrationProps;
-	}
-
-	/**
-	 * Builds shared document html contributions for router-backed React pages rendered
-	 * through a non-React HTML shell.
-	 */
-	private buildNonReactDocumentContributions(
-		htmlTemplate: { config?: EcoComponentConfig } | null | undefined,
-		pageProps: SerializableProps,
-		pageModuleUrl?: string,
-	): HtmlDocumentContribution[] | undefined {
-		if (this.isReactManagedComponent(htmlTemplate) || !this.routerAdapter) {
-			return undefined;
-		}
-
-		return [
-			{
-				placement: 'head-append',
-				html: this.pagePayloadService.buildRouterPageDataScript(pageProps, pageModuleUrl),
-			},
-		];
-	}
-
-	/**
-	 * Renders a foreign integration component that participates in React composition.
-	 *
-	 * Non-React components must resolve to serialized HTML so React can embed them as
-	 * mixed-shell children. Any component-owned dependencies still need to flow
-	 * through the shared dependency resolver before queued foreign-subtree tokens are finalized.
-	 */
-	private async renderForeignComponentWithSerializedHtml(
-		input: ComponentRenderInput,
-		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	): Promise<ComponentRenderResult> {
-		let props = input.props;
-		if (input.children !== undefined) {
-			props = {
-				...input.props,
-				children: typeof input.children === 'string' ? input.children : String(input.children ?? ''),
-			};
-		}
-
-		const html = await this.renderNonReactShellComponent(
-			this.asNonReactShellComponent<Record<string, unknown>>(input.component),
-			props,
-			'Component',
-		);
-		const hasDependencies = Boolean(input.component.config?.dependencies);
-		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
-		const assets =
-			hasDependencies && canResolveAssets
-				? await this.processComponentDependencies([input.component])
-				: undefined;
-		const queuedForeignSubtreeResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
-			...(assets ?? []),
-			...queuedForeignSubtreeResolution.assets,
-		]);
-
-		return {
-			html: queuedForeignSubtreeResolution.html,
-			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
-			integrationName: this.name,
-			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-		};
-	}
-
-	/**
-	 * Renders a React-owned component and attaches island hydration metadata when possible.
-	 *
-	 * This path keeps React-owned SSR, queued foreign-subtree resolution, and optional
-	 * island hydration wiring together so the public `renderComponent()` method can
-	 * read as orchestration rather than implementation detail.
-	 */
-	private async renderReactManagedComponent(
-		input: ComponentRenderInput,
-		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	): Promise<ComponentRenderResult> {
-		const componentConfig = input.component.config;
-		const context: ReactComponentRenderContext = {
-			componentInstanceId: input.integrationContext?.componentInstanceId,
-		};
-		const hasResolvedChildHtml = input.children !== undefined;
-		let html = this.renderComponentHtml(input, context, runtimeContext);
-		const queuedForeignSubtreeResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		html = queuedForeignSubtreeResolution.html;
-		const canAttachAttributes = hasSingleRootElement(html);
-		const rootTag = this.getRootTagName(html);
-		const componentFile = componentConfig?.__eco?.file;
-
-		let rootAttributes: Record<string, string> | undefined;
-		let assets: ProcessedAsset[] | undefined;
-
-		if (
-			canAttachAttributes &&
-			componentFile &&
-			context.componentInstanceId &&
-			this.assetProcessingService &&
-			!hasResolvedChildHtml
-		) {
-			const componentInstanceId = context.componentInstanceId;
-			assets = await this.hydrationAssetService.buildComponentRenderAssets(componentFile, componentConfig);
-			rootAttributes = {
-				'data-eco-component-id': componentInstanceId,
-				'data-eco-component-key': getIslandComponentKey(componentFile, componentConfig),
-				'data-eco-props': btoa(JSON.stringify(this.buildHydrationProps(input.props))),
-			};
-		}
-
-		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
-			...(assets ?? []),
-			...queuedForeignSubtreeResolution.assets,
-		]);
-
-		return {
-			html,
-			canAttachAttributes,
-			rootTag,
-			integrationName: this.name,
-			rootAttributes,
-			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-		};
 	}
 
 	/**
@@ -622,11 +218,33 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const runtimeContext =
 			this.getQueuedForeignSubtreeResolutionContext<ReactForeignSubtreeResolutionContext>(input);
 
-		if (!this.isReactManagedComponent(input.component)) {
-			return this.renderForeignComponentWithSerializedHtml(input, runtimeContext);
+		if (!isReactManagedComponent(input.component, this.name)) {
+			return renderForeignComponentWithSerializedHtml({
+				input,
+				runtimeContext,
+				integrationName: this.name,
+				canResolveAssets: typeof this.assetProcessingService?.processDependencies === 'function',
+				processComponentDependencies: (components) => this.processComponentDependencies(components),
+				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+				getRootTagName: (html) => this.getRootTagName(html),
+				resolveQueuedForeignSubtreeHtml: (html, context) =>
+					this.resolveReactQueuedForeignSubtreeHtml(html, context),
+			});
 		}
 
-		return this.renderReactManagedComponent(input, runtimeContext);
+		return renderReactManagedComponent({
+			input,
+			runtimeContext,
+			runtime: this.getReactRuntimeModules(),
+			integrationName: this.name,
+			normalizeUnresolvedMarkerArtifactHtml: (html) => this.normalizeUnresolvedMarkerArtifactHtml(html),
+			resolveQueuedForeignSubtreeHtml: (html, context) =>
+				this.resolveReactQueuedForeignSubtreeHtml(html, context),
+			getRootTagName: (html) => this.getRootTagName(html),
+			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+			hydrationAssetService: this.hydrationAssetService,
+			canBuildIslandAssets: Boolean(this.assetProcessingService),
+		});
 	}
 
 	protected override createForeignChildRuntime(options: {
@@ -636,14 +254,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.createQueuedForeignSubtreeExecutionRuntime<ReactForeignSubtreeResolutionContext>({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
-			createRuntimeContext: (integrationContext, rendererCache) => ({
-				rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
-				componentInstanceScope: integrationContext.componentInstanceId,
-				nextForeignSubtreeId: 0,
-				queuedResolutions: [],
-				rawChildrenToken: undefined,
-				rawChildrenHtml: undefined,
-			}),
+			createRuntimeContext: (integrationContext, rendererCache) =>
+				createForeignSubtreeRuntimeContext({
+					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
+					componentInstanceScope: integrationContext.componentInstanceId,
+				}),
 		});
 	}
 
@@ -717,98 +332,22 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 	}
 
-	/**
-	 * Composes page and layout tiers as one React element tree for SSR.
-	 */
-	private async composeReactLayoutPageChildren(
+	private async composeReactLayoutPageChildrenForShell(
 		page: { component: EcoComponent; props: Record<string, unknown> },
 		context: DocumentShellComposeChildrenContext,
 	): Promise<DocumentShellComposeChildrenResult> {
-		const pageComponent = assertComposablePage(page.component);
-		const shellEntries = context.layouts.map((layout) => ({
-			component: layout.component,
-			props: layout.props,
-		}));
-		const { react, reactDomServer } = this.getReactRuntimeModules();
-		const tree = this.composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
-			context: resolveLayoutContextFromShell(page.props, shellEntries),
-			react,
-		});
-		const runtimeInput: ComponentRenderInput = {
-			component: page.component,
-			props: page.props,
-			integrationContext: {
-				rendererCache: context.rendererCache as ReactForeignSubtreeResolutionContext['rendererCache'],
-			},
-		};
-		const runtimeContext = this.getQueuedForeignSubtreeResolutionContext(runtimeInput) as
-			ReactForeignSubtreeResolutionContext | undefined;
-		let html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
-		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
-		const primaryRender: ComponentRenderResult = {
-			html: resolved.html,
-			canAttachAttributes: hasSingleRootElement(resolved.html),
-			rootTag: this.getRootTagName(resolved.html),
+		return composeReactLayoutPageChildren({
+			page,
+			context,
+			runtime: this.getReactRuntimeModules(),
 			integrationName: this.name,
-			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
-		};
-
-		return {
-			children: resolved.html,
-			layoutRenders: [],
-			primaryRender,
-		};
-	}
-
-	private composeReactLayoutPageTree(
-		Page: ComposablePage,
-		pageProps: Record<string, unknown>,
-		shellEntries: Array<{ component: EcoComponent; props?: Record<string, unknown> }>,
-		options: LayoutComposeOptions,
-	): ReactElement {
-		const hasNormalizedLayouts =
-			Boolean(Page.config?.layoutEntries?.length) || Boolean(Page.config?.layouts?.length);
-
-		if (hasNormalizedLayouts) {
-			return composeLayoutPageTree(Page, pageProps, options);
-		}
-
-		return composeLayoutPageTreeFromShell(Page, pageProps, shellEntries, options);
-	}
-
-	private shouldUseUnifiedReactLayoutComposition(
-		page: EcoComponent,
-		shellLayouts: DocumentShellLayoutInput[],
-	): boolean {
-		if (!this.isReactManagedComponent(page)) {
-			return false;
-		}
-
-		const composablePage = assertComposablePage(page);
-		const configLayouts =
-			composablePage.config?.layouts ??
-			composablePage.config?.layoutEntries?.map((entry) => entry.component) ??
-			[];
-
-		const layoutComponents =
-			shellLayouts.length > 0 ? shellLayouts.map((layout) => layout.component) : configLayouts;
-
-		if (layoutComponents.length === 0) {
-			return false;
-		}
-
-		return layoutComponents.every((component) => this.isReactManagedComponent(component));
-	}
-
-	private resolveComposeChildren(
-		page: { component: EcoComponent; props: Record<string, unknown> },
-		shellLayouts: DocumentShellLayoutInput[],
-	): ((context: DocumentShellComposeChildrenContext) => Promise<DocumentShellComposeChildrenResult>) | undefined {
-		if (!this.shouldUseUnifiedReactLayoutComposition(page.component, shellLayouts)) {
-			return undefined;
-		}
-
-		return (context) => this.composeReactLayoutPageChildren(page, context);
+			normalizeUnresolvedMarkerArtifactHtml: (html) => this.normalizeUnresolvedMarkerArtifactHtml(html),
+			getRootTagName: (html) => this.getRootTagName(html),
+			getQueuedForeignSubtreeResolutionContext: (input) =>
+				this.getQueuedForeignSubtreeResolutionContext<ReactForeignSubtreeResolutionContext>(input),
+			resolveQueuedForeignSubtreeHtml: (html, runtimeContext) =>
+				this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext),
+		});
 	}
 
 	protected override async renderPageWithDocumentShell(input: {
@@ -825,7 +364,12 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		transformDocumentHtml?: (html: string) => string;
 	}): Promise<string> {
 		const shellLayouts = input.layouts ?? (input.layout ? [input.layout] : []);
-		const composeChildren = this.resolveComposeChildren(input.page, shellLayouts);
+		const composeChildren = resolveComposeChildren({
+			page: input.page,
+			shellLayouts,
+			reactIntegrationName: this.name,
+			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
+		});
 
 		return renderPageDocumentShell(
 			{
@@ -866,7 +410,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(pagePackage, {
 				routerEnabled: Boolean(this.routerAdapter),
 			});
-			const safeLocals = this.pagePayloadService.getSerializableLocals(locals, this.getComponentRequires(Page));
+			const safeLocals = this.pagePayloadService.getSerializableLocals(locals, getComponentRequires(Page));
 			const allPageProps = this.pagePayloadService.buildSerializedPageProps({
 				pageProps,
 				params,
@@ -904,7 +448,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const safeLocals = this.pagePayloadService.getSerializableLocals(
 			options.renderOptions.locals,
-			this.getComponentRequires(options.renderOptions.Page),
+			getComponentRequires(options.renderOptions.Page),
 		);
 		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(options.renderOptions.pagePackage, {
 			routerEnabled: Boolean(this.routerAdapter),
@@ -916,7 +460,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			safeLocals,
 		});
 
-		return this.buildNonReactDocumentContributions(options.renderOptions.HtmlTemplate, allPageProps, pageModuleUrl);
+		return this.pagePayloadService.buildNonReactDocumentContributions({
+			htmlTemplate: options.renderOptions.HtmlTemplate,
+			pageProps: allPageProps as Record<string, unknown>,
+			pageModuleUrl,
+			reactIntegrationName: this.name,
+			routerEnabled: Boolean(this.routerAdapter),
+		});
 	}
 
 	protected override getDocumentAttributes(): Record<string, string> | undefined {
@@ -933,7 +483,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		if (input.ctx.partial) {
 			const { react, reactDomServer } = this.getReactRuntimeModules();
-			const ViewComponent = this.asReactComponent(input.view);
+			const ViewComponent = asReactComponent(input.view);
 			return this.renderPartialViewResponse({
 				...input,
 				renderInline: async () =>
@@ -955,13 +505,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			pageProps: normalizedProps,
 			params: {},
 			query: {},
-			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, this.getComponentRequires(input.view)),
+			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, getComponentRequires(input.view)),
 		});
 		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
-		const composeChildren = this.resolveComposeChildren(
-			{ component: input.view, props: normalizedProps },
+		const composeChildren = resolveComposeChildren({
+			page: { component: input.view, props: normalizedProps },
 			shellLayouts,
-		);
+			reactIntegrationName: this.name,
+			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
+		});
 
 		const { documentHtml } = await composeDocumentShell(
 			{
@@ -993,11 +545,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			html: `${this.DOC_TYPE}${documentHtml}`,
 			partial: false,
 			documentAttributes: this.getRouterDocumentAttributes(),
-			htmlContributions: this.buildNonReactDocumentContributions(
-				HtmlTemplate,
-				serializedPageProps,
+			htmlContributions: this.pagePayloadService.buildNonReactDocumentContributions({
+				htmlTemplate: HtmlTemplate,
+				pageProps: serializedPageProps as Record<string, unknown>,
 				pageModuleUrl,
-			),
+				reactIntegrationName: this.name,
+				routerEnabled: Boolean(this.routerAdapter),
+			}),
 		});
 
 		return this.createHtmlResponse(html, input.ctx);

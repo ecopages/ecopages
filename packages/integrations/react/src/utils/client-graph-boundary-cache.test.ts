@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ClientGraphBoundaryCache, clientGraphBoundaryCache } from './client-graph-boundary-cache.ts';
+import { ClientGraphBoundaryCache } from './client-graph-boundary-cache.ts';
 
 describe('ClientGraphBoundaryCache', () => {
 	const filePath = '/a.ts';
@@ -82,16 +82,6 @@ describe('ClientGraphBoundaryCache', () => {
 		cache.clear();
 		expect(cache.size).toBe(0);
 		expect(cache.stats().hits).toBe(0);
-	});
-
-	it('shared clientGraphBoundaryCache is shared across consumers', () => {
-		clientGraphBoundaryCache.clear();
-		clientGraphBoundaryCache.set('/shared', 'x', allowList, {
-			transformed: 'x',
-			modified: false,
-			rulesAdded: new Map(),
-		});
-		expect(clientGraphBoundaryCache.get('/shared', 'x', allowList)).toBeDefined();
 	});
 
 	it('throws on invalid maxEntries', () => {

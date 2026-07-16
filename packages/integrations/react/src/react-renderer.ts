@@ -681,9 +681,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
 		try {
 			const { file: pagePath, pageModule } = context;
-			const shouldHydrate = this.forceBrowserGraph
-				? true
-				: this.pageModuleService.shouldHydratePage(pageModule);
+			const shouldHydrate = this.forceBrowserGraph ? true : this.pageModuleService.shouldHydratePage(pageModule);
 			if (!shouldHydrate) {
 				return { assets: [] };
 			}

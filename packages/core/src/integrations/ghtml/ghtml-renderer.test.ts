@@ -14,7 +14,7 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '../../route-renderer/orchestration/integration-renderer.ts';
-import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestration/foreign-subtree-execution.service.ts';
+import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();

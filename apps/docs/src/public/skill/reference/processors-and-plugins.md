@@ -100,7 +100,7 @@ Minimal integrations:
 
 ```typescript
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 
 class CustomRenderer extends StringMarkupRenderer {
 	name = 'custom-integration';

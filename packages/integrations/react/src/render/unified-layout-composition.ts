@@ -14,7 +14,7 @@ import type {
 	DocumentShellComposeChildrenContext,
 	DocumentShellComposeChildrenResult,
 	DocumentShellLayoutInput,
-} from '@ecopages/core/route-renderer/orchestration/document-shell-render.service';
+} from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
 import type { ReactElement } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { isReactManagedComponent } from './component-ownership.ts';

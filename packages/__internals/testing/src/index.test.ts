@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { createTestAppConfig } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {

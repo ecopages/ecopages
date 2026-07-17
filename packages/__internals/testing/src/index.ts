@@ -7,7 +7,10 @@ import type {
 } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 
 export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
 

@@ -8,8 +8,8 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';

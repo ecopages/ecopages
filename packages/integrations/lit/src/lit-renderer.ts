@@ -17,8 +17,11 @@ import type {
 } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import './dom-shim.ts';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';

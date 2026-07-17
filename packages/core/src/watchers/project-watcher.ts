@@ -9,7 +9,7 @@ import {
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph-session.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';

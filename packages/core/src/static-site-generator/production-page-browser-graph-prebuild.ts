@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph-session.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 
 /**
  * Returns whether production static export should warm Page Browser Graphs before rendering.

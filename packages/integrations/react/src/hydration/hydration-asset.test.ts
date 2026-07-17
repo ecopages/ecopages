@@ -97,7 +97,7 @@ describe('HydrationAssetService', () => {
 		});
 	});
 
-	it('keeps router-managed page entries unbundled in development', () => {
+	it('bundles router-managed page bootstraps in development while keeping the HMR page module external', () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -130,19 +130,80 @@ describe('HydrationAssetService', () => {
 			componentName: 'ecopages-react-docs',
 			importPath: '/assets/_hmr/pages/docs/index.js',
 			pageModuleUrlExpression: '"/assets/_hmr/pages/docs/index.js"',
-			bundleOptions: {},
+			bundleOptions: {
+				external: ['/assets/vendors/react-router-esm.js'],
+			},
 			hmrEnabled: true,
 			useBrowserRuntimeImports: true,
 			isMdx: false,
 		});
 
 		expect(dependencies[0]).toMatchObject({
-			bundle: false,
-			groupedBundle: {
-				id: 'ecopages-react-router-pages',
-				entryName: 'pages__docs__index',
+			bundle: true,
+			groupedBundle: undefined,
+			bundleOptions: {
+				external: expect.arrayContaining([
+					'/assets/vendors/react-router-esm.js',
+					'/assets/_hmr/pages/docs/index.js',
+				]),
+			},
+			attributes: {
+				'data-eco-page-bootstrap': 'react-router',
 			},
 		});
+		expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
+			'from "/assets/_hmr/pages/docs/index.js"',
+		);
+	});
+
+	it('bundles MDX page bootstraps that import layout normalization helpers', () => {
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			routerAdapter: {
+				name: 'eco-router',
+				bundle: {
+					outputName: 'react-router-esm',
+					importPath: '@ecopages/react-router/browser',
+					externals: [],
+				},
+				components: {
+					router: 'EcoRouter',
+					pageContent: 'PageContent',
+				},
+				getRouterProps: () => '{}',
+			},
+			assetProcessingService: {
+				getHmrManager: () => ({ isEnabled: () => true }),
+			} as any,
+			bundleService: {
+				getRuntimeImports: () => ({
+					react: '/assets/vendors/react.js',
+					reactDomClient: '/assets/vendors/react-dom.js',
+					router: '/assets/vendors/react-router-esm.js',
+				}),
+			} as any,
+		});
+
+		const dependencies = service.createPageDependencies({
+			pagePath: '/app/src/pages/react-content.mdx',
+			componentName: 'ecopages-react-mdx',
+			importPath: '/assets/_hmr/pages/react-content.js',
+			pageModuleUrlExpression: '"/assets/_hmr/pages/react-content.js"',
+			bundleOptions: {},
+			hmrEnabled: true,
+			useBrowserRuntimeImports: true,
+			isMdx: true,
+		});
+
+		const content = String((dependencies[0] as { content?: string }).content ?? '');
+		expect(dependencies[0]).toMatchObject({
+			bundle: true,
+			bundleOptions: {
+				external: ['/assets/_hmr/pages/react-content.js'],
+			},
+		});
+		expect(content).toContain('@ecopages/core/eco/page-layout-normalization');
+		expect(content).toContain('from "/assets/_hmr/pages/react-content.js"');
 	});
 
 	it('bundles the React runtime into production page browser graph entries', async () => {

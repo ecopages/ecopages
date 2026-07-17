@@ -85,6 +85,14 @@
 			"types": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
 			"default": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts"
 		},
+		"./route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils": {
+			"types": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
+			"default": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts"
+		},
+		"./route-renderer/orchestration/foreign-child/owning-renderer-resolution": {
+			"types": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts",
+			"default": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts"
+		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
 			"default": "./src/router/client/navigation-coordinator.ts"

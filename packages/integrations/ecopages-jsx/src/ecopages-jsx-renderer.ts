@@ -10,7 +10,14 @@ import {
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import type {
+	ForeignSubtreeExecutionOwningRenderer,
+	QueuedForeignSubtreeResolutionContext,
+} from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import {
+	getForeignSubtreeResolutionContextKey,
+	resolveOwningIntegrationRenderer,
+} from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
 import type {
 	ForeignChildInterceptionInput,
 	ForeignChildRuntime,
@@ -264,13 +271,30 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 								};
 					const content = await this.withCustomElementRenderHook(() => component(componentProps));
 					const rendered = await this.renderJsx(content);
-					const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtreeHtml(
-						rendered.html,
-						this.getQueuedForeignSubtreeResolutionContext<QueuedForeignSubtreeResolutionContext>(input),
-						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+					const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
+						currentIntegrationName: this.name,
+						html: rendered.html,
+						runtimeContext:
+							this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+								input,
+								getForeignSubtreeResolutionContextKey(this.name),
+							),
+						queueLabel: 'Ecopages JSX',
+						getOwningRenderer: (integrationName, rendererCache) =>
+							resolveOwningIntegrationRenderer({
+								appConfig: this.appConfig,
+								runtimeOrigin: this.runtimeOrigin,
+								currentIntegrationName: this.name,
+								currentRenderer: this,
+								integrationName,
+								cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
+							}),
+						applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+							this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+						dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+						renderQueuedChildren: (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
 							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-						'Ecopages JSX',
-					);
+					});
 					const componentAssets =
 						input.component.config?.dependencies &&
 						typeof this.assetProcessingService?.processDependencies === 'function'

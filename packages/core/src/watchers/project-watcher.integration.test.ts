@@ -367,9 +367,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			await (watcher as any).processFileChange(mdxPath, 'change');
 
-			expect(onChange).toHaveBeenCalledWith(
-				expect.objectContaining({ path: path.resolve(mdxPath), bridge }),
-			);
+			expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ path: path.resolve(mdxPath), bridge }));
 			expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
 				path.resolve(mdxPath),
 				expect.objectContaining({ graphIdentities: expect.anything() }),

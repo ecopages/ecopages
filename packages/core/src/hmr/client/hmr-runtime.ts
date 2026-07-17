@@ -124,7 +124,7 @@ interface HMRPayload {
 
 		await new Promise<void>((resolve) => {
 			const startedAt = performance.now();
-			const timeoutMs = 2000;
+			const timeoutMs = 5_000;
 
 			const poll = () => {
 				if (!navigationRuntime.hasPendingNavigationTransaction()) {

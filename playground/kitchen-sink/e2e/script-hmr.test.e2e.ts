@@ -8,6 +8,7 @@ import {
 	gotoPath,
 	startEcopagesHmrConnectionWatch,
 	trackRuntimeErrors,
+	HMR_MUTATION_ASSERT_TIMEOUT_MS,
 } from './test-support';
 
 const SCRIPT_MARKER_FILE = fileURLToPath(
@@ -25,7 +26,6 @@ const SCRIPT_WIDGET_BASELINE = 'SCRIPT_WIDGET_BASELINE';
 const SCRIPT_WIDGET_UPDATED = 'SCRIPT_WIDGET_UPDATED';
 const BASE_LAYOUT_SCRIPT_BASELINE = 'BASE_LAYOUT_SCRIPT_BASELINE';
 const BASE_LAYOUT_SCRIPT_UPDATED = 'BASE_LAYOUT_SCRIPT_UPDATED';
-const SCRIPT_HMR_TIMEOUT_MS = 8_000;
 
 function getScriptMarkerFile(projectMetadata: Record<string, unknown> | undefined) {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
@@ -79,6 +79,12 @@ test.describe('Declared client script HMR @hmr', () => {
 
 	test.describe.configure({ mode: 'serial' });
 
+	function restoreMutatedSources() {
+		fs.writeFileSync(scriptMarkerFile, originalScriptMarker, 'utf-8');
+		fs.writeFileSync(scriptWidgetFile, originalScriptWidget, 'utf-8');
+		fs.writeFileSync(baseLayoutScriptFile, originalBaseLayoutScript, 'utf-8');
+	}
+
 	// oxlint-disable-next-line no-empty-pattern
 	test.beforeAll(async ({}, testInfo) => {
 		scriptMarkerFile = getScriptMarkerFile(testInfo.project.metadata as Record<string, unknown> | undefined);
@@ -86,15 +92,17 @@ test.describe('Declared client script HMR @hmr', () => {
 		baseLayoutScriptFile = getBaseLayoutScriptFile(
 			testInfo.project.metadata as Record<string, unknown> | undefined,
 		);
-		originalScriptMarker = fs.readFileSync(SCRIPT_MARKER_FILE, 'utf-8');
-		originalScriptWidget = fs.readFileSync(SCRIPT_WIDGET_FILE, 'utf-8');
-		originalBaseLayoutScript = fs.readFileSync(BASE_LAYOUT_SCRIPT_FILE, 'utf-8');
+		originalScriptMarker = fs.readFileSync(scriptMarkerFile, 'utf-8');
+		originalScriptWidget = fs.readFileSync(scriptWidgetFile, 'utf-8');
+		originalBaseLayoutScript = fs.readFileSync(baseLayoutScriptFile, 'utf-8');
+	});
+
+	test.afterEach(() => {
+		restoreMutatedSources();
 	});
 
 	test.afterAll(() => {
-		fs.writeFileSync(scriptMarkerFile, originalScriptMarker, 'utf-8');
-		fs.writeFileSync(scriptWidgetFile, originalScriptWidget, 'utf-8');
-		fs.writeFileSync(baseLayoutScriptFile, originalBaseLayoutScript, 'utf-8');
+		restoreMutatedSources();
 	});
 
 	test('cold-start serves and hot-reloads the base layout script from _hmr', async ({ page, request }, testInfo) => {
@@ -123,7 +131,7 @@ test.describe('Declared client script HMR @hmr', () => {
 		timer.mark('mutation-applied');
 
 		await expect(page.locator('html')).toHaveAttribute('data-base-layout-script', BASE_LAYOUT_SCRIPT_UPDATED, {
-			timeout: SCRIPT_HMR_TIMEOUT_MS,
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 		});
 		timer.mark('layout-script-updated');
 
@@ -145,7 +153,7 @@ test.describe('Declared client script HMR @hmr', () => {
 		fs.writeFileSync(scriptMarkerFile, patchScriptMarker(originalScriptMarker, SCRIPT_HMR_UPDATED), 'utf-8');
 		timer.mark('mutation-applied');
 		await expect(page.getByTestId('script-hmr-marker')).toHaveText(SCRIPT_HMR_UPDATED, {
-			timeout: SCRIPT_HMR_TIMEOUT_MS,
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 		});
 		timer.mark('marker-updated');
 
@@ -166,7 +174,7 @@ test.describe('Declared client script HMR @hmr', () => {
 		fs.writeFileSync(scriptWidgetFile, patchScriptWidget(originalScriptWidget, SCRIPT_WIDGET_UPDATED), 'utf-8');
 		timer.mark('mutation-applied');
 		await expect(page.getByTestId('script-hmr-widget')).toHaveText(SCRIPT_WIDGET_UPDATED, {
-			timeout: SCRIPT_HMR_TIMEOUT_MS,
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 		});
 		timer.mark('widget-updated');
 

@@ -295,29 +295,26 @@ export class DevelopmentInvalidationService {
 
 	/**
 	 * Returns whether a processor owns the changed file as an asset input.
+	 *
+	 * @remarks
+	 * Watch config drives processor notifications only. Asset ownership requires
+	 * declared capabilities so dependency-only watches (for example content
+	 * collection MDX scans) do not skip server invalidation and HMR.
 	 */
 	isProcessorOwnedAsset(filePath: string): boolean {
 		for (const processor of this.appConfig.processors.values()) {
 			const capabilities = processor.getAssetCapabilities?.() ?? [];
-			if (capabilities.length > 0) {
-				const matchesConfiguredAsset =
-					typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
-
-				if (
-					matchesConfiguredAsset &&
-					capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
-				) {
-					return true;
-				}
-
+			if (capabilities.length === 0) {
 				continue;
 			}
 
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
+			const matchesConfiguredAsset =
+				typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
 
-			const { extensions = [] } = watchConfig;
-			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
+			if (
+				matchesConfiguredAsset &&
+				capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
+			) {
 				return true;
 			}
 		}

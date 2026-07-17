@@ -17,7 +17,10 @@ async function waitForReactPageHydration(page: Page) {
 }
 
 async function assertReactPageBootstrapHasNoBareCoreImports(page: Page) {
-	const bootstrapSrc = await page.locator('script[data-eco-page-bootstrap="react-router"]').first().getAttribute('src');
+	const bootstrapSrc = await page
+		.locator('script[data-eco-page-bootstrap="react-router"]')
+		.first()
+		.getAttribute('src');
 	expect(bootstrapSrc).toBeTruthy();
 
 	const response = await page.request.get(bootstrapSrc!);

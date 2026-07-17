@@ -32,7 +32,6 @@ function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, pr
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
 }
 
-
 function createMockIntegrationPlugin(
 	plugin: { name: string } & Record<string, unknown>,
 ): EcoPagesAppConfig['integrations'][number] {
@@ -43,7 +42,6 @@ function createMockIntegrationPlugin(
 		...plugin,
 	} as unknown as EcoPagesAppConfig['integrations'][number];
 }
-
 
 /**
  * Concrete implementation with ed file loading for testing purposes.

@@ -985,16 +985,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Returns a renderer instance for a given integration name.
 	 *
 	 * Uses a per-execution cache to avoid repeated renderer initialization.
+	 * Activates the foreign integration runtime before creating its renderer so
+	 * global assets (for example React vendor ESM) exist before island scripts import them.
 	 *
 	 * @param integrationName Target integration name.
 	 * @param cache Render-pass renderer cache.
 	 * @returns Renderer for the requested integration.
 	 * @throws Error when no integration plugin matches `integrationName`.
 	 */
-	protected getIntegrationRendererForName(
+	protected async getIntegrationRendererForName(
 		integrationName: string,
 		cache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): ForeignSubtreeExecutionOwningRenderer {
+	): Promise<ForeignSubtreeExecutionOwningRenderer> {
 		if (cache.has(integrationName)) {
 			return cache.get(integrationName) as ForeignSubtreeExecutionOwningRenderer;
 		}
@@ -1003,6 +1005,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			cache.set(integrationName, this);
 			return this;
 		}
+
+		await ensureIntegrationRuntimeReady({
+			appConfig: this.appConfig,
+			integrationName,
+			runtimeOrigin: this.runtimeOrigin,
+		});
 
 		const integrationPlugin = this.appConfig.integrations.find(
 			(integration) => integration.name === integrationName,

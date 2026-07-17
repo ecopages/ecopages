@@ -41,8 +41,9 @@ export type HydrationScriptOptions = {
 	 * When true, emit HMR registration and hot-reload handlers.
 	 *
 	 * @remarks
-	 * The asset layer uses the same flag to leave HMR entries unbundled. When
-	 * false, this generator emits the same readable bootstrap without HMR hooks.
+	 * Page bootstraps are always bundled so bare package imports resolve through
+	 * the browser build pipeline. When false, this generator emits the same
+	 * readable bootstrap without HMR hooks.
 	 */
 	hmrEnabled: boolean;
 	/** Whether the source file is an MDX file */

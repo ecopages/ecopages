@@ -34,7 +34,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ECO_PAGES__.hmrHandlers');
 	});
 
-	test('development output passes serialized locals to layout hydration for non-router MDX pages', () => {
+	test('development MDX output emits layout helpers for the browser bundler to resolve', () => {
 		const script = createHydrationScript({
 			...baseOptions,
 			hmrEnabled: true,
@@ -42,6 +42,11 @@ describe('createHydrationScript', () => {
 		});
 
 		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
+		expect(script).toContain(
+			'import { ensurePageConfigLayouts } from "@ecopages/core/eco/page-layout-normalization";',
+		);
+		expect(script).toContain('import * as MDXModule from "/assets/page.js";');
+		expect(script).toContain('ensurePageConfigLayouts(Page.config);');
 		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
 	});
 

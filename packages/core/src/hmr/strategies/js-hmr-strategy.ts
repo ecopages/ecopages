@@ -329,6 +329,22 @@ export class JsHmrStrategy extends HmrStrategy {
 		}
 	}
 
+	private async waitForFreshHmrOutput(outputPath: string, sourcePath: string): Promise<boolean> {
+		const maxAttempts = 6;
+
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			if (isHmrOutputFresh(outputPath, sourcePath)) {
+				return true;
+			}
+
+			if (attempt < maxAttempts - 1) {
+				await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+			}
+		}
+
+		return isHmrOutputFresh(outputPath, sourcePath);
+	}
+
 	/**
 	 * Processes bundled output and determines whether the browser can hot-accept
 	 * the update or must fall back to a full reload.
@@ -343,13 +359,16 @@ export class JsHmrStrategy extends HmrStrategy {
 		sourcePath?: string,
 	): Promise<{ success: boolean; requiresReload: boolean }> {
 		try {
-			if (sourcePath && !isHmrOutputFresh(filepath, sourcePath)) {
-				if (isHmrOutputOlderThanSource(filepath, sourcePath)) {
-					appLogger.warn(
-						`[JsHmrStrategy] HMR output is older than source after rebuild; skipping broadcast for ${url}`,
-					);
+			if (sourcePath) {
+				const outputIsFresh = await this.waitForFreshHmrOutput(filepath, sourcePath);
+				if (!outputIsFresh) {
+					if (isHmrOutputOlderThanSource(filepath, sourcePath)) {
+						appLogger.warn(
+							`[JsHmrStrategy] HMR output is older than source after rebuild; skipping broadcast for ${url}`,
+						);
+					}
+					return { success: false, requiresReload: false };
 				}
-				return { success: false, requiresReload: false };
 			}
 
 			const code = await fileSystem.readFile(filepath);

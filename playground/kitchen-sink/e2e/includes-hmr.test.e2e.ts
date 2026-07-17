@@ -9,14 +9,13 @@ import {
 	assertNoMainFrameNavigationAfterHmr,
 	gotoPath,
 	trackRuntimeErrors,
+	HMR_MUTATION_ASSERT_TIMEOUT_MS,
 } from './test-support';
 
 const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
 const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
 const SEO_SUFFIX = '[include-hmr]';
 const EXPLICIT_TEAM_SUFFIX = '[explicit-route-hmr]';
-const INCLUDE_HMR_TIMEOUT_MS = 12_000;
-const VIEW_HMR_TIMEOUT_MS = 8_000;
 
 function getSeoIncludeFile(projectMetadata: Record<string, unknown> | undefined) {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
@@ -65,11 +64,15 @@ test.describe('Source mutation HMR @hmr', () => {
 	// oxlint-disable-next-line no-empty-pattern
 	test.beforeAll(async ({}, testInfo) => {
 		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
-		originalSeoInclude = fs.readFileSync(SEO_INCLUDE_FILE, 'utf-8');
 		explicitTeamViewFile = getExplicitTeamViewFile(
 			testInfo.project.metadata as Record<string, unknown> | undefined,
 		);
-		originalExplicitTeamView = fs.readFileSync(EXPLICIT_TEAM_VIEW_FILE, 'utf-8');
+		originalSeoInclude = fs.readFileSync(seoIncludeFile, 'utf-8');
+		originalExplicitTeamView = fs.readFileSync(explicitTeamViewFile, 'utf-8');
+	});
+
+	test.afterEach(() => {
+		restoreMutatedSources();
 	});
 
 	test.afterAll(() => {
@@ -92,7 +95,7 @@ test.describe('Source mutation HMR @hmr', () => {
 
 		fs.writeFileSync(seoIncludeFile, patchSeoTitle(originalSeoInclude, SEO_SUFFIX), 'utf-8');
 		timer.mark('mutation-applied');
-		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: INCLUDE_HMR_TIMEOUT_MS });
+		await expect(page).toHaveTitle(`${initialTitle} ${SEO_SUFFIX}`, { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS });
 		timer.mark('title-updated');
 		await assertNoMainFrameNavigationAfterHmr(page);
 
@@ -119,7 +122,7 @@ test.describe('Source mutation HMR @hmr', () => {
 		timer.mark('mutation-applied');
 		await expect(
 			page.getByRole('heading', { name: `Explicit routes can still feel native. ${EXPLICIT_TEAM_SUFFIX}` }),
-		).toBeVisible({ timeout: VIEW_HMR_TIMEOUT_MS });
+		).toBeVisible({ timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS });
 		timer.mark('heading-updated');
 		await assertNoMainFrameNavigationAfterHmr(page);
 

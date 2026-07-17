@@ -3,6 +3,8 @@ import type { APIRequestContext, ConsoleMessage, Page } from 'playwright-core';
 
 const NAVIGATION_TIMEOUT = 45_000;
 const HMR_CLIENT_CONNECT_TIMEOUT_MS = 60_000;
+/** Post-mutation assert window for isolated kitchen-sink HMR cells on slower hosts. */
+export const HMR_MUTATION_ASSERT_TIMEOUT_MS = 25_000;
 const RETRIABLE_REQUEST_ERROR_FRAGMENTS = ['ECONNRESET', 'ECONNREFUSED', 'socket hang up', 'fetch failed'];
 
 function isRetriableRequestError(error: unknown): error is Error {

@@ -43,10 +43,13 @@ import {
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-pipeline/route-render-orchestrator.ts';
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
+import { transformRouteResponseBody } from './route-pipeline/route-html-finalization.service.ts';
 import { loadPageBrowserGraphContribution } from './page-browser-graph/page-browser-graph-contribution.loader.ts';
+import { mergePageBrowserGraphIntoPagePackage as mergePageBrowserGraphIntoPagePackageUtil } from './page-browser-graph/page-browser-graph-merge.utils.ts';
 import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
+import { resolveOwningIntegrationRenderer } from './foreign-child/owning-renderer-resolution.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
 	ForeignSubtreeExecutionService,
@@ -54,13 +57,15 @@ import {
 	type ForeignSubtreeQueuedHtmlOptions,
 	type QueuedForeignSubtreeResolutionContext,
 } from './foreign-child/foreign-subtree-execution.service.ts';
-import { buildProcessedAssetDedupeKey } from './page-browser-graph/processed-asset-dedupe.ts';
 import {
-	applyDocumentShellAttributeStamping,
 	composeDocumentShell,
+	finalizeDocumentShellHtml,
 	renderPageDocumentShell,
 } from './document-shell/document-shell-render.service.ts';
-import { resolveInnermostPageLayout, resolvePageLayoutComponents } from './document-shell/layout-shell-props.service.ts';
+import {
+	resolveInnermostPageLayout,
+	resolvePageLayoutComponents,
+} from './document-shell/layout-shell-props.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -281,41 +286,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected mergePageBrowserGraphIntoPagePackage(
 		pageBrowserGraph?: PageBrowserGraphResult,
 	): PageBrowserGraphResult | undefined {
-		if (!pageBrowserGraph) {
-			return undefined;
-		}
-
-		const currentPagePackage = this.htmlTransformer.getPagePackage();
-		const mergedPageBrowserGraph = currentPagePackage?.pageBrowserGraph
-			? {
-					entryAssets: this.htmlTransformer.dedupeProcessedAssets([
-						...currentPagePackage.pageBrowserGraph.entryAssets,
-						...pageBrowserGraph.entryAssets,
-					]),
-					chunkAssets: this.htmlTransformer.dedupeProcessedAssets([
-						...currentPagePackage.pageBrowserGraph.chunkAssets,
-						...pageBrowserGraph.chunkAssets,
-					]),
-				}
-			: pageBrowserGraph;
-		const pageBrowserGraphAssetKeys = new Set(
-			[...mergedPageBrowserGraph.entryAssets, ...mergedPageBrowserGraph.chunkAssets].map((asset) =>
-				buildProcessedAssetDedupeKey(asset),
-			),
+		return mergePageBrowserGraphIntoPagePackageUtil(
+			{
+				getPagePackage: () => this.htmlTransformer.getPagePackage(),
+				getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
+				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets([...assets]),
+				setPagePackage: (pagePackage) => this.htmlTransformer.setPagePackage(pagePackage),
+			},
+			pageBrowserGraph,
 		);
-		const baseAssets = currentPagePackage
-			? currentPagePackage.assets.filter(
-					(asset) => !pageBrowserGraphAssetKeys.has(buildProcessedAssetDedupeKey(asset)),
-				)
-			: this.htmlTransformer.getProcessedDependencies();
-
-		this.htmlTransformer.setPagePackage(
-			createPagePackage(this.htmlTransformer.dedupeProcessedAssets(baseAssets), {
-				pageBrowserGraph: mergedPageBrowserGraph,
-			}),
-		);
-
-		return mergedPageBrowserGraph;
 	}
 
 	/**
@@ -841,13 +820,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		htmlContributions?: HtmlDocumentContribution[],
 		pagePackage?: PagePackageResult,
 	): Promise<RouteRendererBody> {
-		const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
-		const transformedResponse = await this.htmlTransformer.transform(
+		return transformRouteResponseBody(
+			{
+				getPagePackage: () => this.htmlTransformer.getPagePackage(),
+				transform: (nextResponse, nextContributions, nextPagePackage) =>
+					this.htmlTransformer.transform(nextResponse, nextContributions, nextPagePackage),
+			},
 			response,
 			htmlContributions,
-			resolvedPagePackage,
+			pagePackage,
 		);
-		return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 	}
 
 	/**
@@ -909,42 +891,28 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		transformHtml?: boolean;
 		htmlContributions?: HtmlDocumentContribution[];
 	}): Promise<string> {
-		const rendererBootstrapDependencies = this.getRendererBootstrapDependencies(options.partial);
-		this.appendProcessedDependencies(rendererBootstrapDependencies);
-
-		let html = applyDocumentShellAttributeStamping(
-			options.html,
+		return finalizeDocumentShellHtml(
 			{
-				applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
-					this.htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
-				applyAttributesToHtmlElement: (nextHtml, attributes) =>
-					this.htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+				getRendererBootstrapDependencies: (partial) => this.getRendererBootstrapDependencies(partial),
+				applyAttributesToFirstBodyElement: (html, attributes) =>
+					this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
+				applyAttributesToHtmlElement: (html, attributes) =>
+					this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
+				getHtmlDocumentContributions: (contributionOptions) =>
+					this.getHtmlDocumentContributions(contributionOptions),
+				transformHtmlResponse: async (html, htmlContributions) => {
+					const transformedResponse = await this.htmlTransformer.transform(
+						new Response(html, {
+							headers: { 'Content-Type': 'text/html' },
+						}),
+						htmlContributions,
+					);
+					return await transformedResponse.text();
+				},
 			},
-			{
-				componentRootAttributes: options.componentRootAttributes,
-				documentAttributes: options.documentAttributes,
-			},
+			options,
 		);
-
-		const shouldTransform = options.transformHtml ?? !options.partial;
-		if (!shouldTransform) {
-			return html;
-		}
-
-		const htmlContributions =
-			options.htmlContributions ??
-			this.getHtmlDocumentContributions({
-				partial: options.partial,
-			});
-
-		const transformedResponse = await this.htmlTransformer.transform(
-			new Response(html, {
-				headers: { 'Content-Type': 'text/html' },
-			}),
-			htmlContributions,
-		);
-
-		return await transformedResponse.text();
 	}
 
 	/**
@@ -998,30 +966,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		integrationName: string,
 		cache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
 	): Promise<ForeignSubtreeExecutionOwningRenderer> {
-		if (cache.has(integrationName)) {
-			return cache.get(integrationName) as ForeignSubtreeExecutionOwningRenderer;
-		}
-
-		if (integrationName === this.name) {
-			cache.set(integrationName, this);
-			return this;
-		}
-
-		await ensureIntegrationRuntimeReady({
+		return resolveOwningIntegrationRenderer({
 			appConfig: this.appConfig,
-			integrationName,
 			runtimeOrigin: this.runtimeOrigin,
+			currentIntegrationName: this.name,
+			currentRenderer: this,
+			integrationName,
+			cache,
 		});
-
-		const integrationPlugin = this.appConfig.integrations.find(
-			(integration) => integration.name === integrationName,
-		);
-		invariant(!!integrationPlugin, `[ecopages] Integration not found for foreign owner: ${integrationName}`);
-		const renderer = integrationPlugin.initializeRenderer({
-			rendererModules: this.appConfig.runtime?.rendererModuleContext,
-		});
-		cache.set(integrationName, renderer);
-		return renderer;
 	}
 
 	/**

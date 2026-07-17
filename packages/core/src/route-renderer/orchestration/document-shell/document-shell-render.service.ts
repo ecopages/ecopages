@@ -6,6 +6,7 @@ import type {
 	PageMetadataProps,
 } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -247,4 +248,61 @@ export async function renderPageDocumentShell(
 		: composedDocumentHtml;
 
 	return `${docType}${documentHtml}`;
+}
+
+export type FinalizeDocumentShellHtmlDependencies = {
+	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
+	getRendererBootstrapDependencies(partial?: boolean): ProcessedAsset[];
+	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
+	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
+	getHtmlDocumentContributions(options: { partial?: boolean }): HtmlDocumentContribution[] | undefined;
+	transformHtmlResponse(html: string, htmlContributions?: HtmlDocumentContribution[]): Promise<string>;
+};
+
+/**
+ * Finalizes already-resolved HTML for explicit renderer-owned paths.
+ *
+ * Stamps document/root attributes and runs HTML transformation after nested
+ * foreign-subtree resolution without routing back through shared route execution.
+ */
+export async function finalizeDocumentShellHtml(
+	dependencies: FinalizeDocumentShellHtmlDependencies,
+	options: {
+		html: string;
+		partial?: boolean;
+		componentRootAttributes?: Record<string, string>;
+		documentAttributes?: Record<string, string>;
+		transformHtml?: boolean;
+		htmlContributions?: HtmlDocumentContribution[];
+	},
+): Promise<string> {
+	const rendererBootstrapDependencies = dependencies.getRendererBootstrapDependencies(options.partial);
+	dependencies.appendProcessedDependencies(rendererBootstrapDependencies);
+
+	let html = applyDocumentShellAttributeStamping(
+		options.html,
+		{
+			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
+				dependencies.applyAttributesToFirstBodyElement(nextHtml, attributes),
+			applyAttributesToHtmlElement: (nextHtml, attributes) =>
+				dependencies.applyAttributesToHtmlElement(nextHtml, attributes),
+		},
+		{
+			componentRootAttributes: options.componentRootAttributes,
+			documentAttributes: options.documentAttributes,
+		},
+	);
+
+	const shouldTransform = options.transformHtml ?? !options.partial;
+	if (!shouldTransform) {
+		return html;
+	}
+
+	const htmlContributions =
+		options.htmlContributions ??
+		dependencies.getHtmlDocumentContributions({
+			partial: options.partial,
+		});
+
+	return dependencies.transformHtmlResponse(html, htmlContributions);
 }

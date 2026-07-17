@@ -32,6 +32,19 @@ function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, pr
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
 }
 
+
+function createMockIntegrationPlugin(
+	plugin: { name: string } & Record<string, unknown>,
+): EcoPagesAppConfig['integrations'][number] {
+	return {
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setup: vi.fn(async () => {}),
+		...plugin,
+	} as unknown as EcoPagesAppConfig['integrations'][number];
+}
+
+
 /**
  * Concrete implementation with ed file loading for testing purposes.
  */
@@ -871,6 +884,7 @@ describe('IntegrationRenderer', () => {
 
 	it('should delegate foreign component boundaries through the shared execution seam', async () => {
 		const foreignRenderer = {
+			name: 'foreign-renderer',
 			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<aside>Owned by foreign renderer</aside>',
 				canAttachAttributes: true,
@@ -880,14 +894,16 @@ describe('IntegrationRenderer', () => {
 		} as unknown as IntegrationRenderer;
 
 		const initializeRenderer = vi.fn(() => foreignRenderer);
+		const setup = vi.fn(async () => {});
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer,
-					} as unknown as EcoPagesAppConfig['integrations'][number],
+						setup,
+					}),
 				],
 			} as EcoPagesAppConfig,
 			assetProcessingService: AssetService,
@@ -917,6 +933,7 @@ describe('IntegrationRenderer', () => {
 				integrationName: 'foreign-renderer',
 			}),
 		);
+		expect(setup).toHaveBeenCalledTimes(1);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
 		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledTimes(1);
 	});
@@ -938,10 +955,10 @@ describe('IntegrationRenderer', () => {
 			appConfig: {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer,
-					} as unknown as EcoPagesAppConfig['integrations'][number],
+					}),
 				],
 			} as EcoPagesAppConfig,
 			assetProcessingService: AssetService,
@@ -981,10 +998,10 @@ describe('IntegrationRenderer', () => {
 			appConfig: {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer: () => renderer,
-					} as unknown as EcoPagesAppConfig['integrations'][number],
+					}),
 				],
 			} as EcoPagesAppConfig,
 			assetProcessingService: AssetService,
@@ -1333,10 +1350,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1405,11 +1422,11 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'react',
 						initializeRenderer: () => renderer as unknown as IntegrationRenderer,
 						getResolvedIntegrationDependencies: () => [explicitIntegrationDependency],
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1486,10 +1503,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1566,10 +1583,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1663,10 +1680,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1757,10 +1774,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1864,10 +1881,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer: () => foreignRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -1949,10 +1966,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 
@@ -2170,10 +2187,10 @@ describe('IntegrationRenderer', () => {
 			const appConfig = {
 				...AppConfig,
 				integrations: [
-					{
+					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer,
-					},
+					}),
 				],
 			} as unknown as EcoPagesAppConfig;
 

@@ -68,7 +68,7 @@ export interface ForeignSubtreeExecutionRenderOptions {
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): ForeignSubtreeExecutionOwningRenderer;
+	): Promise<ForeignSubtreeExecutionOwningRenderer>;
 }
 
 export interface ForeignSubtreeQueuedRuntimeOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
@@ -91,7 +91,7 @@ export interface ForeignSubtreeStringQueuedHtmlOptions {
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): ForeignSubtreeExecutionOwningRenderer;
+	): Promise<ForeignSubtreeExecutionOwningRenderer>;
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 }
@@ -110,7 +110,7 @@ export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignS
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): ForeignSubtreeExecutionOwningRenderer;
+	): Promise<ForeignSubtreeExecutionOwningRenderer>;
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
 	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 }
@@ -540,7 +540,7 @@ export class ForeignSubtreeExecutionService {
 		getOwningRenderer(
 			integrationName: string,
 			rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-		): ForeignSubtreeExecutionOwningRenderer;
+		): Promise<ForeignSubtreeExecutionOwningRenderer>;
 	}): Promise<ComponentRenderResult | undefined> {
 		return await this.runInForeignOwningRenderer({
 			currentIntegrationName: options.currentIntegrationName,
@@ -558,7 +558,7 @@ export class ForeignSubtreeExecutionService {
 		getOwningRenderer(
 			integrationName: string,
 			rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-		): ForeignSubtreeExecutionOwningRenderer;
+		): Promise<ForeignSubtreeExecutionOwningRenderer>;
 	}): Promise<ForeignSubtreeRenderPayload | undefined> {
 		return await this.runInForeignOwningRenderer({
 			currentIntegrationName: options.currentIntegrationName,
@@ -577,7 +577,7 @@ export class ForeignSubtreeExecutionService {
 		getOwningRenderer(
 			integrationName: string,
 			rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-		): ForeignSubtreeExecutionOwningRenderer;
+		): Promise<ForeignSubtreeExecutionOwningRenderer>;
 		run(
 			owningRenderer: ForeignSubtreeExecutionOwningRenderer,
 			delegatedInput: ComponentRenderInput,
@@ -591,7 +591,7 @@ export class ForeignSubtreeExecutionService {
 			return undefined;
 		}
 
-		const owningRenderer = options.getOwningRenderer(foreignOwnerIntegrationName, options.rendererCache);
+		const owningRenderer = await options.getOwningRenderer(foreignOwnerIntegrationName, options.rendererCache);
 		if (owningRenderer.name === options.currentIntegrationName) {
 			return undefined;
 		}

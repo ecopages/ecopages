@@ -28,6 +28,29 @@ class StylesheetProcessor extends Processor {
 	}
 }
 
+class ContentCollectionProcessor extends Processor {
+	buildPlugins = [];
+	plugins = [];
+
+	constructor() {
+		super({
+			name: 'ecopages-content-processor',
+			watch: {
+				paths: ['/test/project/src/content/docs'],
+				extensions: ['mdx'],
+			},
+		});
+	}
+
+	override async setup(): Promise<void> {}
+
+	override async teardown(): Promise<void> {}
+
+	override async process<T>(input: T): Promise<T> {
+		return input;
+	}
+}
+
 describe('DevelopmentInvalidationService', () => {
 	it('classifies route, include, processor-owned, and additional-watch changes explicitly', async () => {
 		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
@@ -89,6 +112,20 @@ describe('DevelopmentInvalidationService', () => {
 
 		service.resetRuntimeState(['/test/project/src/pages/index.tsx']);
 		expect(service.getServerModuleInvalidationVersion()).toBe(3);
+	});
+
+	it('does not treat watch-only processors as asset owners', async () => {
+		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		appConfig.processors.set('content', new ContentCollectionProcessor());
+
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.planFileChange('/test/project/src/content/docs/getting-started.mdx')).toMatchObject({
+			category: 'server-source',
+			invalidateServerModules: true,
+			delegateToHmr: true,
+			processorHandledAsset: false,
+		});
 	});
 
 	it('notifies registered script entrypoint change handlers', async () => {

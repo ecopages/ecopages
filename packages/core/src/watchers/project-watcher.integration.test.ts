@@ -336,4 +336,42 @@ describe('ProjectWatcher - Integration Tests', () => {
 			}
 		});
 	});
+
+	describe('Content collection MDX changes', () => {
+		test('should notify watch-only processors and still delegate MDX to HMR', async () => {
+			const testId = 'content-mdx-hmr';
+			const config = await createIntegrationConfig(testId);
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const onChange = vi.fn(async () => {});
+
+			config.processors.set('content', {
+				getAssetCapabilities: vi.fn(() => []),
+				getWatchConfig: vi.fn(() => ({
+					paths: [path.join(config.absolutePaths.srcDir, 'content', 'docs')],
+					extensions: ['mdx'],
+					onChange,
+				})),
+			} as never);
+
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 0,
+			});
+
+			const mdxPath = path.join(config.absolutePaths.srcDir, 'content', 'docs', 'intro.mdx');
+			writeTestFile(mdxPath, '---\ntitle: Intro\n---\n# Intro\n');
+
+			await (watcher as any).processFileChange(mdxPath, 'change');
+
+			expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ path: path.resolve(mdxPath), bridge }));
+			expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
+				path.resolve(mdxPath),
+				expect.objectContaining({ graphIdentities: expect.anything() }),
+			);
+		});
+	});
 });

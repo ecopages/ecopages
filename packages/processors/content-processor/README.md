@@ -255,6 +255,12 @@ Do not edit generated files manually.
 
 Invalid frontmatter throws `SchemaError` from `@standard-schema/utils` during scan/build. Fix the MDX frontmatter or relax the schema in your app.
 
+## Dev / HMR
+
+In development, the processor watches collection files to regenerate `ecopages:content/*` manifests when MDX changes. Collection MDX is still server source: Ecopages invalidates server modules and runs HMR so page imports pick up the updated MDX component.
+
+Watch config drives manifest regeneration only. Asset ownership (which would skip server invalidation) requires declared processor capabilities. Content-processor does not claim MDX as an asset, so no `capabilities` workaround is needed in `eco.config.ts`.
+
 ## MDX integration
 
 Content files are MDX components. Ensure your JSX/MDX integration (for example, `@ecopages/ecopages-jsx`) is configured in `eco.config.ts` so `getComponent()` returns a renderable component.

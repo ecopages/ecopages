@@ -6,7 +6,10 @@ import type {
 	PageMetadataProps,
 } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
+import {
+	HtmlTransformerService,
+	type HtmlDocumentContribution,
+} from '../../../services/html/html-transformer.service.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -250,23 +253,16 @@ export async function renderPageDocumentShell(
 	return `${docType}${documentHtml}`;
 }
 
-export type FinalizeDocumentShellHtmlDependencies = {
-	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
-	getRendererBootstrapDependencies(partial?: boolean): ProcessedAsset[];
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
-	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
-	getHtmlDocumentContributions(options: { partial?: boolean }): HtmlDocumentContribution[] | undefined;
-	transformHtmlResponse(html: string, htmlContributions?: HtmlDocumentContribution[]): Promise<string>;
-};
-
 /**
  * Finalizes already-resolved HTML for explicit renderer-owned paths.
  *
+ * @remarks
+ * Callers append renderer bootstrap dependencies before invoking this helper.
  * Stamps document/root attributes and runs HTML transformation after nested
  * foreign-subtree resolution without routing back through shared route execution.
  */
 export async function finalizeDocumentShellHtml(
-	dependencies: FinalizeDocumentShellHtmlDependencies,
+	htmlTransformer: HtmlTransformerService,
 	options: {
 		html: string;
 		partial?: boolean;
@@ -276,16 +272,13 @@ export async function finalizeDocumentShellHtml(
 		htmlContributions?: HtmlDocumentContribution[];
 	},
 ): Promise<string> {
-	const rendererBootstrapDependencies = dependencies.getRendererBootstrapDependencies(options.partial);
-	dependencies.appendProcessedDependencies(rendererBootstrapDependencies);
-
-	let html = applyDocumentShellAttributeStamping(
+	const html = applyDocumentShellAttributeStamping(
 		options.html,
 		{
 			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
-				dependencies.applyAttributesToFirstBodyElement(nextHtml, attributes),
+				htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
 			applyAttributesToHtmlElement: (nextHtml, attributes) =>
-				dependencies.applyAttributesToHtmlElement(nextHtml, attributes),
+				htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
 		},
 		{
 			componentRootAttributes: options.componentRootAttributes,
@@ -298,11 +291,11 @@ export async function finalizeDocumentShellHtml(
 		return html;
 	}
 
-	const htmlContributions =
-		options.htmlContributions ??
-		dependencies.getHtmlDocumentContributions({
-			partial: options.partial,
-		});
-
-	return dependencies.transformHtmlResponse(html, htmlContributions);
+	const transformedResponse = await htmlTransformer.transform(
+		new Response(html, {
+			headers: { 'Content-Type': 'text/html' },
+		}),
+		options.htmlContributions,
+	);
+	return await transformedResponse.text();
 }

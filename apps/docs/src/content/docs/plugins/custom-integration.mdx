@@ -175,7 +175,7 @@ Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugi
 
 Cross-integration ownership belongs in the renderer. When a renderer must keep control of its subtree even after another integration encounters it, implement renderer-owned foreign-child handling in the `IntegrationRenderer` subclass.
 
-Use `createForeignChildRuntime()` for custom interception logic, or delegate to `createQueuedForeignSubtreeExecutionRuntime()` when the renderer should queue foreign subtrees and resolve them after the local shell render completes.
+Use `createForeignChildRuntime()` for custom interception logic, or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` when the renderer should queue foreign subtrees and resolve them after the local shell render completes.
 
 Integrations such as Lit use this pattern because the owning renderer needs to re-enter during foreign-subtree resolution to produce the correct SSR output.
 

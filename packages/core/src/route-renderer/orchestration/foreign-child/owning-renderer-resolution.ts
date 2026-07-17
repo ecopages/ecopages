@@ -12,6 +12,14 @@ export type OwningRendererResolutionInput = {
 	cache: Map<string, ForeignSubtreeExecutionOwningRenderer>;
 };
 
+export function getForeignSubtreeTokenPrefix(integrationName: string): string {
+	return `__${integrationName}_foreign_subtree__`;
+}
+
+export function getForeignSubtreeResolutionContextKey(integrationName: string): string {
+	return `__${integrationName}_foreign_subtree_runtime__`;
+}
+
 /**
  * Resolves an owning integration renderer for a foreign-child handoff.
  *

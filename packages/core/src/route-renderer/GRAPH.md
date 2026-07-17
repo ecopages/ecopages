@@ -85,7 +85,7 @@ flowchart TD
   B -- Yes --> C[return resolved renderer-owned output]
   B -- No --> D[queue foreign-subtree token]
   D --> E[finish current render pass]
-  E --> F[QueuedForeignSubtreeResolutionService resolveQueuedHtml]
+  E --> F[ForeignSubtreeExecutionService resolveQueuedHtml]
   F --> G[resolve nested queued tokens first]
   G --> H[dispatch foreign subtree to owning renderer]
   H --> I[merge emitted assets and root attributes]

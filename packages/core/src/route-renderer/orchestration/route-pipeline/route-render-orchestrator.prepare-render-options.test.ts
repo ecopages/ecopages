@@ -1334,6 +1334,86 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
+	it('prepares render options when declared foreign dependencies are valid', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [{ name: 'foreign-renderer', initializeRenderer: vi.fn() }],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+
+		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
+		ForeignComponent.config = {
+			integration: 'foreign-renderer',
+			__eco: {
+				id: 'foreign-component',
+				file: '/app/components/foreign-component.tsx',
+				integration: 'foreign-renderer',
+			},
+		};
+
+		const Layout = (() => '<main>Layout</main>') as EcoComponent<Record<string, unknown>>;
+		Layout.config = {
+			__eco: {
+				id: 'layout-component',
+				file: '/app/layouts/default.tsx',
+				integration: 'ghtml',
+			},
+			dependencies: {
+				components: [ForeignComponent],
+			},
+		};
+
+		const Page = (() => 'Page Content') as EcoPageComponent<any>;
+		Page.config = {
+			layouts: [Layout],
+			__eco: {
+				id: 'page-component',
+				file: '/app/pages/index.tsx',
+				integration: 'ghtml',
+			},
+		};
+
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		HtmlTemplate.config = {
+			__eco: {
+				id: 'html-template',
+				file: '/app/index.ghtml.ts',
+				integration: 'ghtml',
+			},
+		};
+
+		const result = await flow.prepareRenderOptions(
+			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			{
+				...createFlowAdapter({
+					resolvePageModule: async () => ({
+						Page,
+						integrationSpecificProps: {},
+					}),
+					getHtmlTemplate: async () => HtmlTemplate,
+					resolvePageData: async () => ({
+						props: {},
+						metadata: { title: 'Page', description: 'Page description' },
+					}),
+					resolveDependencies: async () => [],
+					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
+				}),
+				name: 'ghtml',
+			},
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				Page,
+				Layout,
+				HtmlTemplate,
+			}),
+		);
+	});
+
 	it('resolves dependencies for every layout tier in the stack', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => []),

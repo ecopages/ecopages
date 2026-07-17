@@ -175,9 +175,44 @@ Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugi
 
 Cross-integration ownership belongs in the renderer. When a renderer must keep control of its subtree even after another integration encounters it, implement renderer-owned foreign-child handling in the `IntegrationRenderer` subclass.
 
-Use `createForeignChildRuntime()` for custom interception logic, or delegate to `createQueuedForeignSubtreeExecutionRuntime()` when the renderer should queue foreign subtrees and resolve them after the local shell render completes.
+The runtime contract has three steps:
 
-Integrations such as Lit use this pattern because the owning renderer needs to re-enter during foreign-subtree resolution to produce the correct SSR output.
+1. **Queue** — Override `createForeignChildRuntime()` for custom interception, or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` (the base class default).
+2. **Resolve** — After local HTML is produced in `renderComponent`, call `this.foreignSubtreeExecutionService.resolveQueuedHtml(...)` (string-markup paths can use `resolveStringQueuedHtml` / `renderStringComponentWithQueuedForeignSubtrees`).
+3. **Own** — Pass `getOwningRenderer` that calls `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. The same module exports `getForeignSubtreeTokenPrefix` and `getForeignSubtreeResolutionContextKey`.
+
+Prefer extending `StringMarkupRenderer` when the integration is string-first — queue and resolve are already wired. Integrations such as Lit and React use the explicit resolve step because the owning renderer must re-enter during foreign-subtree resolution to produce the correct SSR output.
+
+```typescript
+import {
+	getForeignSubtreeResolutionContextKey,
+	resolveOwningIntegrationRenderer,
+} from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
+
+const queued = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
+	currentIntegrationName: this.name,
+	html,
+	runtimeContext: this.foreignSubtreeExecutionService.getQueuedRuntimeContext(
+		input,
+		getForeignSubtreeResolutionContextKey(this.name),
+	),
+	queueLabel: this.name,
+	getOwningRenderer: (integrationName, rendererCache) =>
+		resolveOwningIntegrationRenderer({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.runtimeOrigin,
+			currentIntegrationName: this.name,
+			currentRenderer: this,
+			integrationName,
+			cache: rendererCache,
+		}),
+	applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+		this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+	dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+	renderQueuedChildren: (children, _ctx, byToken, resolveToken) =>
+		this.renderQueuedForeignSubtreeChildren(children, byToken, resolveToken),
+});
+```
 
 ## Hot Module Replacement (HMR)
 
@@ -229,21 +264,8 @@ class CustomHmrStrategy extends HmrStrategy {
 Override `getHmrStrategy()` to return your custom strategy:
 
 ```typescript
-import { createRuntimeSpecifierAliasPlugin } from '@ecopages/core/build/runtime-specifier-alias-plugin';
-
 class CustomIntegration extends IntegrationPlugin {
 	renderer = CustomRenderer;
-
-	override get browserBuildPlugins() {
-		const runtimeAliasPlugin = createRuntimeSpecifierAliasPlugin(
-			{
-				'custom-pkg': '/assets/vendors/custom-pkg-esm.js',
-			},
-			{ name: 'custom-runtime-alias' },
-		);
-
-		return runtimeAliasPlugin ? [runtimeAliasPlugin] : [];
-	}
 
 	override getHmrStrategy() {
 		if (!this.hmrManager) {
@@ -255,7 +277,7 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
-Use `browserBuildPlugins` when the integration needs browser-only transforms or stable bare-specifier aliases in browser bundles. Override `setHmrManager()` only when behavior beyond the shared strategy registration path is required.
+Use `browserBuildPlugins` when the integration needs browser-only transforms in client bundles (for example alias or rewrite plugins from `@ecopages/core/build/browser-runtime-plugin` or `@ecopages/core/plugins/alias-resolver-plugin`). Override `setHmrManager()` only when behavior beyond the shared strategy registration path is required.
 
 ## Setup and Teardown
 

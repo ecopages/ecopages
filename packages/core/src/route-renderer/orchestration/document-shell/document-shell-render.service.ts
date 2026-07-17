@@ -6,6 +6,10 @@ import type {
 	PageMetadataProps,
 } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import {
+	HtmlTransformerService,
+	type HtmlDocumentContribution,
+} from '../../../services/html/html-transformer.service.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -247,4 +251,51 @@ export async function renderPageDocumentShell(
 		: composedDocumentHtml;
 
 	return `${docType}${documentHtml}`;
+}
+
+/**
+ * Finalizes already-resolved HTML for explicit renderer-owned paths.
+ *
+ * @remarks
+ * Callers append renderer bootstrap dependencies before invoking this helper.
+ * Stamps document/root attributes and runs HTML transformation after nested
+ * foreign-subtree resolution without routing back through shared route execution.
+ */
+export async function finalizeDocumentShellHtml(
+	htmlTransformer: HtmlTransformerService,
+	options: {
+		html: string;
+		partial?: boolean;
+		componentRootAttributes?: Record<string, string>;
+		documentAttributes?: Record<string, string>;
+		transformHtml?: boolean;
+		htmlContributions?: HtmlDocumentContribution[];
+	},
+): Promise<string> {
+	const html = applyDocumentShellAttributeStamping(
+		options.html,
+		{
+			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
+				htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
+			applyAttributesToHtmlElement: (nextHtml, attributes) =>
+				htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
+		},
+		{
+			componentRootAttributes: options.componentRootAttributes,
+			documentAttributes: options.documentAttributes,
+		},
+	);
+
+	const shouldTransform = options.transformHtml ?? !options.partial;
+	if (!shouldTransform) {
+		return html;
+	}
+
+	const transformedResponse = await htmlTransformer.transform(
+		new Response(html, {
+			headers: { 'Content-Type': 'text/html' },
+		}),
+		options.htmlContributions,
+	);
+	return await transformedResponse.text();
 }

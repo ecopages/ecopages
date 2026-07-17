@@ -378,9 +378,9 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Checks if a file is handled by a processor.
-	 * Processors that declare asset capabilities own those file types.
-	 * Processors without capabilities fall back to checking watch extensions.
+	 * Checks if a file is owned by a processor as an asset input.
+	 * Ownership requires declared asset capabilities; watch config only drives
+	 * {@link notifyProcessors} notifications.
 	 */
 	private isHandledByProcessor(filePath: string): boolean {
 		return this.invalidationService.isProcessorOwnedAsset(filePath);

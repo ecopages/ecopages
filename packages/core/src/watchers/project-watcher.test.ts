@@ -375,7 +375,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 	});
 
 	describe('processor-handled files', () => {
-		test('should skip HMR for processor-handled extensions', async () => {
+		test('should skip HMR for processor-owned asset capabilities', async () => {
 			const onChange = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
@@ -383,6 +383,10 @@ describe('ProjectWatcher - File Change Handling', () => {
 					extensions: ['.css', '.scss'],
 					onChange,
 				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css', '*.scss'] }]),
+				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+					return kind === 'stylesheet' && (filepath?.endsWith('.css') || filepath?.endsWith('.scss'));
+				}),
 			};
 			Config.processors.set('css', Processor as any);
 
@@ -553,12 +557,16 @@ describe('ProjectWatcher - Priority Rules', () => {
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
-	test('should prioritize processors over HMR strategies', async () => {
+	test('should prioritize processor-owned assets over HMR strategies', async () => {
 		const Processor = {
 			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project/src'],
 				extensions: ['.mdx'],
 			})),
+			getAssetCapabilities: vi.fn(() => [{ kind: 'script', extensions: ['*.mdx'] }]),
+			canProcessAsset: vi.fn((kind: string, filepath?: string) => {
+				return kind === 'script' && filepath?.endsWith('.mdx');
+			}),
 		};
 		Config.processors.set('mdx', Processor as any);
 
@@ -674,12 +682,10 @@ describe('ProjectWatcher - Helper Methods', () => {
 	});
 
 	describe('isHandledByProcessor', () => {
-		test('should return true when file extension matches processor', () => {
+		test('should return true when file matches processor asset capabilities', () => {
 			const Processor = {
-				getWatchConfig: vi.fn(() => ({
-					paths: ['/test/project/src'],
-					extensions: ['.css', '.scss'],
-				})),
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((_kind: string, filePath: string) => filePath.endsWith('.css')),
 			};
 			Config.processors.set('css', Processor as any);
 
@@ -687,8 +693,9 @@ describe('ProjectWatcher - Helper Methods', () => {
 			expect(result).toBe(true);
 		});
 
-		test('should return false when no processor handles the extension', () => {
+		test('should return false when watch extensions do not imply ownership', () => {
 			const Processor = {
+				getAssetCapabilities: vi.fn(() => []),
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css'],
@@ -696,28 +703,27 @@ describe('ProjectWatcher - Helper Methods', () => {
 			};
 			Config.processors.set('css', Processor as any);
 
+			const result = (watcher as any).isHandledByProcessor('/test/styles/main.css');
+			expect(result).toBe(false);
+		});
+
+		test('should return false when no processor owns the file', () => {
+			const Processor = {
+				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
+				canProcessAsset: vi.fn((_kind: string, filePath: string) => filePath.endsWith('.css')),
+			};
+			Config.processors.set('css', Processor as any);
+
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);
 		});
 
-		test('should handle processor without watchConfig', () => {
+		test('should handle processor without asset capabilities', () => {
 			const Processor = {
+				getAssetCapabilities: vi.fn(() => []),
 				getWatchConfig: vi.fn(() => null),
 			};
-			Config.processors.set('no-watch', Processor as any);
-
-			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
-			expect(result).toBe(false);
-		});
-
-		test('should handle processor with empty extensions array', () => {
-			const Processor = {
-				getWatchConfig: vi.fn(() => ({
-					paths: ['/test/project/src'],
-					extensions: [],
-				})),
-			};
-			Config.processors.set('empty', Processor as any);
+			Config.processors.set('no-capabilities', Processor as any);
 
 			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
 			expect(result).toBe(false);

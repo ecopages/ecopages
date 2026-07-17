@@ -21,14 +21,12 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import type {
-	ForeignSubtreeExecutionOwningRenderer,
-	QueuedForeignSubtreeResolutionContext,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import type { ForeignSubtreeExecutionOwningRenderer } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import {
 	getForeignSubtreeResolutionContextKey,
 	resolveOwningIntegrationRenderer,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';

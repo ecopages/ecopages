@@ -13,10 +13,16 @@ import type {
 	RouteRenderResult,
 	EcoPageLayoutEntry,
 } from '../../../types/public-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type {
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../../../services/assets/asset-processing-service/index.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
-import { OwnershipValidationService, throwIfOwnershipInvalid } from '../ownership-graph/ownership-validation.service.ts';
+import {
+	OwnershipValidationService,
+	throwIfOwnershipInvalid,
+} from '../ownership-graph/ownership-validation.service.ts';
 import {
 	buildEagerSsrLazyAssetsFromGraph,
 	collectResolvedLazyTriggersFromGraph,

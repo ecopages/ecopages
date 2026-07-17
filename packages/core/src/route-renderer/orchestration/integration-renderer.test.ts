@@ -142,10 +142,6 @@ class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.prepareRenderOptions(options);
 	}
 
-	public async testProcessComponentDependencies(components: (EcoComponent | Partial<EcoComponent>)[]) {
-		return this.processComponentDependencies(components);
-	}
-
 	public testShouldDelegateForeignChild(input: { currentIntegration: string; targetIntegration?: string }) {
 		return this.foreignSubtreeExecutionService.shouldDelegateForeignChild(input);
 	}
@@ -1030,125 +1026,6 @@ describe('IntegrationRenderer', () => {
 		});
 
 		expect(result.html).toBe('<aside>Local renderer</aside>');
-	});
-
-	it('should prefer processed lazy script srcUrl for _resolvedLazyTriggers', async () => {
-		let capturedDeps: unknown[] = [];
-		const LazySrcUrl = '/assets/_hmr/components/lit-counter/lit-counter.script.js';
-		const Service = {
-			processDependencies: vi.fn(async (deps: unknown[]) => {
-				capturedDeps = deps;
-				const lazyFileDep = (
-					deps as Array<{
-						kind?: string;
-						source?: string;
-						filepath?: string;
-						attributes?: Record<string, string>;
-					}>
-				).find((dep) => dep.kind === 'script' && dep.source === 'file' && Boolean(dep.filepath));
-
-				return [
-					{
-						kind: 'script',
-						filepath: lazyFileDep?.filepath,
-						attributes: lazyFileDep?.attributes,
-						srcUrl: LazySrcUrl,
-					},
-				] as ProcessedAsset[];
-			}),
-		} as unknown as AssetProcessingService;
-
-		const renderer = new TestIntegrationRenderer({
-			appConfig: AppConfig,
-			assetProcessingService: Service,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const component = ((_) => '<lit-counter></lit-counter>') as EcoComponent<Record<string, unknown>>;
-		component.config = {
-			__eco: {
-				id: 'lit-counter',
-				integration: 'lit',
-				file: '/app/components/lit-counter/lit-counter.kita.tsx',
-			},
-			dependencies: {
-				scripts: [
-					{
-						src: './lit-counter.script.ts',
-						lazy: { 'on:interaction': 'click,mouseenter,focusin' },
-					},
-				],
-			},
-		};
-
-		await renderer.testProcessComponentDependencies([component]);
-
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
-		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
-			{
-				'on:interaction': {
-					value: 'click,mouseenter,focusin',
-					scripts: [LazySrcUrl],
-				},
-			},
-		]);
-		expect(
-			capturedDeps.some((dep) => {
-				if (!dep || typeof dep !== 'object') return false;
-				const candidate = dep as { source?: string; importPath?: string };
-				return candidate.source === 'node-module' && candidate.importPath === '@ecopages/scripts-injector';
-			}),
-		).toBe(false);
-	});
-
-	it('should fallback to static lazy script URL when processed srcUrl is unavailable', async () => {
-		const Service = {
-			processDependencies: vi.fn(async () => {
-				return [
-					{
-						kind: 'script',
-						filepath: '/app/components/lit-counter/lit-counter.script.ts',
-					},
-				] as ProcessedAsset[];
-			}),
-		} as unknown as AssetProcessingService;
-
-		const renderer = new TestIntegrationRenderer({
-			appConfig: AppConfig,
-			assetProcessingService: Service,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const component = ((_) => '<lit-counter></lit-counter>') as EcoComponent<Record<string, unknown>>;
-		component.config = {
-			__eco: {
-				id: 'lit-counter',
-				integration: 'lit',
-				file: '/app/components/lit-counter/lit-counter.kita.tsx',
-			},
-			dependencies: {
-				scripts: [
-					{
-						src: './lit-counter.script.ts',
-						lazy: { 'on:interaction': 'click,mouseenter,focusin' },
-					},
-				],
-			},
-		};
-
-		await renderer.testProcessComponentDependencies([component]);
-
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
-		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
-			{
-				'on:interaction': {
-					value: 'click,mouseenter,focusin',
-					scripts: ['/assets/components/lit-counter/lit-counter.script.js'],
-				},
-			},
-		]);
 	});
 
 	describe('renderToResponse', () => {

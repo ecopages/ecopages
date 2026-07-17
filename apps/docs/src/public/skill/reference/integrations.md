@@ -58,4 +58,4 @@ Multiple integrations can coexist in one `eco.config.ts`. Route ownership is det
 
 ## Cross-integration rendering
 
-When a renderer must keep control of foreign subtrees, implement `createForeignChildRuntime()` or delegate to `createQueuedForeignSubtreeExecutionRuntime()` on the `IntegrationRenderer` subclass.
+When a renderer must keep control of foreign subtrees, implement `createForeignChildRuntime()` or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` on the `IntegrationRenderer` subclass.

@@ -19,7 +19,6 @@ import type {
 	PageBrowserGraphContributionContext,
 	PageBrowserGraphResult,
 	PageMetadataProps,
-	PagePackageResult,
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
@@ -43,19 +42,18 @@ import {
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-pipeline/route-render-orchestrator.ts';
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
-import { transformRouteResponseBody } from './route-pipeline/route-html-finalization.service.ts';
 import { loadPageBrowserGraphContribution } from './page-browser-graph/page-browser-graph-contribution.loader.ts';
-import { mergePageBrowserGraphIntoPagePackage as mergePageBrowserGraphIntoPagePackageUtil } from './page-browser-graph/page-browser-graph-merge.utils.ts';
 import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
-import { resolveOwningIntegrationRenderer } from './foreign-child/owning-renderer-resolution.ts';
+import {
+	getForeignSubtreeResolutionContextKey,
+	getForeignSubtreeTokenPrefix,
+	resolveOwningIntegrationRenderer,
+} from './foreign-child/owning-renderer-resolution.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
 	ForeignSubtreeExecutionService,
-	type ForeignSubtreeExecutionOwningRenderer,
-	type ForeignSubtreeQueuedHtmlOptions,
-	type QueuedForeignSubtreeResolutionContext,
 } from './foreign-child/foreign-subtree-execution.service.ts';
 import {
 	composeDocumentShell,
@@ -283,20 +281,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
-	protected mergePageBrowserGraphIntoPagePackage(
-		pageBrowserGraph?: PageBrowserGraphResult,
-	): PageBrowserGraphResult | undefined {
-		return mergePageBrowserGraphIntoPagePackageUtil(
-			{
-				getPagePackage: () => this.htmlTransformer.getPagePackage(),
-				getProcessedDependencies: () => this.htmlTransformer.getProcessedDependencies(),
-				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets([...assets]),
-				setPagePackage: (pagePackage) => this.htmlTransformer.setPagePackage(pagePackage),
-			},
-			pageBrowserGraph,
-		);
-	}
-
 	/**
 	 * Merges component-scoped assets into the active HTML transformer state.
 	 *
@@ -448,9 +432,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const transformedDocumentHtml = input.transformDocumentHtml
 			? input.transformDocumentHtml(documentHtml)
 			: documentHtml;
-		const html = await this.finalizeResolvedHtml({
+		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(false));
+		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
 			html: `${this.DOC_TYPE}${transformedDocumentHtml}`,
 			partial: false,
+			htmlContributions: this.getHtmlDocumentContributions({ partial: false }),
 		});
 
 		return this.createHtmlResponse(html, input.ctx);
@@ -542,64 +528,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	protected getForeignSubtreeTokenPrefix(): string {
-		return `__${this.name}_foreign_subtree__`;
-	}
-
-	protected getForeignSubtreeResolutionContextKey(): string {
-		return `__${this.name}_foreign_subtree_runtime__`;
-	}
-
-	protected createQueuedForeignSubtreeExecutionRuntime<
-		TContext extends QueuedForeignSubtreeResolutionContext,
-	>(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-		runtimeContextKey?: string;
-		tokenPrefix?: string;
-		createRuntimeContext?: (
-			integrationContext: BaseIntegrationContext & Record<string, unknown>,
-			rendererCache: Map<string, unknown>,
-		) => TContext;
-	}): ForeignChildRuntime {
-		return this.foreignSubtreeExecutionService.createQueuedRuntime<TContext>({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-			runtimeContextKey: options.runtimeContextKey ?? this.getForeignSubtreeResolutionContextKey(),
-			tokenPrefix: options.tokenPrefix ?? this.getForeignSubtreeTokenPrefix(),
-			createRuntimeContext: options.createRuntimeContext,
-		});
-	}
-
-	protected getQueuedForeignSubtreeResolutionContext<TContext extends QueuedForeignSubtreeResolutionContext>(
-		input: ComponentRenderInput,
-	): TContext | undefined {
-		return this.foreignSubtreeExecutionService.getQueuedRuntimeContext<TContext>(
-			input,
-			this.getForeignSubtreeResolutionContextKey(),
-		);
-	}
-
-	protected async resolveQueuedForeignSubtreeHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
-		html: string,
-		runtimeContext: TContext | undefined,
-		renderQueuedChildren: ForeignSubtreeQueuedHtmlOptions<TContext>['renderQueuedChildren'],
-		queueLabel: string = this.name,
-	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
-			html,
-			runtimeContext,
-			queueLabel,
-			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren,
-		});
-	}
-
 	/**
 	 * Renders a string-first component, then resolves any queued foreign
 	 * boundaries before returning final component HTML.
@@ -613,10 +541,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			currentIntegrationName: this.name,
 			renderInput: input,
 			html: componentRender.html,
-			runtimeContextKey: this.getForeignSubtreeResolutionContextKey(),
+			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
 			queueLabel: 'String',
 			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
+				resolveOwningIntegrationRenderer({
+					appConfig: this.appConfig,
+					runtimeOrigin: this.runtimeOrigin,
+					currentIntegrationName: this.name,
+					currentRenderer: this,
+					integrationName,
+					cache: rendererCache,
+				}),
 			applyAttributesToFirstElement: (html, attributes) =>
 				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
@@ -770,8 +705,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
-			transformRouteResponse: (response, htmlContributions, pagePackage) =>
-				this.transformRouteResponse(response, htmlContributions, pagePackage),
+			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
+				const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
+				const transformedResponse = await this.htmlTransformer.transform(
+					response,
+					htmlContributions,
+					resolvedPagePackage,
+				);
+				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
+			},
 		});
 	}
 
@@ -813,23 +755,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		return this.render(renderOptions);
-	}
-
-	protected async transformRouteResponse(
-		response: Response,
-		htmlContributions?: HtmlDocumentContribution[],
-		pagePackage?: PagePackageResult,
-	): Promise<RouteRendererBody> {
-		return transformRouteResponseBody(
-			{
-				getPagePackage: () => this.htmlTransformer.getPagePackage(),
-				transform: (nextResponse, nextContributions, nextPagePackage) =>
-					this.htmlTransformer.transform(nextResponse, nextContributions, nextPagePackage),
-			},
-			response,
-			htmlContributions,
-			pagePackage,
-		);
 	}
 
 	/**
@@ -877,45 +802,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Finalizes already-resolved HTML for explicit renderer-owned paths.
-	 *
-	 * This keeps document and root-attribute stamping plus HTML transformation
-	 * available after a renderer has completed nested foreign-subtree resolution without
-	 * routing back through shared route execution.
-	 */
-	protected async finalizeResolvedHtml(options: {
-		html: string;
-		partial?: boolean;
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-		transformHtml?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	}): Promise<string> {
-		return finalizeDocumentShellHtml(
-			{
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
-				getRendererBootstrapDependencies: (partial) => this.getRendererBootstrapDependencies(partial),
-				applyAttributesToFirstBodyElement: (html, attributes) =>
-					this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes),
-				applyAttributesToHtmlElement: (html, attributes) =>
-					this.htmlTransformer.applyAttributesToHtmlElement(html, attributes),
-				getHtmlDocumentContributions: (contributionOptions) =>
-					this.getHtmlDocumentContributions(contributionOptions),
-				transformHtmlResponse: async (html, htmlContributions) => {
-					const transformedResponse = await this.htmlTransformer.transform(
-						new Response(html, {
-							headers: { 'Content-Type': 'text/html' },
-						}),
-						htmlContributions,
-					);
-					return await transformedResponse.text();
-				},
-			},
-			options,
-		);
-	}
-
-	/**
 	 * Returns document-level attributes to stamp onto the rendered `<html>` tag.
 	 *
 	 * Integrations can override this to expose explicit document ownership or
@@ -951,32 +837,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Returns a renderer instance for a given integration name.
-	 *
-	 * Uses a per-execution cache to avoid repeated renderer initialization.
-	 * Activates the foreign integration runtime before creating its renderer so
-	 * global assets (for example React vendor ESM) exist before island scripts import them.
-	 *
-	 * @param integrationName Target integration name.
-	 * @param cache Render-pass renderer cache.
-	 * @returns Renderer for the requested integration.
-	 * @throws Error when no integration plugin matches `integrationName`.
-	 */
-	protected async getIntegrationRendererForName(
-		integrationName: string,
-		cache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): Promise<ForeignSubtreeExecutionOwningRenderer> {
-		return resolveOwningIntegrationRenderer({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-			currentIntegrationName: this.name,
-			currentRenderer: this,
-			integrationName,
-			cache,
-		});
-	}
-
-	/**
 	 * Abstract method to render the integration-specific component.
 	 * This method should be implemented by the specific integration renderer.
 	 *
@@ -1006,7 +866,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
 				}),
 			getOwningRenderer: (integrationName, rendererCache) =>
-				this.getIntegrationRendererForName(integrationName, rendererCache),
+				resolveOwningIntegrationRenderer({
+					appConfig: this.appConfig,
+					runtimeOrigin: this.runtimeOrigin,
+					currentIntegrationName: this.name,
+					currentRenderer: this,
+					integrationName,
+					cache: rendererCache,
+				}),
 		});
 	}
 
@@ -1124,9 +991,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
-		return this.createQueuedForeignSubtreeExecutionRuntime({
+		return this.foreignSubtreeExecutionService.createQueuedRuntime({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
+			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
+			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
 		});
 	}
 

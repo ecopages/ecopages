@@ -1,9 +1,5 @@
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
-import type {
-	IntegrationRendererRenderOptions,
-	PagePackageResult,
-	RouteRendererBody,
-} from '../../../types/public-types.ts';
+import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 
 export type RouteHtmlFinalizationContext<C> = {
@@ -39,28 +35,4 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 			return context.applyAttributesToHtmlElement(html, documentAttributes);
 		},
 	};
-}
-
-export type TransformRouteResponseHost = {
-	getPagePackage(): PagePackageResult | undefined;
-	transform(
-		response: Response,
-		htmlContributions?: HtmlDocumentContribution[],
-		pagePackage?: PagePackageResult,
-	): Promise<Response>;
-};
-
-/**
- * Transforms a route response, preferring the live transformer page package over
- * a stale prepare-time package when both are present.
- */
-export async function transformRouteResponseBody(
-	host: TransformRouteResponseHost,
-	response: Response,
-	htmlContributions?: HtmlDocumentContribution[],
-	pagePackage?: PagePackageResult,
-): Promise<RouteRendererBody> {
-	const resolvedPagePackage = host.getPagePackage() ?? pagePackage;
-	const transformedResponse = await host.transform(response, htmlContributions, resolvedPagePackage);
-	return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 }

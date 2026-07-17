@@ -113,12 +113,28 @@ export class HydrationAssetService {
 			isMdx,
 		} = options;
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const groupedBundle = this.config.routerAdapter
+		/**
+		 * @remarks
+		 * Production router pages share a grouped bundle. Development HMR keeps each
+		 * page bootstrap independent so the hot page module URL stays external while
+		 * bare `@ecopages/*` helpers resolve through the browser bundler.
+		 */
+		const groupedBundle =
+			!hmrEnabled && this.config.routerAdapter
+				? {
+						id: HydrationAssetService.ROUTER_PAGE_GROUPED_BUNDLE_ID,
+						entryName: this.getRouterPageGroupedEntryName(pagePath),
+					}
+				: undefined;
+		const existingExternal = Array.isArray(bundleOptions.external)
+			? bundleOptions.external.filter((value): value is string => typeof value === 'string')
+			: [];
+		const pageBootstrapBundleOptions = hmrEnabled
 			? {
-					id: HydrationAssetService.ROUTER_PAGE_GROUPED_BUNDLE_ID,
-					entryName: this.getRouterPageGroupedEntryName(pagePath),
+					...bundleOptions,
+					external: [...new Set([...existingExternal, importPath])],
 				}
-			: undefined;
+			: bundleOptions;
 		return [
 			AssetFactory.createContentScript({
 				position: 'head',
@@ -139,9 +155,16 @@ export class HydrationAssetService {
 				}),
 				name: componentName,
 				packageRole: 'page-script',
-				bundle: !hmrEnabled,
+				/**
+				 * @remarks
+				 * Always bundle page bootstraps. Unbundled HMR entries are evaluated as
+				 * native browser ESM and cannot resolve bare package imports such as
+				 * `@ecopages/core/eco/page-layout-normalization` or
+				 * `@ecopages/react/layout-compose`.
+				 */
+				bundle: true,
 				groupedBundle,
-				bundleOptions,
+				bundleOptions: pageBootstrapBundleOptions,
 				attributes: {
 					type: 'module',
 					defer: '',

@@ -45,6 +45,14 @@ export interface ProcessorWatchContext {
 
 export interface ProcessorWatchConfig {
 	paths: string[];
+	/**
+	 * File extensions that trigger watch callbacks (`onCreate`, `onChange`, `onDelete`).
+	 *
+	 * @remarks
+	 * Watch extensions drive notifications only. They do not declare asset ownership.
+	 * Ownership requires {@link ProcessorConfig.capabilities} and controls whether dev
+	 * invalidation skips server modules and HMR for processor-handled assets.
+	 */
 	extensions?: string[];
 	onCreate?: (ctx: ProcessorWatchContext) => Promise<void>;
 	onChange?: (ctx: ProcessorWatchContext) => Promise<void>;

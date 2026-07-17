@@ -35,31 +35,32 @@ import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
-import { OwnershipValidationService } from './ownership-validation.service.ts';
-import { hasForeignChildDescendantsInGraph } from './component-graph-collectors.ts';
+import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
+import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
 	type RouteRenderOrchestratorResolvedInputs,
-} from './route-render-orchestrator.ts';
-import { createIntegrationRouteRenderAdapter } from './integration-route-render-adapter.ts';
-import { loadPageBrowserGraphContribution } from './page-browser-graph-contribution.loader.ts';
-import type { ForeignChildRuntime } from './component-render-context.ts';
-import { normalizeUnresolvedMarkerArtifactHtml, isMarkupNodeLike } from './render-output.utils.ts';
+} from './route-pipeline/route-render-orchestrator.ts';
+import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
+import { loadPageBrowserGraphContribution } from './page-browser-graph/page-browser-graph-contribution.loader.ts';
+import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
+import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
+import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
 import {
 	ForeignSubtreeExecutionService,
 	type ForeignSubtreeExecutionOwningRenderer,
 	type ForeignSubtreeQueuedHtmlOptions,
 	type QueuedForeignSubtreeResolutionContext,
-} from './foreign-subtree-execution.service.ts';
-import { buildProcessedAssetDedupeKey } from './processed-asset-dedupe.ts';
+} from './foreign-child/foreign-subtree-execution.service.ts';
+import { buildProcessedAssetDedupeKey } from './page-browser-graph/processed-asset-dedupe.ts';
 import {
 	applyDocumentShellAttributeStamping,
 	composeDocumentShell,
 	renderPageDocumentShell,
-} from './document-shell-render.service.ts';
-import { resolveInnermostPageLayout, resolvePageLayoutComponents } from './layout-shell-props.service.ts';
+} from './document-shell/document-shell-render.service.ts';
+import { resolveInnermostPageLayout, resolvePageLayoutComponents } from './document-shell/layout-shell-props.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.

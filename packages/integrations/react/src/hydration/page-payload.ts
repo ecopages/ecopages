@@ -11,7 +11,7 @@ import type {
 	RequestLocals,
 } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import type { HtmlDocumentContribution } from '@ecopages/core/route-renderer/integration-renderer';
+import type { HtmlDocumentContribution } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { ReactNode } from 'react';
 import { isReactManagedComponent } from '../render/component-ownership.ts';
 

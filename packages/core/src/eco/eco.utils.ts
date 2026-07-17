@@ -2,4 +2,4 @@ export {
 	addTriggerAttribute,
 	isThenable,
 	wrapWithScriptsInjector,
-} from '../route-renderer/orchestration/render-output.utils.ts';
+} from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';

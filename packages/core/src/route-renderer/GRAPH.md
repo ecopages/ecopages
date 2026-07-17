@@ -115,12 +115,12 @@ flowchart TD
 The most useful reading order is:
 
 1. `route-renderer.ts`
-2. `orchestration/route-render-orchestrator.ts`
+2. `orchestration/route-pipeline/route-render-orchestrator.ts`
 3. `orchestration/integration-renderer.ts`
-4. `orchestration/ownership-validation.service.ts`
-5. `orchestration/component-graph.ts`
-6. `orchestration/component-render-context.ts`
-7. `orchestration/foreign-subtree-execution.service.ts`
+4. `orchestration/ownership-graph/ownership-validation.service.ts`
+5. `orchestration/ownership-graph/component-graph.ts`
+6. `orchestration/foreign-child/component-render-context.ts`
+7. `orchestration/foreign-child/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
 9. `page-loading/dependency-resolver.ts`
 10. `eco/eco.ts`
@@ -128,12 +128,12 @@ The most useful reading order is:
 ## 7) Key Files
 
 - `packages/core/src/route-renderer/route-renderer.ts`
-- `packages/core/src/route-renderer/orchestration/route-render-orchestrator.ts`
+- `packages/core/src/route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts`
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
-- `packages/core/src/route-renderer/orchestration/ownership-validation.service.ts`
-- `packages/core/src/route-renderer/orchestration/component-graph.ts`
-- `packages/core/src/route-renderer/orchestration/component-render-context.ts`
-- `packages/core/src/route-renderer/orchestration/foreign-subtree-execution.service.ts`
+- `packages/core/src/route-renderer/orchestration/ownership-graph/ownership-validation.service.ts`
+- `packages/core/src/route-renderer/orchestration/ownership-graph/component-graph.ts`
+- `packages/core/src/route-renderer/orchestration/foreign-child/component-render-context.ts`
+- `packages/core/src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`
 - `packages/core/src/eco/eco.ts`

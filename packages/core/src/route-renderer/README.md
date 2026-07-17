@@ -50,13 +50,18 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 ### `orchestration/`
 
-- `route-render-orchestrator.ts`: one route render from page-module loading through final HTML output
+Root renderer classes:
+
 - `integration-renderer.ts`: abstract base class for route rendering, explicit view rendering, and foreign-child delegation
-- `ownership-validation.service.ts`: up-front ownership validation for route roots and declared descendants
-- `foreign-subtree-execution.service.ts`: foreign-child execution policy, queue token resolution, and `toForeignSubtreeRenderPayload()`
-- `document-shell-render.service.ts`: shared page/layout/html shell composition and attribute stamping helpers
-- `component-render-context.ts`: active render context used by `eco.component()` to intercept foreign children
-- `render-output.utils.ts`: unresolved artifact normalization and marker inspection
+- `string-markup-renderer.ts`: shared base for string-markup integrations
+
+Domain folders:
+
+- `ownership-graph/`: component graph walk/collect and up-front ownership validation
+- `foreign-child/`: active render context, foreign-subtree execution, deferred template serialization
+- `document-shell/`: shared page/layout/html shell composition and attribute stamping helpers
+- `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
+- `page-browser-graph/`: browser asset graph build, session cache, and injector assets
 
 ### `page-loading/`
 

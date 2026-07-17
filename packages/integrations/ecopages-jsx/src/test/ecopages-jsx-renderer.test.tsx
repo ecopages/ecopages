@@ -12,8 +12,8 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
@@ -22,7 +22,7 @@ import { EcopagesJsxShell as KitchenSinkEcopagesJsxShell } from '@ecopages/testi
 import { KitaShell as KitchenSinkKitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
 import { LitShell as KitchenSinkLitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
 import { ReactShell as KitchenSinkReactShell } from '@ecopages/testing/kitchen-sink/react-shell';
-import type { ForeignChildInterceptionInput } from '../../../../core/src/route-renderer/orchestration/component-render-context';
+import type { ForeignChildInterceptionInput } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import { kitajsPlugin } from '../../../kitajs/src/kitajs.plugin';
 import { litPlugin } from '../../../lit/src/lit.plugin';
 import { reactPlugin } from '../../../react/src/plugin/react.plugin.ts';

@@ -8,7 +8,7 @@ import type {
 	RouteRendererBody,
 } from '../../types/public-types.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
-import { resolveInnermostPageLayout } from './layout-shell-props.service.ts';
+import { resolveInnermostPageLayout } from './document-shell/layout-shell-props.service.ts';
 
 type StringMarkupViewFn<P = Record<string, unknown>> = EcoFunctionComponent<
 	P,

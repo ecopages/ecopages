@@ -10,8 +10,8 @@ import {
 	type HtmlTemplateProps,
 	type PageBrowserGraphResult,
 } from '@ecopages/core';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
-import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';

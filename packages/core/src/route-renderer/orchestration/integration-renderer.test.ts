@@ -6,7 +6,6 @@ import type { AssetProcessingService, ProcessedAsset } from '../../services/asse
 import type {
 	ComponentRenderInput,
 	EcoPagesElement,
-	IntegrationRendererRenderOptions,
 	EcoPageFile,
 	RouteRendererBody,
 	RouteRendererOptions,

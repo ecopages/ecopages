@@ -52,9 +52,7 @@ import {
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
-import {
-	ForeignSubtreeExecutionService,
-} from './foreign-child/foreign-subtree-execution.service.ts';
+import { ForeignSubtreeExecutionService } from './foreign-child/foreign-subtree-execution.service.ts';
 import {
 	composeDocumentShell,
 	finalizeDocumentShellHtml,

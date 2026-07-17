@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { EcoPageComponent } from '../../../eco/eco.types.ts';
 import type { EcoComponent, HtmlTemplateProps } from '../../../types/public-types.ts';
-import {
-	TestIntegrationRenderer,
-	testAppConfig,
-	testAssetService,
-} from '../integration-renderer.test-fixtures.ts';
+import { TestIntegrationRenderer, testAppConfig, testAssetService } from '../integration-renderer.test-fixtures.ts';
 
 describe('document shell finalization', () => {
 	it('should expose island bootstrap dependencies from renderer modules', () => {

@@ -289,11 +289,7 @@ describe('renderer foreign-child delegation', () => {
 			render: ({ children }) => `<section>${children ?? ''}${ForeignComponent({})}</section>`,
 		});
 
-		const passedThroughMarker = createUnresolvedMarkerArtifact(
-			'n_passed',
-			'passed-through-component',
-			'p_passed',
-		);
+		const passedThroughMarker = createUnresolvedMarkerArtifact('n_passed', 'passed-through-component', 'p_passed');
 
 		await expect(
 			renderer.renderComponentWithForeignChildren({

@@ -9,10 +9,7 @@ import {
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type {
-	AssetProcessingService,
-	ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -107,8 +104,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 			body = content as string;
 		} else {
 			const Layout = resolveInnermostPageLayout(view.config?.layouts) as
-				| ((props: { children: string }) => string)
-				| undefined;
+				((props: { children: string }) => string) | undefined;
 			const children = Layout ? Layout({ children: content as string }) : content;
 			body = `<!DOCTYPE html><html><body>${children}</body></html>`;
 		}
@@ -253,9 +249,9 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return super.createForeignChildRuntime(options);
 	}
 
-	protected override getHtmlDocumentContributions(
-		_options?: { partial?: boolean },
-	): HtmlDocumentContribution[] | undefined {
+	protected override getHtmlDocumentContributions(_options?: {
+		partial?: boolean;
+	}): HtmlDocumentContribution[] | undefined {
 		return this.HtmlContributions;
 	}
 }

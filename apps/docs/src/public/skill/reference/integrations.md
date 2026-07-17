@@ -58,4 +58,4 @@ Multiple integrations can coexist in one `eco.config.ts`. Route ownership is det
 
 ## Cross-integration rendering
 
-When a renderer must keep control of foreign subtrees, implement `createForeignChildRuntime()` or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` on the `IntegrationRenderer` subclass.
+Foreign-child ownership is a three-step renderer contract: **queue** with `createForeignChildRuntime()` / `foreignSubtreeExecutionService.createQueuedRuntime(...)`, **resolve** with `foreignSubtreeExecutionService.resolveQueuedHtml(...)` after local HTML is produced, and **own** via `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.

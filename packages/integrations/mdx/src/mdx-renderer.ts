@@ -8,8 +8,8 @@ import { assertIntegrationInvariant } from '@ecopages/core/plugins/integration-p
 import {
 	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
-} from '@ecopages/core/route-renderer/integration-renderer';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';

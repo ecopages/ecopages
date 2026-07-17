@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph-session.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const benchDir = path.join(repoRoot, 'playground', 'kitchen-sink', 'bench');

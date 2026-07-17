@@ -25,7 +25,7 @@ import {
 	type HtmlDocumentContributionContext,
 	type PageBrowserGraphContributionContext,
 	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/integration-renderer';
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
@@ -47,7 +47,7 @@ import {
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
-} from '@ecopages/core/route-renderer/orchestration/document-shell-render.service';
+} from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
 import { asReactComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
 	createForeignSubtreeRuntimeContext,

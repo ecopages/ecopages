@@ -21,7 +21,7 @@ For string-markup integrations that only need declarative config and a renderer 
 
 ```typescript
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 
 class CustomRenderer extends StringMarkupRenderer {
 	name = 'custom-integration';
@@ -99,7 +99,7 @@ Use the smallest declaration that matches reality. For example, an integration t
 The renderer handles framework-specific HTML generation. It extends `IntegrationRenderer` and implements `render()`.
 
 ```typescript
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
 
 export class CustomRenderer extends IntegrationRenderer<string> {
@@ -320,7 +320,7 @@ Here's a complete example including the plugin, renderer, and HMR strategy:
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import type {
 	DefaultHmrContext,

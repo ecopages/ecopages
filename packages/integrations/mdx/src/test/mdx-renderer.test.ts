@@ -8,7 +8,7 @@ import type {
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await createTestAppConfig();

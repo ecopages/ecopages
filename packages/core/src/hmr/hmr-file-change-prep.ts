@@ -4,7 +4,7 @@ import {
 	getAffectedPageBrowserGraphIdentities,
 	invalidatePageBrowserGraphSession,
 	type AffectedGraphIdentity,
-} from '../route-renderer/orchestration/page-browser-graph-session.ts';
+} from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 
 export type HmrFileChangePreparation = {
 	affectedGraphIdentities: AffectedGraphIdentity[];

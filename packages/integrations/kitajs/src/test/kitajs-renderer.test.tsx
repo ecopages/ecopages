@@ -11,8 +11,11 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer, type RenderToResponseContext } from '@ecopages/core/route-renderer/integration-renderer';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+import {
+	IntegrationRenderer,
+	type RenderToResponseContext,
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 

@@ -9,7 +9,7 @@ import {
 import {
 	buildProcessedAssetDedupeKey,
 	dedupeProcessedAssets,
-} from '../../route-renderer/orchestration/processed-asset-dedupe.ts';
+} from '../../route-renderer/orchestration/page-browser-graph/processed-asset-dedupe.ts';
 
 export type HtmlDocumentContributionPlacement = 'head-prepend' | 'head-append' | 'body-prepend' | 'body-append';
 

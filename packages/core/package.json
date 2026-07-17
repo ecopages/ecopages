@@ -60,11 +60,11 @@
 			"types": "./src/adapters/create-app.ts",
 			"default": "./src/adapters/create-app.ts"
 		},
-		"./route-renderer/integration-renderer": {
+		"./route-renderer/orchestration/integration-renderer": {
 			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
 			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
 		},
-		"./route-renderer/string-markup-renderer": {
+		"./route-renderer/orchestration/string-markup-renderer": {
 			"types": "./src/route-renderer/orchestration/string-markup-renderer.ts",
 			"default": "./src/route-renderer/orchestration/string-markup-renderer.ts"
 		},
@@ -72,18 +72,18 @@
 			"types": "./src/route-renderer/route-renderer.ts",
 			"default": "./src/route-renderer/route-renderer.ts"
 		},
-		"./route-renderer/component-render-context": {
-			"import": "./src/route-renderer/orchestration/component-render-context.ts",
-			"types": "./src/route-renderer/orchestration/component-render-context.ts",
-			"default": "./src/route-renderer/orchestration/component-render-context.ts"
+		"./route-renderer/orchestration/foreign-child/component-render-context": {
+			"import": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
+			"types": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
+			"default": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts"
 		},
-		"./route-renderer/orchestration/foreign-subtree-execution.service": {
-			"types": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts",
-			"default": "./src/route-renderer/orchestration/foreign-subtree-execution.service.ts"
+		"./route-renderer/orchestration/foreign-child/foreign-subtree-execution.service": {
+			"types": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts",
+			"default": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts"
 		},
-		"./route-renderer/orchestration/document-shell-render.service": {
-			"types": "./src/route-renderer/orchestration/document-shell-render.service.ts",
-			"default": "./src/route-renderer/orchestration/document-shell-render.service.ts"
+		"./route-renderer/orchestration/document-shell/document-shell-render.service": {
+			"types": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
+			"default": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts"
 		},
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",

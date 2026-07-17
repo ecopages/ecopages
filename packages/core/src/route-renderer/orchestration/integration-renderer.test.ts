@@ -6,10 +6,10 @@ import {
 	type HtmlDocumentContribution,
 	type RenderToResponseContext,
 } from './integration-renderer.ts';
-import { resolveInnermostPageLayout } from './layout-shell-props.service.ts';
+import { resolveInnermostPageLayout } from './document-shell/layout-shell-props.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
-import { getComponentRenderContext, type ForeignChildRuntime } from './component-render-context.ts';
+import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
@@ -25,8 +25,8 @@ import type {
 	HtmlTemplateProps,
 } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
-import { runWithComponentRenderContext } from './component-render-context.ts';
-import { toForeignSubtreeRenderPayload } from './foreign-subtree-execution.service.ts';
+import { runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
+import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 
 function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;

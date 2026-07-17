@@ -1,6 +1,6 @@
 import { describe, expect, test, afterEach } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph-session.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 const appConfig = {

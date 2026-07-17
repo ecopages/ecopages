@@ -9,12 +9,12 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
-} from '@ecopages/core/route-renderer/integration-renderer';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-subtree-execution.service';
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import type {
 	ForeignChildInterceptionInput,
 	ForeignChildRuntime,
-} from '@ecopages/core/route-renderer/component-render-context';
+} from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';

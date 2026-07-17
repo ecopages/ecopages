@@ -3,7 +3,7 @@
  * @module
  */
 
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/string-markup-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /**

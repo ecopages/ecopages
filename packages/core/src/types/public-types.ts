@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
-import type { ForeignChildRuntime } from '../route-renderer/orchestration/component-render-context.ts';
+import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';

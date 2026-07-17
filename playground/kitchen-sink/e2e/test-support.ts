@@ -29,6 +29,7 @@ const RUNTIME_ERROR_PATTERNS = [
 	/Missing props reference/i,
 	/Failed to execute 'appendChild'/i,
 	/Hydration failed/i,
+	/Failed to resolve module specifier/i,
 ] as const;
 
 /** Cancel an in-flight browser-router / react-router morph so Playwright can navigate again. */

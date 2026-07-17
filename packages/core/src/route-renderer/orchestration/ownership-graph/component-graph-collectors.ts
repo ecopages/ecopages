@@ -3,7 +3,10 @@ import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { DependencyAttributes, EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
 import type { AssetDefinition } from '../../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../../services/assets/asset-processing-service/index.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type {
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../../../services/assets/asset-processing-service/index.ts';
 import { walkComponentGraph, type ComponentGraphRoot } from './component-graph.ts';
 
 function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {

@@ -60,7 +60,10 @@ import {
 	composeDocumentShell,
 	renderPageDocumentShell,
 } from './document-shell/document-shell-render.service.ts';
-import { resolveInnermostPageLayout, resolvePageLayoutComponents } from './document-shell/layout-shell-props.service.ts';
+import {
+	resolveInnermostPageLayout,
+	resolvePageLayoutComponents,
+} from './document-shell/layout-shell-props.service.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.

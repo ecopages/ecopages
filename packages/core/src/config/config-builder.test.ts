@@ -313,6 +313,31 @@ describe('EcoConfigBuilder', () => {
 		expect(config.robotsTxt).toEqual(robotsTxt);
 	});
 
+	test('should set sitemap with defaults merged', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setSitemap({ enabled: true, extraUrls: ['/rss.xml'] })
+			.build();
+
+		expect(config.sitemap).toEqual({
+			enabled: true,
+			fileName: 'sitemap.xml',
+			extraUrls: ['/rss.xml'],
+			exclude: [],
+		});
+	});
+
+	test('should default sitemap to disabled', async () => {
+		const config = await builder.setBaseUrl('https://example.com').setRootDir('/project').build();
+		expect(config.sitemap).toEqual({
+			enabled: false,
+			fileName: 'sitemap.xml',
+			extraUrls: [],
+			exclude: [],
+		});
+	});
+
 	test('should set integrations', async () => {
 		const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test'])];
 		const config = await builder

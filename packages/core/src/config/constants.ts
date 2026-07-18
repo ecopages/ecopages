@@ -8,6 +8,7 @@
  */
 export const STATUS_MESSAGE = {
 	404: '404 Not Found',
+	500: 'Internal Server Error',
 };
 
 /**

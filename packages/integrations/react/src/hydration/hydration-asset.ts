@@ -19,6 +19,7 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { createHydrationScript, createIslandHydrationScript } from './hydration-scripts.ts';
+import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
 import type { BundleService } from '../bundling/bundle.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
@@ -116,8 +117,7 @@ export class HydrationAssetService {
 		/**
 		 * @remarks
 		 * Production router pages share a grouped bundle. Development HMR keeps each
-		 * page bootstrap independent so the hot page module URL stays external while
-		 * bare `@ecopages/*` helpers resolve through the browser bundler.
+		 * page bootstrap independent and unbundled; shared helpers resolve via vendor URLs.
 		 */
 		const groupedBundle =
 			!hmrEnabled && this.config.routerAdapter
@@ -126,28 +126,22 @@ export class HydrationAssetService {
 						entryName: this.getRouterPageGroupedEntryName(pagePath),
 					}
 				: undefined;
-		const existingExternal = Array.isArray(bundleOptions.external)
-			? bundleOptions.external.filter((value): value is string => typeof value === 'string')
-			: [];
-		const pageBootstrapBundleOptions = hmrEnabled
-			? {
-					...bundleOptions,
-					external: [...new Set([...existingExternal, importPath])],
-				}
-			: bundleOptions;
+		const bootstrapImports = resolveHydrationBootstrapImports({
+			useBrowserRuntimeImports,
+			runtimeImports,
+			routerAdapterImportPath: this.config.routerAdapter?.bundle.importPath,
+		});
 		return [
 			AssetFactory.createContentScript({
 				position: 'head',
 				content: createHydrationScript({
 					importPath: hmrEnabled ? importPath : pagePath,
 					pageModuleUrlExpression,
-					reactImportPath: useBrowserRuntimeImports ? runtimeImports.react : 'react',
-					reactDomClientImportPath: useBrowserRuntimeImports
-						? runtimeImports.reactDomClient
-						: 'react-dom/client',
-					routerImportPath: useBrowserRuntimeImports
-						? runtimeImports.router
-						: this.config.routerAdapter?.bundle.importPath,
+					reactImportPath: bootstrapImports.reactImportPath,
+					reactDomClientImportPath: bootstrapImports.reactDomClientImportPath,
+					routerImportPath: bootstrapImports.routerImportPath,
+					layoutComposeImportPath: bootstrapImports.layoutComposeImportPath,
+					pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
 					hmrEnabled,
 					isMdx,
 					router: this.config.routerAdapter,
@@ -157,14 +151,13 @@ export class HydrationAssetService {
 				packageRole: 'page-script',
 				/**
 				 * @remarks
-				 * Always bundle page bootstraps. Unbundled HMR entries are evaluated as
-				 * native browser ESM and cannot resolve bare package imports such as
-				 * `@ecopages/core/eco/page-layout-normalization` or
-				 * `@ecopages/react/layout-compose`.
+				 * HMR bootstraps stay unbundled write-through ESM. Helper imports must
+				 * already be browser-resolvable vendor URLs from
+				 * {@link resolveHydrationBootstrapImports}.
 				 */
-				bundle: true,
+				bundle: !hmrEnabled,
 				groupedBundle,
-				bundleOptions: pageBootstrapBundleOptions,
+				bundleOptions,
 				attributes: {
 					type: 'module',
 					defer: '',

@@ -7,18 +7,11 @@
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { getDevPageDataReaderBootstrapSource } from './page-data-reader.ts';
 
-const DEFAULT_LAYOUT_COMPOSE_IMPORT_PATH = '@ecopages/react/layout-compose';
-const PAGE_LAYOUT_NORMALIZATION_IMPORT = '@ecopages/core/eco/page-layout-normalization';
-
 function getPageDataReaderSource(options: HydrationScriptOptions): string {
 	if (options.pageDataReaderImportPath) {
 		return `import { readPageDataDocument, getPageDataFromDocument as getPageData } from "${options.pageDataReaderImportPath}";`;
 	}
 	return getDevPageDataReaderBootstrapSource();
-}
-
-function resolveLayoutComposeImportPath(options: HydrationScriptOptions): string {
-	return options.layoutComposeImportPath ?? DEFAULT_LAYOUT_COMPOSE_IMPORT_PATH;
 }
 
 /**
@@ -41,17 +34,30 @@ export type HydrationScriptOptions = {
 	 * When true, emit HMR registration and hot-reload handlers.
 	 *
 	 * @remarks
-	 * Page bootstraps are always bundled so bare package imports resolve through
-	 * the browser build pipeline. When false, this generator emits the same
-	 * readable bootstrap without HMR hooks.
+	 * HMR page bootstraps stay unbundled and evaluate as native browser ESM.
+	 * Callers must supply browser-resolvable import paths (shared vendor URLs)
+	 * so generated source does not emit bare `@ecopages/*` imports. When false,
+	 * this generator emits the same readable bootstrap without HMR hooks.
 	 */
 	hmrEnabled: boolean;
 	/** Whether the source file is an MDX file */
 	isMdx: boolean;
 	/** Optional router adapter for SPA navigation */
 	router?: ReactRouterAdapter;
-	/** Import path for shared layout composition helper */
-	layoutComposeImportPath?: string;
+	/**
+	 * Import path for shared layout composition helper.
+	 *
+	 * @remarks
+	 * Required so callers (not this generator) decide vendor URL vs bare package.
+	 */
+	layoutComposeImportPath: string;
+	/**
+	 * Import path for MDX page layout normalization helper.
+	 *
+	 * @remarks
+	 * Required so callers (not this generator) decide vendor URL vs bare package.
+	 */
+	pageLayoutNormalizationImportPath: string;
 	/**
 	 * Optional import path for the page-data reader.
 	 *
@@ -95,10 +101,10 @@ export type IslandHydrationScriptOptions = {
  * MDX pages need a namespace import so `config` can be copied onto the default
  * export before layout normalization runs.
  */
-function getImportStatement(importPath: string, isMdx: boolean): string {
+function getImportStatement(importPath: string, isMdx: boolean, pageLayoutNormalizationImportPath: string): string {
 	return isMdx
 		? `import * as MDXModule from "${importPath}";
-import { ensurePageConfigLayouts } from "${PAGE_LAYOUT_NORMALIZATION_IMPORT}";
+import { ensurePageConfigLayouts } from "${pageLayoutNormalizationImportPath}";
 const Page = MDXModule.default;
 if (MDXModule.config) {
   Page.config = MDXModule.config;
@@ -273,6 +279,7 @@ function createScriptWithRouter(options: HydrationScriptOptions): string {
 		throw new Error('routerImportPath is required when router adapter is configured');
 	}
 
+	const pageLayoutNormalizationImportPath = options.pageLayoutNormalizationImportPath;
 	const hmrInit = hmrEnabled
 		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
 `
@@ -284,7 +291,7 @@ import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { ${components.router}, ${components.pageContent} } from "${routerImportPath}";
 ${getPageDataReaderSource(options)}
-${getImportStatement(importPath, isMdx)}
+${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
 export const config = Page.config;
@@ -359,7 +366,8 @@ if (document.readyState === "loading") {
 function createScriptWithoutRouter(options: HydrationScriptOptions): string {
 	const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId, hmrEnabled } = options;
 	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
-	const layoutComposeImportPath = resolveLayoutComposeImportPath(options);
+	const layoutComposeImportPath = options.layoutComposeImportPath;
+	const pageLayoutNormalizationImportPath = options.pageLayoutNormalizationImportPath;
 
 	const hmrInit = hmrEnabled
 		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
@@ -372,7 +380,7 @@ import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { composeLayoutPageTree } from "${layoutComposeImportPath}";
 ${getPageDataReaderSource(options)}
-${getImportStatement(importPath, isMdx)}
+${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
 export const config = Page.config;

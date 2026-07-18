@@ -43,8 +43,12 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 
 	const dedupedDependencies = dedupeProcessedAssets(allDependencies);
 	const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
-	const pageProps = {
+	const resolvedProps = {
 		...props,
+		...(routeOptions.props ?? {}),
+	};
+	const pageProps = {
+		...resolvedProps,
 		params: routeOptions.params || {},
 		query: routeOptions.query || {},
 	};
@@ -66,7 +70,7 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		Layouts,
 		Layout,
 		layoutEntries,
-		props,
+		props: resolvedProps,
 		Page: Page as EcoComponent<PageProps, C>,
 		metadata,
 		params: routeOptions.params || {},

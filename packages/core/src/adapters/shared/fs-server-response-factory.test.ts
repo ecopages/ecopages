@@ -102,6 +102,28 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
+	describe('createDefaultServerErrorResponse', () => {
+		it('should create a response with status 500 and the default server error body', async () => {
+			const response = await responseFactory.createDefaultServerErrorResponse();
+			expect(response.status).toBe(500);
+			expect(response.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
+			expect(await response.text()).toBe(STATUS_MESSAGE[500]);
+		});
+	});
+
+	describe('createHtmlServerErrorResponse', () => {
+		it('should create an html 500 response from a rendered body', async () => {
+			const response = await responseFactory.createHtmlServerErrorResponse(
+				'<h1>500 - Internal Server Error</h1>',
+			);
+			const body = await response.text();
+			expect(body).toContain('<h1>500 - Internal Server Error</h1>');
+			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.status).toBe(500);
+			expect(response.statusText).toBe(STATUS_MESSAGE[500]);
+		});
+	});
+
 	describe('createFileResponse', () => {
 		it('should create a response with the file content and content type', async () => {
 			const readFileAsBufferSpy = vi

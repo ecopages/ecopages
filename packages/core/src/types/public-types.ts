@@ -771,10 +771,24 @@ export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T
 export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplateProps, T>;
 
 /**
- * Represents the props for the error 404 template.
+ * Props type for the semantic `404.*` page template.
+ * @remarks `message` and `stack` are declared for future error context. The
+ * runtime does not currently pass these props when rendering the custom 404 page.
  */
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	message: string;
+	stack?: string;
+}
+
+/**
+ * Props type for the semantic `500.*` page template.
+ * @remarks In development, the page-pipeline passes `message` and `stack` from the
+ * thrown error when rendering this page after a failure. In production those
+ * fields are omitted so stacks are not serialized into HTML. Direct visits to
+ * `/500` also omit them.
+ */
+export interface Error500TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
+	message?: string;
 	stack?: string;
 }
 
@@ -909,6 +923,12 @@ export type RouteRendererOptions = {
 	params?: PageParams;
 	query?: PageQuery;
 	locals?: RequestLocals;
+	/**
+	 * Extra props merged into the page props for this render.
+	 * @remarks Used by semantic error pages (for example development `message` /
+	 * `stack` on the custom 500 page).
+	 */
+	props?: Record<string, unknown>;
 };
 
 /**

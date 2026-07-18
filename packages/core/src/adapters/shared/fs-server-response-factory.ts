@@ -54,6 +54,28 @@ export class FileSystemServerResponseFactory {
 		});
 	}
 
+	async createDefaultServerErrorResponse() {
+		return new Response(STATUS_MESSAGE[500], {
+			status: 500,
+			headers: {
+				'Content-Type': 'text/plain; charset=utf-8',
+			},
+		});
+	}
+
+	/**
+	 * Wraps already-rendered HTML in a 500 response envelope.
+	 */
+	async createHtmlServerErrorResponse(body: RouteRendererBody) {
+		return await this.createResponseWithBody(body, {
+			status: 500,
+			statusText: STATUS_MESSAGE[500],
+			headers: {
+				'Content-Type': 'text/html',
+			},
+		});
+	}
+
 	/**
 	 * Reads a static file response, returning `null` when the file is missing.
 	 */

@@ -132,6 +132,7 @@ export type EcoPagesAppConfig = {
 		srcDir: string;
 		htmlTemplatePath: string;
 		error404TemplatePath: string;
+		error500TemplatePath: string;
 	};
 	/**
 	 * The processors to be used in the app

@@ -263,11 +263,12 @@ describe('EcoConfigBuilder', () => {
 		expect(config.absolutePaths.workDir).toBe(path.join('/project', 'custom-work'));
 	});
 
-	test('should derive semantic html and 404 template paths', async () => {
+	test('should derive semantic html, 404, and 500 template paths', async () => {
 		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
 			return (
 				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
-				candidate === path.join('/project', 'src', 'pages', '404.test2')
+				candidate === path.join('/project', 'src', 'pages', '404.test2') ||
+				candidate === path.join('/project', 'src', 'pages', '500.test2')
 			);
 		});
 
@@ -280,6 +281,7 @@ describe('EcoConfigBuilder', () => {
 
 		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.test1'));
 		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.test2'));
+		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.test2'));
 	});
 
 	test('should throw for duplicate semantic html templates', async () => {

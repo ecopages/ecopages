@@ -12,6 +12,7 @@ import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers }
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
@@ -52,6 +53,7 @@ export interface ReactClientBundleOptions {
 export class BundleService {
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly config: BundleServiceConfig;
+	private pageLayoutNormalizationVendorPromise: Promise<void> | undefined;
 
 	constructor(config: BundleServiceConfig) {
 		this.config = config;
@@ -67,6 +69,32 @@ export class BundleService {
 	 */
 	getRuntimeImports(): ReactRuntimeImports {
 		return this.runtimeBundleService.getRuntimeImports();
+	}
+
+	/**
+	 * Processes the MDX-only page-layout-normalization vendor once per BundleService instance.
+	 *
+	 * @remarks
+	 * Concurrent callers share the same in-flight promise. Asset processing itself caches
+	 * by dependency key, so repeats after success remain cheap.
+	 */
+	async ensurePageLayoutNormalizationVendorProcessed(
+		assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>,
+	): Promise<void> {
+		if (!this.pageLayoutNormalizationVendorPromise) {
+			this.pageLayoutNormalizationVendorPromise = assetProcessingService
+				.processDependencies(
+					this.runtimeBundleService.getPageLayoutNormalizationDependencies(),
+					'react:page-layout-normalization',
+				)
+				.then(() => undefined)
+				.catch((error) => {
+					this.pageLayoutNormalizationVendorPromise = undefined;
+					throw error;
+				});
+		}
+
+		await this.pageLayoutNormalizationVendorPromise;
 	}
 
 	/**

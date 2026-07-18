@@ -259,15 +259,6 @@ export class RuntimeBundleService {
 					},
 				}),
 				createBrowserRuntimeScriptAsset({
-					importPath: PAGE_LAYOUT_NORMALIZATION_PACKAGE,
-					name: 'page-layout-normalization',
-					fileName: this.getPageLayoutNormalizationVendorFileName(mode),
-					bundleOptions: {
-						define: this.createRuntimeDefines(mode),
-						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
-					},
-				}),
-				createBrowserRuntimeScriptAsset({
 					importPath: LAYOUT_COMPOSE_PACKAGE,
 					name: 'layout-compose',
 					fileName: this.getLayoutComposeVendorFileName(mode),
@@ -316,6 +307,34 @@ export class RuntimeBundleService {
 					}),
 				);
 			}
+		}
+
+		return dependencies;
+	}
+
+	/**
+	 * Declares the MDX-only page-layout-normalization vendor for the current runtime mode.
+	 *
+	 * @remarks
+	 * Kept out of {@link getDependencies} so non-MDX pages do not pay for this vendor during
+	 * integration setup. Callers process these assets once when an MDX page graph is prepared.
+	 */
+	getPageLayoutNormalizationDependencies(options?: { modes?: RuntimeMode[] }): AssetDefinition[] {
+		const dependencies: AssetDefinition[] = [];
+		const modes = options?.modes ?? [this.getCurrentRuntimeMode()];
+
+		for (const mode of modes) {
+			dependencies.push(
+				createBrowserRuntimeScriptAsset({
+					importPath: PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+					name: 'page-layout-normalization',
+					fileName: this.getPageLayoutNormalizationVendorFileName(mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
+					},
+				}),
+			);
 		}
 
 		return dependencies;

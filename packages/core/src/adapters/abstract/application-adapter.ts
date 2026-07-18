@@ -81,7 +81,8 @@ export interface AppStartInfo {
 	 *
 	 * @remarks
 	 * Empty when the server adapter has no route registry yet, or when route
-	 * resolution fails (failures never block startup).
+	 * resolution fails (failures never block startup). Route resolution completes
+	 * before the `onAppStart` callback runs.
 	 */
 	routes: EcopagesRouteInfo[];
 }
@@ -121,7 +122,7 @@ export interface ApplicationAdapter<T = any> extends AsyncDisposable {
 	/** Boot the server. Pass a callback to run when the runtime is ready (optional). */
 	start(onAppStart?: OnAppStartCallback): Promise<T | void>;
 	/** Invoked by embedded hosts once the app can take traffic. */
-	handleListening(origin: string): void;
+	handleListening(origin: string): void | Promise<void>;
 	stop(force?: boolean): Promise<void>;
 }
 
@@ -535,11 +536,11 @@ export abstract class AbstractApplicationAdapter<
 	/**
 	 * Invoked by embedded hosts (for example Vite) once the app can take traffic.
 	 */
-	public handleListening(origin: string): void {
-		this.notifyListening(origin);
+	public async handleListening(origin: string): Promise<void> {
+		await this.notifyListening(origin);
 	}
 
-	protected notifyListening(origin: string): void {
+	protected async notifyListening(origin: string): Promise<void> {
 		const normalizedOrigin = origin.replace(/\/$/, '');
 
 		startupTrace.markServerListening();
@@ -549,7 +550,7 @@ export abstract class AbstractApplicationAdapter<
 			return;
 		}
 
-		void this.invokeAppStartCallback(normalizedOrigin);
+		await this.invokeAppStartCallback(normalizedOrigin);
 	}
 
 	/**

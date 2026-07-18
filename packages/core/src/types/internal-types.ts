@@ -5,7 +5,7 @@ import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
-import type { PageMetadataProps } from './public-types.ts';
+import type { PageMetadataProps, SitemapConfig } from './public-types.ts';
 import type { RouteRegistry } from '../router/server/route-registry.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';
@@ -102,6 +102,12 @@ export type EcoPagesAppConfig = {
 		 */
 		preferences: RobotsPreference;
 	};
+	/**
+	 * Automatic sitemap.xml generation during static export.
+	 *
+	 * @default { enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] }
+	 */
+	sitemap: SitemapConfig;
 	/** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
 	additionalWatchPaths: string[];
 	/**

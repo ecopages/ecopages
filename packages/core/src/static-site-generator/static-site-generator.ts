@@ -2,7 +2,7 @@ import path from 'node:path';
 import { availableParallelism } from 'node:os';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoPageComponent, StaticRoute } from '../types/public-types.ts';
+import type { EcoPageComponent, EcopagesRouteInfo, SitemapConfig, StaticRoute } from '../types/public-types.ts';
 import type {
 	ExplicitViewRenderer,
 	ExplicitViewRendererResolver,
@@ -28,6 +28,10 @@ import {
 	prebuildProductionPageBrowserGraphs,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
+import { PageModuleLoaderService } from '../route-renderer/page-loading/page-module-loader.ts';
+import { renderSitemap } from './sitemap.ts';
+import { resolveSitemapPathnames, type SitemapRouteCandidate } from './sitemap-routes.ts';
+import { normalizePathname } from '../utils/path-pattern.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
@@ -156,6 +160,15 @@ export class StaticSiteGenerator {
 	}
 
 	/**
+	 * Writes the configured sitemap file to the export directory.
+	 */
+	generateSitemap(locations: readonly string[], sitemap: SitemapConfig): void {
+		const fileName = sitemap.fileName ?? 'sitemap.xml';
+		fileSystem.ensureDir(this.getExportDir());
+		fileSystem.write(path.join(this.getExportDir(), fileName), renderSitemap(locations));
+	}
+
+	/**
 	 * Returns whether the input path points at the root directory.
 	 */
 	isRootDir(path: string) {
@@ -198,8 +211,6 @@ export class StaticSiteGenerator {
 		reuseRenderedOutput?: boolean;
 		activeStaticPathnames?: Set<string>;
 	}): Promise<void> {
-		options.activeStaticPathnames?.add(options.pathname);
-
 		const directories = options.directories ?? this.getDirectories([options.pathname]);
 		const renderedOutputPath = this.getOutputPath(options.pathname, directories);
 		const routeModuleBuildCache = this.getRouteModuleBuildCache();
@@ -215,6 +226,7 @@ export class StaticSiteGenerator {
 				force: this.forceFullStaticGeneration,
 			})
 		) {
+			options.activeStaticPathnames?.add(options.pathname);
 			appLogger.debug(`Skipped unchanged static page: ${options.debugLabel ?? options.pathname}`);
 			return;
 		}
@@ -225,6 +237,7 @@ export class StaticSiteGenerator {
 		}
 
 		const outputPath = this.writeStaticOutput(options.pathname, contents, directories);
+		options.activeStaticPathnames?.add(options.pathname);
 
 		if (options.sourceFile) {
 			routeModuleBuildCache.recordStaticRender({
@@ -338,6 +351,7 @@ export class StaticSiteGenerator {
 		staticRoutes?: StaticRoute[];
 		force: boolean;
 		preserveExportDirectory: boolean;
+		routes: EcopagesRouteInfo[];
 	}): StaticExportContext {
 		return {
 			appConfig: this.appConfig,
@@ -347,6 +361,7 @@ export class StaticSiteGenerator {
 			staticRoutes: input.staticRoutes,
 			force: input.force,
 			preserveExportDirectory: input.preserveExportDirectory,
+			routes: input.routes,
 		};
 	}
 
@@ -394,6 +409,7 @@ export class StaticSiteGenerator {
 		}
 
 		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+		const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
 
 		if (shouldBuildPagesUnifiedGraph()) {
 			await ensurePagesUnifiedGraphBuilt({
@@ -411,6 +427,7 @@ export class StaticSiteGenerator {
 			staticRoutes,
 			force,
 			preserveExportDirectory,
+			routes: exportRoutes,
 		});
 
 		await this.invokeStaticExportHook('beforeStaticExport', staticExportContext);
@@ -454,12 +471,83 @@ export class StaticSiteGenerator {
 			await this.invokeStaticExportHook('afterStaticExport', staticExportContext);
 		}
 
+		if (this.appConfig.sitemap?.enabled) {
+			await this.writeSitemapAfterExport({
+				baseUrl,
+				routes,
+				activeStaticPathnames,
+				sitemap: this.appConfig.sitemap,
+			});
+		}
+
 		if (skippedDynamicPages.length > 0) {
 			appLogger.debug(
 				`Skipped ${skippedDynamicPages.length} page(s) with cache: 'dynamic' (not supported in static generation)`,
 				skippedDynamicPages,
 			);
 		}
+	}
+
+	private async writeSitemapAfterExport(input: {
+		baseUrl: string;
+		routes: readonly StaticGenerationRoute[];
+		activeStaticPathnames: ReadonlySet<string>;
+		sitemap: SitemapConfig;
+	}): Promise<void> {
+		const routeByPathname = new Map(
+			input.routes.map((route) => [normalizePathname(route.pathname), route] as const),
+		);
+
+		const candidates: SitemapRouteCandidate[] = [...input.activeStaticPathnames].map((pathname) => {
+			const normalized = normalizePathname(pathname);
+			const route = routeByPathname.get(normalized) ?? routeByPathname.get(pathname);
+			return {
+				pathname: normalized,
+				params: normalizeRouteParams(route?.params ?? {}),
+				filePath: route?.templateRoute.filePath,
+			};
+		});
+
+		let pageModuleLoader: PageModuleLoaderService | undefined;
+		const getPageModuleLoader = () => {
+			pageModuleLoader ??= new PageModuleLoaderService(this.appConfig, input.baseUrl);
+			return pageModuleLoader;
+		};
+
+		const locations = await resolveSitemapPathnames({
+			candidates,
+			activeStaticPathnames: new Set(
+				[...input.activeStaticPathnames].map((pathname) => normalizePathname(pathname)),
+			),
+			sitemap: input.sitemap,
+			baseUrl: input.baseUrl,
+			resolveMetadata: async ({ filePath, params }) => {
+				if (!filePath) {
+					return undefined;
+				}
+
+				try {
+					const loader = getPageModuleLoader();
+					const pageModule = await loader.resolvePageModule({ file: filePath });
+					const { metadata } = await loader.resolvePageData({
+						pageModule,
+						routeOptions: {
+							file: filePath,
+							params,
+						},
+					});
+					return metadata;
+				} catch (error) {
+					appLogger.debug(
+						`Sitemap metadata resolution failed for ${filePath}; including URL`,
+						error instanceof Error ? error.message : String(error),
+					);
+					return undefined;
+				}
+			},
+		});
+
+		this.generateSitemap(locations, input.sitemap);
 	}
 
 	/**
@@ -629,4 +717,19 @@ export class StaticSiteGenerator {
 
 		return path.join(this.getExportDir(), outputName);
 	}
+}
+
+function toEcopagesRouteInfo(route: StaticGenerationRoute): EcopagesRouteInfo {
+	return {
+		pathname: normalizePathname(route.pathname),
+		params: normalizeRouteParams(route.params),
+	};
+}
+
+function normalizeRouteParams(params: Record<string, string | string[]>): Record<string, string> {
+	const normalized: Record<string, string> = {};
+	for (const [key, value] of Object.entries(params)) {
+		normalized[key] = Array.isArray(value) ? value.join('/') : value;
+	}
+	return normalized;
 }

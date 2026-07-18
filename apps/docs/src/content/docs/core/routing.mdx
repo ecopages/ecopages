@@ -97,8 +97,22 @@ Important:
 
 - Applies to page rendering (matched routes and a failing custom 404). API handlers keep their own `errorHandler` / JSON response path.
 - If the `500.*` template is missing or throws, the response falls back to plain-text `Internal Server Error`. The custom page is never retried.
-- Same contract in development and production; the original error is logged server-side.
-- Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 unless you trigger a render failure).
+- In **development**, the thrown error is passed as page props (`message`, `stack`) so the custom 500 page can show the real failure. In **production**, those props are omitted so stacks are not serialized into HTML. The original error is always logged server-side.
+- Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 and has no error props unless you trigger a render failure).
+
+```tsx
+import { eco, type Error500TemplateProps } from '@ecopages/core';
+
+export default eco.page<Error500TemplateProps>({
+	render: ({ message, stack }) => (
+		<div>
+			<h1>Something went wrong</h1>
+			{message ? <p>{message}</p> : null}
+			{stack ? <pre>{stack}</pre> : null}
+		</div>
+	),
+});
+```
 
 ---
 

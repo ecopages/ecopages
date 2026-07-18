@@ -174,23 +174,47 @@ export class FileSystemResponseMatcher {
 	 * Renders the app-owned custom 500 page, falling back to the default text 500
 	 * when the page template cannot be resolved.
 	 */
-	private async renderCustomServerErrorResponse(): Promise<Response> {
+	private async renderCustomServerErrorResponse(error: unknown): Promise<Response> {
 		return this.renderCustomErrorPageResponse({
 			templatePath: this.appConfig.absolutePaths.error500TemplatePath,
 			label: '500',
+			props: this.buildServerErrorPageProps(error),
 			createDefaultResponse: () => this.fileSystemResponseFactory.createDefaultServerErrorResponse(),
 			createHtmlResponse: (body) => this.fileSystemResponseFactory.createHtmlServerErrorResponse(body),
 		});
 	}
 
+	/**
+	 * Builds development-only error details for the custom 500 page.
+	 * @remarks Production omits these fields so stacks are not serialized into HTML.
+	 */
+	private buildServerErrorPageProps(error: unknown): Record<string, unknown> | undefined {
+		if (!isDevelopmentRuntime()) {
+			return undefined;
+		}
+
+		if (error instanceof Error) {
+			return {
+				message: error.message,
+				stack: error.stack,
+			};
+		}
+
+		return {
+			message: String(error),
+		};
+	}
+
 	private async renderCustomErrorPageResponse({
 		templatePath,
 		label,
+		props,
 		createDefaultResponse,
 		createHtmlResponse,
 	}: {
 		templatePath: string;
 		label: '404' | '500';
+		props?: Record<string, unknown>;
 		createDefaultResponse: () => Promise<Response>;
 		createHtmlResponse: (body: RouteRendererBody) => Promise<Response>;
 	}): Promise<Response> {
@@ -207,6 +231,7 @@ export class FileSystemResponseMatcher {
 
 		const result = await routeRenderer.execute({
 			file: templatePath,
+			props,
 		});
 
 		return createHtmlResponse(result.body);
@@ -231,6 +256,8 @@ export class FileSystemResponseMatcher {
 	 * Logs the original render failure, then tries the custom 500 page once.
 	 * @remarks Any failure while rendering the custom 500 page falls back to the
 	 * default plain-text response and never re-enters the custom page path.
+	 * In development the thrown error's `message` and `stack` are passed into the
+	 * custom 500 page props.
 	 */
 	private async createInternalServerErrorResponse(
 		message: string,
@@ -244,7 +271,7 @@ export class FileSystemResponseMatcher {
 		}
 
 		try {
-			return await this.renderCustomServerErrorResponse();
+			return await this.renderCustomServerErrorResponse(error);
 		} catch (serverErrorPageError) {
 			if (serverErrorPageError instanceof Response) {
 				return serverErrorPageError;

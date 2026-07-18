@@ -289,7 +289,9 @@ export class ConfigBuilder {
 	 *
 	 * @remarks
 	 * Merged over `{ enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] }`.
-	 * Existing apps stay unchanged until `enabled: true` is set.
+	 * Existing apps stay unchanged until `enabled: true` is set. Page-level
+	 * `metadata.robots.index: false` and metadata resolution failures are handled
+	 * during static generation (not by this config merge).
 	 */
 	setSitemap(sitemap: SitemapConfig): this {
 		const defaults: Required<Pick<SitemapConfig, 'enabled' | 'fileName' | 'extraUrls' | 'exclude'>> = {

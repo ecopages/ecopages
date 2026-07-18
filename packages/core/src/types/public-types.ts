@@ -617,8 +617,10 @@ export type PageProps<T = unknown> = T & StaticPageContext & { locals?: RequestL
  *
  * @remarks
  * When `index` is `false`, the page is omitted from the auto-generated sitemap
- * and a `<meta name="robots">` tag is emitted (see robots meta contribution).
- * Defaults when omitted: `index: true`, `follow: true`.
+ * for routes whose metadata can be resolved during static export (filesystem
+ * pages and `app.static()` views with `metadata`). Defaults when omitted:
+ * `index: true`, `follow: true`. A `<meta name="robots">` tag is emitted by the
+ * route HTML finalization path when directives differ from those defaults.
  */
 export interface PageRobotsMetadata {
 	index?: boolean;
@@ -645,27 +647,34 @@ export interface PageMetadataProps {
  * Disabled by default. When enabled, the sitemap is written after
  * `afterStaticExport` so integration-generated URLs can be listed via
  * `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
- * for page-level noindex that also removes the URL from the sitemap.
+ * for page-level noindex that also removes the URL from the sitemap when metadata
+ * is available during export.
  */
 export interface SitemapConfig {
 	/** Emit sitemap.xml during static generation. @default false */
 	enabled?: boolean;
 	/** Output file name. @default "sitemap.xml" */
 	fileName?: string;
-	/** Extra, non-page URLs to include (e.g. "/rss.xml"). Resolved against baseUrl. */
+	/**
+	 * Extra, non-page URLs to include (e.g. "/rss.xml").
+	 *
+	 * @remarks
+	 * Relative paths are resolved against `baseUrl`. Absolute `http(s)` URLs pass
+	 * through. Always appended after page URLs; not filtered by `exclude` or page robots.
+	 */
 	extraUrls?: string[];
 	/**
 	 * Pathname patterns to exclude even if a page exists.
 	 *
 	 * @remarks
-	 * Supported patterns: exact paths (`/admin`), prefix wildcards (`/admin/**`),
-	 * and `**` suffix segments. Not a full glob engine.
+	 * Supported patterns: exact paths (`/admin`) and prefix wildcards (`/admin/**`).
+	 * Unsupported patterns are treated as exact matches. This is not a full glob engine.
 	 */
 	exclude?: string[];
 }
 
 /**
- * Slim route descriptor for static-export hooks and app-start callbacks.
+ * Slim route descriptor for static-export hooks and runtime consumers.
  */
 export interface EcopagesRouteInfo {
 	/** Resolved URL pathname, e.g. `/blog/my-post`. */

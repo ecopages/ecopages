@@ -32,7 +32,7 @@ It should not invent a parallel rendering stack just for build mode.
 | `static-site-generator.ts`     | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
 | `static-export-context.ts`     | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
 | `sitemap.ts`                   | Pure sitemap.xml renderer                                                    |
-| `sitemap-routes.ts`            | Sitemap pathname filtering (`exclude`, `noindex`, `extraUrls`)               |
+| `sitemap-routes.ts`            | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
 | `static-build-invalidation.ts` | `dist/` reset policy, production cache clearing, static-render cache context |
 
 Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
@@ -60,6 +60,8 @@ Integrations may implement:
 
 When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`.
 
-`StaticExportContext.routes` is the unfiltered static-generation route list. Sitemap filtering (`exclude`, `noindex`, successfully exported pathnames) is applied separately.
+Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`, fail-closed on metadata errors). `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
+
+`StaticExportContext.routes` is the unfiltered static-generation route list. Sitemap filtering is applied separately.
 
 See `StaticExportContext` in `static-export-context.ts`.

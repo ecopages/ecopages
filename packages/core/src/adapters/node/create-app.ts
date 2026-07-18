@@ -10,6 +10,7 @@ import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
@@ -50,6 +51,13 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		}
 
 		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes() {
+		return resolveAppStartRoutes({
+			listStaticGenerationRoutes: this.serverAdapter?.listStaticGenerationRoutes,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
 	}
 
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
@@ -96,7 +104,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		if (preview && serveOnly) {
 			const previewOrigin = await this.serverAdapter.servePreviewOnly();
 			if (previewOrigin) {
-				this.notifyListening(previewOrigin);
+				await this.notifyListening(previewOrigin);
 			}
 			return;
 		}
@@ -107,7 +115,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (preview && previewOrigin) {
-				this.notifyListening(previewOrigin);
+				await this.notifyListening(previewOrigin);
 			}
 
 			if (build) {
@@ -126,7 +134,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		this.runtimeOrigin = this.runtimeHost.getOrigin(this.server, serveOptions);
 
 		await this.serverAdapter.completeInitialization(this.server);
-		this.notifyListening(this.runtimeOrigin);
+		await this.notifyListening(this.runtimeOrigin);
 
 		return this.server;
 	}

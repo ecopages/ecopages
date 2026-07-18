@@ -19,6 +19,7 @@ import type { EcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
+import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
@@ -144,7 +145,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		if (preview && serveOnly) {
 			const previewOrigin = await this.serverAdapter.servePreviewOnly();
 			if (previewOrigin) {
-				this.notifyListening(previewOrigin);
+				await this.notifyListening(previewOrigin);
 			}
 			return;
 		}
@@ -155,7 +156,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (preview && previewOrigin) {
-				this.notifyListening(previewOrigin);
+				await this.notifyListening(previewOrigin);
 			}
 
 			if (build) {
@@ -200,11 +201,11 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 				process.exit(0);
 			}
 		} else {
-			this.notifyListening(runtimeOrigin);
+			await this.notifyListening(runtimeOrigin);
 		}
 
 		if (preview && previewOrigin) {
-			this.notifyListening(previewOrigin);
+			await this.notifyListening(previewOrigin);
 		}
 
 		return this.server ?? undefined;
@@ -226,6 +227,13 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		}
 
 		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes() {
+		return resolveAppStartRoutes({
+			listStaticGenerationRoutes: this.serverAdapter?.listStaticGenerationRoutes,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
 	}
 }
 

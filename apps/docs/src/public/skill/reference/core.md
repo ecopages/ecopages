@@ -28,7 +28,7 @@ project/
 └── package.json
 ```
 
-Semantic discovery: `src/includes/html.*` and `src/pages/404.*` resolve by basename and integration extension.
+Semantic discovery: `src/includes/html.*`, `src/pages/404.*`, and `src/pages/500.*` resolve by basename and integration extension.
 
 ## The eco namespace
 

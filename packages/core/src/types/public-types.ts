@@ -779,6 +779,14 @@ export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children
 }
 
 /**
+ * Represents the props for the error 500 template.
+ */
+export interface Error500TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
+	message: string;
+	stack?: string;
+}
+
+/**
  * Represents the parameters for a page.
  * The keys are strings, and the values can be either a string or an array of strings.
  */

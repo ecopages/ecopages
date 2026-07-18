@@ -32,6 +32,7 @@ describe('RouteRegistry', () => {
 		expect(registry.templateRoutes.map((route) => route.pathname)).toEqual([
 			'/',
 			'/404',
+			'/500',
 			'/postcss-hmr',
 			'/dynamic/[slug]',
 			'/catch-all/[...path]',

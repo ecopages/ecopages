@@ -21,10 +21,14 @@ export function buildSitemapLocation(baseUrl: string, pathnameOrUrl: string): st
 
 /**
  * Renders a sitemap.org 0.9 urlset document from absolute location URLs.
+ *
+ * @remarks
+ * Callers are responsible for deduplication; this serializer preserves input order.
  */
 export function renderSitemap(locations: readonly string[]): string {
-	const uniqueLocations = [...new Set(locations.map((location) => normalizeLocation(location)))];
-	const urls = uniqueLocations.map((loc) => `  <url>\n    <loc>${escapeXmlText(loc)}</loc>\n  </url>`).join('\n');
+	const urls = locations
+		.map((loc) => `  <url>\n    <loc>${escapeXmlText(normalizeLocation(loc))}</loc>\n  </url>`)
+		.join('\n');
 
 	return [
 		'<?xml version="1.0" encoding="UTF-8"?>',

@@ -28,8 +28,8 @@ describe('renderSitemap', () => {
 		);
 	});
 
-	test('renders locations with XML escaping and deduplication', () => {
-		const xml = renderSitemap(['https://example.com/a&b', 'https://example.com/blog/', 'https://example.com/blog']);
+	test('renders locations with XML escaping', () => {
+		const xml = renderSitemap(['https://example.com/a&b', 'https://example.com/blog']);
 
 		expect(xml).toContain('<loc>https://example.com/a&amp;b</loc>');
 		expect(xml).toContain('<loc>https://example.com/blog</loc>');

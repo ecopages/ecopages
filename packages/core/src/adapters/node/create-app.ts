@@ -1,5 +1,5 @@
 import { appLogger } from '../../global/app-logger.ts';
-import type { StaticRoute } from '../../types/public-types.ts';
+import type { StaticRoute, EcopagesRouteInfo } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
 import type { RuntimeHost } from '../shared/runtime-host.ts';
@@ -50,6 +50,24 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 		}
 
 		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		const listRoutes = this.serverAdapter?.listStaticGenerationRoutes;
+		if (!listRoutes) {
+			return [];
+		}
+
+		const routes = await listRoutes({ runtimeOrigin: this.appConfig.baseUrl });
+		return routes.map((route) => ({
+			pathname: route.pathname,
+			params: Object.fromEntries(
+				Object.entries(route.params).map(([key, value]) => [
+					key,
+					Array.isArray(value) ? value.join('/') : value,
+				]),
+			),
+		}));
 	}
 
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {

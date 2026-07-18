@@ -24,6 +24,7 @@ import type {
 	RouteOptions,
 	StaticRoute,
 	ViewLoader,
+	EcopagesRouteInfo,
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -75,6 +76,14 @@ export interface ApplicationRuntimeOptions {
 
 export interface AppStartInfo {
 	origin: string;
+	/**
+	 * Static-generation routes available when the runtime becomes ready.
+	 *
+	 * @remarks
+	 * Empty when the server adapter has no route registry yet, or when route
+	 * resolution fails (failures never block startup).
+	 */
+	routes: EcopagesRouteInfo[];
 }
 
 export type OnAppStartCallback = (info: AppStartInfo) => void;
@@ -537,9 +546,35 @@ export abstract class AbstractApplicationAdapter<
 
 		if (!this.onAppStartCallback) {
 			this.logServerStarted(normalizedOrigin);
+			return;
 		}
 
-		this.onAppStartCallback?.({ origin: normalizedOrigin });
+		void this.invokeAppStartCallback(normalizedOrigin);
+	}
+
+	/**
+	 * Resolves routes exposed on {@link AppStartInfo}.
+	 *
+	 * @remarks
+	 * Default is empty. Runtime adapters override this to read from the
+	 * initialized server route registry.
+	 */
+	protected async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		return [];
+	}
+
+	private async invokeAppStartCallback(origin: string): Promise<void> {
+		let routes: EcopagesRouteInfo[] = [];
+		try {
+			routes = await this.resolveAppRoutes();
+		} catch (error) {
+			appLogger.debug(
+				'Failed to resolve app start routes; continuing with empty routes',
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+
+		this.onAppStartCallback?.({ origin, routes });
 	}
 
 	/**

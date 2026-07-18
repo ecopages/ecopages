@@ -10,7 +10,7 @@
 
 import type { Server } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
-import type { ApiHandlerContext, RouteGroupBuilder } from '../../types/public-types.ts';
+import type { ApiHandlerContext, RouteGroupBuilder, EcopagesRouteInfo } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
@@ -226,6 +226,24 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		}
 
 		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		const listRoutes = this.serverAdapter?.listStaticGenerationRoutes;
+		if (!listRoutes) {
+			return [];
+		}
+
+		const routes = await listRoutes({ runtimeOrigin: this.appConfig.baseUrl });
+		return routes.map((route) => ({
+			pathname: route.pathname,
+			params: Object.fromEntries(
+				Object.entries(route.params).map(([key, value]) => [
+					key,
+					Array.isArray(value) ? value.join('/') : value,
+				]),
+			),
+		}));
 	}
 }
 

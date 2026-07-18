@@ -28,6 +28,7 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build/browser-runtime-manifest';
+import { LAYOUT_COMPOSE_PACKAGE, PAGE_LAYOUT_NORMALIZATION_PACKAGE } from './bootstrap-package-paths.ts';
 
 export type ReactRuntimeImports = {
 	react: string;
@@ -36,6 +37,8 @@ export type ReactRuntimeImports = {
 	reactJsxDevRuntime: string;
 	reactDom: string;
 	useSyncExternalStoreWithSelector: string;
+	pageLayoutNormalization: string;
+	layoutCompose: string;
 	router?: string;
 };
 
@@ -132,6 +135,14 @@ export class RuntimeBundleService {
 			: 'use-sync-external-store-with-selector.js';
 	}
 
+	private getPageLayoutNormalizationVendorFileName(mode: RuntimeMode): string {
+		return mode === 'development' ? 'page-layout-normalization.development.js' : 'page-layout-normalization.js';
+	}
+
+	private getLayoutComposeVendorFileName(mode: RuntimeMode): string {
+		return mode === 'development' ? 'layout-compose.development.js' : 'layout-compose.js';
+	}
+
 	private createReactVendorImportRewritePlugin(mode: RuntimeMode): EcoBuildPlugin {
 		return createBrowserRuntimePlugin({
 			name: `react-plugin-vendor-runtime-import-rewrite-${mode}`,
@@ -158,6 +169,8 @@ export class RuntimeBundleService {
 			useSyncExternalStoreWithSelector: buildBrowserRuntimeAssetUrl(
 				this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
 			),
+			pageLayoutNormalization: buildBrowserRuntimeAssetUrl(this.getPageLayoutNormalizationVendorFileName(mode)),
+			layoutCompose: buildBrowserRuntimeAssetUrl(this.getLayoutComposeVendorFileName(mode)),
 		};
 
 		if (this.config.routerAdapter) {
@@ -239,6 +252,25 @@ export class RuntimeBundleService {
 					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
 					name: 'use-sync-external-store-with-selector',
 					fileName: this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
+						plugins: [reactVendorImportRewritePlugin],
+					},
+				}),
+				createBrowserRuntimeScriptAsset({
+					importPath: PAGE_LAYOUT_NORMALIZATION_PACKAGE,
+					name: 'page-layout-normalization',
+					fileName: this.getPageLayoutNormalizationVendorFileName(mode),
+					bundleOptions: {
+						define: this.createRuntimeDefines(mode),
+						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
+					},
+				}),
+				createBrowserRuntimeScriptAsset({
+					importPath: LAYOUT_COMPOSE_PACKAGE,
+					name: 'layout-compose',
+					fileName: this.getLayoutComposeVendorFileName(mode),
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],

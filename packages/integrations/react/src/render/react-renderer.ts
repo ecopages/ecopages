@@ -341,22 +341,24 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 			const isMdx = this.pageModuleService.isMdxFile(pagePath);
 			const declaredModules = this.pageModuleService.collectPageDeclaredModules(pageModule);
+
+			if (isMdx) {
+				await this.bundleService.ensurePageLayoutNormalizationVendorProcessed(this.assetProcessingService);
+			}
+
 			const dependencies = await this.hydrationAssetService.createPageBrowserGraphDependencies(
 				pagePath,
 				isMdx,
 				declaredModules,
 			);
-			const assets: ProcessedAsset[] = [];
-
-			if (isMdx) {
-				const mdxConfigAssets = await this.mdxConfigDependencyService.processMdxConfigDependencies({
-					pagePath,
-					config: (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
-					processComponentDependencies: async (components) =>
-						await this.processComponentDependencies(components),
-				});
-				assets.push(...mdxConfigAssets);
-			}
+			const assets: ProcessedAsset[] = isMdx
+				? await this.mdxConfigDependencyService.processMdxConfigDependencies({
+						pagePath,
+						config: (pageModule as EcoPageFile & { config?: EcoComponentConfig }).config,
+						processComponentDependencies: async (components) =>
+							await this.processComponentDependencies(components),
+					})
+				: [];
 
 			return { dependencies, assets };
 		} catch (error) {

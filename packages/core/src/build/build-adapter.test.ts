@@ -473,7 +473,78 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
-	assert.equal(appConfig.runtime?.activatedIntegrations?.has('react'), true);
+	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+});
+
+test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', async () => {
+	let resolveSetup!: () => void;
+	const setupGate = new Promise<void>((resolve) => {
+		resolveSetup = resolve;
+	});
+	const integration = {
+		name: 'react',
+		plugins: [],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setup: vi.fn(async () => {
+			await setupGate;
+		}),
+	};
+
+	const appConfig = {
+		integrations: [integration],
+	} as any;
+
+	const first = ensureIntegrationRuntimeReady({
+		appConfig,
+		integrationName: 'react',
+		runtimeOrigin: 'http://localhost:3000',
+	});
+	const second = ensureIntegrationRuntimeReady({
+		appConfig,
+		integrationName: 'react',
+		runtimeOrigin: 'http://localhost:3000',
+	});
+
+	assert.equal(integration.setup.mock.calls.length, 1);
+	resolveSetup();
+	await Promise.all([first, second]);
+	assert.equal(integration.setup.mock.calls.length, 1);
+});
+
+test('ensureIntegrationRuntimeReady evicts failed activation so a later caller can retry', async () => {
+	const integration = {
+		name: 'react',
+		plugins: [],
+		setConfig: vi.fn(),
+		setRuntimeOrigin: vi.fn(),
+		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
+	};
+
+	const appConfig = {
+		integrations: [integration],
+	} as any;
+
+	await assert.rejects(
+		() =>
+			ensureIntegrationRuntimeReady({
+				appConfig,
+				integrationName: 'react',
+				runtimeOrigin: 'http://localhost:3000',
+			}),
+		/setup failed/,
+	);
+
+	assert.equal(appConfig.runtime?.integrationActivations?.has('react'), false);
+
+	await ensureIntegrationRuntimeReady({
+		appConfig,
+		integrationName: 'react',
+		runtimeOrigin: 'http://localhost:3000',
+	});
+
+	assert.equal(integration.setup.mock.calls.length, 2);
+	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
 });
 
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {

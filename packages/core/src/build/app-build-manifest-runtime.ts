@@ -142,6 +142,10 @@ export async function setupAppRuntimePlugins(options: {
 
 /**
  * Activates one integration's runtime setup on first use.
+ *
+ * @remarks
+ * Concurrent callers share a single in-flight promise per integration name.
+ * Failed activations are evicted so a later caller can retry.
  */
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
@@ -151,9 +155,11 @@ export async function ensureIntegrationRuntimeReady(options: {
 }): Promise<void> {
 	const runtime = options.appConfig.runtime ?? {};
 	options.appConfig.runtime = runtime;
-	runtime.activatedIntegrations ??= new Set<string>();
+	runtime.integrationActivations ??= new Map<string, Promise<void>>();
 
-	if (runtime.activatedIntegrations.has(options.integrationName)) {
+	const existing = runtime.integrationActivations.get(options.integrationName);
+	if (existing) {
+		await existing;
 		return;
 	}
 
@@ -162,14 +168,23 @@ export async function ensureIntegrationRuntimeReady(options: {
 		return;
 	}
 
-	integration.setConfig(options.appConfig);
-	integration.setRuntimeOrigin(options.runtimeOrigin);
-	await integration.setup();
+	const activation = (async () => {
+		integration.setConfig(options.appConfig);
+		integration.setRuntimeOrigin(options.runtimeOrigin);
+		await integration.setup();
 
-	const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
-	for (const plugin of integration.plugins ?? []) {
-		onRuntimePlugin?.(plugin);
+		const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
+		for (const plugin of integration.plugins ?? []) {
+			onRuntimePlugin?.(plugin);
+		}
+	})();
+
+	runtime.integrationActivations.set(options.integrationName, activation);
+
+	try {
+		await activation;
+	} catch (error) {
+		runtime.integrationActivations.delete(options.integrationName);
+		throw error;
 	}
-
-	runtime.activatedIntegrations.add(options.integrationName);
 }

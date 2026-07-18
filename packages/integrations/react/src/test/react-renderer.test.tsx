@@ -626,6 +626,44 @@ describe('ReactRenderer', () => {
 		expect(withForceSpy).toHaveBeenCalledWith(pageFilePath, false, []);
 	});
 
+	it('ensures page-layout-normalization vendor only for MDX page graphs', async () => {
+		const tsxRenderer = createRenderer({ forceBrowserGraph: true });
+		const mdxAssetProcessingService = createAssetProcessingServiceMock();
+		const mdxRenderer = new TestReactRenderer({
+			appConfig: Config,
+			assetProcessingService: mdxAssetProcessingService as any,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+			reactConfig: {
+				forceBrowserGraph: true,
+				mdxExtensions: ['.mdx'],
+			},
+		});
+		const pageModule = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+
+		vi.spyOn(tsxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
+		vi.spyOn(mdxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
+		const tsxEnsureSpy = vi
+			.spyOn(tsxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
+			.mockResolvedValue(undefined);
+		const mdxEnsureSpy = vi
+			.spyOn(mdxRenderer.bundleService, 'ensurePageLayoutNormalizationVendorProcessed')
+			.mockResolvedValue(undefined);
+
+		tsxRenderer.isMdxFileOverride = false;
+		mdxRenderer.isMdxFileOverride = true;
+
+		await tsxRenderer.testCollectPageBrowserGraphContribution(pageFilePath, pageModule);
+		await mdxRenderer.testCollectPageBrowserGraphContribution('/app/src/pages/guide.mdx', pageModule);
+
+		expect(tsxEnsureSpy).not.toHaveBeenCalled();
+		expect(mdxEnsureSpy).toHaveBeenCalledTimes(1);
+		expect(mdxEnsureSpy).toHaveBeenCalledWith(mdxAssetProcessingService);
+	});
+
 	it('should emit canonical page data for router-backed pages inside non-react html templates', async () => {
 		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
 		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;

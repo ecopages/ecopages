@@ -114,6 +114,10 @@ export function PageContent() {
 		reactImportPath,
 		reactDomClientImportPath,
 		routerImportPath,
+		layoutComposeImportPath: createModuleUrl('export function composeLayoutPageTree() { return null; }'),
+		pageLayoutNormalizationImportPath: createModuleUrl(
+			'export function ensurePageConfigLayouts(config) { return config; }',
+		),
 	};
 }
 

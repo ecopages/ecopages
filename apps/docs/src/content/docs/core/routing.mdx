@@ -89,6 +89,10 @@ const config = await new ConfigBuilder()
 
 Create `404.tsx` (or your integration extension) under `src/pages`.
 
+### 500 Page
+
+Create `500.tsx` (or your integration extension) under `src/pages`. When a page render fails, Ecopages renders this template with status 500. If the template is missing or throws, the response falls back to plain-text `Internal Server Error`.
+
 ---
 
 ## Summary

@@ -48,7 +48,7 @@ export const CONFIG_BUILDER_ERRORS = {
 		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
 	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
-	duplicateSemanticTemplate: (kind: 'html' | '404', matches: string[]) =>
+	duplicateSemanticTemplate: (kind: 'html' | '404' | '500', matches: string[]) =>
 		`Multiple ${kind} templates found: ${matches.join(', ')}`,
 	incompatibleRuntimeCapability: (
 		kind: 'integration' | 'processor',
@@ -147,6 +147,7 @@ export class ConfigBuilder {
 			srcDir: '',
 			htmlTemplatePath: '',
 			error404TemplatePath: '',
+			error500TemplatePath: '',
 		},
 		processors: new Map(),
 		loaders: new Map(),
@@ -508,12 +509,22 @@ export class ConfigBuilder {
 				dirPath: absolutePagesDir,
 				basename: '404',
 			}),
+			error500TemplatePath: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '500',
+			}),
 		};
 
 		return this;
 	}
 
-	private resolveSemanticTemplatePath({ dirPath, basename }: { dirPath: string; basename: 'html' | '404' }): string {
+	private resolveSemanticTemplatePath({
+		dirPath,
+		basename,
+	}: {
+		dirPath: string;
+		basename: 'html' | '404' | '500';
+	}): string {
 		const extensions = this.config.templatesExt.length > 0 ? this.config.templatesExt : ['.ghtml.ts'];
 		const matches = extensions
 			.map((extension) => path.join(dirPath, `${basename}${extension}`))

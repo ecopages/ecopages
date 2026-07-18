@@ -69,10 +69,11 @@ export default config;
 	The directory for layout components, relative to the src directory.
 </ApiField>
 
-Ecopages now discovers the document shell and 404 page semantically:
+Ecopages now discovers the document shell and error pages semantically:
 
 - `src/includes/html.*` resolves the HTML shell by basename and integration extension.
 - `src/pages/404.*` resolves the not-found page by basename and integration extension.
+- `src/pages/500.*` resolves the server-error page by basename and integration extension.
 
 No template filename setter is required in `eco.config.ts`.
 

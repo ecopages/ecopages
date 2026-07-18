@@ -7,7 +7,7 @@ import type { PageCacheService } from '../../services/cache/page-cache-service.t
 import type { CacheStrategy, RenderResult } from '../../services/cache/cache.types.ts';
 import { PageRequestCacheCoordinator } from '../../services/cache/page-request-cache-coordinator.service.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
-import type { FileRouteMiddleware, RequestLocals } from '../../types/public-types.ts';
+import type { FileRouteMiddleware, RequestLocals, RouteRendererBody } from '../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { LocalsAccessError } from '../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
@@ -147,9 +147,9 @@ export class FileSystemResponseMatcher {
 				return error;
 			}
 			if (error instanceof LocalsAccessError) {
-				return this.createInternalServerErrorResponse(error.message, match.requestedPathname, error);
+				return await this.createInternalServerErrorResponse(error.message, match.requestedPathname, error);
 			}
-			return this.createInternalServerErrorResponse(
+			return await this.createInternalServerErrorResponse(
 				error instanceof Error ? error.message : 'Internal Server Error',
 				match.requestedPathname,
 				error,
@@ -162,24 +162,54 @@ export class FileSystemResponseMatcher {
 	 * when the page template cannot be resolved.
 	 */
 	private async renderCustomNotFoundResponse(): Promise<Response> {
-		const error404TemplatePath = this.appConfig.absolutePaths.error404TemplatePath;
+		return this.renderCustomErrorPageResponse({
+			templatePath: this.appConfig.absolutePaths.error404TemplatePath,
+			label: '404',
+			createDefaultResponse: () => this.fileSystemResponseFactory.createDefaultNotFoundResponse(),
+			createHtmlResponse: (body) => this.fileSystemResponseFactory.createHtmlNotFoundResponse(body),
+		});
+	}
 
+	/**
+	 * Renders the app-owned custom 500 page, falling back to the default text 500
+	 * when the page template cannot be resolved.
+	 */
+	private async renderCustomServerErrorResponse(): Promise<Response> {
+		return this.renderCustomErrorPageResponse({
+			templatePath: this.appConfig.absolutePaths.error500TemplatePath,
+			label: '500',
+			createDefaultResponse: () => this.fileSystemResponseFactory.createDefaultServerErrorResponse(),
+			createHtmlResponse: (body) => this.fileSystemResponseFactory.createHtmlServerErrorResponse(body),
+		});
+	}
+
+	private async renderCustomErrorPageResponse({
+		templatePath,
+		label,
+		createDefaultResponse,
+		createHtmlResponse,
+	}: {
+		templatePath: string;
+		label: '404' | '500';
+		createDefaultResponse: () => Promise<Response>;
+		createHtmlResponse: (body: RouteRendererBody) => Promise<Response>;
+	}): Promise<Response> {
 		let routeRenderer;
 		try {
-			routeRenderer = this.routeRendererFactory.getPageRenderer(error404TemplatePath);
+			routeRenderer = this.routeRendererFactory.getPageRenderer(templatePath);
 		} catch {
 			appLogger.debug(
-				'Custom 404 template not found, falling back to default 404 response',
-				error404TemplatePath,
+				`Custom ${label} template not found, falling back to default ${label} response`,
+				templatePath,
 			);
-			return this.fileSystemResponseFactory.createDefaultNotFoundResponse();
+			return createDefaultResponse();
 		}
 
 		const result = await routeRenderer.execute({
-			file: error404TemplatePath,
+			file: templatePath,
 		});
 
-		return this.fileSystemResponseFactory.createHtmlNotFoundResponse(result.body);
+		return createHtmlResponse(result.body);
 	}
 
 	private async renderCustomNotFoundResponseOrServerError(pathname: string): Promise<Response> {
@@ -189,7 +219,7 @@ export class FileSystemResponseMatcher {
 			if (error instanceof Response) {
 				return error;
 			}
-			return this.createInternalServerErrorResponse(
+			return await this.createInternalServerErrorResponse(
 				error instanceof Error ? error.message : 'Internal Server Error',
 				pathname,
 				error,
@@ -197,17 +227,34 @@ export class FileSystemResponseMatcher {
 		}
 	}
 
-	private createInternalServerErrorResponse(message: string, pathname: string, error: unknown): Response {
+	/**
+	 * Logs the original render failure, then tries the custom 500 page once.
+	 * @remarks Any failure while rendering the custom 500 page falls back to the
+	 * default plain-text response and never re-enters the custom page path.
+	 */
+	private async createInternalServerErrorResponse(
+		message: string,
+		pathname: string,
+		error: unknown,
+	): Promise<Response> {
 		if (isDevelopmentRuntime() || appLogger.isDebugEnabled()) {
 			appLogger.error(`[FileSystemResponseMatcher] ${message} at ${pathname}`, error);
 		} else {
 			appLogger.error(`[FileSystemResponseMatcher] Render error at ${pathname}`, error);
 		}
 
-		return new Response('Internal Server Error', {
-			status: 500,
-			headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-		});
+		try {
+			return await this.renderCustomServerErrorResponse();
+		} catch (serverErrorPageError) {
+			if (serverErrorPageError instanceof Response) {
+				return serverErrorPageError;
+			}
+			appLogger.error(
+				`[FileSystemResponseMatcher] Custom 500 template failed at ${pathname}`,
+				serverErrorPageError,
+			);
+			return this.fileSystemResponseFactory.createDefaultServerErrorResponse();
+		}
 	}
 
 	private async createExecutionPlan(match: MatchResult, request?: Request): Promise<FileRouteExecutionPlan> {

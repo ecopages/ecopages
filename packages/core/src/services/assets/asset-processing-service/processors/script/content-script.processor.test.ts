@@ -37,6 +37,7 @@ function createMockConfig(): EcoPagesAppConfig {
 			srcDir: '/test/project/src',
 			htmlTemplatePath: '/test/project/src/html.tsx',
 			error404TemplatePath: '/test/project/src/404.tsx',
+			error500TemplatePath: '/test/project/src/500.tsx',
 		},
 		processors: new Map(),
 		loaders: new Map(),

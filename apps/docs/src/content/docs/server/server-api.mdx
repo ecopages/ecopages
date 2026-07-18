@@ -29,7 +29,9 @@ await app.start();
 
 Call `app.start()` after you register routes. It boots the server for the current CLI mode (`dev`, `preview`, `build`, or `start`).
 
-Pass an optional callback to run logic once the server can accept traffic. The callback receives `{ origin, routes }` — the resolved base URL (no trailing slash) and the static-generation route list.
+Pass an optional callback to run logic once the server can accept traffic. The callback receives `{ origin, routes }` —
+the resolved base URL (no trailing slash) and the unfiltered static-generation route list. Route resolution finishes
+before the callback runs.
 
 ```typescript
 await app.start(({ origin, routes }) => {
@@ -37,7 +39,8 @@ await app.start(({ origin, routes }) => {
 });
 ```
 
-The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`. Route resolution failures never block startup — `routes` falls back to `[]`.
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`. Route resolution failures never block
+startup — `routes` falls back to `[]`. This list is not sitemap-filtered; use `setSitemap` / page `robots` for that.
 
 > **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
 

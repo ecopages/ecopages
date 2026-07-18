@@ -27,9 +27,9 @@ function patchLayoutSidebarLinkLabel(content: string, suffix: string) {
 	return content.replace('{children}', `{children} ${suffix}`);
 }
 
-function restoreFixtureFile(filePath: string, originalContent: string) {
+function restoreFixtureFile(filePath: string, originalContent: string, options?: { force?: boolean }) {
 	const currentContent = fs.readFileSync(filePath, 'utf-8');
-	if (currentContent !== originalContent) {
+	if (options?.force || currentContent !== originalContent) {
 		fs.writeFileSync(filePath, originalContent, 'utf-8');
 	}
 }
@@ -96,6 +96,26 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		originalDocsLayoutSidebarLink = fs.readFileSync(DOCS_LAYOUT_SIDEBAR_LINK_FILE, 'utf-8');
 	});
 
+	function restoreAllFixtureFiles(options?: { force?: boolean }) {
+		restoreFixtureFile(DOCS_PAGE_FILE, originalDocsPage, options);
+		restoreFixtureFile(DOCS_LAYOUT_FILE, originalDocsLayout, options);
+		restoreFixtureFile(DOCS_LAYOUT_SIDEBAR_LINK_FILE, originalDocsLayoutSidebarLink, options);
+	}
+
+	/**
+	 * Restores fixtures and waits for the clean nav label. Soft
+	 * `toContainText('MDX Docs 1')` still matches polluted labels like
+	 * `MDX Docs 1 (updated)` left over from a previous serial HMR test.
+	 */
+	async function gotoWithCleanDocsLayout(page: import('@playwright/test').Page, pathname: string) {
+		restoreAllFixtureFiles({ force: true });
+		await gotoAndWait(page, pathname);
+		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
+		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({
+			timeout: 15000,
+		});
+	}
+
 	test.beforeEach(async ({ page }) => {
 		runtimeErrorTracker = createRuntimeErrorTracker();
 		page.on('pageerror', runtimeErrorTracker.onPageError);
@@ -107,18 +127,14 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test.afterEach(async () => {
-		restoreFixtureFile(DOCS_PAGE_FILE, originalDocsPage);
-		restoreFixtureFile(DOCS_LAYOUT_FILE, originalDocsLayout);
-		restoreFixtureFile(DOCS_LAYOUT_SIDEBAR_LINK_FILE, originalDocsLayoutSidebarLink);
+		restoreAllFixtureFiles();
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
 		runtimeErrorTracker.assertNoBoundaryRegressions();
 	});
 
 	test.afterAll(() => {
-		restoreFixtureFile(DOCS_PAGE_FILE, originalDocsPage);
-		restoreFixtureFile(DOCS_LAYOUT_FILE, originalDocsLayout);
-		restoreFixtureFile(DOCS_LAYOUT_SIDEBAR_LINK_FILE, originalDocsLayoutSidebarLink);
+		restoreAllFixtureFiles();
 	});
 
 	test('HMR refreshes page content with persist layouts enabled', async ({ page }) => {
@@ -176,11 +192,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR updates layout while MDX page is active (persist layouts enabled)', async ({ page }) => {
-		await gotoAndWait(page, '/docs/mdx-docs-1');
-
-		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
-		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
+		await gotoWithCleanDocsLayout(page, '/docs/mdx-docs-1');
 
 		const updatedLayout = patchLayoutMdxLabel(originalDocsLayout, '(updated)');
 		fs.writeFileSync(DOCS_LAYOUT_FILE, updatedLayout, 'utf-8');
@@ -193,11 +205,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR updates layout while TSX page is active (persist layouts enabled)', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
-		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
+		await gotoWithCleanDocsLayout(page, '/docs');
 
 		const updatedLayout = patchLayoutMdxLabel(originalDocsLayout, '(tsx-updated)');
 		fs.writeFileSync(DOCS_LAYOUT_FILE, updatedLayout, 'utf-8');
@@ -210,11 +218,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR updates a component imported by the active layout (persist layouts enabled)', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('a[data-testid="docs-nav-link"]')).toContainText(['MDX Docs 1']);
-		await expect(page.getByRole('link', { name: 'MDX Docs 1', exact: true })).toBeVisible({ timeout: 10000 });
+		await gotoWithCleanDocsLayout(page, '/docs');
 
 		const updatedSidebarLink = patchLayoutSidebarLinkLabel(originalDocsLayoutSidebarLink, '(component-updated)');
 		fs.writeFileSync(DOCS_LAYOUT_SIDEBAR_LINK_FILE, updatedSidebarLink, 'utf-8');

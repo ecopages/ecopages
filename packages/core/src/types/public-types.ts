@@ -771,7 +771,9 @@ export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T
 export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplateProps, T>;
 
 /**
- * Represents the props for the error 404 template.
+ * Props type for the semantic `404.*` page template.
+ * @remarks `message` and `stack` are declared for future error context. The
+ * runtime does not currently pass these props when rendering the custom 404 page.
  */
 export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	message: string;
@@ -779,7 +781,10 @@ export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children
 }
 
 /**
- * Represents the props for the error 500 template.
+ * Props type for the semantic `500.*` page template.
+ * @remarks `message` and `stack` are declared for future error context. The
+ * runtime does not currently pass these props when rendering the custom 500 page.
+ * Avoid rendering raw stacks in production if that wiring is added later.
  */
 export interface Error500TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
 	message: string;

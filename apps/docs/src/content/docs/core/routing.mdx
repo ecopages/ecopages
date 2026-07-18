@@ -87,11 +87,18 @@ const config = await new ConfigBuilder()
 
 ### 404 Page
 
-Create `404.tsx` (or your integration extension) under `src/pages`.
+Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched page requests render this template with status 404.
 
 ### 500 Page
 
-Create `500.tsx` (or your integration extension) under `src/pages`. When a page render fails, Ecopages renders this template with status 500. If the template is missing or throws, the response falls back to plain-text `Internal Server Error`.
+Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
+
+Important:
+
+- Applies to page rendering (matched routes and a failing custom 404). API handlers keep their own `errorHandler` / JSON response path.
+- If the `500.*` template is missing or throws, the response falls back to plain-text `Internal Server Error`. The custom page is never retried.
+- Same contract in development and production; the original error is logged server-side.
+- Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 unless you trigger a render failure).
 
 ---
 
@@ -101,4 +108,5 @@ Create `500.tsx` (or your integration extension) under `src/pages`. When a page 
 | :--- | :--- | :--- |
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
+| **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
 | **API endpoints** | `app.get('/api/...')` | Data, forms |

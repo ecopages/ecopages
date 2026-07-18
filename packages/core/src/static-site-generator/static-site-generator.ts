@@ -415,14 +415,8 @@ export class StaticSiteGenerator {
 		preloadedRoutes?: readonly StaticGenerationRoute[];
 		sitemapEligiblePathnames?: Set<string>;
 	}) {
-		const {
-			router,
-			baseUrl,
-			routeRendererFactory,
-			skipped,
-			activeStaticPathnames,
-			sitemapEligiblePathnames,
-		} = input;
+		const { router, baseUrl, routeRendererFactory, skipped, activeStaticPathnames, sitemapEligiblePathnames } =
+			input;
 		const routes = input.preloadedRoutes ?? (await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl }));
 
 		appLogger.debug(

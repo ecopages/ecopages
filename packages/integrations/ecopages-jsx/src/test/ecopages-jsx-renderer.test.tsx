@@ -445,92 +445,88 @@ describe('EcopagesJsxRenderer', () => {
 		 * flakes under suite load; a timeout leaves the global JSX SSR scope stack
 		 * uncleared and pollutes later frame-depth probes.
 		 */
-		it(
-			'renders the real kitchen-sink mixed shell stack without leaking foreign renderer objects',
-			async () => {
-				const jsx = ecopagesJsxPlugin();
-				const kitajs = kitajsPlugin();
-				const lit = litPlugin();
-				const react = reactPlugin({
-					extensions: ['.react.tsx'],
-				});
-				const config = await new ConfigBuilder()
-					.setRootDir(KITCHEN_SINK_ROOT)
-					.setRobotsTxt({
-						preferences: {
-							'*': [],
-						},
-					})
-					.setIntegrations([jsx, kitajs, lit, react])
-					.setDefaultMetadata({
-						title: 'Ecopages',
-						description: 'Ecopages',
-					})
-					.setBaseUrl('http://localhost:3000')
-					.build();
-
-				jsx.setConfig(config);
-				jsx.setRuntimeOrigin('http://localhost:3000');
-				kitajs.setConfig(config);
-				kitajs.setRuntimeOrigin('http://localhost:3000');
-				lit.setConfig(config);
-				lit.setRuntimeOrigin('http://localhost:3000');
-				react.setConfig(config);
-				react.setRuntimeOrigin('http://localhost:3000');
-
-				const renderer = new TestEcopagesJsxRenderer({
-					appConfig: config,
-					assetProcessingService: {
-						processDependencies: vi.fn(async () => []),
-					} as never,
-					runtimeOrigin: 'http://localhost:3000',
-					resolvedIntegrationDependencies: [],
-				});
-
-				const Page = eco.component<{}, JsxRenderable>({
-					integration: 'ecopages-jsx',
-					dependencies: {
-						components: [
-							KitchenSinkIntegrationCounterGroup,
-							KitchenSinkKitaShell,
-							KitchenSinkLitShell,
-							KitchenSinkReactShell,
-							KitchenSinkEcopagesJsxShell,
-						],
+		it('renders the real kitchen-sink mixed shell stack without leaking foreign renderer objects', async () => {
+			const jsx = ecopagesJsxPlugin();
+			const kitajs = kitajsPlugin();
+			const lit = litPlugin();
+			const react = reactPlugin({
+				extensions: ['.react.tsx'],
+			});
+			const config = await new ConfigBuilder()
+				.setRootDir(KITCHEN_SINK_ROOT)
+				.setRobotsTxt({
+					preferences: {
+						'*': [],
 					},
-					render: () => (
-						<div>
-							<EcoEmbed component={KitchenSinkEcopagesJsxShell} props={{ id: 'host-shell' }}>
-								<EcoEmbed component={KitchenSinkKitaShell} props={{ id: 'kita-shell' }}>
-									<EcoEmbed component={KitchenSinkLitShell} props={{ id: 'lit-shell' }}>
-										<EcoEmbed component={KitchenSinkReactShell} props={{ id: 'react-shell' }}>
-											Leaf
-										</EcoEmbed>
+				})
+				.setIntegrations([jsx, kitajs, lit, react])
+				.setDefaultMetadata({
+					title: 'Ecopages',
+					description: 'Ecopages',
+				})
+				.setBaseUrl('http://localhost:3000')
+				.build();
+
+			jsx.setConfig(config);
+			jsx.setRuntimeOrigin('http://localhost:3000');
+			kitajs.setConfig(config);
+			kitajs.setRuntimeOrigin('http://localhost:3000');
+			lit.setConfig(config);
+			lit.setRuntimeOrigin('http://localhost:3000');
+			react.setConfig(config);
+			react.setRuntimeOrigin('http://localhost:3000');
+
+			const renderer = new TestEcopagesJsxRenderer({
+				appConfig: config,
+				assetProcessingService: {
+					processDependencies: vi.fn(async () => []),
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const Page = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					components: [
+						KitchenSinkIntegrationCounterGroup,
+						KitchenSinkKitaShell,
+						KitchenSinkLitShell,
+						KitchenSinkReactShell,
+						KitchenSinkEcopagesJsxShell,
+					],
+				},
+				render: () => (
+					<div>
+						<EcoEmbed component={KitchenSinkEcopagesJsxShell} props={{ id: 'host-shell' }}>
+							<EcoEmbed component={KitchenSinkKitaShell} props={{ id: 'kita-shell' }}>
+								<EcoEmbed component={KitchenSinkLitShell} props={{ id: 'lit-shell' }}>
+									<EcoEmbed component={KitchenSinkReactShell} props={{ id: 'react-shell' }}>
+										Leaf
 									</EcoEmbed>
 								</EcoEmbed>
 							</EcoEmbed>
-							<EcoEmbed
-								component={KitchenSinkIntegrationCounterGroup}
-								props={{ testId: 'kitchen-sink-counters', radiantId: 'kitchen-sink-radiant' }}
-							/>
-						</div>
-					),
-				});
+						</EcoEmbed>
+						<EcoEmbed
+							component={KitchenSinkIntegrationCounterGroup}
+							props={{ testId: 'kitchen-sink-counters', radiantId: 'kitchen-sink-radiant' }}
+						/>
+					</div>
+				),
+			});
 
-				const result = await renderer.renderComponentWithForeignChildren({
-					component: Page,
-					props: {},
-					integrationContext: {
-						componentInstanceId: 'kitchen-sink-host',
-					},
-				});
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: Page,
+				props: {},
+				integrationContext: {
+					componentInstanceId: 'kitchen-sink-host',
+				},
+			});
 
-				expect(result.html).toContain('integration-shell__body');
-				expect(result.html).toContain('kitchen-sink-counters');
-				expect(result.html).not.toContain('[object Object]');
-			},
-			20_000,
-		);
+			expect(result.html).toContain('integration-shell__body');
+			expect(result.html).toContain('kitchen-sink-counters');
+			expect(result.html).not.toContain('[object Object]');
+		}, 20_000);
 
 		it('rejects opaque foreign children instead of coercing them to object text', () => {
 			const renderer = new TestEcopagesJsxRenderer({

@@ -64,8 +64,10 @@ const testInjectedMeta = {
 	integration: 'test',
 };
 
-type StaticGenerationRouteSource = Parameters<StaticSiteGenerator['generateStaticPages']>[0];
-type StaticPageRouteRendererFactory = NonNullable<Parameters<StaticSiteGenerator['generateStaticPages']>[2]>;
+type StaticGenerationRouteSource = Parameters<StaticSiteGenerator['generateStaticPages']>[0]['router'];
+type StaticPageRouteRendererFactory = NonNullable<
+	Parameters<StaticSiteGenerator['generateStaticPages']>[0]['routeRendererFactory']
+>;
 type StaticGenerationRendererFactory = NonNullable<Parameters<StaticSiteGenerator['run']>[0]['routeRendererFactory']>;
 type StaticGenerationRunnerInput = Parameters<StaticSiteGenerator['run']>[0];
 
@@ -228,7 +230,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledTimes(1);
 		});
@@ -246,7 +252,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(ensureDirMock).toHaveBeenCalled();
 		});
@@ -257,7 +267,11 @@ describe('StaticSiteGenerator', () => {
 				'/page': { filePath: '/src/pages/page.ghtml.ts', pathname: '/page' },
 			});
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', undefined);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: undefined,
+			});
 		});
 
 		test('should write index.html for root path', async () => {
@@ -273,7 +287,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), '<html>Home</html>');
 		});
@@ -292,7 +310,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), bufferContent);
 		});
@@ -314,7 +336,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(RendererFactory.getPageRenderer).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
 			expect(loadPageModule).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
@@ -335,7 +361,11 @@ describe('StaticSiteGenerator', () => {
 				getPageRenderer: vi.fn(() => pageRenderer),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(loadPageModule).toHaveBeenCalledTimes(1);
 			expect(loadPageModule).toHaveBeenCalledWith(filePath);
@@ -371,7 +401,11 @@ describe('StaticSiteGenerator', () => {
 				getPageRenderer: vi.fn(() => pageRenderer),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(routeModuleBuildCache.canReuseStaticRender).toHaveBeenCalled();
 			expect(execute).not.toHaveBeenCalled();

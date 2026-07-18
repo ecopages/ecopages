@@ -75,7 +75,7 @@ Ecopages now discovers the document shell and error pages semantically:
 - `src/pages/404.*` resolves the not-found page by basename and integration extension.
 - `src/pages/500.*` resolves the server-error page by basename and integration extension.
 
-No template filename setter is required in `eco.config.ts`.
+No template filename setter is required in `eco.config.ts`. If `500.*` is missing or fails while rendering, the page pipeline falls back to plain-text `Internal Server Error`.
 
 
 <ApiField name="distDir" type="string" defaultValue="dist" setter="setDistDir">

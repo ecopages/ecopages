@@ -284,6 +284,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
 			dispose: this.dispose.bind(this),
 		};
 	}

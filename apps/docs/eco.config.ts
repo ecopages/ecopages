@@ -23,6 +23,9 @@ const config = await new ConfigBuilder()
 		image: 'public/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
 	})
+	.setSitemap({
+		enabled: true,
+	})
 	.setAdditionalWatchPaths(['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'])
 	.setProcessors([
 		contentProcessorPlugin({

@@ -103,6 +103,55 @@ No template filename setter is required in `eco.config.ts`.
 	Configuration for the robots.txt file.
 </ApiField>
 
+<ApiField
+	name="sitemap"
+	type="SitemapConfig"
+	defaultValue={`{ enabled: false, fileName: "sitemap.xml", extraUrls: [], exclude: [] }`}
+	setter="setSitemap"
+>
+	Automatic `sitemap.xml` generation during static export. Disabled by default. When enabled, the file is written
+	**after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`.
+</ApiField>
+
+## Sitemap and robots
+
+### Config-level sitemap
+
+```typescript
+await new ConfigBuilder()
+	// ...
+	.setSitemap({
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/admin/**'],
+	})
+	.build();
+```
+
+| Option | Role |
+|---|---|
+| `enabled` | Emit `sitemap.xml` on `ecopages build` / preview |
+| `extraUrls` | Non-page URLs to include (e.g. feeds) |
+| `exclude` | Pathname patterns to omit (`/admin`, `/admin/**`) |
+
+### Page-level `robots`
+
+Use `getMetadata` (or `Page.metadata`) to set robots directives. When `index: false`, the page is omitted from the sitemap and a `<meta name="robots">` tag is injected:
+
+```typescript
+export const getMetadata = () => ({
+	title: 'Admin',
+	description: 'Internal tools',
+	robots: { index: false, follow: false },
+});
+```
+
+| Mechanism | Affects sitemap | Affects indexing signal |
+|---|---|---|
+| `metadata.robots.index: false` | Yes | Yes (`<meta name="robots">`) |
+| `sitemap.exclude` | Yes | No |
+| `extraUrls` | Includes URL | N/A |
+
 <ApiField name="integrations" type="IntegrationPlugin[]" defaultValue="[]" setter="setIntegrations">
 	An array of integration plugins to enhance Ecopages functionality.
 </ApiField>

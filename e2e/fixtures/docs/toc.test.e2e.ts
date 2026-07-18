@@ -43,7 +43,8 @@ test.describe('Docs TOC', () => {
 	});
 
 	test('clicking a TOC link scrolls to the target heading — not the top of the page', async ({ page }) => {
-		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+		await expect(page.locator(`${TOC} a.toc-active`)).toBeVisible();
 
 		const toc = page.locator(TOC);
 		const installationLink = toc.locator('a[data-toc-link="installation"]');
@@ -59,7 +60,8 @@ test.describe('Docs TOC', () => {
 	});
 
 	test('clicking a TOC link keeps the clicked item active while the page scrolls toward it', async ({ page }) => {
-		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+		await expect(page.locator(`${TOC} a.toc-active`)).toBeVisible();
 
 		const toc = page.locator(TOC);
 		const installationLink = toc.locator('a[data-toc-link="installation"]');

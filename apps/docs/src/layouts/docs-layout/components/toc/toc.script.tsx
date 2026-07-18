@@ -13,7 +13,14 @@ type TocItem = {
 @customElement('radiant-toc')
 export class RadiantToc extends RadiantElement {
 	@state tocItems: TocItem[] = [];
-	@state activeHeadingId = '';
+
+	/**
+	 * Kept off `@state` so scroll-driven active updates do not recreate TOC anchors.
+	 * @remarks
+	 * A full re-render mid-click can detach the anchor Playwright is pressing, which
+	 * cancels both the delegated handler and the native hash navigation.
+	 */
+	private activeHeadingId = '';
 
 	private cleanupScrollTracking: (() => void) | null = null;
 	private pendingScrollTargetId: string | null = null;
@@ -102,14 +109,16 @@ export class RadiantToc extends RadiantElement {
 		);
 	}
 
-	private scrollToHeading(id: string, heading: HTMLElement): void {
-		const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-
+	private updateHeadingHash(id: string): void {
 		window.history.replaceState(
 			window.history.state,
 			'',
 			`${window.location.pathname}${window.location.search}#${id}`,
 		);
+	}
+
+	private scrollHeadingIntoView(heading: HTMLElement): void {
+		const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 		heading.scrollIntoView({ behavior, block: 'start' });
 	}
 
@@ -124,12 +133,34 @@ export class RadiantToc extends RadiantElement {
 		return this.headings.find((heading) => heading.id === id) ?? null;
 	}
 
+	private findTocLink(id: string): HTMLAnchorElement | null {
+		return this.querySelector(`a[data-toc-link="${CSS.escape(id)}"]`);
+	}
+
+	private syncActiveLinkAttributes(previousId: string, nextId: string): void {
+		if (previousId) {
+			const previousLink = this.findTocLink(previousId);
+			previousLink?.classList.remove('toc-active');
+			previousLink?.removeAttribute('aria-current');
+		}
+
+		const nextLink = this.findTocLink(nextId);
+		if (!nextLink) {
+			return;
+		}
+
+		nextLink.classList.add('toc-active');
+		nextLink.setAttribute('aria-current', 'location');
+	}
+
 	private setActiveHeading(id: string): void {
 		if (this.activeHeadingId === id) {
 			return;
 		}
 
+		const previousId = this.activeHeadingId;
 		this.activeHeadingId = id;
+		this.syncActiveLinkAttributes(previousId, id);
 	}
 
 	private readonly handleTocClick = (
@@ -147,8 +178,9 @@ export class RadiantToc extends RadiantElement {
 
 		event.preventDefault();
 		this.pendingScrollTargetId = id;
+		this.updateHeadingHash(id);
 		this.setActiveHeading(id);
-		this.scrollToHeading(id, heading);
+		this.scrollHeadingIntoView(heading);
 	};
 
 	private readonly getTocClickHandler = (id: string) => {

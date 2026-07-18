@@ -31,6 +31,8 @@ describe('buildReactRuntimeAliasMap', () => {
 			reactJsxDevRuntime: '/assets/vendors/react.js',
 			reactDom: '/assets/vendors/react-dom.js',
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+			layoutCompose: '/assets/vendors/layout-compose.js',
 		});
 
 		expect(Array.from(manifest.bySpecifier.entries())).toEqual([
@@ -136,6 +138,8 @@ describe('buildReactRuntimeAliasMap', () => {
 				reactJsxDevRuntime: '/assets/vendors/react.js',
 				reactDom: '/assets/vendors/react-dom.js',
 				useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+				pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+				layoutCompose: '/assets/vendors/layout-compose.js',
 			}),
 		).toEqual({
 			react: '/assets/vendors/react.js',
@@ -159,6 +163,8 @@ describe('buildReactRuntimeAliasMap', () => {
 				reactJsxDevRuntime: '/assets/vendors/react.js',
 				reactDom: '/assets/vendors/react-dom.js',
 				useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+				pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+				layoutCompose: '/assets/vendors/layout-compose.js',
 				router: '/assets/vendors/router.js',
 			}),
 		).not.toHaveProperty('/router.ts');

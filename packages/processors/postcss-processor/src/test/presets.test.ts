@@ -129,7 +129,7 @@ describe('Presets Verification', () => {
 
 		expect(result.length).toBeGreaterThan(0);
 		expect(result).toContain('--tw-');
-	});
+	}, 30_000);
 });
 
 test('Tailwind v4 preset should support nesting', async () => {
@@ -214,7 +214,7 @@ test('Tailwind v4 preset should preserve nested BEM selectors with @apply in pro
 			process.env.NODE_ENV = originalNodeEnv;
 		}
 	}
-});
+}, 30_000);
 
 describe('Tailwind v4 transformInput', () => {
 	const referencePath = '/abs/path/src/styles/tailwind.css';

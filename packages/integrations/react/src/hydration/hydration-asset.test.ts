@@ -1,6 +1,31 @@
 import { rapidhash } from '@ecopages/core/hash';
 import { describe, expect, it, vi } from 'vitest';
+import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
+
+const productionRuntimeImports = {
+	react: 'react',
+	reactDomClient: 'react-dom/client',
+	reactJsxRuntime: 'react',
+	reactJsxDevRuntime: 'react',
+	reactDom: 'react-dom',
+	useSyncExternalStoreWithSelector: 'use-sync-external-store/shim/with-selector',
+	pageLayoutNormalization: '@ecopages/core/eco/page-layout-normalization',
+	layoutCompose: '@ecopages/react/layout-compose',
+	router: undefined as string | undefined,
+};
+
+const browserRuntimeImports = {
+	react: '/assets/vendors/react.js',
+	reactDomClient: '/assets/vendors/react-dom.js',
+	reactJsxRuntime: '/assets/vendors/react.js',
+	reactJsxDevRuntime: '/assets/vendors/react.js',
+	reactDom: '/assets/vendors/react-dom.js',
+	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+	layoutCompose: '/assets/vendors/layout-compose.js',
+	router: '/assets/vendors/react-router-esm.js' as string | undefined,
+};
 
 describe('HydrationAssetService', () => {
 	it('creates one page-owned route entry asset', () => {
@@ -10,11 +35,7 @@ describe('HydrationAssetService', () => {
 				getHmrManager: () => undefined,
 			} as any,
 			bundleService: {
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: undefined,
-				}),
+				getRuntimeImports: () => productionRuntimeImports,
 			} as any,
 		});
 
@@ -66,11 +87,7 @@ describe('HydrationAssetService', () => {
 				getHmrManager: () => undefined,
 			} as any,
 			bundleService: {
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: '/assets/vendors/react-router-esm.js',
-				}),
+				getRuntimeImports: () => browserRuntimeImports,
 			} as any,
 		});
 
@@ -97,7 +114,7 @@ describe('HydrationAssetService', () => {
 		});
 	});
 
-	it('bundles router-managed page bootstraps in development while keeping the HMR page module external', () => {
+	it('keeps router-managed page bootstraps unbundled in development with vendor helper imports', () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -117,11 +134,7 @@ describe('HydrationAssetService', () => {
 				getHmrManager: () => ({ isEnabled: () => true }),
 			} as any,
 			bundleService: {
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: '/assets/vendors/react-router-esm.js',
-				}),
+				getRuntimeImports: () => browserRuntimeImports,
 			} as any,
 		});
 
@@ -138,25 +151,22 @@ describe('HydrationAssetService', () => {
 			isMdx: false,
 		});
 
+		const content = String((dependencies[0] as { content?: string }).content ?? '');
 		expect(dependencies[0]).toMatchObject({
-			bundle: true,
+			bundle: false,
 			groupedBundle: undefined,
 			bundleOptions: {
-				external: expect.arrayContaining([
-					'/assets/vendors/react-router-esm.js',
-					'/assets/_hmr/pages/docs/index.js',
-				]),
+				external: ['/assets/vendors/react-router-esm.js'],
 			},
 			attributes: {
 				'data-eco-page-bootstrap': 'react-router',
 			},
 		});
-		expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
-			'from "/assets/_hmr/pages/docs/index.js"',
-		);
+		expect(content).toContain('from "/assets/_hmr/pages/docs/index.js"');
+		assertNoBareEcopagesImports(content);
 	});
 
-	it('bundles MDX page bootstraps that import layout normalization helpers', () => {
+	it('emits vendor URLs for MDX layout normalization in unbundled HMR bootstraps', () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -176,11 +186,7 @@ describe('HydrationAssetService', () => {
 				getHmrManager: () => ({ isEnabled: () => true }),
 			} as any,
 			bundleService: {
-				getRuntimeImports: () => ({
-					react: '/assets/vendors/react.js',
-					reactDomClient: '/assets/vendors/react-dom.js',
-					router: '/assets/vendors/react-router-esm.js',
-				}),
+				getRuntimeImports: () => browserRuntimeImports,
 			} as any,
 		});
 
@@ -197,13 +203,11 @@ describe('HydrationAssetService', () => {
 
 		const content = String((dependencies[0] as { content?: string }).content ?? '');
 		expect(dependencies[0]).toMatchObject({
-			bundle: true,
-			bundleOptions: {
-				external: ['/assets/_hmr/pages/react-content.js'],
-			},
+			bundle: false,
 		});
-		expect(content).toContain('@ecopages/core/eco/page-layout-normalization');
+		expect(content).toContain('from "/assets/vendors/page-layout-normalization.js"');
 		expect(content).toContain('from "/assets/_hmr/pages/react-content.js"');
+		assertNoBareEcopagesImports(content);
 	});
 
 	it('bundles the React runtime into production page browser graph entries', async () => {
@@ -219,11 +223,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 			bundleService: {
 				createBundleOptions,
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: undefined,
-				}),
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
 			} as any,
 		});
 
@@ -270,11 +270,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 			bundleService: {
 				createBundleOptions,
-				getRuntimeImports: () => ({
-					react: '/assets/vendors/react.js',
-					reactDomClient: '/assets/vendors/react-dom.js',
-					router: '/assets/vendors/react-router-esm.js',
-				}),
+				getRuntimeImports: () => browserRuntimeImports,
 			} as any,
 		});
 
@@ -306,11 +302,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 			bundleService: {
 				createBundleOptions,
-				getRuntimeImports: () => ({
-					react: '/assets/vendors/react.js',
-					reactDomClient: '/assets/vendors/react-dom.js',
-					router: undefined,
-				}),
+				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
 			} as any,
 		});
 
@@ -335,6 +327,10 @@ describe('HydrationAssetService', () => {
 				content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
 			});
 			expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmrHandlers');
+			expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
+				'from "/assets/vendors/layout-compose.js"',
+			);
+			assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
 		} finally {
 			process.env.NODE_ENV = originalNodeEnv;
 		}
@@ -353,11 +349,7 @@ describe('HydrationAssetService', () => {
 				}),
 			} as any,
 			bundleService: {
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: undefined,
-				}),
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
 			} as any,
 		});
 
@@ -380,19 +372,17 @@ describe('HydrationAssetService', () => {
 			} as any,
 			bundleService: {
 				createBundleOptions: async () => ({}),
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: undefined,
-				}),
+				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
 			} as any,
 		});
 
 		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
 		expect(dependencies[0]).toMatchObject({
+			bundle: false,
 			content: expect.stringContaining('const pageModuleUrl = "/assets/_hmr/pages/index.js";'),
 		});
+		assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
 	});
 
 	it('reuses the same bundled island asset for different component instances', async () => {
@@ -406,11 +396,7 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['assetProcessingService'],
 			bundleService: {
 				createBundleOptions,
-				getRuntimeImports: () => ({
-					react: 'react',
-					reactDomClient: 'react-dom/client',
-					router: undefined,
-				}),
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 

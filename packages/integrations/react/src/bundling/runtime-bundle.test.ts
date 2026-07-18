@@ -22,6 +22,8 @@ describe('RuntimeBundleService', () => {
 			reactJsxDevRuntime: '/assets/vendors/react.js',
 			reactDom: '/assets/vendors/react-dom.js',
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+			layoutCompose: '/assets/vendors/layout-compose.js',
 		});
 
 		const dependencies = service.getDependencies();
@@ -77,6 +79,8 @@ describe('RuntimeBundleService', () => {
 			reactJsxDevRuntime: '/assets/vendors/react.development.js',
 			reactDom: '/assets/vendors/react-dom.development.js',
 			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.development.js',
+			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.development.js',
+			layoutCompose: '/assets/vendors/layout-compose.development.js',
 			router: '/assets/vendors/react-router-esm.development.js',
 		});
 
@@ -89,6 +93,21 @@ describe('RuntimeBundleService', () => {
 					bundleOptions: expect.objectContaining({
 						naming: 'use-sync-external-store-with-selector.development.js',
 						define: expect.objectContaining({ 'process.env.NODE_ENV': '"development"' }),
+					}),
+				}),
+				expect.objectContaining({
+					name: 'page-layout-normalization',
+					importPath: '@ecopages/core/eco/page-layout-normalization',
+					bundleOptions: expect.objectContaining({
+						naming: 'page-layout-normalization.development.js',
+					}),
+				}),
+				expect.objectContaining({
+					name: 'layout-compose',
+					importPath: '@ecopages/react/layout-compose',
+					bundleOptions: expect.objectContaining({
+						naming: 'layout-compose.development.js',
+						plugins: expect.any(Array),
 					}),
 				}),
 				expect.objectContaining({

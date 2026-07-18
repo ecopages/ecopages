@@ -39,4 +39,20 @@ describe('route-html-finalization.service', () => {
 			'data-eco-document-owner': 'react-router',
 		});
 	});
+
+	it('prepends robots meta when metadata.robots differs from defaults', () => {
+		const plan = buildRouteHtmlFinalization({
+			renderOptions: {
+				metadata: { title: 'Admin', description: '', robots: { index: false, follow: false } },
+			} as IntegrationRendererRenderOptions,
+			getDocumentAttributes: () => undefined,
+			getHtmlDocumentContributions: () => [{ placement: 'head-append', html: '<meta name="test" />' }],
+			applyAttributesToHtmlElement: (html) => html,
+		});
+
+		expect(plan.htmlContributions).toEqual([
+			{ placement: 'head-append', html: '<meta name="robots" content="noindex, nofollow">' },
+			{ placement: 'head-append', html: '<meta name="test" />' },
+		]);
+	});
 });

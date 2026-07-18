@@ -9,6 +9,7 @@
 
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler } from '../../types/public-types.ts';
+import type { StaticGenerationRoute } from '../../router/server/route-registry.ts';
 
 /**
  * Configuration options for all server adapters
@@ -33,6 +34,13 @@ export interface ServerAdapterResult {
 	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<string | undefined>;
 	servePreviewOnly: () => Promise<string | undefined>;
 	dispose(): Promise<void>;
+	/**
+	 * Lists static-generation routes for app-start consumers.
+	 *
+	 * @remarks
+	 * Optional so lightweight adapter stubs in tests need not implement routing.
+	 */
+	listStaticGenerationRoutes?: (input: { runtimeOrigin: string }) => Promise<readonly StaticGenerationRoute[]>;
 }
 
 /**

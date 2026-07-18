@@ -247,12 +247,16 @@ describe('application adapter listening', () => {
 			} as ApplicationAdapterOptions['appConfig'],
 		});
 
-		await adapter.start(({ origin }) => {
+		let receivedRoutes: unknown;
+		await adapter.start(({ origin, routes }) => {
 			assert.equal(origin, 'http://localhost:3000');
+			receivedRoutes = routes;
 		});
 		adapter.handleListening('http://localhost:3000/');
+		await Promise.resolve();
 
 		assert.equal(infoSpy.mock.calls.length, 0);
+		assert.deepEqual(receivedRoutes, []);
 		infoSpy.mockRestore();
 	});
 });

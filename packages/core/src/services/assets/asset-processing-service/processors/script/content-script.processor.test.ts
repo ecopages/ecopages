@@ -19,6 +19,7 @@ function createMockConfig(): EcoPagesAppConfig {
 		templatesExt: [],
 		componentsDir: 'components',
 		robotsTxt: { preferences: { '*': [] } },
+		sitemap: { enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] },
 		additionalWatchPaths: [],
 		defaultMetadata: { title: 'Test', description: 'Test' },
 		integrations: [],

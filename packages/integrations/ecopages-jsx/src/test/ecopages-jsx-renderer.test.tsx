@@ -439,6 +439,12 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).not.toContain('[object Object]');
 		});
 
+		/**
+		 * @remarks
+		 * Boots four integrations plus real kitchen-sink shells. The 5s Vitest default
+		 * flakes under suite load; a timeout leaves the global JSX SSR scope stack
+		 * uncleared and pollutes later frame-depth probes.
+		 */
 		it('renders the real kitchen-sink mixed shell stack without leaking foreign renderer objects', async () => {
 			const jsx = ecopagesJsxPlugin();
 			const kitajs = kitajsPlugin();
@@ -520,7 +526,7 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('integration-shell__body');
 			expect(result.html).toContain('kitchen-sink-counters');
 			expect(result.html).not.toContain('[object Object]');
-		});
+		}, 20_000);
 
 		it('rejects opaque foreign children instead of coercing them to object text', () => {
 			const renderer = new TestEcopagesJsxRenderer({

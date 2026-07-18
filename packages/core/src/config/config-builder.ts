@@ -27,7 +27,7 @@ import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
-import type { PageMetadataProps } from '../types/public-types.ts';
+import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import {
 	NoopEntrypointDependencyGraph,
@@ -118,6 +118,12 @@ export class ConfigBuilder {
 			preferences: {
 				'*': [],
 			},
+		},
+		sitemap: {
+			enabled: false,
+			fileName: 'sitemap.xml',
+			extraUrls: [],
+			exclude: [],
 		},
 		integrations: [],
 		integrationsDependencies: [],
@@ -275,6 +281,32 @@ export class ConfigBuilder {
 	 */
 	setRobotsTxt(robotsTxt: { preferences: RobotsPreference }): this {
 		this.config.robotsTxt = robotsTxt;
+		return this;
+	}
+
+	/**
+	 * Sets automatic sitemap.xml generation during static export.
+	 *
+	 * @remarks
+	 * Merged over `{ enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] }`.
+	 * Existing apps stay unchanged until `enabled: true` is set. Page-level
+	 * `metadata.robots.index: false` and metadata resolution failures are handled
+	 * during static generation (not by this config merge).
+	 */
+	setSitemap(sitemap: SitemapConfig): this {
+		const defaults: Required<Pick<SitemapConfig, 'enabled' | 'fileName' | 'extraUrls' | 'exclude'>> = {
+			enabled: false,
+			fileName: 'sitemap.xml',
+			extraUrls: [],
+			exclude: [],
+		};
+		this.config.sitemap = {
+			...defaults,
+			...this.config.sitemap,
+			...sitemap,
+			extraUrls: sitemap.extraUrls ?? this.config.sitemap.extraUrls ?? defaults.extraUrls,
+			exclude: sitemap.exclude ?? this.config.sitemap.exclude ?? defaults.exclude,
+		};
 		return this;
 	}
 

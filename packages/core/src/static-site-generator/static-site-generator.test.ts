@@ -33,11 +33,21 @@ const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesA
 		distDir: 'dist',
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
 		srcDir: 'src',
+		defaultMetadata: {
+			title: 'Test',
+			description: 'Test site',
+		},
 		robotsTxt: {
 			preferences: {
 				'*': ['/admin', '/private'],
 				Googlebot: ['/no-google'],
 			},
+		},
+		sitemap: {
+			enabled: false,
+			fileName: 'sitemap.xml',
+			extraUrls: [],
+			exclude: [],
 		},
 		absolutePaths: {
 			distDir: '/test/project/dist',
@@ -54,8 +64,10 @@ const testInjectedMeta = {
 	integration: 'test',
 };
 
-type StaticGenerationRouteSource = Parameters<StaticSiteGenerator['generateStaticPages']>[0];
-type StaticPageRouteRendererFactory = NonNullable<Parameters<StaticSiteGenerator['generateStaticPages']>[2]>;
+type StaticGenerationRouteSource = Parameters<StaticSiteGenerator['generateStaticPages']>[0]['router'];
+type StaticPageRouteRendererFactory = NonNullable<
+	Parameters<StaticSiteGenerator['generateStaticPages']>[0]['routeRendererFactory']
+>;
 type StaticGenerationRendererFactory = NonNullable<Parameters<StaticSiteGenerator['run']>[0]['routeRendererFactory']>;
 type StaticGenerationRunnerInput = Parameters<StaticSiteGenerator['run']>[0];
 
@@ -218,7 +230,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledTimes(1);
 		});
@@ -236,7 +252,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(ensureDirMock).toHaveBeenCalled();
 		});
@@ -247,7 +267,11 @@ describe('StaticSiteGenerator', () => {
 				'/page': { filePath: '/src/pages/page.ghtml.ts', pathname: '/page' },
 			});
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', undefined);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: undefined,
+			});
 		});
 
 		test('should write index.html for root path', async () => {
@@ -263,7 +287,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), '<html>Home</html>');
 		});
@@ -282,7 +310,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(writeMock).toHaveBeenCalledWith(expect.stringContaining('index.html'), bufferContent);
 		});
@@ -304,7 +336,11 @@ describe('StaticSiteGenerator', () => {
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(RendererFactory.getPageRenderer).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
 			expect(loadPageModule).toHaveBeenCalledWith('/src/pages/dashboard.tsx');
@@ -325,7 +361,11 @@ describe('StaticSiteGenerator', () => {
 				getPageRenderer: vi.fn(() => pageRenderer),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(loadPageModule).toHaveBeenCalledTimes(1);
 			expect(loadPageModule).toHaveBeenCalledWith(filePath);
@@ -361,7 +401,11 @@ describe('StaticSiteGenerator', () => {
 				getPageRenderer: vi.fn(() => pageRenderer),
 			} satisfies StaticPageRouteRendererFactory;
 
-			await ssg.generateStaticPages(Router, 'http://localhost:3000', RendererFactory);
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
 
 			expect(routeModuleBuildCache.canReuseStaticRender).toHaveBeenCalled();
 			expect(execute).not.toHaveBeenCalled();
@@ -471,11 +515,13 @@ describe('StaticSiteGenerator', () => {
 					baseUrl: 'http://localhost:3000',
 					force: false,
 					preserveExportDirectory: false,
+					routes: [],
 				}),
 			);
 			expect(afterStaticExport).toHaveBeenCalledWith(
 				expect.objectContaining({
 					baseUrl: 'http://localhost:3000',
+					routes: [],
 				}),
 			);
 			expect(beforeStaticExport.mock.invocationCallOrder[0]).toBeLessThan(
@@ -496,6 +542,237 @@ describe('StaticSiteGenerator', () => {
 
 			expect(ensureDirMock).toHaveBeenCalled();
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
+		});
+
+		test('should write sitemap.xml after afterStaticExport when enabled', async () => {
+			const afterStaticExport = vi.fn(async () => {});
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					baseUrl: 'https://example.com',
+					sitemap: {
+						enabled: true,
+						fileName: 'sitemap.xml',
+						extraUrls: ['/rss.xml'],
+						exclude: ['/admin/**'],
+					},
+					integrations: [
+						{
+							name: 'test',
+							extensions: ['.tsx'],
+							afterStaticExport,
+						},
+					] as unknown as EcoPagesAppConfig['integrations'],
+				}),
+			});
+
+			const RendererFactory = {
+				getPageRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => ({
+						default: Object.assign(() => null, { cache: 'static' }),
+					})),
+					execute: vi.fn(async () => ({ body: '<html>Page</html>' })),
+				})),
+			} satisfies StaticPageRouteRendererFactory;
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'https://example.com/',
+							pathname: '/',
+							templateRoute: {
+								pathname: '/',
+								kind: 'exact' as const,
+								filePath: '/src/pages/index.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+						{
+							requestUrl: 'https://example.com/admin',
+							pathname: '/admin',
+							templateRoute: {
+								pathname: '/admin',
+								kind: 'exact' as const,
+								filePath: '/src/pages/admin.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: RendererFactory.getPageRenderer,
+					getExplicitViewRenderer: vi.fn(),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			expect(afterStaticExport).toHaveBeenCalled();
+			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			expect(sitemapWrite).toBeDefined();
+			const sitemapContent = String(sitemapWrite?.[1]);
+			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
+			expect(sitemapContent).toContain('<loc>https://example.com/rss.xml</loc>');
+			expect(sitemapContent).not.toContain('/admin');
+			const sitemapWriteIndex = writeMock.mock.calls.findIndex((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			expect(afterStaticExport.mock.invocationCallOrder[0]).toBeLessThan(
+				writeMock.mock.invocationCallOrder[sitemapWriteIndex]!,
+			);
+		});
+
+		test('should omit noindex pages and metadata failures from sitemap', async () => {
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					baseUrl: 'https://example.com',
+					sitemap: {
+						enabled: true,
+						fileName: 'sitemap.xml',
+						extraUrls: [],
+						exclude: [],
+					},
+				}),
+			});
+
+			const RendererFactory = {
+				getPageRenderer: vi.fn((filePath: string) => ({
+					loadPageModule: vi.fn(async () => {
+						if (filePath.includes('draft')) {
+							return {
+								default: Object.assign(() => null, {
+									cache: 'static',
+									metadata: async () => ({
+										title: 'Draft',
+										description: 'Draft',
+										robots: { index: false },
+									}),
+								}),
+							};
+						}
+						if (filePath.includes('broken')) {
+							return {
+								default: Object.assign(() => null, {
+									cache: 'static',
+									metadata: async () => {
+										throw new Error('metadata boom');
+									},
+								}),
+							};
+						}
+						return {
+							default: Object.assign(() => null, { cache: 'static' }),
+						};
+					}),
+					execute: vi.fn(async () => ({ body: '<html>Page</html>' })),
+				})),
+			} satisfies StaticPageRouteRendererFactory;
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							requestUrl: 'https://example.com/',
+							pathname: '/',
+							templateRoute: {
+								pathname: '/',
+								kind: 'exact' as const,
+								filePath: '/src/pages/index.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+						{
+							requestUrl: 'https://example.com/draft',
+							pathname: '/draft',
+							templateRoute: {
+								pathname: '/draft',
+								kind: 'exact' as const,
+								filePath: '/src/pages/draft.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+						{
+							requestUrl: 'https://example.com/broken',
+							pathname: '/broken',
+							templateRoute: {
+								pathname: '/broken',
+								kind: 'exact' as const,
+								filePath: '/src/pages/broken.tsx',
+								paramNames: [],
+							},
+							params: {},
+						},
+					]),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: RendererFactory.getPageRenderer,
+					getExplicitViewRenderer: vi.fn(),
+				} satisfies StaticGenerationRendererFactory,
+			});
+
+			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			expect(sitemapWrite).toBeDefined();
+			const sitemapContent = String(sitemapWrite?.[1]);
+			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
+			expect(sitemapContent).not.toContain('/draft');
+			expect(sitemapContent).not.toContain('/broken');
+		});
+
+		test('should honor robots.index on explicit static views in sitemap', async () => {
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({
+					baseUrl: 'https://example.com',
+					sitemap: {
+						enabled: true,
+						fileName: 'sitemap.xml',
+						extraUrls: [],
+						exclude: [],
+					},
+				}),
+			});
+			const renderToResponse = vi.fn(async () => new Response('<html>Private</html>'));
+			const privateView = Object.assign(() => null, {
+				cache: 'static',
+				config: { __eco: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
+				metadata: async () => ({
+					title: 'Private',
+					description: 'Private',
+					robots: { index: false },
+				}),
+			}) as any;
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'https://example.com',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderToResponse,
+					})),
+				} satisfies StaticGenerationRendererFactory,
+				staticRoutes: [
+					{
+						path: '/private',
+						loader: async () => ({ default: privateView }),
+					},
+				],
+			});
+
+			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
+				String(call[0]).endsWith('sitemap.xml'),
+			);
+			expect(sitemapWrite).toBeDefined();
+			expect(String(sitemapWrite?.[1])).not.toContain('/private');
 		});
 
 		test('should skip explicit static routes backed by cache dynamic views', async () => {

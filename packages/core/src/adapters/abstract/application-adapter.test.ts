@@ -252,8 +252,7 @@ describe('application adapter listening', () => {
 			assert.equal(origin, 'http://localhost:3000');
 			receivedRoutes = routes;
 		});
-		adapter.handleListening('http://localhost:3000/');
-		await Promise.resolve();
+		await adapter.handleListening('http://localhost:3000/');
 
 		assert.equal(infoSpy.mock.calls.length, 0);
 		assert.deepEqual(receivedRoutes, []);

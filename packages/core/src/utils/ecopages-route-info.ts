@@ -24,3 +24,22 @@ export function normalizeRouteParams(params: Record<string, string | string[]>):
 	}
 	return normalized;
 }
+
+type StaticGenerationRouteLister = (input: {
+	runtimeOrigin: string;
+}) => Promise<readonly { pathname: string; params: Record<string, string | string[]> }[]>;
+
+/**
+ * Resolves {@link EcopagesRouteInfo} entries for app-start and similar consumers.
+ */
+export async function resolveAppStartRoutes(input: {
+	listStaticGenerationRoutes?: StaticGenerationRouteLister;
+	runtimeOrigin: string;
+}): Promise<EcopagesRouteInfo[]> {
+	if (!input.listStaticGenerationRoutes) {
+		return [];
+	}
+
+	const routes = await input.listStaticGenerationRoutes({ runtimeOrigin: input.runtimeOrigin });
+	return routes.map(toEcopagesRouteInfo);
+}

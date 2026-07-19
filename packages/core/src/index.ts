@@ -1,7 +1,21 @@
 export type * from './types/public-types.ts';
 export type * from './eco/eco.types.ts';
 export { eco } from './eco/eco.ts';
-export { defineApiHandler, defineGroupHandler, type GroupHandler } from './adapters/shared/define-api-handler.ts';
+export {
+	defineApiHandler,
+	defineGroupHandler,
+	defineGet,
+	definePost,
+	definePut,
+	defineDelete,
+	definePatch,
+	defineOptions,
+	defineHead,
+	json,
+	html,
+	redirect,
+	type GroupHandler,
+} from './adapters/shared/http/define-api-handler.ts';
 export {
 	createEcoBuildPluginFromSourceTransform,
 	createVitePluginsFromAppSourceTransforms,

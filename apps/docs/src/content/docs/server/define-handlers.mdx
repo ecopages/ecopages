@@ -1,14 +1,14 @@
 ---
 title: "Define Handlers"
-description: "Use defineHandler and defineHandlers for type-safe individual and grouped API routes."
+description: "Use defineApiHandler, defineGet, and defineGroupHandler for type-safe individual and grouped API routes."
 order: 3
 ---
 
 # Define Handlers
 
-Ecopages provides two helper functions for defining type-safe API handlers: `defineApiHandler` for individual routes and `defineGroupHandler` for related routes that share a prefix and middleware.
+Ecopages provides helpers for defining type-safe API handlers outside your main app file: `defineApiHandler` for individual routes, method-specific helpers such as `defineGet` and `definePost`, and `defineGroupHandler` for related routes that share a prefix and middleware.
 
-These helpers enable you to define handlers outside your main app file while preserving full TypeScript inference for path parameters, middleware context, and request schemas.
+These helpers preserve full TypeScript inference for path parameters, middleware context, and request schemas.
 
 ## Why Use Define Helpers
 
@@ -30,7 +30,32 @@ export const getPost = async ({ params }) => {
 };
 ```
 
-The `defineApiHandler` and `defineGroupHandler` helpers solve this by capturing the path literal type and middleware context at definition time.
+The `defineApiHandler`, method helpers, and `defineGroupHandler` solve this by capturing the path literal type and middleware context at definition time.
+
+## Method helpers
+
+For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, or `defineHead`. Each one is equivalent to `defineApiHandler` with the matching `method` field.
+
+```typescript
+import { defineGet, definePost } from '@ecopages/core';
+
+export const list = defineGet({
+  path: '/api/posts',
+  handler: async ({ response }) => {
+    return response.json(await getPosts());
+  },
+});
+
+export const create = definePost({
+  path: '/api/posts',
+  handler: async ({ request, response }) => {
+    const body = await request.json();
+    return response.status(201).json(await createPost(body));
+  },
+});
+```
+
+Use `defineApiHandler` when you want an explicit `method` field or an uncommon registration shape.
 
 ## defineApiHandler
 
@@ -40,11 +65,10 @@ Use `defineApiHandler` to create a self-contained handler with its path, method,
 
 ```typescript
 // handlers/blog.ts
-import { defineApiHandler } from '@ecopages/core';
+import { defineGet, defineApiHandler } from '@ecopages/core';
 
-export const list = defineApiHandler({
+export const list = defineGet({
   path: '/api/posts',
-  method: 'GET',
   handler: async ({ response }) => {
     const posts = await getPosts();
     return response.json(posts);
@@ -55,7 +79,6 @@ export const detail = defineApiHandler({
   path: '/api/posts/:id',
   method: 'GET',
   handler: async ({ params, response }) => {
-    // params.id is correctly typed as string
     const post = await getPost(params.id);
     return response.json(post);
   },
@@ -64,7 +87,7 @@ export const detail = defineApiHandler({
 
 ### Registration
 
-Register handlers directly with HTTP method functions:
+Register prebuilt handlers with `app.add()`. Use `app.get(path, handler)` only for inline routes in `app.ts`.
 
 ```typescript
 // app.ts
@@ -84,7 +107,7 @@ await app.start();
 Define a schema to get typed access to request body, query parameters, and headers:
 
 ```typescript
-import { defineApiHandler } from '@ecopages/core';
+import { definePost } from '@ecopages/core';
 import { z } from 'zod';
 
 const createPostSchema = {
@@ -97,14 +120,10 @@ const createPostSchema = {
   }),
 };
 
-export const createPost = defineApiHandler({
+export const createPost = definePost({
   path: '/api/posts',
-  method: 'POST',
   schema: createPostSchema,
   handler: async ({ body, query, response }) => {
-    // body and query are automatically parsed and typed from the schema
-    // body: { title: string; content: string }
-    // query: { draft?: string }
     const post = await createPost(body, query.draft === 'true');
     return response.status(201).json(post);
   },
@@ -145,28 +164,22 @@ import type { AuthenticatedContext } from './middleware/auth';
 export const adminGroup = defineGroupHandler({
   prefix: '/admin',
   middleware: [authMiddleware],
-  routes: (define) => [
-    define({
+  routes: (api) => [
+    api.get({
       path: '/',
-      method: 'GET',
       handler: async (ctx) => {
-        // ctx.session is typed from authMiddleware
         return ctx.response.json({ user: ctx.session.user });
       },
     }),
-    define({
+    api.get({
       path: '/posts/:id',
-      method: 'GET',
       handler: async (ctx) => {
-        // ctx.session is typed from authMiddleware
-        // ctx.params.id is typed from the path
         const post = await getPost(ctx.params.id);
         return ctx.response.json(post);
       },
     }),
-    define({
+    api.delete({
       path: '/posts/:id',
-      method: 'DELETE',
       handler: async (ctx) => {
         await deletePost(ctx.params.id);
         return ctx.response.status(204).text('');
@@ -175,6 +188,8 @@ export const adminGroup = defineGroupHandler({
   ],
 });
 ```
+
+The `routes` callback also accepts the callable form `api({ path, method, handler })` when you need an uncommon method shape. Prefer `api.get` and `api.post` for standard verbs.
 
 ### Registration
 
@@ -216,13 +231,11 @@ const createPostSchema = {
 export const adminGroup = defineGroupHandler({
   prefix: '/admin',
   middleware: [authMiddleware],
-  routes: (define) => [
-    define({
+  routes: (api) => [
+    api.post({
       path: '/posts',
-      method: 'POST',
       schema: createPostSchema,
       handler: async (ctx) => {
-        // ctx.session from middleware + ctx.body from schema
         const post = await createPost(ctx.body, ctx.session.user.id);
         return ctx.response.status(201).json(post);
       },
@@ -230,6 +243,31 @@ export const adminGroup = defineGroupHandler({
   ],
 });
 ```
+
+## json / html / redirect
+
+Import `json`, `html`, and `redirect` from `@ecopages/core` when a handler returns a body without using `context.response`:
+
+```typescript
+import { defineGet, json, html, redirect } from '@ecopages/core';
+
+export const health = defineGet({
+  path: '/api/health',
+  handler: async () => json({ ok: true }),
+});
+
+export const landing = defineGet({
+  path: '/landing',
+  handler: async () => html('<p>hi</p>'),
+});
+
+export const loginRedirect = defineGet({
+  path: '/login',
+  handler: async () => redirect('/sign-in', 303),
+});
+```
+
+These helpers share the same body emission path as `context.response.json()` and `context.response.html()`.
 
 ## Type Inference Details
 
@@ -298,18 +336,16 @@ const updatePostSchema = {
 };
 
 // Public routes
-export const list = defineApiHandler({
+export const list = defineGet({
   path: '/api/posts',
-  method: 'GET',
   handler: async ({ response }) => {
     const posts = await getPublicPosts();
     return response.json(posts);
   },
 });
 
-export const detail = defineApiHandler({
+export const detail = defineGet({
   path: '/api/posts/:id',
-  method: 'GET',
   handler: async ({ params, response }) => {
     const post = await getPost(params.id);
     if (!post) return response.status(404).json({ error: 'Not found' });
@@ -321,28 +357,25 @@ export const detail = defineApiHandler({
 export const protectedGroup = defineGroupHandler({
   prefix: '/api/posts',
   middleware: [authMiddleware],
-  routes: (define) => [
-    define({
+  routes: (api) => [
+    api.post({
       path: '/',
-      method: 'POST',
       schema: createPostSchema,
       handler: async (ctx) => {
         const post = await createPost(ctx.body, ctx.session.user.id);
         return ctx.response.status(201).json(post);
       },
     }),
-    define({
+    api.put({
       path: '/:id',
-      method: 'PUT',
       schema: updatePostSchema,
       handler: async (ctx) => {
         const post = await updatePost(ctx.params.id, ctx.body, ctx.session.user.id);
         return ctx.response.json(post);
       },
     }),
-    define({
+    api.delete({
       path: '/:id',
-      method: 'DELETE',
       handler: async (ctx) => {
         await deletePost(ctx.params.id, ctx.session.user.id);
         return ctx.response.status(204).text('');

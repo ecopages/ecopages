@@ -1,7 +1,7 @@
 import type { Server } from 'bun';
 import { getBunRuntime } from '../../utils/runtime.ts';
-import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
-import type { RuntimeHost, RuntimeHostStartOptions } from '../shared/runtime-host.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { RuntimeHost, RuntimeHostStartOptions } from '../shared/runtime/runtime-host.ts';
 
 type BunRuntimeProvider = {
 	serve(options: Bun.Serve.Options<unknown>): Server<unknown>;

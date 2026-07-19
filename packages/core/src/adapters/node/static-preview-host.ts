@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { PortManager } from '../shared/port-manager.ts';
-import type { StaticPreviewHost, StaticPreviewHostStartOptions } from '../shared/static-preview-host.ts';
+import { PortManager } from '../shared/runtime/port-manager.ts';
+import type { StaticPreviewHost, StaticPreviewHostStartOptions } from '../shared/runtime/static-preview-host.ts';
 import { NodeStaticContentServer } from './static-content-server.ts';
 
 type NodeStaticPreviewServer = {

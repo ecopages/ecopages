@@ -6,7 +6,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { SharedHmrManager } from '../shared/shared-hmr-manager.ts';
+import { SharedHmrManager } from '../shared/hmr/shared-hmr-manager.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
 type BunSocketHandler = WebSocketHandler<unknown>;

@@ -236,6 +236,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 		if (this.devClientDelivery === 'transform' && this.devTransformServer) {
 			this.devTransformServer.invalidateSource(resolvedFilePath);
+			const shouldBroadcast = options.broadcast ?? true;
+			if (shouldBroadcast && this.bridge.subscriberCount > 0) {
+				this.broadcast({ type: 'reload' });
+			}
+			return;
 		}
 
 		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {

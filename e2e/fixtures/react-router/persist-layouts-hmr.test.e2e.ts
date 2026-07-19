@@ -152,7 +152,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	});
 
 	test('HMR index page chunk is served', async ({ request }) => {
-		const response = await request.get('/assets/_hmr/pages/docs/index.js');
+		const response = await request.get('/assets/__eco_dev__/pages/docs/index.js');
 		expect(response.ok()).toBe(true);
 		const contentType = response.headers()['content-type'] ?? '';
 		expect(contentType).toContain('javascript');

@@ -81,8 +81,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -90,11 +90,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@ecopages/signals':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(typescript@5.9.3)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -268,8 +268,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/integrations/ecopages-jsx
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../packages/integrations/mdx
@@ -277,8 +277,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -310,8 +310,8 @@ importers:
         specifier: workspace:*
         version: link:../../core
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -477,14 +477,14 @@ importers:
   packages/integrations/ecopages-jsx:
     dependencies:
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../mdx
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -777,8 +777,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -838,8 +838,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.5.0
@@ -918,8 +918,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -985,8 +985,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/image-processor
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
       '@ecopages/kitajs':
         specifier: workspace:*
         version: link:../../packages/integrations/kitajs
@@ -1000,8 +1000,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1084,8 +1084,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.5.0
@@ -1136,8 +1136,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1169,8 +1169,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.2
-        version: 0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
       '@ecopages/react':
         specifier: workspace:*
         version: link:../../packages/integrations/react
@@ -1585,10 +1585,10 @@ packages:
   '@drizzle-team/brocli@0.11.0':
     resolution: {integrity: sha512-hD3pekGiPg0WPCCGAZmusBBJsDqGUR66Y452YgQsZOnkdQ7ViEPKuyP4huUGEZQefp8g34RRodXYmJ2TbCH+tg==}
 
-  '@ecopages/jsx@0.3.0-beta.2':
-    resolution: {integrity: sha512-5/7syDvjPTwvunyVHO4dkcIbM7Yg04TE9CIqMJKovmBGAlZKuuQKL2gwPd8WgganXfnKRkrHn2IOB6bCeEMdIA==}
+  '@ecopages/jsx@0.3.0-beta.3':
+    resolution: {integrity: sha512-N09HbIkRy4GsDfsqH8YFxa97rAHE1DSQo+P8EPZ4wq543QyHNbgjN7glYMDPqIebElo2AEfLnn3tcE905h/pHA==}
     peerDependencies:
-      '@ecopages/signals': '>=0.3.0-beta.2 <1.0.0'
+      '@ecopages/signals': '>=0.3.0-beta.3 <1.0.0'
       typescript: ^5
 
   '@ecopages/logger@0.2.3':
@@ -1596,18 +1596,18 @@ packages:
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/radiant@0.3.0-beta.2':
-    resolution: {integrity: sha512-Bl2H5dRPKH1qH8n1w6ITpQwhtAj8RARURW9+GqL3GutpPyOkPzP5UPuk9qzIrcGtnXP0qdYDfv+ltAPcuGB1EQ==}
+  '@ecopages/radiant@0.3.0-beta.3':
+    resolution: {integrity: sha512-TYj0hrCDeAYocRO8459CFVbsepQkoYV9UhbG3/wLa/BrA1wCiZVsj4jpiAOkT/mivzXORrhrCm3Pxix7mFCBtg==}
     peerDependencies:
-      '@ecopages/jsx': '>=0.3.0-beta.2 <1.0.0'
+      '@ecopages/jsx': '>=0.3.0-beta.3 <1.0.0'
 
   '@ecopages/scripts-injector@0.1.5':
     resolution: {integrity: sha512-4julGcmVkf4G8asK0/vAZ9o9bIWudEyGk4D/rRF/IE2J4ePT5FgmR8QdzRxD+DElzEnkJTnS7gyX2Dj7JeNtdg==}
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/signals@0.3.0-beta.2':
-    resolution: {integrity: sha512-jk4J2eOR9JmzPOjfuQceYl/BSj6J8ZkMv+hT8yxYXWQ2ErE3hAH2/ST2BaiL5Hnke3g08HgtPZgZw1ElPNle7g==}
+  '@ecopages/signals@0.3.0-beta.3':
+    resolution: {integrity: sha512-QML+B7QG4gYFsrllmNRKFaVMCwC/KAfG4QL0HYrJ/VXA1OvnoGV7nY6lKYjI8CffDehRrotvOHgMDrfsSmS1cg==}
     peerDependencies:
       typescript: ^5
 
@@ -6515,24 +6515,24 @@ snapshots:
 
   '@drizzle-team/brocli@0.11.0': {}
 
-  '@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)':
+  '@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
-      '@ecopages/signals': 0.3.0-beta.2(typescript@5.9.3)
+      '@ecopages/signals': 0.3.0-beta.3(typescript@5.9.3)
       typescript: 5.9.3
 
   '@ecopages/logger@0.2.3(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/radiant@0.3.0-beta.2(@ecopages/jsx@0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3))':
+  '@ecopages/radiant@0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))':
     dependencies:
-      '@ecopages/jsx': 0.3.0-beta.2(@ecopages/signals@0.3.0-beta.2(typescript@5.9.3))(typescript@5.9.3)
+      '@ecopages/jsx': 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
 
   '@ecopages/scripts-injector@0.1.5(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/signals@0.3.0-beta.2(typescript@5.9.3)':
+  '@ecopages/signals@0.3.0-beta.3(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
 

@@ -60,7 +60,6 @@ describe('NodeServerAdapter', () => {
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
 		const html = await response.text();
 
-		// Stubbed handleSharedRequest bypasses shared inject; Node must not add a second pass.
 		expect(html).toBe('<html><body><h1>Explicit route</h1></body></html>');
 		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});

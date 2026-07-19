@@ -226,19 +226,20 @@ export const adminGroup = defineGroupHandler({
 });
 ```
 
-Standalone response helpers (`json`, `html`, `redirect`) share the same body emission path as `response.json()` / `response.html()`.
+Standalone response helpers (`json`, `html`, `redirect`) share the same body emission path as `context.response.json()` / `context.response.html()`.
+
+Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
 Attach the handler in your `app.ts` entry:
 
 ```typescript
-// app.ts
 import { createApp } from '@ecopages/core/create-app';
 import { helloWorld } from './handlers/hello';
 import appConfig from './eco.config';
 
 const app = await createApp({ appConfig });
 
-app.get(helloWorld); // Register the API handler
+app.add(helloWorld);
 
 await app.start();
 ```

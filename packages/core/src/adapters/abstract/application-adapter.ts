@@ -66,6 +66,11 @@ export interface ApplicationRuntimeOptions {
 	 */
 	devClientOwner?: 'core' | 'host';
 	/**
+	 * Selects native CLI dev client delivery. `transform` serves modules on demand;
+	 * `rolldown` uses the legacy per-page Rolldown HMR path.
+	 */
+	devClientDelivery?: 'transform' | 'rolldown';
+	/**
 	 * Explicit source module loader for request-time imports.
 	 *
 	 * When omitted in embedded mode, the adapter attempts automatic

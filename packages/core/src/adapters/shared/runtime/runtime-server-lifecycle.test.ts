@@ -3,18 +3,18 @@ import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
 import {
-	startConfiguredIntegrationRuntimePrewarm,
 	startConfiguredClientGraphPrewarm,
+	startDevWarmup,
 } from './runtime-server-lifecycle.ts';
 
-test('startConfiguredIntegrationRuntimePrewarm activates every configured integration', async () => {
+test('startDevWarmup activates every configured integration', async () => {
 	const ensureSpy = vi.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady').mockResolvedValue(undefined);
 
 	const appConfig = {
 		integrations: [{ name: 'react' }, { name: 'lit' }],
 	} as any;
 
-	startConfiguredIntegrationRuntimePrewarm({
+	startDevWarmup({
 		appConfig,
 		runtimeOrigin: 'http://localhost:3000',
 	});
@@ -31,7 +31,7 @@ test('startConfiguredIntegrationRuntimePrewarm activates every configured integr
 	ensureSpy.mockRestore();
 });
 
-test('startConfiguredIntegrationRuntimePrewarm logs failures without throwing', async () => {
+test('startDevWarmup logs failures without throwing', async () => {
 	const ensureSpy = vi
 		.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
 		.mockRejectedValue(new Error('prewarm failed'));
@@ -41,7 +41,7 @@ test('startConfiguredIntegrationRuntimePrewarm logs failures without throwing', 
 		integrations: [{ name: 'react' }],
 	} as any;
 
-	startConfiguredIntegrationRuntimePrewarm({
+	startDevWarmup({
 		appConfig,
 		runtimeOrigin: 'http://localhost:3000',
 	});

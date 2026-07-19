@@ -25,7 +25,7 @@ All notable changes to `@ecopages/ecopages-jsx` are documented here.
 - Fixed intrinsic custom-element script suppression to honor dependency-declared script ownership instead of relying only on source import scanning.
 - Fixed Radiant custom-element SSR bridging so `prop:` values like array props render through the server host bridge without requiring wrapper-level attribute serialization fallbacks.
 - Aligned the Ecopages JSX browser runtime bundle with the upstream `@ecopages/jsx` runtime shipped by current alpha releases.
-- Aligned Ecopages JSX peer dependency ranges with the current `@ecopages/jsx` and `@ecopages/radiant` alpha releases.
+- Aligned Ecopages JSX peer dependency ranges with the current `@ecopages/jsx` and `@ecopages/radiant` beta releases (`0.3.0-beta.3`).
 - Aligned Radiant SSR and hydration wiring with the public `@ecopages/radiant/server/render-component` and `@ecopages/radiant/client/hydrator` entrypoints so JSX apps install an explicit client hydrator bootstrap instead of relying on implicit side effects.
 - Updated the Ecopages JSX Radiant browser runtime for the `RadiantElement` and `RadiantController` API surface and switched the explicit hydrator bootstrap to `@ecopages/radiant/client/install-hydrator`.
 - Fixed Radiant SSR page inspection to install the light-DOM shim before JSX page modules are imported outside the normal render pass.

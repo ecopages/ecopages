@@ -1,8 +1,15 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
+import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
+import {
+	createDevHmrEntrypointCache,
+	setDevHmrEntrypointCacheEntry,
+} from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -62,7 +69,7 @@ function createPageMetadataCache(
 			overrides.markOwnedEntrypoint?.(entrypointPath);
 		},
 		setDeclaredModules: overrides.setDeclaredModules ?? (() => undefined),
-	};
+	} as HmrPageMetadataCache;
 }
 
 function createImportServerModuleMock(result: {
@@ -1342,6 +1349,108 @@ describe('ReactHmrStrategy', () => {
 					},
 				],
 			});
+		});
+	});
+
+	describe('prepareColdClientGraph', () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+
+		afterEach(() => {
+			if (originalNodeEnv === undefined) {
+				delete process.env.NODE_ENV;
+			} else {
+				process.env.NODE_ENV = originalNodeEnv;
+			}
+		});
+
+		it('seeds cache hits and builds uncached route entrypoints in grouped passes', async () => {
+			process.env.NODE_ENV = 'development';
+			const pagesDir = '/tmp/src/pages';
+			const entrypointPath = path.join(pagesDir, 'login.tsx');
+			const seededPaths: string[] = [];
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getPagesDir: () => pagesDir,
+					seedResolvedEntrypoint: (resolved) => {
+						seededPaths.push(resolved.sourcePath);
+					},
+				}),
+				pageMetadataCache: createPageMetadataCache(),
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			const outputPath = '/tmp/.eco/assets/_hmr/pages/login.js';
+			(strategy as any).bundleReactBuildTargets = vi.fn(async () => {
+				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+				fs.writeFileSync(outputPath, 'bundled', 'utf8');
+				return ['/assets/_hmr/pages/login.js'];
+			});
+
+			const cache = {
+				appConfig: { rootDir: '/tmp' },
+				manifest: {
+					invalidationVersion: 'v1',
+					buildInputsFingerprint: 'stable',
+					entries: {},
+				},
+			} as any;
+
+			await strategy.prepareColdClientGraph(cache, {
+				templateRouteFilePaths: [entrypointPath],
+				tryTrackInFlightEntrypoint: vi.fn(() => true),
+				releaseInFlightEntrypoint: vi.fn(),
+				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
+			});
+
+			expect((strategy as any).bundleReactBuildTargets).toHaveBeenCalledTimes(1);
+			expect(seededPaths).toContain(entrypointPath);
+		});
+
+		it('seeds persisted cache hits without invoking grouped builds', async () => {
+			process.env.NODE_ENV = 'development';
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-graph-cache-hit-'));
+			const pagesDir = path.join(rootDir, 'src', 'pages');
+			fs.mkdirSync(pagesDir, { recursive: true });
+
+			const entrypointPath = path.join(pagesDir, 'login.tsx');
+			const outputPath = path.join(rootDir, '.eco', 'assets', '_hmr', 'pages', 'login.js');
+			fs.writeFileSync(entrypointPath, 'export {}', 'utf8');
+			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+			fs.writeFileSync(outputPath, 'bundled', 'utf8');
+
+			const seededPaths: string[] = [];
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({
+					getPagesDir: () => pagesDir,
+					seedResolvedEntrypoint: (resolved) => {
+						seededPaths.push(resolved.sourcePath);
+					},
+				}),
+				pageMetadataCache: createPageMetadataCache(),
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			(strategy as any).bundleReactBuildTargets = vi.fn(async () => []);
+
+			const cache = createDevHmrEntrypointCache({ rootDir } as any);
+			setDevHmrEntrypointCacheEntry(cache, entrypointPath, {
+				outputPath,
+				outputUrl: '/assets/_hmr/pages/login.js',
+				sourceMtimeMs: fs.statSync(entrypointPath).mtimeMs,
+				builtAt: Date.now(),
+			});
+
+			await strategy.prepareColdClientGraph(cache, {
+				templateRouteFilePaths: [entrypointPath],
+				tryTrackInFlightEntrypoint: vi.fn(() => true),
+				releaseInFlightEntrypoint: vi.fn(),
+				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
+			});
+
+			expect((strategy as any).bundleReactBuildTargets).not.toHaveBeenCalled();
+			expect(seededPaths).toContain(entrypointPath);
+
+			fs.rmSync(rootDir, { recursive: true, force: true });
 		});
 	});
 });

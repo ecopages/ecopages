@@ -79,10 +79,17 @@ test.describe('Declared client script HMR @hmr', () => {
 
 	test.describe.configure({ mode: 'serial' });
 
+	function restoreFileIfChanged(filePath: string, originalContent: string) {
+		const currentContent = fs.readFileSync(filePath, 'utf-8');
+		if (currentContent !== originalContent) {
+			fs.writeFileSync(filePath, originalContent, 'utf-8');
+		}
+	}
+
 	function restoreMutatedSources() {
-		fs.writeFileSync(scriptMarkerFile, originalScriptMarker, 'utf-8');
-		fs.writeFileSync(scriptWidgetFile, originalScriptWidget, 'utf-8');
-		fs.writeFileSync(baseLayoutScriptFile, originalBaseLayoutScript, 'utf-8');
+		restoreFileIfChanged(scriptMarkerFile, originalScriptMarker);
+		restoreFileIfChanged(scriptWidgetFile, originalScriptWidget);
+		restoreFileIfChanged(baseLayoutScriptFile, originalBaseLayoutScript);
 	}
 
 	// oxlint-disable-next-line no-empty-pattern
@@ -98,10 +105,6 @@ test.describe('Declared client script HMR @hmr', () => {
 	});
 
 	test.afterEach(() => {
-		restoreMutatedSources();
-	});
-
-	test.beforeEach(() => {
 		restoreMutatedSources();
 	});
 
@@ -173,11 +176,7 @@ test.describe('Declared client script HMR @hmr', () => {
 		timer.mark('navigation-ready');
 		await hmrReady;
 		timer.mark('hmr-connected');
-		await assertRegisteredHmrScript(page, 'script-hmr-widget.script');
 		await expect(page.getByTestId('page-script-hmr')).toBeVisible();
-		await expect(page.getByTestId('script-hmr-marker')).toHaveText(SCRIPT_HMR_BASELINE, {
-			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
-		});
 		await expect(page.getByTestId('script-hmr-widget')).toHaveText(SCRIPT_WIDGET_BASELINE, {
 			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 		});

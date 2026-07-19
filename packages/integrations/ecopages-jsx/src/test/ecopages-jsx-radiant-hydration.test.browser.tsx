@@ -1,128 +1,42 @@
 /** @jsxImportSource @ecopages/jsx */
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-	RadiantController,
-	RadiantElement,
-	customElement,
-	signal,
-	startControllers,
-	stopControllers,
-} from '@ecopages/radiant';
-import { controller } from '@ecopages/radiant/decorators/controller';
+import { startControllers } from '@ecopages/radiant';
 import { installRadiantHydrator, uninstallRadiantHydrator } from '@ecopages/radiant/client/hydrator';
-import { renderComponentToString } from '@ecopages/radiant/server/render-component';
-import { renderControllerToString } from '@ecopages/radiant/server/render-controller';
+import { radiantHydrationMarkupFixtures } from './ecopages-jsx-radiant-hydration.markup-fixtures.ts';
+import {
+	defineControllerComponent,
+	defineCounterComponent,
+	getHydrationMarkerAttributes,
+	parseMarkupHost,
+	resetRadiantHydrationTestState,
+	type ControllerHost,
+	type TestButton,
+} from './ecopages-jsx-radiant-hydration.test-shared.tsx';
 
-let nextTagId = 0;
-
-type TestButton = HTMLButtonElement & {
-	ssrMarker?: string;
-};
-
-type ControllerHost = HTMLElement & {
-	count?: number;
-};
-
-function getHydrationMarkerAttributes(root: ParentNode): string[] {
-	const elements = [root, ...Array.from(root.querySelectorAll('*'))].filter(
-		(node): node is Element => node instanceof Element,
-	);
-	const names: string[] = [];
-
-	for (const element of elements) {
-		for (const attributeName of element.getAttributeNames()) {
-			if (attributeName.startsWith('data-radiant-jsx-bind-')) {
-				names.push(attributeName);
-			}
-		}
-	}
-
-	return names;
-}
-
-function createTagName(): string {
-	nextTagId += 1;
-	return `ecopages-jsx-radiant-counter-${nextTagId}`;
-}
-
-function defineCounterComponent(tagName: string) {
-	class TestCounter extends RadiantElement<{ count: number }> {
-		declare count: number;
-
-		override render() {
-			return <button data-testid="counter">{this.$.count}</button>;
-		}
-	}
-
-	signal({ bind: true, hydrate: Number, initial: 1 })(TestCounter.prototype, 'count');
-	customElement(tagName)(TestCounter);
-	return TestCounter;
-}
-
-async function createSsrHost(tagName: string): Promise<{ host: HTMLElement; markup: string; ssrButton: TestButton }> {
-	const Counter = defineCounterComponent(tagName);
-	const markup = await renderComponentToString(Counter, {
-		renderOptions: { mode: 'hydrate' },
-	});
-	const template = document.createElement('template');
-	template.innerHTML = markup;
-
-	const host = template.content.firstElementChild as HTMLElement | null;
-	const ssrButton = host?.querySelector('[data-testid="counter"]') as TestButton | null;
-
-	if (!host || !ssrButton) {
-		throw new Error('Expected SSR markup to include a hydrated counter host and button.');
-	}
+function mountElementFixture(fixtureKey: 'elementHydrate' | 'elementFallback') {
+	defineCounterComponent(radiantHydrationMarkupFixtures.tagNames[fixtureKey]);
+	const markup = radiantHydrationMarkupFixtures.markups[fixtureKey];
+	const { host, ssrButton } = parseMarkupHost(markup, '[data-testid="counter"]');
 
 	return { host, markup, ssrButton };
 }
 
-async function createSsrControllerHost(identifier: string): Promise<{
-	host: ControllerHost;
-	markup: string;
-	ssrButton: TestButton;
-}> {
-	class TestCounterController extends RadiantController<{ count: number }> {
-		constructor(host: Element) {
-			super(host);
-			this.createReactiveProp('count', { type: Number, bind: true });
-		}
+function mountControllerFixture() {
+	defineControllerComponent(radiantHydrationMarkupFixtures.tagNames.controllerActivation);
+	const markup = radiantHydrationMarkupFixtures.markups.controllerActivation;
+	const { host, ssrButton } = parseMarkupHost(markup, '[data-testid="controller-counter"]');
 
-		override render() {
-			return <button data-testid="controller-counter">{this.$.count}</button>;
-		}
-	}
-
-	controller(identifier)(TestCounterController);
-
-	const markup = await renderControllerToString(TestCounterController, {
-		tagName: 'section',
-		initialize(controllerInstance) {
-			(controllerInstance.host as ControllerHost).count = 1;
-		},
-	});
-	const template = document.createElement('template');
-	template.innerHTML = markup;
-
-	const host = template.content.firstElementChild as ControllerHost | null;
-	const ssrButton = host?.querySelector('[data-testid="controller-counter"]') as TestButton | null;
-
-	if (!host || !ssrButton) {
-		throw new Error('Expected SSR markup to include a controller host and button.');
-	}
-
-	return { host, markup, ssrButton };
+	return { host: host as ControllerHost, markup, ssrButton };
 }
 
 describe('RadiantElement hydration contract', () => {
 	afterEach(() => {
-		document.body.innerHTML = '';
 		uninstallRadiantHydrator();
-		stopControllers();
+		resetRadiantHydrationTestState();
 	});
 
 	it('hydrates SSR RadiantElement hosts in place when the hydrator is installed before first connect', async () => {
-		const { host, markup, ssrButton } = await createSsrHost(createTagName());
+		const { host, markup, ssrButton } = mountElementFixture('elementHydrate');
 
 		expect(markup).toContain('data-hydration');
 
@@ -139,7 +53,7 @@ describe('RadiantElement hydration contract', () => {
 	});
 
 	it('falls back to a fresh client render when the explicit Radiant hydrator is missing', async () => {
-		const { host, markup, ssrButton } = await createSsrHost(createTagName());
+		const { host, markup, ssrButton } = mountElementFixture('elementFallback');
 
 		expect(markup).toContain('data-hydration');
 
@@ -157,14 +71,11 @@ describe('RadiantElement hydration contract', () => {
 
 describe('RadiantController SSR activation contract', () => {
 	afterEach(() => {
-		document.body.innerHTML = '';
-		stopControllers();
+		resetRadiantHydrationTestState();
 	});
 
 	it('connects SSR controller hosts and updates host-backed reactive props', async () => {
-		const { host, markup, ssrButton } = await createSsrControllerHost(
-			`ecopages-jsx-controller-counter-${(nextTagId += 1)}`,
-		);
+		const { host, markup, ssrButton } = mountControllerFixture();
 
 		expect(markup).toContain('data-controller');
 		expect(markup).toContain('controller-counter');

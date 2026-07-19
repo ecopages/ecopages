@@ -71,6 +71,8 @@ Set these in `.env` or on the command line when diagnosing slow dev startup or f
 | :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
 | `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
 | `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+| `ECOPAGES_DEV_COLD_CLIENT_GRAPH=false` | —              | Disable background React HMR page-graph prewarm (on by default in dev with HMR)                |
+| `ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING=true` | —    | Wait for client-graph prewarm before accepting connections (default is background-only)          |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 
@@ -83,7 +85,7 @@ Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 [ecopages:startup-trace] summary path=/docs/getting-started/introduction bundleCount=13 clientBundleBytes=858396 wallMs=12496
 ```
 
-Phases: config ready → runtime plugins → route registry → server listening → first request SSR. The summary includes bundle count and total client JS bytes for that first request.
+Phases: config ready → runtime plugins → route registry → server listening → **dev cold client graph** (React HMR prewarm) → first request SSR. The summary includes bundle count and total client JS bytes for that first request.
 
 ```bash
 # Focused perf trace only

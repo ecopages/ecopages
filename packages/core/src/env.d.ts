@@ -5,6 +5,10 @@ interface EcopagesEnv {
 	ECOPAGES_LOGGER_DEBUG: 'true' | 'false';
 	/** When `true`, emits startup phase timings to stderr. Also enabled when `ECOPAGES_LOGGER_DEBUG=true`. */
 	ECOPAGES_STARTUP_TRACE?: 'true' | 'false';
+	/** When `false`, skips background React HMR client-graph prewarm in dev. Default: enabled. */
+	ECOPAGES_DEV_COLD_CLIENT_GRAPH?: 'true' | 'false';
+	/** When `true`, blocks server listen until client-graph prewarm finishes. Default: background-only. */
+	ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING?: 'true' | 'false';
 }
 
 declare global {

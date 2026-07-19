@@ -313,6 +313,14 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.isReactEntrypoint(entrypointPath) && this.ownsWatchedEntrypoint(entrypointPath);
 	}
 
+	/**
+	 * Returns Ecopages build plugins for dev transform esbuild bundles.
+	 */
+	async createDevTransformPlugins(entrypointPath: string): Promise<EcoBuildPlugin[]> {
+		const declaredModules = await this.resolveDeclaredModulesForEntrypoint(entrypointPath);
+		return this.buildPluginsForDeclaredModules(declaredModules, entrypointPath.endsWith('.mdx'));
+	}
+
 	override async emitEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
 		const { outputUrl } = this.getEntrypointOutput(entrypointPath);
 		await this.bundleReactEntrypoint(entrypointPath, outputUrl);

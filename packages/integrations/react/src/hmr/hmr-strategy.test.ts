@@ -109,7 +109,6 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 			reset: () => {},
 		}),
 		importServerModule: createImportServerModuleMock({ config: {} }),
-		seedResolvedEntrypoint: vi.fn(),
 		...overrides,
 	};
 }

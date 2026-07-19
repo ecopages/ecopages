@@ -7,7 +7,7 @@ interface EcopagesEnv {
 	ECOPAGES_STARTUP_TRACE?: 'true' | 'false';
 	/** When `false`, skips background React HMR client-graph prewarm in dev. Default: enabled. */
 	ECOPAGES_DEV_COLD_CLIENT_GRAPH?: 'true' | 'false';
-	/** When `true`, blocks server listen until client-graph prewarm finishes. Default: background-only. */
+	/** When `true`, delays startup completion until client-graph prewarm finishes. Default: background after listen. */
 	ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING?: 'true' | 'false';
 }
 

@@ -30,6 +30,7 @@ export type { StaticExportContext } from '../static-site-generator/static-export
 /** Options passed to integration-owned dev client-graph prewarm kickoff. */
 export type DevClientGraphPrewarmOptions = {
 	appConfig: EcoPagesAppConfig;
+	/** Template-route source paths from the route registry at server startup. */
 	templateRouteFilePaths: readonly string[];
 };
 
@@ -250,12 +251,21 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Starts background cold client-graph prewarm for this integration when supported.
+	 * Starts background cold HMR entrypoint prewarm for this integration when supported.
+	 *
+	 * @remarks
+	 * Core calls this from `completeInitialization` when dev HMR/watch is enabled.
+	 * Only `@ecopages/react` implements it today; other integrations keep the default no-op.
+	 * Pair with {@link awaitDevClientGraphPrewarm} when `ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING=true`.
 	 */
 	startDevClientGraphPrewarm?(_options: DevClientGraphPrewarmOptions): void {}
 
 	/**
-	 * Waits for integration-owned cold client-graph prewarm when blocking mode is enabled.
+	 * Waits for integration-owned cold HMR entrypoint prewarm when blocking mode is enabled.
+	 *
+	 * @remarks
+	 * Blocking mode delays startup completion, not socket bind. The server may already be
+	 * listening while background prewarm runs unless blocking is enabled.
 	 */
 	async awaitDevClientGraphPrewarm(): Promise<void> {}
 

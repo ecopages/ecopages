@@ -379,6 +379,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.entrypointRegistrar.trackInFlightEntrypoint(entrypointPath, promise);
 	}
 
+	public tryTrackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): boolean {
+		return this.entrypointRegistrar.tryTrackInFlightEntrypoint(entrypointPath, promise);
+	}
+
 	public releaseInFlightEntrypoint(entrypointPath: string): void {
 		this.entrypointRegistrar.releaseInFlightEntrypoint(entrypointPath);
 	}

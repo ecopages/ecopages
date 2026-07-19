@@ -1379,7 +1379,12 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactBuildTargets = vi.fn(async () => ['/assets/_hmr/pages/login.js']);
+			const outputPath = '/tmp/.eco/assets/_hmr/pages/login.js';
+			(strategy as any).bundleReactBuildTargets = vi.fn(async () => {
+				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+				fs.writeFileSync(outputPath, 'bundled', 'utf8');
+				return ['/assets/_hmr/pages/login.js'];
+			});
 
 			const cache = {
 				appConfig: { rootDir: '/tmp' },
@@ -1392,8 +1397,9 @@ describe('ReactHmrStrategy', () => {
 
 			await strategy.prepareColdClientGraph(cache, {
 				templateRouteFilePaths: [entrypointPath],
-				trackInFlightEntrypoint: vi.fn(),
+				tryTrackInFlightEntrypoint: vi.fn(() => true),
 				releaseInFlightEntrypoint: vi.fn(),
+				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
 			});
 
 			expect((strategy as any).bundleReactBuildTargets).toHaveBeenCalledTimes(1);
@@ -1436,8 +1442,9 @@ describe('ReactHmrStrategy', () => {
 
 			await strategy.prepareColdClientGraph(cache, {
 				templateRouteFilePaths: [entrypointPath],
-				trackInFlightEntrypoint: vi.fn(),
+				tryTrackInFlightEntrypoint: vi.fn(() => true),
 				releaseInFlightEntrypoint: vi.fn(),
+				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
 			});
 
 			expect((strategy as any).bundleReactBuildTargets).not.toHaveBeenCalled();

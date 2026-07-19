@@ -186,3 +186,34 @@ test('trackInFlightEntrypoint coalesces concurrent registerEntrypoint callers', 
 	assert.equal(first.outputUrl, '/assets/_hmr/pages/inflight.js');
 	assert.equal(second.outputUrl, first.outputUrl);
 });
+
+test('tryTrackInFlightEntrypoint returns false when on-demand registration already owns the slot', async () => {
+	const rootDir = createTempRoot('hmr-registrar-try-track');
+	const srcDir = path.join(rootDir, 'src');
+	const distDir = path.join(rootDir, '.eco', 'assets', '_hmr');
+	fs.mkdirSync(srcDir, { recursive: true });
+	fs.mkdirSync(distDir, { recursive: true });
+
+	const entrypointPath = path.join(srcDir, 'owned.tsx');
+	fs.writeFileSync(entrypointPath, 'export {}', 'utf8');
+
+	const registrar = new HmrEntrypointRegistrar({ srcDir, distDir });
+	const onDemandPromise = Promise.resolve({
+		sourcePath: entrypointPath,
+		outputPath: path.join(distDir, 'pages', 'owned.js'),
+		outputUrl: '/assets/_hmr/pages/owned.js',
+	});
+
+	registrar.trackInFlightEntrypoint(entrypointPath, onDemandPromise);
+
+	const reserved = registrar.tryTrackInFlightEntrypoint(
+		entrypointPath,
+		Promise.resolve({
+			sourcePath: entrypointPath,
+			outputPath: path.join(distDir, 'pages', 'owned.js'),
+			outputUrl: '/assets/_hmr/pages/owned.js',
+		}),
+	);
+
+	assert.equal(reserved, false);
+});

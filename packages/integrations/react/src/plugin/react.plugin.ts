@@ -315,12 +315,13 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.devClientGraphPrewarmPromise = strategy
 			.prepareColdClientGraph(cache, {
 				templateRouteFilePaths: options.templateRouteFilePaths,
-				trackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) => {
-					this.hmrManager?.trackInFlightEntrypoint?.(entrypointPath, promise);
-				},
+				tryTrackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) =>
+					this.hmrManager?.tryTrackInFlightEntrypoint?.(entrypointPath, promise) ?? false,
 				releaseInFlightEntrypoint: (entrypointPath: string) => {
 					this.hmrManager?.releaseInFlightEntrypoint?.(entrypointPath);
 				},
+				getMissingEntrypointError: (entrypointPath: string, outputPath: string) =>
+					new Error(`Cold client graph did not materialize ${entrypointPath} -> ${outputPath}`),
 			})
 			.catch((error: unknown) => {
 				appLogger.warn(

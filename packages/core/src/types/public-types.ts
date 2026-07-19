@@ -376,6 +376,7 @@ export interface IHmrManager {
 	 * {@link registerEntrypoint} callers coalesce on the same build.
 	 */
 	trackInFlightEntrypoint?(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void;
+	tryTrackInFlightEntrypoint?(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): boolean;
 
 	/**
 	 * Releases a cold client-graph in-flight promise after the grouped build completes.

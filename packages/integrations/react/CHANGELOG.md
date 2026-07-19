@@ -36,6 +36,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Features
 
+- Added background React HMR entrypoint prewarm at dev startup with grouped Rolldown batches, registrar seeding, and cross-session disk cache reuse.
 - Auto-vendor npm packages reachable from `eco.layout()` client render graphs under configured `layouts/` and `components/` directories when `router` is enabled; optional `runtimeModules` overrides manual entries for the same specifier.
 - Added nested layout arrays on `eco.page()` with unified React SSR composition via `composeDocumentShell` `composeChildren`.
 - Added `composeLayoutPageTree` and `serializePageDataScript` exports for shared client/SSR layout and hydration payloads.

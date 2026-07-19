@@ -63,15 +63,31 @@ export class HmrEntrypointRegistrar {
 		this.inFlight.delete(normalizedEntrypoint);
 	}
 
+	isEntrypointInFlight(entrypointPath: string): boolean {
+		return this.inFlight.has(path.resolve(entrypointPath));
+	}
+
 	/**
 	 * Registers an in-flight promise so concurrent {@link registerEntrypoint}
 	 * callers coalesce on the same cold client-graph build.
 	 */
 	trackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void {
+		this.tryTrackInFlightEntrypoint(entrypointPath, promise);
+	}
+
+	/**
+	 * Reserves the in-flight slot when it is still free.
+	 *
+	 * @returns `false` when another registration (for example on-demand SSR) already owns the slot.
+	 */
+	tryTrackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): boolean {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-		if (!this.inFlight.has(normalizedEntrypoint)) {
-			this.inFlight.set(normalizedEntrypoint, promise);
+		if (this.inFlight.has(normalizedEntrypoint)) {
+			return false;
 		}
+
+		this.inFlight.set(normalizedEntrypoint, promise);
+		return true;
 	}
 
 	releaseInFlightEntrypoint(entrypointPath: string): void {

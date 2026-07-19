@@ -43,8 +43,9 @@ const COLD_BATCH_CHUNK_SIZE = 25;
 
 export type ColdClientGraphDependencies = {
 	templateRouteFilePaths: readonly string[];
-	trackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) => void;
+	tryTrackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) => boolean;
 	releaseInFlightEntrypoint: (entrypointPath: string) => void;
+	getMissingEntrypointError: (entrypointPath: string, outputPath: string) => Error;
 };
 
 type ColdClientGraphTarget = {
@@ -1117,26 +1118,59 @@ export class ReactHmrStrategy extends HmrStrategy {
 		cache: DevHmrEntrypointCache,
 		dependencies: ColdClientGraphDependencies,
 	): Promise<void> {
-		const chunkPromise = (async () => {
+		type ChunkResult = Map<string, ResolvedHmrEntrypoint>;
+		let resolveChunk!: (value: ChunkResult) => void;
+		let rejectChunk!: (reason?: unknown) => void;
+		const chunkPromise = new Promise<ChunkResult>((resolve, reject) => {
+			resolveChunk = resolve;
+			rejectChunk = reject;
+		});
+
+		const targetsToBuild: ColdClientGraphTarget[] = [];
+		for (const target of uncachedTargets) {
+			const normalizedEntrypoint = path.resolve(target.entrypointPath);
+			const inFlightPromise = chunkPromise.then((built) => {
+				const resolved = built.get(normalizedEntrypoint);
+				if (!resolved) {
+					throw dependencies.getMissingEntrypointError(target.entrypointPath, target.outputPath);
+				}
+
+				return resolved;
+			});
+
+			if (dependencies.tryTrackInFlightEntrypoint(target.entrypointPath, inFlightPromise)) {
+				targetsToBuild.push(target);
+			}
+		}
+
+		if (targetsToBuild.length === 0) {
+			return;
+		}
+
+		try {
 			const builtUrls = await this.bundleReactBuildTargets(
-				uncachedTargets.map((target) => ({
+				targetsToBuild.map((target) => ({
 					entrypointPath: target.entrypointPath,
 					outputUrl: target.outputUrl,
 				})),
 				{ grouped: true },
 			);
 			const builtUrlSet = new Set(builtUrls);
+			const built = new Map<string, ResolvedHmrEntrypoint>();
 
-			for (const target of uncachedTargets) {
-				if (!builtUrlSet.has(target.outputUrl)) {
+			for (const target of targetsToBuild) {
+				if (!builtUrlSet.has(target.outputUrl) || !fileSystem.exists(target.outputPath)) {
 					continue;
 				}
 
-				this.context.seedResolvedEntrypoint({
+				const resolved: ResolvedHmrEntrypoint = {
 					sourcePath: target.entrypointPath,
 					outputPath: target.outputPath,
 					outputUrl: target.outputUrl,
-				});
+				};
+				built.set(path.resolve(target.entrypointPath), resolved);
+
+				this.context.seedResolvedEntrypoint(resolved);
 
 				let sourceMtimeMs = 0;
 				try {
@@ -1152,21 +1186,14 @@ export class ReactHmrStrategy extends HmrStrategy {
 					builtAt: Date.now(),
 				});
 			}
-		})();
 
-		for (const target of uncachedTargets) {
-			const inFlightPromise = chunkPromise.then(() => ({
-				sourcePath: target.entrypointPath,
-				outputPath: target.outputPath,
-				outputUrl: target.outputUrl,
-			}));
-			dependencies.trackInFlightEntrypoint(target.entrypointPath, inFlightPromise);
-		}
-
-		try {
+			resolveChunk(built);
 			await chunkPromise;
+		} catch (error) {
+			rejectChunk(error);
+			throw error;
 		} finally {
-			for (const target of uncachedTargets) {
+			for (const target of targetsToBuild) {
 				dependencies.releaseInFlightEntrypoint(target.entrypointPath);
 			}
 		}

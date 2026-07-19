@@ -229,9 +229,12 @@ The group registration:
 - Applies middleware to all routes in the group
 - The middleware context is available in all handlers
 
-## Type Safety with Define Handlers
+## Extracted handlers
 
-For enhanced type safety with path parameters, middleware context, and request schemas, use the `defineApiHandler` and `defineGroupHandler` helpers.
+For handlers in separate files, use `defineGet`, `definePost`, and the other method helpers. They wrap `defineApiHandler` and fix the HTTP verb for you. Register prebuilt handlers with `app.add(handler)`.
 
-See the [Define Handlers](/docs/server/define-handlers) documentation for complete details.
-```
+Use inline `app.get(path, handler)` and `app.post(path, handler)` only when defining routes directly in `app.ts`, as shown above.
+
+Optional response shortcuts — `json`, `html`, and `redirect` from `@ecopages/core` — share the same body emission path as `context.response.json()` and friends.
+
+See [Define Handlers](/docs/server/define-handlers) for `defineApiHandler`, `defineGroupHandler`, schemas, middleware, and grouped routes.

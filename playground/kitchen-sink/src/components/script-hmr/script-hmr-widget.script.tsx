@@ -1,5 +1,4 @@
 /** @jsxImportSource @ecopages/jsx */
-import '@ecopages/radiant/client/install-hydrator';
 import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 

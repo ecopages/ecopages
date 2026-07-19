@@ -101,6 +101,10 @@ test.describe('Declared client script HMR @hmr', () => {
 		restoreMutatedSources();
 	});
 
+	test.beforeEach(() => {
+		restoreMutatedSources();
+	});
+
 	test.afterAll(() => {
 		restoreMutatedSources();
 	});
@@ -169,7 +173,14 @@ test.describe('Declared client script HMR @hmr', () => {
 		timer.mark('navigation-ready');
 		await hmrReady;
 		timer.mark('hmr-connected');
-		await expect(page.getByTestId('script-hmr-widget')).toHaveText(SCRIPT_WIDGET_BASELINE);
+		await assertRegisteredHmrScript(page, 'script-hmr-widget.script');
+		await expect(page.getByTestId('page-script-hmr')).toBeVisible();
+		await expect(page.getByTestId('script-hmr-marker')).toHaveText(SCRIPT_HMR_BASELINE, {
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+		});
+		await expect(page.getByTestId('script-hmr-widget')).toHaveText(SCRIPT_WIDGET_BASELINE, {
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+		});
 
 		fs.writeFileSync(scriptWidgetFile, patchScriptWidget(originalScriptWidget, SCRIPT_WIDGET_UPDATED), 'utf-8');
 		timer.mark('mutation-applied');

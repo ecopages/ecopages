@@ -106,7 +106,7 @@ test('HmrEntrypointRegistrar deduplicates concurrent registrations', async () =>
 	assert.equal(first.outputUrl, second.outputUrl);
 });
 
-test('seedResolvedEntrypoint registers without invoking emit', async () => {
+test('registerTransformModule tracks transform URLs without invoking emit', async () => {
 	const rootDir = createTempRoot('hmr-registrar-seed');
 	const srcDir = path.join(rootDir, 'src');
 	const distDir = path.join(rootDir, '.eco', 'assets', '_hmr');
@@ -120,17 +120,13 @@ test('seedResolvedEntrypoint registers without invoking emit', async () => {
 
 	const registrar = new HmrEntrypointRegistrar({ srcDir, distDir });
 	let emitCalls = 0;
-	registrar.seedResolvedEntrypoint({
-		sourcePath: entrypointPath,
-		outputPath,
-		outputUrl: '/assets/_hmr/seeded.script.js',
-	});
+	registrar.registerTransformModule(entrypointPath, '/assets/__eco_dev__/seeded.script.js');
 
 	const registered = registrar.getRegistered().get(path.resolve(entrypointPath));
-	assert.equal(registered?.outputUrl, '/assets/_hmr/seeded.script.js');
+	assert.equal(registered?.outputUrl, '/assets/__eco_dev__/seeded.script.js');
 	assert.equal(registrar.getWatchedFiles().has(path.resolve(entrypointPath)), true);
 
-	// A later registerEntrypoint for the same entrypoint must reuse the seed, not rebuild.
+	// registerEntrypoint still rebuilds Rolldown artifacts when invoked explicitly.
 	await registrar.registerEntrypoint(entrypointPath, {
 		emit: async () => {
 			emitCalls += 1;

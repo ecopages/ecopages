@@ -53,10 +53,7 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
  * coalesced {@link ensureIntegrationRuntimeReady} promise instead of paying a cold vendor build.
  * Failures are logged and do not crash the server.
  */
-export function startConfiguredIntegrationRuntimePrewarm(options: {
-	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-}): void {
+export function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): void {
 	const { appConfig, runtimeOrigin } = options;
 
 	void Promise.all(

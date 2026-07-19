@@ -288,6 +288,10 @@
 		"./integrations/ghtml": {
 			"types": "./src/integrations/ghtml/ghtml.plugin.ts",
 			"default": "./src/integrations/ghtml/ghtml.plugin.ts"
+		},
+		"./dev/transform-server": {
+			"types": "./src/dev/transform-server/index.ts",
+			"default": "./src/dev/transform-server/index.ts"
 		}
 	}
 }

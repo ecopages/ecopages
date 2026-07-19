@@ -1,8 +1,8 @@
 import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
-import { SharedApplicationAdapter } from '../shared/application-adapter.ts';
-import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime-app-bootstrap.ts';
-import type { RuntimeHost } from '../shared/runtime-host.ts';
+import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
+import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { EcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';

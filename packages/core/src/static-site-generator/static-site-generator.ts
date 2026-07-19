@@ -18,7 +18,7 @@ import type {
 } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { prepareExplicitStaticRender } from '../adapters/shared/explicit-static-render-preparation.ts';
+import { prepareExplicitStaticRender } from '../adapters/shared/http/explicit-static-render-preparation.ts';
 import { createRouteModuleStaticRenderCacheContext } from './static-build-invalidation.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import {

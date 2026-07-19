@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import type { ApiResponseBuilder } from '../adapters/shared/api-response.ts';
+import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
 import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
@@ -380,6 +380,16 @@ export interface IHmrManager {
 	 * Gets the HMR dist directory.
 	 */
 	getDistDir(): string;
+
+	/**
+	 * Returns the on-disk path to the bundled HMR runtime script.
+	 */
+	getRuntimePath(): string;
+
+	/**
+	 * Serves a development HMR asset request when the URL matches a known HMR path.
+	 */
+	tryHandleAssetRequest(request: Request): Response | null;
 
 	/**
 	 * Gets the default HMR context.

@@ -372,6 +372,17 @@ export interface IHmrManager {
 	seedResolvedEntrypoint?(resolved: ResolvedHmrEntrypoint): void;
 
 	/**
+	 * Registers an in-flight cold client-graph promise so concurrent
+	 * {@link registerEntrypoint} callers coalesce on the same build.
+	 */
+	trackInFlightEntrypoint?(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void;
+
+	/**
+	 * Releases a cold client-graph in-flight promise after the grouped build completes.
+	 */
+	releaseInFlightEntrypoint?(entrypointPath: string): void;
+
+	/**
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;

@@ -375,6 +375,14 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.entrypointRegistrar.seedResolvedEntrypoint(resolved);
 	}
 
+	public trackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void {
+		this.entrypointRegistrar.trackInFlightEntrypoint(entrypointPath, promise);
+	}
+
+	public releaseInFlightEntrypoint(entrypointPath: string): void {
+		this.entrypointRegistrar.releaseInFlightEntrypoint(entrypointPath);
+	}
+
 	/**
 	 * Returns the emitted HMR script output when the entrypoint is already registered
 	 * and its browser bundle exists on disk.

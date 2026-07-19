@@ -58,7 +58,27 @@ export class HmrEntrypointRegistrar {
 	}
 
 	clearRegistration(entrypointPath: string): void {
-		this.registered.delete(path.resolve(entrypointPath));
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		this.registered.delete(normalizedEntrypoint);
+		this.inFlight.delete(normalizedEntrypoint);
+	}
+
+	/**
+	 * Registers an in-flight promise so concurrent {@link registerEntrypoint}
+	 * callers coalesce on the same cold client-graph build.
+	 */
+	trackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void {
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		if (!this.inFlight.has(normalizedEntrypoint)) {
+			this.inFlight.set(normalizedEntrypoint, promise);
+		}
+	}
+
+	releaseInFlightEntrypoint(entrypointPath: string): void {
+		const normalizedEntrypoint = path.resolve(entrypointPath);
+		if (this.inFlight.get(normalizedEntrypoint)) {
+			this.inFlight.delete(normalizedEntrypoint);
+		}
 	}
 
 	/**

@@ -26,6 +26,13 @@ export type {
 } from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
 export type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
+
+/** Options passed to integration-owned dev client-graph prewarm kickoff. */
+export type DevClientGraphPrewarmOptions = {
+	appConfig: EcoPagesAppConfig;
+	templateRouteFilePaths: readonly string[];
+};
+
 export type {
 	HtmlDocumentContribution,
 	HtmlDocumentContributionContext,
@@ -241,6 +248,16 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			this.assetProcessingService.setHmrManager(hmrManager);
 		}
 	}
+
+	/**
+	 * Starts background cold client-graph prewarm for this integration when supported.
+	 */
+	startDevClientGraphPrewarm?(_options: DevClientGraphPrewarmOptions): void {}
+
+	/**
+	 * Waits for integration-owned cold client-graph prewarm when blocking mode is enabled.
+	 */
+	async awaitDevClientGraphPrewarm(): Promise<void> {}
 
 	/**
 	 * Creates the asset-processing service used for global integration dependencies.

@@ -74,6 +74,42 @@ export function startConfiguredIntegrationRuntimePrewarm(options: {
 	});
 }
 
+/** Returns whether background cold client-graph prewarm is enabled. */
+export function isDevColdClientGraphEnabled(): boolean {
+	return process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH !== 'false';
+}
+
+/**
+ * Starts background cold client-graph prewarm for every integration that supports it.
+ */
+export function startConfiguredClientGraphPrewarm(options: {
+	appConfig: EcoPagesAppConfig;
+	templateRouteFilePaths: readonly string[];
+	hmrEnabled: boolean;
+}): void {
+	if (!options.hmrEnabled || !isDevColdClientGraphEnabled()) {
+		return;
+	}
+
+	for (const integration of options.appConfig.integrations) {
+		integration.startDevClientGraphPrewarm?.({
+			appConfig: options.appConfig,
+			templateRouteFilePaths: options.templateRouteFilePaths,
+		});
+	}
+}
+
+/**
+ * Waits for integration-owned cold client-graph batches when blocking mode is enabled.
+ */
+export async function awaitConfiguredClientGraphPrewarm(appConfig: EcoPagesAppConfig): Promise<void> {
+	if (!isDevColdClientGraphEnabled() || process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING !== 'true') {
+		return;
+	}
+
+	await Promise.all(appConfig.integrations.map((integration) => integration.awaitDevClientGraphPrewarm()));
+}
+
 /**
  * Releases shared dev resources in a consistent order across server adapters.
  *

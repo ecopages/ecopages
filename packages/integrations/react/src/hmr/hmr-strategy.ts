@@ -8,12 +8,20 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
+import type { ResolvedHmrEntrypoint } from '@ecopages/core';
+import {
+	getDevHmrEntrypointCacheEntry,
+	removeDevHmrEntrypointCacheEntry,
+	setDevHmrEntrypointCacheEntry,
+	type DevHmrEntrypointCache,
+} from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 import { FileNotFoundError, fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
@@ -29,6 +37,21 @@ import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
+
+/** Entrypoints emitted per grouped Rolldown pass during the cold client graph build. */
+const COLD_BATCH_CHUNK_SIZE = 25;
+
+export type ColdClientGraphDependencies = {
+	templateRouteFilePaths: readonly string[];
+	trackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) => void;
+	releaseInFlightEntrypoint: (entrypointPath: string) => void;
+};
+
+type ColdClientGraphTarget = {
+	entrypointPath: string;
+	outputPath: string;
+	outputUrl: string;
+};
 
 export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
@@ -124,6 +147,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private pageMetadataCache: HmrPageMetadataCache;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
+	private devHmrEntrypointCache?: DevHmrEntrypointCache;
 
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
@@ -502,6 +526,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(_filePath, requestedTargets);
 		}
 		const requiresLayoutRefresh = isLayout || hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
+
+		this.invalidateColdGraphCacheForPaths([
+			...pageTargets.map((target) => target.entrypointPath),
+			...nonPageTargets.map((target) => target.entrypointPath),
+		]);
 
 		await this.clearOutdirsForTargets(pageTargets, nonPageTargets);
 
@@ -926,6 +955,230 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.error(`Error processing output for ${url}:`, error as Error);
 			await fileSystem.removeAsync(tempPath).catch(() => {});
 			return false;
+		}
+	}
+
+	/**
+	 * Builds the full client HMR graph in grouped Rolldown passes during server startup.
+	 *
+	 * @remarks
+	 * Discovers React page entrypoints from the route registry (with a pages-dir
+	 * fallback), seeds cache hits immediately, and builds uncached chunks in the
+	 * background. In-flight promises are registered before each grouped build so
+	 * concurrent SSR callers coalesce on the same work.
+	 */
+	async prepareColdClientGraph(
+		cache: DevHmrEntrypointCache,
+		dependencies: ColdClientGraphDependencies,
+	): Promise<void> {
+		this.devHmrEntrypointCache = cache;
+		const entrypoints = await this.discoverColdClientGraphEntrypoints(dependencies.templateRouteFilePaths);
+		if (entrypoints.length === 0) {
+			return;
+		}
+
+		appLogger.debug(`Preparing cold client graph for ${entrypoints.length} React entrypoints`);
+
+		for (let index = 0; index < entrypoints.length; index += COLD_BATCH_CHUNK_SIZE) {
+			const chunk = entrypoints.slice(index, index + COLD_BATCH_CHUNK_SIZE);
+			const targets = chunk.map((entrypointPath) => {
+				const { outputPath, outputUrl } = this.getEntrypointOutput(entrypointPath);
+				return { entrypointPath, outputPath, outputUrl };
+			});
+
+			const cachedTargets: ColdClientGraphTarget[] = [];
+			const uncachedTargets: ColdClientGraphTarget[] = [];
+
+			for (const target of targets) {
+				const hit = getDevHmrEntrypointCacheEntry(cache, target.entrypointPath);
+				if (hit && fileSystem.exists(hit.outputPath)) {
+					cachedTargets.push({
+						entrypointPath: target.entrypointPath,
+						outputPath: hit.outputPath,
+						outputUrl: hit.outputUrl,
+					});
+				} else {
+					uncachedTargets.push(target);
+				}
+			}
+
+			for (const target of cachedTargets) {
+				this.context.seedResolvedEntrypoint({
+					sourcePath: target.entrypointPath,
+					outputPath: target.outputPath,
+					outputUrl: target.outputUrl,
+				});
+			}
+
+			if (uncachedTargets.length === 0) {
+				continue;
+			}
+
+			await this.materializeUncachedColdClientGraphChunk(uncachedTargets, cache, dependencies);
+		}
+	}
+
+	private async discoverColdClientGraphEntrypoints(templateRouteFilePaths: readonly string[]): Promise<string[]> {
+		const fromRoutes = this.collectReactEntrypointsFromRouteFiles(templateRouteFilePaths);
+		if (fromRoutes.length > 0) {
+			return fromRoutes;
+		}
+
+		return this.discoverReactEntrypointsFromPagesDir();
+	}
+
+	private collectReactEntrypointsFromRouteFiles(templateRouteFilePaths: readonly string[]): string[] {
+		const seen = new Set<string>();
+		const entrypoints: string[] = [];
+
+		for (const filePath of templateRouteFilePaths) {
+			if (!this.isReactEntrypoint(filePath) || !this.isPageEntrypoint(filePath)) {
+				continue;
+			}
+
+			const normalized = path.resolve(filePath);
+			if (seen.has(normalized)) {
+				continue;
+			}
+
+			seen.add(normalized);
+			this.pageMetadataCache.markOwnedEntrypoint(filePath);
+			entrypoints.push(filePath);
+		}
+
+		return entrypoints.sort((left, right) => left.localeCompare(right));
+	}
+
+	private discoverReactEntrypointsFromPagesDir(): string[] {
+		const pagesDir = this.context.getPagesDir();
+		const files: string[] = [];
+
+		const walk = (dir: string): void => {
+			if (!fileSystem.exists(dir)) {
+				return;
+			}
+
+			let entries: fs.Dirent[];
+			try {
+				entries = fs.readdirSync(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+
+			for (const entry of entries) {
+				const entryPath = path.join(dir, entry.name);
+				if (entry.isDirectory()) {
+					walk(entryPath);
+					continue;
+				}
+
+				if (/\.(tsx?|jsx?|mdx)$/.test(entry.name)) {
+					files.push(entryPath);
+				}
+			}
+		};
+
+		walk(pagesDir);
+
+		const seen = new Set<string>();
+		const entrypoints: string[] = [];
+
+		for (const filePath of files) {
+			let source: string;
+			try {
+				source = fs.readFileSync(filePath, 'utf8');
+			} catch {
+				continue;
+			}
+
+			if (!/\beco\.page(?:<[^>]*>)?\s*\(/.test(source)) {
+				continue;
+			}
+
+			if (!this.isReactEntrypoint(filePath) || !this.isPageEntrypoint(filePath)) {
+				continue;
+			}
+
+			const normalized = path.resolve(filePath);
+			if (seen.has(normalized)) {
+				continue;
+			}
+
+			seen.add(normalized);
+			this.pageMetadataCache.markOwnedEntrypoint(filePath);
+			entrypoints.push(filePath);
+		}
+
+		return entrypoints.sort((left, right) => left.localeCompare(right));
+	}
+
+	private async materializeUncachedColdClientGraphChunk(
+		uncachedTargets: ColdClientGraphTarget[],
+		cache: DevHmrEntrypointCache,
+		dependencies: ColdClientGraphDependencies,
+	): Promise<void> {
+		const chunkPromise = (async () => {
+			const builtUrls = await this.bundleReactBuildTargets(
+				uncachedTargets.map((target) => ({
+					entrypointPath: target.entrypointPath,
+					outputUrl: target.outputUrl,
+				})),
+				{ grouped: true },
+			);
+			const builtUrlSet = new Set(builtUrls);
+
+			for (const target of uncachedTargets) {
+				if (!builtUrlSet.has(target.outputUrl)) {
+					continue;
+				}
+
+				this.context.seedResolvedEntrypoint({
+					sourcePath: target.entrypointPath,
+					outputPath: target.outputPath,
+					outputUrl: target.outputUrl,
+				});
+
+				let sourceMtimeMs = 0;
+				try {
+					sourceMtimeMs = fs.statSync(target.entrypointPath).mtimeMs;
+				} catch {
+					// leave mtime at 0; the next session will rebuild defensively
+				}
+
+				setDevHmrEntrypointCacheEntry(cache, target.entrypointPath, {
+					outputPath: target.outputPath,
+					outputUrl: target.outputUrl,
+					sourceMtimeMs,
+					builtAt: Date.now(),
+				});
+			}
+		})();
+
+		for (const target of uncachedTargets) {
+			const inFlightPromise = chunkPromise.then(() => ({
+				sourcePath: target.entrypointPath,
+				outputPath: target.outputPath,
+				outputUrl: target.outputUrl,
+			}));
+			dependencies.trackInFlightEntrypoint(target.entrypointPath, inFlightPromise);
+		}
+
+		try {
+			await chunkPromise;
+		} finally {
+			for (const target of uncachedTargets) {
+				dependencies.releaseInFlightEntrypoint(target.entrypointPath);
+			}
+		}
+	}
+
+	private invalidateColdGraphCacheForPaths(entrypointPaths: string[]): void {
+		if (!this.devHmrEntrypointCache) {
+			return;
+		}
+
+		for (const entrypointPath of entrypointPaths) {
+			removeDevHmrEntrypointCacheEntry(this.devHmrEntrypointCache, entrypointPath);
 		}
 	}
 }

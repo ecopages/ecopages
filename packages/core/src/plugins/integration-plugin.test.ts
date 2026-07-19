@@ -108,6 +108,8 @@ describe('IntegrationPlugin', () => {
 			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getDistDir: vi.fn(() => ''),
+			getRuntimePath: vi.fn(() => ''),
+			tryHandleAssetRequest: vi.fn(() => null),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),
 		} satisfies IHmrManager;

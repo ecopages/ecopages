@@ -52,7 +52,7 @@ describe('NodeServerAdapter', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('injects the HMR runtime into explicit HTML handler responses in watch mode', async () => {
+	it('does not re-inject HMR at the Node boundary (inject lives in SharedServerAdapter)', async () => {
 		const adapter = createAdapter();
 		adapter.setInitializedForTest();
 		adapter.setHmrManagerForTest({ isEnabled: () => true });
@@ -60,8 +60,8 @@ describe('NodeServerAdapter', () => {
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
 		const html = await response.text();
 
-		expect(html).toContain("import '/_hmr_runtime.js'");
-		expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
+		expect(html).toBe('<html><body><h1>Explicit route</h1></body></html>');
+		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
 	it('does not inject the HMR runtime when watch mode is disabled', async () => {

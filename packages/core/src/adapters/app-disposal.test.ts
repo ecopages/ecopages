@@ -6,7 +6,7 @@ import type { BunServerAdapterResult } from './bun/server-adapter.ts';
 import { NodeEcopagesApp } from './node/create-app.ts';
 import type { NodeServerAdapterResult } from './node/server-adapter.ts';
 import type { NodeServerAdapterParams } from './node/server-adapter.ts';
-import type { RuntimeHost } from './shared/runtime-host.ts';
+import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
 
 function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undefined)) {
 	return {

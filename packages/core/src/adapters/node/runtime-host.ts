@@ -1,8 +1,8 @@
 import { createServer, type Server as NodeServerInstance } from 'node:http';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
-import type { RuntimeHost, RuntimeHostStartOptions } from '../shared/runtime-host.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { RuntimeHost, RuntimeHostStartOptions } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
 type NodeServerFactory = typeof createServer;

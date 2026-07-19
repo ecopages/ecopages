@@ -4,7 +4,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { SharedHmrManager } from '../shared/shared-hmr-manager.ts';
+import { SharedHmrManager } from '../shared/hmr/shared-hmr-manager.ts';
 
 export interface NodeHmrManagerParams {
 	appConfig: EcoPagesAppConfig;

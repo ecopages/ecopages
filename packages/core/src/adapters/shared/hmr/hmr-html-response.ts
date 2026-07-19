@@ -1,0 +1,62 @@
+import type { IHmrManager } from '../../../types/public-types.ts';
+
+const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
+const HMR_RUNTIME_SCRIPT = `<script type="module">${HMR_RUNTIME_IMPORT};</script>`;
+
+/**
+ * Returns whether a response is HTML and therefore eligible for development HMR
+ * runtime injection.
+ */
+export function isHtmlResponse(response: Response): boolean {
+	const contentType = response.headers.get('Content-Type');
+	return contentType !== null && contentType.startsWith('text/html');
+}
+
+/**
+ * Returns whether HTML responses should receive the HMR runtime bootstrap.
+ *
+ * This is shared because filesystem page responses and adapter-level HTML
+ * responses flow through different layers, but both need identical injection
+ * behavior in watch mode.
+ */
+export function shouldInjectHmrHtmlResponse(
+	watch: boolean,
+	hmrManager?: Pick<IHmrManager, 'isEnabled'>,
+	hostOwnsDevClient = false,
+): boolean {
+	if (hostOwnsDevClient) {
+		return false;
+	}
+
+	return watch && hmrManager?.isEnabled() === true;
+}
+
+/**
+ * Injects the development HMR runtime script into an HTML response if it is not
+ * already present.
+ *
+ * The check is intentionally idempotent because an HTML response can pass
+ * through more than one development-layer wrapper before reaching the client.
+ */
+export async function injectHmrRuntimeIntoHtmlResponse(response: Response): Promise<Response> {
+	const html = await response.text();
+	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'no-store, must-revalidate');
+	headers.delete('Content-Length');
+
+	if (html.includes(HMR_RUNTIME_IMPORT)) {
+		return new Response(html, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	}
+
+	const updatedHtml = html.replace(/<\/html>/i, `${HMR_RUNTIME_SCRIPT}</html>`);
+
+	return new Response(updatedHtml, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}

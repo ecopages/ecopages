@@ -186,31 +186,60 @@ Dependency ownership affects final asset packaging:
 
 ### 5. API Handlers
 
-Add server-side routes using `defineApiHandler`. Register them on your `app` instance before starting:
+Add server-side routes using `defineApiHandler` or the method helpers (`defineGet`, `definePost`, …). Register them on your `app` instance before starting:
 
 ```typescript
-import { defineApiHandler } from '@ecopages/core';
+import { defineApiHandler, defineGet, json } from '@ecopages/core';
 
-export const helloWorld = defineApiHandler({
+export const helloWorld = defineGet({
 	path: '/api/hello',
-	method: 'GET',
 	handler: async ({ response }) => {
 		return response.json({ message: 'Hello World' });
 	},
 });
+
+// Equivalent with an explicit method:
+export const helloWorldAlt = defineApiHandler({
+	path: '/api/hello',
+	method: 'GET',
+	handler: async () => json({ message: 'Hello World' }),
+});
 ```
+
+Group related routes with `defineGroupHandler`. Prefer `api.get` / `api.post` helpers inside the `routes` callback:
+
+```typescript
+import { defineGroupHandler } from '@ecopages/core';
+
+export const adminGroup = defineGroupHandler({
+	prefix: '/admin',
+	routes: (api) => [
+		api.get({
+			path: '/',
+			handler: async ({ response }) => response.json({ ok: true }),
+		}),
+		api.post({
+			path: '/items',
+			handler: async ({ response }) => response.status(201).json({ created: true }),
+		}),
+	],
+});
+```
+
+Standalone response helpers (`json`, `html`, `redirect`) share the same body emission path as `context.response.json()` / `context.response.html()`.
+
+Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
 Attach the handler in your `app.ts` entry:
 
 ```typescript
-// app.ts
 import { createApp } from '@ecopages/core/create-app';
 import { helloWorld } from './handlers/hello';
 import appConfig from './eco.config';
 
 const app = await createApp({ appConfig });
 
-app.get(helloWorld); // Register the API handler
+app.add(helloWorld);
 
 await app.start();
 ```
@@ -223,7 +252,7 @@ Use the `create-app` subpath for runtime startup and the root package for standa
 
 ```ts
 import { createApp } from '@ecopages/core/create-app';
-import { defineApiHandler, defineGroupHandler, eco } from '@ecopages/core';
+import { defineApiHandler, defineGet, defineGroupHandler, eco } from '@ecopages/core';
 ```
 
 > [!NOTE]

@@ -24,6 +24,7 @@ import {
 	disposeDevResources,
 	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
+	startConfiguredIntegrationRuntimePrewarm,
 } from '../shared/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -409,6 +410,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			}
 
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			startConfiguredIntegrationRuntimePrewarm({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+			});
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

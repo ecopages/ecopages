@@ -4,6 +4,8 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { IHmrManager } from '../../types/public-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
 import { disposeAppBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import type { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 import { clearAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
@@ -49,6 +51,35 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
  */
 export function wireIntegrationHmrManagers(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
 	attachHmrToIntegrations(appConfig, hmrManager);
+}
+
+/**
+ * Starts background activation of every configured integration after watch-mode HMR is ready.
+ *
+ * @remarks
+ * Fire-and-forget: overlaps with watcher setup so first-page render can join the same
+ * coalesced {@link ensureIntegrationRuntimeReady} promise instead of paying a cold vendor build.
+ * Failures are logged and do not crash the server.
+ */
+export function startConfiguredIntegrationRuntimePrewarm(options: {
+	appConfig: EcoPagesAppConfig;
+	runtimeOrigin: string;
+}): void {
+	const { appConfig, runtimeOrigin } = options;
+
+	void Promise.all(
+		appConfig.integrations.map((integration) =>
+			ensureIntegrationRuntimeReady({
+				appConfig,
+				integrationName: integration.name,
+				runtimeOrigin,
+			}),
+		),
+	).catch((error) => {
+		appLogger.error(
+			`Failed to prewarm integration runtimes: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	});
 }
 
 /**

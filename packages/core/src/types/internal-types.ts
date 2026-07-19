@@ -178,8 +178,14 @@ export type EcoPagesAppConfig = {
 		runtimeAssetsPrepared?: boolean;
 		/** Registers integration runtime plugins when lazy activation completes. */
 		onRuntimePlugin?: (plugin: import('../build/contracts/build-types.ts').EcoBuildPlugin) => void;
-		/** Integration names that completed lazy runtime activation. */
-		activatedIntegrations?: Set<string>;
+		/**
+		 * In-flight or completed lazy integration activation promises, keyed by integration name.
+		 *
+		 * @remarks
+		 * Concurrent callers (background prewarm + first render) share the same promise.
+		 * Failed activations are removed so a later caller can retry.
+		 */
+		integrationActivations?: Map<string, Promise<void>>;
 		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
 		devClientOwner?: 'core' | 'host';
 		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */

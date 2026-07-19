@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/build/build-types';
 import { BundleService } from './bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
@@ -236,5 +237,43 @@ describe('BundleService', () => {
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
+		const service = new BundleService({
+			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
+		});
+		let resolveProcess!: () => void;
+		const processGate = new Promise<void>((resolve) => {
+			resolveProcess = resolve;
+		});
+		const processDependencies = vi.fn(async () => {
+			await processGate;
+			return [];
+		});
+		const assetProcessingService = {
+			processDependencies,
+		} satisfies Pick<AssetProcessingService, 'processDependencies'>;
+
+		const first = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
+		const second = service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
+
+		expect(processDependencies).toHaveBeenCalledTimes(1);
+		expect(processDependencies).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'page-layout-normalization',
+				}),
+			]),
+			'react:page-layout-normalization',
+		);
+
+		resolveProcess();
+		await Promise.all([first, second]);
+
+		await service.ensurePageLayoutNormalizationVendorProcessed(assetProcessingService);
+		expect(processDependencies).toHaveBeenCalledTimes(1);
 	});
 });

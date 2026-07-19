@@ -96,13 +96,6 @@ describe('RuntimeBundleService', () => {
 					}),
 				}),
 				expect.objectContaining({
-					name: 'page-layout-normalization',
-					importPath: '@ecopages/core/eco/page-layout-normalization',
-					bundleOptions: expect.objectContaining({
-						naming: 'page-layout-normalization.development.js',
-					}),
-				}),
-				expect.objectContaining({
 					name: 'layout-compose',
 					importPath: '@ecopages/react/layout-compose',
 					bundleOptions: expect.objectContaining({
@@ -125,6 +118,18 @@ describe('RuntimeBundleService', () => {
 				}),
 			]),
 		);
+		expect(
+			dependencies.some((dependency) => 'name' in dependency && dependency.name === 'page-layout-normalization'),
+		).toBe(false);
+		expect(service.getPageLayoutNormalizationDependencies()).toEqual([
+			expect.objectContaining({
+				name: 'page-layout-normalization',
+				importPath: '@ecopages/core/eco/page-layout-normalization',
+				bundleOptions: expect.objectContaining({
+					naming: 'page-layout-normalization.development.js',
+				}),
+			}),
+		]);
 		expect(
 			dependencies.some(
 				(dependency) =>

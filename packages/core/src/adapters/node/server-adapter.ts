@@ -12,24 +12,23 @@ import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {
 	attachNodeHttpWebSocketUpgrades,
 	type NodeHttpWebSocketUpgradePreflight,
-} from '../shared/node-http-websocket-upgrades.ts';
+} from '../shared/ws/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
-import { SharedServerAdapter } from '../shared/server-adapter.ts';
+import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
-import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
+import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import {
 	attachHmrToIntegrations,
 	disposeDevResources,
-	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
 	startConfiguredIntegrationRuntimePrewarm,
-} from '../shared/runtime-server-lifecycle.ts';
-import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
+} from '../shared/runtime/runtime-server-lifecycle.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
-import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
+import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
 import { DefaultNodeServerDevRuntimeFactory, type NodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
 
 export type NodeServerInstance = NodeHttpServer;
@@ -131,14 +130,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			websocketHandlers: this.websocketHandlers,
 			passthroughUnmatched: false,
 			preflight,
-		});
-	}
-
-	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		return maybeInjectAdapterHmrHtmlResponse(response, {
-			watch: this.options?.watch === true,
-			hmrManager: this.hmrManager ?? undefined,
-			hostOwnsDevClient: this.hostOwnsDevClient,
 		});
 	}
 
@@ -336,10 +327,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				apiHandlers: this.apiHandlers,
 				errorHandler: this.errorHandler,
 				serverInstance: this.serverInstance,
-				hmrManager: this.hmrManager,
+				hmrManager: this.hmrManager ?? undefined,
 			});
 
-			return await this.maybeInjectHmrScript(response);
+			return response;
 		} catch (error) {
 			if (error instanceof NodeClientAbortError) {
 				/**
@@ -421,9 +412,9 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				config: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
 					staticRoutes: this.staticRoutes,
-					hmrManager: this.hmrManager,
+					hmrManager: this.hmrManager ?? undefined,
 				}),
-				hmrManager: this.hmrManager,
+				hmrManager: this.hmrManager ?? undefined,
 				bridge: this.bridge,
 				hostOwnsDevClient: this.hostOwnsDevClient,
 			});

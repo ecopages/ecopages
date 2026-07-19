@@ -22,23 +22,22 @@ import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import { SharedServerAdapter } from '../shared/server-adapter.ts';
+import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
-import { ApiResponseBuilder } from '../shared/api-response.ts';
-import type { StaticPreviewHost } from '../shared/static-preview-host.ts';
+import { ApiResponseBuilder } from '../shared/http/api-response.ts';
+import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
 
-import { ServerStaticBuilder } from '../shared/server-static-builder.ts';
-import { attachNodeHttpWebSocketUpgrades } from '../shared/node-http-websocket-upgrades.ts';
-import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from '../shared/bun-user-websocket-lifecycle.ts';
-import { createEcopagesSocket } from '../shared/websocket-lifecycle.ts';
-import { resolveServeRuntimeOrigin } from '../shared/runtime-app-bootstrap.ts';
+import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from './bun-user-websocket-lifecycle.ts';
+import { createEcopagesSocket } from '../shared/ws/websocket-lifecycle.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import {
 	attachHmrToIntegrations,
 	disposeDevResources,
-	maybeInjectAdapterHmrHtmlResponse,
 	prepareRuntimePublicDir,
 	startConfiguredIntegrationRuntimePrewarm,
-} from '../shared/runtime-server-lifecycle.ts';
+} from '../shared/runtime/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
 import { setAppHmrManager } from '../../dev/hmr-manager-registry.ts';
@@ -251,22 +250,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	}
 
 	/**
-	 * Returns whether adapter-level HTML responses still need HMR runtime injection.
-	 *
-	 * @remarks
-	 * Filesystem-routed pages are wrapped later in the shared route layer. This
-	 * adapter-level check exists for explicit API handlers that return HTML and
-	 * would otherwise bypass the route wrapper entirely.
-	 */
-	private async maybeInjectHmrScript(response: Response): Promise<Response> {
-		return maybeInjectAdapterHmrHtmlResponse(response, {
-			watch: this.options?.watch === true,
-			hmrManager: this.hmrManager,
-			hostOwnsDevClient: this.hostOwnsDevClient,
-		});
-	}
-
-	/**
 	 * Initializes the server adapter's core runtime components.
 	 */
 	public async initialize(): Promise<void> {
@@ -446,8 +429,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 	/**
 	 * @remarks
-	 * When `serveHmrEndpoints` is set, `/_hmr` and `/_hmr_runtime.js` are checked
-	 * before user websocket patterns so HMR upgrades are never captured by app routes.
+	 * When `serveHmrEndpoints` is set, `/_hmr` is checked before user websocket
+	 * patterns so HMR upgrades are never captured by app routes. Runtime assets are
+	 * served by `SharedServerAdapter.handleSharedRequest` via `tryHandleAssetRequest`.
 	 * Production mode with only user handlers skips the HMR branch entirely.
 	 */
 	private wrapFetchWithWebSocketUpgrades(
@@ -455,8 +439,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		{ serveHmrEndpoints }: { serveHmrEndpoints: boolean },
 	): BunServeOptions['fetch'] {
 		const matchRoute = (pathname: string) => findWebSocketRoute(this.websocketHandlers, pathname);
-		const hmrManager = this.hmrManager;
-		const waitForInit = this.waitForInitialization.bind(this);
 
 		return async function (this: Server<unknown>, request: Request, server: Server<unknown>) {
 			const url = new URL(request.url);
@@ -465,21 +447,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				if (url.pathname === '/_hmr') {
 					const success = this.upgrade(request, { data: { kind: '__hmr__', params: {}, search: {} } });
 					return success ? undefined : new Response('WebSocket upgrade failed', { status: 400 });
-				}
-
-				if (url.pathname === '/_hmr_runtime.js') {
-					await waitForInit();
-					const runtimeReady = await hmrManager.ensureRuntimeReady();
-					const runtimePath = hmrManager.getRuntimePath();
-					if (runtimeReady && fileSystem.exists(runtimePath)) {
-						return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
-							headers: { 'Content-Type': 'application/javascript' },
-						});
-					}
-					appLogger.warn(
-						`[HMR] Runtime script not found at ${runtimePath}; the HMR runtime build likely failed during startup.`,
-					);
-					return new Response('Not Found', { status: 404 });
 				}
 			}
 
@@ -499,26 +466,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			const res = await originalFetch.call(this, request, server);
 			return res instanceof Response ? res : new Response('Not Found', { status: 404 });
 		};
-	}
-
-	/**
-	 * Helper method to retrieve and parse the request body.
-	 * Handles JSON and plain text content types.
-	 * For FormData (multipart/form-data, x-www-form-urlencoded), use ctx.request.formData() directly.
-	 * Returns undefined for unsupported content types.
-	 */
-	private async retrieveBodyFromRequest(request: Request): Promise<unknown> {
-		const contentType = request.headers.get('Content-Type') || '';
-
-		if (contentType.includes('application/json')) {
-			return await request.json();
-		}
-
-		if (contentType.includes('text/plain')) {
-			return await request.text();
-		}
-
-		return undefined;
 	}
 
 	/**
@@ -757,11 +704,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Handles HTTP requests by passing them securely to the shared core router adapter.
 	 *
 	 * @remarks
-	 * Filesystem page responses are wrapped by `ServerRouteHandler`. This
-	 * adapter-level pass only covers HTML returned by explicit API handlers,
-	 * which bypass that route-layer wrapper and would otherwise miss the
-	 * dev HMR runtime — so the HMR script injection happens here, after
-	 * the shared handler runs.
+	 * HMR HTML injection for API and page responses is owned by
+	 * `SharedServerAdapter.handleSharedRequest`. This method only maps the
+	 * request into the shared pipeline.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
 		const response = await this.handleSharedRequest(request, {
@@ -771,7 +716,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			hmrManager: this.hmrManager,
 		});
 
-		return await this.maybeInjectHmrScript(response);
+		return response;
 	}
 
 	/**

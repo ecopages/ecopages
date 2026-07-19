@@ -1,69 +1,69 @@
 {
-  "name": "@ecopages/content-processor",
-  "version": "0.2.0-beta.30",
-  "description": "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules for pages and scripts",
-  "keywords": [
-    "content",
-    "mdx",
-    "processor",
-    "collections"
-  ],
-  "license": "MIT",
-  "main": "./src/index.ts",
-  "type": "module",
-  "files": [
-    "src",
-    "README.md",
-    "LICENSE"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ecopages/ecopages.git",
-    "directory": "packages/processors/content-processor"
-  },
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "release:jsr": "bunx jsr publish"
-  },
-  "peerDependencies": {
-    "@ecopages/core": "workspace:*"
-  },
-  "dependencies": {
-    "@ecopages/file-system": "workspace:*",
-    "@ecopages/logger": "^0.2.3",
-    "remark-frontmatter": "^5.0.0",
-    "unified": "^11.0.5",
-    "vfile": "^6.0.3",
-    "vfile-matter": "^5.0.1"
-  },
-  "devDependencies": {
-    "@ecopages/core": "workspace:*",
-    "@types/bun": "latest",
-    "vitest": "^3.2.4",
-    "zod": "^4.4.3"
-  },
-  "exports": {
-    ".": {
-      "default": "./src/index.ts",
-      "types": "./src/index.ts"
-    },
-    "./plugin": {
-      "default": "./src/plugin.ts",
-      "types": "./src/plugin.ts"
-    },
-    "./types": {
-      "types": "./src/types.ts"
-    },
-    "./mdx": {
-      "default": "./src/mdx.ts",
-      "types": "./src/mdx.ts"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "ecopages:content/*": [
-        "./virtual-module.d.ts"
-      ]
-    }
-  }
+	"name": "@ecopages/content-processor",
+	"version": "0.2.0-beta.30",
+	"description": "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules for pages and scripts",
+	"keywords": [
+		"content",
+		"mdx",
+		"processor",
+		"collections"
+	],
+	"license": "MIT",
+	"main": "./src/index.ts",
+	"type": "module",
+	"files": [
+		"src",
+		"README.md",
+		"LICENSE"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
+		"directory": "packages/processors/content-processor"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"release:jsr": "bunx jsr publish"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*"
+	},
+	"dependencies": {
+		"@ecopages/file-system": "workspace:*",
+		"@ecopages/logger": "^0.2.3",
+		"remark-frontmatter": "^5.0.0",
+		"unified": "^11.0.5",
+		"vfile": "^6.0.3",
+		"vfile-matter": "^5.0.1"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@types/bun": "latest",
+		"vitest": "^3.2.4",
+		"zod": "^4.4.3"
+	},
+	"exports": {
+		".": {
+			"default": "./src/index.ts",
+			"types": "./src/index.ts"
+		},
+		"./plugin": {
+			"default": "./src/plugin.ts",
+			"types": "./src/plugin.ts"
+		},
+		"./types": {
+			"types": "./src/types.ts"
+		},
+		"./mdx": {
+			"default": "./src/mdx.ts",
+			"types": "./src/mdx.ts"
+		}
+	},
+	"typesVersions": {
+		"*": {
+			"ecopages:content/*": [
+				"./virtual-module.d.ts"
+			]
+		}
+	}
 }

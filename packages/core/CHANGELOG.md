@@ -17,6 +17,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
+- Added dev HMR entrypoint disk cache, in-flight registration coalescing, and integration hooks for cold client-graph prewarm (`ECOPAGES_DEV_COLD_CLIENT_GRAPH`, `ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING`).
 - Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
 - Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
 - Added `EcoDeclaredComponent` validation for `dependencies.components` entries.

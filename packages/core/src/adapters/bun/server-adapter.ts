@@ -34,8 +34,10 @@ import { createEcopagesSocket } from '../shared/ws/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import {
 	attachHmrToIntegrations,
+	awaitConfiguredClientGraphPrewarm,
 	disposeDevResources,
 	prepareRuntimePublicDir,
+	startConfiguredClientGraphPrewarm,
 	startConfiguredIntegrationRuntimePrewarm,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
@@ -643,6 +645,12 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});
+			startConfiguredClientGraphPrewarm({
+				appConfig: this.appConfig,
+				templateRouteFilePaths: this.router.templateRoutes.map((route) => route.filePath),
+				hmrEnabled: true,
+			});
+			await awaitConfiguredClientGraphPrewarm(this.appConfig);
 		}
 
 		this.fullyInitialized = true;

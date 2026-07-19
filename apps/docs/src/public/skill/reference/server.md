@@ -28,7 +28,6 @@ export const createPost = definePost({
 	},
 });
 
-// Equivalent with an explicit method:
 export const createPostAlt = defineApiHandler({
 	path: '/api/posts',
 	method: 'POST',
@@ -44,6 +43,8 @@ export const createPostAlt = defineApiHandler({
 	},
 });
 ```
+
+`definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`.
 
 Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`.
 
@@ -76,17 +77,32 @@ The `routes` callback also accepts the callable form `api({ path, method, handle
 
 ## json / html / redirect
 
-Standalone helpers from `@ecopages/core` for handlers that do not use `context.response`:
+Standalone helpers from `@ecopages/core` for handlers that return a body without using `context.response`:
 
 ```typescript
-import { json, html, redirect } from '@ecopages/core';
+import { defineGet, json, html, redirect } from '@ecopages/core';
 
-json({ ok: true }, { status: 201 });
-html('<p>hi</p>');
-redirect('/login', 303);
+export const health = defineGet({
+	path: '/api/health',
+	handler: async () => json({ ok: true }),
+});
+
+export const landing = defineGet({
+	path: '/landing',
+	handler: async () => html('<p>hi</p>'),
+});
+
+export const loginRedirect = defineGet({
+	path: '/login',
+	handler: async () => redirect('/sign-in', 303),
+});
 ```
 
+These helpers share the same body emission path as `context.response.json()` / `context.response.html()`.
+
 ## Registering handlers
+
+Register prebuilt `defineApiHandler` / `defineGet` declarations with `app.add()`. Use `app.get(path, handler)` when defining a route inline in `app.ts`.
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
@@ -96,7 +112,7 @@ import { adminGroup } from './src/handlers/admin';
 
 const app = await createApp({ appConfig });
 
-app.post(posts.createPost);
+app.add(posts.createPost);
 app.group(adminGroup);
 
 await app.start();

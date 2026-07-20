@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
 import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import {
 	removeStaleHmrEntrypointOutput,
@@ -9,7 +9,6 @@ import {
 	isRegisteredScriptEntrypoint,
 	type ResolvedHmrEntrypoint,
 } from '../../../hmr/hmr-entrypoint-output.ts';
-import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import type {
 	DefaultHmrContext,
 	EcoPagesAppConfig,
@@ -24,7 +23,7 @@ import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/serve
 import { DevelopmentInvalidationService } from '../../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { ClientBridgeEvent, HmrFileChangeOptions } from '../../../types/public-types.ts';
-import { HmrEntrypointRegistrar } from './hmr-entrypoint-registrar.ts';
+import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import {
@@ -48,11 +47,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public readonly appConfig: EcoPagesAppConfig;
 	protected readonly bridge: IClientBridge;
 	protected watchers = new Map<string, fs.FSWatcher>();
-	protected distDir: string;
+	protected runtimeWorkDir: string;
 	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
 	private readonly registeredScriptReloadRequired = new Set<string>();
-	protected readonly entrypointRegistrar: HmrEntrypointRegistrar;
+	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
@@ -64,8 +63,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 	constructor({ appConfig, bridge }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
-		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
-		this.entrypointRegistrar = new HmrEntrypointRegistrar();
+		this.runtimeWorkDir = resolveHmrRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
+		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(
@@ -74,7 +73,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
 		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
 		this.devTransformServer = new DevTransformServer({ appConfig: this.appConfig });
-		this.ensureDistDir();
+		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
 	}
 
@@ -90,8 +89,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 		appLogger.error('[HMR] Failed to build runtime script:', error);
 	}
 
-	protected ensureDistDir(): void {
-		fileSystem.ensureDir(this.distDir);
+	protected ensureRuntimeWorkDir(): void {
+		fileSystem.ensureDir(this.runtimeWorkDir);
 	}
 
 	protected shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
@@ -115,8 +114,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	protected initializeStrategies(): void {
 		const jsContext = {
-			getWatchedFiles: () => this.entrypointRegistrar.getWatchedFiles(),
-			getRegisteredEntrypoints: () => this.entrypointRegistrar.getRegistered(),
+			getWatchedFiles: () => this.entrypointRegistry.getWatchedOutputUrls(),
+			getRegisteredEntrypoints: () => this.entrypointRegistry.getRegisteredEntrypoints(),
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
@@ -178,7 +177,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public getRuntimePath(): string {
-		return path.join(this.distDir, '_hmr_runtime.js');
+		return path.join(this.runtimeWorkDir, path.basename(HMR_RUNTIME_SCRIPT_URL));
 	}
 
 	private async buildRuntimeInternal(): Promise<boolean> {
@@ -191,8 +190,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 			const result = await this.browserBundleService.bundle({
 				profile: 'hmr-runtime',
 				entrypoints: [runtimeSource],
-				outdir: this.distDir,
-				naming: '_hmr_runtime.js',
+				outdir: this.runtimeWorkDir,
+				naming: path.basename(HMR_RUNTIME_SCRIPT_URL),
 				minify: false,
 			});
 
@@ -229,7 +228,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
 		const resolvedFilePath = path.resolve(filePath);
 		const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
-			this.entrypointRegistrar.getRegistered(),
+			this.entrypointRegistry.getRegisteredEntrypoints(),
 			resolvedFilePath,
 		);
 
@@ -246,7 +245,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		if (isRegisteredDevTransformEdit) {
 			await this.prepareRegisteredEntrypointChange(resolvedFilePath);
 
-			const registered = this.entrypointRegistrar.getRegistered().get(resolvedFilePath);
+			const registered = this.entrypointRegistry.getRegisteredEntrypoints().get(resolvedFilePath);
 			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
 				this.devTransformServer.invalidateSource(resolvedFilePath);
 			}
@@ -322,7 +321,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	private async prepareRegisteredEntrypointChange(filePath: string): Promise<void> {
-		const isRegisteredScript = isRegisteredScriptEntrypoint(this.entrypointRegistrar.getRegistered(), filePath);
+		const isRegisteredScript = isRegisteredScriptEntrypoint(
+			this.entrypointRegistry.getRegisteredEntrypoints(),
+			filePath,
+		);
 
 		if (!isRegisteredScript) {
 			this.invalidationService.invalidateServerModules([filePath]);
@@ -364,7 +366,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public getOutputUrl(entrypointPath: string): string | undefined {
-		return this.entrypointRegistrar.getRegistered().get(path.resolve(entrypointPath))?.outputUrl;
+		return this.entrypointRegistry.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
 	}
 
 	/**
@@ -400,7 +402,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 */
 	public getResolvedScriptOutput(entrypointPath: string): ResolvedHmrEntrypoint | undefined {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-		const registered = this.entrypointRegistrar.getRegistered().get(normalizedEntrypoint);
+		const registered = this.entrypointRegistry.getRegisteredEntrypoints().get(normalizedEntrypoint);
 
 		if (!registered || !fileSystem.exists(registered.outputPath)) {
 			return undefined;
@@ -410,11 +412,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public getWatchedFiles(): Map<string, string> {
-		return this.entrypointRegistrar.getWatchedFiles();
+		return this.entrypointRegistry.getWatchedOutputUrls();
 	}
 
 	public getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
-		return this.entrypointRegistrar.getRegistered();
+		return this.entrypointRegistry.getRegisteredEntrypoints();
 	}
 
 	public async tryHandleDevClientRequest(request: Request): Promise<Response | null> {
@@ -424,7 +426,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public tryHandleAssetRequest(request: Request): Response | null {
 		const url = new URL(request.url);
 
-		if (url.pathname === '/_hmr_runtime.js') {
+		if (url.pathname === HMR_RUNTIME_SCRIPT_URL) {
 			const runtimePath = this.getRuntimePath();
 			if (fileSystem.exists(runtimePath)) {
 				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
@@ -439,20 +441,17 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return null;
 	}
 
-	public getDistDir(): string {
-		return this.distDir;
+	public getRuntimeWorkDir(): string {
+		return this.runtimeWorkDir;
 	}
 
 	public getDefaultContext(): DefaultHmrContext {
 		return {
-			getWatchedFiles: () => this.entrypointRegistrar.getWatchedFiles(),
-			getRegisteredEntrypoints: () => this.entrypointRegistrar.getRegistered(),
-			getDistDir: () => this.distDir,
+			getWatchedFiles: () => this.entrypointRegistry.getWatchedOutputUrls(),
+			getRegisteredEntrypoints: () => this.entrypointRegistry.getRegisteredEntrypoints(),
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-			getBuildExecutor: () => requireBuildRuntime(this.appConfig).getProfile('browser-hmr'),
-			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			importServerModule: async <T>(filePath: string) =>
 				await this.serverModuleTranspiler.importModule<T>({
@@ -465,7 +464,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	public stop() {
 		this.runtimeReady = false;
-		this.entrypointRegistrar.clearAll();
+		this.entrypointRegistry.clearAll();
 		for (const watcher of this.watchers.values()) {
 			watcher.close();
 		}
@@ -474,7 +473,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	protected clearFailedEntrypointRegistration(entrypointPath: string): void {
-		this.entrypointRegistrar.clearRegistration(entrypointPath);
+		this.entrypointRegistry.clearRegistration(entrypointPath);
 		this.entrypointDependencyGraph.clearEntrypointDependencies(entrypointPath);
 	}
 
@@ -502,7 +501,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 
 		const outputUrl = this.devTransformServer.registerModule(entrypointPath);
-		this.entrypointRegistrar.registerTransformModule(entrypointPath, outputUrl, { role });
+		this.entrypointRegistry.registerTransformModule(entrypointPath, outputUrl, { role });
 		return { normalized, outputUrl, role };
 	}
 

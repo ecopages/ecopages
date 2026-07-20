@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
+import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
 import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
@@ -81,7 +82,7 @@ describe('JsHmrStrategy integration', () => {
 		const legacyOutputPath = path.join(
 			resolveInternalWorkDir(config),
 			'assets',
-			'_hmr',
+			HMR_RUNTIME_WORK_DIR_SEGMENT,
 			'components',
 			'script-hmr',
 			'widget.script.eco.js',
@@ -149,7 +150,7 @@ describe('JsHmrStrategy integration', () => {
 		const legacyOutputPath = path.join(
 			resolveInternalWorkDir(config),
 			'assets',
-			'_hmr',
+			HMR_RUNTIME_WORK_DIR_SEGMENT,
 			'layouts',
 			'base-layout',
 			'base-layout.script.js',

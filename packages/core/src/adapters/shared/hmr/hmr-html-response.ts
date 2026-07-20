@@ -1,6 +1,7 @@
+import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
 import type { IHmrManager } from '../../../types/public-types.ts';
 
-const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
+const HMR_RUNTIME_IMPORT = `import '${HMR_RUNTIME_SCRIPT_URL}'`;
 const HMR_RUNTIME_SCRIPT = `<script type="module">${HMR_RUNTIME_IMPORT};</script>`;
 
 /**

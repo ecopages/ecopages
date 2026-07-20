@@ -155,6 +155,14 @@
 			"types": "./src/hmr/hmr-entrypoint-output.ts",
 			"default": "./src/hmr/hmr-entrypoint-output.ts"
 		},
+		"./hmr/hmr-registered-entrypoints-context": {
+			"types": "./src/hmr/hmr-registered-entrypoints-context.ts",
+			"default": "./src/hmr/hmr-registered-entrypoints-context.ts"
+		},
+		"./hmr/hmr-runtime-paths": {
+			"types": "./src/hmr/hmr-runtime-paths.ts",
+			"default": "./src/hmr/hmr-runtime-paths.ts"
+		},
 		"./hmr/hmr-file-change-prep": {
 			"types": "./src/hmr/hmr-file-change-prep.ts",
 			"default": "./src/hmr/hmr-file-change-prep.ts"

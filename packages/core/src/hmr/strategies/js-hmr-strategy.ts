@@ -11,22 +11,17 @@
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import {
-	isRegisteredDevTransformEntrypoint,
-	isRegisteredScriptEntrypoint,
-	type ResolvedHmrEntrypoint,
-} from '../hmr-entrypoint-output.ts';
+import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '../hmr-entrypoint-output.ts';
 import { isDevTransformModuleUrl } from '../hmr-asset-paths.ts';
+import type { HmrRegisteredEntrypointsContext } from '../hmr-registered-entrypoints-context.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
 /**
  * Context interface providing access to HmrManager state.
  * Required for JsHmrStrategy to access registered entrypoints and configuration.
  */
-export interface JsHmrContext {
+export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 	getWatchedFiles(): Map<string, string>;
-
-	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 

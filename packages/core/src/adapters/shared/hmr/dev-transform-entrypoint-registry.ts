@@ -1,17 +1,20 @@
 import path from 'node:path';
 import type { ResolvedHmrEntrypoint } from '../../../hmr/hmr-entrypoint-output.ts';
+import type { HmrRegisteredEntrypointsContext } from '../../../hmr/hmr-registered-entrypoints-context.ts';
+
+export type { HmrRegisteredEntrypointsContext };
 
 /**
  * Tracks dev-transform entrypoints registered for HMR invalidation.
  */
-export class HmrEntrypointRegistrar {
+export class DevTransformEntrypointRegistry {
 	private readonly registered = new Map<string, ResolvedHmrEntrypoint>();
 
-	getRegistered(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
 		return this.registered;
 	}
 
-	getWatchedFiles(): Map<string, string> {
+	getWatchedOutputUrls(): Map<string, string> {
 		const watchedFiles = new Map<string, string>();
 		for (const [sourcePath, entrypoint] of this.registered) {
 			watchedFiles.set(sourcePath, entrypoint.outputUrl);

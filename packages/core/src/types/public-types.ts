@@ -1,11 +1,9 @@
 import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
-import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
-import type { BrowserBundleExecutor } from '../services/assets/browser-bundle.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
@@ -183,20 +181,15 @@ export interface CacheInvalidator {
 
 /**
  * Context interface for HMR strategies.
- * Provides access to watched files, registered bare-specifier mappings, and build configuration.
+ * Provides access to registered entrypoints and build configuration.
  */
 export interface DefaultHmrContext {
 	/**
-	 * Map of registered entrypoints to their output URLs.
+	 * Map of registered entrypoint source paths to their dev-transform output URLs.
 	 */
 	getWatchedFiles(): Map<string, string>;
 
 	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
-
-	/**
-	 * Directory where HMR bundles are written.
-	 */
-	getDistDir(): string;
 
 	/**
 	 * Absolute path to the source directory.
@@ -215,15 +208,6 @@ export interface DefaultHmrContext {
 	 */
 	getPagesDir(): string;
 
-	/**
-	 * Build executor owned by the active app/runtime.
-	 */
-	getBuildExecutor(): BuildExecutor;
-
-	/**
-	 * Browser bundler owned by the active app/runtime.
-	 */
-	getBrowserBundleService(): BrowserBundleExecutor;
 	/**
 	 * Server-side module loader owned by the active app/runtime.
 	 */
@@ -371,12 +355,15 @@ export interface IHmrManager {
 	 */
 	getWatchedFiles(): Map<string, string>;
 
+	/**
+	 * Gets registered dev-transform entrypoints keyed by resolved source path.
+	 */
 	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	/**
-	 * Gets the HMR dist directory.
+	 * Gets the on-disk work directory for the bundled HMR client runtime.
 	 */
-	getDistDir(): string;
+	getRuntimeWorkDir(): string;
 
 	/**
 	 * Returns the on-disk path to the bundled HMR runtime script.

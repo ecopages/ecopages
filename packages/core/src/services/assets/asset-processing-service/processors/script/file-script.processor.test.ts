@@ -62,7 +62,7 @@ describe('FileScriptProcessor', () => {
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint,
-				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
+				getRuntimeWorkDir: () => '/test/project/.eco/public/assets/hmr-runtime',
 				getWatchedFiles: () => new Map([[scriptPath, '/assets/__eco_dev__/script.js']]),
 				getResolvedScriptOutput: () => ({
 					outputUrl: '/assets/__eco_dev__/script.js',
@@ -92,7 +92,7 @@ describe('FileScriptProcessor', () => {
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint,
-				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
+				getRuntimeWorkDir: () => '/test/project/.eco/public/assets/hmr-runtime',
 				getWatchedFiles: () => new Map(),
 				getResolvedScriptOutput: () => undefined,
 			} as unknown as IHmrManager;

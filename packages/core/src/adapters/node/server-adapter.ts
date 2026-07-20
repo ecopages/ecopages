@@ -48,7 +48,6 @@ export interface NodeServerAdapterParams {
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
-	delegateBrowserReloadToHost?: boolean;
 	hostOwnsDevClient?: boolean;
 	options?: {
 		watch?: boolean;

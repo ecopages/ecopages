@@ -51,14 +51,6 @@ export interface ApplicationRuntimeOptions {
 	 */
 	embedded?: boolean;
 	/**
-	 * When true, full-page reload signaling is owned by the host dev server
-	 * (for example Vite's `full-reload` websocket event) instead of the Ecopages
-	 * client bridge.
-	 *
-	 * @deprecated Prefer `devClientOwner: 'host'`.
-	 */
-	delegateBrowserReloadToHost?: boolean;
-	/**
 	 * Selects which layer injects browser dev-client bootstrap (HMR runtime, reload).
 	 *
 	 * `host` disables core injection and reload signaling so embedded hosts like

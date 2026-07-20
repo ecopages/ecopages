@@ -72,7 +72,12 @@ export abstract class SharedHmrManager implements IHmrManager {
 		);
 		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
 		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
-		this.devTransformServer = new DevTransformServer({ appConfig: this.appConfig });
+		this.devTransformServer = new DevTransformServer({
+			appConfig: this.appConfig,
+			onEntrypointDependencies: (entrypointPath, dependencies) => {
+				this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, dependencies);
+			},
+		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
 	}
@@ -465,6 +470,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public stop() {
 		this.runtimeReady = false;
 		this.entrypointRegistry.clearAll();
+		this.devTransformServer.reset();
 		for (const watcher of this.watchers.values()) {
 			watcher.close();
 		}
@@ -496,8 +502,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 		role: ResolvedHmrEntrypoint['role'],
 	): { normalized: string; outputUrl: string; role: ResolvedHmrEntrypoint['role'] } {
 		const normalized = path.resolve(entrypointPath);
-		if (role === 'script' && !fileSystem.exists(normalized)) {
-			throw new Error(`[HMR] Failed to register script entrypoint: missing source ${normalized}`);
+		if (!fileSystem.exists(normalized)) {
+			throw new Error(`[HMR] Failed to register ${role} entrypoint: missing source ${normalized}`);
 		}
 
 		const outputUrl = this.devTransformServer.registerModule(entrypointPath);

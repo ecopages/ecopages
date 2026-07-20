@@ -14,6 +14,12 @@ The `eco` namespace provides a consistent, type-safe interface for:
 6. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
 7. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
 
+## Layout assignment
+
+Layouts are assigned explicitly on each `eco.page({ layout })` call — either one layout component or an outer→inner array. EcoPages normalizes the stack at factory time to `config.layouts` and `config.layoutEntries`.
+
+EcoPages does **not** infer layouts from `src/layouts/` file paths or route segment directories. A file under `src/layouts/` is only used when a page imports it and passes it to `layout`.
+
 ## Component Patterns
 
 EcoPages supports two approaches for creating components, each suited for different use cases:

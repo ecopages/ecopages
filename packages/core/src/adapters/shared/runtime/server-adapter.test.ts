@@ -114,26 +114,6 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	}
 }
 
-test('SharedServerAdapter serves /assets/_hmr files from the HMR manager directory', async () => {
-	const rootDir = createTempRoot('ecopages-shared-server-hmr-assets');
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	const hmrDir = path.join(config.absolutePaths.workDir, 'assets', '_hmr');
-	const assetPath = path.join(hmrDir, 'pages', 'react-content.js');
-	fs.mkdirSync(path.dirname(assetPath), { recursive: true });
-	fs.writeFileSync(assetPath, 'export default 1;', 'utf8');
-
-	const adapter = new TestSharedServerAdapter(hmrDir, rootDir);
-	const response = await adapter.handleRequest(new Request('http://localhost/assets/_hmr/pages/react-content.js'));
-
-	assert.equal(response.status, 200);
-	assert.equal(response.headers.get('Content-Type'), 'application/javascript');
-	assert.equal(await response.text(), 'export default 1;');
-	assert.equal(
-		fs.existsSync(path.join(config.absolutePaths.distDir, 'assets', '_hmr', 'pages', 'react-content.js')),
-		false,
-	);
-});
-
 test('SharedServerAdapter dispatches matching API handlers before filesystem routes', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-api-dispatch');
 	const adapter = new TestSharedServerAdapter('', rootDir);

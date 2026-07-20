@@ -65,11 +65,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.distDir = path.join(resolveInternalWorkDir(this.appConfig), RESOLVED_ASSETS_DIR, '_hmr');
-		this.entrypointRegistrar = new HmrEntrypointRegistrar({
-			srcDir: this.appConfig.absolutePaths.srcDir,
-			distDir: this.distDir,
-			clearFailedRegistration: (entrypointPath) => this.clearFailedEntrypointRegistration(entrypointPath),
-		});
+		this.entrypointRegistrar = new HmrEntrypointRegistrar();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(
@@ -121,12 +117,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 		const jsContext = {
 			getWatchedFiles: () => this.entrypointRegistrar.getWatchedFiles(),
 			getRegisteredEntrypoints: () => this.entrypointRegistrar.getRegistered(),
-			getDistDir: () => this.distDir,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
 			getTemplateExtensions: () => this.appConfig.templatesExt,
-			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 			invalidateDevTransformSource: (sourcePath: string) => this.devTransformServer.invalidateSource(sourcePath),
@@ -434,20 +428,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 			const runtimePath = this.getRuntimePath();
 			if (fileSystem.exists(runtimePath)) {
 				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
-					headers: {
-						'Content-Type': 'application/javascript',
-						'Cache-Control': 'no-store, must-revalidate',
-					},
-				});
-			}
-		}
-
-		if (url.pathname.startsWith('/assets/_hmr/')) {
-			const relativePath = url.pathname.slice('/assets/_hmr/'.length);
-			const assetPath = path.join(this.distDir, relativePath);
-
-			if (fileSystem.exists(assetPath)) {
-				return new Response(fileSystem.readFileAsBuffer(assetPath) as BodyInit, {
 					headers: {
 						'Content-Type': 'application/javascript',
 						'Cache-Control': 'no-store, must-revalidate',

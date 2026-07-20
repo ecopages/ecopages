@@ -1,6 +1,5 @@
 import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 
-export const HMR_DISK_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/_hmr`;
 export const DEV_TRANSFORM_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/__eco_dev__`;
 
 /**
@@ -15,13 +14,6 @@ export function stripModuleUrlQuery(moduleUrl: string): string {
  */
 export function isDevTransformModuleUrl(moduleUrl: string): boolean {
 	return stripModuleUrlQuery(moduleUrl).startsWith(`${DEV_TRANSFORM_URL_PREFIX}/`);
-}
-
-/**
- * Returns true when a module URL is served from the legacy HMR disk bundle path.
- */
-export function isHmrDiskModuleUrl(moduleUrl: string): boolean {
-	return stripModuleUrlQuery(moduleUrl).startsWith(`${HMR_DISK_URL_PREFIX}/`);
 }
 
 /**

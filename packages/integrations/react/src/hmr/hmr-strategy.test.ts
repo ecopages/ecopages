@@ -635,12 +635,12 @@ describe('ReactHmrStrategy', () => {
 		});
 	});
 
-	it('process keeps non-page entrypoints on the per-entrypoint path when page targets are grouped', async () => {
+	it('process broadcasts dev-transform updates for grouped non-page entrypoints', async () => {
 		const pageEntrypoint = '/tmp/src/pages/index.tsx';
 		const islandEntrypoint = '/tmp/src/components/counter.tsx';
 		const watchedFiles = new Map<string, string>([
 			[pageEntrypoint, '/assets/__eco_dev__/pages/index.js'],
-			[islandEntrypoint, '/assets/_hmr/components/counter.js'],
+			[islandEntrypoint, '/assets/__eco_dev__/components/counter.js'],
 		]);
 
 		const strategy = new ReactHmrStrategy({
@@ -654,17 +654,8 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).bundleReactEntrypoints = vi.fn(async () => []);
-		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 		const action = await strategy.process('/tmp/src/components/theme-toggle.tsx');
 
-		expect((strategy as any).bundleReactEntrypoints).not.toHaveBeenCalled();
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-			'/tmp/src/components/counter.tsx',
-			'/assets/_hmr/components/counter.js',
-		);
 		expect(action).toEqual({
 			type: 'broadcast',
 			events: [
@@ -675,7 +666,7 @@ describe('ReactHmrStrategy', () => {
 				},
 				{
 					type: 'update',
-					path: '/assets/_hmr/components/counter.js',
+					path: '/assets/__eco_dev__/components/counter.js',
 					timestamp: expect.any(Number),
 				},
 			],
@@ -1215,7 +1206,7 @@ describe('ReactHmrStrategy', () => {
 			const watchedFiles = new Map<string, string>([
 				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
 				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
-				[changedComponent, '/assets/_hmr/components/app-shell.js'],
+				[changedComponent, '/assets/__eco_dev__/components/app-shell.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1268,17 +1259,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => []);
-			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).not.toHaveBeenCalled();
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-				changedComponent,
-				'/assets/_hmr/components/app-shell.js',
-			);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [

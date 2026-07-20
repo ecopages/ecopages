@@ -454,34 +454,21 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 		const requiresLayoutRefresh = isLayout || hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
 
-		this.invalidateColdGraphCacheForPaths([
-			...pageTargets.map((target) => target.entrypointPath),
-			...nonPageTargets.map((target) => target.entrypointPath),
-		]);
-
-		await this.diskBundler.clearOutdirsForTargets(nonPageTargets);
-
 		const updates: string[] = [];
 		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
 		this.queueDevTransformOutputUpdates(pageTargets, requestedOutputUrls, updates);
 
-		for (const { entrypointPath, outputUrl } of nonPageTargets) {
-			if (!this.isReactEntrypoint(entrypointPath)) {
+		for (const { outputUrl } of nonPageTargets) {
+			if (!requestedOutputUrls.has(outputUrl)) {
 				continue;
 			}
 
 			if (this.isDevTransformOutputUrl(outputUrl)) {
-				if (requestedOutputUrls.has(outputUrl)) {
-					updates.push(outputUrl);
-				}
+				updates.push(outputUrl);
 				continue;
 			}
 
-			appLogger.debug(`Bundling ${entrypointPath}`);
-			const success = await this.bundleReactEntrypoint(entrypointPath, outputUrl);
-			if (success && requestedOutputUrls.has(outputUrl)) {
-				updates.push(outputUrl);
-			}
+			appLogger.debug(`Skipping non-dev-transform HMR output: ${outputUrl}`);
 		}
 
 		if (updates.length > 0) {

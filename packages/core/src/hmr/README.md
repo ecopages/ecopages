@@ -24,3 +24,13 @@ It is responsible for:
 Generic invalidation policy belongs in core services.
 Framework-specific update behavior belongs in HMR strategies.
 Runtime-specific WebSocket or event-stream transport belongs in adapters.
+
+## Registered entrypoints and dev transform
+
+`SharedHmrManager` in `adapters/shared/hmr/` centralizes file-change handling via `handleFileChange()`. Server invalidation, integration hooks, rebuild, and client broadcast run in one sequence.
+
+Dev client modules are served on demand through `DevTransformServer` (`src/dev/`). `DevTransformEntrypointRegistry` tracks registered entrypoints for HMR invalidation. Registration returns a stable dev-transform URL immediately; the first request (or cache miss) runs Rolldown on demand.
+
+`BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
+
+Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.

@@ -2,6 +2,23 @@
 
 The build layer is the bundler contract for Ecopages. One bundled adapter is the default; one host-owned boundary marker covers the Vite-host path.
 
+## Contents
+
+- [Mental Model](#mental-model)
+- [Files](#files)
+- [Default Flow](#default-flow)
+- [App build manifest](#app-build-manifest)
+- [Vite-Host Boundary](#vite-host-boundary)
+- [Plugin Authoring](#plugin-authoring)
+- [BuildOptions Caveats](#buildoptions-caveats)
+- [Dev / watch path](#dev--watch-path)
+- [Metrics](#metrics)
+- [Production build caches](#production-build-caches)
+- [Unified pages graph](#unified-pages-graph)
+- [JSX Ownership Plugins](#jsx-ownership-plugins)
+- [Rolldown operator notes](#rolldown-operator-notes)
+- [Testing Strategy](#testing-strategy)
+
 ## Mental Model
 
 Three concentric shapes, plus profile executors and request policy:
@@ -187,6 +204,40 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 | `eco-component-meta-plugin`          | Component metadata injection              | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files.                      |
 
 `foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
+
+## Rolldown operator notes
+
+Ecopages bundles with Rolldown across Node, Bun, and browser targets. Vite-hosted apps use `ViteHostBuildAdapter` as a boundary marker; the host runs its own pipeline.
+
+### Plugin hook filters
+
+Rolldown evaluates plugin hooks on the Rust side and only calls JavaScript when the filter matches. Hooks without filters run for every module through Rust→JS FFI, causing **3–4× slowdown** with multiple plugins.
+
+```typescript
+// BAD — called for every module
+resolveId(source, importer) { /* ... */ }
+
+// GOOD — skipped unless the filter matches
+resolveId: {
+  filter: { id: /\.tsx?$/ },
+  handler(source, importer) { /* ... */ },
+}
+```
+
+If patterns are dynamic (populated during `buildStart`), Rolldown cannot use filters because they are read at registration time. Consolidate dynamic plugins into a **single** Rolldown plugin to minimize FFI calls. See [rolldown.rs/reference/plugin-hooks](https://rolldown.rs/reference/plugin-hooks).
+
+### Consolidate plugins
+
+Each Rolldown plugin adds FFI overhead per module per hook. Ecopages merges all `EcoBuildPlugin` instances into one Rolldown plugin in `rolldown-plugin-bridge.ts` with JavaScript-side routing.
+
+### Benchmarks
+
+Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown winning 15/18 scenarios versus esbuild, with a **1.21×** geometric mean speedup. Largest wins: React page rebuilds (1.56×), production single page (1.49×), Lit (1.52×), Ecopages-JSX (1.47×). Three scenarios regressed (KitaJS postcss, dynamic route, no-op rebuild); route-module disk cache and fingerprinted production caches reduce repeated work on warm paths.
+
+### Native MagicString and CSS shim
+
+- `experimental.nativeMagicString: true` enables Rust-native string manipulation for faster transforms.
+- Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
 
 ## Testing Strategy
 

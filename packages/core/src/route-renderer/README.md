@@ -41,6 +41,10 @@ Mixed-integration apps use two separate mechanisms:
 
 See [`../build/README.md`](../build/README.md) for the JSX ownership helper split.
 
+## Document shell composition
+
+`composeDocumentShell` in core is the single string-shell primitive for wrapping a primary component with optional layout tiers and an Html template. Integrations may supply an optional `composeChildren` hook to replace sequential string wrapping with a unified tree (for example React element children) while still delegating foreign subtrees through `renderComponentWithForeignChildren`.
+
 ## Main Files
 
 ### `route-renderer.ts`
@@ -62,6 +66,12 @@ Domain folders:
 - `document-shell/`: shared page/layout/html shell composition and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
 - `page-browser-graph/`: browser asset graph build, session cache, and injector assets
+
+**Page Browser Graph session behavior:**
+
+- In development, each Page Browser Graph is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes. Hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected.
+- Production static export prebuilds browser graphs from the finalized route list into the in-memory `page-browser-graph-session` via `production-page-browser-graph-prebuild.ts`. Failed exports clear staged production session records so retries cannot reuse partial graph output.
+- Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`. Processors and loaders still initialize eagerly during `setupAppRuntimePlugins()`.
 
 ### `page-loading/`
 

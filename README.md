@@ -35,6 +35,13 @@ As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](h
 
 The workspace now has a more explicit documentation map so architecture notes live close to the code that owns them.
 
+### For contributors and agents
+
+- [`AGENTS.md`](AGENTS.md) — coding standards for agents
+- [`CONTEXT.md`](CONTEXT.md) — domain vocabulary
+
+When a change affects subsystem behavior, update the local `README.md`, the parent documentation map if needed (`packages/core/README.md`, this section), and `CONTEXT.md` only when domain terms change. Other guides: [`e2e/README.md`](e2e/README.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), package roots under `packages/*/`.
+
 Start here for package-level architecture:
 
 - `packages/core/README.md`: overall core architecture and ownership model
@@ -43,13 +50,14 @@ Start here for package-level architecture:
 - `packages/core/src/build/README.md`: build adapter, executor, and dev-build coordination
 - `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
 - `packages/core/src/adapters/README.md`: Bun and Node adapter boundaries
+- `packages/core/src/dev/README.md`: dev transform server and on-demand client delivery
 - `packages/core/src/hmr/README.md`: HMR strategy layer
 - `packages/core/src/router/README.md`: route matching and browser navigation coordination
 - `packages/core/src/route-renderer/README.md`: route rendering orchestration
 - `packages/core/src/static-site-generator/README.md`: static generation flow
 - `packages/core/src/eco/README.md`: `eco` authoring primitives
 
-Architecture notes live in `packages/core/README.md`, `CONTEXT.md`, and the [docs site architecture guide](https://ecopages.app/docs/core/architecture).
+Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
 The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
 

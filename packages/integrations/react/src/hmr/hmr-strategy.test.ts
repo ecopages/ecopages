@@ -588,6 +588,42 @@ describe('ReactHmrStrategy', () => {
 		});
 	});
 
+	it('process broadcasts dev transform URLs without rebuilding disk page bundles', async () => {
+		const changedEntrypoint = '/tmp/src/pages/docs/index.tsx';
+		const devTransformUrl = '/assets/__eco_dev__/pages/docs/index.js';
+		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformUrl]]);
+
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getWatchedFiles: () => watchedFiles,
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				getDeclaredModules: () => [],
+				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
+				initialOwnedEntrypoints: [changedEntrypoint],
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		(strategy as any).bundleReactEntrypoints = vi.fn(async () => []);
+		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
+
+		const action = await strategy.process(changedEntrypoint);
+
+		expect((strategy as any).bundleReactEntrypoints).not.toHaveBeenCalled();
+		expect((strategy as any).bundleReactEntrypoint).not.toHaveBeenCalled();
+		expect(action).toEqual({
+			type: 'broadcast',
+			events: [
+				{
+					type: 'update',
+					path: devTransformUrl,
+					timestamp: expect.any(Number),
+				},
+			],
+		});
+	});
+
 	it('process keeps non-page entrypoints on the per-entrypoint path when page targets are grouped', async () => {
 		const pageEntrypoint = '/tmp/src/pages/index.tsx';
 		const islandEntrypoint = '/tmp/src/components/counter.tsx';

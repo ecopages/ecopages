@@ -87,7 +87,7 @@ const runtimes = [
 ] as const;
 
 describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
-	test('non-script file changes invalidate dev transform cache and broadcast reload', async () => {
+	test('CSS file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-css');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
@@ -100,9 +100,10 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
+		assert.equal(spy.broadcasts[0].path, cssFile);
 	});
 
-	test('broadcast:false suppresses reload for non-script changes', async () => {
+	test('broadcast:false suppresses events even when the strategy returns a broadcast action', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-broadcast');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
@@ -115,16 +116,23 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 0);
 	});
 
-	test('defers reload broadcasts when no subscribers are connected', async () => {
+	test('defers client rebuilds when no subscribers are connected', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-subscribers');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
 		spy.bridge.subscriberCount = 0;
 		using manager = await create(rootDir, spy);
 
-		const tsFile = path.join(rootDir, 'src', 'component.ts');
-		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
-		await manager.handleFileChange(tsFile);
+		const customFile = path.join(rootDir, 'src', 'deferred.ts');
+		fs.writeFileSync(customFile, 'export const deferred = true;\n', 'utf8');
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
+				type: 'broadcast',
+				events: [{ type: 'update', path: '/assets/_hmr/deferred.js', timestamp: 1 }],
+			}),
+		);
+
+		await manager.handleFileChange(customFile);
 
 		assert.equal(spy.broadcasts.length, 0);
 	});

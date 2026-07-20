@@ -5,15 +5,11 @@
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationPlugin,
-	type DevClientGraphPrewarmOptions,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { ResolvedHmrEntrypoint } from '@ecopages/core';
-import { createDevHmrEntrypointCache } from '@ecopages/core/build/dev-hmr-entrypoint-cache';
-import { startupTrace } from '@ecopages/core/diagnostics/startup-trace';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
@@ -117,7 +113,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 	private hmrStrategy?: ReactHmrStrategy;
-	private devClientGraphPrewarmPromise?: Promise<void>;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * When true, always emit page browser graph / hydration assets.
@@ -315,45 +310,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		}
 
 		return this.hmrStrategy;
-	}
-
-	override startDevClientGraphPrewarm(options: DevClientGraphPrewarmOptions): void {
-		if (!this.hmrManager?.isEnabled()) {
-			return;
-		}
-
-		const strategy = this.getHmrStrategy() as ReactHmrStrategy | undefined;
-		if (!strategy) {
-			return;
-		}
-
-		const cache = createDevHmrEntrypointCache(options.appConfig);
-		startupTrace.markPhaseStart('dev-cold-client-graph');
-		this.devClientGraphPrewarmPromise = strategy
-			.prepareColdClientGraph(cache, {
-				templateRouteFilePaths: options.templateRouteFilePaths,
-				tryTrackInFlightEntrypoint: (entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>) =>
-					this.hmrManager?.tryTrackInFlightEntrypoint?.(entrypointPath, promise) ?? false,
-				releaseInFlightEntrypoint: (entrypointPath: string) => {
-					this.hmrManager?.releaseInFlightEntrypoint?.(entrypointPath);
-				},
-				getMissingEntrypointError: (entrypointPath: string, outputPath: string) =>
-					new Error(`Cold client graph did not materialize ${entrypointPath} -> ${outputPath}`),
-			})
-			.catch((error: unknown) => {
-				appLogger.warn(
-					'Cold client graph build failed; first SSR will build entrypoints on demand.',
-					error as Error,
-				);
-			})
-			.finally(() => {
-				startupTrace.markPhaseEnd('dev-cold-client-graph');
-				startupTrace.resetFirstRequestCounters();
-			});
-	}
-
-	override async awaitDevClientGraphPrewarm(): Promise<void> {
-		await this.devClientGraphPrewarmPromise;
 	}
 }
 

@@ -395,30 +395,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Registers an already-materialized HMR entrypoint without rebuilding it.
-	 *
-	 * @remarks
-	 * Cold dev batches build grouped Rolldown passes up front and then seed the
-	 * registrar so the first SSR resolves the artifact from disk. The entrypoint
-	 * is also added to the watched files so subsequent source edits still rebuild.
-	 */
-	public seedResolvedEntrypoint(resolved: ResolvedHmrEntrypoint): void {
-		this.entrypointRegistrar.seedResolvedEntrypoint(resolved);
-	}
-
-	public trackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void {
-		this.entrypointRegistrar.trackInFlightEntrypoint(entrypointPath, promise);
-	}
-
-	public tryTrackInFlightEntrypoint(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): boolean {
-		return this.entrypointRegistrar.tryTrackInFlightEntrypoint(entrypointPath, promise);
-	}
-
-	public releaseInFlightEntrypoint(entrypointPath: string): void {
-		this.entrypointRegistrar.releaseInFlightEntrypoint(entrypointPath);
-	}
-
-	/**
 	 * Returns the registered script output when the entrypoint is already tracked for HMR.
 	 *
 	 * @remarks

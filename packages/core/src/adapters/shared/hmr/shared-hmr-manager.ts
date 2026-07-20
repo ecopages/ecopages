@@ -268,7 +268,43 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 
 		this.devTransformServer.invalidateAll();
+
+		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
+			appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
+			this.clearFailedEntrypointRegistration(filePath);
+			return;
+		}
+
 		const shouldBroadcast = options.broadcast ?? true;
+		const strategy = this.selectChangeStrategy(filePath);
+
+		if (!strategy) {
+			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
+			if (shouldBroadcast && this.bridge.subscriberCount > 0) {
+				this.broadcast({ type: 'reload' });
+			}
+			return;
+		}
+
+		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
+
+		const action = await strategy.process(filePath);
+
+		if (shouldBroadcast && action.type === 'broadcast' && action.events) {
+			if (this.bridge.subscriberCount === 0) {
+				appLogger.debug(
+					`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
+				);
+				return;
+			}
+
+			for (const event of action.events) {
+				const graphIdentities = event.graphIdentities ?? options.graphIdentities;
+				this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
+			}
+			return;
+		}
+
 		if (shouldBroadcast && this.bridge.subscriberCount > 0) {
 			this.broadcast({ type: 'reload' });
 		}

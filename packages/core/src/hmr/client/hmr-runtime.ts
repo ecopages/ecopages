@@ -109,7 +109,7 @@ interface HMRPayload {
 
 	function getActiveHmrModuleUrl(): string | undefined {
 		const pageModule = window.__ECO_PAGES__?.page?.module;
-		if (pageModule && pageModule.includes('/assets/_hmr/')) {
+		if (pageModule && (pageModule.includes('/assets/_hmr/') || pageModule.includes('/assets/__eco_dev__/'))) {
 			return pageModule.split('?')[0];
 		}
 

@@ -314,7 +314,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Returns Ecopages build plugins for dev transform esbuild bundles.
+	 * Returns Ecopages build plugins for dev transform Rolldown bundles.
 	 */
 	async createDevTransformPlugins(entrypointPath: string): Promise<EcoBuildPlugin[]> {
 		const declaredModules = await this.resolveDeclaredModulesForEntrypoint(entrypointPath);

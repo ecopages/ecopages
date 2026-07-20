@@ -10,7 +10,6 @@ import {
 	statSync,
 	writeFileSync,
 } from 'node:fs';
-import { transform } from 'esbuild';
 import ts from 'typescript';
 import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils.ts';
 
@@ -217,14 +216,6 @@ function scanPackageFiles(
 		declarationFiles: Array.from(declarationFiles).sort(),
 		assetFiles: Array.from(assetFiles).sort(),
 	};
-}
-
-function getLoader(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' {
-	const extension = path.extname(filePath).toLowerCase();
-	if (extension === '.tsx') return 'tsx';
-	if (extension === '.jsx') return 'jsx';
-	if (extension === '.ts' || extension === '.mts' || extension === '.cts') return 'ts';
-	return 'js';
 }
 
 /**
@@ -660,7 +651,7 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 }
 
 /**
- * Transpiles source files one-by-one with esbuild and writes the emitted runtime files
+ * Transpiles source files one-by-one with TypeScript and writes the emitted runtime files
  * into `dist` using publishable extensions.
  *
  * This intentionally does not bundle modules. The published package preserves its file
@@ -669,9 +660,16 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
  */
 async function buildJavaScript(packageDir: string, codeFiles: string[], distDir: string): Promise<void> {
 	const packageTsconfigPath = path.join(packageDir, 'tsconfig.json');
-	const tsconfigRaw = existsSync(packageTsconfigPath)
-		? ts.readConfigFile(packageTsconfigPath, ts.sys.readFile).config
-		: {};
+	const packageConfig = existsSync(packageTsconfigPath)
+		? loadJsonConfig(packageTsconfigPath)
+		: ts.parseJsonConfigFileContent({}, ts.sys, packageDir);
+	const sharedConfig = loadJsonConfig(sharedNpmTsconfigPath);
+	const compilerOptions: ts.CompilerOptions = {
+		...packageConfig.options,
+		...sharedConfig.options,
+		module: ts.ModuleKind.ESNext,
+		target: ts.ScriptTarget.ES2022,
+	};
 
 	for (const sourceFile of codeFiles) {
 		const extension = path.extname(sourceFile);
@@ -686,21 +684,33 @@ async function buildJavaScript(packageDir: string, codeFiles: string[], distDir:
 		);
 		const outputPath = path.join(distDir, outputRelativePath);
 		const source = readFileSync(sourceFile, 'utf-8');
-		const transformed = await transform(source, {
-			loader: getLoader(sourceFile),
-			format: 'esm',
-			target: 'es2022',
-			sourcefile: toPosix(relativePath),
-			tsconfigRaw,
-		});
+		const transpiled =
+			extension === '.js' || extension === '.mjs' || extension === '.cjs'
+				? source
+				: transpileJavaScriptSource(sourceFile, source, compilerOptions);
 
-		const output = rewriteRelativeSpecifiers(transformed.code);
+		const output = rewriteRelativeSpecifiers(transpiled);
 		writeTextFile(outputPath, output);
 
 		if (extension === '.cts') {
 			continue;
 		}
 	}
+}
+
+function transpileJavaScriptSource(sourceFile: string, source: string, compilerOptions: ts.CompilerOptions): string {
+	const result = ts.transpileModule(source, {
+		compilerOptions,
+		fileName: sourceFile,
+	});
+
+	if (result.diagnostics.length > 0) {
+		throw new Error(
+			`Failed to transpile ${sourceFile}:\n${ts.formatDiagnosticsWithColorAndContext(result.diagnostics, formatHost)}`,
+		);
+	}
+
+	return result.outputText;
 }
 
 /**

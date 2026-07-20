@@ -105,9 +105,10 @@ describe('applyModuleUpdate', () => {
 		});
 	});
 
-	it('keeps dynamic import fallback for legacy disk modules', async () => {
+	it('warns when a module update has no handler and is not dev-transform', async () => {
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 		await applyModuleUpdate(`${HMR_DISK_URL_PREFIX}/components/counter.js`, {
 			getHandlers: () => ({}),
@@ -116,9 +117,10 @@ describe('applyModuleUpdate', () => {
 			waitForSettled: async () => undefined,
 		});
 
-		expect(importModule).toHaveBeenCalledWith(
-			expect.stringContaining(`${HMR_DISK_URL_PREFIX}/components/counter.js?t=`),
+		expect(importModule).not.toHaveBeenCalled();
+		expect(reloadCurrentPage).not.toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledWith(
+			'[ecopages] No HMR handler for module update: /assets/_hmr/components/counter.js',
 		);
-		expect(reloadCurrentPage).toHaveBeenCalled();
 	});
 });

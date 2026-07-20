@@ -1,9 +1,4 @@
-import {
-	isDevTransformModuleUrl,
-	isHmrDiskModuleUrl,
-	stripModuleUrlQuery,
-	withModuleCacheBust,
-} from '../hmr-asset-paths.ts';
+import { isDevTransformModuleUrl, stripModuleUrlQuery, withModuleCacheBust } from '../hmr-asset-paths.ts';
 
 export type HmrModuleHandlers = Record<string, (url: string) => Promise<void> | void>;
 
@@ -18,7 +13,7 @@ export type ApplyModuleUpdateContext = {
 export function resolveActiveModuleUrl(handlers: HmrModuleHandlers, pageModule?: string): string | undefined {
 	if (pageModule) {
 		const basePath = stripModuleUrlQuery(pageModule);
-		if (isDevTransformModuleUrl(basePath) || isHmrDiskModuleUrl(basePath)) {
+		if (isDevTransformModuleUrl(basePath)) {
 			return basePath;
 		}
 	}
@@ -64,10 +59,5 @@ export async function applyModuleUpdate(
 		return;
 	}
 
-	try {
-		await context.importModule(url);
-		await context.reloadCurrentPage({ clearCache: false, moduleUrl: url });
-	} catch (error) {
-		console.error('[ecopages] Failed to apply HMR update:', error);
-	}
+	console.warn(`[ecopages] No HMR handler for module update: ${basePath}`);
 }

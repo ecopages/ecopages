@@ -5,8 +5,8 @@ import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import {
 	removeStaleHmrEntrypointOutput,
+	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
-	isBrowserOnlyRegisteredScriptEntrypoint,
 	type ResolvedHmrEntrypoint,
 } from '../../../hmr/hmr-entrypoint-output.ts';
 import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
@@ -17,7 +17,7 @@ import type {
 	IClientBridge,
 } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { HmrStrategyType, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
+import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
@@ -51,6 +51,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected distDir: string;
 	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
+	private readonly registeredScriptReloadRequired = new Set<string>();
 	protected readonly entrypointRegistrar: HmrEntrypointRegistrar;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
@@ -119,6 +120,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected initializeStrategies(): void {
 		const jsContext = {
 			getWatchedFiles: () => this.entrypointRegistrar.getWatchedFiles(),
+			getRegisteredEntrypoints: () => this.entrypointRegistrar.getRegistered(),
 			getDistDir: () => this.distDir,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
@@ -128,6 +130,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
 			invalidateDevTransformSource: (sourcePath: string) => this.devTransformServer.invalidateSource(sourcePath),
+			consumeRegisteredScriptReloadRequired: (sourcePath: string) =>
+				this.consumeRegisteredScriptReloadRequired(sourcePath),
 		};
 
 		this.strategies = [
@@ -230,51 +234,14 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
 		const resolvedFilePath = path.resolve(filePath);
+		const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
+			this.entrypointRegistrar.getRegistered(),
+			resolvedFilePath,
+		);
 
-		if (isRegisteredScriptEntrypoint(this.entrypointRegistrar.getRegistered(), resolvedFilePath)) {
-			if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
-				appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
-				this.clearFailedEntrypointRegistration(filePath);
-				return;
-			}
-
-			await this.prepareRegisteredScriptChange(resolvedFilePath);
-
-			const registered = this.entrypointRegistrar.getRegistered().get(resolvedFilePath);
-			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
-				this.devTransformServer.invalidateSource(resolvedFilePath);
-			}
-
-			const shouldBroadcast = options.broadcast ?? true;
-			const strategy = this.selectChangeStrategy(filePath);
-
-			if (!strategy) {
-				appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-				return;
-			}
-
-			appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
-
-			const action = await strategy.process(filePath);
-
-			if (shouldBroadcast && action.type === 'broadcast' && action.events) {
-				if (this.bridge.subscriberCount === 0) {
-					appLogger.debug(
-						`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
-					);
-					return;
-				}
-
-				for (const event of action.events) {
-					const graphIdentities = event.graphIdentities ?? options.graphIdentities;
-					this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
-				}
-			}
-
-			return;
+		if (!isRegisteredDevTransformEdit) {
+			this.devTransformServer.invalidateAll();
 		}
-
-		this.devTransformServer.invalidateAll();
 
 		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
 			appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
@@ -282,22 +249,43 @@ export abstract class SharedHmrManager implements IHmrManager {
 			return;
 		}
 
-		const shouldBroadcast = options.broadcast ?? true;
-		const strategy = this.selectChangeStrategy(filePath);
+		if (isRegisteredDevTransformEdit) {
+			await this.prepareRegisteredEntrypointChange(resolvedFilePath);
 
+			const registered = this.entrypointRegistrar.getRegistered().get(resolvedFilePath);
+			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
+				this.devTransformServer.invalidateSource(resolvedFilePath);
+			}
+		}
+
+		const strategy = this.selectChangeStrategy(filePath);
 		if (!strategy) {
 			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			if (shouldBroadcast && this.bridge.subscriberCount > 0) {
-				this.broadcast({ type: 'reload' });
-			}
+			this.broadcastStrategyAction(filePath, { type: 'none' }, options, !isRegisteredDevTransformEdit);
 			return;
 		}
 
 		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
+		this.broadcastStrategyAction(
+			filePath,
+			await strategy.process(filePath),
+			options,
+			!isRegisteredDevTransformEdit,
+		);
+	}
 
-		const action = await strategy.process(filePath);
+	private broadcastStrategyAction(
+		filePath: string,
+		action: HmrAction,
+		options: HandleFileChangeOptions,
+		fallbackReload: boolean,
+	): void {
+		const shouldBroadcast = options.broadcast ?? true;
+		if (!shouldBroadcast) {
+			return;
+		}
 
-		if (shouldBroadcast && action.type === 'broadcast' && action.events) {
+		if (action.type === 'broadcast' && action.events) {
 			if (this.bridge.subscriberCount === 0) {
 				appLogger.debug(
 					`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
@@ -312,9 +300,16 @@ export abstract class SharedHmrManager implements IHmrManager {
 			return;
 		}
 
-		if (shouldBroadcast && this.bridge.subscriberCount > 0) {
+		if (fallbackReload && this.bridge.subscriberCount > 0) {
 			this.broadcast({ type: 'reload' });
 		}
+	}
+
+	public consumeRegisteredScriptReloadRequired(filePath: string): boolean {
+		const resolved = path.resolve(filePath);
+		const required = this.registeredScriptReloadRequired.has(resolved);
+		this.registeredScriptReloadRequired.delete(resolved);
+		return required;
 	}
 
 	private getStrategiesByPriority(): HmrStrategy[] {
@@ -332,24 +327,20 @@ export abstract class SharedHmrManager implements IHmrManager {
 		});
 	}
 
-	/**
-	 * Runs server invalidation and integration hooks before rebuilding a registered script entrypoint.
-	 *
-	 * @remarks
-	 * Browser-only `*.script.ts` entrypoints skip server module invalidation and bypass-cache
-	 * import; only integration change handlers and the downstream strategy rebuild run.
-	 */
-	private async prepareRegisteredScriptChange(filePath: string): Promise<void> {
-		const isBrowserOnlyRegisteredScript = isBrowserOnlyRegisteredScriptEntrypoint(filePath);
+	private async prepareRegisteredEntrypointChange(filePath: string): Promise<void> {
+		const isRegisteredScript = isRegisteredScriptEntrypoint(this.entrypointRegistrar.getRegistered(), filePath);
 
-		if (!isBrowserOnlyRegisteredScript) {
+		if (!isRegisteredScript) {
 			this.invalidationService.invalidateServerModules([filePath]);
 		}
 
 		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
 		for (const handler of handlers) {
 			try {
-				await handler(filePath);
+				const result = await handler(filePath);
+				if (result === true) {
+					this.registeredScriptReloadRequired.add(path.resolve(filePath));
+				}
 			} catch (error) {
 				const message =
 					error instanceof Error
@@ -360,7 +351,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			}
 		}
 
-		if (isBrowserOnlyRegisteredScript) {
+		if (isRegisteredScript) {
 			return;
 		}
 
@@ -428,6 +419,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return this.entrypointRegistrar.getWatchedFiles();
 	}
 
+	public getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
+		return this.entrypointRegistrar.getRegistered();
+	}
+
 	public async tryHandleDevClientRequest(request: Request): Promise<Response | null> {
 		return this.devTransformServer.tryHandleRequest(request);
 	}
@@ -471,6 +466,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public getDefaultContext(): DefaultHmrContext {
 		return {
 			getWatchedFiles: () => this.entrypointRegistrar.getWatchedFiles(),
+			getRegisteredEntrypoints: () => this.entrypointRegistrar.getRegistered(),
 			getDistDir: () => this.distDir,
 			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
 			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
@@ -503,23 +499,31 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		const url = this.devTransformServer.registerModule(entrypointPath);
-		this.entrypointRegistrar.registerTransformModule(entrypointPath, url);
-		return url;
+		return this.registerDevTransformEntrypoint(entrypointPath, 'page').outputUrl;
 	}
 
 	public async registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint> {
-		const normalized = path.resolve(entrypointPath);
-		if (!fileSystem.exists(normalized)) {
-			throw new Error(`[HMR] Failed to register script entrypoint: missing source ${normalized}`);
-		}
-
-		const outputUrl = await this.registerEntrypoint(entrypointPath);
+		const { normalized, outputUrl, role } = this.registerDevTransformEntrypoint(entrypointPath, 'script');
 		return {
 			sourcePath: normalized,
 			outputPath: normalized,
 			outputUrl,
+			role,
 		};
+	}
+
+	private registerDevTransformEntrypoint(
+		entrypointPath: string,
+		role: ResolvedHmrEntrypoint['role'],
+	): { normalized: string; outputUrl: string; role: ResolvedHmrEntrypoint['role'] } {
+		const normalized = path.resolve(entrypointPath);
+		if (role === 'script' && !fileSystem.exists(normalized)) {
+			throw new Error(`[HMR] Failed to register script entrypoint: missing source ${normalized}`);
+		}
+
+		const outputUrl = this.devTransformServer.registerModule(entrypointPath);
+		this.entrypointRegistrar.registerTransformModule(entrypointPath, outputUrl, { role });
+		return { normalized, outputUrl, role };
 	}
 
 	[Symbol.dispose]() {

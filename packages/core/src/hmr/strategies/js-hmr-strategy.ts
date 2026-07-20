@@ -15,7 +15,9 @@ import { appLogger } from '../../global/app-logger.ts';
 import {
 	removeStaleHmrEntrypointOutput,
 	resolveHmrEntrypointOutputPaths,
+	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
+	type ResolvedHmrEntrypoint,
 	isHmrOutputFresh,
 	isHmrOutputOlderThanSource,
 } from '../hmr-entrypoint-output.ts';
@@ -32,6 +34,8 @@ export interface JsHmrContext {
 	 * Map of registered entrypoints to their output URLs.
 	 */
 	getWatchedFiles(): Map<string, string>;
+
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 
@@ -79,6 +83,8 @@ export interface JsHmrContext {
 	 * Clears one dev-transform cache entry before rebroadcasting its URL.
 	 */
 	invalidateDevTransformSource?(sourcePath: string): void;
+
+	consumeRegisteredScriptReloadRequired?(filePath: string): boolean;
 }
 
 /**
@@ -175,7 +181,8 @@ export class JsHmrStrategy extends HmrStrategy {
 		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedChanged = path.resolve(filePath);
-		const isRegisteredEntrypointEdit = isRegisteredScriptEntrypoint(watchedFiles, resolvedChanged);
+		const registeredEntrypoints = this.context.getRegisteredEntrypoints();
+		const isRegisteredEntrypointEdit = isRegisteredDevTransformEntrypoint(registeredEntrypoints, resolvedChanged);
 
 		if (watchedFiles.size === 0) {
 			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
@@ -202,6 +209,7 @@ export class JsHmrStrategy extends HmrStrategy {
 		}
 
 		const devTransformUpdates: string[] = [];
+		let devTransformReloadRequired = false;
 		const diskEntrypoints: string[] = [];
 
 		for (const entrypoint of buildableEntrypoints) {
@@ -215,7 +223,15 @@ export class JsHmrStrategy extends HmrStrategy {
 
 			if (isDevTransformModuleUrl(outputUrl)) {
 				this.context.invalidateDevTransformSource?.(resolvedEntrypoint);
-				devTransformUpdates.push(outputUrl);
+				if (isRegisteredScriptEntrypoint(registeredEntrypoints, resolvedEntrypoint)) {
+					if (this.context.consumeRegisteredScriptReloadRequired?.(resolvedEntrypoint)) {
+						devTransformReloadRequired = true;
+					} else {
+						devTransformUpdates.push(outputUrl);
+					}
+				} else {
+					devTransformUpdates.push(outputUrl);
+				}
 				continue;
 			}
 
@@ -223,17 +239,18 @@ export class JsHmrStrategy extends HmrStrategy {
 		}
 
 		const diskResult = await this.rebuildDiskEntrypoints(diskEntrypoints, watchedFiles);
+
+		if (devTransformReloadRequired || diskResult.reloadRequired) {
+			appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
+			return {
+				type: 'broadcast',
+				events: [{ type: 'reload' }],
+			};
+		}
+
 		const updates = [...devTransformUpdates, ...diskResult.updates];
 
 		if (updates.length > 0) {
-			if (diskResult.reloadRequired) {
-				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
-				return {
-					type: 'broadcast',
-					events: [{ type: 'reload' }],
-				};
-			}
-
 			return {
 				type: 'broadcast',
 				events: updates.map((p) => ({

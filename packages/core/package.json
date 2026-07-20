@@ -151,6 +151,10 @@
 			"types": "./src/hmr/hmr-strategy.ts",
 			"default": "./src/hmr/hmr-strategy.ts"
 		},
+		"./hmr/hmr-entrypoint-output": {
+			"types": "./src/hmr/hmr-entrypoint-output.ts",
+			"default": "./src/hmr/hmr-entrypoint-output.ts"
+		},
 		"./hmr/hmr-file-change-prep": {
 			"types": "./src/hmr/hmr-file-change-prep.ts",
 			"default": "./src/hmr/hmr-file-change-prep.ts"

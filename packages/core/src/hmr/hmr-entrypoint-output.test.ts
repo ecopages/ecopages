@@ -3,12 +3,24 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
-	isBrowserOnlyRegisteredScriptEntrypoint,
 	isHmrOutputFresh,
 	isHmrOutputOlderThanSource,
 	resolveHmrEntrypointOutputPaths,
+	type ResolvedHmrEntrypoint,
 } from './hmr-entrypoint-output.ts';
+
+function createRegisteredEntrypoint(
+	overrides: Partial<ResolvedHmrEntrypoint> & Pick<ResolvedHmrEntrypoint, 'sourcePath'>,
+): ResolvedHmrEntrypoint {
+	return {
+		outputPath: overrides.sourcePath,
+		outputUrl: '/assets/__eco_dev__/entry.js',
+		role: 'page',
+		...overrides,
+	};
+}
 
 describe('resolveHmrEntrypointOutputPaths', () => {
 	it('maps script entrypoints to _hmr output paths', () => {
@@ -38,33 +50,58 @@ describe('resolveHmrEntrypointOutputPaths', () => {
 	});
 });
 
-describe('isRegisteredScriptEntrypoint', () => {
+describe('isRegisteredDevTransformEntrypoint', () => {
 	it('matches paths registered in the HMR entrypoint map', () => {
 		const entrypoint = '/app/src/components/theme-toggle.tsx';
 		const registered = new Map([
 			[
 				entrypoint,
-				{
+				createRegisteredEntrypoint({
 					sourcePath: entrypoint,
 					outputPath: '/app/.eco/assets/_hmr/components/theme-toggle.js',
 					outputUrl: '/assets/_hmr/components/theme-toggle.js',
-				},
+				}),
 			],
 		]);
 
-		expect(isRegisteredScriptEntrypoint(registered, entrypoint)).toBe(true);
-		expect(isRegisteredScriptEntrypoint(registered, '/app/src/components/other.tsx')).toBe(false);
+		expect(isRegisteredDevTransformEntrypoint(registered, entrypoint)).toBe(true);
+		expect(isRegisteredDevTransformEntrypoint(registered, '/app/src/components/other.tsx')).toBe(false);
+	});
+});
+
+describe('isRegisteredScriptEntrypoint', () => {
+	it('matches only script-role registrations', () => {
+		const scriptPath = '/app/src/layouts/base-layout/base-layout.ts';
+		const pagePath = '/app/src/pages/index.tsx';
+		const registered = new Map([
+			[
+				scriptPath,
+				createRegisteredEntrypoint({
+					sourcePath: scriptPath,
+					role: 'script',
+				}),
+			],
+			[
+				pagePath,
+				createRegisteredEntrypoint({
+					sourcePath: pagePath,
+					role: 'page',
+				}),
+			],
+		]);
+
+		expect(isRegisteredScriptEntrypoint(registered, scriptPath)).toBe(true);
+		expect(isRegisteredScriptEntrypoint(registered, pagePath)).toBe(false);
 	});
 
 	it('normalizes registered entrypoint paths before matching', () => {
 		const registered = new Map([
 			[
 				'/app/src/components/counter.ts',
-				{
+				createRegisteredEntrypoint({
 					sourcePath: '/app/src/components/counter.ts',
-					outputPath: '/app/.eco/assets/_hmr/counter.js',
-					outputUrl: '/assets/_hmr/counter.js',
-				},
+					role: 'script',
+				}),
 			],
 		]);
 
@@ -72,21 +109,11 @@ describe('isRegisteredScriptEntrypoint', () => {
 	});
 });
 
-describe('isBrowserOnlyRegisteredScriptEntrypoint', () => {
-	it('matches declared browser script entrypoints', () => {
-		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/layouts/base-layout/base-layout.script.ts')).toBe(
-			true,
-		);
-		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/components/widget.script.tsx')).toBe(false);
-		expect(isBrowserOnlyRegisteredScriptEntrypoint('/app/src/components/widget.script.eco.tsx')).toBe(false);
-	});
-});
-
 describe('isHmrOutputFresh', () => {
 	it('returns true when output mtime is newer than source mtime', () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-fresh-'));
-		const sourcePath = path.join(root, 'widget.script.tsx');
-		const outputPath = path.join(root, 'widget.script.js');
+		const sourcePath = path.join(root, 'widget.tsx');
+		const outputPath = path.join(root, 'widget.js');
 
 		fs.writeFileSync(sourcePath, 'source');
 		fs.writeFileSync(outputPath, 'output');
@@ -103,8 +130,8 @@ describe('isHmrOutputFresh', () => {
 describe('isHmrOutputOlderThanSource', () => {
 	it('returns false when the output file is missing', () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-stale-'));
-		const sourcePath = path.join(root, 'widget.script.tsx');
-		const outputPath = path.join(root, 'widget.script.js');
+		const sourcePath = path.join(root, 'widget.tsx');
+		const outputPath = path.join(root, 'widget.js');
 
 		fs.writeFileSync(sourcePath, 'source');
 
@@ -115,8 +142,8 @@ describe('isHmrOutputOlderThanSource', () => {
 
 	it('returns true when output mtime is older than source mtime', () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hmr-stale-'));
-		const sourcePath = path.join(root, 'widget.script.tsx');
-		const outputPath = path.join(root, 'widget.script.js');
+		const sourcePath = path.join(root, 'widget.tsx');
+		const outputPath = path.join(root, 'widget.js');
 
 		fs.writeFileSync(sourcePath, 'source');
 		fs.writeFileSync(outputPath, 'output');

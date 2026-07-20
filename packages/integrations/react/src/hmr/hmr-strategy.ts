@@ -11,6 +11,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { isRegisteredScriptEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
@@ -310,6 +311,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 		const resolvedFilePath = path.resolve(filePath);
 		appLogger.debug(`Checking ${filePath}. Watched: ${watchedFiles.size}`);
 
+		if (isRegisteredScriptEntrypoint(this.context.getRegisteredEntrypoints(), resolvedFilePath)) {
+			return false;
+		}
+
 		if (watchedFiles.has(resolvedFilePath)) {
 			if (this.ownsWatchedEntrypoint(resolvedFilePath)) {
 				return true;
@@ -341,11 +346,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		if (this.ownsWatchedEntrypoint(entrypointPath)) {
-			return true;
-		}
-
-		return /\.script\.tsx$/u.test(path.resolve(entrypointPath));
+		return (
+			this.ownsWatchedEntrypoint(entrypointPath) ||
+			isRegisteredScriptEntrypoint(this.context.getRegisteredEntrypoints(), entrypointPath)
+		);
 	}
 
 	/**

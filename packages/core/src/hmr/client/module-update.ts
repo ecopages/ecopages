@@ -9,18 +9,12 @@ export type HmrModuleHandlers = Record<string, (url: string) => Promise<void> | 
 
 export type ApplyModuleUpdateContext = {
 	getHandlers: () => HmrModuleHandlers | undefined;
+	getActivePageModule?: () => string | undefined;
 	reloadCurrentPage: (request: { clearCache: boolean; moduleUrl: string }) => Promise<boolean>;
 	importModule: (url: string) => Promise<unknown>;
 	waitForSettled: () => Promise<void>;
 };
 
-/**
- * Resolves the module URL that should drive a layout refresh after HMR.
- *
- * @remarks
- * Dev transform page modules take precedence over legacy `_hmr` disk URLs and any
- * non-page handler registered for script widgets.
- */
 export function resolveActiveModuleUrl(handlers: HmrModuleHandlers, pageModule?: string): string | undefined {
 	if (pageModule) {
 		const basePath = stripModuleUrlQuery(pageModule);
@@ -40,13 +34,6 @@ export function resolveActiveModuleUrl(handlers: HmrModuleHandlers, pageModule?:
 	return handlerPaths[handlerPaths.length - 1];
 }
 
-/**
- * Applies one module update using integration handlers or router-coordinated reload.
- *
- * @remarks
- * Dev transform modules never fall back to bare dynamic import. They rely on
- * hydration-registered handlers or `reloadCurrentPage` with the refreshed URL.
- */
 export async function applyModuleUpdate(
 	path: string,
 	context: ApplyModuleUpdateContext,
@@ -65,7 +52,15 @@ export async function applyModuleUpdate(
 	}
 
 	if (isDevTransformModuleUrl(basePath)) {
-		await context.reloadCurrentPage({ clearCache: false, moduleUrl: url });
+		const activePageModule = context.getActivePageModule?.();
+		const isActivePageModule = activePageModule !== undefined && stripModuleUrlQuery(activePageModule) === basePath;
+
+		if (isActivePageModule) {
+			await context.reloadCurrentPage({ clearCache: false, moduleUrl: url });
+			return;
+		}
+
+		await context.importModule(url);
 		return;
 	}
 

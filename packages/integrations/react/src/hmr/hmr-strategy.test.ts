@@ -87,6 +87,7 @@ function createImportServerModuleMock(result: {
 function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultHmrContext {
 	return {
 		getWatchedFiles: () => new Map(),
+		getRegisteredEntrypoints: () => new Map(),
 		getDistDir: () => '/tmp/.eco/assets/_hmr',
 		getSrcDir: () => '/tmp/src',
 		getLayoutsDir: () => '/tmp/src/layouts',
@@ -117,6 +118,47 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 	};
 }
 
+function registeredScriptEntrypoints(
+	entries: Array<{ sourcePath: string; outputUrl: string }>,
+): Map<string, { sourcePath: string; outputPath: string; outputUrl: string; role: 'script' }> {
+	return new Map(
+		entries.map(({ sourcePath, outputUrl }) => [
+			sourcePath,
+			{
+				sourcePath,
+				outputPath: sourcePath,
+				outputUrl,
+				role: 'script' as const,
+			},
+		]),
+	);
+}
+
+function createRegisteredScriptStrategy(options: {
+	scriptPath: string;
+	outputUrl: string;
+	watchedFiles?: Map<string, string>;
+	ownsEntrypoint?: (entrypointPath: string) => boolean;
+	ownedTemplateExtensions?: string[];
+	allTemplateExtensions?: string[];
+}): ReactHmrStrategy {
+	const { scriptPath, outputUrl, watchedFiles, ownsEntrypoint, ownedTemplateExtensions, allTemplateExtensions } =
+		options;
+
+	return new ReactHmrStrategy({
+		context: createMockContext({
+			getWatchedFiles: () => watchedFiles ?? new Map(),
+			getRegisteredEntrypoints: () => registeredScriptEntrypoints([{ sourcePath: scriptPath, outputUrl }]),
+		}),
+		pageMetadataCache: createPageMetadataCache({
+			ownsEntrypoint,
+		}) as any,
+		runtimeManifest: defaultRuntimeManifest,
+		ownedTemplateExtensions,
+		allTemplateExtensions,
+	});
+}
+
 describe('ReactHmrStrategy', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -145,17 +187,26 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 	});
 
-	it('claims Radiant .script.tsx entrypoints for dev transform plugin selection', () => {
-		const scriptPath = '/tmp/src/components/counter.script.tsx';
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache({
-				ownsEntrypoint: () => false,
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
+	it('claims registered script entrypoints that need React transforms', () => {
+		const scriptPath = '/tmp/src/components/counter.tsx';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/components/counter.js',
+			ownedTemplateExtensions: ['.eco.tsx'],
+			allTemplateExtensions: ['.eco.tsx', '.tsx'],
 		});
 
 		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(true);
+	});
+
+	it('does not claim registered script entrypoints that are not React entrypoints', () => {
+		const scriptPath = '/tmp/src/layouts/base-layout.ts';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/layouts/base-layout.js',
+		});
+
+		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(false);
 	});
 
 	it('process returns none when no entrypoints are registered yet', async () => {
@@ -204,19 +255,29 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches('/tmp/src/views/explicit-team-view.kita.tsx')).toBe(false);
 	});
 
-	it('ignores watched script entrypoints that React does not own', () => {
-		const watchedFiles = new Map<string, string>([
-			['/tmp/src/components/radiant-counter.script.tsx', '/assets/_hmr/components/radiant-counter.script.js'],
-		]);
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getWatchedFiles: () => watchedFiles,
-			}),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
+	it.each([
+		{
+			label: 'without watch ownership',
+			ownsEntrypoint: () => false,
+			watchedFiles: undefined as Map<string, string> | undefined,
+		},
+		{
+			label: 'with watch ownership',
+			ownsEntrypoint: (entrypointPath: string) => entrypointPath === '/tmp/src/components/radiant-counter.tsx',
+			watchedFiles: new Map([
+				['/tmp/src/components/radiant-counter.tsx', '/assets/__eco_dev__/components/radiant-counter.js'],
+			]),
+		},
+	])('defers registered script entrypoints to JsHmrStrategy ($label)', ({ ownsEntrypoint, watchedFiles }) => {
+		const scriptPath = '/tmp/src/components/radiant-counter.tsx';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/components/radiant-counter.js',
+			watchedFiles,
+			ownsEntrypoint,
 		});
 
-		expect(strategy.matches('/tmp/src/components/radiant-counter.script.tsx')).toBe(false);
+		expect(strategy.matches(scriptPath)).toBe(false);
 	});
 
 	it('routes React browser rebuilds through BrowserBundleService', async () => {

@@ -49,12 +49,50 @@ describe('applyModuleUpdate', () => {
 		expect(importModule).not.toHaveBeenCalled();
 	});
 
-	it('reloads through the navigation runtime when a dev transform handler is missing', async () => {
+	it('re-imports dev transform modules that are not the active page', async () => {
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
 
-		await applyModuleUpdate(`${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js`, {
+		await applyModuleUpdate(`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`, {
 			getHandlers: () => ({}),
+			getActivePageModule: () => `${DEV_TRANSFORM_URL_PREFIX}/pages/script-hmr.js`,
+			reloadCurrentPage,
+			importModule,
+			waitForSettled: async () => undefined,
+		});
+
+		expect(importModule).toHaveBeenCalledWith(
+			expect.stringContaining(`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js?t=`),
+		);
+		expect(reloadCurrentPage).not.toHaveBeenCalled();
+	});
+
+	it('re-imports registered component script entrypoints that are not the active page', async () => {
+		const reloadCurrentPage = vi.fn(async () => true);
+		const importModule = vi.fn(async () => ({}));
+
+		await applyModuleUpdate(`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/script-hmr-marker.eco.js`, {
+			getHandlers: () => ({}),
+			getActivePageModule: () => `${DEV_TRANSFORM_URL_PREFIX}/pages/script-hmr.js`,
+			reloadCurrentPage,
+			importModule,
+			waitForSettled: async () => undefined,
+		});
+
+		expect(importModule).toHaveBeenCalledWith(
+			expect.stringContaining(`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/script-hmr-marker.eco.js?t=`),
+		);
+		expect(reloadCurrentPage).not.toHaveBeenCalled();
+	});
+
+	it('reloads through the navigation runtime when a dev transform handler is missing', async () => {
+		const reloadCurrentPage = vi.fn(async () => true);
+		const importModule = vi.fn(async () => ({}));
+		const pageModule = `${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js`;
+
+		await applyModuleUpdate(pageModule, {
+			getHandlers: () => ({}),
+			getActivePageModule: () => pageModule,
 			reloadCurrentPage,
 			importModule,
 			waitForSettled: async () => undefined,

@@ -99,7 +99,7 @@ describe('JsHmrStrategy integration', () => {
 		expect(broadcasts.some((event) => event.type === 'reload' || event.type === 'update')).toBe(true);
 	});
 
-	it('rebuilds a browser-only .script.ts entrypoint without server-importing it', async () => {
+	it('rebuilds a registered script entrypoint without server-importing it', async () => {
 		const rootDir = createTempRoot('js-hmr-browser-script');
 		const layoutsDir = path.join(rootDir, 'src', 'layouts', 'base-layout');
 		fs.mkdirSync(layoutsDir, { recursive: true });
@@ -162,7 +162,43 @@ describe('JsHmrStrategy integration', () => {
 		await manager.handleFileChange(entrypointPath);
 
 		expect(importCalls).toBe(0);
+		expect(broadcasts.some((event) => event.type === 'update')).toBe(true);
+		expect(broadcasts.some((event) => event.type === 'reload')).toBe(false);
 		expect(broadcasts.length).toBeGreaterThan(0);
 		expect(await readDevTransformModule(manager, entrypointPath)).toContain('UPDATED');
+	});
+
+	it('broadcasts reload for registered .script.tsx entrypoint edits', async () => {
+		const rootDir = createTempRoot('js-hmr-script-tsx-reload');
+		const componentsDir = path.join(rootDir, 'src', 'components', 'script-hmr');
+		fs.mkdirSync(componentsDir, { recursive: true });
+
+		const entrypointPath = path.join(componentsDir, 'widget.script.tsx');
+		fs.writeFileSync(entrypointPath, `export const marker = "BASELINE";\nconsole.log("BASELINE");\n`, 'utf8');
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const broadcasts: ClientBridgeEvent[] = [];
+		config.runtime ??= {};
+		config.runtime.registeredScriptEntrypointChangeHandlers = [() => true];
+		using manager = new BunHmrManager({
+			appConfig: config,
+			bridge: {
+				subscriberCount: 1,
+				broadcast: (event: ClientBridgeEvent) => {
+					broadcasts.push(event);
+				},
+			} as never,
+		});
+
+		manager.setEnabled(true);
+		installBuildRuntime(config);
+
+		await manager.registerScriptEntrypoint(entrypointPath);
+		broadcasts.length = 0;
+
+		fs.writeFileSync(entrypointPath, `export const marker = "UPDATED";\nconsole.log("UPDATED");\n`, 'utf8');
+		await manager.handleFileChange(entrypointPath);
+
+		expect(broadcasts).toEqual([{ type: 'reload' }]);
 	});
 });

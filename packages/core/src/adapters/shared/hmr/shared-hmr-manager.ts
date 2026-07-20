@@ -34,7 +34,6 @@ import {
 import type { ServerModuleTranspiler } from '../../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
-import { resolveDevClientDeliveryMode } from '../../../dev/transform-server/dev-transform-delivery.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
 
 type HandleFileChangeOptions = HmrFileChangeOptions;
@@ -58,8 +57,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
 	private runtimeBuildPromise: Promise<boolean> | null = null;
 	private runtimeReady = false;
-	protected devTransformServer: DevTransformServer | null = null;
-	protected devClientDelivery: ReturnType<typeof resolveDevClientDeliveryMode> = 'transform';
+	protected readonly devTransformServer: DevTransformServer;
 
 	constructor({ appConfig, bridge }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
@@ -77,10 +75,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		);
 		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
 		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
-		this.devClientDelivery = resolveDevClientDeliveryMode(this.appConfig.runtime);
-		if (this.devClientDelivery === 'transform') {
-			this.devTransformServer = new DevTransformServer({ appConfig: this.appConfig });
-		}
+		this.devTransformServer = new DevTransformServer({ appConfig: this.appConfig });
 		this.ensureDistDir();
 		this.initializeStrategies();
 	}
@@ -117,7 +112,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	registerDevTransformContributor(contributor: DevTransformBundleContributor): void {
-		this.devTransformServer?.addContributor(contributor);
+		this.devTransformServer.addContributor(contributor);
 	}
 
 	protected initializeStrategies(): void {
@@ -234,49 +229,48 @@ export abstract class SharedHmrManager implements IHmrManager {
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
 		const resolvedFilePath = path.resolve(filePath);
 
-		if (this.devClientDelivery === 'transform' && this.devTransformServer) {
-			this.devTransformServer.invalidateSource(resolvedFilePath);
-			const shouldBroadcast = options.broadcast ?? true;
-			if (shouldBroadcast && this.bridge.subscriberCount > 0) {
-				this.broadcast({ type: 'reload' });
-			}
-			return;
-		}
-
-		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
-			appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
-			this.clearFailedEntrypointRegistration(filePath);
-			return;
-		}
-
 		if (isRegisteredScriptEntrypoint(this.entrypointRegistrar.getRegistered(), resolvedFilePath)) {
-			await this.prepareRegisteredScriptChange(resolvedFilePath);
-		}
-
-		const shouldBroadcast = options.broadcast ?? true;
-		const strategy = this.selectChangeStrategy(filePath);
-
-		if (!strategy) {
-			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			return;
-		}
-
-		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
-
-		const action = await strategy.process(filePath);
-
-		if (shouldBroadcast && action.type === 'broadcast' && action.events) {
-			if (this.bridge.subscriberCount === 0) {
-				appLogger.debug(
-					`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
-				);
+			if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
+				appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
+				this.clearFailedEntrypointRegistration(filePath);
 				return;
 			}
 
-			for (const event of action.events) {
-				const graphIdentities = event.graphIdentities ?? options.graphIdentities;
-				this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
+			await this.prepareRegisteredScriptChange(resolvedFilePath);
+
+			const shouldBroadcast = options.broadcast ?? true;
+			const strategy = this.selectChangeStrategy(filePath);
+
+			if (!strategy) {
+				appLogger.warn(`[HMR] No strategy found for ${filePath}`);
+				return;
 			}
+
+			appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
+
+			const action = await strategy.process(filePath);
+
+			if (shouldBroadcast && action.type === 'broadcast' && action.events) {
+				if (this.bridge.subscriberCount === 0) {
+					appLogger.debug(
+						`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
+					);
+					return;
+				}
+
+				for (const event of action.events) {
+					const graphIdentities = event.graphIdentities ?? options.graphIdentities;
+					this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
+				}
+			}
+
+			return;
+		}
+
+		this.devTransformServer.invalidateAll();
+		const shouldBroadcast = options.broadcast ?? true;
+		if (shouldBroadcast && this.bridge.subscriberCount > 0) {
+			this.broadcast({ type: 'reload' });
 		}
 	}
 
@@ -433,10 +427,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async tryHandleDevClientRequest(request: Request): Promise<Response | null> {
-		if (!this.devTransformServer || this.devClientDelivery !== 'transform') {
-			return null;
-		}
-
 		return this.devTransformServer.tryHandleRequest(request);
 	}
 
@@ -511,21 +501,9 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		if (this.devTransformServer && this.devClientDelivery === 'transform') {
-			const url = this.devTransformServer.registerModule(entrypointPath);
-			this.entrypointRegistrar.registerTransformModule(entrypointPath, url);
-			return url;
-		}
-
-		const resolved = await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
-			emit: async (normalizedEntrypoint, outputPath) =>
-				await this.emitIntegrationEntrypoint(normalizedEntrypoint, outputPath),
-			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
-				new Error(
-					`[HMR] Integration failed to emit entrypoint ${normalizedEntrypoint} to ${outputPath}. Page entrypoints must be produced by their owning integration.`,
-				),
-		});
-		return resolved.outputUrl;
+		const url = this.devTransformServer.registerModule(entrypointPath);
+		this.entrypointRegistrar.registerTransformModule(entrypointPath, url);
+		return url;
 	}
 
 	public async registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint> {

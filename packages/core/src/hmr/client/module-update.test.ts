@@ -91,7 +91,7 @@ describe('applyModuleUpdate', () => {
 		const importModule = vi.fn(async () => ({}));
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-		await applyModuleUpdate('/assets/_hmr/components/counter.js', {
+		await applyModuleUpdate('/assets/built/components/counter.js', {
 			getHandlers: () => ({}),
 			reloadCurrentPage,
 			importModule,
@@ -101,7 +101,7 @@ describe('applyModuleUpdate', () => {
 		expect(importModule).not.toHaveBeenCalled();
 		expect(reloadCurrentPage).not.toHaveBeenCalled();
 		expect(warnSpy).toHaveBeenCalledWith(
-			'[ecopages] No HMR handler for module update: /assets/_hmr/components/counter.js',
+			'[ecopages] No HMR handler for module update: /assets/built/components/counter.js',
 		);
 	});
 });

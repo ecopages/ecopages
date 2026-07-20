@@ -1,8 +1,5 @@
 import path from 'node:path';
 import type { ResolvedHmrEntrypoint } from '../../../hmr/hmr-entrypoint-output.ts';
-import type { HmrRegisteredEntrypointsContext } from '../../../hmr/hmr-registered-entrypoints-context.ts';
-
-export type { HmrRegisteredEntrypointsContext };
 
 /**
  * Tracks dev-transform entrypoints registered for HMR invalidation.

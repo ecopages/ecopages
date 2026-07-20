@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 
@@ -127,7 +127,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		manager.registerStrategy(
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
 				type: 'broadcast',
-				events: [{ type: 'update', path: '/assets/_hmr/deferred.js', timestamp: 1 }],
+				events: [{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/deferred.js`, timestamp: 1 }],
 			}),
 		);
 

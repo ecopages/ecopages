@@ -329,12 +329,12 @@ describe('JsHmrStrategy', () => {
 			});
 		});
 
-		it('ignores legacy disk HMR URLs', async () => {
+		it('ignores non-dev-transform module URLs', async () => {
 			const entrypoint = path.join(SRC_DIR, 'entry.ts');
 			const invalidated: string[] = [];
 
 			const context = createMockContext({
-				getWatchedFiles: () => new Map([[entrypoint, '/assets/_hmr/entry.js']]),
+				getWatchedFiles: () => new Map([[entrypoint, '/assets/built/entry.js']]),
 				invalidateDevTransformSource: (sourcePath) => {
 					invalidated.push(sourcePath);
 				},

@@ -10,6 +10,9 @@ import {
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
 
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/hmr/hmr-asset-paths`. */
+const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
+
 function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
 	return { reloadAttribute: options.reloadAttribute };
 }
@@ -200,31 +203,35 @@ describe('extractComponentUrl', () => {
 	it('should extract component URL from window.__ECO_PAGES__.page for current document', async () => {
 		if (typeof window === 'undefined') return;
 
+		const pageModuleUrl = `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js`;
+
 		window.__ECO_PAGES__ = {
 			...window.__ECO_PAGES__,
 			page: {
-				module: '/_hmr/pages/about.js',
+				module: pageModuleUrl,
 				props: {},
 			},
 		};
 
 		const url = await extractComponentUrl(document);
-		expect(url).toBe('/_hmr/pages/about.js');
+		expect(url).toBe(pageModuleUrl);
 	});
 
 	it('should handle component URLs with query parameters', async () => {
 		if (typeof window === 'undefined') return;
 
+		const pageModuleUrl = `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js?version=1`;
+
 		window.__ECO_PAGES__ = {
 			...window.__ECO_PAGES__,
 			page: {
-				module: '/_hmr/pages/about.js?version=1',
+				module: pageModuleUrl,
 				props: {},
 			},
 		};
 
 		const url = await extractComponentUrl(document);
-		expect(url).toBe('/_hmr/pages/about.js?version=1');
+		expect(url).toBe(pageModuleUrl);
 	});
 
 	it('should return null when window.__ECO_PAGES__.page is missing', async () => {
@@ -282,7 +289,7 @@ describe('extractComponentUrl', () => {
 		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 		const url = await extractComponentUrl(doc);
-		expect(url).toBe('http://localhost:63315/assets/grouped/react-pages-dashboard.js');
+		expect(url).toBe(`${window.location.origin}/assets/grouped/react-pages-dashboard.js`);
 		expect(fetchSpy).not.toHaveBeenCalled();
 		fetchSpy.mockRestore();
 	});
@@ -557,7 +564,7 @@ describe('getLinkNavigationDecision', () => {
 	});
 
 	it('should not intercept same-page links that only add a hash fragment', () => {
-		window.history.replaceState({}, '', 'http://localhost:63315/docs/ecosystem/browser-router');
+		window.history.replaceState({}, '', `${window.location.origin}/docs/ecosystem/browser-router`);
 		const link = createLink('/docs/ecosystem/browser-router#setup');
 		links.push(link);
 

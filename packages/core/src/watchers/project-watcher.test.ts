@@ -6,6 +6,7 @@ import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
 
@@ -314,7 +315,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			};
 			Config.processors.set('css', Processor as any);
 			HmrManager.getWatchedFiles = vi.fn(
-				() => new Map([[path.resolve(scriptPath), '/assets/_hmr/components/theme-toggle.js']]),
+				() => new Map([[path.resolve(scriptPath), `${DEV_TRANSFORM_URL_PREFIX}/components/theme-toggle.js`]]),
 			);
 
 			await (watcher as any).handleFileChange(scriptPath);

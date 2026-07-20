@@ -67,7 +67,12 @@ export class DevTransformBundler {
 			throw new Error(`[dev-transform] Missing temp output for ${normalized}: ${tempPath}`);
 		}
 
-		return { code: fileSystem.readFileSync(resolvedPath) };
+		const dependencies = result.dependencyGraph?.entrypoints[normalized];
+
+		return {
+			code: fileSystem.readFileSync(resolvedPath),
+			dependencies,
+		};
 	}
 }
 

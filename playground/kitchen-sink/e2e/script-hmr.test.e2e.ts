@@ -112,7 +112,10 @@ test.describe('Declared client script HMR @hmr', () => {
 		restoreMutatedSources();
 	});
 
-	test('cold-start serves and hot-reloads the base layout script from _hmr', async ({ page, request }, testInfo) => {
+	test('cold-start serves and hot-reloads the base layout script from dev transform', async ({
+		page,
+		request,
+	}, testInfo) => {
 		const timer = createHmrPhaseTimer(`${testInfo.project.name} :: base-layout cold start`);
 		const runtime = trackRuntimeErrors(page);
 		const hmrReady = startEcopagesHmrConnectionWatch(page);

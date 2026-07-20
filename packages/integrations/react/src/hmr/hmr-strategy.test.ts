@@ -1,17 +1,9 @@
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
-import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
-import {
-	createDevHmrEntrypointCache,
-	setDevHmrEntrypointCacheEntry,
-} from '@ecopages/core/build/dev-hmr-entrypoint-cache';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
-import { fileSystem } from '@ecopages/file-system';
 
 const defaultRuntimeManifest = createBrowserRuntimeManifest([
 	{
@@ -46,6 +38,10 @@ const defaultRuntimeManifest = createBrowserRuntimeManifest([
 	},
 ]);
 
+function devTransformPageUrl(relativeJsPath: string): string {
+	return `/assets/__eco_dev__/pages/${relativeJsPath}`;
+}
+
 function createPageMetadataCache(
 	overrides: {
 		initialOwnedEntrypoints?: string[];
@@ -69,7 +65,7 @@ function createPageMetadataCache(
 			overrides.markOwnedEntrypoint?.(entrypointPath);
 		},
 		setDeclaredModules: overrides.setDeclaredModules ?? (() => undefined),
-	} as HmrPageMetadataCache;
+	};
 }
 
 function createImportServerModuleMock(result: {
@@ -83,24 +79,10 @@ function createImportServerModuleMock(result: {
 function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultHmrContext {
 	return {
 		getWatchedFiles: () => new Map(),
-		getDistDir: () => '/tmp/.eco/assets/_hmr',
+		getRegisteredEntrypoints: () => new Map(),
 		getSrcDir: () => '/tmp/src',
 		getLayoutsDir: () => '/tmp/src/layouts',
 		getPagesDir: () => '/tmp/src/pages',
-		getBuildExecutor: () => ({
-			build: vi.fn(async () => ({
-				success: true,
-				logs: [],
-				outputs: [],
-			})),
-		}),
-		getBrowserBundleService: () => ({
-			bundle: vi.fn(async () => ({
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp' }],
-			})),
-		}),
 		getEntrypointDependencyGraph: () => ({
 			supportsSelectiveInvalidation: () => true,
 			getDependencyEntrypoints: () => new Set(),
@@ -111,6 +93,47 @@ function createMockContext(overrides: Partial<DefaultHmrContext> = {}): DefaultH
 		importServerModule: createImportServerModuleMock({ config: {} }),
 		...overrides,
 	};
+}
+
+function registeredScriptEntrypoints(
+	entries: Array<{ sourcePath: string; outputUrl: string }>,
+): Map<string, { sourcePath: string; outputPath: string; outputUrl: string; role: 'script' }> {
+	return new Map(
+		entries.map(({ sourcePath, outputUrl }) => [
+			sourcePath,
+			{
+				sourcePath,
+				outputPath: sourcePath,
+				outputUrl,
+				role: 'script' as const,
+			},
+		]),
+	);
+}
+
+function createRegisteredScriptStrategy(options: {
+	scriptPath: string;
+	outputUrl: string;
+	watchedFiles?: Map<string, string>;
+	ownsEntrypoint?: (entrypointPath: string) => boolean;
+	ownedTemplateExtensions?: string[];
+	allTemplateExtensions?: string[];
+}): ReactHmrStrategy {
+	const { scriptPath, outputUrl, watchedFiles, ownsEntrypoint, ownedTemplateExtensions, allTemplateExtensions } =
+		options;
+
+	return new ReactHmrStrategy({
+		context: createMockContext({
+			getWatchedFiles: () => watchedFiles ?? new Map(),
+			getRegisteredEntrypoints: () => registeredScriptEntrypoints([{ sourcePath: scriptPath, outputUrl }]),
+		}),
+		pageMetadataCache: createPageMetadataCache({
+			ownsEntrypoint,
+		}) as any,
+		runtimeManifest: defaultRuntimeManifest,
+		ownedTemplateExtensions,
+		allTemplateExtensions,
+	});
 }
 
 describe('ReactHmrStrategy', () => {
@@ -128,7 +151,7 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
 	});
 
-	it('claims owned React entrypoints for cold registration emission', () => {
+	it('claims owned React entrypoints for dev transform plugin selection', () => {
 		const pagePath = '/tmp/src/pages/index.tsx';
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
@@ -138,71 +161,35 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		expect(strategy.canEmitEntrypoint(pagePath)).toBe(true);
+		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 	});
 
-	it('emitEntrypoint bundles owned React entrypoints before they are registered in watched files', async () => {
-		const pagePath = '/tmp/src/pages/index.tsx';
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.js' }],
-		}));
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }),
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
+	it('claims registered script entrypoints that need React transforms', () => {
+		const scriptPath = '/tmp/src/components/counter.tsx';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/components/counter.js',
+			ownedTemplateExtensions: ['.eco.tsx'],
+			allTemplateExtensions: ['.eco.tsx', '.tsx'],
 		});
 
-		await strategy.emitEntrypoint(pagePath, '/tmp/.eco/assets/_hmr/pages/index.js');
-		expect(bundle).toHaveBeenCalled();
+		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(true);
 	});
 
-	it('emitEntrypoint bundles owned React entrypoints during registration when other pages are already watched', async () => {
-		const existingPagePath = '/tmp/src/pages/about.tsx';
-		const pendingPagePath = '/tmp/src/pages/index.tsx';
-		const watchedFiles = new Map<string, string>([[existingPagePath, '/assets/_hmr/pages/about.js']]);
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
-		}));
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getWatchedFiles: () => watchedFiles,
-				getBrowserBundleService: () => ({ bundle }),
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				ownsEntrypoint: (entrypointPath) =>
-					entrypointPath === existingPagePath || entrypointPath === pendingPagePath,
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
+	it('does not claim registered script entrypoints that are not React entrypoints', () => {
+		const scriptPath = '/tmp/src/layouts/base-layout.ts';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/layouts/base-layout.js',
 		});
 
-		await strategy.emitEntrypoint(pendingPagePath, '/tmp/.eco/assets/_hmr/pages/index.js');
-		expect(bundle).toHaveBeenCalledTimes(1);
-		expect(bundle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				entrypoints: [pendingPagePath],
-			}),
-		);
+		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(false);
 	});
 
 	it('process returns none when no entrypoints are registered yet', async () => {
 		const pagePath = '/tmp/src/pages/index.tsx';
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.js' }],
-		}));
 		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }),
-			}),
+			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
 			}) as any,
@@ -210,12 +197,11 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		await expect(strategy.process(pagePath)).resolves.toEqual({ type: 'none' });
-		expect(bundle).not.toHaveBeenCalled();
 	});
 
 	it('matches route templates only when their configured extension is owned by React', () => {
 		const watchedFiles = new Map<string, string>([
-			['/tmp/src/pages/react-lab.tsx', '/assets/_hmr/pages/react-lab.js'],
+			['/tmp/src/pages/react-lab.tsx', '/assets/__eco_dev__/pages/react-lab.js'],
 		]);
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({
@@ -238,226 +224,56 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches('/tmp/src/views/explicit-team-view.kita.tsx')).toBe(false);
 	});
 
-	it('ignores watched script entrypoints that React does not own', () => {
-		const watchedFiles = new Map<string, string>([
-			['/tmp/src/components/radiant-counter.script.tsx', '/assets/_hmr/components/radiant-counter.script.js'],
-		]);
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getWatchedFiles: () => watchedFiles,
-			}),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
+	it.each([
+		{
+			label: 'without watch ownership',
+			ownsEntrypoint: () => false,
+			watchedFiles: undefined as Map<string, string> | undefined,
+		},
+		{
+			label: 'with watch ownership',
+			ownsEntrypoint: (entrypointPath: string) => entrypointPath === '/tmp/src/components/radiant-counter.tsx',
+			watchedFiles: new Map([
+				['/tmp/src/components/radiant-counter.tsx', '/assets/__eco_dev__/components/radiant-counter.js'],
+			]),
+		},
+	])('defers registered script entrypoints to JsHmrStrategy ($label)', ({ ownsEntrypoint, watchedFiles }) => {
+		const scriptPath = '/tmp/src/components/radiant-counter.tsx';
+		const strategy = createRegisteredScriptStrategy({
+			scriptPath,
+			outputUrl: '/assets/__eco_dev__/components/radiant-counter.js',
+			watchedFiles,
+			ownsEntrypoint,
 		});
 
-		expect(strategy.matches('/tmp/src/components/radiant-counter.script.tsx')).toBe(false);
+		expect(strategy.matches(scriptPath)).toBe(false);
 	});
 
-	it('routes React browser rebuilds through BrowserBundleService', async () => {
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
-		}));
-		const build = vi.fn(async () => {
-			throw new Error('React HMR browser rebuild should not call the raw build executor.');
-		});
-		const entrypointPath = '/tmp/src/pages/index.tsx';
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }) as any,
-				getBuildExecutor: () => ({ build }),
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				getDeclaredModules: () => [],
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		(strategy as any).processOutput = vi.fn(async () => true);
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
-
-		const success = await (strategy as any).bundleReactEntrypoint(entrypointPath, '/_hmr/pages/index.js');
-
-		expect(success).toBe(true);
-		expect(bundle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				profile: 'hmr-entrypoint',
-				entrypoints: [entrypointPath],
-				outdir: path.join('/tmp/.eco/assets/_hmr', 'pages'),
-				naming: '[name].[hash].tmp',
-				minify: false,
-			}),
-		);
-		expect(build).not.toHaveBeenCalled();
-	});
-
-	it('loads server-side page metadata through the shared HMR server-module path', async () => {
+	it('createDevTransformPlugins loads server-side page metadata through the shared HMR server-module path', async () => {
 		const importServerModule = createImportServerModuleMock({
 			config: {
 				requires: ['react', './client-entry.ts'],
 			},
 		});
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
-		}));
-		const build = vi.fn(async () => {
-			throw new Error('React HMR metadata loading should not call the raw build executor.');
-		});
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({
 				importServerModule,
-				getBrowserBundleService: () => ({ bundle }) as any,
-				getBuildExecutor: () => ({ build }),
 			}),
 			pageMetadataCache: createPageMetadataCache() as any,
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).processOutput = vi.fn(async () => true);
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
+		await strategy.createDevTransformPlugins('/tmp/src/pages/index.tsx');
 
-		const success = await (strategy as any).bundleReactEntrypoint(
-			'/tmp/src/pages/index.tsx',
-			'/_hmr/pages/index.js',
-		);
-
-		expect(success).toBe(true);
 		expect(importServerModule).toHaveBeenCalledWith('/tmp/src/pages/index.tsx');
-		expect(build).not.toHaveBeenCalled();
-	});
-
-	it('resolves hashed temp outputs when the bundle result returns a placeholder path', async () => {
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js' }],
-		}));
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }) as any,
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				getDeclaredModules: () => [],
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath: string) => {
-			return targetPath === '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js';
-		});
-		const globSpy = vi
-			.spyOn(fileSystem, 'glob')
-			.mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.123.tmp.js']);
-		(strategy as any).processOutput = vi.fn(async () => true);
-
-		const success = await (strategy as any).bundleReactEntrypoint(
-			'/tmp/src/pages/index.tsx',
-			'/_hmr/pages/index.js',
-		);
-
-		expect(success).toBe(true);
-		expect(globSpy).toHaveBeenCalledWith(['index.*.tmp.js'], {
-			cwd: '/tmp/.eco/assets/_hmr/pages',
-		});
-		expect((strategy as any).processOutput).toHaveBeenCalledWith(
-			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/pages/index.js',
-			'/_hmr/pages/index.js',
-		);
-	});
-
-	it('leaves runtime imports unchanged during output processing', async () => {
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
-		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
-		vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
-		vi.spyOn(fileSystem, 'readFile').mockResolvedValue(
-			'import { useState } from "react";\nimport { jsxDEV } from "react/jsx-dev-runtime";\n',
-		);
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const success = await (strategy as any).processOutput(
-			'/tmp/.eco/assets/_hmr/components/react-counter.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/components/react-counter.js',
-			'/_hmr/components/react-counter.js',
-		);
-
-		expect(success).toBe(true);
-		expect(writeAsync).toHaveBeenCalledWith(
-			'/tmp/.eco/assets/_hmr/components/react-counter.js',
-			expect.stringContaining('from "react"'),
-		);
-		expect(writeAsync.mock.calls[0]?.[1]).toContain('from "react/jsx-dev-runtime"');
-	});
-
-	it('rewrites grouped HMR chunk imports to the served _hmr chunk root during output processing', async () => {
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
-		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
-		vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
-		vi.spyOn(fileSystem, 'readFile').mockResolvedValue(
-			'import { a } from "../../../chunk-m6tevyj7.js";\nconst b = () => import("../../../chunk-rvgy3r62.js");\n',
-		);
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const success = await (strategy as any).processOutput(
-			'/tmp/.eco/assets/_hmr/pages/docs/index.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/pages/docs/index.js',
-			'/assets/_hmr/pages/docs/index.js',
-		);
-
-		expect(success).toBe(true);
-		expect(writeAsync).toHaveBeenCalledWith(
-			'/tmp/.eco/assets/_hmr/pages/docs/index.js',
-			expect.stringContaining('from "/assets/_hmr/chunk-m6tevyj7.js"'),
-		);
-		expect(writeAsync.mock.calls[0]?.[1]).toContain('import("/assets/_hmr/chunk-rvgy3r62.js")');
-	});
-
-	it('treats wrapped ENOENT read errors as stale temp outputs during output processing', async () => {
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
-		const removeAsync = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
-		const writeAsync = vi.spyOn(fileSystem, 'writeAsync').mockResolvedValue(undefined);
-		vi.spyOn(fileSystem, 'readFile').mockRejectedValue(
-			new Error(
-				'Error reading file: /tmp/.eco/assets/_hmr/pages/about.123.tmp.js, ENOENT: no such file or directory',
-				{
-					cause: { code: 'ENOENT' },
-				},
-			),
-		);
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const success = await (strategy as any).processOutput(
-			'/tmp/.eco/assets/_hmr/pages/about.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/pages/about.js',
-			'/assets/_hmr/pages/about.js',
-		);
-
-		expect(success).toBe(false);
-		expect(writeAsync).not.toHaveBeenCalled();
-		expect(removeAsync).toHaveBeenCalledWith('/tmp/.eco/assets/_hmr/pages/about.123.tmp.js');
 	});
 
 	it('process only broadcasts the changed watched entrypoint update', async () => {
 		const changedEntrypoint = '/tmp/src/pages/react-lab.react.tsx';
 		const otherEntrypoint = '/tmp/src/pages/react-content.mdx';
 		const watchedFiles = new Map<string, string>([
-			[changedEntrypoint, '/assets/_hmr/pages/react-lab.react.js'],
-			[otherEntrypoint, '/assets/_hmr/pages/react-content.js'],
+			[changedEntrypoint, '/assets/__eco_dev__/pages/react-lab.react.js'],
+			[otherEntrypoint, '/assets/__eco_dev__/pages/react-content.js'],
 		]);
 
 		const strategy = new ReactHmrStrategy({
@@ -474,21 +290,14 @@ describe('ReactHmrStrategy', () => {
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
 
-		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 		const action = await strategy.process(changedEntrypoint);
 
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-			changedEntrypoint,
-			'/assets/_hmr/pages/react-lab.react.js',
-		);
 		expect(action).toEqual({
 			type: 'broadcast',
 			events: [
 				{
 					type: 'update',
-					path: '/assets/_hmr/pages/react-lab.react.js',
+					path: '/assets/__eco_dev__/pages/react-lab.react.js',
 					timestamp: expect.any(Number),
 				},
 			],
@@ -500,8 +309,8 @@ describe('ReactHmrStrategy', () => {
 		const entrypointB = '/tmp/src/pages/react-content.mdx';
 		const changedDependency = '/tmp/src/components/theme-toggle.react.tsx';
 		const watchedFiles = new Map<string, string>([
-			[entrypointA, '/assets/_hmr/pages/react-lab.react.js'],
-			[entrypointB, '/assets/_hmr/pages/react-content.js'],
+			[entrypointA, '/assets/__eco_dev__/pages/react-lab.react.js'],
+			[entrypointB, '/assets/__eco_dev__/pages/react-content.js'],
 		]);
 
 		const strategy = new ReactHmrStrategy({
@@ -518,34 +327,29 @@ describe('ReactHmrStrategy', () => {
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});
 
-		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-			'/assets/_hmr/pages/react-lab.react.js',
-			'/assets/_hmr/pages/react-content.js',
-		]);
-
 		const action = await strategy.process(changedDependency);
 
-		expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
 		expect(action).toEqual({
 			type: 'broadcast',
-			events: [
+			events: expect.arrayContaining([
 				{
 					type: 'update',
-					path: '/assets/_hmr/pages/react-lab.react.js',
+					path: '/assets/__eco_dev__/pages/react-lab.react.js',
 					timestamp: expect.any(Number),
 				},
 				{
 					type: 'update',
-					path: '/assets/_hmr/pages/react-content.js',
+					path: '/assets/__eco_dev__/pages/react-content.js',
 					timestamp: expect.any(Number),
 				},
-			],
+			]),
 		});
+		expect(action.events).toHaveLength(2);
 	});
 
-	it('process builds all React page entrypoints together for a watched page entrypoint while only broadcasting the requested page', async () => {
+	it('process broadcasts only the requested dev transform page when sibling pages are grouped', async () => {
 		const changedEntrypoint = '/tmp/src/pages/index.tsx';
-		const watchedFiles = new Map<string, string>([[changedEntrypoint, '/assets/_hmr/pages/index.js']]);
+		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformPageUrl('index.js')]]);
 
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext({
@@ -559,41 +363,57 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-			'/assets/_hmr/pages/index.js',
-			'/assets/_hmr/pages/dashboard.js',
-		]);
-
 		const action = await strategy.process(changedEntrypoint);
 
-		expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
-			{
-				entrypointPath: '/tmp/src/pages/dashboard.tsx',
-				outputUrl: '/assets/_hmr/pages/dashboard.js',
-			},
-			{
-				entrypointPath: '/tmp/src/pages/index.tsx',
-				outputUrl: '/assets/_hmr/pages/index.js',
-			},
-		]);
 		expect(action).toEqual({
 			type: 'broadcast',
 			events: [
 				{
 					type: 'update',
-					path: '/assets/_hmr/pages/index.js',
+					path: devTransformPageUrl('index.js'),
 					timestamp: expect.any(Number),
 				},
 			],
 		});
 	});
 
-	it('process keeps non-page entrypoints on the per-entrypoint path when page targets are grouped', async () => {
+	it('process broadcasts dev transform URLs without rebuilding disk page bundles', async () => {
+		const changedEntrypoint = '/tmp/src/pages/docs/index.tsx';
+		const devTransformUrl = '/assets/__eco_dev__/pages/docs/index.js';
+		const watchedFiles = new Map<string, string>([[changedEntrypoint, devTransformUrl]]);
+
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext({
+				getWatchedFiles: () => watchedFiles,
+			}),
+			pageMetadataCache: createPageMetadataCache({
+				getDeclaredModules: () => [],
+				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
+				initialOwnedEntrypoints: [changedEntrypoint],
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		const action = await strategy.process(changedEntrypoint);
+
+		expect(action).toEqual({
+			type: 'broadcast',
+			events: [
+				{
+					type: 'update',
+					path: devTransformUrl,
+					timestamp: expect.any(Number),
+				},
+			],
+		});
+	});
+
+	it('process broadcasts dev-transform updates for grouped non-page entrypoints', async () => {
 		const pageEntrypoint = '/tmp/src/pages/index.tsx';
 		const islandEntrypoint = '/tmp/src/components/counter.tsx';
 		const watchedFiles = new Map<string, string>([
-			[pageEntrypoint, '/assets/_hmr/pages/index.js'],
-			[islandEntrypoint, '/assets/_hmr/components/counter.js'],
+			[pageEntrypoint, '/assets/__eco_dev__/pages/index.js'],
+			[islandEntrypoint, '/assets/__eco_dev__/components/counter.js'],
 		]);
 
 		const strategy = new ReactHmrStrategy({
@@ -607,199 +427,30 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-			'/assets/_hmr/pages/index.js',
-			'/assets/_hmr/pages/dashboard.js',
-		]);
-		(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 		const action = await strategy.process('/tmp/src/components/theme-toggle.tsx');
 
-		expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
-			{
-				entrypointPath: '/tmp/src/pages/dashboard.tsx',
-				outputUrl: '/assets/_hmr/pages/dashboard.js',
-			},
-			{
-				entrypointPath: '/tmp/src/pages/index.tsx',
-				outputUrl: '/assets/_hmr/pages/index.js',
-			},
-		]);
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-		expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-			'/tmp/src/components/counter.tsx',
-			'/assets/_hmr/components/counter.js',
-		);
 		expect(action).toEqual({
 			type: 'broadcast',
 			events: [
 				{
 					type: 'update',
-					path: '/assets/_hmr/pages/index.js',
+					path: '/assets/__eco_dev__/pages/index.js',
 					timestamp: expect.any(Number),
 				},
 				{
 					type: 'update',
-					path: '/assets/_hmr/components/counter.js',
+					path: '/assets/__eco_dev__/components/counter.js',
 					timestamp: expect.any(Number),
 				},
 			],
 		});
 	});
 
-	it('bundleReactEntrypoints matches grouped temp outputs for dynamic route basenames before encoding final HMR paths', async () => {
-		const entrypointPath = '/tmp/src/pages/posts/[slug].tsx';
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/posts/_slug_.123.tmp.js' }],
-		}));
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }) as any,
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				getDeclaredModules: () => [],
-				setDeclaredModules: () => undefined,
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		(strategy as any).processOutput = vi.fn(async () => true);
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
-
-		const outputs = await (strategy as any).bundleReactEntrypoints([
-			{
-				entrypointPath,
-				outputUrl: '/assets/_hmr/pages/posts/_slug_.js',
-			},
-		]);
-
-		expect(outputs).toEqual(['/assets/_hmr/pages/posts/_slug_.js']);
-		expect((strategy as any).processOutput).toHaveBeenCalledWith(
-			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.123.tmp.js',
-			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.js',
-			'/assets/_hmr/pages/posts/_slug_.js',
-		);
-	});
-
-	it('bundleReactEntrypoints clears stale HMR output before the grouped build to avoid stale chunk references', async () => {
-		const bundle = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/.eco/assets/_hmr/pages/index.123.tmp.js' }],
-		}));
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({
-				getBrowserBundleService: () => ({ bundle }) as any,
-			}),
-			pageMetadataCache: createPageMetadataCache({
-				getDeclaredModules: () => [],
-				setDeclaredModules: () => undefined,
-			}) as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		(strategy as any).processOutput = vi.fn(async () => true);
-
-		await (strategy as any).bundleReactEntrypoints([
-			{ entrypointPath: '/tmp/src/pages/index.tsx', outputUrl: '/_hmr/pages/index.js' },
-		]);
-
-		expect(bundle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				profile: 'hmr-entrypoint',
-				entrypoints: { 'pages/index': '/tmp/src/pages/index.tsx' },
-				splitting: true,
-				naming: '[name].[hash].tmp',
-			}),
-		);
-	});
-
-	it('getRolldownEntryKey produces distinct keys for sibling dynamic routes', () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const keyA = (strategy as any).getRolldownEntryKey('/tmp/src/pages/posts/[slug].tsx');
-		const keyB = (strategy as any).getRolldownEntryKey('/tmp/src/pages/[slug]/posts.tsx');
-
-		expect(keyA).not.toBe(keyB);
-	});
-
-	it('clearHmrOutdir is a no-op when the outdir does not exist', async () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const existsSpy = vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
-		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
-		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
-
-		await (strategy as any).clearHmrOutdir('/nonexistent/dir');
-
-		expect(globSpy).not.toHaveBeenCalled();
-		expect(removeSpy).not.toHaveBeenCalled();
-		existsSpy.mockRestore();
-	});
-
-	it('clearHmrOutdir removes .tmp.js files and the chunks subdirectory but preserves the runtime script', async () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		vi.spyOn(fileSystem, 'exists').mockImplementation((p) => p === '/tmp/.eco/assets/_hmr' || p.endsWith('chunks'));
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['pages/index.123.tmp.js', 'pages/_slug_.456.tmp.js']);
-		const removeSpy = vi.spyOn(fileSystem, 'removeAsync').mockResolvedValue(undefined);
-
-		await (strategy as any).clearHmrOutdir('/tmp/.eco/assets/_hmr');
-
-		const removed = removeSpy.mock.calls.map(([target]) => String(target));
-		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
-		expect(removed).toContain('/tmp/.eco/assets/_hmr/pages/_slug_.456.tmp.js');
-		expect(removed).toContain('/tmp/.eco/assets/_hmr/chunks');
-		// The runtime script must not be removed.
-		expect(removed.find((target) => target.endsWith('_hmr_runtime.js'))).toBeUndefined();
-	});
-
-	it('resolveTempOutputPath falls back to glob when the literal path is missing', async () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		const placeholder = '/tmp/.eco/assets/_hmr/pages/index.[hash].tmp.js';
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.999.tmp.js']);
-
-		const resolved = await (strategy as any).resolveTempOutputPath(placeholder);
-		expect(resolved).toBe('/tmp/.eco/assets/_hmr/pages/index.999.tmp.js');
-	});
-
-	it('resolveTempOutputPath returns null when neither lookup nor glob finds the file', async () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext({}) as any,
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue([]);
-
-		const resolved = await (strategy as any).resolveTempOutputPath('/tmp/.eco/assets/_hmr/pages/index.123.tmp.js');
-		expect(resolved).toBeNull();
-	});
-
 	describe('dependency graph selective invalidation', () => {
 		it('matches returns true for dependency-hit files tied to owned entrypoints', () => {
-			const watchedFiles = new Map<string, string>([['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js']]);
+			const watchedFiles = new Map<string, string>([
+				['/tmp/src/pages/index.tsx', '/assets/__eco_dev__/pages/index.js'],
+			]);
 			const changedComponent = '/tmp/src/components/button.tsx';
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -823,7 +474,9 @@ describe('ReactHmrStrategy', () => {
 		});
 
 		it('matches returns false for dependency-hit files not tied to owned entrypoints', () => {
-			const watchedFiles = new Map<string, string>([['/tmp/src/pages/index.tsx', '/assets/_hmr/pages/index.js']]);
+			const watchedFiles = new Map<string, string>([
+				['/tmp/src/pages/index.tsx', '/assets/__eco_dev__/pages/index.js'],
+			]);
 			const changedComponent = '/tmp/src/components/button.tsx';
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -851,8 +504,8 @@ describe('ReactHmrStrategy', () => {
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/shared.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -875,21 +528,14 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-				entrypointA,
-				'/assets/_hmr/pages/page-a.js',
-			);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
 					{
 						type: 'update',
-						path: '/assets/_hmr/pages/page-a.js',
+						path: '/assets/__eco_dev__/pages/page-a.js',
 						timestamp: expect.any(Number),
 					},
 				],
@@ -900,7 +546,7 @@ describe('ReactHmrStrategy', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const nonReactEntrypoint = '/tmp/src/pages/other.kita.tsx';
 			const changedComponent = '/tmp/src/components/shared.tsx';
-			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/_hmr/pages/page-a.js']]);
+			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
@@ -921,11 +567,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoint).not.toHaveBeenCalled();
 			expect(action).toEqual({ type: 'none' });
 		});
 
@@ -935,8 +578,8 @@ describe('ReactHmrStrategy', () => {
 			const layoutEntrypoint = '/tmp/src/layouts/base-layout.tsx';
 			const changedComponent = '/tmp/src/components/app-shell.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -962,18 +605,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-				'/assets/_hmr/pages/page-a.js',
-				'/assets/_hmr/pages/page-b.js',
-			]);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
-				{ entrypointPath: entrypointA, outputUrl: '/assets/_hmr/pages/page-a.js' },
-				{ entrypointPath: entrypointB, outputUrl: '/assets/_hmr/pages/page-b.js' },
-			]);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -989,8 +622,8 @@ describe('ReactHmrStrategy', () => {
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/app-shell.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1042,14 +675,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-				'/assets/_hmr/pages/page-a.js',
-				'/assets/_hmr/pages/page-b.js',
-			]);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -1065,8 +692,8 @@ describe('ReactHmrStrategy', () => {
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/shared.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1089,25 +716,19 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-				'/assets/_hmr/pages/page-a.js',
-				'/assets/_hmr/pages/page-b.js',
-			]);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
 					{
 						type: 'update',
-						path: '/assets/_hmr/pages/page-a.js',
+						path: '/assets/__eco_dev__/pages/page-a.js',
 						timestamp: expect.any(Number),
 					},
 					{
 						type: 'update',
-						path: '/assets/_hmr/pages/page-b.js',
+						path: '/assets/__eco_dev__/pages/page-b.js',
 						timestamp: expect.any(Number),
 					},
 				],
@@ -1119,8 +740,8 @@ describe('ReactHmrStrategy', () => {
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/app-shell.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1171,14 +792,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-				'/assets/_hmr/pages/page-a.js',
-				'/assets/_hmr/pages/page-b.js',
-			]);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -1194,9 +809,9 @@ describe('ReactHmrStrategy', () => {
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const changedComponent = '/tmp/src/components/app-shell.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
-				[changedComponent, '/assets/_hmr/components/app-shell.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
+				[changedComponent, '/assets/__eco_dev__/components/app-shell.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1249,24 +864,8 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoints = vi.fn(async () => [
-				'/assets/_hmr/pages/page-a.js',
-				'/assets/_hmr/pages/page-b.js',
-			]);
-			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 			const action = await strategy.process(changedComponent);
 
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoints).toHaveBeenCalledWith([
-				{ entrypointPath: entrypointA, outputUrl: '/assets/_hmr/pages/page-a.js' },
-				{ entrypointPath: entrypointB, outputUrl: '/assets/_hmr/pages/page-b.js' },
-			]);
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-				changedComponent,
-				'/assets/_hmr/components/app-shell.js',
-			);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -1279,7 +878,7 @@ describe('ReactHmrStrategy', () => {
 
 		it('matches gives precedence to watched entrypoint check over dependency graph hits', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
-			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/_hmr/pages/page-a.js']]);
+			const watchedFiles = new Map<string, string>([[entrypointA, '/assets/__eco_dev__/pages/page-a.js']]);
 			const strategy = new ReactHmrStrategy({
 				context: createMockContext({
 					getWatchedFiles: () => watchedFiles,
@@ -1305,8 +904,8 @@ describe('ReactHmrStrategy', () => {
 			const entrypointA = '/tmp/src/pages/page-a.tsx';
 			const entrypointB = '/tmp/src/pages/page-b.tsx';
 			const watchedFiles = new Map<string, string>([
-				[entrypointA, '/assets/_hmr/pages/page-a.js'],
-				[entrypointB, '/assets/_hmr/pages/page-b.js'],
+				[entrypointA, '/assets/__eco_dev__/pages/page-a.js'],
+				[entrypointB, '/assets/__eco_dev__/pages/page-b.js'],
 			]);
 
 			const strategy = new ReactHmrStrategy({
@@ -1329,127 +928,18 @@ describe('ReactHmrStrategy', () => {
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
-			(strategy as any).bundleReactEntrypoint = vi.fn(async () => true);
-
 			const action = await strategy.process(entrypointA);
 
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledTimes(1);
-			expect((strategy as any).bundleReactEntrypoint).toHaveBeenCalledWith(
-				entrypointA,
-				'/assets/_hmr/pages/page-a.js',
-			);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
 					{
 						type: 'update',
-						path: '/assets/_hmr/pages/page-a.js',
+						path: '/assets/__eco_dev__/pages/page-a.js',
 						timestamp: expect.any(Number),
 					},
 				],
 			});
-		});
-	});
-
-	describe('prepareColdClientGraph', () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-
-		afterEach(() => {
-			if (originalNodeEnv === undefined) {
-				delete process.env.NODE_ENV;
-			} else {
-				process.env.NODE_ENV = originalNodeEnv;
-			}
-		});
-
-		it('seeds cache hits and builds uncached route entrypoints in grouped passes', async () => {
-			process.env.NODE_ENV = 'development';
-			const pagesDir = '/tmp/src/pages';
-			const entrypointPath = path.join(pagesDir, 'login.tsx');
-			const seededPaths: string[] = [];
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getPagesDir: () => pagesDir,
-					seedResolvedEntrypoint: (resolved) => {
-						seededPaths.push(resolved.sourcePath);
-					},
-				}),
-				pageMetadataCache: createPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			const outputPath = '/tmp/.eco/assets/_hmr/pages/login.js';
-			(strategy as any).bundleReactBuildTargets = vi.fn(async () => {
-				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-				fs.writeFileSync(outputPath, 'bundled', 'utf8');
-				return ['/assets/_hmr/pages/login.js'];
-			});
-
-			const cache = {
-				appConfig: { rootDir: '/tmp' },
-				manifest: {
-					invalidationVersion: 'v1',
-					buildInputsFingerprint: 'stable',
-					entries: {},
-				},
-			} as any;
-
-			await strategy.prepareColdClientGraph(cache, {
-				templateRouteFilePaths: [entrypointPath],
-				tryTrackInFlightEntrypoint: vi.fn(() => true),
-				releaseInFlightEntrypoint: vi.fn(),
-				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
-			});
-
-			expect((strategy as any).bundleReactBuildTargets).toHaveBeenCalledTimes(1);
-			expect(seededPaths).toContain(entrypointPath);
-		});
-
-		it('seeds persisted cache hits without invoking grouped builds', async () => {
-			process.env.NODE_ENV = 'development';
-			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cold-graph-cache-hit-'));
-			const pagesDir = path.join(rootDir, 'src', 'pages');
-			fs.mkdirSync(pagesDir, { recursive: true });
-
-			const entrypointPath = path.join(pagesDir, 'login.tsx');
-			const outputPath = path.join(rootDir, '.eco', 'assets', '_hmr', 'pages', 'login.js');
-			fs.writeFileSync(entrypointPath, 'export {}', 'utf8');
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'bundled', 'utf8');
-
-			const seededPaths: string[] = [];
-			const strategy = new ReactHmrStrategy({
-				context: createMockContext({
-					getPagesDir: () => pagesDir,
-					seedResolvedEntrypoint: (resolved) => {
-						seededPaths.push(resolved.sourcePath);
-					},
-				}),
-				pageMetadataCache: createPageMetadataCache(),
-				runtimeManifest: defaultRuntimeManifest,
-			});
-
-			(strategy as any).bundleReactBuildTargets = vi.fn(async () => []);
-
-			const cache = createDevHmrEntrypointCache({ rootDir } as any);
-			setDevHmrEntrypointCacheEntry(cache, entrypointPath, {
-				outputPath,
-				outputUrl: '/assets/_hmr/pages/login.js',
-				sourceMtimeMs: fs.statSync(entrypointPath).mtimeMs,
-				builtAt: Date.now(),
-			});
-
-			await strategy.prepareColdClientGraph(cache, {
-				templateRouteFilePaths: [entrypointPath],
-				tryTrackInFlightEntrypoint: vi.fn(() => true),
-				releaseInFlightEntrypoint: vi.fn(),
-				getMissingEntrypointError: (source, output) => new Error(`missing ${source} -> ${output}`),
-			});
-
-			expect((strategy as any).bundleReactBuildTargets).not.toHaveBeenCalled();
-			expect(seededPaths).toContain(entrypointPath);
-
-			fs.rmSync(rootDir, { recursive: true, force: true });
 		});
 	});
 });

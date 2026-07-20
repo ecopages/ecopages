@@ -217,4 +217,17 @@ describe('createIslandHydrationScript', () => {
 		expect(script).toContain('window.__ECO_PAGES__.rerunScripts["ecopages-react-island"]=m;');
 		expect(script).toContain('DOMContentLoaded",m,{once:true}');
 	});
+
+	test('registers an HMR handler for dev transform island modules', () => {
+		const script = createIslandHydrationScript({
+			...baseOptions,
+			importPath: '/assets/__eco_dev__/components/counter.js',
+			minify: false,
+			hmrEnabled: true,
+		});
+
+		expect(script).toContain('window.__ECO_PAGES__.hmrHandlers["/assets/__eco_dev__/components/counter.js"]');
+		expect(script).toContain('window.__ECO_PAGES__.islandRoots');
+		expect(script).toContain('resolveComponent(nextModule)');
+	});
 });

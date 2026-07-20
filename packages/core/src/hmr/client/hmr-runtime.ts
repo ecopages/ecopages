@@ -4,6 +4,7 @@
  */
 
 import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
+import { applyModuleUpdate, resolveActiveModuleUrl } from './module-update.ts';
 
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
@@ -56,7 +57,10 @@ interface HMRPayload {
 			case 'layout-update': {
 				await waitForNavigationToSettle(navigationRuntime);
 				if (
-					await navigationRuntime.reloadCurrentPage({ clearCache: true, moduleUrl: getActiveHmrModuleUrl() })
+					await navigationRuntime.reloadCurrentPage({
+						clearCache: true,
+						moduleUrl: getActiveHmrModuleUrl(),
+					})
 				) {
 				} else if (
 					!(window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__
@@ -81,40 +85,24 @@ interface HMRPayload {
 		}
 	}
 
-	/**
-	 * Applies a module update by calling registered HMR handlers or re-importing the module.
-	 * @param path - The module path to update
-	 * @param timestamp - Optional timestamp for cache busting
-	 */
 	async function applyUpdate(path: string, timestamp?: number) {
-		try {
-			const url = path + '?t=' + (timestamp || Date.now());
-			const handlers = window.__ECO_PAGES__?.hmrHandlers;
-			const navigationRuntime = getEcoNavigationRuntime(window);
-			await waitForNavigationToSettle(navigationRuntime);
+		const navigationRuntime = getEcoNavigationRuntime(window);
 
-			if (handlers?.[path]) {
-				await handlers[path](url);
-				return;
-			}
-
-			await import(url);
-
-			if (await navigationRuntime.reloadCurrentPage({ clearCache: false, moduleUrl: url })) {
-			}
-		} catch (e) {
-			console.error('[ecopages] Failed to apply HMR update:', e);
-		}
+		await applyModuleUpdate(
+			path,
+			{
+				getHandlers: () => window.__ECO_PAGES__?.hmrHandlers,
+				getActivePageModule: () => window.__ECO_PAGES__?.page?.module,
+				reloadCurrentPage: async (request) => Boolean(await navigationRuntime.reloadCurrentPage(request)),
+				importModule: (url) => import(url),
+				waitForSettled: async () => waitForNavigationToSettle(navigationRuntime),
+			},
+			timestamp,
+		);
 	}
 
 	function getActiveHmrModuleUrl(): string | undefined {
-		const pageModule = window.__ECO_PAGES__?.page?.module;
-		if (pageModule && pageModule.includes('/assets/_hmr/')) {
-			return pageModule.split('?')[0];
-		}
-
-		const handlerPaths = Object.keys(window.__ECO_PAGES__?.hmrHandlers ?? {});
-		return handlerPaths[handlerPaths.length - 1];
+		return resolveActiveModuleUrl(window.__ECO_PAGES__?.hmrHandlers ?? {}, window.__ECO_PAGES__?.page?.module);
 	}
 
 	async function waitForNavigationToSettle(navigationRuntime: ReturnType<typeof getEcoNavigationRuntime>) {

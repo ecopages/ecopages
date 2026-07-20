@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
-import {
-	startConfiguredClientGraphPrewarm,
-	startDevWarmup,
-} from './runtime-server-lifecycle.ts';
+import { startDevWarmup } from './runtime-server-lifecycle.ts';
 
 test('startDevWarmup activates every configured integration', async () => {
 	const ensureSpy = vi.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady').mockResolvedValue(undefined);
@@ -54,47 +51,4 @@ test('startDevWarmup logs failures without throwing', async () => {
 
 	ensureSpy.mockRestore();
 	errorSpy.mockRestore();
-});
-
-test('startConfiguredClientGraphPrewarm delegates to integrations when enabled', () => {
-	const startPrewarm = vi.fn();
-	const appConfig = {
-		integrations: [{ name: 'react', startDevClientGraphPrewarm: startPrewarm }],
-	} as any;
-
-	startConfiguredClientGraphPrewarm({
-		appConfig,
-		templateRouteFilePaths: ['/app/pages/index.tsx'],
-		hmrEnabled: true,
-	});
-
-	assert.equal(startPrewarm.mock.calls.length, 1);
-	assert.deepEqual(startPrewarm.mock.calls[0]?.[0], {
-		appConfig,
-		templateRouteFilePaths: ['/app/pages/index.tsx'],
-	});
-});
-
-test('startConfiguredClientGraphPrewarm is skipped when disabled', () => {
-	const startPrewarm = vi.fn();
-	const previous = process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH;
-	process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH = 'false';
-
-	try {
-		startConfiguredClientGraphPrewarm({
-			appConfig: {
-				integrations: [{ name: 'react', startDevClientGraphPrewarm: startPrewarm }],
-			} as any,
-			templateRouteFilePaths: ['/app/pages/index.tsx'],
-			hmrEnabled: true,
-		});
-
-		assert.equal(startPrewarm.mock.calls.length, 0);
-	} finally {
-		if (previous === undefined) {
-			delete process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH;
-		} else {
-			process.env.ECOPAGES_DEV_COLD_CLIENT_GRAPH = previous;
-		}
-	}
 });

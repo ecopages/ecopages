@@ -17,7 +17,7 @@ export class ReactDevTransformContributor implements DevTransformBundleContribut
 	}
 
 	ownsEntrypoint(entrypointPath: string): boolean {
-		return this.strategy.canEmitEntrypoint(entrypointPath);
+		return this.strategy.ownsDevTransformEntrypoint(entrypointPath);
 	}
 
 	async getPageBuildPlugins(entrypointPath: string): Promise<readonly EcoBuildPlugin[]> {

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { HmrManager } from './hmr-manager.ts';
@@ -43,67 +44,19 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 		} as any,
 	});
 
-	const relativePathJs = path
-		.relative(config.absolutePaths.srcDir, entrypointPath)
-		.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	const encodedPathJs = relativePathJs.replace(/\[([^\]]+)\]/g, '_$1_');
-	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', encodedPathJs);
-
-	const emitIntegrationEntrypoint = vi
-		.spyOn(manager, 'emitIntegrationEntrypoint')
-		.mockImplementation(async (_entrypoint, outputPath) => {
-			await new Promise((resolve) => setTimeout(resolve, 25));
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'export default 1;', 'utf8');
-		});
+	const emitIntegrationEntrypoint = vi.spyOn(manager, 'emitIntegrationEntrypoint');
 
 	const [firstUrl, secondUrl] = await Promise.all([
 		manager.registerEntrypoint(entrypointPath),
 		manager.registerEntrypoint(entrypointPath),
 	]);
 
-	assert.equal(firstUrl, '/assets/_hmr/pages/react-lab.js');
-	assert.equal(secondUrl, '/assets/_hmr/pages/react-lab.js');
-	assert.equal(emitIntegrationEntrypoint.mock.calls.length, 1);
-	assert.equal(fs.existsSync(outputPath), true);
+	assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
+	assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
+	assert.equal(emitIntegrationEntrypoint.mock.calls.length, 0);
 });
 
-test('HmrManager clears failed entrypoint registrations so later requests can retry', async () => {
-	const rootDir = createTempRoot('ecopages-bun-hmr-failed-register');
-	const srcDir = path.join(rootDir, 'src');
-	const pagesDir = path.join(srcDir, 'pages');
-	fs.mkdirSync(pagesDir, { recursive: true });
-
-	const entrypointPath = path.join(pagesDir, 'stuck-page.tsx');
-	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
-
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
-	using manager = new HmrManager({
-		appConfig: config,
-		bridge: {
-			subscriberCount: 0,
-			broadcast: () => {},
-			subscribe: () => {},
-			unsubscribe: () => {},
-		} as any,
-	});
-
-	const emitIntegrationEntrypoint = vi.spyOn(manager, 'emitIntegrationEntrypoint').mockImplementation(async () => {});
-
-	await assert.rejects(() => manager.registerEntrypoint(entrypointPath), /Integration failed to emit entrypoint/);
-	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), false);
-
-	emitIntegrationEntrypoint.mockImplementationOnce(async (_entrypoint, outputPath) => {
-		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-		fs.writeFileSync(outputPath, 'export default 2;', 'utf8');
-	});
-
-	const retriedUrl = await manager.registerEntrypoint(entrypointPath);
-	assert.equal(retriedUrl, '/assets/_hmr/pages/stuck-page.js');
-	assert.equal(manager.getWatchedFiles().get(path.resolve(entrypointPath)), retriedUrl);
-});
-
-test('HmrManager fails strict entrypoint registration when the owning integration emits no output', async () => {
+test('HmrManager registers unowned page entrypoints with dev transform URLs', async () => {
 	const rootDir = createTempRoot('ecopages-bun-hmr-strict-fail');
 	const srcDir = path.join(rootDir, 'src');
 	const pagesDir = path.join(srcDir, 'pages');
@@ -123,8 +76,10 @@ test('HmrManager fails strict entrypoint registration when the owning integratio
 		} as any,
 	});
 
-	await assert.rejects(() => manager.registerEntrypoint(entrypointPath), /No integration owns entrypoint/);
-	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), false);
+	const outputUrl = await manager.registerEntrypoint(entrypointPath);
+
+	assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-content.js`);
+	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), true);
 });
 
 test('HmrManager uses the generic build path for script entrypoints when no strategy emits output', async () => {
@@ -189,11 +144,6 @@ test('HmrManager stop clears retained registration state', async () => {
 			subscribe: () => {},
 			unsubscribe: () => {},
 		} as any,
-	});
-
-	vi.spyOn(manager, 'emitIntegrationEntrypoint').mockImplementation(async (_entrypoint, outputPath) => {
-		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-		fs.writeFileSync(outputPath, 'export default 1;', 'utf8');
 	});
 
 	await manager.registerEntrypoint(entrypointPath);

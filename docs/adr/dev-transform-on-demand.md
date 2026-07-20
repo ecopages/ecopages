@@ -23,9 +23,6 @@ Production `ecopages build` stays on Rolldown unchanged.
 | Dev invalidation | `DevelopmentInvalidationService` + watcher | Invalidate transform cache; signal browser reload               |
 | Prod client      | Rolldown unified graph                     | Ship optimized browser assets                                   |
 
-Escape hatch: `ECOPAGES_DEV_CLIENT_DELIVERY=rolldown` restores the legacy Rolldown HMR path until
-Phase 2 deletion removes it.
-
 ## Consequences
 
 - `registerEntrypoint` in transform mode returns a URL immediately; no blocking Rolldown emit on SSR.

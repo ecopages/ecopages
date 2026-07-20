@@ -38,5 +38,5 @@ Production `ecopages build` stays on Rolldown unchanged.
 - `hmr-entrypoint-registrar` Rolldown emit path (scripts only)
 - `ReactHmrStrategy` Rolldown page bundle path (done in Phase 2)
 - `dev-browser-script-cache`
-- Legacy `/_hmr/*.js` disk serving for pages (scripts/islands remain during transition)
+- Legacy `/_hmr/*.js` disk serving for pages (scripts/islands remain during transition; React islands now use dev transform in Phase 3)
 - `hmr-runtime.ts` bare-import fallback for dev transform modules (Phase 3: transform-first `module-update` client)

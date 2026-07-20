@@ -92,6 +92,10 @@ export type IslandHydrationScriptOptions = {
 	 * here rather than delegated to the bundler.
 	 */
 	minify: boolean;
+	/**
+	 * When true, register an HMR handler that hot-imports the dev transform module.
+	 */
+	hmrEnabled?: boolean;
 };
 
 /**
@@ -447,6 +451,54 @@ export function createHydrationScript(options: HydrationScriptOptions): string {
 }
 
 /**
+ * Registers an HMR handler that hot-imports an island module and re-renders mounted roots.
+ */
+function getIslandHmrHandlerScript(options: { importPath: string; targetSelector: string }): string {
+	const { importPath, targetSelector } = options;
+	return `  window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
+  window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
+  window.__ECO_PAGES__.islandRoots = window.__ECO_PAGES__.islandRoots || {};
+  window.__ECO_PAGES__.hmrHandlers[${JSON.stringify(importPath)}] = async (newUrl) => {
+    try {
+      const nextModule = await import(newUrl);
+      const Component = resolveComponent(nextModule);
+      if (!Component) {
+        return;
+      }
+
+      document.querySelectorAll(${JSON.stringify(targetSelector)}).forEach((target) => {
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const componentKey = target.getAttribute("data-eco-component-key") ?? "";
+        const props = JSON.parse(atob(target.getAttribute("data-eco-props") || "e30="));
+        let container = target;
+
+        if (target.tagName.toLowerCase() !== "eco-island") {
+          container = document.createElement("eco-island");
+          container.style.display = "block";
+          container.setAttribute("data-eco-component-key", componentKey);
+          container.setAttribute("data-eco-props", target.getAttribute("data-eco-props") || "e30=");
+          target.replaceWith(container);
+        }
+
+        let root = window.__ECO_PAGES__.islandRoots[componentKey];
+        if (!root) {
+          root = createRoot(container);
+          window.__ECO_PAGES__.islandRoots[componentKey] = root;
+        }
+
+        root.render(createElement(Component, props));
+      });
+      console.log("[ecopages] Island component updated");
+    } catch (error) {
+      console.error("[ecopages] Failed to hot-reload island component:", error);
+    }
+  };`;
+}
+
+/**
  * Creates the client bootstrap for component-level React islands.
  *
  * @remarks
@@ -458,6 +510,9 @@ export function createIslandHydrationScript(options: IslandHydrationScriptOption
 	const componentRef = JSON.stringify(options.componentRef ?? '');
 	const componentFile = JSON.stringify(options.componentFile ?? '');
 	const scriptId = options.scriptId;
+	const hmrHandler = options.hmrEnabled
+		? getIslandHmrHandlerScript({ importPath: options.importPath, targetSelector: options.targetSelector })
+		: '';
 
 	if (options.minify) {
 		return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.rerunScripts=window.__ECO_PAGES__.rerunScripts||{};window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}]=m;document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
@@ -468,10 +523,10 @@ import { createRoot } from "${options.reactDomClientImportPath}";
 import { createElement } from "${options.reactImportPath}";
 import * as ComponentModule from "${options.importPath}";
 
-const resolveComponent = () => {
+const resolveComponent = (module = ComponentModule) => {
   const id = ${componentRef};
   const file = ${componentFile};
-  const moduleValues = Object.values(ComponentModule);
+  const moduleValues = Object.values(module);
 
   const matchByMetadata = moduleValues.find((entry) => {
     if (typeof entry !== "function") return false;
@@ -487,7 +542,7 @@ const resolveComponent = () => {
     return matchByMetadata;
   }
 
-  const defaultExport = ComponentModule.default;
+  const defaultExport = module.default;
   if (typeof defaultExport === "function") {
     return defaultExport;
   }
@@ -509,14 +564,20 @@ const mount = () => {
     const props = JSON.parse(atob(target.getAttribute("data-eco-props") || "e30="));
     const container = document.createElement("eco-island");
     container.style.display = "block";
+    container.setAttribute("data-eco-component-key", target.getAttribute("data-eco-component-key") ?? "");
+    container.setAttribute("data-eco-props", target.getAttribute("data-eco-props") || "e30=");
     target.replaceWith(container);
     const root = createRoot(container);
+    const componentKey = container.getAttribute("data-eco-component-key") ?? "";
+    window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
+    window.__ECO_PAGES__.islandRoots = window.__ECO_PAGES__.islandRoots || {};
+    window.__ECO_PAGES__.islandRoots[componentKey] = root;
     root.render(createElement(Component, props));
   });
 };
 
 ${getRerunRegistrationScript(scriptId)}
-
+${hmrHandler ? `${hmrHandler}\n` : ''}
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mount, { once: true });
 } else {

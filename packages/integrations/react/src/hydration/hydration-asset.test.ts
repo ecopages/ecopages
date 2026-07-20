@@ -385,6 +385,46 @@ describe('HydrationAssetService', () => {
 		assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
 	});
 
+	it('uses dev transform for island hydration without a duplicate HMR disk bundle', async () => {
+		const registerScriptEntrypoint = vi.fn();
+		const registerEntrypoint = vi.fn(async () => '/assets/__eco_dev__/components/counter.js');
+		const processDependencies = vi.fn(async () => []);
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => ({
+					isEnabled: () => true,
+					registerEntrypoint,
+					registerScriptEntrypoint,
+				}),
+				processDependencies,
+			} as any,
+			bundleService: {
+				createBundleOptions: vi.fn(),
+				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
+			} as any,
+			hmrPageMetadataCache: {
+				markOwnedEntrypoint: vi.fn(),
+			} as any,
+		});
+
+		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		});
+
+		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
+		expect(registerScriptEntrypoint).not.toHaveBeenCalled();
+		expect(processDependencies).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					kind: 'script',
+					content: expect.stringContaining('hmrHandlers["/assets/__eco_dev__/components/counter.js"]'),
+				}),
+			],
+			expect.any(String),
+		);
+	});
+
 	it('reuses the same bundled island asset for different component instances', async () => {
 		const processDependencies = vi.fn(async () => []);
 		const createBundleOptions = vi.fn(async () => ({}));

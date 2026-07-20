@@ -172,7 +172,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		const absolutePaths = this.appConfig.absolutePaths;
 
 		return new EcopagesJsxHmrStrategy({
-			getWatchedFiles: context.getWatchedFiles,
+			getRegisteredEntrypoints: context.getRegisteredEntrypoints,
 			getSrcDir: context.getSrcDir,
 			getPagesDir: context.getPagesDir,
 			getLayoutsDir: context.getLayoutsDir,

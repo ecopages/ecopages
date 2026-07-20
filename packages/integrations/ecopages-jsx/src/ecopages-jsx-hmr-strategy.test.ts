@@ -3,7 +3,7 @@ import path from 'node:path';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { getEjsxHmrOwnership, resetEjsxHmrOwnership, updateEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
-import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
+import type { EcoComponent, EcoComponentConfig, ResolvedHmrEntrypoint } from '@ecopages/core';
 
 const SRC_DIR = '/test/project/src';
 const PAGES_DIR = '/test/project/src/pages';
@@ -25,7 +25,7 @@ function makeConfig(file: string, extras: Partial<EcoComponentConfig> = {}): Eco
 
 function makeContext(
 	overrides: Partial<{
-		watchedFiles: Map<string, string>;
+		registeredEntrypoints: Map<string, ResolvedHmrEntrypoint>;
 		srcDir: string;
 		pagesDir: string;
 		layoutsDir: string;
@@ -34,7 +34,7 @@ function makeContext(
 	}> = {},
 ) {
 	const defaults = {
-		watchedFiles: new Map<string, string>(),
+		registeredEntrypoints: new Map<string, ResolvedHmrEntrypoint>(),
 		srcDir: SRC_DIR,
 		pagesDir: PAGES_DIR,
 		layoutsDir: LAYOUTS_DIR,
@@ -43,12 +43,21 @@ function makeContext(
 	};
 	const merged = { ...defaults, ...overrides };
 	return {
-		getWatchedFiles: () => merged.watchedFiles,
+		getRegisteredEntrypoints: () => merged.registeredEntrypoints,
 		getSrcDir: () => merged.srcDir,
 		getPagesDir: () => merged.pagesDir,
 		getLayoutsDir: () => merged.layoutsDir,
 		getIncludesDir: () => merged.includesDir,
 		getTemplateExtensions: () => merged.templateExtensions,
+	};
+}
+
+function registeredScript(sourcePath: string, outputUrl: string): ResolvedHmrEntrypoint {
+	return {
+		sourcePath,
+		outputPath: sourcePath,
+		outputUrl,
+		role: 'script',
 	};
 }
 
@@ -102,20 +111,39 @@ describe('EcopagesJsxHmrStrategy', () => {
 			expect(strategy.matches(`${COMPONENTS_DIR}/orphan.tsx`)).toBe(false);
 		});
 
-		it('does not match files registered as watched HMR entrypoints', () => {
+		it('does not match registered script entrypoints', () => {
 			const scriptPath = `${COMPONENTS_DIR}/copy-for-llm/copy-for-llm.script.tsx`;
 			const strategy = new EcopagesJsxHmrStrategy(
-				makeContext({ watchedFiles: new Map([[scriptPath, '/assets/_hmr/script.js']]) }),
+				makeContext({
+					registeredEntrypoints: new Map([
+						[
+							path.resolve(scriptPath),
+							registeredScript(path.resolve(scriptPath), '/assets/__eco_dev__/script.js'),
+						],
+					]),
+				}),
 			);
 			expect(strategy.matches(scriptPath)).toBe(false);
 		});
 
-		it('defers registered script entrypoints when watchedFiles keys are resolved paths', () => {
-			const scriptPath = `${COMPONENTS_DIR}/copy-for-llm/copy-for-llm.script.tsx`;
+		it('does not match registered page entrypoints', () => {
+			const pagePath = `${PAGES_DIR}/index.tsx`;
 			const strategy = new EcopagesJsxHmrStrategy(
-				makeContext({ watchedFiles: new Map([[path.resolve(scriptPath), '/assets/_hmr/script.js']]) }),
+				makeContext({
+					registeredEntrypoints: new Map([
+						[
+							path.resolve(pagePath),
+							{
+								sourcePath: path.resolve(pagePath),
+								outputPath: path.resolve(pagePath),
+								outputUrl: '/assets/__eco_dev__/pages/index.js',
+								role: 'page',
+							},
+						],
+					]),
+				}),
 			);
-			expect(strategy.matches(scriptPath)).toBe(false);
+			expect(strategy.matches(pagePath)).toBe(false);
 		});
 
 		it('matches files that appear in the active render tree', () => {

@@ -6,6 +6,10 @@ export type HmrEntrypointRole = 'page' | 'script';
 
 export interface ResolvedHmrEntrypoint {
 	sourcePath: string;
+	/**
+	 * Emitted artifact path for disk-based HMR, or the resolved source path for
+	 * dev-transform entrypoints where modules are served on demand.
+	 */
 	outputPath: string;
 	outputUrl: string;
 	role: HmrEntrypointRole;

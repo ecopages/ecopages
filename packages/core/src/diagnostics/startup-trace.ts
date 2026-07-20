@@ -11,6 +11,7 @@ export type StartupTracePhase =
 	| 'dev-cold-client-graph'
 	| 'first-byte'
 	| 'first-page-browser-graph'
+	| 'dev-client-transform'
 	| 'first-request-ssr'
 	| 'client-transfer'
 	| 'client-hydration';
@@ -83,6 +84,7 @@ class StartupTrace {
 	private firstRequestGraphBuildCount = 0;
 	private summaryEmitted = false;
 	private firstPageBrowserGraphEmitted = false;
+	private devClientTransformEmitted = false;
 	private clientRequestCount = 0;
 	private clientTransferredBytes = 0;
 	private hmrConnected = false;
@@ -164,6 +166,21 @@ class StartupTrace {
 
 	beginFirstByte(): void {
 		this.markPhaseStart('first-byte');
+	}
+
+	beginDevClientTransform(): void {
+		if (!isStartupTraceEnabled() || this.devClientTransformEmitted) {
+			return;
+		}
+		this.markPhaseStart('dev-client-transform');
+	}
+
+	endDevClientTransform(): void {
+		if (!isStartupTraceEnabled() || this.devClientTransformEmitted) {
+			return;
+		}
+		this.devClientTransformEmitted = true;
+		this.markPhaseEnd('dev-client-transform');
 	}
 
 	markFirstPageBrowserGraphReady(graphBuildCount?: number): void {
@@ -323,6 +340,7 @@ class StartupTrace {
 		this.firstRequestGraphBuildCount = 0;
 		this.summaryEmitted = false;
 		this.firstPageBrowserGraphEmitted = false;
+		this.devClientTransformEmitted = false;
 		this.clientRequestCount = 0;
 		this.clientTransferredBytes = 0;
 		this.hmrConnected = false;

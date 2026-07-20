@@ -249,6 +249,16 @@ export abstract class SharedServerAdapter<
 		});
 	}
 
+	private async tryHandleSharedDevClientRequest(
+		request: Request,
+		context: SharedRequestContext,
+	): Promise<Response | null> {
+		const manager = context.hmrManager as {
+			tryHandleDevClientRequest?: (request: Request) => Promise<Response | null>;
+		} | null;
+		return (await manager?.tryHandleDevClientRequest?.(request)) ?? null;
+	}
+
 	private tryHandleSharedHmrRequest(request: Request, context: SharedRequestContext): Response | null {
 		return context.hmrManager?.tryHandleAssetRequest(request) ?? null;
 	}
@@ -287,6 +297,11 @@ export abstract class SharedServerAdapter<
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
 		return requestBuildDedupe.run(() =>
 			startupTrace.traceFirstRequest(request, async () => {
+				const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
+				if (devClientResponse) {
+					return devClientResponse;
+				}
+
 				const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
 				if (hmrResponse) {
 					return hmrResponse;

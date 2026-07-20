@@ -25,7 +25,7 @@ import {
 	disposeDevResources,
 	prepareRuntimePublicDir,
 	startConfiguredClientGraphPrewarm,
-	startConfiguredIntegrationRuntimePrewarm,
+	startDevWarmup,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -403,7 +403,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			}
 
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
-			startConfiguredIntegrationRuntimePrewarm({
+			startDevWarmup({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});

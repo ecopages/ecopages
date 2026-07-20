@@ -30,7 +30,6 @@
 		"@oxc-project/runtime": "0.134.0",
 		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^5.0.0",
-		"esbuild": "^0.28.0",
 		"ghtml": "^4.0.2",
 		"oxc-parser": "^0.124.0",
 		"oxc-resolver": "^11.24.2",
@@ -288,6 +287,10 @@
 		"./integrations/ghtml": {
 			"types": "./src/integrations/ghtml/ghtml.plugin.ts",
 			"default": "./src/integrations/ghtml/ghtml.plugin.ts"
+		},
+		"./dev/transform-server": {
+			"types": "./src/dev/transform-server/index.ts",
+			"default": "./src/dev/transform-server/index.ts"
 		}
 	}
 }

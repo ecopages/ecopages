@@ -16,10 +16,6 @@ import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
 import {
-	getDevBrowserScriptCacheEntry,
-	setDevBrowserScriptCacheEntry,
-} from '../../../build/cache/dev-browser-script-cache.ts';
-import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
 	FileScriptProcessor,
@@ -313,9 +309,7 @@ export class AssetProcessingService {
 	}
 
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
-		const filepath =
-			this.resolveCachedContentScriptFilepath(depKey) ??
-			getDevBrowserScriptCacheEntry(this.config, depKey)?.filepath;
+		const filepath = this.resolveCachedContentScriptFilepath(depKey);
 
 		if (!filepath) {
 			return null;
@@ -345,10 +339,6 @@ export class AssetProcessingService {
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		this.cache.set(depKey, { asset });
-
-		if (dep.kind === 'script' && dep.source === 'content') {
-			setDevBrowserScriptCacheEntry(this.config, depKey, asset);
-		}
 	}
 
 	/**

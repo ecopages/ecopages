@@ -144,7 +144,7 @@ describe('ContentScriptProcessor', () => {
 		]);
 
 		expect(fileSystem.write).toHaveBeenCalledTimes(2);
-		expect(fileSystem.remove).not.toHaveBeenCalled();
+		expect(fileSystem.remove).toHaveBeenCalledTimes(2);
 	});
 
 	test('processGrouped should fall back to per-entry processing when bundling is disabled', async () => {
@@ -174,7 +174,7 @@ describe('ContentScriptProcessor', () => {
 		]);
 	});
 
-	test('processGrouped should remove temporary entries when bundling fails in production', async () => {
+	test('processGrouped should remove temporary entries when bundling fails', async () => {
 		process.env.NODE_ENV = 'production';
 		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
 		processor.bundleScriptsError = new Error('bundle failed');

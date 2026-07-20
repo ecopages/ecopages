@@ -190,8 +190,6 @@ export type EcoPagesAppConfig = {
 		devClientOwner?: 'core' | 'host';
 		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */
 		registeredScriptEntrypointChangeHandlers?: RegisteredScriptEntrypointChangeHandler[];
-		/** @deprecated Prefer {@link devClientOwner}: `'host'`. */
-		delegateBrowserReloadToHost?: boolean;
 	};
 	/**
 	 * Experimental features.

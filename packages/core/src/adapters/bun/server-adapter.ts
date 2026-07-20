@@ -83,7 +83,6 @@ export interface BunServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
-	delegateBrowserReloadToHost?: boolean;
 	hostOwnsDevClient?: boolean;
 	deferRuntimeAssetSetup?: boolean;
 	allowPortFallback?: boolean;

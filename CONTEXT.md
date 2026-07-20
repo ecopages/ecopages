@@ -2,6 +2,12 @@
 
 A file-based web framework for building HTML-first multi-page applications, with optional interactive islands and incremental static regeneration.
 
+## Contents
+
+- [Language](#language)
+- [Relationships](#relationships)
+- [Flagged ambiguities](#flagged-ambiguities)
+
 ## Language
 
 **Page**:
@@ -122,30 +128,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - **Dependencies** on a Component are separate from JavaScript imports; both may be needed
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
-- In development, each **Page Browser Graph** is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes; hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected
-- Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`; processors and loaders still initialize eagerly during `setupAppRuntimePlugins()`
-- Production static export prebuilds browser graphs from the finalized route list into the in-memory `page-browser-graph-session`; failed exports clear staged production session records so retries cannot reuse partial graph output
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
-
-## Example dialogue
-
-> **Dev:** "How do I make a blog page that renders its posts at build time?"
-> **Domain expert:** "Create a **Page** with `cache: 'static'` (the default). Define `staticProps` on the page to fetch the post list at **Build-Time Rendering**, and return it as props. That's a **Static Page** — its HTML is generated once and served to everyone."
->
-> **Dev:** "What if I want a search page that shows different results based on the query?"
-> **Domain expert:** "That needs **Dynamic Page** — set `cache: 'dynamic'`. The **Page** receives **Query** params from the URL string, so you can render different content per search. HTML is generated on every request via **Request-Time Rendering**."
->
-> **Dev:** "Can I write both in React?"
-> **Domain expert:** "Yes. The React **Integration** owns rendering for `.tsx` files. Both Static and Dynamic Pages use the same render API — the difference is just the **Cache Strategy** you pick."
->
-> **Dev:** "What's the difference between **Params** and **Query**?"
-> **Domain expert:** "**Params** come from the URL path structure. If you have a route `/blog/[slug]`, then `/blog/my-post` gives you `params: { slug: 'my-post' }`. **Query** comes from the search string — `/search?q=typescript` gives you `query: { q: 'typescript' }`. **Params** are structural; **Query** is filtering."
->
-> **Dev:** "Where do I put styling?"
-> **Domain expert:** "List it in **Dependencies**. If a **Component** has its own CSS file, declare it there. That's metadata telling the framework 'inject this stylesheet.' Don't mix it up with JavaScript imports — you need both: import the component AND declare it in dependencies if it has dedicated styles."
->
-> **Dev:** "Can I use Redux or context in a page?"
-> **Domain expert:** "Yes. Client-side state such as Redux or React context can be used in any page. Choose a **Dynamic Page** only when the rendered HTML depends on request-specific server data. If you need per-user data in the browser, expose a client-safe shape through **Locals** and declare the required keys."
 
 ## Flagged ambiguities
 
@@ -153,22 +136,7 @@ _Avoid_: SSR flag, hydration mode, server toggle
 - "rendering" can mean the act of converting a Component to HTML, or the runtime service that does it. Resolved: "rendering" is the act; "renderer" or "rendering service" is the service.
 - Component, Layout, Page, Html all have the same underlying type shape. Resolved: they are four distinct **component roles**, not four different types. The role determines what semantic contract the component fulfills (e.g., a Layout receives `children` and context; a Component does not).
 
-## Rolldown Integration
+## Further reading
 
-Ecopages uses [Rolldown](https://rolldown.rs) as its bundler backend. Key integration patterns:
-
-**Plugin Bridge**: Ecopages plugins (`EcoBuildPlugin`) are translated to Rolldown `Plugin` instances via `createRolldownPluginBridge()`. All eco plugins are consolidated into a **single** Rolldown plugin to minimize Rust→JS FFI overhead. Each plugin hook without a filter causes 3–4× slowdown per module.
-
-**BuildRuntime**: Profile-based executors (`server-entry`, `route-module`, `browser-hmr`) are installed via `installBuildRuntime()`. With `'rolldown'` ownership, profiles use one-shot builds in both dev and production: route-module and browser-HMR builds run in parallel, while server-entry stays serialized single-flight. With `'vite-host'` ownership, profiles wrap a boundary marker that rejects framework-owned builds.
-
-**Build Ownership**: Two adapters exist — `'rolldown'` (default bundled backend) and `'vite-host'` (host-managed boundary marker).
-
-**Native MagicString**: Enabled via `experimental.nativeMagicString: true` for Rust-native string manipulation.
-
-**CSS Shim**: Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
-
-See [docs/rolldown-integration-guide.md](./docs/rolldown-integration-guide.md) for the full guide with API references and benchmarks.
-
-## npm publishing
-
-Workspace dependencies such as `@ecopages/mdx` are rewritten to concrete semver ranges in published `dist/package.json` files during `pnpm run build:npm`. Consumers install them as normal registry dependencies.
+- [AGENTS.md](./AGENTS.md) — coding standards, documentation routing, and README maintenance
+- [packages/core/README.md](./packages/core/README.md) — subsystem architecture index

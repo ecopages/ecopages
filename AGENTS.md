@@ -1,6 +1,8 @@
 # Agent instructions
 
-Coding standards for Agents.
+Coding standards for agents. Domain vocabulary: [CONTEXT.md](./CONTEXT.md). Architecture: README beside the code you edit; index at [packages/core/README.md](./packages/core/README.md).
+
+When behavior changes, update that folder's README and any parent index that lists it. Use CONTEXT.md terms consistently.
 
 ## Comments
 

@@ -2,7 +2,18 @@
 
 Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/fixtures/*/fixture.e2e.ts`.
 
-Full policy: [`docs/e2e-test-plan.md`](../docs/e2e-test-plan.md).
+## Policy
+
+1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). PRs run `test:ci` (vitest + `test:e2e:pr`). `main`/publish run `test:all` (vitest + full e2e). Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).
+2. **Cross-integration certifies host/runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. Each other cell (ecopages+bun, vite+node, vite+bun) runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs on bun and node static builds.
+3. **Rapid-navigation stays stressful.** Use `fireRapidLinkClicks` (overlapping navigations). Pacing every hop with full document waits stops testing SSR under load.
+4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink `dist/` is built once in shell before Playwright (`build:e2e:kitchen-sink`).
+5. **Preview vs dev is capability-based.** Tests move to preview only when static output can serve them. API handlers, middleware locals, WebSockets, and HMR stay on dev/HMR projects.
+6. **Native Playwright.** Use `playwright test --project`, `--grep`, and `package.json` scripts. No custom test runner wrapper.
+
+Pre-commit: `pnpm test:pre-commit`. PR CI (`.github/workflows/ci.yml`): `pnpm test:ci`. Publish/main (`.github/workflows/publish.yml`): `pnpm test:all`.
+
+Playwright projects (17 total) are defined in `playwright.config.ts`.
 
 ## Three runs (full suite)
 
@@ -35,11 +46,21 @@ Or `pnpm test:e2e:ui` for the Playwright UI.
 
 ## Test tiers
 
-| Tier       | Command                | Runs                                      |
-| ---------- | ---------------------- | ----------------------------------------- |
-| Pre-commit | `pnpm test:pre-commit` | vitest + lint + typecheck (no Playwright) |
-| PR         | `pnpm test:ci`         | vitest + `test:e2e:pr`                    |
-| Full       | `pnpm test:all`        | vitest + `test:e2e`                       |
+| Tier       | Command                | Runs                                               |
+| ---------- | ---------------------- | -------------------------------------------------- |
+| Pre-commit | `pnpm test:pre-commit` | vitest + lint + typecheck (no Playwright)          |
+| PR         | `pnpm test:ci`         | vitest + `test:e2e:pr`                             |
+| Full       | `pnpm test:all`        | vitest + `test:e2e`                                |
+| Gate       | `pnpm test:gate`       | vitest + stress smoke (`@stress` on canonical dev) |
+
+## Test filename suffixes
+
+| Pattern                     | Runs on                                |
+| --------------------------- | -------------------------------------- |
+| `*.dev.test.e2e.ts`         | dev only                               |
+| `*.static.test.e2e.ts`      | static only                            |
+| `*.postcss.dev.test.e2e.ts` | PostCSS dev only                       |
+| `*.test.e2e.ts`             | per project `testMatch` / `testIgnore` |
 
 ## Kitchen-sink cross-integration
 

@@ -159,11 +159,6 @@ export abstract class HmrStrategy {
 		return false;
 	}
 
-	/** @deprecated Use {@link ownsDevTransformEntrypoint}. */
-	canEmitEntrypoint(entrypointPath: string): boolean {
-		return this.ownsDevTransformEntrypoint(entrypointPath);
-	}
-
 	/**
 	 * Processes a file change and returns the action to take.
 	 *

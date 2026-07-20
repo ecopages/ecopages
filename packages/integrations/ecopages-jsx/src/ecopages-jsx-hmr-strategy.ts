@@ -1,28 +1,11 @@
-/**
- * HMR strategy for JSX integration-owned SSR source modules.
- *
- * @remarks
- * Edits to files that produce SSR HTML (page sources, layout sources, components
- * that the active render tree depends on) need a soft page refetch so the
- * browser picks up the new markup. Plain `update` events re-import modules on
- * the client but leave the server-rendered DOM stale.
- *
- * The strategy matches a file when any of these hold:
- * - the file lives under `pagesDir` or `layoutsDir` and has a JSX `templatesExt`
- * - the file appears in the active render tree's component dependency graph
- *
- * It defers registered HMR entrypoints to {@link JsHmrStrategy} so script-only
- * edits keep their existing `update`-then-hot-accept path. It also defers
- * include templates and explicit server views to {@link ServerRenderedTemplateHmrStrategy}
- * by returning `false` for those paths.
- */
-
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import { isRegisteredDevTransformEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
+import type { ResolvedHmrEntrypoint } from '@ecopages/core';
 import { getEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
 export interface EcopagesJsxHmrStrategyContext {
-	getWatchedFiles(): Map<string, string>;
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 	getSrcDir(): string;
 	getPagesDir(): string;
 	getLayoutsDir(): string;
@@ -42,12 +25,8 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 
 	override matches(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-		const watchedFiles = this.context.getWatchedFiles();
 
-		if (
-			watchedFiles.has(resolvedPath) ||
-			[...watchedFiles.keys()].some((key) => path.resolve(key) === resolvedPath)
-		) {
+		if (isRegisteredDevTransformEntrypoint(this.context.getRegisteredEntrypoints(), resolvedPath)) {
 			return false;
 		}
 		const srcDir = path.resolve(this.context.getSrcDir());

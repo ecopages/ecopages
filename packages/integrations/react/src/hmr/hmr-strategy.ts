@@ -12,6 +12,7 @@ import fs from 'node:fs';
 
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
@@ -235,6 +236,40 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.allTemplateExtensions.find((extension) => filePath.endsWith(extension));
 	}
 
+	private isDevTransformOutputUrl(outputUrl: string): boolean {
+		return outputUrl.startsWith(`${DEV_TRANSFORM_URL_PREFIX}/`);
+	}
+
+	private queueDevTransformOutputUpdates(
+		targets: readonly ReactHmrBuildTarget[],
+		requestedOutputUrls: ReadonlySet<string>,
+		updates: string[],
+	): void {
+		for (const { outputUrl } of targets) {
+			if (requestedOutputUrls.has(outputUrl)) {
+				updates.push(outputUrl);
+			}
+		}
+	}
+
+	private partitionDevTransformBuildTargets(targets: readonly ReactHmrBuildTarget[]): {
+		transformTargets: ReactHmrBuildTarget[];
+		diskTargets: ReactHmrBuildTarget[];
+	} {
+		const transformTargets: ReactHmrBuildTarget[] = [];
+		const diskTargets: ReactHmrBuildTarget[] = [];
+
+		for (const target of targets) {
+			if (this.isDevTransformOutputUrl(target.outputUrl)) {
+				transformTargets.push(target);
+			} else {
+				diskTargets.push(target);
+			}
+		}
+
+		return { transformTargets, diskTargets };
+	}
+
 	private ownsWatchedEntrypoint(filePath: string): boolean {
 		return this.pageMetadataCache.ownsEntrypoint(filePath);
 	}
@@ -290,13 +325,23 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
+		const resolvedFilePath = path.resolve(filePath);
 		appLogger.debug(`Checking ${filePath}. Watched: ${watchedFiles.size}`);
 
-		if (watchedFiles.has(filePath)) {
-			return this.ownsWatchedEntrypoint(filePath);
+		if (watchedFiles.has(resolvedFilePath)) {
+			if (this.ownsWatchedEntrypoint(resolvedFilePath)) {
+				return true;
+			}
+
+			const outputUrl = watchedFiles.get(resolvedFilePath);
+			if (outputUrl && this.isDevTransformOutputUrl(outputUrl) && this.isReactEntrypoint(resolvedFilePath)) {
+				return true;
+			}
+
+			return false;
 		}
 
-		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(resolvedFilePath);
 		if (dependencyHits.size > 0) {
 			for (const entrypoint of dependencyHits) {
 				if (this.ownsWatchedEntrypoint(entrypoint)) {
@@ -356,6 +401,23 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return { outputPath, outputUrl };
 	}
 
+	/**
+	 * Resolves the browser URL for an HMR entrypoint from the watched-file registry.
+	 *
+	 * @remarks
+	 * Dev transform pages register `__eco_dev__` URLs while legacy HMR emits use
+	 * `_hmr` disk paths. Grouped page rebuilds must preserve the registered URL
+	 * so update broadcasts match client `hmrHandlers` keys.
+	 */
+	private resolveEntrypointOutputUrl(entrypointPath: string): string {
+		const watchedOutputUrl = this.context.getWatchedFiles().get(path.resolve(entrypointPath));
+		if (watchedOutputUrl) {
+			return watchedOutputUrl;
+		}
+
+		return this.getEntrypointOutput(entrypointPath).outputUrl;
+	}
+
 	private getRolldownEntryKey(entrypointPath: string): string {
 		const srcDir = this.context.getSrcDir();
 		const relativePath = path.relative(srcDir, entrypointPath);
@@ -381,7 +443,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 			targets.set(entrypointPath, {
 				entrypointPath,
-				outputUrl: this.getEntrypointOutput(entrypointPath).outputUrl,
+				outputUrl: this.resolveEntrypointOutputUrl(entrypointPath),
 			});
 		}
 
@@ -411,7 +473,9 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		const groupedTargets = new Map(requestedPageTargets.map((target) => [target.entrypointPath, target]));
 		for (const target of await this.collectReactPageBuildTargets()) {
-			groupedTargets.set(target.entrypointPath, target);
+			if (!groupedTargets.has(target.entrypointPath)) {
+				groupedTargets.set(target.entrypointPath, target);
+			}
 		}
 
 		return Array.from(groupedTargets.values()).sort((left, right) =>
@@ -462,6 +526,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 */
 	async process(_filePath: string): Promise<HmrAction> {
 		appLogger.debug(`Processing ${_filePath}`);
+		const resolvedFilePath = path.resolve(_filePath);
 		const watchedFiles = this.context.getWatchedFiles();
 
 		if (watchedFiles.size === 0) {
@@ -469,23 +534,23 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const isLayout = this.isLayoutFile(_filePath);
-		const isChangedPageEntrypoint = this.isPageEntrypoint(_filePath);
+		const isLayout = this.isLayoutFile(resolvedFilePath);
+		const isChangedPageEntrypoint = this.isPageEntrypoint(resolvedFilePath);
 		if (isLayout) {
-			appLogger.debug(`Detected layout file change: ${_filePath}`);
+			appLogger.debug(`Detected layout file change: ${resolvedFilePath}`);
 		}
 
-		const changedEntrypointOutput = watchedFiles.get(_filePath);
-		if (changedEntrypointOutput && !this.ownsWatchedEntrypoint(_filePath)) {
-			if (this.isReactEntrypoint(_filePath)) {
-				this.pageMetadataCache.markOwnedEntrypoint(_filePath);
+		const changedEntrypointOutput = watchedFiles.get(resolvedFilePath);
+		if (changedEntrypointOutput && !this.ownsWatchedEntrypoint(resolvedFilePath)) {
+			if (this.isReactEntrypoint(resolvedFilePath)) {
+				this.pageMetadataCache.markOwnedEntrypoint(resolvedFilePath);
 			} else {
-				appLogger.debug(`Skipping non-React watched entrypoint: ${_filePath}`);
+				appLogger.debug(`Skipping non-React watched entrypoint: ${resolvedFilePath}`);
 				return { type: 'none' };
 			}
 		}
 
-		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(_filePath);
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(resolvedFilePath);
 		const hasDependencyHits = dependencyHits.size > 0;
 		const affectedEntrypoints = new Map<string, string>();
 		let hasOwnedLayoutDependencyHit = false;
@@ -494,13 +559,17 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		if (hasDependencyHits && !changedEntrypointOutput) {
 			for (const entrypoint of dependencyHits) {
-				const outputUrl = watchedFiles.get(entrypoint);
-				if (outputUrl && this.ownsWatchedEntrypoint(entrypoint)) {
-					affectedEntrypoints.set(entrypoint, outputUrl);
+				const resolvedEntrypoint = path.resolve(entrypoint);
+				const outputUrl = watchedFiles.get(resolvedEntrypoint);
+				if (
+					outputUrl &&
+					(this.ownsWatchedEntrypoint(resolvedEntrypoint) || this.isDevTransformOutputUrl(outputUrl))
+				) {
+					affectedEntrypoints.set(resolvedEntrypoint, outputUrl);
 					continue;
 				}
 
-				if (this.isLayoutFile(entrypoint) && this.ownsWatchedEntrypoint(entrypoint)) {
+				if (this.isLayoutFile(resolvedEntrypoint) && this.ownsWatchedEntrypoint(resolvedEntrypoint)) {
 					hasOwnedLayoutDependencyHit = true;
 				}
 			}
@@ -514,25 +583,28 @@ export class ReactHmrStrategy extends HmrStrategy {
 		if (changedEntrypointOutput && !isLayout && !isChangedPageEntrypoint) {
 			layoutOwnedPageTargets = await this.collectReactPageBuildTargets();
 			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(
-				_filePath,
+				resolvedFilePath,
 				layoutOwnedPageTargets,
 			);
 		}
 
 		const requestedTargets = changedEntrypointOutput
 			? hasLayoutOwnedRequestedTarget
-				? [{ entrypointPath: _filePath, outputUrl: changedEntrypointOutput }, ...layoutOwnedPageTargets]
-				: [{ entrypointPath: _filePath, outputUrl: changedEntrypointOutput }]
+				? [{ entrypointPath: resolvedFilePath, outputUrl: changedEntrypointOutput }, ...layoutOwnedPageTargets]
+				: [{ entrypointPath: resolvedFilePath, outputUrl: changedEntrypointOutput }]
 			: hasOwnedLayoutDependencyHit
 				? await this.collectReactPageBuildTargets()
 				: hasDependencyHits
 					? Array.from(affectedEntrypoints, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }))
 					: Array.from(watchedFiles, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }));
 
-		const groupedPageTargets = await this.resolveBuildTargets(requestedTargets, _filePath);
+		const groupedPageTargets = await this.resolveBuildTargets(requestedTargets, resolvedFilePath);
 		const { pageTargets, nonPageTargets } = this.partitionBuildTargets(requestedTargets, groupedPageTargets);
 		if (!changedEntrypointOutput) {
-			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(_filePath, requestedTargets);
+			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(
+				resolvedFilePath,
+				requestedTargets,
+			);
 		}
 		const requiresLayoutRefresh = isLayout || hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
 
@@ -545,16 +617,20 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		const updates: string[] = [];
 		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
-		if (pageTargets.length > 1) {
-			appLogger.debug(`Bundling ${pageTargets.length} React page entrypoints together`);
-			const rebuiltOutputs = await this.bundleReactEntrypoints(pageTargets);
+		const { transformTargets: transformPageTargets, diskTargets: diskPageTargets } =
+			this.partitionDevTransformBuildTargets(pageTargets);
+		this.queueDevTransformOutputUpdates(transformPageTargets, requestedOutputUrls, updates);
+
+		if (diskPageTargets.length > 1) {
+			appLogger.debug(`Bundling ${diskPageTargets.length} React page entrypoints together`);
+			const rebuiltOutputs = await this.bundleReactEntrypoints(diskPageTargets);
 			for (const outputUrl of rebuiltOutputs) {
 				if (requestedOutputUrls.has(outputUrl)) {
 					updates.push(outputUrl);
 				}
 			}
 		} else {
-			for (const { entrypointPath, outputUrl } of pageTargets) {
+			for (const { entrypointPath, outputUrl } of diskPageTargets) {
 				appLogger.debug(`Bundling ${entrypointPath}`);
 				const success = await this.bundleReactEntrypoint(entrypointPath, outputUrl);
 				if (success && requestedOutputUrls.has(outputUrl)) {
@@ -565,6 +641,13 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		for (const { entrypointPath, outputUrl } of nonPageTargets) {
 			if (!this.isReactEntrypoint(entrypointPath)) {
+				continue;
+			}
+
+			if (this.isDevTransformOutputUrl(outputUrl)) {
+				if (requestedOutputUrls.has(outputUrl)) {
+					updates.push(outputUrl);
+				}
 				continue;
 			}
 

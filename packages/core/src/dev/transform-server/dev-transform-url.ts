@@ -1,8 +1,9 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
+
+import { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
 import { encodeHmrDynamicSegments } from '../../hmr/hmr-entrypoint-output.ts';
 
-export const DEV_TRANSFORM_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/__eco_dev__`;
+export { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
 
 /**
  * Maps a source entrypoint to the browser URL served by the dev transform server.

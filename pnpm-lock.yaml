@@ -32,9 +32,6 @@ importers:
       better-commits:
         specifier: ^1.23.0
         version: 1.24.0(typescript@5.9.3)
-      esbuild:
-        specifier: ^0.28.0
-        version: 0.28.1
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -377,9 +374,6 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
-      esbuild:
-        specifier: ^0.28.0
-        version: 0.28.1
       ghtml:
         specifier: ^4.0.2
         version: 4.0.2

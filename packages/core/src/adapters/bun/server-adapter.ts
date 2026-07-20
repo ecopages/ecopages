@@ -38,7 +38,7 @@ import {
 	disposeDevResources,
 	prepareRuntimePublicDir,
 	startConfiguredClientGraphPrewarm,
-	startConfiguredIntegrationRuntimePrewarm,
+	startDevWarmup,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { ClientBridge } from './client-bridge.ts';
 import { setAppDevClientBridge } from '../../dev/client-bridge-registry.ts';
@@ -641,7 +641,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		if (this.options?.watch) {
 			await this.hmrManager.ensureRuntimeReady();
-			startConfiguredIntegrationRuntimePrewarm({
+			startDevWarmup({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});

@@ -3,32 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
-import { HmrStrategy, HmrStrategyType } from '../../../hmr/hmr-strategy.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
-
-class FakeIntegrationEmitter extends HmrStrategy {
-	override readonly type = HmrStrategyType.INTEGRATION;
-
-	override matches(): boolean {
-		return false;
-	}
-
-	override async process(): Promise<{ type: 'none' }> {
-		return { type: 'none' };
-	}
-
-	override canEmitEntrypoint(filePath: string): boolean {
-		return filePath.endsWith('.tsx');
-	}
-
-	override async emitEntrypoint(_entrypointPath: string, outputPath: string): Promise<void> {
-		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-		fs.writeFileSync(outputPath, 'export default 1;', 'utf8');
-	}
-}
 
 const tempRoots: string[] = [];
 
@@ -77,7 +56,7 @@ const runtimes = [
 ] as const;
 
 describe.each(runtimes)('HMR entrypoint emission: $name', ({ create }) => {
-	test('registerEntrypoint uses integration emitters instead of handleFileChange', async () => {
+	test('registerEntrypoint returns a dev transform URL without invoking handleFileChange', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-emission-dispatch');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
@@ -86,12 +65,11 @@ describe.each(runtimes)('HMR entrypoint emission: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 		using manager = await create(rootDir);
-		manager.registerStrategy(new FakeIntegrationEmitter());
 		const handleFileChange = vi.spyOn(manager, 'handleFileChange');
 
 		const outputUrl = await manager.registerEntrypoint(entrypointPath);
 
-		assert.equal(outputUrl, '/assets/_hmr/pages/index.js');
+		assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`);
 		assert.equal(handleFileChange.mock.calls.length, 0);
 	});
 
@@ -105,14 +83,13 @@ describe.each(runtimes)('HMR entrypoint emission: $name', ({ create }) => {
 
 		using manager = await create(rootDir);
 		const broadcast = vi.spyOn(manager, 'broadcast');
-		manager.registerStrategy(new FakeIntegrationEmitter());
 
 		await manager.registerEntrypoint(entrypointPath);
 
 		assert.equal(broadcast.mock.calls.length, 0);
 	});
 
-	test('registers a second owned page after the first page is already watched', async () => {
+	test('registers a second page after the first page is already watched', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-emission-second-page');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
@@ -123,13 +100,12 @@ describe.each(runtimes)('HMR entrypoint emission: $name', ({ create }) => {
 		fs.writeFileSync(secondEntrypoint, 'export default function Home() { return null; }', 'utf8');
 
 		using manager = await create(rootDir);
-		manager.registerStrategy(new FakeIntegrationEmitter());
 
 		const firstUrl = await manager.registerEntrypoint(firstEntrypoint);
 		const secondUrl = await manager.registerEntrypoint(secondEntrypoint);
 
-		assert.equal(firstUrl, '/assets/_hmr/pages/about.js');
-		assert.equal(secondUrl, '/assets/_hmr/pages/index.js');
+		assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js`);
+		assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`);
 		assert.equal(manager.getWatchedFiles().size, 2);
 	});
 });

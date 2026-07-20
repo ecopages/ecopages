@@ -22,6 +22,7 @@ import { REACT_PLUGIN_NAME } from './react.constants.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
+import { ReactDevTransformContributor } from '../dev-transform/react-dev-transform-contributor.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService } from '../bundling/runtime-bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
@@ -280,6 +281,22 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 *
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
+	override setHmrManager(hmrManager: NonNullable<IntegrationPlugin['hmrManager']>): void {
+		super.setHmrManager(hmrManager);
+		const strategy = this.getHmrStrategy();
+		const registerContributor = (hmrManager as { registerDevTransformContributor?: (contributor: unknown) => void })
+			.registerDevTransformContributor;
+		if (!strategy || !registerContributor || !this.appConfig) {
+			return;
+		}
+		registerContributor.call(
+			hmrManager,
+			new ReactDevTransformContributor({
+				strategy: strategy as ReactHmrStrategy,
+			}),
+		);
+	}
+
 	override getHmrStrategy(): HmrStrategy | undefined {
 		if (!this.hmrManager || !this.appConfig) {
 			return undefined;

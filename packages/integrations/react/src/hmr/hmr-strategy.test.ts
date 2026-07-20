@@ -301,7 +301,7 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).processOutput = vi.fn(async () => true);
+		(strategy as any).diskBundler.processOutput = vi.fn(async () => true);
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(entrypointPath, '/_hmr/pages/index.js');
@@ -343,7 +343,7 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).processOutput = vi.fn(async () => true);
+		(strategy as any).diskBundler.processOutput = vi.fn(async () => true);
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(
@@ -378,7 +378,7 @@ describe('ReactHmrStrategy', () => {
 		const globSpy = vi
 			.spyOn(fileSystem, 'glob')
 			.mockResolvedValue(['/tmp/.eco/assets/_hmr/pages/index.123.tmp.js']);
-		(strategy as any).processOutput = vi.fn(async () => true);
+		(strategy as any).diskBundler.processOutput = vi.fn(async () => true);
 
 		const success = await (strategy as any).bundleReactEntrypoint(
 			'/tmp/src/pages/index.tsx',
@@ -389,7 +389,7 @@ describe('ReactHmrStrategy', () => {
 		expect(globSpy).toHaveBeenCalledWith(['index.*.tmp.js'], {
 			cwd: '/tmp/.eco/assets/_hmr/pages',
 		});
-		expect((strategy as any).processOutput).toHaveBeenCalledWith(
+		expect((strategy as any).diskBundler.processOutput).toHaveBeenCalledWith(
 			'/tmp/.eco/assets/_hmr/pages/index.123.tmp.js',
 			'/tmp/.eco/assets/_hmr/pages/index.js',
 			'/_hmr/pages/index.js',
@@ -700,7 +700,7 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		(strategy as any).processOutput = vi.fn(async () => true);
+		(strategy as any).diskBundler.processOutput = vi.fn(async () => true);
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 
 		const outputs = await (strategy as any).bundleReactEntrypoints([
@@ -711,7 +711,7 @@ describe('ReactHmrStrategy', () => {
 		]);
 
 		expect(outputs).toEqual(['/assets/_hmr/pages/posts/_slug_.js']);
-		expect((strategy as any).processOutput).toHaveBeenCalledWith(
+		expect((strategy as any).diskBundler.processOutput).toHaveBeenCalledWith(
 			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.123.tmp.js',
 			'/tmp/.eco/assets/_hmr/pages/posts/_slug_.js',
 			'/assets/_hmr/pages/posts/_slug_.js',

@@ -21,10 +21,8 @@ import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts'
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import {
 	attachHmrToIntegrations,
-	awaitConfiguredClientGraphPrewarm,
 	disposeDevResources,
 	prepareRuntimePublicDir,
-	startConfiguredClientGraphPrewarm,
 	startDevWarmup,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
@@ -48,7 +46,6 @@ export interface NodeServerAdapterParams {
 	staticRoutes?: StaticRoute[];
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
-	delegateBrowserReloadToHost?: boolean;
 	hostOwnsDevClient?: boolean;
 	options?: {
 		watch?: boolean;
@@ -407,12 +404,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});
-			startConfiguredClientGraphPrewarm({
-				appConfig: this.appConfig,
-				templateRouteFilePaths: this.router.templateRoutes.map((route) => route.filePath),
-				hmrEnabled: true,
-			});
-			await awaitConfiguredClientGraphPrewarm(this.appConfig);
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 

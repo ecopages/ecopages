@@ -1,11 +1,9 @@
 import type { Readable } from 'node:stream';
 import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
-import type { BuildExecutor } from '../build/build-adapter.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
-import type { BrowserBundleExecutor } from '../services/assets/browser-bundle.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
@@ -183,18 +181,15 @@ export interface CacheInvalidator {
 
 /**
  * Context interface for HMR strategies.
- * Provides access to watched files, registered bare-specifier mappings, and build configuration.
+ * Provides access to registered entrypoints and build configuration.
  */
 export interface DefaultHmrContext {
 	/**
-	 * Map of registered entrypoints to their output URLs.
+	 * Map of registered entrypoint source paths to their dev-transform output URLs.
 	 */
 	getWatchedFiles(): Map<string, string>;
 
-	/**
-	 * Directory where HMR bundles are written.
-	 */
-	getDistDir(): string;
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	/**
 	 * Absolute path to the source directory.
@@ -213,15 +208,6 @@ export interface DefaultHmrContext {
 	 */
 	getPagesDir(): string;
 
-	/**
-	 * Build executor owned by the active app/runtime.
-	 */
-	getBuildExecutor(): BuildExecutor;
-
-	/**
-	 * Browser bundler owned by the active app/runtime.
-	 */
-	getBrowserBundleService(): BrowserBundleExecutor;
 	/**
 	 * Server-side module loader owned by the active app/runtime.
 	 */
@@ -285,13 +271,11 @@ export interface IClientBridge {
 	subscriberCount: number;
 }
 
-/**
- * Verified HMR entrypoint artifact produced by registration.
- */
 export interface ResolvedHmrEntrypoint {
 	sourcePath: string;
 	outputPath: string;
 	outputUrl: string;
+	role: 'page' | 'script';
 }
 
 /**
@@ -300,22 +284,14 @@ export interface ResolvedHmrEntrypoint {
  */
 export interface IHmrManager {
 	/**
-	 * Registers an integration-owned client entrypoint to be built and watched.
+	 * Registers a client entrypoint for dev-transform delivery and HMR watching.
 	 *
 	 * @remarks
-	 * This path is strict: the owning integration must emit the expected `_hmr`
-	 * bundle. Missing output is treated as a development pipeline failure.
+	 * Returns a stable `/assets/__eco_dev__/…` URL immediately; the bundle is
+	 * materialized on the first browser request.
 	 */
 	registerEntrypoint(entrypointPath: string): Promise<string>;
 
-	/**
-	 * Registers a generic script asset entrypoint to be built and watched.
-	 *
-	 * @remarks
-	 * This path exists for non-page script assets that are not owned by a
-	 * framework integration. Unlike `registerEntrypoint()`, it may use the generic
-	 * script bundling path.
-	 */
 	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 
 	/**
@@ -354,35 +330,19 @@ export interface IHmrManager {
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
 
 	/**
-	 * Registers an already-materialized HMR entrypoint without rebuilding it.
-	 *
-	 * @remarks
-	 * Cold dev batches seed the registrar after grouped builds so the first SSR
-	 * resolves the artifact from disk instead of triggering a rebuild.
-	 */
-	seedResolvedEntrypoint?(resolved: ResolvedHmrEntrypoint): void;
-
-	/**
-	 * Registers an in-flight cold client-graph promise so concurrent
-	 * {@link registerEntrypoint} callers coalesce on the same build.
-	 */
-	trackInFlightEntrypoint?(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): void;
-	tryTrackInFlightEntrypoint?(entrypointPath: string, promise: Promise<ResolvedHmrEntrypoint>): boolean;
-
-	/**
-	 * Releases a cold client-graph in-flight promise after the grouped build completes.
-	 */
-	releaseInFlightEntrypoint?(entrypointPath: string): void;
-
-	/**
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;
 
 	/**
-	 * Gets the HMR dist directory.
+	 * Gets registered dev-transform entrypoints keyed by resolved source path.
 	 */
-	getDistDir(): string;
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
+
+	/**
+	 * Gets the on-disk work directory for the bundled HMR client runtime.
+	 */
+	getRuntimeWorkDir(): string;
 
 	/**
 	 * Returns the on-disk path to the bundled HMR runtime script.

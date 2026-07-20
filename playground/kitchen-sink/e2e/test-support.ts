@@ -114,8 +114,8 @@ const FORBIDDEN_HMR_DIAGNOSTIC_PATTERNS = [
  * Asserts declared layout/page scripts are served from the HMR dist path on cold start.
  */
 export async function assertRegisteredHmrScript(page: Page, scriptPathFragment: string) {
-	const script = page.locator(`script[src*="/assets/_hmr/"][src*="${scriptPathFragment}"]`);
-	await expect(script, `expected HMR script containing ${scriptPathFragment}`).toHaveCount(1);
+	const script = page.locator(`script[src*="/assets/__eco_dev__/"][src*="${scriptPathFragment}"]`);
+	await expect(script, `expected dev transform script containing ${scriptPathFragment}`).toHaveCount(1);
 	return script;
 }
 

@@ -18,6 +18,7 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
+import { EcopagesJsxDevTransformContributor } from './dev-transform/ecopages-jsx-dev-transform-contributor.ts';
 import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from './radiant-registered-script-ssr-invalidation.ts';
 import type { EcopagesJsxPluginOptions } from './ecopages-jsx.types.ts';
@@ -140,9 +141,22 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		return assignPageOwnedContentScriptGroupedBundles(dependencies);
 	}
 
-	/** Registers JSX HMR strategy and Radiant SSR invalidation hooks. */
+	/** Registers JSX HMR strategy, dev-transform plugins, and Radiant SSR invalidation hooks. */
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
+
+		const strategy = this.getHmrStrategy();
+		const registerContributor = (hmrManager as { registerDevTransformContributor?: (contributor: unknown) => void })
+			.registerDevTransformContributor;
+		if (strategy && registerContributor) {
+			registerContributor.call(
+				hmrManager,
+				new EcopagesJsxDevTransformContributor({
+					strategy: strategy as EcopagesJsxHmrStrategy,
+					getMdxLoaderPlugin: () => this.mdxLoaderPlugin,
+				}),
+			);
+		}
 
 		if (!this.includeRadiant || !this.appConfig) {
 			return;
@@ -172,7 +186,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		const absolutePaths = this.appConfig.absolutePaths;
 
 		return new EcopagesJsxHmrStrategy({
-			getWatchedFiles: context.getWatchedFiles,
+			getRegisteredEntrypoints: context.getRegisteredEntrypoints,
 			getSrcDir: context.getSrcDir,
 			getPagesDir: context.getPagesDir,
 			getLayoutsDir: context.getLayoutsDir,

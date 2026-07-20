@@ -44,8 +44,6 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 		} as any,
 	});
 
-	const emitIntegrationEntrypoint = vi.spyOn(manager, 'emitIntegrationEntrypoint');
-
 	const [firstUrl, secondUrl] = await Promise.all([
 		manager.registerEntrypoint(entrypointPath),
 		manager.registerEntrypoint(entrypointPath),
@@ -53,7 +51,6 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 
 	assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
 	assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
-	assert.equal(emitIntegrationEntrypoint.mock.calls.length, 0);
 });
 
 test('HmrManager registers unowned page entrypoints with dev transform URLs', async () => {
@@ -82,7 +79,7 @@ test('HmrManager registers unowned page entrypoints with dev transform URLs', as
 	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), true);
 });
 
-test('HmrManager uses the generic build path for script entrypoints when no strategy emits output', async () => {
+test('HmrManager registers script entrypoints with dev transform URLs without blocking builds', async () => {
 	const rootDir = createTempRoot('ecopages-bun-hmr-script-fallback');
 	const srcDir = path.join(rootDir, 'src');
 	fs.mkdirSync(srcDir, { recursive: true });
@@ -102,17 +99,13 @@ test('HmrManager uses the generic build path for script entrypoints when no stra
 	});
 
 	installBuildRuntime(config);
-	const outputPath = path.join(resolveInternalWorkDir(config), 'assets', '_hmr', 'script.js');
 	const buildCalls: string[] = [];
 	config.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
 		buildCalls.push(options.entrypoints[0] as string);
-		fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-		fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
-
 		return {
 			success: true,
 			logs: [],
-			outputs: [{ path: outputPath }],
+			outputs: [{ path: '/tmp/unused.js' }],
 		};
 	});
 
@@ -120,10 +113,9 @@ test('HmrManager uses the generic build path for script entrypoints when no stra
 
 	const resolved = await manager.registerScriptEntrypoint(entrypointPath);
 
-	assert.equal(resolved.outputUrl, '/assets/_hmr/script.js');
-	assert.equal(resolved.outputPath, outputPath);
-	assert.deepEqual(buildCalls, [entrypointPath]);
-	assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
+	assert.equal(resolved.outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/script.js`);
+	assert.equal(resolved.outputPath, path.resolve(entrypointPath));
+	assert.deepEqual(buildCalls, []);
 });
 
 test('HmrManager stop clears retained registration state', async () => {
@@ -166,7 +158,7 @@ test('HmrManager keeps internal browser and server-module outputs out of distDir
 		} as any,
 	});
 
-	assert.equal(manager.getDistDir(), path.join(resolveInternalWorkDir(config), 'assets', '_hmr'));
+	assert.equal(manager.getRuntimeWorkDir(), path.join(resolveInternalWorkDir(config), 'assets', 'hmr-runtime'));
 
 	const importModule = vi.fn(async (_options: { outdir: string }) => ({}));
 	(manager as unknown as { serverModuleTranspiler: { importModule: typeof importModule } }).serverModuleTranspiler = {

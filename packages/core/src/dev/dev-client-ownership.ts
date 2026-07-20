@@ -6,5 +6,5 @@ import type { ApplicationRuntimeOptions } from '../adapters/abstract/application
  * When true, core must not inject the HMR runtime or signal full-page reloads.
  */
 export function hostOwnsDevClient(runtime?: ApplicationRuntimeOptions): boolean {
-	return runtime?.devClientOwner === 'host' || runtime?.delegateBrowserReloadToHost === true;
+	return runtime?.devClientOwner === 'host';
 }

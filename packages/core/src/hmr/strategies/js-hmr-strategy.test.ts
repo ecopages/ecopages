@@ -12,6 +12,7 @@ const SRC_DIR = path.join(TMP_DIR, 'src');
 function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext {
 	return {
 		getWatchedFiles: () => new Map(),
+		getRegisteredEntrypoints: () => new Map(),
 		getEntrypointDependencyGraph: () => new NoopDevGraphService(),
 		getDistDir: () => TMP_DIR,
 		getSrcDir: () => SRC_DIR,

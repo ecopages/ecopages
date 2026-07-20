@@ -33,6 +33,7 @@ function createHmrAssetManager(hmrDir: string): IHmrManager {
 		broadcast: vi.fn(),
 		getOutputUrl: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
+		getRegisteredEntrypoints: vi.fn(() => new Map()),
 		getDistDir: () => hmrDir,
 		getRuntimePath: () => '',
 		tryHandleAssetRequest: (request: Request) => {

@@ -51,11 +51,12 @@ export function clearRadiantCustomElementDefinition(tagName: string): void {
 /**
  * Clears the SSR custom-element registry entry for one registered Radiant script module.
  */
-export function invalidateRadiantRegisteredScriptSsrRegistration(scriptPath: string): void {
+export function invalidateRadiantRegisteredScriptSsrRegistration(scriptPath: string): boolean {
 	const tagName = resolveRadiantCustomElementTag(scriptPath);
 	if (!tagName) {
-		return;
+		return false;
 	}
 
 	clearRadiantCustomElementDefinition(tagName);
+	return true;
 }

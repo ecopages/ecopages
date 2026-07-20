@@ -191,6 +191,8 @@ export interface DefaultHmrContext {
 	 */
 	getWatchedFiles(): Map<string, string>;
 
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
+
 	/**
 	 * Directory where HMR bundles are written.
 	 */
@@ -285,13 +287,11 @@ export interface IClientBridge {
 	subscriberCount: number;
 }
 
-/**
- * Verified HMR entrypoint artifact produced by registration.
- */
 export interface ResolvedHmrEntrypoint {
 	sourcePath: string;
 	outputPath: string;
 	outputUrl: string;
+	role: 'page' | 'script';
 }
 
 /**
@@ -308,13 +308,6 @@ export interface IHmrManager {
 	 */
 	registerEntrypoint(entrypointPath: string): Promise<string>;
 
-	/**
-	 * Registers a declared script asset entrypoint for dev-transform delivery.
-	 *
-	 * @remarks
-	 * Layout and component `*.script.ts` / `*.script.tsx` modules use the same
-	 * on-demand transform path as pages. Returns source path as `outputPath`.
-	 */
 	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 
 	/**
@@ -377,6 +370,8 @@ export interface IHmrManager {
 	 * Gets the map of watched files.
 	 */
 	getWatchedFiles(): Map<string, string>;
+
+	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	/**
 	 * Gets the HMR dist directory.

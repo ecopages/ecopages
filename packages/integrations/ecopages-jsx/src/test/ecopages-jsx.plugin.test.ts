@@ -22,9 +22,11 @@ function createHmrManagerStub(): IHmrManager {
 		broadcast: vi.fn(),
 		getOutputUrl: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
+		getRegisteredEntrypoints: vi.fn(() => new Map()),
 		getDistDir: vi.fn(() => ''),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),
+			getRegisteredEntrypoints: () => new Map(),
 			getDistDir: () => '',
 			getSrcDir: () => '/test/project/src',
 			getPagesDir: () => '/test/project/src/pages',

@@ -18,7 +18,7 @@ import type { ServerModuleTranspiler } from '../services/module-loading/server-m
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
 /** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
-export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | Promise<void>;
+export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
 
 export interface RobotsPreference {
 	/**

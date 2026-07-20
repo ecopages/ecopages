@@ -120,7 +120,7 @@ test('registerTransformModule tracks transform URLs without invoking emit', asyn
 
 	const registrar = new HmrEntrypointRegistrar({ srcDir, distDir });
 	let emitCalls = 0;
-	registrar.registerTransformModule(entrypointPath, '/assets/__eco_dev__/seeded.script.js');
+	registrar.registerTransformModule(entrypointPath, '/assets/__eco_dev__/seeded.script.js', { role: 'page' });
 
 	const registered = registrar.getRegistered().get(path.resolve(entrypointPath));
 	assert.equal(registered?.outputUrl, '/assets/__eco_dev__/seeded.script.js');

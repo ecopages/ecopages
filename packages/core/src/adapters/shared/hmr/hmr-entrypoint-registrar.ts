@@ -97,15 +97,17 @@ export class HmrEntrypointRegistrar {
 		}
 	}
 
-	/**
-	 * Tracks a dev-transform module URL without a Rolldown disk artifact.
-	 */
-	registerTransformModule(sourcePath: string, outputUrl: string): void {
+	registerTransformModule(
+		sourcePath: string,
+		outputUrl: string,
+		options: { role: 'page' } | { role: 'script' },
+	): void {
 		const normalized = path.resolve(sourcePath);
 		this.registered.set(normalized, {
 			sourcePath: normalized,
 			outputPath: normalized,
 			outputUrl,
+			role: options.role,
 		});
 	}
 
@@ -174,6 +176,7 @@ export class HmrEntrypointRegistrar {
 				sourcePath: entrypointPath,
 				outputPath,
 				outputUrl,
+				role: 'page',
 			};
 			this.registered.set(entrypointPath, resolved);
 			return resolved;

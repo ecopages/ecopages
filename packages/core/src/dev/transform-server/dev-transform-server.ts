@@ -14,6 +14,7 @@ type CacheEntry = {
 export type DevTransformServerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
+	onEntrypointDependencies?: (entrypointPath: string, dependencies: string[]) => void;
 };
 
 /**
@@ -26,13 +27,16 @@ export type DevTransformServerOptions = {
 export class DevTransformServer {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly bundler: DevTransformBundler;
+	private readonly onEntrypointDependencies?: (entrypointPath: string, dependencies: string[]) => void;
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
 	private readonly cache = new Map<string, CacheEntry>();
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
+	private cacheGeneration = 0;
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
+		this.onEntrypointDependencies = options.onEntrypointDependencies;
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
 			contributors: options.contributors ?? [],
@@ -65,21 +69,19 @@ export class DevTransformServer {
 	}
 
 	invalidateSource(sourcePath: string): void {
-		const normalized = path.resolve(sourcePath);
-		this.cache.delete(normalized);
-		const url = this.sourceToUrl.get(normalized);
-		if (url) {
-			for (const [cachedSource] of this.cache) {
-				if (cachedSource === normalized) {
-					this.cache.delete(cachedSource);
-				}
-			}
-		}
+		this.cache.delete(path.resolve(sourcePath));
 	}
 
 	invalidateAll(): void {
+		this.cacheGeneration += 1;
 		this.cache.clear();
 		this.inFlight.clear();
+	}
+
+	reset(): void {
+		this.urlToSource.clear();
+		this.sourceToUrl.clear();
+		this.invalidateAll();
 	}
 
 	async tryHandleRequest(request: Request): Promise<Response | null> {
@@ -95,6 +97,15 @@ export class DevTransformServer {
 			return new Response(entry.code, {
 				headers: {
 					'Content-Type': 'application/javascript',
+					'Cache-Control': 'no-store, must-revalidate',
+				},
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return new Response(message, {
+				status: 500,
+				headers: {
+					'Content-Type': 'text/plain',
 					'Cache-Control': 'no-store, must-revalidate',
 				},
 			});
@@ -120,12 +131,25 @@ export class DevTransformServer {
 			return pending;
 		}
 
-		const promise = this.bundler.bundleEntrypoint(normalized).then((result) => {
-			const entry: CacheEntry = { code: result.code, sourceHash: fileSystem.hash(normalized) };
-			this.cache.set(normalized, entry);
-			this.inFlight.delete(normalized);
-			return entry;
-		});
+		const generation = this.cacheGeneration;
+		const promise = this.bundler
+			.bundleEntrypoint(normalized)
+			.then((result) => {
+				if (generation !== this.cacheGeneration) {
+					throw new Error(`[dev-transform] Stale bundle result for ${normalized}`);
+				}
+
+				if (result.dependencies) {
+					this.onEntrypointDependencies?.(normalized, result.dependencies);
+				}
+
+				const entry: CacheEntry = { code: result.code, sourceHash: fileSystem.hash(normalized) };
+				this.cache.set(normalized, entry);
+				return entry;
+			})
+			.finally(() => {
+				this.inFlight.delete(normalized);
+			});
 
 		this.inFlight.set(normalized, promise);
 		return promise;

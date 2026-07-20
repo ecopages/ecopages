@@ -1,1 +1,1 @@
-pnpm run test:pre-commit
+pnpm format && pnpm lint && pnpm run test:pre-commit && pnpm typecheck

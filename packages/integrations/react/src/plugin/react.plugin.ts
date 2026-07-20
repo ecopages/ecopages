@@ -293,9 +293,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			hmrManager,
 			new ReactDevTransformContributor({
 				strategy: strategy as ReactHmrStrategy,
-				runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
-				projectRoot: this.appConfig.rootDir,
-				mdxCompilerOptions: this.mdxCompilerOptions,
 			}),
 		);
 	}

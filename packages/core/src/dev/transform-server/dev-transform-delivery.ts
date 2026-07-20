@@ -6,7 +6,7 @@ export type DevClientDeliveryMode = 'transform' | 'rolldown';
  * Resolves how native CLI dev serves browser client modules.
  *
  * @remarks
- * Default is `transform` (on-demand esbuild). Set `ECOPAGES_DEV_CLIENT_DELIVERY=rolldown`
+ * Default is `transform` (on-demand Rolldown). Set `ECOPAGES_DEV_CLIENT_DELIVERY=rolldown`
  * to use the legacy Rolldown HMR entrypoint path during migration.
  */
 export function resolveDevClientDeliveryMode(runtime?: ApplicationRuntimeOptions): DevClientDeliveryMode {

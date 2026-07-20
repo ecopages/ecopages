@@ -17,11 +17,11 @@ Agora and most apps use `ecopages dev` directly. We are not adopting Vite as the
 Serve browser modules **on demand** from a core **dev transform server** inside `ecopages dev`.
 Production `ecopages build` stays on Rolldown unchanged.
 
-| Layer | Owner | Responsibility |
-|-------|-------|----------------|
-| Dev client | Core transform server | Transform/bundle page modules per HTTP request; in-memory cache |
-| Dev invalidation | `DevelopmentInvalidationService` + watcher | Invalidate transform cache; signal browser reload |
-| Prod client | Rolldown unified graph | Ship optimized browser assets |
+| Layer            | Owner                                      | Responsibility                                                  |
+| ---------------- | ------------------------------------------ | --------------------------------------------------------------- |
+| Dev client       | Core transform server                      | Transform/bundle page modules per HTTP request; in-memory cache |
+| Dev invalidation | `DevelopmentInvalidationService` + watcher | Invalidate transform cache; signal browser reload               |
+| Prod client      | Rolldown unified graph                     | Ship optimized browser assets                                   |
 
 Escape hatch: `ECOPAGES_DEV_CLIENT_DELIVERY=rolldown` restores the legacy Rolldown HMR path until
 Phase 2 deletion removes it.
@@ -32,7 +32,7 @@ Phase 2 deletion removes it.
 - `browser-hmr`, `HmrEntrypointRegistrar` emit path, and React Rolldown HMR rebuilds are deleted
   after the transform path is proven (Phases 2–3).
 - `@ecopages/vite-plugin` remains optional for Vite-hosted apps; it is not the agora path.
-- Integrations may register `getDevTransformBundleContributor()` to supply esbuild plugins for
+- Integrations may register `getDevTransformBundleContributor()` to supply Rolldown plugins for
   owned entrypoints.
 
 ## Deletion checklist (Phases 2–3)

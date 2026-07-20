@@ -1,27 +1,26 @@
-import * as esbuild from 'esbuild';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
-import { applySourceTransforms } from '../../plugins/source-transform.ts';
+import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { createEsbuildPluginsFromEcoBuild } from './eco-build-esbuild-bridge.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
 
 export type DevTransformBundlerOptions = {
 	appConfig: EcoPagesAppConfig;
-	contributors: readonly DevTransformBundleContributor[];
+	contributors?: readonly DevTransformBundleContributor[];
 };
 
 /**
- * Bundles one dev client entrypoint with esbuild (in-memory, no disk write).
+ * Bundles one dev client entrypoint with Rolldown (in-memory read after emit).
  */
 export class DevTransformBundler {
 	private readonly appConfig: EcoPagesAppConfig;
+	private readonly browserBundleService: BrowserBundleService;
 	private readonly contributors: DevTransformBundleContributor[] = [];
 
 	constructor(options: DevTransformBundlerOptions) {
 		this.appConfig = options.appConfig;
-		this.contributors.push(...options.contributors);
+		this.browserBundleService = new BrowserBundleService(options.appConfig);
+		this.contributors.push(...(options.contributors ?? []));
 	}
 
 	addContributor(contributor: DevTransformBundleContributor): void {
@@ -32,51 +31,61 @@ export class DevTransformBundler {
 		return this.contributors.find((contributor) => contributor.ownsEntrypoint(entrypointPath));
 	}
 
+	private resolveTempOutdir(): string {
+		const distDir = this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, '.eco', 'assets');
+		return path.join(distDir, '.dev-transform');
+	}
+
 	async bundleEntrypoint(entrypointPath: string): Promise<DevTransformBundleResult> {
 		const normalized = path.resolve(entrypointPath);
 		const contributor = this.selectContributor(normalized);
-		if (contributor) {
-			return contributor.bundleEntrypoint(normalized);
-		}
+		const pagePlugins = contributor ? await contributor.getPageBuildPlugins(normalized) : [];
+		const tempDir = this.resolveTempOutdir();
+		fileSystem.ensureDir(tempDir);
 
-		const sourceTransforms = getAppSourceTransforms(this.appConfig);
-		const plugins = createEsbuildPluginsFromEcoBuild([]);
-
-		const result = await esbuild.build({
-			absWorkingDir: this.appConfig.rootDir,
-			entryPoints: [normalized],
-			bundle: true,
-			format: 'esm',
-			platform: 'browser',
-			target: 'es2022',
-			write: false,
-			sourcemap: 'inline',
-			jsx: 'automatic',
-			plugins: [
-				...plugins,
-				{
-					name: 'ecopages-dev-source-transforms',
-					setup(build) {
-						build.onLoad({ filter: /\.(tsx?|jsx?|mdx)$/ }, async (args) => {
-							if (!fileSystem.exists(args.path)) {
-								return undefined;
-							}
-							const source = fileSystem.readFileSync(args.path);
-							const transformed = applySourceTransforms(sourceTransforms, source, args.path);
-							const ext = path.extname(args.path);
-							const loader = ext === '.tsx' || ext === '.jsx' ? 'tsx' : ext === '.ts' ? 'ts' : 'js';
-							return { contents: transformed, loader };
-						});
-					},
-				},
-			],
+		const result = await this.browserBundleService.bundle({
+			profile: 'hmr-entrypoint',
+			entrypoints: [normalized],
+			outdir: tempDir,
+			naming: '[name].[hash].tmp',
+			plugins: [...pagePlugins],
+			minify: false,
+			splitting: false,
 		});
 
-		const output = result.outputFiles[0];
-		if (!output) {
+		if (!result.success) {
+			throw new Error(`[dev-transform] Build failed for ${normalized}`);
+		}
+
+		const tempPath = result.outputs[0]?.path;
+		if (!tempPath) {
 			throw new Error(`[dev-transform] No output for ${normalized}`);
 		}
 
-		return { code: output.text };
+		const resolvedPath = await resolveRolldownTempOutputPath(tempPath);
+		if (!resolvedPath) {
+			throw new Error(`[dev-transform] Missing temp output for ${normalized}: ${tempPath}`);
+		}
+
+		return { code: fileSystem.readFileSync(resolvedPath) };
 	}
+}
+
+async function resolveRolldownTempOutputPath(tempPath: string): Promise<string | null> {
+	if (fileSystem.exists(tempPath)) {
+		return tempPath;
+	}
+
+	if (!tempPath.includes('[hash]')) {
+		return null;
+	}
+
+	const directory = path.dirname(tempPath);
+	const pattern = path.basename(tempPath).replaceAll('[hash]', '*');
+	const matches = await fileSystem.glob([pattern], { cwd: directory });
+	if (matches.length === 0) {
+		return null;
+	}
+
+	return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);
 }

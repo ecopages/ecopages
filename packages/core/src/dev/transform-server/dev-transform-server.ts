@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -9,7 +8,7 @@ import type { DevTransformBundleContributor } from './types.ts';
 
 type CacheEntry = {
 	code: string;
-	sourceMtimeMs: number;
+	sourceHash: string;
 };
 
 export type DevTransformServerOptions = {
@@ -22,7 +21,7 @@ export type DevTransformServerOptions = {
  *
  * @remarks
  * Registration returns a stable URL immediately; the first request (or a cache miss)
- * runs esbuild in memory. Replaces blocking Rolldown `registerEntrypoint` emits.
+ * runs Rolldown on demand. Replaces blocking Rolldown `registerEntrypoint` emits.
  */
 export class DevTransformServer {
 	private readonly appConfig: EcoPagesAppConfig;
@@ -110,9 +109,9 @@ export class DevTransformServer {
 			throw new Error(`[dev-transform] Missing source module: ${normalized}`);
 		}
 
-		const sourceMtimeMs = fs.statSync(normalized).mtimeMs;
+		const sourceHash = fileSystem.hash(normalized);
 		const cached = this.cache.get(normalized);
-		if (cached && cached.sourceMtimeMs >= sourceMtimeMs) {
+		if (cached && cached.sourceHash === sourceHash) {
 			return cached;
 		}
 
@@ -122,7 +121,7 @@ export class DevTransformServer {
 		}
 
 		const promise = this.bundler.bundleEntrypoint(normalized).then((result) => {
-			const entry: CacheEntry = { code: result.code, sourceMtimeMs };
+			const entry: CacheEntry = { code: result.code, sourceHash: fileSystem.hash(normalized) };
 			this.cache.set(normalized, entry);
 			this.inFlight.delete(normalized);
 			return entry;

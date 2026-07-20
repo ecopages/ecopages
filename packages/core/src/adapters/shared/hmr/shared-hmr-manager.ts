@@ -325,46 +325,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		});
 	}
 
-	private selectEntrypointEmitter(entrypointPath: string): HmrStrategy | undefined {
-		return this.getStrategiesByPriority().find((candidate) => {
-			if (candidate.type !== HmrStrategyType.INTEGRATION) {
-				return false;
-			}
-
-			try {
-				return candidate.canEmitEntrypoint(entrypointPath);
-			} catch (error) {
-				appLogger.error(error);
-				return false;
-			}
-		});
-	}
-
-	protected createUnownedEntrypointError(entrypointPath: string): Error {
-		return new Error(
-			`[HMR] No integration owns entrypoint ${entrypointPath}. Page entrypoints must be emitted by their owning integration.`,
-		);
-	}
-
-	/**
-	 * Materializes one integration-owned page entrypoint during cold registration.
-	 *
-	 * @remarks
-	 * Registration uses {@link HmrStrategy.canEmitEntrypoint} / {@link HmrStrategy.emitEntrypoint},
-	 * not {@link HmrStrategy.matches} / {@link HmrStrategy.process}. File-change handling stays
-	 * on `handleFileChange()`.
-	 */
-	public async emitIntegrationEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
-		const emitter = this.selectEntrypointEmitter(entrypointPath);
-
-		if (!emitter) {
-			throw this.createUnownedEntrypointError(entrypointPath);
-		}
-
-		appLogger.debug(`[${this.constructor.name}] Selected entrypoint emitter: ${emitter.constructor.name}`);
-		await emitter.emitEntrypoint(entrypointPath, outputPath);
-	}
-
 	/**
 	 * Runs server invalidation and integration hooks before rebuilding a registered script entrypoint.
 	 *

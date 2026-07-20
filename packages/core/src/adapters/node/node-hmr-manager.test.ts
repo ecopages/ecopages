@@ -43,8 +43,6 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 		} as any,
 	});
 
-	const emitIntegrationEntrypoint = vi.spyOn(manager, 'emitIntegrationEntrypoint');
-
 	const [firstUrl, secondUrl] = await Promise.all([
 		manager.registerEntrypoint(entrypointPath),
 		manager.registerEntrypoint(entrypointPath),
@@ -52,7 +50,6 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 
 	assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
 	assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
-	assert.equal(emitIntegrationEntrypoint.mock.calls.length, 0);
 });
 
 test('NodeHmrManager does not broadcast HMR events for initial entrypoint registration builds', async () => {

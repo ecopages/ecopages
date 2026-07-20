@@ -51,6 +51,15 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 		return false;
 	}
 
+	override ownsDevTransformEntrypoint(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		if (!isRegisteredDevTransformEntrypoint(this.context.getRegisteredEntrypoints(), resolvedPath)) {
+			return false;
+		}
+
+		return this.isPageOrLayoutSource(resolvedPath) && this.hasJsxTemplateExtension(resolvedPath);
+	}
+
 	override async process(filePath: string): Promise<HmrAction> {
 		return {
 			type: 'broadcast',

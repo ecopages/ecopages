@@ -238,7 +238,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		);
 
 		if (!isRegisteredDevTransformEdit) {
-			this.devTransformServer.invalidateAll();
+			this.invalidateDevTransformDependents(resolvedFilePath);
 		}
 
 		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
@@ -301,6 +301,26 @@ export abstract class SharedHmrManager implements IHmrManager {
 		if (fallbackReload && this.bridge.subscriberCount > 0) {
 			this.broadcast({ type: 'reload' });
 		}
+	}
+
+	private invalidateDevTransformDependents(changedFilePath: string): void {
+		const affectedEntrypoints = this.entrypointDependencyGraph.getDependencyEntrypoints(changedFilePath);
+		if (affectedEntrypoints.size > 0) {
+			for (const entrypointPath of affectedEntrypoints) {
+				this.devTransformServer.invalidateSource(entrypointPath);
+			}
+			this.devTransformServer.invalidateSource(changedFilePath);
+			return;
+		}
+
+		if (!this.entrypointDependencyGraph.supportsSelectiveInvalidation()) {
+			for (const sourcePath of this.entrypointRegistry.getRegisteredEntrypoints().keys()) {
+				this.devTransformServer.invalidateSource(sourcePath);
+			}
+			return;
+		}
+
+		this.devTransformServer.invalidateSource(changedFilePath);
 	}
 
 	public consumeRegisteredScriptReloadRequired(filePath: string): boolean {

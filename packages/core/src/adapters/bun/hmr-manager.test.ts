@@ -44,8 +44,6 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 		} as any,
 	});
 
-	const emitIntegrationEntrypoint = vi.spyOn(manager, 'emitIntegrationEntrypoint');
-
 	const [firstUrl, secondUrl] = await Promise.all([
 		manager.registerEntrypoint(entrypointPath),
 		manager.registerEntrypoint(entrypointPath),
@@ -53,7 +51,6 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 
 	assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
 	assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
-	assert.equal(emitIntegrationEntrypoint.mock.calls.length, 0);
 });
 
 test('HmrManager registers unowned page entrypoints with dev transform URLs', async () => {

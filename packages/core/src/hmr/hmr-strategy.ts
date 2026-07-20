@@ -160,16 +160,6 @@ export abstract class HmrStrategy {
 	}
 
 	/**
-	 * Materializes one integration-owned HMR entrypoint during registration.
-	 *
-	 * @remarks
-	 * Must write the canonical output path and must not broadcast client events.
-	 */
-	async emitEntrypoint(_entrypointPath: string, _outputPath: string): Promise<void> {
-		return;
-	}
-
-	/**
 	 * Processes a file change and returns the action to take.
 	 *
 	 * This method may perform side effects such as:

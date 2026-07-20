@@ -252,24 +252,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		}
 	}
 
-	private partitionDevTransformBuildTargets(targets: readonly ReactHmrBuildTarget[]): {
-		transformTargets: ReactHmrBuildTarget[];
-		diskTargets: ReactHmrBuildTarget[];
-	} {
-		const transformTargets: ReactHmrBuildTarget[] = [];
-		const diskTargets: ReactHmrBuildTarget[] = [];
-
-		for (const target of targets) {
-			if (this.isDevTransformOutputUrl(target.outputUrl)) {
-				transformTargets.push(target);
-			} else {
-				diskTargets.push(target);
-			}
-		}
-
-		return { transformTargets, diskTargets };
-	}
-
 	private ownsWatchedEntrypoint(filePath: string): boolean {
 		return this.pageMetadataCache.ownsEntrypoint(filePath);
 	}
@@ -364,11 +346,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	async createDevTransformPlugins(entrypointPath: string): Promise<EcoBuildPlugin[]> {
 		const declaredModules = await this.resolveDeclaredModulesForEntrypoint(entrypointPath);
 		return this.buildPluginsForDeclaredModules(declaredModules, entrypointPath.endsWith('.mdx'));
-	}
-
-	override async emitEntrypoint(entrypointPath: string, _outputPath: string): Promise<void> {
-		const { outputUrl } = this.getEntrypointOutput(entrypointPath);
-		await this.bundleReactEntrypoint(entrypointPath, outputUrl);
 	}
 
 	/**
@@ -613,31 +590,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 			...nonPageTargets.map((target) => target.entrypointPath),
 		]);
 
-		await this.clearOutdirsForTargets(pageTargets, nonPageTargets);
+		await this.clearOutdirsForTargets(nonPageTargets);
 
 		const updates: string[] = [];
 		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
-		const { transformTargets: transformPageTargets, diskTargets: diskPageTargets } =
-			this.partitionDevTransformBuildTargets(pageTargets);
-		this.queueDevTransformOutputUpdates(transformPageTargets, requestedOutputUrls, updates);
-
-		if (diskPageTargets.length > 1) {
-			appLogger.debug(`Bundling ${diskPageTargets.length} React page entrypoints together`);
-			const rebuiltOutputs = await this.bundleReactEntrypoints(diskPageTargets);
-			for (const outputUrl of rebuiltOutputs) {
-				if (requestedOutputUrls.has(outputUrl)) {
-					updates.push(outputUrl);
-				}
-			}
-		} else {
-			for (const { entrypointPath, outputUrl } of diskPageTargets) {
-				appLogger.debug(`Bundling ${entrypointPath}`);
-				const success = await this.bundleReactEntrypoint(entrypointPath, outputUrl);
-				if (success && requestedOutputUrls.has(outputUrl)) {
-					updates.push(outputUrl);
-				}
-			}
-		}
+		this.queueDevTransformOutputUpdates(pageTargets, requestedOutputUrls, updates);
 
 		for (const { entrypointPath, outputUrl } of nonPageTargets) {
 			if (!this.isReactEntrypoint(entrypointPath)) {
@@ -687,28 +644,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	/**
-	 * Clears stale HMR output once per outdir before any rebuild pass in `process()`.
-	 *
-	 * @remarks
-	 * Grouped page builds share `getDistDir()`; single page and non-page targets use
-	 * per-entrypoint temp directories. Clearing here avoids redundant work when both
-	 * page and non-page targets land in the same outdir.
+	 * Clears stale HMR output before non-page disk rebuilds in `process()`.
 	 */
-	private async clearOutdirsForTargets(
-		pageTargets: ReactHmrBuildTarget[],
-		nonPageTargets: ReactHmrBuildTarget[],
-	): Promise<void> {
+	private async clearOutdirsForTargets(nonPageTargets: ReactHmrBuildTarget[]): Promise<void> {
 		const outdirs = new Set<string>();
 
-		if (pageTargets.length > 1) {
-			outdirs.add(this.context.getDistDir());
-		} else {
-			for (const { entrypointPath } of pageTargets) {
-				outdirs.add(path.dirname(this.getEntrypointOutput(entrypointPath).outputPath));
+		for (const { entrypointPath, outputUrl } of nonPageTargets) {
+			if (this.isDevTransformOutputUrl(outputUrl)) {
+				continue;
 			}
-		}
 
-		for (const { entrypointPath } of nonPageTargets) {
 			outdirs.add(path.dirname(this.getEntrypointOutput(entrypointPath).outputPath));
 		}
 

@@ -108,7 +108,7 @@ describe('IntegrationPlugin', () => {
 			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getRegisteredEntrypoints: vi.fn(() => new Map()),
-			getDistDir: vi.fn(() => ''),
+			getRuntimeWorkDir: vi.fn(() => ''),
 			getRuntimePath: vi.fn(() => ''),
 			tryHandleAssetRequest: vi.fn(() => null),
 			getDefaultContext: vi.fn(),

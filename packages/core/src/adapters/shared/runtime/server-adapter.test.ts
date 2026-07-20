@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
 import type { ApiHandler, IHmrManager } from '../../../types/public-types.ts';
@@ -22,7 +23,7 @@ afterEach(() => {
 	}
 });
 
-function createHmrAssetManager(hmrDir: string): IHmrManager {
+function createHmrAssetManager(runtimeWorkDir: string, runtimePath: string): IHmrManager {
 	return {
 		registerEntrypoint: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
@@ -34,21 +35,17 @@ function createHmrAssetManager(hmrDir: string): IHmrManager {
 		getOutputUrl: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
-		getDistDir: () => hmrDir,
-		getRuntimePath: () => '',
+		getRuntimeWorkDir: () => runtimeWorkDir,
+		getRuntimePath: () => runtimePath,
 		tryHandleAssetRequest: (request: Request) => {
 			const url = new URL(request.url);
-			if (url.pathname.startsWith('/assets/_hmr/')) {
-				const relativePath = url.pathname.slice('/assets/_hmr/'.length);
-				const assetPath = path.join(hmrDir, relativePath);
-				if (fs.existsSync(assetPath)) {
-					return new Response(fs.readFileSync(assetPath), {
-						headers: {
-							'Content-Type': 'application/javascript',
-							'Cache-Control': 'no-store, must-revalidate',
-						},
-					});
-				}
+			if (url.pathname === HMR_RUNTIME_SCRIPT_URL && fs.existsSync(runtimePath)) {
+				return new Response(fs.readFileSync(runtimePath), {
+					headers: {
+						'Content-Type': 'application/javascript',
+						'Cache-Control': 'no-store, must-revalidate',
+					},
+				});
 			}
 			return null;
 		},
@@ -76,7 +73,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	public async handleRequest(request: Request): Promise<Response> {
 		return await this.handleSharedRequest(request, {
 			apiHandlers: [],
-			hmrManager: createHmrAssetManager(this.hmrDir),
+			hmrManager: createHmrAssetManager(this.hmrDir, ''),
 		});
 	}
 
@@ -158,7 +155,7 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 	const rootDir = createTempRoot('ecopages-shared-server-hmr-inject');
 	const adapter = new TestSharedServerAdapter('', rootDir);
 	adapter.setWatchModeForTest(true);
-	const hmrManager = createHmrAssetManager('');
+	const hmrManager = createHmrAssetManager('', '');
 	adapter.setRouteHandlerForTest(
 		async () =>
 			new Response('<html><body></body></html>', {

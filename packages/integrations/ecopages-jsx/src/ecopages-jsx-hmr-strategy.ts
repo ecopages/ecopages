@@ -1,17 +1,16 @@
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { isRegisteredDevTransformEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
-import type { ResolvedHmrEntrypoint } from '@ecopages/core';
+import type { HmrRegisteredEntrypointsContext } from '@ecopages/core/hmr/hmr-registered-entrypoints-context';
 import { getEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
-export interface EcopagesJsxHmrStrategyContext {
-	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
+export type EcopagesJsxHmrStrategyContext = HmrRegisteredEntrypointsContext & {
 	getSrcDir(): string;
 	getPagesDir(): string;
 	getLayoutsDir(): string;
 	getIncludesDir(): string;
 	getTemplateExtensions(): ReadonlyArray<string>;
-}
+};
 
 export class EcopagesJsxHmrStrategy extends HmrStrategy {
 	override readonly type = HmrStrategyType.INTEGRATION;

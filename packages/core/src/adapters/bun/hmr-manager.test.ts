@@ -158,7 +158,7 @@ test('HmrManager keeps internal browser and server-module outputs out of distDir
 		} as any,
 	});
 
-	assert.equal(manager.getDistDir(), path.join(resolveInternalWorkDir(config), 'assets', '_hmr'));
+	assert.equal(manager.getRuntimeWorkDir(), path.join(resolveInternalWorkDir(config), 'assets', 'hmr-runtime'));
 
 	const importModule = vi.fn(async (_options: { outdir: string }) => ({}));
 	(manager as unknown as { serverModuleTranspiler: { importModule: typeof importModule } }).serverModuleTranspiler = {

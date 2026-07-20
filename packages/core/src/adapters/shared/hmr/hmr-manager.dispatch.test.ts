@@ -3,11 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 
@@ -143,26 +142,16 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		fs.mkdirSync(srcDir, { recursive: true });
 		const spy = createBridgeSpy();
 		using manager = await create(rootDir, spy);
-		installBuildRuntime(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'widget.script.ts');
 		fs.writeFileSync(scriptPath, 'export const widget = true;\n', 'utf8');
-		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'widget.script.js');
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = async () => {
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: outputPath }],
-			};
-		};
 
-		await manager.registerScriptEntrypoint(scriptPath);
+		const registered = await manager.registerScriptEntrypoint(scriptPath);
+		const outputUrl = registered.outputUrl;
 
 		const integrationEvent: ClientBridgeEvent = {
 			type: 'update',
-			path: '/assets/_hmr/widget.script.js',
+			path: outputUrl,
 			timestamp: 1,
 		};
 		manager.registerStrategy(
@@ -176,5 +165,6 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.deepEqual(spy.broadcasts[0], integrationEvent);
+		assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/widget.script.js`);
 	});
 });

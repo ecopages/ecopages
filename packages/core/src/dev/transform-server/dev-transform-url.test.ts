@@ -14,4 +14,10 @@ describe('dev transform urls', () => {
 		const pagePath = path.join(srcDir, 'pages', 'users', '[id]', 'index.tsx');
 		expect(resolveDevTransformModuleUrl(srcDir, pagePath)).toContain('_id_');
 	});
+
+	it('rejects entrypoints outside srcDir', () => {
+		expect(() => resolveDevTransformModuleUrl(srcDir, '/etc/passwd.tsx')).toThrow(
+			'[dev-transform] Entrypoint must be under srcDir',
+		);
+	});
 });

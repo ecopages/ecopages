@@ -57,16 +57,16 @@ describe('FileScriptProcessor', () => {
 	describe('process', () => {
 		test('should reuse an existing HMR artifact without blocking on registration', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const registerScriptEntrypoint = vi.fn(async () => '/assets/_hmr/script.js');
+			const registerScriptEntrypoint = vi.fn(async () => '/assets/__eco_dev__/script.js');
 			const scriptPath = '/test/project/src/script.ts';
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint,
-				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
-				getWatchedFiles: () => new Map([[scriptPath, '/assets/_hmr/script.js']]),
+				getRuntimeWorkDir: () => '/test/project/.eco/public/assets/hmr-runtime',
+				getWatchedFiles: () => new Map([[scriptPath, '/assets/__eco_dev__/script.js']]),
 				getResolvedScriptOutput: () => ({
-					outputUrl: '/assets/_hmr/script.js',
-					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+					outputUrl: '/assets/__eco_dev__/script.js',
+					outputPath: scriptPath,
 				}),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
@@ -81,18 +81,18 @@ describe('FileScriptProcessor', () => {
 			const result = await processor.process(dep);
 
 			expect(registerScriptEntrypoint).not.toHaveBeenCalled();
-			expect(result.srcUrl).toBe('/assets/_hmr/script.js');
-			expect(result.filepath).toBe('/test/project/.eco/public/assets/_hmr/script.js');
+			expect(result.srcUrl).toBe('/assets/__eco_dev__/script.js');
+			expect(result.filepath).toBe(scriptPath);
 		});
 
 		test('should register stale on-disk HMR artifacts that are not yet watched', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const registerScriptEntrypoint = vi.fn(async () => '/assets/_hmr/script.js');
+			const registerScriptEntrypoint = vi.fn(async () => '/assets/__eco_dev__/script.js');
 			const scriptPath = '/test/project/src/script.ts';
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint,
-				getDistDir: () => '/test/project/.eco/public/assets/_hmr',
+				getRuntimeWorkDir: () => '/test/project/.eco/public/assets/hmr-runtime',
 				getWatchedFiles: () => new Map(),
 				getResolvedScriptOutput: () => undefined,
 			} as unknown as IHmrManager;
@@ -116,8 +116,8 @@ describe('FileScriptProcessor', () => {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => ({
 					sourcePath: '/test/project/src/script.ts',
-					outputUrl: '/hmr/script.js',
-					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+					outputUrl: '/assets/__eco_dev__/script.js',
+					outputPath: '/test/project/src/script.ts',
 				})),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
@@ -133,8 +133,8 @@ describe('FileScriptProcessor', () => {
 			const result = await processor.process(dep);
 
 			expect(HmrManager.registerScriptEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
-			expect(result.srcUrl).toBe('/hmr/script.js');
-			expect(result.filepath).toBe('/test/project/.eco/public/assets/_hmr/script.js');
+			expect(result.srcUrl).toBe('/assets/__eco_dev__/script.js');
+			expect(result.filepath).toBe('/test/project/src/script.ts');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(true);
 		});
@@ -145,8 +145,8 @@ describe('FileScriptProcessor', () => {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => ({
 					sourcePath: '/test/project/src/script.ts',
-					outputUrl: '/hmr/script.js',
-					outputPath: '/test/project/.eco/public/assets/_hmr/script.js',
+					outputUrl: '/assets/__eco_dev__/script.js',
+					outputPath: '/test/project/src/script.ts',
 				})),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
@@ -162,7 +162,7 @@ describe('FileScriptProcessor', () => {
 			const result = await processor.process(dep);
 
 			expect(HmrManager.registerScriptEntrypoint).toHaveBeenCalledWith('/test/project/src/script.ts');
-			expect(result.srcUrl).toBe('/hmr/script.js');
+			expect(result.srcUrl).toBe('/assets/__eco_dev__/script.js');
 			expect(result.inline).toBe(false);
 			expect(result.excludeFromHtml).toBe(false);
 		});

@@ -1,7 +1,10 @@
 import { rapidhash } from '@ecopages/core/hash';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/hmr/hmr-asset-paths';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
+
+const devTransformPageUrl = (relativePath: string): string => `${DEV_TRANSFORM_URL_PREFIX}/${relativePath}`;
 
 const productionRuntimeImports = {
 	react: 'react',
@@ -141,8 +144,8 @@ describe('HydrationAssetService', () => {
 		const dependencies = service.createPageDependencies({
 			pagePath: '/app/src/pages/docs/index.tsx',
 			componentName: 'ecopages-react-docs',
-			importPath: '/assets/_hmr/pages/docs/index.js',
-			pageModuleUrlExpression: '"/assets/_hmr/pages/docs/index.js"',
+			importPath: devTransformPageUrl('pages/docs/index.js'),
+			pageModuleUrlExpression: `"${devTransformPageUrl('pages/docs/index.js')}"`,
 			bundleOptions: {
 				external: ['/assets/vendors/react-router-esm.js'],
 			},
@@ -162,7 +165,7 @@ describe('HydrationAssetService', () => {
 				'data-eco-page-bootstrap': 'react-router',
 			},
 		});
-		expect(content).toContain('from "/assets/_hmr/pages/docs/index.js"');
+		expect(content).toContain(`from "${devTransformPageUrl('pages/docs/index.js')}"`);
 		assertNoBareEcopagesImports(content);
 	});
 
@@ -193,8 +196,8 @@ describe('HydrationAssetService', () => {
 		const dependencies = service.createPageDependencies({
 			pagePath: '/app/src/pages/react-content.mdx',
 			componentName: 'ecopages-react-mdx',
-			importPath: '/assets/_hmr/pages/react-content.js',
-			pageModuleUrlExpression: '"/assets/_hmr/pages/react-content.js"',
+			importPath: devTransformPageUrl('pages/react-content.js'),
+			pageModuleUrlExpression: `"${devTransformPageUrl('pages/react-content.js')}"`,
 			bundleOptions: {},
 			hmrEnabled: true,
 			useBrowserRuntimeImports: true,
@@ -206,7 +209,7 @@ describe('HydrationAssetService', () => {
 			bundle: false,
 		});
 		expect(content).toContain('from "/assets/vendors/page-layout-normalization.js"');
-		expect(content).toContain('from "/assets/_hmr/pages/react-content.js"');
+		expect(content).toContain(`from "${devTransformPageUrl('pages/react-content.js')}"`);
 		assertNoBareEcopagesImports(content);
 	});
 
@@ -337,8 +340,9 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {
-		const registerScriptEntrypoint = vi.fn(async () => '/assets/_hmr/pages/index.js');
-		const registerEntrypoint = vi.fn(async () => '/assets/_hmr/pages/index.js');
+		const pageModuleUrl = devTransformPageUrl('pages/index.js');
+		const registerScriptEntrypoint = vi.fn(async () => pageModuleUrl);
+		const registerEntrypoint = vi.fn(async () => pageModuleUrl);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			assetProcessingService: {
@@ -355,7 +359,7 @@ describe('HydrationAssetService', () => {
 
 		const importPath = await service.resolveAssetImportPath('/app/src/pages/index.tsx', 'ecopages-react-index');
 
-		expect(importPath).toBe('/assets/_hmr/pages/index.js');
+		expect(importPath).toBe(pageModuleUrl);
 		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/pages/index.tsx');
 		expect(registerScriptEntrypoint).not.toHaveBeenCalled();
 	});
@@ -366,7 +370,7 @@ describe('HydrationAssetService', () => {
 			assetProcessingService: {
 				getHmrManager: () => ({
 					isEnabled: () => true,
-					registerEntrypoint: async () => '/assets/_hmr/pages/index.js',
+					registerEntrypoint: async () => devTransformPageUrl('pages/index.js'),
 					registerScriptEntrypoint: async () => '/assets/scripts/index.js',
 				}),
 			} as any,
@@ -380,9 +384,49 @@ describe('HydrationAssetService', () => {
 
 		expect(dependencies[0]).toMatchObject({
 			bundle: false,
-			content: expect.stringContaining('const pageModuleUrl = "/assets/_hmr/pages/index.js";'),
+			content: expect.stringContaining(`const pageModuleUrl = "${devTransformPageUrl('pages/index.js')}";`),
 		});
 		assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
+	});
+
+	it('uses dev transform for island hydration without a duplicate HMR disk bundle', async () => {
+		const registerScriptEntrypoint = vi.fn();
+		const registerEntrypoint = vi.fn(async () => '/assets/__eco_dev__/components/counter.js');
+		const processDependencies = vi.fn(async () => []);
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => ({
+					isEnabled: () => true,
+					registerEntrypoint,
+					registerScriptEntrypoint,
+				}),
+				processDependencies,
+			} as any,
+			bundleService: {
+				createBundleOptions: vi.fn(),
+				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
+			} as any,
+			hmrPageMetadataCache: {
+				markOwnedEntrypoint: vi.fn(),
+			} as any,
+		});
+
+		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
+			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		});
+
+		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
+		expect(registerScriptEntrypoint).not.toHaveBeenCalled();
+		expect(processDependencies).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					kind: 'script',
+					content: expect.stringContaining('hmrHandlers["/assets/__eco_dev__/components/counter.js"]'),
+				}),
+			],
+			expect.any(String),
+		);
 	});
 
 	it('reuses the same bundled island asset for different component instances', async () => {

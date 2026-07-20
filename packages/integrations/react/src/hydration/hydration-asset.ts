@@ -189,53 +189,60 @@ export class HydrationAssetService {
 			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(componentFile);
 		}
 		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
-		const declaredModules = collectDeclaredModulesInConfig(config);
-		const bundleOptions = await this.config.bundleService.createBundleOptions(
-			componentName,
-			false,
-			declaredModules,
-		);
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
+		const islandHydrationScript = createIslandHydrationScript({
+			importPath,
+			scriptId: hydrationName,
+			reactImportPath: runtimeImports.react,
+			reactDomClientImportPath: runtimeImports.reactDomClient,
+			targetSelector: `[data-eco-component-key="${componentKey}"]`,
+			componentRef: config?.__eco?.id,
+			componentFile,
+			minify: !hmrEnabled,
+			hmrEnabled,
+		});
 
-		const dependencies: AssetDefinition[] = [
-			AssetFactory.createFileScript({
-				position: 'head',
-				filepath: componentFile,
-				name: componentName,
-				packageRole: 'dynamic-chunk',
-				excludeFromHtml: true,
-				bundle: true,
-				bundleOptions,
-				attributes: {
-					type: 'module',
-					defer: '',
-					'data-eco-persist': 'true',
-				},
-			}),
-			AssetFactory.createContentScript({
-				position: 'head',
-				content: createIslandHydrationScript({
-					importPath,
-					scriptId: hydrationName,
-					reactImportPath: runtimeImports.react,
-					reactDomClientImportPath: runtimeImports.reactDomClient,
-					targetSelector: `[data-eco-component-key="${componentKey}"]`,
-					componentRef: config?.__eco?.id,
-					componentFile,
-					minify: !hmrEnabled,
+		const hydrationScript = AssetFactory.createContentScript({
+			position: 'head',
+			content: islandHydrationScript,
+			name: hydrationName,
+			packageRole: 'keep-separate',
+			bundle: false,
+			attributes: {
+				type: 'module',
+				defer: '',
+				'data-eco-rerun': 'true',
+				'data-eco-script-id': hydrationName,
+				'data-eco-persist': 'true',
+			},
+		});
+
+		const dependencies: AssetDefinition[] = [hydrationScript];
+
+		if (!hmrEnabled) {
+			const declaredModules = collectDeclaredModulesInConfig(config);
+			const bundleOptions = await this.config.bundleService.createBundleOptions(
+				componentName,
+				false,
+				declaredModules,
+			);
+			dependencies.unshift(
+				AssetFactory.createFileScript({
+					position: 'head',
+					filepath: componentFile,
+					name: componentName,
+					packageRole: 'dynamic-chunk',
+					excludeFromHtml: true,
+					bundle: true,
+					bundleOptions,
+					attributes: {
+						type: 'module',
+						defer: '',
+						'data-eco-persist': 'true',
+					},
 				}),
-				name: hydrationName,
-				packageRole: 'keep-separate',
-				bundle: false,
-				attributes: {
-					type: 'module',
-					defer: '',
-					'data-eco-rerun': 'true',
-					'data-eco-script-id': hydrationName,
-					'data-eco-persist': 'true',
-				},
-			}),
-		];
+			);
+		}
 
 		if (!this.config.assetProcessingService) {
 			return [];

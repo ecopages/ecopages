@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import * as devBrowserScriptCache from '../../../build/cache/dev-browser-script-cache.ts';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 
@@ -621,27 +620,23 @@ test('AssetProcessingService - skips missing file dependencies', async () => {
 	expect(results.length).toBe(0);
 });
 
-test('AssetProcessingService - restores grouped content-script metadata from dev disk cache', async () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'development';
+test('AssetProcessingService - restores grouped content-script metadata from in-memory cache', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
 	fileSystem.exists = vi.fn(() => true);
 
-	vi.spyOn(devBrowserScriptCache, 'getDevBrowserScriptCacheEntry').mockReturnValue({
-		filepath: '/test/dist/assets/scripts/ecopages-react.js',
-	});
-	vi.spyOn(devBrowserScriptCache, 'setDevBrowserScriptCacheEntry').mockImplementation(() => {});
-
 	const service = new AssetProcessingService(Config);
-	const processMock = vi.fn(async () => ({
-		filepath: '/test/dist/assets/scripts/ecopages-react.js',
-		kind: 'script',
-		inline: false,
-	}));
+	const processGroupedMock = vi.fn(async () => [
+		{
+			filepath: '/test/dist/assets/scripts/ecopages-react.js',
+			kind: 'script',
+			inline: false,
+			groupedBundle: { id: 'ecopages-react-router-pages', entryName: 'pages__index' },
+		},
+	]);
 	service.registerProcessor('script', 'content', {
-		process: processMock,
-		processGrouped: async () => [],
+		process: vi.fn(),
+		processGrouped: processGroupedMock,
 	});
 
 	const dependency: AssetDefinition = {
@@ -655,9 +650,10 @@ test('AssetProcessingService - restores grouped content-script metadata from dev
 		attributes: { type: 'module', 'data-eco-page-bootstrap': 'react-router' },
 	};
 
+	await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
 	const results = await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
 
-	expect(processMock).not.toHaveBeenCalled();
+	expect(processGroupedMock).toHaveBeenCalledTimes(1);
 	expect(results[0]?.groupedBundle).toEqual({
 		id: 'ecopages-react-router-pages',
 		entryName: 'pages__index',
@@ -666,6 +662,4 @@ test('AssetProcessingService - restores grouped content-script metadata from dev
 		type: 'module',
 		'data-eco-page-bootstrap': 'react-router',
 	});
-
-	process.env.NODE_ENV = originalNodeEnv;
 });

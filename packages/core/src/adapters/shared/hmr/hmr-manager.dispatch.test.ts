@@ -3,11 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 
@@ -87,7 +86,7 @@ const runtimes = [
 ] as const;
 
 describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
-	test('non-script file changes invalidate dev transform cache and broadcast reload', async () => {
+	test('CSS file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-css');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
@@ -100,9 +99,42 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.equal(spy.broadcasts[0].type, 'reload');
+		assert.equal(spy.broadcasts[0].path, cssFile);
 	});
 
-	test('broadcast:false suppresses reload for non-script changes', async () => {
+	test('HTML file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-html');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const htmlFile = path.join(rootDir, 'src', 'pages', 'index.html');
+		fs.mkdirSync(path.dirname(htmlFile), { recursive: true });
+		fs.writeFileSync(htmlFile, '<div>Hello</div>\n', 'utf8');
+		await manager.handleFileChange(htmlFile);
+
+		assert.equal(spy.broadcasts.length, 1);
+		assert.equal(spy.broadcasts[0].type, 'reload');
+		assert.equal(spy.broadcasts[0].path, htmlFile);
+	});
+
+	test('TS file with no registered entrypoints falls through to DefaultHmrStrategy reload', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-ts-fallback');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const tsFile = path.join(srcDir, 'component.ts');
+		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
+		await manager.handleFileChange(tsFile);
+
+		assert.equal(spy.broadcasts.length, 1);
+		assert.equal(spy.broadcasts[0].type, 'reload');
+		assert.equal(spy.broadcasts[0].path, tsFile);
+	});
+
+	test('broadcast:false suppresses events even when the strategy returns a broadcast action', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-broadcast');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
@@ -115,16 +147,23 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 0);
 	});
 
-	test('defers reload broadcasts when no subscribers are connected', async () => {
+	test('defers client rebuilds when no subscribers are connected', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-subscribers');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
 		spy.bridge.subscriberCount = 0;
 		using manager = await create(rootDir, spy);
 
-		const tsFile = path.join(rootDir, 'src', 'component.ts');
-		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
-		await manager.handleFileChange(tsFile);
+		const customFile = path.join(rootDir, 'src', 'deferred.ts');
+		fs.writeFileSync(customFile, 'export const deferred = true;\n', 'utf8');
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
+				type: 'broadcast',
+				events: [{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/deferred.js`, timestamp: 1 }],
+			}),
+		);
+
+		await manager.handleFileChange(customFile);
 
 		assert.equal(spy.broadcasts.length, 0);
 	});
@@ -135,26 +174,16 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		fs.mkdirSync(srcDir, { recursive: true });
 		const spy = createBridgeSpy();
 		using manager = await create(rootDir, spy);
-		installBuildRuntime(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'widget.script.ts');
 		fs.writeFileSync(scriptPath, 'export const widget = true;\n', 'utf8');
-		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'widget.script.js');
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = async () => {
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: outputPath }],
-			};
-		};
 
-		await manager.registerScriptEntrypoint(scriptPath);
+		const registered = await manager.registerScriptEntrypoint(scriptPath);
+		const outputUrl = registered.outputUrl;
 
 		const integrationEvent: ClientBridgeEvent = {
 			type: 'update',
-			path: '/assets/_hmr/widget.script.js',
+			path: outputUrl,
 			timestamp: 1,
 		};
 		manager.registerStrategy(
@@ -168,5 +197,76 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 1);
 		assert.deepEqual(spy.broadcasts[0], integrationEvent);
+		assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/widget.script.js`);
+	});
+
+	test('INTEGRATION strategy wins over DefaultHmrStrategy for matched files', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-integration-priority');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const customFile = path.join(rootDir, 'src', 'component.jsx');
+		fs.writeFileSync(customFile, 'export default null;\n', 'utf8');
+		const integrationEvent: ClientBridgeEvent = {
+			type: 'update',
+			path: `${DEV_TRANSFORM_URL_PREFIX}/component.js`,
+			timestamp: 1,
+		};
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
+				type: 'broadcast',
+				events: [integrationEvent],
+			}),
+		);
+
+		await manager.handleFileChange(customFile);
+
+		assert.equal(spy.broadcasts.length, 1);
+		assert.deepEqual(spy.broadcasts[0], integrationEvent);
+	});
+
+	test('action.type none suppresses broadcast for registered entrypoints', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-none-action');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const scriptPath = path.join(srcDir, 'silent.script.ts');
+		fs.writeFileSync(scriptPath, 'export const silent = true;\n', 'utf8');
+		await manager.registerScriptEntrypoint(scriptPath);
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === scriptPath, { type: 'none' }),
+		);
+
+		await manager.handleFileChange(scriptPath);
+
+		assert.equal(spy.broadcasts.length, 0);
+	});
+
+	test('all events returned by a strategy are each broadcast individually', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-multi-event');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const customFile = path.join(rootDir, 'src', 'multi.ts');
+		fs.writeFileSync(customFile, 'export const multi = true;\n', 'utf8');
+		const events: ClientBridgeEvent[] = [
+			{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/a.js`, timestamp: 1 },
+			{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/b.js`, timestamp: 2 },
+		];
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
+				type: 'broadcast',
+				events,
+			}),
+		);
+
+		await manager.handleFileChange(customFile);
+
+		assert.equal(spy.broadcasts.length, 2);
+		assert.deepEqual(spy.broadcasts, events);
 	});
 });

@@ -79,7 +79,7 @@ describe('invalidateRadiantRegisteredScriptSsrRegistration', () => {
 		});
 
 		try {
-			invalidateRadiantRegisteredScriptSsrRegistration(scriptPath);
+			expect(invalidateRadiantRegisteredScriptSsrRegistration(scriptPath)).toBe(true);
 			expect(definitions.has('widget')).toBe(false);
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;

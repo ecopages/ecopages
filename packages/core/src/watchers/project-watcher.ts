@@ -10,7 +10,7 @@ import {
 } from '../services/invalidation/development-invalidation.service.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import { isRegisteredScriptEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
+import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 
@@ -224,12 +224,12 @@ export class ProjectWatcher {
 			if (plan.refreshRoutes && (event === 'unlink' || event === 'add')) {
 				getAppPageBrowserGraphSession(this.appConfig).invalidateByRouteFile(resolvedFilePath);
 			}
-			const isRegisteredScriptEdit = isRegisteredScriptEntrypoint(
-				this.hmrManager.getWatchedFiles(),
+			const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
+				this.hmrManager.getRegisteredEntrypoints(),
 				resolvedFilePath,
 			);
 
-			if (plan.invalidateServerModules && !isRegisteredScriptEdit) {
+			if (plan.invalidateServerModules && !isRegisteredDevTransformEdit) {
 				this.invalidationService.invalidateServerModules([filePath]);
 			}
 
@@ -245,7 +245,7 @@ export class ProjectWatcher {
 			const deferProcessorNotifications =
 				plan.category === 'include-source' ||
 				plan.category === 'explicit-server-view' ||
-				isRegisteredScriptEdit;
+				isRegisteredDevTransformEdit;
 
 			if (deferProcessorNotifications && plan.delegateToHmr) {
 				await this.prewarmBeforeHmr(resolvedFilePath, plan);

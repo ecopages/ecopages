@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/hmr/hmr-asset-paths';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import {
 	extractProps,
@@ -10,6 +9,9 @@ import {
 	loadPageModuleFromDocument,
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
+
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/hmr/hmr-asset-paths`. */
+const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
 
 function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
 	return { reloadAttribute: options.reloadAttribute };

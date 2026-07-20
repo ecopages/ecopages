@@ -149,14 +149,19 @@ export abstract class HmrStrategy {
 	abstract matches(filePath: string): boolean;
 
 	/**
-	 * Returns whether this strategy owns cold registration for the entrypoint.
+	 * Returns whether this strategy supplies dev-transform plugins for the entrypoint.
 	 *
 	 * @remarks
-	 * Registration dispatch uses only integration strategies that claim the
-	 * entrypoint. File-change dispatch continues to use {@link matches}.
+	 * Used by {@link DevTransformBundler} to select integration-owned Rolldown plugins.
+	 * File-change dispatch continues to use {@link matches}.
 	 */
-	canEmitEntrypoint(_entrypointPath: string): boolean {
+	ownsDevTransformEntrypoint(_entrypointPath: string): boolean {
 		return false;
+	}
+
+	/** @deprecated Use {@link ownsDevTransformEntrypoint}. */
+	canEmitEntrypoint(entrypointPath: string): boolean {
+		return this.ownsDevTransformEntrypoint(entrypointPath);
 	}
 
 	/**

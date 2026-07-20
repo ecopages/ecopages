@@ -19,6 +19,7 @@ import {
 	isHmrOutputFresh,
 	isHmrOutputOlderThanSource,
 } from '../hmr-entrypoint-output.ts';
+import { isDevTransformModuleUrl } from '../hmr-asset-paths.ts';
 import type { BrowserBundleExecutor } from '../../services/assets/browser-bundle.service.ts';
 import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
@@ -73,6 +74,11 @@ export interface JsHmrContext {
 	 * dependency changes.
 	 */
 	shouldProcessEntrypoint?(entrypointPath: string): boolean;
+
+	/**
+	 * Clears one dev-transform cache entry before rebroadcasting its URL.
+	 */
+	invalidateDevTransformSource?(sourcePath: string): void;
 }
 
 /**
@@ -195,6 +201,60 @@ export class JsHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
+		const devTransformUpdates: string[] = [];
+		const diskEntrypoints: string[] = [];
+
+		for (const entrypoint of buildableEntrypoints) {
+			const resolvedEntrypoint = path.resolve(entrypoint);
+			const derivedOutput = resolveHmrEntrypointOutputPaths(
+				this.context.getSrcDir(),
+				this.context.getDistDir(),
+				resolvedEntrypoint,
+			);
+			const outputUrl = watchedFiles.get(resolvedEntrypoint) ?? derivedOutput.outputUrl;
+
+			if (isDevTransformModuleUrl(outputUrl)) {
+				this.context.invalidateDevTransformSource?.(resolvedEntrypoint);
+				devTransformUpdates.push(outputUrl);
+				continue;
+			}
+
+			diskEntrypoints.push(entrypoint);
+		}
+
+		const diskResult = await this.rebuildDiskEntrypoints(diskEntrypoints, watchedFiles);
+		const updates = [...devTransformUpdates, ...diskResult.updates];
+
+		if (updates.length > 0) {
+			if (diskResult.reloadRequired) {
+				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
+				return {
+					type: 'broadcast',
+					events: [{ type: 'reload' }],
+				};
+			}
+
+			return {
+				type: 'broadcast',
+				events: updates.map((p) => ({
+					type: 'update',
+					path: p,
+					timestamp: Date.now(),
+				})),
+			};
+		}
+
+		return { type: 'none' };
+	}
+
+	private async rebuildDiskEntrypoints(
+		buildableEntrypoints: string[],
+		watchedFiles: Map<string, string>,
+	): Promise<{ updates: string[]; reloadRequired: boolean }> {
+		if (buildableEntrypoints.length === 0) {
+			return { updates: [], reloadRequired: false };
+		}
+
 		for (const entrypoint of buildableEntrypoints) {
 			this.removeStaleEntrypointOutput(this.resolveEntrypointOutputPath(entrypoint));
 		}
@@ -202,7 +262,7 @@ export class JsHmrStrategy extends HmrStrategy {
 		const buildResult = await this.bundleEntrypoints(buildableEntrypoints);
 
 		if (!buildResult.success) {
-			return { type: 'none' };
+			return { updates: [], reloadRequired: false };
 		}
 
 		const updates: string[] = [];
@@ -234,26 +294,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			}
 		}
 
-		if (updates.length > 0) {
-			if (reloadRequired) {
-				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
-				return {
-					type: 'broadcast',
-					events: [{ type: 'reload' }],
-				};
-			}
-
-			return {
-				type: 'broadcast',
-				events: updates.map((p) => ({
-					type: 'update',
-					path: p,
-					timestamp: Date.now(),
-				})),
-			};
-		}
-
-		return { type: 'none' };
+		return { updates, reloadRequired };
 	}
 
 	private resolveEntrypointOutputPath(entrypointPath: string): string {

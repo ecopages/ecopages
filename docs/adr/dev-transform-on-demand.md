@@ -32,11 +32,12 @@ Production `ecopages build` stays on Rolldown unchanged.
 - Integrations may register `getDevTransformBundleContributor()` to supply Rolldown plugins for
   owned entrypoints.
 
-## Deletion checklist (Phases 2–3)
+## Deletion checklist (Phases 2–4)
 
-- `build/runtime` `browser-hmr` profile (scripts + runtime only; page entrypoints removed in Phase 2)
-- `hmr-entrypoint-registrar` Rolldown emit path (scripts only)
+- `build/runtime` `browser-hmr` profile — retained for `hmr-runtime` and on-demand dev transform only
+- `hmr-entrypoint-registrar` Rolldown emit path — removed for pages/scripts (runtime disk emit only via `buildRuntimeInternal`)
 - `ReactHmrStrategy` Rolldown page bundle path (done in Phase 2)
 - `dev-browser-script-cache` (removed; in-memory `AssetProcessingService` cache covers dev reuse)
-- Legacy `/_hmr/*.js` disk serving for pages (scripts/islands remain during transition; React islands now use dev transform in Phase 3)
+- Legacy `/_hmr/*.js` disk serving for pages and scripts (done in Phase 4; `_hmr_runtime.js` remains)
 - `hmr-runtime.ts` bare-import fallback for dev transform modules (Phase 3: transform-first `module-update` client)
+- `registerScriptEntrypoint` blocking Rolldown emit (Phase 4: dev transform URLs)

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import {
 	removeStaleHmrEntrypointOutput,
 	isRegisteredScriptEntrypoint,
@@ -126,6 +127,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			getBrowserBundleService: () => this.browserBundleService,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
+			invalidateDevTransformSource: (sourcePath: string) => this.devTransformServer.invalidateSource(sourcePath),
 		};
 
 		this.strategies = [
@@ -237,6 +239,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 			}
 
 			await this.prepareRegisteredScriptChange(resolvedFilePath);
+
+			const registered = this.entrypointRegistrar.getRegistered().get(resolvedFilePath);
+			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
+				this.devTransformServer.invalidateSource(resolvedFilePath);
+			}
 
 			const shouldBroadcast = options.broadcast ?? true;
 			const strategy = this.selectChangeStrategy(filePath);
@@ -400,12 +407,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Returns the emitted HMR script output when the entrypoint is already registered
-	 * and its browser bundle exists on disk.
+	 * Returns the registered script output when the entrypoint is already tracked for HMR.
 	 *
 	 * @remarks
-	 * Disk artifacts alone are not enough: a fresh dev session must still register
-	 * the entrypoint so file watchers can rebuild it on change.
+	 * Dev-transform scripts use the source path as `outputPath`. A fresh dev session must
+	 * still register the entrypoint so file watchers can invalidate it on change.
 	 */
 	public getResolvedScriptOutput(entrypointPath: string): ResolvedHmrEntrypoint | undefined {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
@@ -503,48 +509,17 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint> {
-		return await this.entrypointRegistrar.registerEntrypoint(entrypointPath, {
-			emit: async (normalizedEntrypoint, outputPath) =>
-				await this.emitScriptEntrypoint(normalizedEntrypoint, outputPath),
-			getMissingOutputError: (normalizedEntrypoint, outputPath) =>
-				new Error(`[HMR] Failed to register script entrypoint: ${normalizedEntrypoint} to ${outputPath}`),
-		});
-	}
-
-	protected async emitScriptEntrypoint(entrypointPath: string, outputPath: string): Promise<void> {
-		const naming = path.relative(this.distDir, outputPath).split(path.sep).join('/');
-		const buildResult = await this.browserBundleService.bundle({
-			profile: 'hmr-entrypoint',
-			entrypoints: [entrypointPath],
-			outdir: this.distDir,
-			naming,
-			minify: false,
-		});
-
-		if (!buildResult.success) {
-			throw new Error(
-				`[HMR] Generic script entrypoint build failed for ${entrypointPath}: ${JSON.stringify(buildResult.logs)}`,
-			);
+		const normalized = path.resolve(entrypointPath);
+		if (!fileSystem.exists(normalized)) {
+			throw new Error(`[HMR] Failed to register script entrypoint: missing source ${normalized}`);
 		}
 
-		if (!fileSystem.exists(outputPath) && buildResult.outputs.length > 0) {
-			const resolvedOutputPath = path.resolve(outputPath);
-			const emittedOutput =
-				buildResult.outputs.find((output) => path.resolve(output.path) === resolvedOutputPath)?.path ??
-				buildResult.outputs.find((output) => path.basename(output.path) === path.basename(outputPath))?.path;
-
-			if (emittedOutput && fileSystem.exists(emittedOutput)) {
-				fileSystem.ensureDir(path.dirname(outputPath));
-				if (path.resolve(emittedOutput) !== resolvedOutputPath) {
-					fileSystem.copyFile(emittedOutput, outputPath);
-				}
-			}
-		}
-
-		const entrypointDependencies = buildResult.dependencyGraph?.entrypoints?.[entrypointPath];
-		if (entrypointDependencies) {
-			this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, entrypointDependencies);
-		}
+		const outputUrl = await this.registerEntrypoint(entrypointPath);
+		return {
+			sourcePath: normalized,
+			outputPath: normalized,
+			outputUrl,
+		};
 	}
 
 	[Symbol.dispose]() {

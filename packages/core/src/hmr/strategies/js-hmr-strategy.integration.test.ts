@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
@@ -21,6 +22,20 @@ afterEach(() => {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
 });
+
+async function readDevTransformModule(manager: BunHmrManager, entrypointPath: string): Promise<string | undefined> {
+	const outputUrl = manager.getOutputUrl(entrypointPath);
+	if (!outputUrl) {
+		return undefined;
+	}
+
+	const response = await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+	if (!response?.ok) {
+		return undefined;
+	}
+
+	return response.text();
+}
 
 describe('JsHmrStrategy integration', () => {
 	it('rebuilds a registered integration-suffixed script entrypoint on source change', async () => {
@@ -59,8 +74,11 @@ describe('JsHmrStrategy integration', () => {
 		await manager.registerScriptEntrypoint(entrypointPath);
 
 		expect(manager.getWatchedFiles().has(path.resolve(entrypointPath))).toBe(true);
+		expect(manager.getOutputUrl(entrypointPath)).toBe(
+			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.eco.js`,
+		);
 
-		const outputPath = path.join(
+		const legacyOutputPath = path.join(
 			resolveInternalWorkDir(config),
 			'assets',
 			'_hmr',
@@ -68,16 +86,16 @@ describe('JsHmrStrategy integration', () => {
 			'script-hmr',
 			'widget.script.eco.js',
 		);
+		expect(fs.existsSync(legacyOutputPath)).toBe(false);
 
-		expect(fs.existsSync(outputPath)).toBe(true);
-		expect(fs.readFileSync(outputPath, 'utf8')).toContain('BASELINE');
+		expect(await readDevTransformModule(manager, entrypointPath)).toContain('BASELINE');
 
 		writeMarker('UPDATED');
 		broadcasts.length = 0;
 		await manager.handleFileChange(entrypointPath);
 
 		expect(broadcasts.length).toBeGreaterThan(0);
-		expect(fs.readFileSync(outputPath, 'utf8')).toContain('UPDATED');
+		expect(await readDevTransformModule(manager, entrypointPath)).toContain('UPDATED');
 		expect(broadcasts.some((event) => event.type === 'reload' || event.type === 'update')).toBe(true);
 	});
 
@@ -124,7 +142,11 @@ describe('JsHmrStrategy integration', () => {
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
-		const outputPath = path.join(
+		expect(manager.getOutputUrl(entrypointPath)).toBe(
+			`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`,
+		);
+
+		const legacyOutputPath = path.join(
 			resolveInternalWorkDir(config),
 			'assets',
 			'_hmr',
@@ -132,9 +154,8 @@ describe('JsHmrStrategy integration', () => {
 			'base-layout',
 			'base-layout.script.js',
 		);
-
-		expect(fs.existsSync(outputPath)).toBe(true);
-		expect(fs.readFileSync(outputPath, 'utf8')).toContain('BASELINE');
+		expect(fs.existsSync(legacyOutputPath)).toBe(false);
+		expect(await readDevTransformModule(manager, entrypointPath)).toContain('BASELINE');
 
 		writeMarker('UPDATED');
 		broadcasts.length = 0;
@@ -142,6 +163,6 @@ describe('JsHmrStrategy integration', () => {
 
 		expect(importCalls).toBe(0);
 		expect(broadcasts.length).toBeGreaterThan(0);
-		expect(fs.readFileSync(outputPath, 'utf8')).toContain('UPDATED');
+		expect(await readDevTransformModule(manager, entrypointPath)).toContain('UPDATED');
 	});
 });

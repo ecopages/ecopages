@@ -300,21 +300,20 @@ export interface ResolvedHmrEntrypoint {
  */
 export interface IHmrManager {
 	/**
-	 * Registers an integration-owned client entrypoint to be built and watched.
+	 * Registers a client entrypoint for dev-transform delivery and HMR watching.
 	 *
 	 * @remarks
-	 * This path is strict: the owning integration must emit the expected `_hmr`
-	 * bundle. Missing output is treated as a development pipeline failure.
+	 * Returns a stable `/assets/__eco_dev__/…` URL immediately; the bundle is
+	 * materialized on the first browser request.
 	 */
 	registerEntrypoint(entrypointPath: string): Promise<string>;
 
 	/**
-	 * Registers a generic script asset entrypoint to be built and watched.
+	 * Registers a declared script asset entrypoint for dev-transform delivery.
 	 *
 	 * @remarks
-	 * This path exists for non-page script assets that are not owned by a
-	 * framework integration. Unlike `registerEntrypoint()`, it may use the generic
-	 * script bundling path.
+	 * Layout and component `*.script.ts` / `*.script.tsx` modules use the same
+	 * on-demand transform path as pages. Returns source path as `outputPath`.
 	 */
 	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 

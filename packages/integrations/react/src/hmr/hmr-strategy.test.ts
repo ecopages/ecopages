@@ -132,7 +132,7 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
 	});
 
-	it('claims owned React entrypoints for cold registration emission', () => {
+	it('claims owned React entrypoints for dev transform plugin selection', () => {
 		const pagePath = '/tmp/src/pages/index.tsx';
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
@@ -142,7 +142,20 @@ describe('ReactHmrStrategy', () => {
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
-		expect(strategy.canEmitEntrypoint(pagePath)).toBe(true);
+		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
+	});
+
+	it('claims Radiant .script.tsx entrypoints for dev transform plugin selection', () => {
+		const scriptPath = '/tmp/src/components/counter.script.tsx';
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache({
+				ownsEntrypoint: () => false,
+			}) as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		expect(strategy.ownsDevTransformEntrypoint(scriptPath)).toBe(true);
 	});
 
 	it('process returns none when no entrypoints are registered yet', async () => {

@@ -336,8 +336,16 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.isReactEntrypoint(filePath);
 	}
 
-	override canEmitEntrypoint(entrypointPath: string): boolean {
-		return this.isReactEntrypoint(entrypointPath) && this.ownsWatchedEntrypoint(entrypointPath);
+	override ownsDevTransformEntrypoint(entrypointPath: string): boolean {
+		if (!this.isReactEntrypoint(entrypointPath)) {
+			return false;
+		}
+
+		if (this.ownsWatchedEntrypoint(entrypointPath)) {
+			return true;
+		}
+
+		return /\.script\.tsx$/u.test(path.resolve(entrypointPath));
 	}
 
 	/**

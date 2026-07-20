@@ -6,7 +6,6 @@ import { afterEach, describe, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
-import { resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
@@ -93,7 +92,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), true);
 	});
 
-	test('uses the generic build path for explicit script entrypoints', async () => {
+	test('registers explicit script entrypoints with dev transform URLs without blocking builds', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-script-register');
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
@@ -103,25 +102,21 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 
 		using manager = await create(rootDir);
 		installBuildRuntime(manager.appConfig);
-		const outputPath = path.join(resolveInternalWorkDir(manager.appConfig), 'assets', '_hmr', 'script.js');
 		const buildCalls: string[] = [];
 		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
 			buildCalls.push(options.entrypoints[0] as string);
-			fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-			fs.writeFileSync(outputPath, 'fresh-output', 'utf8');
 			return {
 				success: true,
 				logs: [],
-				outputs: [{ path: outputPath }],
+				outputs: [{ path: '/tmp/unused.js' }],
 			};
 		});
 
 		const resolved = await manager.registerScriptEntrypoint(entrypointPath);
 
-		assert.equal(resolved.outputUrl, '/assets/_hmr/script.js');
-		assert.equal(resolved.outputPath, outputPath);
-		assert.deepEqual(buildCalls, [entrypointPath]);
-		assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fresh-output');
+		assert.equal(resolved.outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/script.js`);
+		assert.equal(resolved.outputPath, path.resolve(entrypointPath));
+		assert.deepEqual(buildCalls, []);
 	});
 
 	test('registering one script entrypoint does not rebuild previously watched script entrypoints', async () => {
@@ -138,39 +133,20 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		installBuildRuntime(manager.appConfig);
 		const buildCalls: string[][] = [];
 		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
-			const entrypoints = (options.entrypoints as string[]).map(String);
-			buildCalls.push(entrypoints);
-			for (const entrypoint of entrypoints) {
-				const relativePathJs = path
-					.relative(path.join(rootDir, 'src'), entrypoint)
-					.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-				const outputPath = path.join(
-					resolveInternalWorkDir(manager.appConfig),
-					'assets',
-					'_hmr',
-					relativePathJs,
-				);
-				fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-				fs.writeFileSync(outputPath, `output:${path.basename(entrypoint)}`, 'utf8');
-			}
+			buildCalls.push((options.entrypoints as string[]).map(String));
 			return {
 				success: true,
 				logs: [],
-				outputs: entrypoints.map((entrypoint) => ({
-					path: path.join(
-						resolveInternalWorkDir(manager.appConfig),
-						'assets',
-						'_hmr',
-						path.relative(path.join(rootDir, 'src'), entrypoint).replace(/\.(tsx?|jsx?|mdx?)$/, '.js'),
-					),
-				})),
+				outputs: [],
 			};
 		});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);
 		await manager.registerScriptEntrypoint(secondEntrypoint);
 
-		assert.deepEqual(buildCalls, [[firstEntrypoint], [secondEntrypoint]]);
+		assert.deepEqual(buildCalls, []);
+		assert.equal(manager.getOutputUrl(firstEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/first.script.js`);
+		assert.equal(manager.getOutputUrl(secondEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/second.script.js`);
 	});
 
 	test('stop clears retained registration state', async () => {

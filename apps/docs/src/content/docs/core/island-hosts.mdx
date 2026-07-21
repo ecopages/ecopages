@@ -1,0 +1,63 @@
+---
+title: "Island Hosts"
+description: "How Ecopages stamps hydratable component roots for devtools and client hydration."
+order: 10
+---
+
+# Island Hosts
+
+Hydratable component instances stamp a small, integration-agnostic attribute set on their SSR root. Dev tools (such as the [dev toolbar Islands panel](/docs/core/dev-toolbar)) and future runtime features use these markers to discover interactive islands without integration-specific selectors.
+
+## Attributes
+
+| Attribute | Purpose |
+| :--- | :--- |
+| `data-eco-island` | Marks the element as an interactive island host |
+| `data-eco-island-integration` | Owning integration (`react`, `lit`, `kitajs`, `ecopages-jsx`, …) |
+| `data-eco-component-id` | Stable instance id from the render pipeline |
+| `data-eco-component-key` | Optional module key used by client hydration (React) |
+| `data-eco-props` | Optional base64 JSON props snapshot for hydration |
+
+React may replace the SSR host with `<eco-island>` after hydration. The marker is applied at SSR time on the component root.
+
+## When stamping happens
+
+Core applies island host metadata through `finalizeIslandComponentRender()` when all of the following are true:
+
+1. `integrationContext.componentInstanceId` is present
+2. The render result can attach attributes to a single root element (`canAttachAttributes`)
+3. The render emits at least one client `script` asset
+
+Integrations that extend the contract (for example React's component key and props snapshot) should build on `buildIslandHostAttributes()` from `@ecopages/core` rather than inventing per-demo selectors.
+
+## Integration coverage
+
+| Integration | Stamping |
+| :--- | :--- |
+| React | `buildIslandHostAttributes()` in component SSR |
+| Lit | `finalizeIslandComponentRender()` in the Lit renderer |
+| KitaJS, MDX, Ghtml | `finalizeIslandComponentRender()` via the string-markup renderer path |
+| Ecopages JSX | `finalizeIslandComponentRender()` in the Ecopages JSX renderer |
+
+## Using the helpers in custom integrations
+
+If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results that ship client scripts:
+
+```typescript
+import { finalizeIslandComponentRender } from '@ecopages/core';
+
+return finalizeIslandComponentRender(input, {
+	html,
+	canAttachAttributes: true,
+	rootTag: 'section',
+	integrationName: 'my-integration',
+	assets,
+});
+```
+
+For integrations that need extra hydration metadata, use `buildIslandHostAttributes()` and merge the result into `rootAttributes` before the foreign-subtree layer applies them to the first element.
+
+## Related
+
+- [Components](/docs/core/components) — `eco.component`, dependencies, and client scripts
+- [Integrations overview](/docs/integrations/overview) — choosing and mixing renderers

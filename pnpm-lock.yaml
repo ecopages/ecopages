@@ -390,6 +390,9 @@ importers:
         specifier: ^8.20.1
         version: 8.21.1
     devDependencies:
+      '@ecopages/dev-toolbar':
+        specifier: workspace:*
+        version: link:../dev-toolbar
       '@tanstack/react-query':
         specifier: ^5.90.2
         version: 5.101.2(react@19.2.7)
@@ -430,6 +433,25 @@ importers:
       react-dom:
         specifier: ^19.2.6
         version: 19.2.7(react@19.2.7)
+
+  packages/dev-toolbar:
+    dependencies:
+      '@ecopages/jsx':
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3)
+      '@ecopages/radiant':
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(@ecopages/jsx@0.3.0-beta.3(@ecopages/signals@0.3.0-beta.3(typescript@5.9.3))(typescript@5.9.3))
+      '@ecopages/signals':
+        specifier: 0.3.0-beta.3
+        version: 0.3.0-beta.3(typescript@5.9.3)
+      axe-core:
+        specifier: ^4.10.3
+        version: 4.12.1
+    devDependencies:
+      rolldown:
+        specifier: ^1.1.0
+        version: 1.2.0
 
   packages/ecopages:
     dependencies:
@@ -959,6 +981,9 @@ importers:
 
   playground/kitchen-sink:
     dependencies:
+      '@ecopages/dev-toolbar':
+        specifier: workspace:*
+        version: link:../../packages/dev-toolbar
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -3781,6 +3806,10 @@ packages:
     hasBin: true
     peerDependencies:
       postcss: ^8.1.0
+
+  axe-core@4.12.1:
+    resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
+    engines: {node: '>=4'}
 
   bail@2.0.2:
     resolution: {integrity: sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==}
@@ -8127,6 +8156,8 @@ snapshots:
       picocolors: 1.1.1
       postcss: 8.5.19
       postcss-value-parser: 4.2.0
+
+  axe-core@4.12.1: {}
 
   bail@2.0.2: {}
 

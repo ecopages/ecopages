@@ -33,6 +33,7 @@ export default defineConfig({
 						'packages/file-system/**/*.test.ts',
 						'packages/vite-plugin/**/*.test.ts',
 						'packages/react-router/**/*.test.ts',
+						'packages/dev-toolbar/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
 						'playground/kitchen-sink/bench/lib/**/*.test.ts',

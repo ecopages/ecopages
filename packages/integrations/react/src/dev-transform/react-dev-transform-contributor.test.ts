@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { ReactDevTransformContributor } from './react-dev-transform-contributor.ts';
+import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
 const runtimeManifest = createBrowserRuntimeManifest([
@@ -36,13 +37,7 @@ function createStrategy(): ReactHmrStrategy {
 			}),
 			importServerModule: async () => ({}),
 		} as DefaultHmrContext,
-		pageMetadataCache: {
-			getDeclaredModules: () => undefined,
-			getOwnedEntrypoints: () => [],
-			ownsEntrypoint: () => false,
-			markOwnedEntrypoint: () => {},
-			setDeclaredModules: () => {},
-		},
+		pageMetadataCache: new HmrPageMetadataCache(),
 		runtimeManifest,
 	});
 }

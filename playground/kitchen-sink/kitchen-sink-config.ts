@@ -50,6 +50,7 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 				mdx: {
 					enabled: true,
 				},
+				runtimeModules: ['zod'],
 			}),
 			mdxPlugin({
 				extensions: ['.md'],

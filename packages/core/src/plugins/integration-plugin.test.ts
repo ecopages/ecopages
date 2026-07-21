@@ -99,6 +99,7 @@ describe('IntegrationPlugin', () => {
 		const registerStrategy = vi.fn();
 		const hmrManager = {
 			registerStrategy,
+			registerDevTransformContributor: vi.fn(),
 			registerEntrypoint: vi.fn(),
 			registerScriptEntrypoint: vi.fn(),
 			setEnabled: vi.fn(),

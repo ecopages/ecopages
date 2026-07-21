@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEV_TRANSFORM_URL_PREFIX, stripModuleUrlQuery } from '../../hmr/hmr-asset-paths.ts';
 import { decodeHmrDynamicSegments, encodeHmrDynamicSegments } from '../../hmr/hmr-entrypoint-output.ts';
+import { resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 
 export { DEV_TRANSFORM_URL_PREFIX } from '../../hmr/hmr-asset-paths.ts';
 
@@ -45,7 +46,7 @@ export function resolveDevTransformModuleSourcePath(srcDir: string, moduleUrl: s
 	const relativePathJs = relativeUrlPath.split('/').join(path.sep);
 	const decodedRelativePathJs = decodeHmrDynamicSegments(relativePathJs);
 
-	if (decodedRelativePathJs.endsWith('.css')) {
+	if (resolveDevTransformModuleKind(decodedRelativePathJs) === 'stylesheet') {
 		const cssPath = path.resolve(resolvedSrcDir, decodedRelativePathJs);
 		if (cssPath.startsWith(`${resolvedSrcDir}${path.sep}`) && fileSystem.exists(cssPath)) {
 			return cssPath;

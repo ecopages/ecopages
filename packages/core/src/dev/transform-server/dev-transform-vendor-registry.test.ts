@@ -58,7 +58,10 @@ describe('DevTransformVendorRegistry', () => {
 
 		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
 		installBuildRuntime(config);
-		const registry = new DevTransformVendorRegistry({ appConfig: config });
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
+		});
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
 		expect(url).toMatch(/^\/assets\/vendors\/ecopages-core\.[a-f0-9]+\.js$/);
@@ -68,5 +71,40 @@ describe('DevTransformVendorRegistry', () => {
 		const code = await response.text();
 		expect(code).not.toMatch(/node:(?:fs|path|async_hooks|crypto)/);
 		expect(code).toMatch(/eco/);
+	});
+
+	it('reports an actionable error when a bare import resolves to a server-only entry', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-server-only');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify(
+				{
+					name: 'dev-transform-vendor-server-only-fixture',
+					type: 'module',
+					dependencies: {
+						'@ecopages/react': `file:${path.join(repoRoot, 'packages', 'integrations', 'react')}`,
+					},
+				},
+				null,
+				2,
+			),
+			'utf8',
+		);
+		fs.mkdirSync(path.join(rootDir, 'node_modules', '@ecopages'), { recursive: true });
+		fs.symlinkSync(
+			path.join(repoRoot, 'packages', 'integrations', 'react'),
+			path.join(rootDir, 'node_modules', '@ecopages', 'react'),
+			'dir',
+		);
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
+		});
+
+		await expect(registry.resolveVendorUrl('@ecopages/react')).rejects.toThrow('resolved to a server-only entry');
 	});
 });

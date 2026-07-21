@@ -6,6 +6,8 @@ import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
+import { mergeContributorRuntimeSpecifierMaps } from './dev-transform-runtime-specifiers.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
@@ -33,6 +35,7 @@ export class DevTransformServer {
 	private readonly bundler: DevTransformBundler;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
+	private readonly runtimeSpecifierMap = new Map<string, string>();
 	private readonly onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
@@ -44,16 +47,16 @@ export class DevTransformServer {
 		this.appConfig = options.appConfig;
 		this.onModuleDependencies = options.onModuleDependencies;
 		this.contributors.push(...(options.contributors ?? []));
+		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
+			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			resolveVendorBundlePlugins: () => this.resolveVendorBundlePlugins(),
 		});
-		for (const contributor of this.contributors) {
-			this.vendorRegistry.mergeRuntimeSpecifierMap(contributor.getRuntimeSpecifierMap?.());
-		}
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
 			contributors: this.contributors,
+			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			vendorRegistry: this.vendorRegistry,
 		});
 	}
@@ -77,8 +80,15 @@ export class DevTransformServer {
 
 	addContributor(contributor: DevTransformBundleContributor): void {
 		this.contributors.push(contributor);
+		this.rebuildRuntimeSpecifierMap();
 		this.bundler.addContributor(contributor);
-		this.vendorRegistry.mergeRuntimeSpecifierMap(contributor.getRuntimeSpecifierMap?.());
+	}
+
+	private rebuildRuntimeSpecifierMap(): void {
+		this.runtimeSpecifierMap.clear();
+		for (const [specifier, url] of mergeContributorRuntimeSpecifierMaps(this.contributors)) {
+			this.runtimeSpecifierMap.set(specifier, url);
+		}
 	}
 
 	private async resolveVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {
@@ -124,9 +134,7 @@ export class DevTransformServer {
 			return vendorResponse;
 		}
 
-		const sourcePath =
-			this.urlToSource.get(url.pathname) ??
-			this.resolveSourcePathFromModuleUrl(url.pathname);
+		const sourcePath = this.urlToSource.get(url.pathname) ?? this.resolveSourcePathFromModuleUrl(url.pathname);
 		if (!sourcePath) {
 			return null;
 		}
@@ -194,9 +202,10 @@ export class DevTransformServer {
 			return pending;
 		}
 
-		if (path.extname(normalized) === '.css') {
+		const moduleKind = resolveDevTransformModuleKind(normalized);
+		if (moduleKind === 'stylesheet') {
 			const entry: CacheEntry = {
-				code: `export default ${JSON.stringify(fileSystem.readFileSync(normalized))};\n`,
+				code: materializeDevTransformStylesheet(fileSystem.readFileSync(normalized)),
 				sourceHash,
 			};
 			this.cache.set(normalized, entry);

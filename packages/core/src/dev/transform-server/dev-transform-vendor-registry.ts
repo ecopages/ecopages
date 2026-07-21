@@ -10,6 +10,7 @@ import { BrowserBundleService } from '../../services/assets/browser-bundle.servi
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 const BROWSER_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
+const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 
 type VendorEntry = {
 	url: string;
@@ -18,6 +19,7 @@ type VendorEntry = {
 
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
+	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 };
 
@@ -27,8 +29,8 @@ export type DevTransformVendorRegistryOptions = {
 export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
+	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
-	private readonly runtimeSpecifierMap: Map<string, string>;
 	private readonly vendorsDir: string;
 	private readonly cache = new Map<string, VendorEntry>();
 	private readonly inFlight = new Map<string, Promise<VendorEntry>>();
@@ -36,24 +38,14 @@ export class DevTransformVendorRegistry {
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
+		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.resolveVendorBundlePlugins = options.resolveVendorBundlePlugins;
-		this.runtimeSpecifierMap = new Map();
 		const distDir = options.appConfig.absolutePaths?.distDir ?? path.join(options.appConfig.rootDir, '.eco');
 		this.vendorsDir = path.join(distDir, RESOLVED_ASSETS_VENDORS_DIR);
 	}
 
-	mergeRuntimeSpecifierMap(runtimeSpecifierMap?: ReadonlyMap<string, string>): void {
-		if (!runtimeSpecifierMap) {
-			return;
-		}
-
-		for (const [specifier, url] of runtimeSpecifierMap) {
-			this.runtimeSpecifierMap.set(specifier, url);
-		}
-	}
-
 	resolveKnownVendorUrl(specifier: string): string | undefined {
-		return this.runtimeSpecifierMap.get(specifier);
+		return this.getRuntimeSpecifierMap().get(specifier);
 	}
 
 	async resolveVendorUrl(specifier: string): Promise<string> {
@@ -148,11 +140,7 @@ export class DevTransformVendorRegistry {
 
 		if (!result.success) {
 			const details = result.logs.map((log) => log.message).join('\n');
-			throw new Error(
-				details
-					? `[dev-transform] Vendor prebundle failed for ${specifier}:\n${details}`
-					: `[dev-transform] Vendor prebundle failed for ${specifier}`,
-			);
+			throw new Error(formatVendorPrebundleError(specifier, details));
 		}
 
 		const outputPath = result.outputs[0]?.path ?? outPath;
@@ -167,18 +155,22 @@ export class DevTransformVendorRegistry {
 			throw new Error(`[dev-transform] Unable to resolve bare import "${specifier}" for vendor prebundle`);
 		}
 
-		assertBrowserVendorEntry(specifier, resolved);
 		return resolved;
 	}
 }
 
-function assertBrowserVendorEntry(specifier: string, entryPath: string): void {
-	if (entryPath.includes('/plugin/') && !entryPath.includes('.browser.')) {
-		throw new Error(
-			`[dev-transform] Bare import "${specifier}" resolved to server-only entry "${entryPath}". ` +
-				`Import a browser subpath or register the package in the browser runtime manifest.`,
+function formatVendorPrebundleError(specifier: string, details: string): string {
+	if (details.includes(BROWSER_NODE_BUILTIN_GUARD_MARKER)) {
+		return (
+			`[dev-transform] Bare import "${specifier}" resolved to a server-only entry. ` +
+			`Import a browser subpath or register the package in the browser runtime manifest.` +
+			(details ? `\n${details}` : '')
 		);
 	}
+
+	return details
+		? `[dev-transform] Vendor prebundle failed for ${specifier}:\n${details}`
+		: `[dev-transform] Vendor prebundle failed for ${specifier}`;
 }
 
 function sanitizeSpecifierForFileName(specifier: string): string {

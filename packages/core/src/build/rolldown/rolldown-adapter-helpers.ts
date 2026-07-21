@@ -369,19 +369,7 @@ export function resolveRolldownOptions(
 	appRootRequireCache: Map<string, NodeJS.Require>,
 ): ResolvedRolldownOptions {
 	const rolldownPlatform = mapRolldownPlatform(options.target);
-	const baseExternal = createExternalMatcher(options, appRootRequireCache);
-	const external =
-		rolldownPlatform === 'browser'
-			? (id: string): boolean => {
-					if (isNodeBuiltinSpecifier(id)) {
-						throw new Error(
-							`[browser-build] Node builtin "${id}" cannot be bundled for the browser. ` +
-								`Check package "browser" exports and the client-graph boundary for the importer.`,
-						);
-					}
-					return baseExternal(id);
-				}
-			: baseExternal;
+	const external = createExternalMatcher(options, appRootRequireCache);
 
 	const transformOptions: Record<string, unknown> = {};
 	if (options.define) {

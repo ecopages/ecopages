@@ -52,6 +52,8 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 
 You can combine multiple integrations in your `eco.config.ts`. This allows you to use MDX for your blog, KitaJS for your landing page, and React for a specific interactive checkout component.
 
+Hydratable components across integrations share the [Island Hosts](/docs/core/island-hosts) contract so devtools can discover them without integration-specific selectors.
+
 
 <Banner type="info">
 	<BannerTitle>Pro Tip</BannerTitle>

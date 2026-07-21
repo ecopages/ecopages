@@ -62,6 +62,7 @@ import {
 	resolveInnermostPageLayout,
 	resolvePageLayoutComponents,
 } from './document-shell/layout-shell-props.service.ts';
+import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -559,12 +560,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			...queuedForeignSubtreeResolution.assets,
 		]);
 
-		return {
+		return this.finalizeIslandComponentRender(input, {
 			...componentRender,
 			html: queuedForeignSubtreeResolution.html,
 			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-		};
+		});
 	}
 
 	constructor({
@@ -695,6 +696,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected createRouteRenderOrchestratorAdapter(): RouteRenderOrchestratorAdapter<C> {
 		return createIntegrationRouteRenderAdapter({
 			name: this.name,
+			appConfig: this.appConfig,
+			watch: this.hmrManager?.isEnabled() === true,
+			hostOwnsDevClient: this.appConfig.runtime?.devClientOwner === 'host',
 			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),
@@ -873,6 +877,13 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					cache: rendererCache,
 				}),
 		});
+	}
+
+	protected finalizeIslandComponentRender(
+		input: ComponentRenderInput,
+		result: ComponentRenderResult,
+	): ComponentRenderResult {
+		return finalizeIslandComponentRender(input, result);
 	}
 
 	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {

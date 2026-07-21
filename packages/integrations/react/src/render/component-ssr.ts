@@ -3,6 +3,7 @@
  */
 
 import type { ComponentRenderInput, ComponentRenderResult, EcoComponent, EcoPagesElement } from '@ecopages/core';
+import { buildIslandHostAttributes } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { ReactNode } from 'react';
@@ -317,11 +318,12 @@ export async function renderReactManagedComponent(options: {
 	) {
 		const componentInstanceId = context.componentInstanceId;
 		assets = await hydrationAssetService.buildComponentRenderAssets(componentFile, componentConfig);
-		rootAttributes = {
-			'data-eco-component-id': componentInstanceId,
-			'data-eco-component-key': getIslandComponentKey(componentFile, componentConfig),
-			'data-eco-props': btoa(JSON.stringify(buildHydrationProps(input.props))),
-		};
+		rootAttributes = buildIslandHostAttributes({
+			integrationName,
+			componentInstanceId,
+			componentKey: getIslandComponentKey(componentFile, componentConfig),
+			props: buildHydrationProps(input.props),
+		});
 	}
 
 	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);

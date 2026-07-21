@@ -323,6 +323,32 @@ describe('LitRenderer', () => {
 			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
 		});
 
+		it('should stamp island host attributes when the instance has client scripts', async () => {
+			const { renderer } = createRendererWithAssets();
+			const Component = (async (props: { label: string }) =>
+				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
+			Component.config = {
+				__eco: {
+					id: 'lit-island',
+					file: '/project/src/components/lit-island.lit.ts',
+					integration: 'lit',
+				},
+				dependencies: {
+					scripts: ['./lit-island.script.ts'],
+				},
+			};
+
+			const result = await renderer.renderComponent({
+				component: Component,
+				props: { label: 'Lit Island' },
+				integrationContext: { componentInstanceId: 'lit-island-1' },
+			});
+
+			expect(result.rootAttributes?.['data-eco-island']).toBe('');
+			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('lit');
+			expect(result.rootAttributes?.['data-eco-component-id']).toBe('lit-island-1');
+		});
+
 		it('should expose the compatibility foreign-subtree payload contract', async () => {
 			const testRenderer = createRenderer();
 			const Component = (async () => '<section>Lit Foreign Subtree</section>') as unknown as EcoComponent<object>;

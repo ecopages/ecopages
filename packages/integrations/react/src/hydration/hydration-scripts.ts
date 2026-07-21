@@ -201,6 +201,13 @@ window.__ECO_PAGES__.rerunScripts = window.__ECO_PAGES__.rerunScripts || {};
 window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}] = mount;`;
 }
 
+function getHydrationTimingScript(): string {
+	return `const __ecoRecordHydrationReady = () => {
+  if (window.__ECO_DEV_HYDRATION_STARTED__ == null) return;
+  window.__ECO_DEV_HYDRATION_MS__ = Math.round(performance.now() - window.__ECO_DEV_HYDRATION_STARTED__);
+};`;
+}
+
 /**
  * HMR handler for router pages: prefers coordinator reload when layouts change,
  * otherwise re-renders the existing root.
@@ -310,6 +317,7 @@ let root = window.__ECO_PAGES__.react.pageRoot;
 ${getPageRootCleanupScript()}
 ${getRouterBootstrapRegistrationScript()}
 ${getReuseExistingRouterRootScript()}
+${getHydrationTimingScript()}
 
 const initialPageData = readPageDataDocument();
 const props = initialPageData.props;
@@ -342,10 +350,12 @@ const mount = () => {
     return;
   }
 
+  window.__ECO_DEV_HYDRATION_STARTED__ = performance.now();
   root = hydrateRoot(document.body, createTree(Page, props), {
     onRecoverableError: (err) => console.warn("[ecopages] Hydration error:", err)
   });
   window.__ECO_PAGES__.react.pageRoot = root;
+  __ecoRecordHydrationReady();
 ${hmrHandler}
 };
 
@@ -397,6 +407,7 @@ ${hmrInit}window.__ECO_PAGES__.react = window.__ECO_PAGES__.react || {};
 window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;
 let root = window.__ECO_PAGES__.react.pageRoot;
 ${getPageRootCleanupScript()}
+${getHydrationTimingScript()}
 
 const initialPageData = readPageDataDocument();
 const props = initialPageData.props;
@@ -420,10 +431,12 @@ const mount = () => {
     root = window.__ECO_PAGES__.react.pageRoot;
     root.render(createTree(Page, props));
   } else {
+    window.__ECO_DEV_HYDRATION_STARTED__ = performance.now();
     root = hydrateRoot(document.body, createTree(Page, props), {
       onRecoverableError: (err) => console.warn("[ecopages] Hydration error:", err)
     });
     window.__ECO_PAGES__.react.pageRoot = root;
+    __ecoRecordHydrationReady();
   }
 ${hmrHandler}
 };

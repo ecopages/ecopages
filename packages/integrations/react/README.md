@@ -30,7 +30,7 @@ export default config;
 For component-level islands, Ecopages React uses this contract:
 
 - SSR output preserves the authored DOM structure (no unnecessary wrapper elements).
-- A stable `data-eco-component-id` attribute is attached to the component SSR root.
+- A stable island host contract is stamped on the component SSR root via core (`data-eco-island`, `data-eco-island-integration`, `data-eco-component-id`, optional `data-eco-component-key` / `data-eco-props`).
 - The island runtime replaces the SSR host with a dedicated client-owned container and mounts it with `createRoot()`. Full-page hydration paths use `hydrateRoot()`.
 
 > [!TIP]
@@ -238,6 +238,8 @@ That creates a module identity problem: if TanStack Query (or any shared provide
 The fix is **shared browser runtime vendors**: selected npm packages are built once into `/assets/vendors/*.js` and every page chunk imports the same public URL. React, React DOM, the router bundle, and auto-discovered layout runtime packages all follow this path.
 
 In `ecopages dev`, page modules are served from `/assets/__eco_dev__/` and should import `/assets/vendors/*` for shared packages instead of inlining `node_modules`. Kitchen-sink routes `/vendor-share/a` and `/vendor-share/b` (with `runtimeModules: ['zod']`) are the reference fixture; see `playground/kitchen-sink/e2e/shared-vendors.test.e2e.ts`.
+
+The Ecopages dev toolbar **Islands** app inspects `data-eco-island`, `data-eco-component-id`, `data-eco-props`, and `window.__ECO_PAGES__.islandRoots` during development.
 
 Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
 

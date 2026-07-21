@@ -157,6 +157,31 @@ describe('KitaRenderer', () => {
 		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
 	});
 
+	it('should stamp island host attributes when the instance has client scripts', async () => {
+		const { renderer } = createRendererWithAssets();
+		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
+		Component.config = {
+			__eco: {
+				id: 'kita-island',
+				file: '/project/src/components/kita-island.kita.tsx',
+				integration: 'kitajs',
+			},
+			dependencies: {
+				scripts: ['./kita-island.script.ts'],
+			},
+		};
+
+		const result = await renderer.renderComponent({
+			component: Component,
+			props: { title: 'Kita Island' },
+			integrationContext: { componentInstanceId: 'kita-island-1' },
+		});
+
+		expect(result.rootAttributes?.['data-eco-island']).toBe('');
+		expect(result.rootAttributes?.['data-eco-island-integration']).toBe('kitajs');
+		expect(result.rootAttributes?.['data-eco-component-id']).toBe('kita-island-1');
+	});
+
 	it('should expose the compatibility foreign-subtree payload contract', async () => {
 		const Component = createTestComponent(async () => '<section>Kita Foreign Subtree</section>');
 

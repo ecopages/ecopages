@@ -260,6 +260,8 @@ describe('ReactRenderer', () => {
 			expect(result.canAttachAttributes).toBe(true);
 			expect(result.html).toBe('<h3>Island</h3>');
 			expect(result.html).not.toContain('<div');
+			expect(result.rootAttributes?.['data-eco-island']).toBe('');
+			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('react');
 			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-1');
 			expect(result.rootAttributes?.['data-eco-component-key']).toBe(
 				getIslandComponentKey(pageFilePath, Component.config),
@@ -473,6 +475,8 @@ describe('ReactRenderer', () => {
 					'data-eco-component-id': 'island-1',
 					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),
 					'data-eco-props': btoa(JSON.stringify({ title: 'Island' })),
+					'data-eco-island': '',
+					'data-eco-island-integration': 'react',
 				},
 				attachmentPolicy: { kind: 'first-element' },
 				integrationName: 'react',

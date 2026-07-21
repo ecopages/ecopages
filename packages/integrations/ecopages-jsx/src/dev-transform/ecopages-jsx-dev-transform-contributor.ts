@@ -8,7 +8,7 @@ export type EcopagesJsxDevTransformContributorOptions = {
 };
 
 /**
- * Supplies Ecopages JSX page plugins for the core dev transform bundler.
+ * Supplies Ecopages JSX module plugins for the core dev transform bundler.
  */
 export class EcopagesJsxDevTransformContributor implements DevTransformBundleContributor {
 	private readonly strategy: EcopagesJsxHmrStrategy;
@@ -19,12 +19,12 @@ export class EcopagesJsxDevTransformContributor implements DevTransformBundleCon
 		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 	}
 
-	ownsEntrypoint(entrypointPath: string): boolean {
-		return this.strategy.ownsDevTransformEntrypoint(entrypointPath);
+	ownsModule(sourcePath: string): boolean {
+		return this.strategy.ownsDevTransformEntrypoint(sourcePath);
 	}
 
-	async getPageBuildPlugins(entrypointPath: string): Promise<readonly EcoBuildPlugin[]> {
-		if (!entrypointPath.endsWith('.mdx')) {
+	async getModulePlugins(sourcePath: string): Promise<readonly EcoBuildPlugin[]> {
+		if (!sourcePath.endsWith('.mdx')) {
 			return [];
 		}
 

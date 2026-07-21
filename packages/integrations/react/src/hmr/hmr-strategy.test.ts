@@ -164,6 +164,17 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 	});
 
+	it('claims page entrypoints for dev transform even before SSR marks them owned', () => {
+		const pagePath = '/tmp/src/pages/dashboard.tsx';
+		const strategy = new ReactHmrStrategy({
+			context: createMockContext(),
+			pageMetadataCache: createPageMetadataCache() as any,
+			runtimeManifest: defaultRuntimeManifest,
+		});
+
+		expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
+	});
+
 	it('claims registered script entrypoints that need React transforms', () => {
 		const scriptPath = '/tmp/src/components/counter.tsx';
 		const strategy = createRegisteredScriptStrategy({

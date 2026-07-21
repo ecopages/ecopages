@@ -323,6 +323,34 @@ describe('RolldownBuildAdapter', () => {
 		);
 	});
 
+	test('splitting: false inlines dynamic imports for single-entrypoint browser builds', async () => {
+		writeFixture('lazy-dep.ts', "export const value = 'lazy-value';\n");
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"export async function load() {\n  const mod = await import('./lazy-dep.ts');\n  return mod.value;\n}\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			splitting: false,
+		});
+
+		assert.equal(result.success, true);
+		const entryOutputPath =
+			result.entryOutputs?.[path.resolve(entrypoint)] ??
+			result.outputs.find((output) => output.path.endsWith('entry.js'))?.path ??
+			result.outputs[0]!.path;
+		const code = readFileSync(entryOutputPath, 'utf-8');
+		expect(code).toContain('lazy-value');
+		expect(code).not.toMatch(/import\(['"]\.\/lazy-dep/);
+	});
+
 	test('populates dependency graph from entry chunk moduleIds', async () => {
 		writeFixture('helper.ts', "export function helper(): string { return 'h'; }\n");
 		const entrypoint = writeFixture(

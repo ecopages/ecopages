@@ -146,11 +146,8 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		super.setHmrManager(hmrManager);
 
 		const strategy = this.getHmrStrategy();
-		const registerContributor = (hmrManager as { registerDevTransformContributor?: (contributor: unknown) => void })
-			.registerDevTransformContributor;
-		if (strategy && registerContributor) {
-			registerContributor.call(
-				hmrManager,
+		if (strategy) {
+			hmrManager.registerDevTransformContributor(
 				new EcopagesJsxDevTransformContributor({
 					strategy: strategy as EcopagesJsxHmrStrategy,
 					getMdxLoaderPlugin: () => this.mdxLoaderPlugin,

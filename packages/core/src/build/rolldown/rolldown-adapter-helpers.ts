@@ -219,6 +219,31 @@ export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
 	};
 }
 
+/**
+ * Rejects Node builtins in browser-target builds before Rolldown externalizes them.
+ *
+ * @remarks
+ * With `platform: 'browser'`, Rolldown leaves `node:*` imports in the output as
+ * bare specifiers. This plugin fails the build instead so server-only graphs
+ * cannot reach the browser as silent CORS errors.
+ */
+export function createBrowserNodeBuiltinGuardPlugin(): RolldownPlugin {
+	return {
+		name: 'ecopages-browser-node-builtin-guard',
+		resolveId(id, importer) {
+			if (!isNodeBuiltinSpecifier(id)) {
+				return null;
+			}
+
+			const from = importer ? ` (imported from ${importer})` : '';
+			throw new Error(
+				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. ` +
+					`Check package "browser" exports and the client-graph boundary for the importer.`,
+			);
+		},
+	};
+}
+
 function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
 	switch (value) {
 		case 'cjs':
@@ -343,7 +368,20 @@ export function resolveRolldownOptions(
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
 ): ResolvedRolldownOptions {
-	const external = createExternalMatcher(options, appRootRequireCache);
+	const rolldownPlatform = mapRolldownPlatform(options.target);
+	const baseExternal = createExternalMatcher(options, appRootRequireCache);
+	const external =
+		rolldownPlatform === 'browser'
+			? (id: string): boolean => {
+					if (isNodeBuiltinSpecifier(id)) {
+						throw new Error(
+							`[browser-build] Node builtin "${id}" cannot be bundled for the browser. ` +
+								`Check package "browser" exports and the client-graph boundary for the importer.`,
+						);
+					}
+					return baseExternal(id);
+				}
+			: baseExternal;
 
 	const transformOptions: Record<string, unknown> = {};
 	if (options.define) {
@@ -360,7 +398,8 @@ export function resolveRolldownOptions(
 	const sourceTransforms = options.target === 'browser' ? (options.sourceTransforms ?? []) : [];
 	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
 	const allPlugins = [
-		...(mapRolldownPlatform(options.target) === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
+		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
+		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
 		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,
 	];
@@ -396,6 +435,11 @@ export function resolveRolldownOptions(
 			? `[name]${jsExtension}`
 			: '[name]';
 
+	const entrypointCount = Array.isArray(options.entrypoints)
+		? options.entrypoints.length
+		: Object.keys(options.entrypoints).length;
+	const disableCodeSplitting = options.splitting === false && entrypointCount === 1;
+
 	const outputOptions: OutputOptions = {
 		dir: outdir,
 		format: mapRolldownFormat(options.format),
@@ -404,6 +448,7 @@ export function resolveRolldownOptions(
 		chunkFileNames: '[name]-[hash].js',
 		assetFileNames: '[name]-[hash][extname]',
 		sourcemap: mapRolldownSourcemap(options.sourcemap),
+		...(disableCodeSplitting ? { codeSplitting: false } : {}),
 	};
 
 	return { inputOptions, outputOptions };

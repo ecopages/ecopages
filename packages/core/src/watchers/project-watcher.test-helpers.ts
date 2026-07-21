@@ -8,6 +8,7 @@ export const createMockHmrManager = (): IHmrManager =>
 		broadcast: vi.fn(() => {}),
 		setEnabled: vi.fn(() => {}),
 		registerEntrypoint: vi.fn(async () => ''),
+		registerDevTransformContributor: vi.fn(() => {}),
 		registerScriptEntrypoint: vi.fn(async () => ({
 			sourcePath: '',
 			outputPath: '',

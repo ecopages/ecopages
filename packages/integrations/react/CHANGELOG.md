@@ -12,7 +12,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
-- Fixed React Router MDX server-module builds to keep package imports external so preview/static route probes do not inline framework dependencies into generated `.server-modules-react-mdx` outputs.
+- Dev transform vendor prebundles register client-graph boundary plugins and redirect `@ecopages/react-router`, `@ecopages/react/layout-compose`, and related framework imports through the browser runtime manifest instead of naive package-main prebundling.
 - Fixed React HMR dependency-hit handling to rebuild the page cohort when a changed component is only reachable through an owned layout entrypoint.
 - Grouped router-managed React page entries and HMR rebuilds so persisted layouts and context providers stay on one shared module graph during cross-route navigation.
 - Fixed router-managed React dev page entries to rewrite grouped shared chunk imports to served `/_hmr` asset URLs during initial registration and HMR rebuilds.

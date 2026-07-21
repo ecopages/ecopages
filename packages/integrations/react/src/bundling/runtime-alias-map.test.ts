@@ -126,6 +126,16 @@ describe('buildReactRuntimeAliasMap', () => {
 					externals: [],
 				},
 			],
+			[
+				'@ecopages/react/layout-compose',
+				{
+					specifier: '@ecopages/react/layout-compose',
+					owner: '@ecopages/react',
+					importPath: '@ecopages/react/layout-compose',
+					publicPath: '/assets/vendors/layout-compose.js',
+					externals: [],
+				},
+			],
 		]);
 	});
 
@@ -142,6 +152,7 @@ describe('buildReactRuntimeAliasMap', () => {
 				layoutCompose: '/assets/vendors/layout-compose.js',
 			}),
 		).toEqual({
+			'@ecopages/react/layout-compose': '/assets/vendors/layout-compose.js',
 			react: '/assets/vendors/react.js',
 			'react/jsx-runtime': '/assets/vendors/react.js',
 			'react/jsx-dev-runtime': '/assets/vendors/react.js',

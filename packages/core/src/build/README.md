@@ -139,7 +139,7 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 `BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
 
-- `splitting` — accepted but currently ignored. The bundler splits by default. The per-chunk naming is fixed to `[name]-[hash]`. If you need to disable splitting or rename chunks, the adapter will need a new option.
+- `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
 - `bundle` — accepted but ignored. The bundler always bundles.
 - `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
 

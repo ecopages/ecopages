@@ -19,11 +19,22 @@ export function getDevToolbarPackageSpec(appConfig: Pick<EcoPagesAppConfig, 'dev
 
 /**
  * Resolves the dev-toolbar package root from an application project directory.
+ *
+ * @remarks Walks up from the package entry rather than resolving `package.json`
+ * directly so packages with strict `exports` (no `./package.json` subpath) still work.
  */
 export function resolveDevToolbarPackageRoot(rootDir: string, packageSpec: string): string {
 	const require = createRequire(path.join(rootDir, 'package.json'));
-	const packageJsonPath = require.resolve(`${packageSpec}/package.json`);
-	return path.dirname(packageJsonPath);
+	let dir = path.dirname(require.resolve(packageSpec));
+
+	while (dir !== path.dirname(dir)) {
+		if (fileSystem.exists(path.join(dir, 'package.json'))) {
+			return dir;
+		}
+		dir = path.dirname(dir);
+	}
+
+	throw new Error(`Could not resolve package root for ${packageSpec}`);
 }
 
 /**

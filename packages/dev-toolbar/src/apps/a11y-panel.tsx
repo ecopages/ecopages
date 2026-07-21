@@ -5,10 +5,27 @@ import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import type { DevToolbarBadge } from '../api/types.ts';
 import { toA11yBadge } from './a11y/a11y-badge.ts';
-import { clearAuditCache, readAuditCache, writeAuditCache } from './a11y/audit-cache.ts';
 import { resolveA11yIssueElement, runA11yChecks, toA11yIssueView, type A11yIssueView } from './a11y/run-a11y-checks.ts';
 import { groupA11yIssues } from './a11y/a11y-issue-groups.ts';
 import { highlightElement } from '../runtime/highlight-element.ts';
+
+const auditCache = new Map<string, A11yIssueView[]>();
+
+function auditCacheKey(doc: Document): string {
+	return doc.defaultView?.location.href ?? '';
+}
+
+function readAuditCache(doc: Document): A11yIssueView[] | undefined {
+	return auditCache.get(auditCacheKey(doc));
+}
+
+function writeAuditCache(doc: Document, issues: A11yIssueView[]): void {
+	auditCache.set(auditCacheKey(doc), issues);
+}
+
+function clearAuditCache(doc: Document): void {
+	auditCache.delete(auditCacheKey(doc));
+}
 
 type DevToolbarHost = HTMLElement & {
 	setAppBadge: (appId: string, badge: DevToolbarBadge | undefined) => void;

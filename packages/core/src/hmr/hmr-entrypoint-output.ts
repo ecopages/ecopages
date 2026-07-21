@@ -40,6 +40,10 @@ export function encodeHmrDynamicSegments(filepath: string): string {
 	return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
 }
 
+export function decodeHmrDynamicSegments(filepath: string): string {
+	return filepath.replace(/_([^_/\\]+)_/g, '[$1]');
+}
+
 /**
  * @remarks
  * Runtime rebuilds must delete the previous artifact so the bundler does not

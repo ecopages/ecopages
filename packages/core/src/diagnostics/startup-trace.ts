@@ -8,7 +8,6 @@ export type StartupTracePhase =
 	| 'setupAppRuntimePlugins'
 	| 'route-registry'
 	| 'server-listen'
-	| 'dev-cold-client-graph'
 	| 'first-byte'
 	| 'first-page-browser-graph'
 	| 'dev-client-transform'

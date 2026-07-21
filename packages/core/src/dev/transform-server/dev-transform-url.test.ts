@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveDevTransformModuleUrl, resolveDevTransformModuleSourcePath, DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
+import {
+	resolveDevTransformModuleUrl,
+	resolveDevTransformModuleSourcePath,
+	DEV_TRANSFORM_URL_PREFIX,
+} from './dev-transform-url.ts';
 
 describe('dev transform urls', () => {
 	const srcDir = path.resolve('/app/src');

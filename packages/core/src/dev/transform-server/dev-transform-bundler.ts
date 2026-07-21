@@ -12,6 +12,7 @@ import type { DevTransformBundleContributor, DevTransformBundleResult } from './
 export type DevTransformBundlerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
+	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	vendorRegistry: DevTransformVendorRegistry;
 };
 
@@ -21,12 +22,14 @@ export type DevTransformBundlerOptions = {
 export class DevTransformBundler {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
+	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
 
 	constructor(options: DevTransformBundlerOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
+		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.vendorRegistry = options.vendorRegistry;
 		this.contributors.push(...(options.contributors ?? []));
 	}
@@ -37,22 +40,6 @@ export class DevTransformBundler {
 
 	private selectContributor(sourcePath: string): DevTransformBundleContributor | undefined {
 		return this.contributors.find((contributor) => contributor.ownsModule(sourcePath));
-	}
-
-	private resolveRuntimeSpecifierMap(): ReadonlyMap<string, string> {
-		const merged = new Map<string, string>();
-		for (const contributor of this.contributors) {
-			const runtimeSpecifierMap = contributor.getRuntimeSpecifierMap?.();
-			if (!runtimeSpecifierMap) {
-				continue;
-			}
-
-			for (const [specifier, url] of runtimeSpecifierMap) {
-				merged.set(specifier, url);
-			}
-		}
-
-		return merged;
 	}
 
 	private resolveTempOutdir(): string {
@@ -105,7 +92,7 @@ export class DevTransformBundler {
 			sourcePath: normalized,
 			srcDir: this.appConfig.absolutePaths.srcDir,
 			projectRoot: this.appConfig.rootDir,
-			runtimeSpecifierMap: this.resolveRuntimeSpecifierMap(),
+			runtimeSpecifierMap: this.getRuntimeSpecifierMap(),
 			resolveVendorUrl: (specifier) => this.vendorRegistry.resolveVendorUrl(specifier),
 		});
 

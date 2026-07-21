@@ -13,21 +13,21 @@ Each source file under `src/` is transpiled independently to browser ESM:
 1. Rolldown transpiles one module with all imports marked external (no app-graph bundling).
 2. Integration plugins run as transforms (client-graph boundary, MDX, etc.).
 3. Import specifiers are rewritten to:
-   - `/assets/__eco_dev__/…` for project source modules (relative paths and tsconfig aliases)
-   - `/assets/vendors/…` for bare npm imports (runtime manifest entries or lazy prebundles)
+    - `/assets/__eco_dev__/…` for project source modules (relative paths and tsconfig aliases)
+    - `/assets/vendors/…` for bare npm imports (runtime manifest entries or lazy prebundles)
 
-Imported `.css` files are served as default-exported CSS strings so Lit `unsafeCSS()` and similar patterns work without a separate stylesheet pipeline in dev.
+Imported stylesheet modules (`.css`) are materialized as default-exported CSS strings — the same graph contract as the server-side CSS shim (`createServerSideCssShimPlugin`): CSS stays in the import graph as a module while real stylesheet delivery uses `dependencies.stylesheets`. Lit `unsafeCSS()` and similar patterns work without a separate dev CSS pipeline.
 
 The browser resolves the module graph natively. Heavy npm deps are prebundled once and served with cacheable headers.
 
 ## Layer ownership
 
-| Layer            | Owner                                      | Responsibility                                      |
-| ---------------- | ------------------------------------------ | --------------------------------------------------- |
-| Dev client       | `DevTransformServer` (`transform-server/`) | Transpile modules per HTTP request; in-memory cache |
+| Layer            | Owner                                      | Responsibility                                       |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------- |
+| Dev client       | `DevTransformServer` (`transform-server/`) | Transpile modules per HTTP request; in-memory cache  |
 | Dev vendors      | `DevTransformVendorRegistry`               | Lazy prebundle bare npm imports to `/assets/vendors` |
-| Dev invalidation | `DevelopmentInvalidationService` + watcher | Invalidate transform cache; signal browser reload |
-| Prod client      | Rolldown unified graph                     | Ship optimized browser assets                       |
+| Dev invalidation | `DevelopmentInvalidationService` + watcher | Invalidate transform cache; signal browser reload    |
+| Prod client      | Rolldown unified graph                     | Ship optimized browser assets                        |
 
 ## Key modules
 
@@ -36,6 +36,7 @@ The browser resolves the module graph natively. Heavy npm deps are prebundled on
 - `transform-server/dev-transform-import-rewriter.ts` — rewrites static/dynamic import specifiers
 - `transform-server/dev-transform-vendor-registry.ts` — lazy vendor prebundle and static serving
 - `transform-server/dev-transform-url.ts` — stable `/assets/__eco_dev__/` URL prefix
+- `transform-server/dev-transform-module-kind.ts` — script vs stylesheet materialization dispatch
 
 Integrations register `getDevTransformBundleContributor()` to supply per-module Rolldown plugins for owned source files.
 

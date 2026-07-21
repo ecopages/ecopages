@@ -28,24 +28,32 @@ describe('DevTransformBundler', () => {
 		const rootDir = createTempRoot('dev-transform-bundler-lazy-import');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
-		fs.writeFileSync(path.join(pagesDir, 'lazy-devtools.ts'), "export const ReactQueryDevtools = 'devtools';\n", 'utf8');
+		fs.writeFileSync(
+			path.join(pagesDir, 'lazy-devtools.ts'),
+			"export const ReactQueryDevtools = 'devtools';\n",
+			'utf8',
+		);
 		const entrypointPath = path.join(pagesDir, 'login.tsx');
 		fs.writeFileSync(
 			entrypointPath,
 			[
-				"export async function loadDevtools() {",
+				'export async function loadDevtools() {',
 				"  const module = await import('./lazy-devtools.ts');",
-				"  return module.ReactQueryDevtools;",
-				"}",
+				'  return module.ReactQueryDevtools;',
+				'}',
 			].join('\n'),
 			'utf8',
 		);
 
 		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
 		installBuildRuntime(config);
-		const vendorRegistry = new DevTransformVendorRegistry({ appConfig: config });
+		const vendorRegistry = new DevTransformVendorRegistry({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
+		});
 		const bundler = new DevTransformBundler({
 			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry,
 		});
 
@@ -68,7 +76,11 @@ describe('DevTransformBundler', () => {
 		installBuildRuntime(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
-			vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
+			getRuntimeSpecifierMap: () => new Map(),
+			vendorRegistry: new DevTransformVendorRegistry({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+			}),
 		});
 
 		const [pageResult, componentResult] = await Promise.all([
@@ -87,10 +99,7 @@ describe('DevTransformBundler', () => {
 		const entrypointPath = path.join(pagesDir, 'images.tsx');
 		fs.writeFileSync(
 			entrypointPath,
-			[
-				"import { hero } from 'ecopages:images';",
-				'export const src = hero.src;',
-			].join('\n'),
+			["import { hero } from 'ecopages:images';", 'export const src = hero.src;'].join('\n'),
 			'utf8',
 		);
 
@@ -119,7 +128,11 @@ describe('DevTransformBundler', () => {
 
 		const bundler = new DevTransformBundler({
 			appConfig: config,
-			vendorRegistry: new DevTransformVendorRegistry({ appConfig: config }),
+			getRuntimeSpecifierMap: () => new Map(),
+			vendorRegistry: new DevTransformVendorRegistry({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+			}),
 		});
 
 		const result = await bundler.transpileModule(entrypointPath);

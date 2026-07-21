@@ -97,4 +97,51 @@ describe('parseCliArgs', () => {
 		});
 		expect(process.env.NODE_ENV).toBe('production');
 	});
+
+	it('forces production NODE_ENV for build when ambient env is development', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.env.NODE_ENV = 'development';
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];
+
+		expect(parseCliArgs()).toMatchObject({
+			build: true,
+			dev: false,
+		});
+		expect(process.env.NODE_ENV).toBe('production');
+	});
+
+	it('keeps development NODE_ENV for dev commands', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.env.NODE_ENV = 'development';
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'dev'];
+
+		expect(parseCliArgs()).toMatchObject({
+			dev: true,
+		});
+		expect(process.env.NODE_ENV).toBe('development');
+	});
+
+	it('forces production NODE_ENV for preview when ambient env is development', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.env.NODE_ENV = 'development';
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview'];
+
+		expect(parseCliArgs()).toMatchObject({
+			preview: true,
+			dev: false,
+		});
+		expect(process.env.NODE_ENV).toBe('production');
+	});
+
+	it('forces production NODE_ENV for start when ambient env is development', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.env.NODE_ENV = 'development';
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'start'];
+
+		expect(parseCliArgs()).toMatchObject({
+			start: true,
+			dev: false,
+		});
+		expect(process.env.NODE_ENV).toBe('production');
+	});
 });

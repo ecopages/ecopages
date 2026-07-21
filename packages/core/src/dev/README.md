@@ -60,3 +60,20 @@ Virtual modules such as `ecopages:images` are not externalized — app browser p
 ## Debugging consumer apps
 
 To measure startup / SSR / transform cost in an external app against local `packages/*/dist`, use [`scripts/debug-app.bench.mjs`](../../../../scripts/debug-app.bench.mjs) (documented in [`scripts/README.md`](../../../../scripts/README.md)). Pass `--app` and `--paths`; do not commit app-specific harnesses in this repo.
+
+## Shared browser vendors (`ecopages dev`)
+
+High-fanout npm packages (React, `runtimeModules`, and lazy prebundles) resolve to stable `/assets/vendors/*` URLs. Page and layout modules under `/assets/__eco_dev__/` import those URLs instead of inlining `node_modules` into per-route output.
+
+**Inspect cold cost in dev**
+
+1. Open DevTools Network and filter `/assets/vendors`.
+2. Expect one vendor file per shared package (for example `react-dom.development.js`, `zod.development.js`).
+3. Page modules stay small; heavy deps live in vendors.
+4. Second navigation to another route should reuse the same vendor URLs (browser cache / memory cache).
+
+`*.development.js` filenames and large transfer sizes are expected in `ecopages dev` — that is React’s development build, not a missing vendor split.
+
+**Reference fixture:** kitchen-sink `/vendor-share/a` and `/vendor-share/b` with e2e in `playground/kitchen-sink/e2e/shared-vendors.test.e2e.ts`.
+
+The `.eco` workdir can accumulate dev artifacts (including dynamic-import chunks). Use Network + `/assets/vendors` for cold-cost audits, not raw `.eco` disk size alone.

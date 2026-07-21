@@ -38,3 +38,15 @@ bun run build
 ```bash
 bun preview
 ```
+
+## Shared browser vendors (dev fixture)
+
+Routes `/vendor-share/a` and `/vendor-share/b` exercise the shared-vendor contract: both pages import the same `zod` runtime vendor via `src/data/vendor-share.ts` while keeping thin page modules.
+
+E2E coverage: `e2e/shared-vendors.test.e2e.ts` (runs under `cross-integration-dev-e2e`).
+
+To inspect locally:
+
+1. `bun dev`
+2. Open `/vendor-share/a`, then `/vendor-share/b`
+3. In Network, filter `/assets/vendors` — React and `zod` should each appear once and reuse across navigations

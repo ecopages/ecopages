@@ -312,6 +312,21 @@ export class ConfigBuilder {
 	}
 
 	/**
+	 * Configures the in-browser development toolbar shown during watch mode.
+	 *
+	 * @remarks
+	 * Requires `package` to point at a browser bootstrap module installed in the app.
+	 * Prefer {@link defineDevTool} for config authoring.
+	 */
+	setDevToolbar(devToolbar: NonNullable<EcoPagesAppConfig['devToolbar']>): this {
+		this.config.devToolbar = {
+			...this.config.devToolbar,
+			...devToolbar,
+		};
+		return this;
+	}
+
+	/**
 	 * Sets the integration plugins to use.
 	 * These plugins provide additional functionality to the application.
 	 *

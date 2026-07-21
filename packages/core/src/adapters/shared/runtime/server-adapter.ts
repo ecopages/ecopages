@@ -17,6 +17,10 @@ import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import {
+	injectDevToolbarIntoHtmlResponse,
+	shouldInjectDevToolbarHtmlResponse,
+} from '../../../dev-toolbar/dev-toolbar-html-response.ts';
+import {
 	injectHmrRuntimeIntoHtmlResponse,
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
@@ -264,14 +268,36 @@ export abstract class SharedServerAdapter<
 	}
 
 	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager, this.hostOwnsDevClient) &&
-			isHtmlResponse(response)
-		) {
-			return injectHmrRuntimeIntoHtmlResponse(response);
+		if (!isHtmlResponse(response)) {
+			return response;
 		}
 
-		return response;
+		let nextResponse = response;
+
+		if (
+			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager, this.hostOwnsDevClient) &&
+			isHtmlResponse(nextResponse)
+		) {
+			nextResponse = await injectHmrRuntimeIntoHtmlResponse(nextResponse);
+		}
+
+		if (
+			shouldInjectDevToolbarHtmlResponse(this.appConfig, {
+				watch: this.options?.watch ?? false,
+				hostOwnsDevClient: this.hostOwnsDevClient,
+			})
+		) {
+			nextResponse = await injectDevToolbarIntoHtmlResponse(
+				this.appConfig,
+				{
+					watch: this.options?.watch ?? false,
+					hostOwnsDevClient: this.hostOwnsDevClient,
+				},
+				nextResponse,
+			);
+		}
+
+		return nextResponse;
 	}
 
 	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {

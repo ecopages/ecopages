@@ -1,5 +1,6 @@
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageFile,
@@ -23,6 +24,9 @@ import type {
  */
 export type IntegrationRouteRenderAdapterHost<C> = {
 	readonly name: string;
+	readonly appConfig: EcoPagesAppConfig;
+	readonly watch: boolean;
+	readonly hostOwnsDevClient?: boolean;
 	resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderOrchestratorResolvedInputs>;
 	resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
@@ -64,6 +68,10 @@ export function createIntegrationRouteRenderAdapter<C>(
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),
 		getRouteHtmlFinalization: (renderOptions) =>
 			buildRouteHtmlFinalization({
+				appConfig: host.appConfig,
+				watch: host.watch,
+				hostOwnsDevClient: host.hostOwnsDevClient,
+				integrationName: host.name,
 				renderOptions,
 				getDocumentAttributes: (options) => host.getDocumentAttributes(options),
 				getHtmlDocumentContributions: (options) => host.getHtmlDocumentContributions(options),

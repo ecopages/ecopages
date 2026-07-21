@@ -192,6 +192,24 @@ export type EcoPagesAppConfig = {
 		registeredScriptEntrypointChangeHandlers?: RegisteredScriptEntrypointChangeHandler[];
 	};
 	/**
+	 * Development-only in-browser toolbar configuration.
+	 */
+	devToolbar?: {
+		/**
+		 * Whether the dev toolbar is enabled during watch mode.
+		 *
+		 * @default true when `package` is configured
+		 */
+		enabled?: boolean;
+		/**
+		 * Client package resolved from the application project and bundled to
+		 * `/_dev_toolbar.js` during watch mode.
+		 *
+		 * @example '@ecopages/dev-toolbar'
+		 */
+		package?: string;
+	};
+	/**
 	 * Experimental features.
 	 */
 	experimental?: {

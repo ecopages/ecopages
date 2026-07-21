@@ -186,6 +186,9 @@ export class SessionPageBrowserGraphCache {
 		return undefined;
 	}
 
+	/**
+	 * Page Browser Graph compilations in this dev-server session.
+	 */
 	getBuildCount(): number {
 		return this.buildCount;
 	}

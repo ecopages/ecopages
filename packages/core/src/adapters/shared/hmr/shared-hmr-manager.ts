@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
+import {
+	DEV_TOOLBAR_RUNTIME_SCRIPT_URL,
+	resolveDevToolbarRuntimeWorkDir,
+} from '../../../dev-toolbar/dev-toolbar-runtime-paths.ts';
+import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
 import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import {
 	removeStaleHmrEntrypointOutput,
@@ -58,12 +63,16 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
 	private runtimeBuildPromise: Promise<boolean> | null = null;
 	private runtimeReady = false;
+	private devToolbarWorkDir: string;
+	private devToolbarBuildPromise: Promise<boolean> | null = null;
+	private devToolbarReady = false;
 	protected readonly devTransformServer: DevTransformServer;
 
 	constructor({ appConfig, bridge }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.runtimeWorkDir = resolveHmrRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
+		this.devToolbarWorkDir = resolveDevToolbarRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
 		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
@@ -96,6 +105,17 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	protected ensureRuntimeWorkDir(): void {
 		fileSystem.ensureDir(this.runtimeWorkDir);
+		if (this.shouldBuildDevToolbar()) {
+			fileSystem.ensureDir(this.devToolbarWorkDir);
+		}
+	}
+
+	protected shouldBuildDevToolbar(): boolean {
+		return this.getDevToolbarHost().isEnabled();
+	}
+
+	private getDevToolbarHost(): DevToolbarHost {
+		return DevToolbarHost.forApp(this.appConfig, { watch: this.enabled });
 	}
 
 	protected shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
@@ -159,6 +179,14 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 * Builds the browser HMR runtime once per manager session and reuses the in-flight build for concurrent callers.
 	 */
 	public async ensureRuntimeReady(): Promise<boolean> {
+		const [hmrReady, devToolbarReady] = await Promise.all([
+			this.ensureHmrRuntimeReady(),
+			this.ensureDevToolbarRuntimeReady(),
+		]);
+		return hmrReady && devToolbarReady;
+	}
+
+	private async ensureHmrRuntimeReady(): Promise<boolean> {
 		if (this.runtimeReady) {
 			return true;
 		}
@@ -177,12 +205,47 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 	}
 
+	private async ensureDevToolbarRuntimeReady(): Promise<boolean> {
+		if (!this.shouldBuildDevToolbar()) {
+			return true;
+		}
+
+		if (this.devToolbarReady) {
+			return true;
+		}
+
+		if (this.devToolbarBuildPromise) {
+			return this.devToolbarBuildPromise;
+		}
+
+		this.devToolbarBuildPromise = this.buildDevToolbarRuntimeInternal();
+		try {
+			const ready = await this.devToolbarBuildPromise;
+			this.devToolbarReady = ready;
+			return ready;
+		} finally {
+			this.devToolbarBuildPromise = null;
+		}
+	}
+
 	public async buildRuntime(): Promise<void> {
 		await this.ensureRuntimeReady();
 	}
 
 	public getRuntimePath(): string {
 		return path.join(this.runtimeWorkDir, path.basename(HMR_RUNTIME_SCRIPT_URL));
+	}
+
+	private async buildDevToolbarRuntimeInternal(): Promise<boolean> {
+		return this.getDevToolbarHost().bundleClientRuntime({
+			browserBundleService: this.browserBundleService,
+			workDir: this.devToolbarWorkDir,
+			onFailure: (error) => this.onRuntimeBundleFailure(error),
+		});
+	}
+
+	public getDevToolbarRuntimePath(): string {
+		return path.join(this.devToolbarWorkDir, path.basename(DEV_TOOLBAR_RUNTIME_SCRIPT_URL));
 	}
 
 	private async buildRuntimeInternal(): Promise<boolean> {
@@ -436,6 +499,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 						'Cache-Control': 'no-store, must-revalidate',
 					},
 				});
+			}
+		}
+
+		if (url.pathname === DEV_TOOLBAR_RUNTIME_SCRIPT_URL && this.shouldBuildDevToolbar()) {
+			const runtimeResponse = this.getDevToolbarHost().readBundledRuntime(this.devToolbarWorkDir);
+			if (runtimeResponse) {
+				return runtimeResponse;
 			}
 		}
 

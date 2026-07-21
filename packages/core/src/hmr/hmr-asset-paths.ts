@@ -2,6 +2,8 @@ import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 
 export const DEV_TRANSFORM_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/__eco_dev__`;
 
+export const VENDOR_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/vendors`;
+
 /**
  * Strips cache-busting query parameters from a browser module URL.
  */

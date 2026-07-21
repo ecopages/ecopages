@@ -39,6 +39,7 @@
 		"@standard-schema/utils": "^0.3.0"
 	},
 	"devDependencies": {
+		"@ecopages/dev-toolbar": "workspace:*",
 		"@tanstack/react-query": "^5.90.2",
 		"@types/bun": "latest",
 		"@types/ws": "^8.18.1",
@@ -46,6 +47,14 @@
 		"tailwindcss": "^3.4.19",
 		"valibot": "^1.4.0",
 		"zod": "^4.4.3"
+	},
+	"peerDependencies": {
+		"@ecopages/dev-toolbar": "workspace:*"
+	},
+	"peerDependenciesMeta": {
+		"@ecopages/dev-toolbar": {
+			"optional": true
+		}
 	},
 	"exports": {
 		".": {
@@ -303,6 +312,22 @@
 		"./dev/transform-server": {
 			"types": "./src/dev/transform-server/index.ts",
 			"default": "./src/dev/transform-server/index.ts"
+		},
+		"./dev-toolbar/dev-toolbar-runtime-paths": {
+			"types": "./src/dev-toolbar/dev-toolbar-runtime-paths.ts",
+			"default": "./src/dev-toolbar/dev-toolbar-runtime-paths.ts"
+		},
+		"./dev-toolbar/dev-toolbar-package": {
+			"types": "./src/dev-toolbar/dev-toolbar-package.ts",
+			"default": "./src/dev-toolbar/dev-toolbar-package.ts"
+		},
+		"./dev-toolbar/dev-toolbar-host": {
+			"types": "./src/dev-toolbar/dev-toolbar-host.ts",
+			"default": "./src/dev-toolbar/dev-toolbar-host.ts"
+		},
+		"./dev-toolbar/define-dev-tool": {
+			"types": "./src/dev-toolbar/define-dev-tool.ts",
+			"default": "./src/dev-toolbar/define-dev-tool.ts"
 		}
 	}
 }

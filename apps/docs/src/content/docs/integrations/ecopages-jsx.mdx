@@ -88,6 +88,8 @@ The right mental model here is renderer-owned foreign children, not blanket clie
 
 For Ecopages JSX, Radiant custom-element hosts are the clearest island-like case: Ecopages renders the host HTML on the server, then the explicit Radiant hydrator upgrades that host in place on the client. Without that hydrator, the host falls back to a fresh client render instead of in-place hydration.
 
+See [Island Hosts](/docs/core/island-hosts) for the shared `data-eco-island` contract stamped on SSR roots.
+
 Important: foreign-child ownership is broader than hydration. Ecopages uses the same foreign-subtree contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
 
 ## Route Extensions

@@ -55,6 +55,7 @@ jobs:
                   path: |
                       packages/browser-router/dist
                       packages/core/dist
+                      packages/dev-toolbar/dist
                       packages/ecopages/dist
                       packages/file-system/dist
                       packages/integrations/kitajs/dist
@@ -164,6 +165,9 @@ jobs:
 
             - name: Publish npm package @ecopages/core
               run: pnpm run release:npm -- packages/core/dist
+
+            - name: Publish npm package @ecopages/dev-toolbar
+              run: pnpm run release:npm -- packages/dev-toolbar/dist
 
             - name: Publish npm package @ecopages/postcss-processor
               run: pnpm run release:npm -- packages/processors/postcss-processor/dist

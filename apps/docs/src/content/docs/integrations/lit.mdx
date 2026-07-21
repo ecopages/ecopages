@@ -145,6 +145,8 @@ Lit pages render on the server through a dedicated worker thread started when th
 - Lit component wrappers can declare scripts through `eco.component()` so browser assets stay dependency-driven.
 - Mixed-renderer shells hand Lit boundaries back to the Lit renderer instead of leaving unresolved placeholders in the route output.
 
+Lit components with client scripts stamp [island host attributes](/docs/core/island-hosts) on their SSR root.
+
 ## Best Practices
 
 1. **Component Naming**: Use kebab-case for custom element names (e.g., `lit-counter`).

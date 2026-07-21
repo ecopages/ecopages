@@ -210,7 +210,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				? await this.processComponentDependencies([input.component])
 				: undefined;
 
-		return {
+		return this.finalizeIslandComponentRender(input, {
 			html: queuedForeignSubtreeResolution.html,
 			canAttachAttributes: true,
 			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
@@ -219,7 +219,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				...(assets ?? []),
 				...queuedForeignSubtreeResolution.assets,
 			]),
-		};
+		});
 	}
 
 	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({

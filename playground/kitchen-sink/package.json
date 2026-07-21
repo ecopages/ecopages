@@ -55,6 +55,7 @@
 		"zod": "^4.4.3"
 	},
 	"dependencies": {
+		"@ecopages/dev-toolbar": "workspace:*",
 		"@mdx-js/mdx": "^3.1.1"
 	}
 }

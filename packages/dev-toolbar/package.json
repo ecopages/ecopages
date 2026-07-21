@@ -1,0 +1,35 @@
+{
+	"name": "@ecopages/dev-toolbar",
+	"version": "0.2.0-beta.30",
+	"description": "Development toolbar for Ecopages",
+	"keywords": [
+		"ecopages",
+		"devtools",
+		"dev-toolbar"
+	],
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": "./src/bootstrap.ts",
+		"./config": "./src/config.ts",
+		"./api": "./src/api/types.ts",
+		"./manifest": "./src/api/dev-manifest.ts"
+	},
+	"files": [
+		"src"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
+		"directory": "packages/dev-toolbar"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@ecopages/jsx": "0.3.0-beta.3",
+		"@ecopages/radiant": "0.3.0-beta.3",
+		"@ecopages/signals": "0.3.0-beta.3",
+		"axe-core": "^4.10.3"
+	}
+}

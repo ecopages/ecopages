@@ -110,6 +110,14 @@ _Avoid_: Client bundle, app bundle, vendor graph
 Integration-owned rules that decide how a Page or Component is rendered on the server and what browser bootstrap contract that server output requires.
 _Avoid_: SSR flag, hydration mode, server toggle
 
+**Island Host**:
+A hydratable component SSR root stamped with `data-eco-island` and `data-eco-island-integration` so devtools and client runtimes can discover interactive islands without integration-specific selectors.
+_Avoid_: island wrapper, hydration target
+
+**Dev Toolbar**:
+A development-only in-browser inspector injected during `ecopages dev`. It surfaces navigation, dependency, island, and accessibility diagnostics without shipping to production. Extend it by replacing `devToolbar.package` with a custom client package; integrations do not register dock apps.
+_Avoid_: dev overlay, debug widget
+
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell

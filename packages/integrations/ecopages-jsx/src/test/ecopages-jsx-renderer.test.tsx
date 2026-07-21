@@ -180,6 +180,42 @@ describe('EcopagesJsxRenderer', () => {
 			]);
 		});
 
+		it('stamps island host attributes when the instance has client scripts', async () => {
+			const processDependencies = vi.fn(async () => [
+				{
+					kind: 'script',
+					srcUrl: '/assets/island.js',
+					position: 'head',
+				},
+			]);
+			const renderer = new EcopagesJsxRenderer({
+				appConfig: Config,
+				assetProcessingService: {
+					processDependencies,
+				} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const Component = eco.component<{}, JsxRenderable>({
+				integration: 'ecopages-jsx',
+				dependencies: {
+					scripts: ['./island.script.ts'],
+				},
+				render: () => <section data-island-root>ready</section>,
+			});
+
+			const result = await renderer.renderComponent({
+				component: Component,
+				props: {},
+				integrationContext: { componentInstanceId: 'jsx-island-1' },
+			});
+
+			expect(result.rootAttributes?.['data-eco-island']).toBe('');
+			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('ecopages-jsx');
+			expect(result.rootAttributes?.['data-eco-component-id']).toBe('jsx-island-1');
+		});
+
 		it('exposes the compatibility foreign-subtree payload contract', async () => {
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: Config,

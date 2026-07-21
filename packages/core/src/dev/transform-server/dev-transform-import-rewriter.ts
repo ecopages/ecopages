@@ -1,10 +1,7 @@
 import path from 'node:path';
 
 import { cachedParseSync } from '../../cache/module-parse-cache.ts';
-import {
-	isBarePackageImportSpecifier,
-	resolveProjectModulePath,
-} from '../../plugins/tsconfig-import-resolver.ts';
+import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../../plugins/tsconfig-import-resolver.ts';
 import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 
 type ImportEdit = {
@@ -158,11 +155,7 @@ async function resolveImportSpecifier(options: {
 	}
 
 	if (options.specifier.startsWith('.') || !isBarePackageImportSpecifier(options.specifier, options.projectRoot)) {
-		const resolvedPath = resolveProjectModulePath(
-			options.projectRoot,
-			options.sourcePath,
-			options.specifier,
-		);
+		const resolvedPath = resolveProjectModulePath(options.projectRoot, options.sourcePath, options.specifier);
 		if (!resolvedPath) {
 			return undefined;
 		}

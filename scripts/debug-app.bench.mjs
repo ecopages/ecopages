@@ -111,14 +111,14 @@ function parseCli(argv) {
 			.filter(Boolean),
 	);
 	const cases = ALL_CASES.filter((name) => !skipCases.has(name));
-	const outPath = path.resolve(
-		repoRoot,
-		values.out ?? path.join('.audit', 'debug-app-bench.json'),
-	);
+	const outPath = path.resolve(repoRoot, values.out ?? path.join('.audit', 'debug-app-bench.json'));
 
 	return {
 		appDir,
-		paths: values.paths.split(',').map((value) => value.trim()).filter(Boolean),
+		paths: values.paths
+			.split(',')
+			.map((value) => value.trim())
+			.filter(Boolean),
 		port: Number(values.port),
 		hostname: values.hostname,
 		linkLocal: values['link-local'],
@@ -211,19 +211,15 @@ function startDevServer(options) {
 			clearAppCaches(appDir);
 		}
 
-		const child = spawn(
-			'pnpm',
-			['exec', 'ecopages', 'dev', '-r', '-p', String(port), '-n', hostname],
-			{
-				cwd: appDir,
-				env: {
-					...process.env,
-					ECOPAGES_STARTUP_TRACE: 'true',
-					ECOPAGES_LOGGER_DEBUG: 'false',
-				},
-				stdio: ['ignore', 'pipe', 'pipe'],
+		const child = spawn('pnpm', ['exec', 'ecopages', 'dev', '-r', '-p', String(port), '-n', hostname], {
+			cwd: appDir,
+			env: {
+				...process.env,
+				ECOPAGES_STARTUP_TRACE: 'true',
+				ECOPAGES_LOGGER_DEBUG: 'false',
 			},
-		);
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
 
 		let output = '';
 		const append = (chunk) => {
@@ -281,9 +277,7 @@ async function fetchRoute(baseUrl, routePath) {
 }
 
 async function measureModuleUrls(baseUrl, html) {
-	const urls = [...html.matchAll(/["'](\/assets\/(?:__eco_dev__|vendors)\/[^"']+)["']/g)].map(
-		(match) => match[1],
-	);
+	const urls = [...html.matchAll(/["'](\/assets\/(?:__eco_dev__|vendors)\/[^"']+)["']/g)].map((match) => match[1]);
 	const uniqueUrls = [...new Set(urls)];
 	const modules = [];
 
@@ -380,14 +374,10 @@ async function runCase(options) {
 
 async function withLinkedLocalPackages(config, matchedPackages, runBody) {
 	const packageJsonPath = path.join(config.appDir, 'package.json');
-	const workspaceYamlPath = config.workspaceDir
-		? path.join(config.workspaceDir, 'pnpm-workspace.yaml')
-		: null;
+	const workspaceYamlPath = config.workspaceDir ? path.join(config.workspaceDir, 'pnpm-workspace.yaml') : null;
 	const packageJsonBackup = fs.readFileSync(packageJsonPath, 'utf8');
 	const workspaceBackup =
-		workspaceYamlPath && fs.existsSync(workspaceYamlPath)
-			? fs.readFileSync(workspaceYamlPath, 'utf8')
-			: null;
+		workspaceYamlPath && fs.existsSync(workspaceYamlPath) ? fs.readFileSync(workspaceYamlPath, 'utf8') : null;
 
 	try {
 		const packageJson = readJson(packageJsonPath);

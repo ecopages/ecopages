@@ -67,10 +67,10 @@ ecopages dev -r
 
 Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
 
-| Env var                                        | CLI                    | What you get                                                                                   |
-| :--------------------------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
-| `ECOPAGES_LOGGER_DEBUG=true`                   | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
-| `ECOPAGES_STARTUP_TRACE=true`                  | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+| Env var                       | CLI                    | What you get                                                                                   |
+| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 

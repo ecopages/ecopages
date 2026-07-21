@@ -24,10 +24,7 @@ afterEach(() => {
 	}
 });
 
-async function readDevTransformResponse(
-	manager: SharedHmrManager,
-	moduleUrl: string,
-): Promise<Response | null> {
+async function readDevTransformResponse(manager: SharedHmrManager, moduleUrl: string): Promise<Response | null> {
 	return manager.tryHandleDevClientRequest(new Request(`http://localhost${moduleUrl}`));
 }
 
@@ -97,15 +94,19 @@ describe.each(runtimes)('dev-transform dynamic import contract: $name', ({ creat
 		const rootDir = createTempRoot('dev-transform-dynamic-import-contract');
 		const pagesDir = path.join(rootDir, 'src', 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
-		fs.writeFileSync(path.join(pagesDir, 'lazy-devtools.ts'), "export const ReactQueryDevtools = 'devtools';\n", 'utf8');
+		fs.writeFileSync(
+			path.join(pagesDir, 'lazy-devtools.ts'),
+			"export const ReactQueryDevtools = 'devtools';\n",
+			'utf8',
+		);
 		const entrypointPath = path.join(pagesDir, 'login.tsx');
 		fs.writeFileSync(
 			entrypointPath,
 			[
-				"export async function loadDevtools() {",
+				'export async function loadDevtools() {',
 				"  const module = await import('./lazy-devtools.ts');",
-				"  return module.ReactQueryDevtools;",
-				"}",
+				'  return module.ReactQueryDevtools;',
+				'}',
 			].join('\n'),
 			'utf8',
 		);

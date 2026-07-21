@@ -23,6 +23,7 @@
 		"strict": true,
 		"target": "ES2021",
 		"useDefineForClassFields": true,
-		"verbatimModuleSyntax": true
+		"verbatimModuleSyntax": true,
+		"types": ["node"]
 	}
 }

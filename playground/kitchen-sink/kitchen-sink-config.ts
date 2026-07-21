@@ -8,6 +8,7 @@
 
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { devToolbar } from '@ecopages/dev-toolbar/config';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -82,5 +83,6 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 				}),
 			),
 		])
+		.setDevToolbar(devToolbar())
 		.build();
 }

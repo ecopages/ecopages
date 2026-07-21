@@ -308,13 +308,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 					this.recordHmrOwnership([input.component as EcoComponent]);
 
-					return {
+					return this.finalizeIslandComponentRender(input, {
 						html: queuedForeignSubtreeResolution.html,
 						canAttachAttributes: true,
 						rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 						integrationName: this.name,
 						assets,
-					};
+					});
 				} catch (error) {
 					this.renderSession.endCollectedAssetFrame(assetFrame);
 					throw this.createRenderError('Error rendering component', error);

@@ -153,6 +153,9 @@ describe('RouteRenderOrchestrator', () => {
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
 				getRouteHtmlFinalization: () =>
 					buildRouteHtmlFinalization({
+						appConfig,
+						watch: false,
+						integrationName: 'test',
 						renderOptions: {} as IntegrationRendererRenderOptions,
 						getDocumentAttributes: () => ({ 'data-eco-document-owner': 'react-router' }),
 						getHtmlDocumentContributions: () => undefined,

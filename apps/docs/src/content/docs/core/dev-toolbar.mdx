@@ -1,0 +1,89 @@
+---
+title: "Dev toolbar"
+description: "Development-only in-browser inspector for navigation, dependencies, islands, and accessibility."
+order: 13
+---
+
+# Dev toolbar
+
+The Ecopages **dev toolbar** is a development-only browser inspector inspired by [Astro's dev toolbar](https://docs.astro.build/en/guides/dev-toolbar/). It mounts during `ecopages dev` and does not ship to production builds.
+
+Use it to answer three common questions while building:
+
+1. **How did this page render?** (Integration, route timing)
+2. **What browser assets does this page load?** (Page Browser Graph entries, chunks, vendors)
+3. **What interactive islands are on the page?** ([island hosts](/docs/core/island-hosts))
+
+## Enable the toolbar
+
+Install the reference package in your app and opt in from config:
+
+```bash
+pnpm add -D @ecopages/dev-toolbar
+```
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { devToolbar } from '@ecopages/dev-toolbar/config';
+
+export default new ConfigBuilder()
+  .setRootDir(import.meta.dirname)
+  .setDevToolbar(devToolbar())
+  .build();
+```
+
+Disable per project with `devToolbar({ enabled: false })`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
+
+Restart the dev server after toolbar client changes.
+
+## Built-in apps
+
+| App | What it shows |
+| --- | --- |
+| **Navigation** | URL route, owning Integration, HMR status, and client navigation timings |
+| **Deps** | Page Browser Graph entry/chunk assets, vendor URLs, and dev-transform URLs from `#__ECO_DEV_MANIFEST__` |
+| **Islands** | Live island hosts stamped with `data-eco-island`; click a row to highlight the DOM node |
+| **A11y** | axe-core audit (with built-in fallback checks) and in-page highlights |
+| **Settings** | Dock placement, stealth mode, and documentation link |
+
+## Dev manifest
+
+Each dev HTML response includes a JSON script tag:
+
+```html
+<script type="application/json" id="__ECO_DEV_MANIFEST__">…</script>
+```
+
+The toolbar reads this manifest client-side. Important fields:
+
+| Field | Meaning |
+| --- | --- |
+| `route` | Absolute filesystem path of the page file that rendered this response |
+| `integration` | Owning Integration plugin name for that page file (for example `react`, `kitajs`, `lit`) |
+| `pageBrowserGraph` | Entry and chunk assets for the current route |
+| `vendorUrls` | Vendor asset URLs referenced by the page package |
+| `devTransformUrls` | Dev-transform module URLs under `/assets/__eco_dev__/` |
+
+Machine-readable navigation history is also written to `#__ECO_DEV_NAV_TELEMETRY__` for agents and debugging.
+
+## Island discovery
+
+Hydratable components stamp [island host attributes](/docs/core/island-hosts). The Islands app reads `data-eco-island`, `data-eco-island-integration`, and related markers — not integration-specific selectors.
+
+## Bring your own toolbar
+
+Core delivers `/_dev_toolbar.js` and injects `#__ECO_DEV_MANIFEST__` on each dev HTML response. To customize the inspector, set `devToolbar.package` to your own client package and export a browser bootstrap module that mounts your toolbar UI.
+
+Integrations do not register dock apps. Fork [`@ecopages/dev-toolbar`](https://github.com/ecopages/ecopages/tree/main/packages/dev-toolbar) for a working reference layout.
+
+```typescript
+import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
+
+.setDevToolbar(defineDevTool('@acme/my-dev-toolbar'))
+```
+
+## Related docs
+
+- [HMR](/docs/core/hmr) — hot updates and the client bridge
+- [Island hosts](/docs/core/island-hosts) — SSR markers for interactive islands
+- [Configuration](/docs/getting-started/configuration) — `eco.config.ts` options

@@ -28,3 +28,11 @@ export {
 } from './plugins/source-transform.ts';
 export { createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
 export { SchemaError, validateStandardSchema } from './services/validation/validate-standard-schema.ts';
+export {
+	buildIslandHostAttributes,
+	ECO_ISLAND_HOST_ATTRIBUTE,
+	ECO_ISLAND_INTEGRATION_ATTRIBUTE,
+	finalizeIslandComponentRender,
+	isIslandHostElement,
+	mergeIslandHostAttributes,
+} from './islands/island-host.ts';

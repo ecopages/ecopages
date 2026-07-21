@@ -15,6 +15,7 @@ type EcoPagesWindowRuntime = {
 		cleanupPageRoot?: CleanupPageRootFunction;
 		pageRoot?: EcoPageRoot | null;
 	};
+	islandRoots?: Record<string, EcoPageRoot>;
 	page?: EcoPageData;
 };
 

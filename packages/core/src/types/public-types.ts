@@ -8,6 +8,7 @@ import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-p
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type { EcoPageComponent } from '../eco/eco.types.ts';
@@ -287,10 +288,15 @@ export interface IHmrManager {
 	 * Registers a client entrypoint for dev-transform delivery and HMR watching.
 	 *
 	 * @remarks
-	 * Returns a stable `/assets/__eco_dev__/…` URL immediately; the bundle is
-	 * materialized on the first browser request.
+	 * Returns a stable `/assets/__eco_dev__/…` URL immediately; the module is
+	 * transpiled on the first browser request (per-file ESM, not a page bundle).
 	 */
 	registerEntrypoint(entrypointPath: string): Promise<string>;
+
+	/**
+	 * Registers an integration contributor that supplies per-module transform plugins.
+	 */
+	registerDevTransformContributor(contributor: DevTransformBundleContributor): void;
 
 	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 

@@ -14,10 +14,11 @@ All notable changes to `@ecopages/core` are documented here.
 - Removed write-only Page Browser Graph disk manifest persistence (`.browser-pages-graph`). Production static export still prebuilds graphs into the in-memory `page-browser-graph-session`.
 - Removed deprecated `config.layout` innermost alias on page configs. Use `config.layouts` and `config.layoutEntries` instead.
 - `createAliasResolverPlugin` now takes the app **project root** (not `srcDir`) and resolves aliases from tsconfig `compilerOptions.paths` only. Apps without tsconfig `paths` get no alias resolver handlers. Hardcoded `@/` → `srcDir` mapping is removed.
+- Removed dev HMR entrypoint disk cache, grouped cold-graph prewarm, and `ECOPAGES_DEV_COLD_CLIENT_GRAPH*` env vars. Dev client modules are transpiled per source file on demand with in-memory caching and lazy `/assets/vendors` prebundles.
 
 ### Features
 
-- Added dev HMR entrypoint disk cache, in-flight registration coalescing, and integration hooks for cold client-graph prewarm (`ECOPAGES_DEV_COLD_CLIENT_GRAPH`, `ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING`).
+- Dev transform serves per-module browser ESM: transpile one file, rewrite imports to `__eco_dev__` or vendor URLs, memory cache only.
 - Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
 - Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
 - Added `EcoDeclaredComponent` validation for `dependencies.components` entries.
@@ -32,6 +33,12 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Dev transform vendor prebundles resolve bare packages with `"browser"` export conditions so dual packages such as `@ecopages/core` do not pull Node builtins into the client graph.
+- Dev transform vendor prebundles apply integration client-graph boundary plugins, disable code splitting, and exclude app build plugins so server-only package graphs cannot reach the browser.
+- Browser-target Rolldown builds fail hard on `node:*` builtins instead of emitting them as external script URLs.
+- Dev transform vendor registry merges runtime manifest specifiers from all contributors and rejects server-only package main entries (for example `@ecopages/react` plugin paths).
+- Dev transform externalize pass skips namespaced virtual modules (`ecopages:images`) so they inline instead of emitting a broken bare `images` import.
+- React HMR broadcasts `layout-update` for layout file changes even when no page module update URLs are queued.
 - Resolve project import aliases from tsconfig `paths` via oxc-resolver instead of a hardcoded `@/` → `srcDir` mapping.
 - Fixed RouteRegistry static path expansion to load page modules through integration renderers so Radiant SSR setup runs before JSX page imports during build.
 - Fixed app-owned server module loading so integration loaders (including React MDX) participate during request-time and static generation.

@@ -231,10 +231,6 @@
 			"types": "./src/build/cache/production-build-cache.ts",
 			"default": "./src/build/cache/production-build-cache.ts"
 		},
-		"./build/dev-hmr-entrypoint-cache": {
-			"types": "./src/build/cache/dev-hmr-entrypoint-cache.ts",
-			"default": "./src/build/cache/dev-hmr-entrypoint-cache.ts"
-		},
 		"./build/server-entry-build-cache": {
 			"types": "./src/build/cache/server-entry-build-cache.ts",
 			"default": "./src/build/cache/server-entry-build-cache.ts"

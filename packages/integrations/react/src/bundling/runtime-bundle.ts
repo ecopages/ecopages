@@ -189,6 +189,7 @@ export class RuntimeBundleService {
 			this.getRuntimeImports(mode),
 			this.getConfiguredRuntimeModules(),
 			(outputName) => buildBrowserRuntimeAssetUrl(this.getConfiguredRuntimeModuleFileName(outputName, mode)),
+			{ routerImportPath: this.config.routerAdapter?.bundle.importPath },
 		);
 	}
 

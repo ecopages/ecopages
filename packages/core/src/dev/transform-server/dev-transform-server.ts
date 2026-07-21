@@ -1,10 +1,14 @@
 import path from 'node:path';
+
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
-import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
+import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
+import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 
 type CacheEntry = {
 	code: string;
@@ -14,20 +18,22 @@ type CacheEntry = {
 export type DevTransformServerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
-	onEntrypointDependencies?: (entrypointPath: string, dependencies: string[]) => void;
+	onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 };
 
 /**
- * Serves browser client modules on demand during native CLI dev.
+ * Serves per-module browser ESM on demand during native CLI dev.
  *
  * @remarks
  * Registration returns a stable URL immediately; the first request (or a cache miss)
- * runs Rolldown on demand. Replaces blocking Rolldown `registerEntrypoint` emits.
+ * transpiles one source file and rewrites imports to dev-transform or vendor URLs.
  */
 export class DevTransformServer {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly bundler: DevTransformBundler;
-	private readonly onEntrypointDependencies?: (entrypointPath: string, dependencies: string[]) => void;
+	private readonly vendorRegistry: DevTransformVendorRegistry;
+	private readonly contributors: DevTransformBundleContributor[] = [];
+	private readonly onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
 	private readonly cache = new Map<string, CacheEntry>();
@@ -36,10 +42,19 @@ export class DevTransformServer {
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
-		this.onEntrypointDependencies = options.onEntrypointDependencies;
+		this.onModuleDependencies = options.onModuleDependencies;
+		this.contributors.push(...(options.contributors ?? []));
+		this.vendorRegistry = new DevTransformVendorRegistry({
+			appConfig: options.appConfig,
+			resolveVendorBundlePlugins: () => this.resolveVendorBundlePlugins(),
+		});
+		for (const contributor of this.contributors) {
+			this.vendorRegistry.mergeRuntimeSpecifierMap(contributor.getRuntimeSpecifierMap?.());
+		}
 		this.bundler = new DevTransformBundler({
 			appConfig: options.appConfig,
-			contributors: options.contributors ?? [],
+			contributors: this.contributors,
+			vendorRegistry: this.vendorRegistry,
 		});
 	}
 
@@ -61,7 +76,22 @@ export class DevTransformServer {
 	}
 
 	addContributor(contributor: DevTransformBundleContributor): void {
+		this.contributors.push(contributor);
 		this.bundler.addContributor(contributor);
+		this.vendorRegistry.mergeRuntimeSpecifierMap(contributor.getRuntimeSpecifierMap?.());
+	}
+
+	private async resolveVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {
+		const plugins: EcoBuildPlugin[] = [];
+		for (const contributor of this.contributors) {
+			if (!contributor.getVendorBundlePlugins) {
+				continue;
+			}
+
+			plugins.push(...(await contributor.getVendorBundlePlugins()));
+		}
+
+		return plugins;
 	}
 
 	getWatchedModules(): ReadonlyMap<string, string> {
@@ -69,13 +99,15 @@ export class DevTransformServer {
 	}
 
 	invalidateSource(sourcePath: string): void {
-		this.cache.delete(path.resolve(sourcePath));
+		const normalized = path.resolve(sourcePath);
+		this.cache.delete(normalized);
 	}
 
 	invalidateAll(): void {
 		this.cacheGeneration += 1;
 		this.cache.clear();
 		this.inFlight.clear();
+		this.vendorRegistry.invalidateAll();
 	}
 
 	reset(): void {
@@ -86,20 +118,29 @@ export class DevTransformServer {
 
 	async tryHandleRequest(request: Request): Promise<Response | null> {
 		const url = new URL(request.url);
-		const sourcePath = this.urlToSource.get(url.pathname);
+
+		const vendorResponse = this.vendorRegistry.tryHandleVendorRequest(url.pathname);
+		if (vendorResponse) {
+			return vendorResponse;
+		}
+
+		const sourcePath =
+			this.urlToSource.get(url.pathname) ??
+			this.resolveSourcePathFromModuleUrl(url.pathname);
 		if (!sourcePath) {
 			return null;
 		}
 
 		startupTrace.beginDevClientTransform();
+		const startedAt = performance.now();
 		try {
 			const entry = await this.materialize(sourcePath);
-			return new Response(entry.code, {
-				headers: {
-					'Content-Type': 'application/javascript',
-					'Cache-Control': 'no-store, must-revalidate',
-				},
-			});
+			if (process.env.ECOPAGES_STARTUP_TRACE === 'true') {
+				appLogger.debug(
+					`[dev-transform] materialize path=${url.pathname} bytes=${entry.code.length} durationMs=${Math.round(performance.now() - startedAt)}`,
+				);
+			}
+			return this.createJavaScriptResponse(entry.code);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return new Response(message, {
@@ -112,6 +153,28 @@ export class DevTransformServer {
 		} finally {
 			startupTrace.endDevClientTransform();
 		}
+	}
+
+	private resolveSourcePathFromModuleUrl(moduleUrl: string): string | undefined {
+		const discoveredSourcePath = resolveDevTransformModuleSourcePath(
+			this.appConfig.absolutePaths.srcDir,
+			moduleUrl,
+		);
+		if (!discoveredSourcePath) {
+			return undefined;
+		}
+
+		this.registerModule(discoveredSourcePath);
+		return path.resolve(discoveredSourcePath);
+	}
+
+	private createJavaScriptResponse(code: string): Response {
+		return new Response(code, {
+			headers: {
+				'Content-Type': 'application/javascript',
+				'Cache-Control': 'no-store, must-revalidate',
+			},
+		});
 	}
 
 	private async materialize(sourcePath: string): Promise<CacheEntry> {
@@ -131,16 +194,25 @@ export class DevTransformServer {
 			return pending;
 		}
 
+		if (path.extname(normalized) === '.css') {
+			const entry: CacheEntry = {
+				code: `export default ${JSON.stringify(fileSystem.readFileSync(normalized))};\n`,
+				sourceHash,
+			};
+			this.cache.set(normalized, entry);
+			return entry;
+		}
+
 		const generation = this.cacheGeneration;
 		const promise = this.bundler
-			.bundleEntrypoint(normalized)
+			.transpileModule(normalized)
 			.then((result) => {
 				if (generation !== this.cacheGeneration) {
-					throw new Error(`[dev-transform] Stale bundle result for ${normalized}`);
+					throw new Error(`[dev-transform] Stale transpile result for ${normalized}`);
 				}
 
 				if (result.dependencies) {
-					this.onEntrypointDependencies?.(normalized, result.dependencies);
+					this.onModuleDependencies?.(normalized, result.dependencies);
 				}
 
 				const entry: CacheEntry = { code: result.code, sourceHash: fileSystem.hash(normalized) };

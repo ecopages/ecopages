@@ -149,13 +149,14 @@ export abstract class HmrStrategy {
 	abstract matches(filePath: string): boolean;
 
 	/**
-	 * Returns whether this strategy supplies dev-transform plugins for the entrypoint.
+	 * Returns whether this strategy supplies dev-transform plugins for a source module.
 	 *
 	 * @remarks
-	 * Used by {@link DevTransformBundler} to select integration-owned Rolldown plugins.
-	 * File-change dispatch continues to use {@link matches}.
+	 * Used by {@link DevTransformBundler} to select integration-owned plugins for any
+	 * module in the per-file ESM graph (pages and imported children). File-change
+	 * dispatch continues to use {@link matches}.
 	 */
-	ownsDevTransformEntrypoint(_entrypointPath: string): boolean {
+	ownsDevTransformEntrypoint(_sourcePath: string): boolean {
 		return false;
 	}
 

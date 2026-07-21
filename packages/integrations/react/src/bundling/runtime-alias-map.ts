@@ -7,6 +7,11 @@ import {
 	type BrowserRuntimeAssetDeclaration,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build/browser-runtime-manifest';
+import { LAYOUT_COMPOSE_PACKAGE } from './bootstrap-package-paths.ts';
+
+export type BuildReactRuntimeManifestOptions = {
+	routerImportPath?: string;
+};
 
 export const REACT_RUNTIME_SPECIFIERS = [
 	'react',
@@ -37,7 +42,34 @@ export function buildReactRuntimeManifest(
 	runtimeImports: ReactRuntimeImports,
 	configuredRuntimeModules: readonly ResolvedReactPluginRuntimeModule[] = [],
 	getConfiguredRuntimeModulePublicPath: (outputName: string) => string = () => '',
+	options?: BuildReactRuntimeManifestOptions,
 ): BrowserRuntimeManifest {
+	const frameworkDeclarations: BrowserRuntimeAssetDeclaration[] = [
+		{
+			specifier: LAYOUT_COMPOSE_PACKAGE,
+			owner: '@ecopages/react',
+			importPath: LAYOUT_COMPOSE_PACKAGE,
+			publicPath: runtimeImports.layoutCompose,
+		},
+	];
+
+	if (options?.routerImportPath && runtimeImports.router) {
+		frameworkDeclarations.push(
+			{
+				specifier: options.routerImportPath,
+				owner: '@ecopages/react-router',
+				importPath: options.routerImportPath,
+				publicPath: runtimeImports.router,
+			},
+			{
+				specifier: '@ecopages/react-router',
+				owner: '@ecopages/react-router',
+				importPath: options.routerImportPath,
+				publicPath: runtimeImports.router,
+			},
+		);
+	}
+
 	return createBrowserRuntimeManifest([
 		{
 			specifier: 'react',
@@ -93,6 +125,7 @@ export function buildReactRuntimeManifest(
 			importPath: 'use-sync-external-store/shim/with-selector.js',
 			publicPath: runtimeImports.useSyncExternalStoreWithSelector,
 		},
+		...frameworkDeclarations,
 		...buildConfiguredRuntimeModuleManifestEntries(configuredRuntimeModules, getConfiguredRuntimeModulePublicPath),
 	]);
 }

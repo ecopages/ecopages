@@ -1,25 +1,33 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
+
 import { fileSystem } from '@ecopages/file-system';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { createDevTransformExternalizeImportsPlugin } from './dev-transform-externalize-plugin.ts';
+import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
+import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
 
 export type DevTransformBundlerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
+	vendorRegistry: DevTransformVendorRegistry;
 };
 
 /**
- * Bundles one dev client entrypoint with Rolldown (in-memory read after emit).
+ * Transpiles one dev client module at a time to browser ESM with rewritten imports.
  */
 export class DevTransformBundler {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
+	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
 
 	constructor(options: DevTransformBundlerOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
+		this.vendorRegistry = options.vendorRegistry;
 		this.contributors.push(...(options.contributors ?? []));
 	}
 
@@ -27,8 +35,24 @@ export class DevTransformBundler {
 		this.contributors.push(contributor);
 	}
 
-	private selectContributor(entrypointPath: string): DevTransformBundleContributor | undefined {
-		return this.contributors.find((contributor) => contributor.ownsEntrypoint(entrypointPath));
+	private selectContributor(sourcePath: string): DevTransformBundleContributor | undefined {
+		return this.contributors.find((contributor) => contributor.ownsModule(sourcePath));
+	}
+
+	private resolveRuntimeSpecifierMap(): ReadonlyMap<string, string> {
+		const merged = new Map<string, string>();
+		for (const contributor of this.contributors) {
+			const runtimeSpecifierMap = contributor.getRuntimeSpecifierMap?.();
+			if (!runtimeSpecifierMap) {
+				continue;
+			}
+
+			for (const [specifier, url] of runtimeSpecifierMap) {
+				merged.set(specifier, url);
+			}
+		}
+
+		return merged;
 	}
 
 	private resolveTempOutdir(): string {
@@ -36,61 +60,58 @@ export class DevTransformBundler {
 		return path.join(distDir, '.dev-transform');
 	}
 
-	async bundleEntrypoint(entrypointPath: string): Promise<DevTransformBundleResult> {
-		const normalized = path.resolve(entrypointPath);
+	async transpileModule(sourcePath: string): Promise<DevTransformBundleResult> {
+		const normalized = path.resolve(sourcePath);
 		const contributor = this.selectContributor(normalized);
-		const pagePlugins = contributor ? await contributor.getPageBuildPlugins(normalized) : [];
+		const pagePlugins = contributor ? await contributor.getModulePlugins(normalized) : [];
 		const tempDir = this.resolveTempOutdir();
 		fileSystem.ensureDir(tempDir);
 
+		/**
+		 * @remarks
+		 * Entry key is a path hash so concurrent transpiles of different modules that
+		 * share a basename (e.g. multiple `index.tsx`) never collide on disk output.
+		 */
+		const entryKey = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
 		const result = await this.browserBundleService.bundle({
 			profile: 'hmr-entrypoint',
-			entrypoints: [normalized],
+			entrypoints: { [entryKey]: normalized },
 			outdir: tempDir,
-			naming: '[name].[hash].tmp',
-			plugins: [...pagePlugins],
+			naming: '[name].js',
+			plugins: [createDevTransformExternalizeImportsPlugin(), ...pagePlugins],
 			minify: false,
-			splitting: false,
 		});
 
 		if (!result.success) {
-			throw new Error(`[dev-transform] Build failed for ${normalized}`);
+			const details = result.logs.map((log) => log.message).join('\n');
+			throw new Error(
+				details
+					? `[dev-transform] Transpile failed for ${normalized}:\n${details}`
+					: `[dev-transform] Transpile failed for ${normalized}`,
+			);
 		}
 
-		const tempPath = result.outputs[0]?.path;
-		if (!tempPath) {
-			throw new Error(`[dev-transform] No output for ${normalized}`);
+		const outputPath =
+			result.entryOutputs?.[normalized] ??
+			result.outputs.find((output) => path.basename(output.path) === `${entryKey}.js`)?.path ??
+			result.outputs[0]?.path;
+		if (!outputPath) {
+			throw new Error(`[dev-transform] No transpile output for ${normalized}`);
 		}
 
-		const resolvedPath = await resolveRolldownTempOutputPath(tempPath);
-		if (!resolvedPath) {
-			throw new Error(`[dev-transform] Missing temp output for ${normalized}: ${tempPath}`);
-		}
-
-		const dependencies = result.dependencyGraph?.entrypoints[normalized];
+		const transpiledCode = fileSystem.readFileSync(outputPath);
+		const rewritten = await rewriteModuleImports({
+			code: transpiledCode,
+			sourcePath: normalized,
+			srcDir: this.appConfig.absolutePaths.srcDir,
+			projectRoot: this.appConfig.rootDir,
+			runtimeSpecifierMap: this.resolveRuntimeSpecifierMap(),
+			resolveVendorUrl: (specifier) => this.vendorRegistry.resolveVendorUrl(specifier),
+		});
 
 		return {
-			code: fileSystem.readFileSync(resolvedPath),
-			dependencies,
+			code: rewritten.code,
+			dependencies: rewritten.dependencies,
 		};
 	}
-}
-
-async function resolveRolldownTempOutputPath(tempPath: string): Promise<string | null> {
-	if (fileSystem.exists(tempPath)) {
-		return tempPath;
-	}
-
-	if (!tempPath.includes('[hash]')) {
-		return null;
-	}
-
-	const directory = path.dirname(tempPath);
-	const pattern = path.basename(tempPath).replaceAll('[hash]', '*');
-	const matches = await fileSystem.glob([pattern], { cwd: directory });
-	if (matches.length === 0) {
-		return null;
-	}
-
-	return path.isAbsolute(matches[0]!) ? matches[0]! : path.join(directory, matches[0]!);
 }

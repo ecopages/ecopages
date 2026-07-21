@@ -243,26 +243,34 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return this.isReactEntrypoint(filePath);
 	}
 
-	override ownsDevTransformEntrypoint(entrypointPath: string): boolean {
-		if (!this.isReactEntrypoint(entrypointPath)) {
+	override ownsDevTransformEntrypoint(sourcePath: string): boolean {
+		if (!this.isReactEntrypoint(sourcePath)) {
 			return false;
 		}
 
-		return (
-			this.ownsWatchedEntrypoint(entrypointPath) ||
-			isRegisteredScriptEntrypoint(this.context.getRegisteredEntrypoints(), entrypointPath)
-		);
+		const normalized = path.resolve(sourcePath);
+		const srcDir = path.resolve(this.context.getSrcDir());
+		return normalized === srcDir || normalized.startsWith(`${srcDir}${path.sep}`);
 	}
 
-	async createDevTransformPlugins(entrypointPath: string): Promise<EcoBuildPlugin[]> {
-		const declaredModules = await resolveReactDeclaredModulesForEntrypoint(
-			this.getDevTransformPluginOptions(),
-			entrypointPath,
-		);
+	getRuntimeManifest(): BrowserRuntimeManifest {
+		return this.runtimeManifest;
+	}
+
+	async getVendorBundlePlugins(): Promise<readonly EcoBuildPlugin[]> {
+		return this.getBuildPlugins();
+	}
+
+	async createDevTransformPlugins(sourcePath: string): Promise<EcoBuildPlugin[]> {
+		const shouldResolveDeclaredModules = this.isPageEntrypoint(sourcePath) || sourcePath.endsWith('.mdx');
+		const declaredModules = shouldResolveDeclaredModules
+			? await resolveReactDeclaredModulesForEntrypoint(this.getDevTransformPluginOptions(), sourcePath)
+			: [];
+
 		return buildReactDevTransformPlugins(
 			this.getDevTransformPluginOptions(),
 			declaredModules,
-			entrypointPath.endsWith('.mdx'),
+			sourcePath.endsWith('.mdx'),
 		);
 	}
 
@@ -401,8 +409,10 @@ export class ReactHmrStrategy extends HmrStrategy {
 			}
 
 			if (affectedEntrypoints.size === 0 && !hasOwnedLayoutDependencyHit) {
-				appLogger.debug(`Dependency hits found but none map to React-owned watched entrypoints`);
-				return { type: 'none' };
+				if (!isLayout) {
+					appLogger.debug(`Dependency hits found but none map to React-owned watched entrypoints`);
+					return { type: 'none' };
+				}
 			}
 		}
 
@@ -451,19 +461,19 @@ export class ReactHmrStrategy extends HmrStrategy {
 			appLogger.debug(`Skipping non-dev-transform HMR output: ${outputUrl}`);
 		}
 
-		if (updates.length > 0) {
-			if (requiresLayoutRefresh) {
-				appLogger.debug(`Layout update detected, sending layout-update event`);
-				return {
-					type: 'broadcast',
-					events: [
-						{
-							type: 'layout-update',
-						},
-					],
-				};
-			}
+		if (requiresLayoutRefresh) {
+			appLogger.debug(`Layout update detected, sending layout-update event`);
+			return {
+				type: 'broadcast',
+				events: [
+					{
+						type: 'layout-update',
+					},
+				],
+			};
+		}
 
+		if (updates.length > 0) {
 			appLogger.debug(`Broadcasting ${updates.length} updates`);
 			return {
 				type: 'broadcast',

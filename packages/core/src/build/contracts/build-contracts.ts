@@ -39,9 +39,9 @@ export interface BuildResult {
  * Options accepted by every `BuildAdapter.build` call.
  *
  * @remarks
- * Fields that the adapter can forward are honored; fields that cannot
- * (currently `splitting`, `bundle`, and `outbase`) are accepted so
- * call-sites compile, but the adapter ignores them.
+ * Fields that the adapter can forward are honored. `splitting: false` disables
+ * Rolldown code splitting for single-entrypoint builds. `bundle` and `outbase`
+ * are accepted for call-site compatibility but ignored.
  */
 export interface BuildOptions {
 	entrypoints: string[] | Record<string, string>;
@@ -63,7 +63,7 @@ export interface BuildOptions {
 	target?: string;
 	format?: string;
 	sourcemap?: string;
-	/** @deprecated Accepted for call-site compatibility only. */
+	/** When `false` with a single entrypoint, inlines dynamic imports into one output file. */
 	splitting?: boolean;
 	root?: string;
 	/** @deprecated Accepted for call-site compatibility only. */

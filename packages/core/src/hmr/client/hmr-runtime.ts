@@ -23,6 +23,7 @@ interface HMRPayload {
 
 		socket.addEventListener('open', () => {
 			console.log('[ecopages] HMR Connected');
+			(window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ = true;
 			reconnectAttempts = 0;
 		});
 
@@ -36,6 +37,7 @@ interface HMRPayload {
 		});
 
 		socket.addEventListener('close', () => {
+			(window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ = false;
 			if (reconnectAttempts < 10) {
 				setTimeout(connect, 1000 * 2 ** reconnectAttempts);
 				reconnectAttempts++;

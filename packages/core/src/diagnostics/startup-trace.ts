@@ -81,6 +81,7 @@ class StartupTrace {
 	private firstRequestBundleCount = 0;
 	private firstRequestClientBytes = 0;
 	private firstRequestGraphBuildCount = 0;
+	private firstRequestCompletedWallMs: number | undefined;
 	private summaryEmitted = false;
 	private firstPageBrowserGraphEmitted = false;
 	private devClientTransformEmitted = false;
@@ -182,12 +183,17 @@ class StartupTrace {
 		this.markPhaseEnd('dev-client-transform');
 	}
 
+	/**
+	 * Records the first Page Browser Graph completion for startup tracing.
+	 *
+	 * @param graphBuildCount Session graph build counter when the first Page Browser Graph finished.
+	 */
 	markFirstPageBrowserGraphReady(graphBuildCount?: number): void {
 		if (!isStartupTraceEnabled() || this.firstPageBrowserGraphEmitted) {
 			return;
 		}
 
-		if (typeof graphBuildCount === 'number') {
+		if (this.firstRequestPending && typeof graphBuildCount === 'number') {
 			this.firstRequestGraphBuildCount = graphBuildCount;
 		}
 
@@ -249,11 +255,17 @@ class StartupTrace {
 	}
 
 	async traceFirstRequest<T>(request: Request, handler: () => Promise<T>): Promise<T> {
-		if (!isStartupTraceEnabled() || !this.firstRequestPending) {
+		if (!this.firstRequestPending) {
 			return handler();
 		}
 
 		this.firstRequestPath = new URL(request.url).pathname;
+
+		if (!isStartupTraceEnabled()) {
+			this.firstRequestPending = false;
+			return handler();
+		}
+
 		this.markPhaseStart('first-page-browser-graph');
 		this.markPhaseStart('first-request-ssr');
 
@@ -261,6 +273,7 @@ class StartupTrace {
 			return await handler();
 		} finally {
 			this.markPhaseEnd('first-request-ssr');
+			this.firstRequestCompletedWallMs = wallMsSinceProcessStart();
 			this.emitFirstRequestSummary();
 			this.firstRequestPending = false;
 			this.writeJsonReport();
@@ -313,7 +326,7 @@ class StartupTrace {
 						bundleCount: this.firstRequestBundleCount,
 						clientBundleBytes: this.firstRequestClientBytes,
 						graphBuildCount: this.firstRequestGraphBuildCount,
-						wallMs: wallMsSinceProcessStart(),
+						wallMs: this.firstRequestCompletedWallMs ?? wallMsSinceProcessStart(),
 					}
 				: undefined,
 			client:
@@ -337,6 +350,7 @@ class StartupTrace {
 		this.firstRequestBundleCount = 0;
 		this.firstRequestClientBytes = 0;
 		this.firstRequestGraphBuildCount = 0;
+		this.firstRequestCompletedWallMs = undefined;
 		this.summaryEmitted = false;
 		this.firstPageBrowserGraphEmitted = false;
 		this.devClientTransformEmitted = false;

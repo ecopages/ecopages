@@ -2,8 +2,14 @@ import type { HtmlDocumentContribution } from '../../../services/html/html-trans
 import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 import { buildRobotsMetaContribution } from './robots-meta.contribution.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
 
 export type RouteHtmlFinalizationContext<C> = {
+	appConfig: EcoPagesAppConfig;
+	watch: boolean;
+	hostOwnsDevClient?: boolean;
+	integrationName: string;
 	renderOptions: IntegrationRendererRenderOptions<C>;
 	getDocumentAttributes: (renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
 	getHtmlDocumentContributions: (options: {
@@ -25,9 +31,12 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 	const documentAttributes = context.getDocumentAttributes(renderOptions);
 	const integrationContributions = context.getHtmlDocumentContributions({ renderOptions, partial: false }) ?? [];
 	const robotsContribution = buildRobotsMetaContribution(renderOptions.metadata ?? {});
-	const htmlContributions = robotsContribution
-		? [robotsContribution, ...integrationContributions]
-		: integrationContributions;
+	const devToolbarContribution = buildDevToolbarManifestContribution(context);
+	const htmlContributions = [
+		...(robotsContribution ? [robotsContribution] : []),
+		...(devToolbarContribution ? [devToolbarContribution] : []),
+		...integrationContributions,
+	];
 	const hasStructuralFinalization = documentAttributes && Object.keys(documentAttributes).length > 0;
 
 	if (!hasStructuralFinalization && htmlContributions.length === 0) {
@@ -44,4 +53,17 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 			return context.applyAttributesToHtmlElement(html, documentAttributes);
 		},
 	};
+}
+
+function buildDevToolbarManifestContribution<C>(
+	context: RouteHtmlFinalizationContext<C>,
+): HtmlDocumentContribution | undefined {
+	return DevToolbarHost.forApp(context.appConfig, {
+		watch: context.watch,
+		hostOwnsDevClient: context.hostOwnsDevClient,
+	}).buildRouteManifestContribution({
+		routeFile: context.renderOptions.file,
+		integrationName: context.integrationName,
+		pagePackage: context.renderOptions.pagePackage,
+	});
 }

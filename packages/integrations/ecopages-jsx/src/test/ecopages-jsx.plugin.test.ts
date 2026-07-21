@@ -15,6 +15,7 @@ function createHmrManagerStub(): IHmrManager {
 	return {
 		registerStrategy: vi.fn(),
 		registerEntrypoint: vi.fn(),
+		registerDevTransformContributor: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
 		setEnabled: vi.fn(),
 		stop: vi.fn(),

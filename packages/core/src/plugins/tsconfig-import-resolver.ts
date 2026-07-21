@@ -135,6 +135,48 @@ function getResolverFactory(projectRoot: string): ResolverFactoryType | undefine
 	return resolver;
 }
 
+const BROWSER_PACKAGE_CONDITION_NAMES = ['browser', 'module', 'import', 'default'] as const;
+const BROWSER_PACKAGE_MAIN_FIELDS = ['browser', 'module', 'main'] as const;
+
+const browserPackageResolvers = new Map<string, ResolverFactoryType>();
+
+function getBrowserPackageResolver(projectRoot: string): ResolverFactoryType {
+	const normalizedRoot = path.resolve(projectRoot);
+	const cached = browserPackageResolvers.get(normalizedRoot);
+	if (cached) {
+		return cached;
+	}
+
+	const resolver = new ResolverFactory({
+		conditionNames: [...BROWSER_PACKAGE_CONDITION_NAMES],
+		mainFields: [...BROWSER_PACKAGE_MAIN_FIELDS],
+		extensions: [...RESOLVABLE_EXTENSIONS],
+	});
+	browserPackageResolvers.set(normalizedRoot, resolver);
+	return resolver;
+}
+
+/**
+ * Resolves a bare npm package entry for browser vendor prebundles.
+ *
+ * @remarks
+ * Prefer package `"browser"` / `"exports.browser"` over Node `"import"` entries.
+ * `createRequire().resolve()` is wrong here — it selects the server facade for
+ * dual packages such as `@ecopages/core`.
+ */
+export function resolveBarePackageBrowserEntry(projectRoot: string, specifier: string): string | undefined {
+	const result = getBrowserPackageResolver(projectRoot).sync(projectRoot, specifier);
+	if (result.error || !result.path) {
+		return undefined;
+	}
+
+	try {
+		return realpathSync(result.path);
+	} catch {
+		return result.path;
+	}
+}
+
 function resolveAliasedBarrelTarget(resolvedPath: string): string {
 	if (!path.basename(resolvedPath).startsWith('index.')) {
 		return resolvedPath;
@@ -168,6 +210,40 @@ function resolveAliasedBarrelTarget(resolvedPath: string): string {
 }
 
 /**
+ * Resolves a relative import against the filesystem without requiring tsconfig.
+ *
+ * @remarks
+ * Used when oxc-resolver has no tsconfig (minimal fixtures / apps without paths)
+ * and as a fallback when the resolver cannot locate a relative specifier.
+ */
+export function resolveRelativeModulePath(fromFile: string, specifier: string): string | undefined {
+	if (!specifier.startsWith('.')) {
+		return undefined;
+	}
+
+	const targetBase = path.resolve(path.dirname(fromFile), specifier);
+	if (existsSync(targetBase)) {
+		return path.resolve(targetBase);
+	}
+
+	for (const candidateExtension of RESOLVABLE_EXTENSIONS) {
+		const candidate = `${targetBase}${candidateExtension}`;
+		if (existsSync(candidate)) {
+			return path.resolve(candidate);
+		}
+	}
+
+	for (const candidateExtension of RESOLVABLE_EXTENSIONS) {
+		const candidate = path.join(targetBase, `index${candidateExtension}`);
+		if (existsSync(candidate)) {
+			return path.resolve(candidate);
+		}
+	}
+
+	return undefined;
+}
+
+/**
  * Resolves a relative or tsconfig path alias import (via oxc-resolver).
  */
 export function resolveProjectModulePath(projectRoot: string, fromFile: string, specifier: string): string | undefined {
@@ -180,16 +256,18 @@ export function resolveProjectModulePath(projectRoot: string, fromFile: string, 
 	}
 
 	const resolver = getResolverFactory(projectRoot);
-	if (!resolver) {
-		return undefined;
+	if (resolver) {
+		const result = resolver.sync(path.dirname(fromFile), specifier);
+		if (result.path) {
+			return resolveAliasedBarrelTarget(realpathSync(result.path));
+		}
 	}
 
-	const result = resolver.sync(path.dirname(fromFile), specifier);
-	if (!result.path) {
-		return undefined;
+	if (isRelative) {
+		return resolveRelativeModulePath(fromFile, specifier);
 	}
 
-	return resolveAliasedBarrelTarget(realpathSync(result.path));
+	return undefined;
 }
 
 /**

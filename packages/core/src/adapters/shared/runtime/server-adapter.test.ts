@@ -28,6 +28,7 @@ function createHmrAssetManager(runtimeWorkDir: string, runtimePath: string): IHm
 		registerEntrypoint: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
 		registerStrategy: vi.fn(),
+		registerDevTransformContributor: vi.fn(),
 		setEnabled: vi.fn(),
 		stop: vi.fn(),
 		isEnabled: vi.fn(() => true),

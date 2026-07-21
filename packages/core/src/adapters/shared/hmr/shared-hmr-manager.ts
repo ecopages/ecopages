@@ -74,8 +74,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
-			onEntrypointDependencies: (entrypointPath, dependencies) => {
-				this.entrypointDependencyGraph.setEntrypointDependencies(entrypointPath, dependencies);
+			onModuleDependencies: (modulePath, dependencies) => {
+				this.entrypointDependencyGraph.setEntrypointDependencies(modulePath, dependencies);
 			},
 		});
 		this.ensureRuntimeWorkDir();

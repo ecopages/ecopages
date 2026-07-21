@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
@@ -68,6 +69,7 @@ describe('DevTransformServer', () => {
 		fs.writeFileSync(entrypointPath, 'export const page = true;\n', 'utf8');
 
 		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
 		const server = new DevTransformServer({ appConfig: config });
 
 		const outputUrl = server.registerModule(entrypointPath);
@@ -75,5 +77,75 @@ describe('DevTransformServer', () => {
 
 		expect(response?.ok).toBe(true);
 		expect(await response?.text()).toContain('page');
+	});
+
+	it('materializes unregistered page URLs requested during client navigation', async () => {
+		const rootDir = createTempRoot('dev-transform-server-lazy-register');
+		const srcDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const entrypointPath = path.join(srcDir, 'index.tsx');
+		fs.writeFileSync(entrypointPath, 'export const home = true;\n', 'utf8');
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const server = new DevTransformServer({ appConfig: config });
+
+		const response = await server.tryHandleRequest(
+			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`),
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response!.text()).toContain('home');
+		expect(server.getRegisteredSourcePath(`${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`)).toBe(
+			path.resolve(entrypointPath),
+		);
+	});
+
+	it('serves sibling modules referenced by rewritten dynamic imports', async () => {
+		const rootDir = createTempRoot('dev-transform-server-chunks');
+		const srcDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.writeFileSync(path.join(srcDir, 'lazy-part.ts'), "export const lazyValue = 'chunked';\n", 'utf8');
+		const entrypointPath = path.join(srcDir, 'index.tsx');
+		fs.writeFileSync(
+			entrypointPath,
+			"export async function loadLazy() {\n  const mod = await import('./lazy-part.ts');\n  return mod.lazyValue;\n}\n",
+			'utf8',
+		);
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const server = new DevTransformServer({ appConfig: config });
+		const outputUrl = server.registerModule(entrypointPath);
+		const entryResponse = await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+
+		expect(entryResponse?.ok).toBe(true);
+		const entryCode = await entryResponse!.text();
+		const chunkUrlMatch = entryCode.match(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part\\.js`));
+		expect(chunkUrlMatch).not.toBeNull();
+
+		const chunkResponse = await server.tryHandleRequest(
+			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part.js`),
+		);
+		expect(chunkResponse?.status).toBe(200);
+		expect(await chunkResponse!.text()).toContain('chunked');
+	});
+
+	it('materializes imported stylesheets as default-exported CSS strings', async () => {
+		const rootDir = createTempRoot('dev-transform-server-css');
+		const componentsDir = path.join(rootDir, 'src', 'components');
+		fs.mkdirSync(componentsDir, { recursive: true });
+		const cssPath = path.join(componentsDir, 'widget.css');
+		fs.writeFileSync(cssPath, ':host { color: tomato; }\n', 'utf8');
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const server = new DevTransformServer({ appConfig: config });
+
+		const response = await server.tryHandleRequest(
+			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/components/widget.css`),
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response!.text()).toContain('export default ":host { color: tomato; }\\n"');
 	});
 });

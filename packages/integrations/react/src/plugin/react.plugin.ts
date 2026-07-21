@@ -279,13 +279,10 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	override setHmrManager(hmrManager: NonNullable<IntegrationPlugin['hmrManager']>): void {
 		super.setHmrManager(hmrManager);
 		const strategy = this.getHmrStrategy();
-		const registerContributor = (hmrManager as { registerDevTransformContributor?: (contributor: unknown) => void })
-			.registerDevTransformContributor;
-		if (!strategy || !registerContributor || !this.appConfig) {
+		if (!strategy || !this.appConfig) {
 			return;
 		}
-		registerContributor.call(
-			hmrManager,
+		hmrManager.registerDevTransformContributor(
 			new ReactDevTransformContributor({
 				strategy: strategy as ReactHmrStrategy,
 			}),

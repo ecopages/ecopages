@@ -67,12 +67,10 @@ ecopages dev -r
 
 Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
 
-| Env var                                        | CLI                    | What you get                                                                                   |
-| :--------------------------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
-| `ECOPAGES_LOGGER_DEBUG=true`                   | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
-| `ECOPAGES_STARTUP_TRACE=true`                  | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
-| `ECOPAGES_DEV_COLD_CLIENT_GRAPH=false`         | —                      | Disable background React HMR entrypoint prewarm (on by default when HMR is enabled)            |
-| `ECOPAGES_DEV_COLD_CLIENT_GRAPH_BLOCKING=true` | —                      | Delay startup completion until prewarm finishes (default runs in background after listen)      |
+| Env var                       | CLI                    | What you get                                                                                   |
+| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 
@@ -81,12 +79,12 @@ Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 [ecopages:startup-trace] phase=setupAppRuntimePlugins durationMs=714 wallMs=1999
 [ecopages:startup-trace] phase=route-registry durationMs=1 wallMs=2000
 [ecopages:startup-trace] phase=server-listen durationMs=45 wallMs=2046
-[ecopages:startup-trace] phase=dev-cold-client-graph durationMs=733 wallMs=2779
+[ecopages:startup-trace] phase=dev-client-transform durationMs=42 wallMs=2100
 [ecopages:startup-trace] phase=first-request-ssr durationMs=5296 wallMs=12495
 [ecopages:startup-trace] summary path=/docs/getting-started/introduction bundleCount=13 clientBundleBytes=858396 wallMs=12496
 ```
 
-Phases: config ready → runtime plugins → route registry → server listening → **dev cold client graph** (React HMR entrypoint prewarm, usually in background after listen) → first request SSR. The summary includes bundle count and total client JS bytes for that first request.
+Phases: config ready → runtime plugins → route registry → server listening → first request SSR (with per-module `dev-client-transform` on demand for `/assets/__eco_dev__/` modules). The summary includes bundle count and total client JS bytes for that first request.
 
 ```bash
 # Focused perf trace only

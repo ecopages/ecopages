@@ -237,6 +237,8 @@ That creates a module identity problem: if TanStack Query (or any shared provide
 
 The fix is **shared browser runtime vendors**: selected npm packages are built once into `/assets/vendors/*.js` and every page chunk imports the same public URL. React, React DOM, the router bundle, and auto-discovered layout runtime packages all follow this path.
 
+In `ecopages dev`, page modules are served from `/assets/__eco_dev__/` and should import `/assets/vendors/*` for shared packages instead of inlining `node_modules`. Kitchen-sink routes `/vendor-share/a` and `/vendor-share/b` (with `runtimeModules: ['zod']`) are the reference fixture; see `playground/kitchen-sink/e2e/shared-vendors.test.e2e.ts`.
+
 Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
 
 #### When auto-discovery runs

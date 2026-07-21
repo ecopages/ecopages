@@ -45,11 +45,11 @@ node scripts/debug-app.bench.mjs \
 
 ### What it measures
 
-| Case | Meaning |
-| --- | --- |
-| `cold-at-listen` | Hit routes as soon as the server prints “running at” |
-| `after-listen` | Wait for `phase=server-listen`, then hit routes |
-| `warm-restart` | Restart without wiping caches; second process still cold for in-memory transform cache |
+| Case             | Meaning                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `cold-at-listen` | Hit routes as soon as the server prints “running at”                                   |
+| `after-listen`   | Wait for `phase=server-listen`, then hit routes                                        |
+| `warm-restart`   | Restart without wiping caches; second process still cold for in-memory transform cache |
 
 Each case records:
 
@@ -61,12 +61,12 @@ JSON report default: `.audit/debug-app-bench.json` (directory is gitignored).
 
 ### How to attribute bottlenecks
 
-| Symptom | Likely cause |
-| --- | --- |
-| High `first-request-ssr` / route `curlMs`, small `__eco_dev__` modules | App SSR / auth / data — not the client transform path |
-| High `dev-client-transform`, page module **MB** | Still bundling an app cone; check import rewrite / vendor externalization |
-| First nav many vendor requests, later navs fast | Expected Vite-like model; vendors should send long-cache headers |
-| Transform warm ~1–50ms, cold still seconds | Vendor prebundle on first bare import — check first-hit stalls, not page size |
+| Symptom                                                                | Likely cause                                                                  |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| High `first-request-ssr` / route `curlMs`, small `__eco_dev__` modules | App SSR / auth / data — not the client transform path                         |
+| High `dev-client-transform`, page module **MB**                        | Still bundling an app cone; check import rewrite / vendor externalization     |
+| First nav many vendor requests, later navs fast                        | Expected Vite-like model; vendors should send long-cache headers              |
+| Transform warm ~1–50ms, cold still seconds                             | Vendor prebundle on first bare import — check first-hit stalls, not page size |
 
 ### Agent workflow (no skill required)
 

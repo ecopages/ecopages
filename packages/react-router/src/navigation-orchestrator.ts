@@ -10,6 +10,7 @@
  */
 
 import { isStaticAssetHref } from '@ecopages/core/router/link-intent';
+import { dispatchAfterSwap, dispatchBeforeSwap, schedulePageLoad } from '@ecopages/core/router/navigation-lifecycle';
 import {
 	type FetchedPageDocument,
 	type LoadedPageModule,
@@ -50,6 +51,7 @@ export type ResolveReactNavigationInput = {
 
 export type SpaCommitEffects = {
 	isStale: () => boolean;
+	hardAssign: (href: string) => void;
 	morphHead: (doc: Document) => Promise<{ cleanup: () => void; flushRerunScripts: () => void }>;
 	applyViewTransitionNames: () => void;
 	saveScrollPositions: () => void;
@@ -71,7 +73,7 @@ export type SpaCommitEffects = {
 	onCommittedPath: (finalPath: string) => void;
 };
 
-export type SpaCommitResult = 'committed' | 'stale';
+export type SpaCommitResult = 'committed' | 'stale' | 'reload-requested';
 
 export type HandoffEffects = {
 	isStale: () => boolean;
@@ -159,11 +161,26 @@ export async function applySpaNavigation(
 	options: { skipViewTransition: boolean; isPopState: boolean },
 ): Promise<SpaCommitResult> {
 	const { page, requestedUrl, refreshPersistedLayout } = outcome;
+	const navigationUrl = new URL(page.finalPath, window.location.origin);
 	const nextPage = {
 		Component: page.Component,
 		props: page.props,
 		refreshPersistedLayout,
 	};
+
+	const { requestedReload } = dispatchBeforeSwap(document, {
+		url: navigationUrl,
+		direction: outcome.direction,
+		newDocument: page.doc,
+	});
+	if (effects.isStale()) {
+		return 'stale';
+	}
+	if (requestedReload) {
+		effects.hardAssign(page.finalPath);
+		return 'reload-requested';
+	}
+
 	const { cleanup: cleanupHead, flushRerunScripts } = await effects.morphHead(page.doc);
 
 	const finalizeCommittedNavigation = () => {
@@ -172,6 +189,8 @@ export async function applySpaNavigation(
 		cleanupHead();
 		effects.applyViewTransitionNames();
 		effects.restoreScrollPositions(page.finalPath, options.isPopState);
+		dispatchAfterSwap(document, { url: navigationUrl, direction: outcome.direction });
+		schedulePageLoad(document, { url: navigationUrl, direction: outcome.direction }, { isStale: effects.isStale });
 	};
 
 	const commitNextPage = () => {

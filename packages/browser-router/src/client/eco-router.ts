@@ -3,7 +3,7 @@
  * @module eco-router
  */
 
-import type { EcoRouterOptions, EcoNavigationEvent } from './types.ts';
+import type { EcoNavigationEvent } from '@ecopages/core/router/navigation-lifecycle';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import {
 	getAnchorFromNavigationEvent,
@@ -12,7 +12,7 @@ import {
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
 import { getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
-import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS } from './types.ts';
+import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS, type EcoRouterOptions } from './types.ts';
 import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
 import { ViewTransitionManager } from './services/view-transition-manager.ts';

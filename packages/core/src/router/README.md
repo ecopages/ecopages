@@ -22,6 +22,7 @@ router/
 │   └── route-registry.ts        # Owns template routes, request matching, static expansion, and reload
 └── client/                      # Browser-side navigation coordination
     ├── navigation-coordinator.ts # Singleton runtime coordinator
+    ├── navigation-lifecycle.ts   # Shared document lifecycle events
     └── link-intent.ts           # Shared anchor detection and intent recovery helpers
 ```
 
@@ -78,6 +79,29 @@ The coordinator is framework-agnostic. Browser runtimes (e.g. `browser-router`, 
 - **Cross-runtime handoff** — `requestHandoff` passes a pre-fetched `Document` to the target runtime without tearing down the current page prematurely.
 - **Reload** — `reloadCurrentPage` delegates to whichever runtime currently owns the document.
 - **Events** — `subscribe` lets runtimes react to `owner-change` and `registration-change` events.
+
+### Navigation Lifecycle (`navigation-lifecycle.ts`)
+
+Shared document lifecycle events emitted by browser runtimes after a client navigation commits.
+
+Access it with:
+
+```ts
+import {
+	dispatchAfterSwap,
+	dispatchBeforeSwap,
+	schedulePageLoad,
+	type EcoNavigationEvent,
+} from '@ecopages/core/router/navigation-lifecycle';
+```
+
+`browser-router` and `react-router` call these helpers around their own commit implementations. Listeners use the DOM contract:
+
+- `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
+- `eco:after-swap` — post-commit signal after the runtime has applied the new page
+- `eco:page-load` — scheduled on the next animation frame after `eco:after-swap`
+
+This is separate from coordinator `subscribe()` events, which track runtime ownership rather than page lifecycle.
 
 ### Link Intent (`link-intent.ts`)
 

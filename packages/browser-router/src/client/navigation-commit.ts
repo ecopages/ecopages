@@ -1,10 +1,16 @@
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import {
+	dispatchAfterSwap,
+	dispatchBeforeSwap,
+	schedulePageLoad,
+	type EcoNavigationEvent,
+} from '@ecopages/core/router/navigation-lifecycle';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
 import { syncDocumentElementAttributes } from './document-element-sync.ts';
 import type { DomSwapper } from './dom/dom-swapper.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
 import type { ViewTransitionManager } from './services/view-transition-manager.ts';
-import type { EcoAfterSwapEvent, EcoBeforeSwapEvent, EcoNavigationEvent, EcoRouterOptions } from './types.ts';
+import type { EcoRouterOptions } from './types.ts';
 
 export type NavigationCommitOptions = {
 	html?: string;
@@ -50,22 +56,16 @@ export class NavigationCommit {
 			currentDocumentOwner !== newDocumentOwner &&
 			currentDocumentOwner !== 'browser-router' &&
 			activeOwner === currentDocumentOwner;
-		let shouldReload = false;
-		const beforeSwapEvent: EcoBeforeSwapEvent = {
+		const { requestedReload } = dispatchBeforeSwap(document, {
 			url,
 			direction,
 			newDocument,
-			reload: () => {
-				shouldReload = true;
-			},
-		};
-
-		document.dispatchEvent(new CustomEvent('eco:before-swap', { detail: beforeSwapEvent }));
+		});
 		if (isStaleNavigation()) {
 			return false;
 		}
 
-		if (shouldReload) {
+		if (requestedReload) {
 			if (shouldCleanupCurrentOwner) {
 				await navigationRuntime.cleanupOwner(currentDocumentOwner);
 			}
@@ -127,12 +127,7 @@ export class NavigationCommit {
 
 		navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
 
-		const afterSwapEvent: EcoAfterSwapEvent = {
-			url,
-			direction,
-		};
-
-		document.dispatchEvent(new CustomEvent('eco:after-swap', { detail: afterSwapEvent }));
+		dispatchAfterSwap(document, { url, direction });
 
 		this.prefetchManager?.observeLinks();
 
@@ -140,15 +135,7 @@ export class NavigationCommit {
 			this.prefetchManager?.cacheVisitedPage(url.href, options.html);
 		}
 
-		requestAnimationFrame(() => {
-			if (isStaleNavigation()) return;
-
-			document.dispatchEvent(
-				new CustomEvent('eco:page-load', {
-					detail: { url, direction } as EcoNavigationEvent,
-				}),
-			);
-		});
+		schedulePageLoad(document, { url, direction }, { isStale: isStaleNavigation });
 
 		return true;
 	}

@@ -64,11 +64,12 @@ interface HMRPayload {
 						moduleUrl: getActiveHmrModuleUrl(),
 					})
 				) {
-				} else if (
-					!(window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__
-				) {
-					location.reload();
+					break;
 				}
+				if ((window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__) {
+					break;
+				}
+				location.reload();
 				break;
 			}
 			case 'error':

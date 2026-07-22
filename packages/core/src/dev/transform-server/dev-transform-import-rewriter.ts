@@ -1,8 +1,26 @@
 import path from 'node:path';
 
+import { fileSystem } from '@ecopages/file-system';
 import { cachedParseSync } from '../../cache/module-parse-cache.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../../plugins/tsconfig-import-resolver.ts';
 import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
+
+/**
+ * Builds a browser-importable dev-transform URL that changes when the source changes.
+ *
+ * @remarks
+ * Soft HMR reloads cache-bust the active page module, but transitive layout/component
+ * imports keep stable pathnames. A content hash query makes the browser ESM module map
+ * treat the updated dependency as a new module without a full page reload.
+ */
+function resolveVersionedDevTransformModuleUrl(srcDir: string, resolvedPath: string): string {
+	const baseUrl = resolveDevTransformModuleUrl(srcDir, resolvedPath);
+	if (!fileSystem.exists(resolvedPath)) {
+		return baseUrl;
+	}
+
+	return `${baseUrl}?v=${fileSystem.hash(resolvedPath)}`;
+}
 
 type ImportEdit = {
 	start: number;
@@ -161,7 +179,7 @@ async function resolveImportSpecifier(options: {
 		}
 
 		options.dependencies.add(resolvedPath);
-		return resolveDevTransformModuleUrl(options.srcDir, resolvedPath);
+		return resolveVersionedDevTransformModuleUrl(options.srcDir, resolvedPath);
 	}
 
 	return options.resolveVendorUrl(options.specifier);

@@ -1,6 +1,6 @@
 {
 	"name": "ecopages",
-	"version": "0.2.0-beta.36",
+	"version": "0.2.0-beta.37",
 	"description": "CLI utilities for Ecopages",
 	"type": "module",
 	"engines": {

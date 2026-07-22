@@ -84,19 +84,24 @@ describe('react-router navigation lifecycle', () => {
 			}),
 		);
 
-		await new Promise((resolve) => setTimeout(resolve, 100));
-		const link = container.querySelector('[data-testid="PageA-link"]') as HTMLAnchorElement | null;
-		expect(link).not.toBeNull();
-		await user.click(link as HTMLAnchorElement);
-
-		await vi.waitFor(() => {
-			expect(events).toEqual([
-				ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP,
-				ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP,
-				ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD,
-			]);
+		const link = await vi.waitFor(() => {
+			const node = container.querySelector('[data-testid="PageA-link"]') as HTMLAnchorElement | null;
+			expect(node).not.toBeNull();
+			return node as HTMLAnchorElement;
 		});
-		expect(container.textContent).toContain('done');
+		await user.click(link);
+
+		await vi.waitFor(
+			() => {
+				expect(events).toEqual([
+					ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP,
+					ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP,
+					ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD,
+				]);
+				expect(container.textContent).toContain('done');
+			},
+			{ timeout: 2000 },
+		);
 		requestAnimationFrameSpy.mockRestore();
 	});
 
@@ -138,21 +143,27 @@ describe('react-router navigation lifecycle', () => {
 			}),
 		);
 
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		const fastLink = await vi.waitFor(() => {
+			const node = container.querySelector('[data-testid="RacePage-link"]') as HTMLAnchorElement | null;
+			expect(node).not.toBeNull();
+			return node as HTMLAnchorElement;
+		});
 
 		const slowLink = document.createElement('a');
 		slowLink.href = '/slow';
 		slowLink.textContent = 'Slow';
 		container.append(slowLink);
-		const fastLink = container.querySelector('[data-testid="RacePage-link"]') as HTMLAnchorElement | null;
 
 		void user.click(slowLink);
-		await user.click(fastLink as HTMLAnchorElement);
+		await user.click(fastLink);
 
-		await vi.waitFor(() => {
-			expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-		});
-		expect(pageLoadSpy).toHaveBeenCalledTimes(1);
+		await vi.waitFor(
+			() => {
+				expect(afterSwapSpy).toHaveBeenCalledTimes(1);
+				expect(pageLoadSpy).toHaveBeenCalledTimes(1);
+			},
+			{ timeout: 2000 },
+		);
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
 
 		resolveSlowFetch(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'slow' }), { status: 200 }));

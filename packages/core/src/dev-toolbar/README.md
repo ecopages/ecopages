@@ -14,15 +14,15 @@ Extend the toolbar by setting `devToolbar.package` to your own client package (o
 
 ## Module map
 
-| File                           | Role                                                                |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `dev-toolbar-host.ts`          | Enablement, manifest contribution, runtime bundling, HTML injection |
-| `dev-toolbar-manifest.ts`      | Builds and serializes the per-page dev manifest                     |
-| `dev-toolbar-package.ts`       | Resolves `devToolbar.package` bootstrap entry from the app project  |
-| `dev-toolbar-config.ts`        | `isDevToolbarEnabled` — watch mode, env var, package required       |
-| `dev-toolbar-html-response.ts` | Adapter helpers for injecting `import '/_dev_toolbar.js'`           |
-| `dev-toolbar-runtime-paths.ts` | `/_dev_toolbar.js` URL and work-dir paths                           |
-| `define-dev-tool.ts`           | Config helper for bring-your-own client packages                    |
+| File                           | Role                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `dev-toolbar-host.ts`          | Enablement, manifest contribution, runtime bundling, HTML injection        |
+| `dev-toolbar-manifest.ts`      | Builds and serializes the per-page dev manifest                            |
+| `dev-toolbar-package.ts`       | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`) |
+| `dev-toolbar-config.ts`        | `isDevToolbarEnabled` — watch mode, env var, package required              |
+| `dev-toolbar-html-response.ts` | Adapter helpers for injecting `import '/_dev_toolbar.js'`                  |
+| `dev-toolbar-runtime-paths.ts` | `/_dev_toolbar.js` URL and work-dir paths                                  |
+| `define-dev-tool.ts`           | Config helper for bring-your-own client packages                           |
 
 ## Injection order
 

@@ -60,7 +60,51 @@ describe('DevTransformBundler', () => {
 		const result = await bundler.transpileModule(entrypointPath);
 
 		expect(result.code).toContain('devtools');
-		expect(result.code).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-devtools\\.js`));
+		expect(result.code).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-devtools\\.js\\?v=[0-9a-f]+`));
+	});
+
+	it('rewrites local imports with a new content-hash query when the dependency changes', async () => {
+		const rootDir = createTempRoot('dev-transform-bundler-import-version');
+		const layoutsDir = path.join(rootDir, 'src', 'layouts');
+		const pagesDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(layoutsDir, { recursive: true });
+		fs.mkdirSync(pagesDir, { recursive: true });
+
+		const layoutPath = path.join(layoutsDir, 'docs-layout.tsx');
+		const pagePath = path.join(pagesDir, 'index.tsx');
+		fs.writeFileSync(layoutPath, "export const label = 'before';\n", 'utf8');
+		fs.writeFileSync(
+			pagePath,
+			["import { label } from '../layouts/docs-layout.tsx';", 'export default function Page() {', '  return label;', '}'].join(
+				'\n',
+			),
+			'utf8',
+		);
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const bundler = new DevTransformBundler({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
+			vendorRegistry: new DevTransformVendorRegistry({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+			}),
+		});
+
+		const before = await bundler.transpileModule(pagePath);
+		const beforeMatch = before.code.match(
+			new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/layouts/docs-layout\\.js\\?v=([0-9a-f]+)`),
+		);
+		expect(beforeMatch?.[1]).toBeTruthy();
+
+		fs.writeFileSync(layoutPath, "export const label = 'after';\n", 'utf8');
+		const after = await bundler.transpileModule(pagePath);
+		const afterMatch = after.code.match(
+			new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/layouts/docs-layout\\.js\\?v=([0-9a-f]+)`),
+		);
+		expect(afterMatch?.[1]).toBeTruthy();
+		expect(afterMatch?.[1]).not.toBe(beforeMatch?.[1]);
 	});
 
 	it('transpiles same-basename modules concurrently without mixing output', async () => {

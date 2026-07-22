@@ -34,3 +34,14 @@ Dev client modules are served on demand through `DevTransformServer` (`src/dev/`
 `BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
 
 Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
+
+## Client events
+
+| Event | Client behavior |
+| --- | --- |
+| `update` | Cache-bust and re-import the changed module URL (or reload the active page module) |
+| `css-update` | Refresh matching stylesheet `link` hrefs |
+| `layout-update` | Soft current-page reload with layout cache cleared (`persistLayouts` remounts the updated layout without a full document reload). Falls back to `location.reload()` only if no navigation owner handles it |
+| `reload` | Full `location.reload()` |
+
+Dev-transform local imports are rewritten with a content-hash query (`?v=…`) so transitive layout/component modules get a new ESM module-map key after invalidation. Soft `layout-update` then picks up the new layout while shared outer layout persistence still applies across normal SPA navigations.

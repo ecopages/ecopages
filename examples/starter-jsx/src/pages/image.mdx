@@ -1,10 +1,13 @@
-import { BaseLayout } from '../layouts/base-layout/base-layout.kita';
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import { BaseLayout } from '../layouts/base-layout';
+import { createMarkupNodeLike } from '@ecopages/jsx';
+import { EcoImage as renderEcoImage } from '@ecopages/image-processor/component/html';
 import { kitaKamakuraPng } from 'ecopages:images';
 
 export const config = {
     layout: BaseLayout,
 };
+
+export const EcoImage = (props) => createMarkupNodeLike(renderEcoImage(props));
 
 # Documentation
 

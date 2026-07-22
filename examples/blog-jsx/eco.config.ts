@@ -1,27 +1,27 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
+const appRoot = import.meta.dirname;
+
 const config = await new ConfigBuilder()
-	.setRootDir(process.cwd())
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL || 'http://localhost:3000')
+	.setRootDir(appRoot)
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
-		kitajsPlugin(),
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
+		ecopagesJsxPlugin({
+			mdx: {
+				enabled: true,
 			},
 		}),
 	])
 	.setProcessors([
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(process.cwd(), 'src/images'),
-				outputDir: path.resolve(process.cwd(), 'dist/images'),
+				sourceDir: path.resolve(appRoot, 'src/images'),
+				outputDir: path.resolve(appRoot, 'dist/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -36,7 +36,7 @@ const config = await new ConfigBuilder()
 		}),
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(process.cwd(), 'src/styles/tailwind.css'),
+				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
 		),
 	])

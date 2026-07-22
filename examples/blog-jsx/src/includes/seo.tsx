@@ -1,6 +1,7 @@
 import type { PageMetadataProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
+const baseUrl = import.meta.env?.ECOPAGES_BASE_URL ?? process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 const withBaseUrl = (path: string) => `${baseUrl}/${path.replace(/^\//u, '')}`;
 
 export function Seo({
@@ -9,7 +10,7 @@ export function Seo({
 	image = '/assets/images/default-og.webp',
 	url,
 	keywords,
-}: PageMetadataProps) {
+}: PageMetadataProps): JsxRenderable {
 	return (
 		<>
 			<title>{title}</title>

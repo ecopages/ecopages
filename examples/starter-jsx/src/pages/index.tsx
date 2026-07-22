@@ -1,14 +1,16 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
-import { RadiantCounter } from '@/components/radiant-counter.kita';
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { createMarkupNodeLike } from '@ecopages/jsx';
+import { EcoImage as renderEcoImage } from '@ecopages/image-processor/component/html';
+import { BaseLayout } from '@/layouts/base-layout';
+import { RadiantCounter } from '@/components/radiant-counter';
 import { kitaKamakuraPng } from 'ecopages:images';
 import ShowcaseMdx from '@/components/showcase.mdx';
 
-export default eco.page({
+export default eco.page<{}, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./index.css'],
-		components: [BaseLayout, RadiantCounter],
+		components: [RadiantCounter],
 	},
 	layout: BaseLayout,
 	render: () => {
@@ -40,12 +42,14 @@ export default eco.page({
 								Image Docs →
 							</a>
 						</div>
-						<EcoImage
-							{...kitaKamakuraPng}
-							alt="Kita-kamakura"
-							class="rounded object-cover"
-							data-view-transition="kita-image"
-						/>
+						{createMarkupNodeLike(
+							renderEcoImage({
+								...kitaKamakuraPng,
+								alt: 'Kita-kamakura',
+								class: 'rounded object-cover',
+								'data-view-transition': 'kita-image',
+							}),
+						)}
 					</div>
 				</section>
 			</div>

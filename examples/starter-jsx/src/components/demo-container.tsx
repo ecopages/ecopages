@@ -1,10 +1,11 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
 export type DemoContainerProps = {
-	children: JSX.Element | JSX.Element[];
+	children: JsxRenderable;
 };
 
-export const DemoContainer = eco.component<DemoContainerProps>({
+export const DemoContainer = eco.component<DemoContainerProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./demo-container.css'],
 	},

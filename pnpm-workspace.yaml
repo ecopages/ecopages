@@ -11,6 +11,8 @@ packages:
     - e2e/fixtures/*
     - apps/*
     - examples/docs-starter
+    - examples/starter-jsx
+    - examples/blog-jsx
 
 allowBuilds:
     bun: true

@@ -1,7 +1,8 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
-export const RadiantCounter = eco.component<RadiantCounterProps>({
+export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./radiant-counter.css'],
 		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],

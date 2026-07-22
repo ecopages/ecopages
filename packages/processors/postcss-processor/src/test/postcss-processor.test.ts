@@ -28,7 +28,7 @@ describe('PostCssProcessor', () => {
 
 	test('processPath should use the custom plugins', async () => {
 		const filePath = path.resolve(__dirname, './css/external-plugins.css');
-		const expected = '.menu_link{background:#056ef0;width:200px}.menu{margin-top:10px;width:800px}';
+		const expected = '.menu_link{background:#056ef0;width:200px}.menu{width:800px;margin-top:10px}';
 		const result = await PostCssProcessor.processPath(filePath, {
 			plugins: [...Object.values(tailwindV3Preset().plugins ?? {}), postCssSimpleVars()],
 		});

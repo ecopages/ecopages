@@ -46,7 +46,7 @@
 	},
 	"dependencies": {
 		"@ecopages/logger": "^0.2.3",
-		"source-map": "^0.7.6",
+		"source-map": "^0.8.0",
 		"vfile": "^6.0.3"
 	},
 	"devDependencies": {

@@ -23,7 +23,7 @@ describe('navigation lifecycle dispatch', () => {
 
 			expect(requestedReload).toBe(false);
 			expect(beforeSwapSpy).toHaveBeenCalledTimes(1);
-			const detail = (beforeSwapSpy.mock.calls[0]?.[0] as CustomEvent).detail;
+			const detail = (beforeSwapSpy.mock.calls[0]![0] as CustomEvent).detail;
 			expect(detail.url).toBe(url);
 			expect(detail.direction).toBe('forward');
 			expect(detail.newDocument).toBe(newDocument);
@@ -61,7 +61,7 @@ describe('navigation lifecycle dispatch', () => {
 			dispatchAfterSwap(document, { url, direction: 'replace' });
 
 			expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-			const detail = (afterSwapSpy.mock.calls[0]?.[0] as CustomEvent).detail;
+			const detail = (afterSwapSpy.mock.calls[0]![0] as CustomEvent).detail;
 			expect(detail.url).toBe(url);
 			expect(detail.direction).toBe('replace');
 		} finally {
@@ -106,7 +106,7 @@ describe('navigation lifecycle dispatch', () => {
 
 			expect(scheduleSpy).toHaveBeenCalledTimes(1);
 			expect(pageLoadSpy).toHaveBeenCalledTimes(1);
-			const detail = (pageLoadSpy.mock.calls[0]?.[0] as CustomEvent).detail;
+			const detail = (pageLoadSpy.mock.calls[0]![0] as CustomEvent).detail;
 			expect(detail.url).toBe(url);
 			expect(detail.direction).toBe('forward');
 		} finally {

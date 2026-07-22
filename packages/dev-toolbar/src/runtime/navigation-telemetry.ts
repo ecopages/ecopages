@@ -162,7 +162,7 @@ function getTelemetryDocument(): Document {
 	return document;
 }
 
-function buildSnapshot(doc: Document = getTelemetryDocument()): NavigationTelemetrySnapshot {
+function buildSnapshot(): NavigationTelemetrySnapshot {
 	const route = `${window.location.pathname}${window.location.search}`;
 	return {
 		updatedAt: new Date().toISOString(),
@@ -174,7 +174,7 @@ function buildSnapshot(doc: Document = getTelemetryDocument()): NavigationTeleme
 }
 
 function syncTelemetryElement(doc: Document = getTelemetryDocument()): NavigationTelemetrySnapshot {
-	const snapshot = buildSnapshot(doc);
+	const snapshot = buildSnapshot();
 	let element = doc.getElementById(NAV_TELEMETRY_ELEMENT_ID);
 	if (!element) {
 		const script = doc.createElement('script');

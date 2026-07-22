@@ -16,12 +16,6 @@ function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	});
 }
 
-function createMockPageComponent(name: string) {
-	const Component = () => createElement('div', { 'data-testid': `${name}-page` }, `Page: ${name}`);
-	Component.displayName = name;
-	return Component;
-}
-
 function createLinkPage(name: string, href: string, label: string) {
 	const Component = () => createElement('a', { href, 'data-testid': `${name}-link` }, label);
 	Component.displayName = name;

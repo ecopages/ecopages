@@ -1,9 +1,11 @@
+import type { JsxRenderable } from '@ecopages/jsx';
+
 type IconProps = {
 	class?: string;
 	size?: number;
 };
 
-export const Moon = ({ class: className, size = 24 }: IconProps) => (
+export const Moon = ({ class: className, size = 24 }: IconProps): JsxRenderable => (
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
 		width={size}
@@ -20,7 +22,7 @@ export const Moon = ({ class: className, size = 24 }: IconProps) => (
 	</svg>
 );
 
-export const Sun = ({ class: className, size = 24 }: IconProps) => (
+export const Sun = ({ class: className, size = 24 }: IconProps): JsxRenderable => (
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
 		width={size}

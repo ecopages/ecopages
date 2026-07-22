@@ -1,7 +1,8 @@
 import { eco } from '@ecopages/core';
-import { Moon, Sun } from './icons.kita';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { Moon, Sun } from './icons';
 
-export const ThemeToggle = eco.component({
+export const ThemeToggle = eco.component<Record<string, never>, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],

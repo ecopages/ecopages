@@ -1,5 +1,6 @@
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { RadiantElement } from '@ecopages/radiant';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 
 @customElement('theme-toggle')
 export class ThemeToggleElement extends RadiantElement {
@@ -30,10 +31,8 @@ export class ThemeToggleElement extends RadiantElement {
 	}
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'theme-toggle': HtmlTag;
-		}
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'theme-toggle': JsxCustomElementAttributes<ThemeToggleElement>;
 	}
 }

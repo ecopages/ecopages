@@ -1,7 +1,10 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { BaseLayout } from '@/layouts/base-layout';
 
-export default eco.page({
+
+
+export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
 
 	metadata: () => ({

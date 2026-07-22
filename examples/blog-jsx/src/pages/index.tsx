@@ -1,6 +1,10 @@
 import { eco } from '@ecopages/core';
-import { BaseLayout } from '@/layouts/base-layout/base-layout.kita';
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { createMarkupNodeLike } from '@ecopages/jsx';
+import { EcoImage as renderEcoImage } from '@ecopages/image-processor/component/html';
+import { BaseLayout } from '@/layouts/base-layout';
+
+
 import {
 	ezi76Gu53NklsuUnsplashJpg,
 	theodorePoncetQzephogqd7WUnsplashJpg,
@@ -28,7 +32,7 @@ const posts = [
 	},
 ];
 
-export default eco.page({
+export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
 
 	dependencies: {
@@ -50,7 +54,7 @@ export default eco.page({
 					<article class="post-card">
 						<a href={`/posts/${post.slug}`} class="post-card-link">
 							<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
-								<EcoImage {...post.image} alt={post.title} />
+								{createMarkupNodeLike(renderEcoImage({ ...post.image, alt: post.title }))}
 							</div>
 							<div class="post-card-content">
 								<h2>{post.title}</h2>

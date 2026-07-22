@@ -1,14 +1,15 @@
 import { eco } from '@ecopages/core';
-import { ThemeToggle } from '@/components/theme-toggle.kita';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export type BaseLayoutProps = {
-	children: JSX.Element | JSX.Element[];
+	children: JsxRenderable;
 	class?: string;
 };
 
-export const BaseLayout = eco.component<BaseLayoutProps>({
+export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['../../styles/tailwind.css', './base-layout.css'],
+		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 		components: [ThemeToggle],
 	},

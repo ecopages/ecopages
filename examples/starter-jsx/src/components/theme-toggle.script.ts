@@ -1,5 +1,6 @@
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { RadiantElement } from '@ecopages/radiant';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 
 @customElement('theme-toggle')
 export class ThemeToggleElement extends RadiantElement {
@@ -10,9 +11,8 @@ export class ThemeToggleElement extends RadiantElement {
 	}
 
 	handleClick() {
-		const isLight = document.documentElement.classList.contains('light');
-		const nextIsDark = isLight;
-		this.updateTheme(nextIsDark);
+		const isDark = document.documentElement.classList.contains('dark');
+		this.updateTheme(!isDark);
 	}
 
 	initTheme() {
@@ -23,17 +23,15 @@ export class ThemeToggleElement extends RadiantElement {
 	}
 
 	updateTheme(isDark: boolean) {
-		document.documentElement.classList.toggle('light', !isDark);
+		document.documentElement.classList.toggle('dark', isDark);
 		document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
 		localStorage.setItem('theme', isDark ? 'dark' : 'light');
 		this.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
 	}
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'theme-toggle': HtmlTag;
-		}
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'theme-toggle': JsxCustomElementAttributes<ThemeToggleElement>;
 	}
 }

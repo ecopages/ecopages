@@ -1,4 +1,5 @@
 import { customElement, onEvent, onUpdated, prop, query, RadiantElement } from '@ecopages/radiant';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 
 export type RadiantCounterProps = {
 	count?: number;
@@ -25,10 +26,8 @@ export class RadiantCounter extends RadiantElement {
 	}
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'radiant-counter': HtmlTag & RadiantCounterProps;
-		}
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'radiant-counter': JsxCustomElementAttributes<RadiantCounter, RadiantCounterProps>;
 	}
 }

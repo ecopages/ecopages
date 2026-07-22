@@ -75,9 +75,12 @@ describe('DevTransformBundler', () => {
 		fs.writeFileSync(layoutPath, "export const label = 'before';\n", 'utf8');
 		fs.writeFileSync(
 			pagePath,
-			["import { label } from '../layouts/docs-layout.tsx';", 'export default function Page() {', '  return label;', '}'].join(
-				'\n',
-			),
+			[
+				"import { label } from '../layouts/docs-layout.tsx';",
+				'export default function Page() {',
+				'  return label;',
+				'}',
+			].join('\n'),
 			'utf8',
 		);
 

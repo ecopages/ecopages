@@ -14,16 +14,16 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 
 ## Module map
 
-| File                           | Role                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `dev-toolbar-host.ts`          | Enablement, manifest contribution, runtime bundling, HTML injection        |
+| File                               | Role                                                                                                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev-toolbar-host.ts`              | Enablement, manifest contribution, runtime bundling, HTML injection                                                                                                         |
 | `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
-| `dev-toolbar-manifest.ts`      | Builds and serializes the per-page dev manifest                            |
-| `dev-toolbar-package.ts`       | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`) |
-| `dev-toolbar-config.ts`        | `isDevToolbarEnabled` — watch mode, env var, package required              |
-| `dev-toolbar-html-response.ts` | Adapter helpers for injecting `import '/_dev_toolbar.js'`                  |
-| `dev-toolbar-runtime-paths.ts` | `/_dev_toolbar.js` URL and work-dir paths                                  |
-| `define-dev-tool.ts`           | Config helper for bring-your-own client packages                           |
+| `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest                                                                                                                             |
+| `dev-toolbar-package.ts`           | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`)                                                                                                  |
+| `dev-toolbar-config.ts`            | `isDevToolbarEnabled` — watch mode, env var, package required                                                                                                               |
+| `dev-toolbar-html-response.ts`     | Adapter helpers for injecting `import '/_dev_toolbar.js'`                                                                                                                   |
+| `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                                                   |
+| `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                                                            |
 
 ## Injection order
 

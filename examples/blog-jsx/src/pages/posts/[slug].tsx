@@ -4,7 +4,6 @@ import { createMarkupNodeLike } from '@ecopages/jsx';
 import { EcoImage as renderEcoImage } from '@ecopages/image-processor/component/html';
 import { BaseLayout } from '@/layouts/base-layout';
 
-
 import {
 	ezi76Gu53NklsuUnsplashJpg,
 	theodorePoncetQzephogqd7WUnsplashJpg,

@@ -201,5 +201,37 @@ describe('EcoRouter', () => {
 				document.removeEventListener('eco:before-swap', handler);
 			}
 		});
+
+		it('should hard-navigate when before-swap requests reload', async () => {
+			fixtures.router = createRouter();
+			const reloadSpy = vi.spyOn(
+				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
+					.navigationCommit,
+				'reloadDocument',
+			);
+			reloadSpy.mockImplementation(() => undefined);
+			const afterSwapSpy = vi.fn();
+			const pageLoadSpy = vi.fn();
+			const handler = (e: Event) => {
+				(e as CustomEvent).detail.reload();
+			};
+
+			document.addEventListener('eco:before-swap', handler);
+			document.addEventListener('eco:after-swap', afterSwapSpy);
+			document.addEventListener('eco:page-load', pageLoadSpy);
+
+			try {
+				await fixtures.router.navigate('/reload-requested');
+
+				expect(reloadSpy).toHaveBeenCalledTimes(1);
+				expect(afterSwapSpy).not.toHaveBeenCalled();
+				expect(pageLoadSpy).not.toHaveBeenCalled();
+			} finally {
+				document.removeEventListener('eco:before-swap', handler);
+				document.removeEventListener('eco:after-swap', afterSwapSpy);
+				document.removeEventListener('eco:page-load', pageLoadSpy);
+				reloadSpy.mockRestore();
+			}
+		});
 	});
 });

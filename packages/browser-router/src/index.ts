@@ -11,10 +11,6 @@ export {
 	EcoRouter,
 	syncDocumentElementAttributes,
 	type BrowserRouterNavigateOptions,
-	type EcoAfterSwapEvent,
-	type EcoBeforeSwapEvent,
-	type EcoNavigationEvent,
-	type EcoRouterEventMap,
 	type EcoRouterOptions,
 } from './client/index.ts';
 

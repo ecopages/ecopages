@@ -409,6 +409,9 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 						outcome,
 						{
 							isStale,
+							hardAssign: (href) => {
+								window.location.assign(href);
+							},
 							morphHead,
 							applyViewTransitionNames,
 							saveScrollPositions,

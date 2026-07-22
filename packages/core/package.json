@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/core",
-	"version": "0.2.0-beta.30",
+	"version": "0.2.0-beta.32",
 	"description": "Core package for Ecopages",
 	"keywords": [
 		"ecopages",
@@ -104,6 +104,10 @@
 		"./router/navigation-coordinator": {
 			"types": "./src/router/client/navigation-coordinator.ts",
 			"default": "./src/router/client/navigation-coordinator.ts"
+		},
+		"./router/navigation-lifecycle": {
+			"types": "./src/router/client/navigation-lifecycle.ts",
+			"default": "./src/router/client/navigation-lifecycle.ts"
 		},
 		"./router/link-intent": {
 			"types": "./src/router/client/link-intent.ts",

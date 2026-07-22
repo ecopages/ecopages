@@ -2,8 +2,6 @@ import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
 
-
-
 export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
 

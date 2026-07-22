@@ -3,7 +3,6 @@ import type { Error404TemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
 
-
 export default eco.page<Error404TemplateProps, JsxRenderable>({
 	layout: BaseLayout,
 	dependencies: {

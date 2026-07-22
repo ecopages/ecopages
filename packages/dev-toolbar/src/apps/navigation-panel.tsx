@@ -3,7 +3,8 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import { readDevManifestFromDocument, type EcoDevManifest } from '../api/dev-manifest.ts';
+import type { EcoDevManifest } from './manifest-contract.ts';
+import { readDevManifestFromDocument } from '../api/dev-manifest.ts';
 import { DEV_TOOLBAR_NAV_HISTORY_PAGE_SIZE } from '../runtime/constants.ts';
 import {
 	clearNavigationTelemetryHistory,

@@ -24,6 +24,8 @@ pnpm add -D @ecopages/dev-toolbar
 
 During `ecopages dev`, core bundles your configured package to `/_dev_toolbar.js` and injects the dev manifest for the Deps panel. Restart the dev server after toolbar client changes.
 
+`@ecopages/dev-toolbar` mirrors the core manifest contract locally for browser bundling (`src/api/manifest-contract.ts`); keep it in sync via `manifest-contract.test.ts`.
+
 Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
 
 ## Built-in apps
@@ -56,6 +58,7 @@ To replace this reference toolbar:
 - `src/shell/eco-dev-toolbar.tsx` — Radiant light-DOM host (JSX `render()`, no shadow root); panel positioning is pure CSS
 - `src/shell/motion.ts` — WAAPI motion for stealth dock reveal only; panel show/hide is CSS
 - `src/apps/*-panel.tsx` — Radiant JSX panels (navigation, deps, islands, a11y, settings)
-- `src/api/` — manifest and app contracts
-- `src/apps/` — built-in toolbar apps
+- `src/api/manifest-contract.ts` — browser-local mirror of the core dev manifest contract
+- `src/api/dev-manifest.ts` — internal DOM read/write for `#__ECO_DEV_MANIFEST__`
+- `src/api/types.ts` — toolbar app host contracts
 - `src/shell/` — custom element host, SVG icons, styles, and `ensureDevToolbarStyles()` (optional CSS override for BYO toolbars)

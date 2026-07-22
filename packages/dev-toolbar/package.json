@@ -12,8 +12,7 @@
 	"exports": {
 		".": "./src/bootstrap.ts",
 		"./config": "./src/config.ts",
-		"./api": "./src/api/types.ts",
-		"./manifest": "./src/api/dev-manifest.ts"
+		"./api": "./src/api/types.ts"
 	},
 	"files": [
 		"src"
@@ -31,5 +30,8 @@
 		"@ecopages/radiant": "0.3.0-beta.3",
 		"@ecopages/signals": "0.3.0-beta.3",
 		"axe-core": "^4.10.3"
+	},
+	"devDependencies": {
+		"@ecopages/core": "workspace:*"
 	}
 }

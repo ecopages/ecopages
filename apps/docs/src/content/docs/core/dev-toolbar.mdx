@@ -34,6 +34,10 @@ export default new ConfigBuilder()
 
 Disable per project with `devToolbar({ enabled: false })`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
 
+## Optional dependency
+
+You do not need `@ecopages/dev-toolbar` unless you opt in with `devToolbar.package`. Core ships the dev manifest contract; the reference toolbar package is only required when you install and enable it.
+
 Restart the dev server after toolbar client changes.
 
 ## Built-in apps
@@ -63,6 +67,15 @@ The toolbar reads this manifest client-side. Important fields:
 | `pageBrowserGraph` | Entry and chunk assets for the current route |
 | `vendorUrls` | Vendor asset URLs referenced by the page package |
 | `devTransformUrls` | Dev-transform module URLs under `/assets/__eco_dev__/` |
+
+Import the manifest types and element id from core when building a custom toolbar client:
+
+```typescript
+import {
+  DEV_MANIFEST_ELEMENT_ID,
+  type EcoDevManifest,
+} from '@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract';
+```
 
 Machine-readable navigation history is written to `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist` so SPA re-renders do not drop it) and exposed on `window.__ECO_DEV_NAV_TELEMETRY__.getSnapshot()` for agents and debugging.
 

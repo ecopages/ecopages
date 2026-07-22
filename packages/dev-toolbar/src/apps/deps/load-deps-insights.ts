@@ -1,5 +1,5 @@
+import type { DevManifestAsset, EcoDevManifest } from '../../api/manifest-contract.ts';
 import { readDevManifestFromDocument } from '../../api/dev-manifest.ts';
-import type { DevManifestAsset, EcoDevManifest } from '../../api/dev-manifest.ts';
 
 const LARGE_VENDOR_BYTES = 100_000;
 

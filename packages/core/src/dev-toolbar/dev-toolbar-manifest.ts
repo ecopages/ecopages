@@ -1,14 +1,17 @@
 import type { PagePackageResult } from '../types/public-types.ts';
 import type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { DEV_TRANSFORM_URL_PREFIX, VENDOR_URL_PREFIX } from '../hmr/hmr-asset-paths.ts';
+import {
+	DEV_MANIFEST_ELEMENT_ID,
+	type DevManifestAsset,
+	type EcoDevManifest,
+} from './dev-toolbar-manifest-contract.ts';
 
 export {
 	DEV_MANIFEST_ELEMENT_ID,
 	type DevManifestAsset as DevToolbarManifestAsset,
 	type EcoDevManifest as DevToolbarManifestPayload,
-} from '@ecopages/dev-toolbar/manifest';
-
-import { DEV_MANIFEST_ELEMENT_ID, type DevManifestAsset, type EcoDevManifest } from '@ecopages/dev-toolbar/manifest';
+};
 
 function serializeAsset(asset: ProcessedAsset): DevManifestAsset | undefined {
 	if (!asset.srcUrl) {

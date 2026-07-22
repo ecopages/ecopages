@@ -88,14 +88,13 @@ Access it with:
 
 ```ts
 import {
-	dispatchAfterSwap,
+	completeNavigationLifecycle,
 	dispatchBeforeSwap,
-	schedulePageLoad,
 	type EcoNavigationEvent,
 } from '@ecopages/core/router/navigation-lifecycle';
 ```
 
-`browser-router` and `react-router` call these helpers around their own commit implementations. Listeners use the DOM contract:
+`browser-router` and `react-router` call these helpers around their own commit implementations. Use `completeNavigationLifecycle` for the paired post-commit signals. Listeners use the DOM contract:
 
 - `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
 - `eco:after-swap` — post-commit signal after the runtime has applied the new page

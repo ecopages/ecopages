@@ -10,7 +10,8 @@
  */
 
 import { isStaticAssetHref } from '@ecopages/core/router/link-intent';
-import { dispatchAfterSwap, dispatchBeforeSwap, schedulePageLoad } from '@ecopages/core/router/navigation-lifecycle';
+import type { EcoNavigationDirection } from '@ecopages/core/router/navigation-coordinator';
+import { completeNavigationLifecycle, dispatchBeforeSwap } from '@ecopages/core/router/navigation-lifecycle';
 import {
 	type FetchedPageDocument,
 	type LoadedPageModule,
@@ -18,7 +19,7 @@ import {
 	loadPageModuleFromDocument,
 } from './navigation.ts';
 
-export type NavigationDirection = 'back' | 'forward' | 'replace';
+export type NavigationDirection = EcoNavigationDirection;
 
 /**
  * Terminal decision for one navigate() attempt before React/DOM commit.
@@ -177,7 +178,7 @@ export async function applySpaNavigation(
 		return 'stale';
 	}
 	if (requestedReload) {
-		effects.hardAssign(page.finalPath);
+		effects.hardAssign(navigationUrl.href);
 		return 'reload-requested';
 	}
 
@@ -189,8 +190,11 @@ export async function applySpaNavigation(
 		cleanupHead();
 		effects.applyViewTransitionNames();
 		effects.restoreScrollPositions(page.finalPath, options.isPopState);
-		dispatchAfterSwap(document, { url: navigationUrl, direction: outcome.direction });
-		schedulePageLoad(document, { url: navigationUrl, direction: outcome.direction }, { isStale: effects.isStale });
+		completeNavigationLifecycle(
+			document,
+			{ url: navigationUrl, direction: outcome.direction },
+			{ isStale: effects.isStale },
+		);
 	};
 
 	const commitNextPage = () => {

@@ -1,8 +1,7 @@
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import {
-	dispatchAfterSwap,
+	completeNavigationLifecycle,
 	dispatchBeforeSwap,
-	schedulePageLoad,
 	type EcoNavigationEvent,
 } from '@ecopages/core/router/navigation-lifecycle';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
@@ -127,15 +126,13 @@ export class NavigationCommit {
 
 		navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
 
-		dispatchAfterSwap(document, { url, direction });
+		completeNavigationLifecycle(document, { url, direction }, { isStale: isStaleNavigation });
 
 		this.prefetchManager?.observeLinks();
 
 		if (options.html) {
 			this.prefetchManager?.cacheVisitedPage(url.href, options.html);
 		}
-
-		schedulePageLoad(document, { url, direction }, { isStale: isStaleNavigation });
 
 		return true;
 	}

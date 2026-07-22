@@ -69,6 +69,18 @@ export function dispatchAfterSwap(doc: Document, detail: EcoAfterSwapEvent): voi
 	doc.dispatchEvent(new CustomEvent(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, { detail }));
 }
 
+export type CompleteNavigationLifecycleOptions = SchedulePageLoadOptions;
+
+/** Dispatches `eco:after-swap` and schedules `eco:page-load`. */
+export function completeNavigationLifecycle(
+	doc: Document,
+	detail: EcoNavigationEvent,
+	options: CompleteNavigationLifecycleOptions = {},
+): void {
+	dispatchAfterSwap(doc, detail);
+	schedulePageLoad(doc, detail, options);
+}
+
 /**
  * Schedules `eco:page-load` on the next animation frame unless navigation is stale.
  */

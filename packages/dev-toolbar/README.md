@@ -28,7 +28,7 @@ Disable per project with `devToolbar: { enabled: false }`, or per process with `
 
 ## Built-in apps
 
-- **Navigation** — route timing archive, initial load, client navigation latency, HMR status, page Integration (route owner); writes `#__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
+- **Navigation** — route timing archive, initial load, client navigation latency, HMR status, page Integration (route owner); writes `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist`) and exposes `window.__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
 - **Deps** — Page Browser Graph entry/chunk assets, vendor URLs, lazy-load hints
 - **Islands** — inspect island hosts stamped with `data-eco-island` (plus legacy React `eco-island` roots); click a row to highlight the live DOM node
 - **A11y** — axe-core audit (with built-in fallback checks) and in-page highlights

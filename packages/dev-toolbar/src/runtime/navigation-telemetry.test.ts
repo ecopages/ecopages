@@ -34,6 +34,13 @@ function createStorage(): Storage {
 function createDocumentHarness() {
 	const elements = new Map<string, HTMLElement>();
 	const listeners = new Map<string, Set<() => void>>();
+	const head = {
+		append(element: HTMLElement) {
+			if (element.id) {
+				elements.set(element.id, element);
+			}
+		},
+	};
 	const body = {
 		append(element: HTMLElement) {
 			if (element.id) {
@@ -48,6 +55,7 @@ function createDocumentHarness() {
 	});
 	const doc = {
 		body,
+		head,
 		readyState: 'complete' as DocumentReadyState,
 		addEventListener,
 		createElement: vi.fn(() => {
@@ -99,7 +107,7 @@ describe('navigation telemetry', () => {
 		vi.unstubAllGlobals();
 	});
 
-	it('records an initial load entry and writes the DOM trace', () => {
+	it('records an initial load entry and writes the DOM trace in document.head', () => {
 		const { doc, elements, listeners } = createDocumentHarness();
 		const api = initNavigationTelemetry(doc);
 
@@ -132,6 +140,37 @@ describe('navigation telemetry', () => {
 		const navigation = snapshot?.history.find((entry) => entry.kind === 'client-navigation');
 		expect(navigation?.swapMs).toBe(130);
 		expect(localStorage.getItem(NAV_TELEMETRY_STORAGE_KEY)).toContain('client-navigation');
+	});
+
+	it('escapes angle brackets in the DOM trace payload', () => {
+		const { doc, elements, listeners } = createDocumentHarness();
+		initNavigationTelemetry(doc);
+		recordInitialLoadViaPageLoad(listeners);
+
+		vi.stubGlobal('window', {
+			location: {
+				pathname: '/</script>',
+				search: '',
+			},
+		});
+
+		listeners.get('eco:before-swap')?.forEach((handler) => handler());
+		listeners.get('eco:after-swap')?.forEach((handler) => handler());
+
+		const trace = elements.get(NAV_TELEMETRY_ELEMENT_ID)?.textContent ?? '';
+		expect(trace).toContain('\\u003c/script>');
+		expect(() => JSON.parse(trace)).not.toThrow();
+	});
+
+	it('falls back to the in-memory API when the DOM trace element is missing', () => {
+		const { doc, elements, listeners } = createDocumentHarness();
+		const api = initNavigationTelemetry(doc);
+		recordInitialLoadViaPageLoad(listeners);
+
+		elements.delete(NAV_TELEMETRY_ELEMENT_ID);
+
+		const snapshot = readNavigationTelemetrySnapshot(doc);
+		expect(snapshot?.history).toEqual(api.getSnapshot().history);
 	});
 
 	it('records aborted navigations when a new swap starts before the previous one completes', () => {

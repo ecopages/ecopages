@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 const SOURCE_CLIENT_FILE = 'src/bootstrap.ts';
+const COMPILED_CLIENT_FILE = 'src/bootstrap.js';
 
 export type DevToolbarClientResolution = {
 	entryPath: string;
@@ -39,16 +40,21 @@ export function resolveDevToolbarPackageRoot(rootDir: string, packageSpec: strin
 
 /**
  * Resolves the browser entrypoint core bundles into `/_dev_toolbar.js`.
+ *
+ * @remarks Prefers `src/bootstrap.js` when present (published npm or `file:` to
+ * `dist`), then `bootstrap.ts` for workspace source checkouts.
  */
 export function resolveDevToolbarClient(rootDir: string, packageSpec: string): DevToolbarClientResolution | undefined {
+	const require = createRequire(path.join(rootDir, 'package.json'));
 	const packageRoot = resolveDevToolbarPackageRoot(rootDir, packageSpec);
-	const sourcePath = path.join(packageRoot, SOURCE_CLIENT_FILE);
 
-	if (fileSystem.exists(sourcePath)) {
-		return { entryPath: sourcePath };
+	const entryCandidates = [path.join(packageRoot, COMPILED_CLIENT_FILE), path.join(packageRoot, SOURCE_CLIENT_FILE)];
+	for (const entryPath of entryCandidates) {
+		if (fileSystem.exists(entryPath)) {
+			return { entryPath };
+		}
 	}
 
-	const require = createRequire(path.join(rootDir, 'package.json'));
 	try {
 		return { entryPath: require.resolve(packageSpec) };
 	} catch {

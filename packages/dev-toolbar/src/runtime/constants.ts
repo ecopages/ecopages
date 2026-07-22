@@ -5,6 +5,7 @@ export const DEV_TOOLBAR_PERSIST_KEY = 'eco-dev-toolbar';
 export const DEV_TOOLBAR_PLACEMENT_STORAGE_KEY = 'ecopages:dev-toolbar:placement';
 export const DEV_TOOLBAR_STEALTH_STORAGE_KEY = 'ecopages:dev-toolbar:stealth';
 export const DEV_TOOLBAR_NAVIGATION_APP_ID = 'navigation';
+export const DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY = 'eco-dev-toolbar-nav-telemetry';
 
 /** Full-opacity dwell after hover ends, before the fade phase. */
 export const DEV_TOOLBAR_STEALTH_DWELL_MS = 4_000;

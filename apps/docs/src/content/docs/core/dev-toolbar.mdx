@@ -64,7 +64,7 @@ The toolbar reads this manifest client-side. Important fields:
 | `vendorUrls` | Vendor asset URLs referenced by the page package |
 | `devTransformUrls` | Dev-transform module URLs under `/assets/__eco_dev__/` |
 
-Machine-readable navigation history is also written to `#__ECO_DEV_NAV_TELEMETRY__` for agents and debugging.
+Machine-readable navigation history is written to `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist` so SPA re-renders do not drop it) and exposed on `window.__ECO_DEV_NAV_TELEMETRY__.getSnapshot()` for agents and debugging.
 
 ## Island discovery
 

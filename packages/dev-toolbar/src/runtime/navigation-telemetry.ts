@@ -1,3 +1,5 @@
+import { DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY } from './constants.ts';
+
 export const NAV_TELEMETRY_ELEMENT_ID = '__ECO_DEV_NAV_TELEMETRY__';
 export const NAV_TELEMETRY_STORAGE_KEY = 'ecopages:dev-toolbar:nav-telemetry';
 export const NAV_TELEMETRY_MAX_ENTRIES = 50;
@@ -173,6 +175,10 @@ function buildSnapshot(): NavigationTelemetrySnapshot {
 	};
 }
 
+function escapeTelemetryJson(snapshot: NavigationTelemetrySnapshot): string {
+	return JSON.stringify(snapshot).replace(/</g, '\\u003c');
+}
+
 function syncTelemetryElement(doc: Document = getTelemetryDocument()): NavigationTelemetrySnapshot {
 	const snapshot = buildSnapshot();
 	let element = doc.getElementById(NAV_TELEMETRY_ELEMENT_ID);
@@ -180,11 +186,12 @@ function syncTelemetryElement(doc: Document = getTelemetryDocument()): Navigatio
 		const script = doc.createElement('script');
 		script.id = NAV_TELEMETRY_ELEMENT_ID;
 		script.setAttribute('type', 'application/json');
+		script.setAttribute('data-eco-persist', DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY);
 		element = script;
-		doc.body.append(element);
+		doc.head.append(element);
 	}
 
-	element.textContent = JSON.stringify(snapshot);
+	element.textContent = escapeTelemetryJson(snapshot);
 	(window as EcoNavigationWindow).__ECO_DEV_NAV_TELEMETRY__ = createNavigationTelemetryApi();
 	return snapshot;
 }
@@ -349,15 +356,16 @@ export function initNavigationTelemetry(doc: Document = document): NavigationTel
 
 export function readNavigationTelemetrySnapshot(doc: Document = document): NavigationTelemetrySnapshot | undefined {
 	const element = doc.getElementById(NAV_TELEMETRY_ELEMENT_ID);
-	if (!element?.textContent) {
-		return undefined;
+	if (element?.textContent) {
+		try {
+			return JSON.parse(element.textContent) as NavigationTelemetrySnapshot;
+		} catch {
+			// Fall through to the in-memory API when the DOM trace is stale or invalid.
+		}
 	}
 
-	try {
-		return JSON.parse(element.textContent) as NavigationTelemetrySnapshot;
-	} catch {
-		return undefined;
-	}
+	const api = (window as EcoNavigationWindow).__ECO_DEV_NAV_TELEMETRY__;
+	return api?.getSnapshot();
 }
 
 /** Clears persisted navigation history and the DOM telemetry trace. */

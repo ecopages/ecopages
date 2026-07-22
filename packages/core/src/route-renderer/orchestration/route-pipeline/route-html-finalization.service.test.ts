@@ -72,6 +72,20 @@ describe('route-html-finalization.service', () => {
 		]);
 	});
 
+	it('does not append the dev toolbar manifest when devToolbar.package is unset', () => {
+		const plan = buildRouteHtmlFinalization(
+			createContext({
+				appConfig: {} as EcoPagesAppConfig,
+				watch: true,
+				renderOptions: {
+					file: '/tmp/src/pages/index.tsx',
+				} as IntegrationRendererRenderOptions,
+			}),
+		);
+
+		expect(plan.htmlContributions ?? []).toEqual([]);
+	});
+
 	it('appends the dev toolbar manifest when watch mode is enabled', () => {
 		const plan = buildRouteHtmlFinalization(
 			createContext({

@@ -10,7 +10,8 @@ import '../apps/deps-panel.tsx';
 import '../apps/islands-panel.tsx';
 import '../apps/navigation-panel.tsx';
 import '../apps/settings-panel.tsx';
-import { updateDevManifestInDocument, type EcoDevManifest } from '../api/dev-manifest.ts';
+import type { EcoDevManifest } from '../api/manifest-contract.ts';
+import { updateDevManifestInDocument } from '../api/dev-manifest.ts';
 import type { DevToolbarBadge } from '../api/types.ts';
 import { DEV_TOOLBAR_ELEMENT_NAME, DEV_TOOLBAR_PERSIST_KEY } from '../runtime/constants.ts';
 import {

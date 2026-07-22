@@ -10,13 +10,14 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 | **Client package** (`devToolbar.package`) | Dock UI, panels, and any extra apps                                                               |
 | **Integrations**                          | Page rendering and browser assets — not toolbar dock apps                                         |
 
-Extend the toolbar by setting `devToolbar.package` to your own client package (or `@ecopages/dev-toolbar`). Integrations do not register dock apps.
+`@ecopages/dev-toolbar` is an optional peer. Core does not import it at runtime unless `devToolbar.package` is configured. The dev manifest contract (`dev-toolbar-manifest-contract.ts`) lives in core so apps and custom toolbar clients can type the payload without installing the reference toolbar package.
 
 ## Module map
 
 | File                           | Role                                                                       |
 | ------------------------------ | -------------------------------------------------------------------------- |
 | `dev-toolbar-host.ts`          | Enablement, manifest contribution, runtime bundling, HTML injection        |
+| `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
 | `dev-toolbar-manifest.ts`      | Builds and serializes the per-page dev manifest                            |
 | `dev-toolbar-package.ts`       | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`) |
 | `dev-toolbar-config.ts`        | `isDevToolbarEnabled` — watch mode, env var, package required              |

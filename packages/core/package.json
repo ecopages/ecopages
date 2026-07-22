@@ -332,6 +332,10 @@
 		"./dev-toolbar/define-dev-tool": {
 			"types": "./src/dev-toolbar/define-dev-tool.ts",
 			"default": "./src/dev-toolbar/define-dev-tool.ts"
+		},
+		"./dev-toolbar/dev-toolbar-manifest-contract": {
+			"types": "./src/dev-toolbar/dev-toolbar-manifest-contract.ts",
+			"default": "./src/dev-toolbar/dev-toolbar-manifest-contract.ts"
 		}
 	}
 }

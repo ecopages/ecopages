@@ -1,4 +1,4 @@
-import type { EcoDevManifest } from './dev-manifest.ts';
+import type { EcoDevManifest } from './manifest-contract.ts';
 
 export type DevToolbarBadge = {
 	count?: number;

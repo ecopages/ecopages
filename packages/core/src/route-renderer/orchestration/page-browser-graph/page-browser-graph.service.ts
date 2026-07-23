@@ -16,6 +16,7 @@ import {
 	type GraphBuildResult,
 	type GraphPolicy,
 } from './page-browser-graph-session.ts';
+import { createRouteGraphLookupKey } from './route-instance-key.ts';
 
 function isGroupedContentScriptAsset(asset: AssetDefinition): asset is Extract<
 	AssetDefinition,
@@ -41,8 +42,10 @@ type GroupedPageBrowserAssetsResult = {
 
 export type PageBrowserGraphResolveInput = {
 	routeFile: string;
+	routeInstanceKey?: string;
 	integrationName: string;
-	collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
+	collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+	collectSiblingContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
 	policy?: GraphPolicy;
 };
 
@@ -68,15 +71,21 @@ export class PageBrowserGraphService {
 	async getOrBuild(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {
 		const policy = input.policy ?? this.resolveGraphPolicy();
 		const session = getAppPageBrowserGraphSession(this.appConfig);
+		const routeInstanceKey = input.routeInstanceKey ?? '';
 
 		if (!this.isHmrEnabled()) {
-			const cachedByRoute = session.getGraphByRoute(input.integrationName, input.routeFile, policy);
+			const cachedByRoute = session.getGraphByRoute(
+				input.integrationName,
+				input.routeFile,
+				policy,
+				routeInstanceKey,
+			);
 			if (cachedByRoute) {
 				return cachedByRoute;
 			}
 		}
 
-		const contribution = await input.collectContribution(input.routeFile);
+		const contribution = await input.collectContribution();
 		if (!contribution) {
 			return undefined;
 		}
@@ -87,6 +96,7 @@ export class PageBrowserGraphService {
 			{
 				integrationName: input.integrationName,
 				routeFile: input.routeFile,
+				routeInstanceKey,
 				entryFingerprint,
 				policy,
 			},
@@ -128,8 +138,9 @@ export class PageBrowserGraphService {
 		);
 
 		const groupedAssets = groupedDependencies.length
-			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).assetsByRoute.get(input.routeFile) ??
-				[])
+			? ((await this.resolveGroupedPageBrowserAssets(input, contribution)).assetsByRoute.get(
+					createRouteGraphLookupKey(input.routeFile, input.routeInstanceKey ?? ''),
+				) ?? [])
 			: [];
 
 		const processedDependencies = ungroupedDependencies.length
@@ -157,7 +168,11 @@ export class PageBrowserGraphService {
 		}
 
 		const session = getAppPageBrowserGraphSession(this.appConfig);
-		const assetsByRoute = await session.resolveGroupedGraph(input.integrationName, async () => {
+		const groupedScope = {
+			integrationName: input.integrationName,
+			routeInstanceKey: input.routeInstanceKey ?? '',
+		};
+		const assetsByRoute = await session.resolveGroupedGraph(groupedScope, async () => {
 			const built = await this.buildGroupedPageBrowserAssets(input, currentContribution);
 			if (built.hasCollectionFailures) {
 				return {
@@ -185,6 +200,8 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
 	): Promise<GroupedPageBrowserAssetsResult> {
+		const routeInstanceKey = input.routeInstanceKey ?? '';
+		const currentRouteLookupKey = createRouteGraphLookupKey(input.routeFile, routeInstanceKey);
 		const routeFiles = this.isHmrEnabled()
 			? [input.routeFile]
 			: await this.listIntegrationRouteFiles(input.integrationName);
@@ -197,7 +214,7 @@ export class PageBrowserGraphService {
 		let hasCollectionFailures = false;
 		if (currentRouteGroupedDependencies.length > 0) {
 			groupedAssetKeysByRoute.set(
-				input.routeFile,
+				currentRouteLookupKey,
 				new Set(currentRouteGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
 			);
 		}
@@ -209,7 +226,7 @@ export class PageBrowserGraphService {
 
 			let contribution: PageBrowserGraphContribution | undefined;
 			try {
-				contribution = await input.collectContribution(routeFile);
+				contribution = await input.collectSiblingContribution(routeFile);
 			} catch (error) {
 				hasCollectionFailures = true;
 				appLogger.warn(
@@ -231,7 +248,7 @@ export class PageBrowserGraphService {
 
 			groupedDependencies.push(...routeGroupedDependencies);
 			groupedAssetKeysByRoute.set(
-				routeFile,
+				createRouteGraphLookupKey(routeFile, ''),
 				new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
 			);
 			dependencyPaths.add(path.resolve(routeFile));

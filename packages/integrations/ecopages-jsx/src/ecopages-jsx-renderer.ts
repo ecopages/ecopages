@@ -34,7 +34,6 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderSession } from './ecopages-jsx-render-session.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
-import { updateEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
@@ -388,6 +387,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	 * re-walking the component tree.
 	 */
 	private recordHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
-		updateEjsxHmrOwnership(components);
+		this.renderSession.mergeHmrOwnership(components);
 	}
 }

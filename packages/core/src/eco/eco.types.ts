@@ -165,7 +165,6 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	 */
 	dependencies?: PageDependenciesInput<T>;
 	layout?: EcoPageLayouts<E>;
-	layout?: EcoPageLayouts<E>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).

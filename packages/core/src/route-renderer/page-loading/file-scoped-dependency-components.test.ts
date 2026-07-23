@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import type { EcoComponent } from '../../types/public-types.ts';
 import {
 	attachEcoFileMetadataToConfig,
+	collectComponentConfigFilePaths,
+	collectDependencyWatchPaths,
 	collectFileScopedDependencyComponents,
 	createFileScopedDependencyComponent,
 	splitPageDependenciesResult,
@@ -74,6 +76,48 @@ describe('attachEcoFileMetadataToConfig', () => {
 				integration: 'react',
 			}),
 		);
+	});
+});
+
+describe('collectComponentConfigFilePaths', () => {
+	test('walks nested dependency components and optional layouts', () => {
+		const layout = (() => null) as EcoComponent;
+		layout.config = {
+			__eco: { id: 'layout', file: '/app/layouts/docs.tsx', integration: 'ecopages-jsx' },
+		};
+		const child = (() => null) as EcoComponent;
+		child.config = {
+			__eco: { id: 'child', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+		};
+		const page = (() => null) as EcoComponent;
+		page.config = {
+			__eco: { id: 'page', file: '/app/pages/docs/index.tsx', integration: 'ecopages-jsx' },
+			dependencies: { components: [child] },
+			layouts: [layout],
+		};
+
+		const withoutLayouts = collectComponentConfigFilePaths([page]);
+		expect(withoutLayouts.has('/app/pages/docs/index.tsx')).toBe(true);
+		expect(withoutLayouts.has('/app/components/demo.tsx')).toBe(true);
+		expect(withoutLayouts.has('/app/layouts/docs.tsx')).toBe(false);
+
+		const withLayouts = collectComponentConfigFilePaths([page], { includeLayouts: true });
+		expect(withLayouts.has('/app/layouts/docs.tsx')).toBe(true);
+	});
+});
+
+describe('collectDependencyWatchPaths', () => {
+	test('includes owner file and nested dependency component files', () => {
+		const watchPaths = collectDependencyWatchPaths('/app/content/demo.mdx', [
+			{
+				config: {
+					__eco: { id: 'demo-component', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+				},
+			},
+		]);
+
+		expect(watchPaths).toEqual(expect.arrayContaining(['/app/content/demo.mdx', '/app/components/demo.tsx']));
+		expect(watchPaths).toHaveLength(2);
 	});
 });
 

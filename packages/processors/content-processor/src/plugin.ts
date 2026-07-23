@@ -66,9 +66,9 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: ['mdx'],
-			onCreate: async (ctx) => this.regenerateCollectionsForPath(ctx.path),
-			onChange: async (ctx) => this.regenerateCollectionsForPath(ctx.path),
-			onDelete: async (ctx) => this.regenerateCollectionsForPath(ctx.path),
+			onCreate: async (ctx) => this.handleContentFileEvent(ctx.path, 'create'),
+			onChange: async (ctx) => this.handleContentFileEvent(ctx.path, 'change'),
+			onDelete: async (ctx) => this.handleContentFileEvent(ctx.path, 'delete'),
 		};
 
 		super({
@@ -169,6 +169,22 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 	}
 
+	private async regenerateCollectionEntriesModule(collectionName: string): Promise<void> {
+		if (!this.context?.cache) {
+			throw new Error('Content processor requires context to be set');
+		}
+
+		assertValidCollectionName(collectionName);
+
+		const scanner = this.getOrCreateScanner(collectionName);
+		const manifest = (await scanner.getManifest()).map((entry) => entry);
+		const outputFile = getCollectionCachePath(this.context.cache, collectionName);
+		const entriesOutput = renderCollectionEntriesModule(collectionName, manifest);
+
+		this.writeGeneratedFile(outputFile, entriesOutput);
+		this.collectionModules[collectionName] = outputFile;
+	}
+
 	private async regenerateCollections(collectionNames: Iterable<string>): Promise<void> {
 		for (const collectionName of collectionNames) {
 			await this.regenerateCollectionModule(collectionName);
@@ -180,7 +196,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		await this.regenerateCollections(Object.keys(this.getCollectionsConfig()));
 	}
 
-	private async regenerateCollectionsForPath(filePath: string): Promise<void> {
+	private async handleContentFileEvent(filePath: string, event: 'change' | 'create' | 'delete'): Promise<void> {
 		if (!this.context) {
 			return;
 		}
@@ -195,8 +211,34 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			}
 		}
 
-		if (affectedCollections.length > 0) {
-			await this.regenerateCollections(affectedCollections);
+		let shouldRegenerateTypes = false;
+
+		for (const collectionName of affectedCollections) {
+			if (event === 'create' || event === 'delete') {
+				await this.regenerateCollectionModule(collectionName);
+				shouldRegenerateTypes = true;
+				continue;
+			}
+
+			const scanner = this.getOrCreateScanner(collectionName);
+			const updateResult = await scanner.updateEntryForPath(normalizedPath, event);
+
+			if (updateResult === 'no-op') {
+				continue;
+			}
+
+			if (updateResult === 'manifest') {
+				await this.regenerateCollectionEntriesModule(collectionName);
+				shouldRegenerateTypes = true;
+				continue;
+			}
+
+			await this.regenerateCollectionModule(collectionName);
+			shouldRegenerateTypes = true;
+		}
+
+		if (shouldRegenerateTypes) {
+			this.generateTypes();
 		}
 	}
 

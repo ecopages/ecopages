@@ -47,6 +47,7 @@ import { createIntegrationRouteRenderAdapter } from './route-pipeline/integratio
 import { createRouteInstanceKey } from './page-browser-graph/route-instance-key.ts';
 import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
 import {
+	collectDependencyWatchPaths,
 	collectFileScopedDependencyComponents,
 	splitPageDependenciesResult,
 } from '../page-loading/file-scoped-dependency-components.ts';
@@ -850,6 +851,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		return {
 			assets: await this.processComponentDependencies(components),
+			watchPaths: collectDependencyWatchPaths(ownerFile, components),
 		};
 	}
 

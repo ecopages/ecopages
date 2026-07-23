@@ -170,7 +170,8 @@ Define a catch-all or per-entry route with `eco.page`. Import the collection man
 
 ```typescript
 import { eco } from '@ecopages/core';
-import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
+import { entries, getEntryBySegments } from 'ecopages:content/docs';
+import { getComponent } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
 
 export default eco.page<{ entry: Entry }>({
@@ -188,6 +189,7 @@ export default eco.page<{ entry: Entry }>({
 			props: { entry: getEntryBySegments(segments) },
 		};
 	},
+	dependencies: ({ props }) => getComponent(props.entry.slug).config?.dependencies,
 	metadata: ({ props: { entry } }) => ({
 		title: entry.title,
 		description: entry.description,
@@ -198,6 +200,24 @@ export default eco.page<{ entry: Entry }>({
 	},
 });
 ```
+
+Content MDX entries may declare interactive demo dependencies without polluting the catch-all page shell:
+
+```mdx
+import { WeatherApp } from '@/components/weather-app/weather-app';
+
+export const config = {
+	dependencies: {
+		components: [WeatherApp],
+	},
+};
+
+# Weather app
+
+<WeatherApp />
+```
+
+`getComponent()` returns the MDX default component with exported `config` attached. Pair that with a `dependencies` resolver on the catch-all page so only the active entry contributes to the Page Browser Graph.
 
 ## Navigation (app-side)
 

@@ -77,6 +77,7 @@ order: 1
 		const serverCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts');
 		expect(fileSystem.exists(serverCacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getComponent');
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getEntryDependencies');
 		expect(fileSystem.exists(typesFile)).toBe(true);
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs"');
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs/server"');

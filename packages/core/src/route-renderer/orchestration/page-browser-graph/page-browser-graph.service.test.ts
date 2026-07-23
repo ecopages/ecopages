@@ -45,6 +45,7 @@ describe('SessionPageBrowserGraphCache', () => {
 		const key = {
 			integrationName: 'react',
 			routeFile: '/app/pages/index.tsx',
+			routeInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
@@ -80,6 +81,7 @@ describe('SessionPageBrowserGraphCache', () => {
 		const key = {
 			integrationName: 'react',
 			routeFile: '/app/pages/index.tsx',
+			routeInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
@@ -115,6 +117,7 @@ describe('SessionPageBrowserGraphCache', () => {
 		const key = {
 			integrationName: 'react',
 			routeFile: '/app/pages/index.tsx',
+			routeInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
@@ -149,6 +152,7 @@ describe('SessionPageBrowserGraphCache', () => {
 		const key = {
 			integrationName: 'react',
 			routeFile: '/app/pages/index.tsx',
+			routeInstanceKey: '',
 			entryFingerprint: 'file:/app/pages/index.tsx',
 			policy: 'development' as const,
 		};
@@ -193,8 +197,12 @@ describe('SessionPageBrowserGraphCache', () => {
 	test('reuses grouped graph records across pages in the same integration', async () => {
 		const session = new SessionPageBrowserGraphCache();
 		let groupedBuilds = 0;
+		const scope = {
+			integrationName: 'react',
+			routeInstanceKey: '',
+		};
 
-		await session.resolveGroupedGraph('react', async () => {
+		await session.resolveGroupedGraph(scope, async () => {
 			groupedBuilds += 1;
 			return {
 				assetsByRoute: new Map([
@@ -206,7 +214,7 @@ describe('SessionPageBrowserGraphCache', () => {
 			};
 		});
 
-		await session.resolveGroupedGraph('react', async () => {
+		await session.resolveGroupedGraph(scope, async () => {
 			groupedBuilds += 1;
 			return {
 				skipCache: true,
@@ -218,6 +226,56 @@ describe('SessionPageBrowserGraphCache', () => {
 		expect(groupedBuilds).toBe(1);
 	});
 
+	test('isolates grouped graph records by route instance for the same route file', async () => {
+		const session = new SessionPageBrowserGraphCache();
+		let groupedBuilds = 0;
+
+		await session.resolveGroupedGraph(
+			{
+				integrationName: 'react',
+				routeInstanceKey: 'slug=examples/weather-app',
+			},
+			async () => {
+				groupedBuilds += 1;
+				return {
+					assetsByRoute: new Map([
+						[
+							'/app/pages/docs/[...slug]/index.tsx::slug=examples/weather-app',
+							[{ kind: 'script', inline: false, filepath: '/assets/weather.js' }],
+						],
+					]),
+					dependencyPaths: new Set(['/app/pages/docs/[...slug]/index.tsx']),
+					generation: 0,
+				};
+			},
+		);
+
+		const second = await session.resolveGroupedGraph(
+			{
+				integrationName: 'react',
+				routeInstanceKey: 'slug=examples/todo-app',
+			},
+			async () => {
+				groupedBuilds += 1;
+				return {
+					assetsByRoute: new Map([
+						[
+							'/app/pages/docs/[...slug]/index.tsx::slug=examples/todo-app',
+							[{ kind: 'script', inline: false, filepath: '/assets/todo.js' }],
+						],
+					]),
+					dependencyPaths: new Set(['/app/pages/docs/[...slug]/index.tsx']),
+					generation: 0,
+				};
+			},
+		);
+
+		expect(groupedBuilds).toBe(2);
+		expect(second.get('/app/pages/docs/[...slug]/index.tsx::slug=examples/todo-app')).toEqual([
+			{ kind: 'script', inline: false, filepath: '/assets/todo.js' },
+		]);
+	});
+
 	test('invalidates only graphs that depend on the changed file', async () => {
 		const session = new SessionPageBrowserGraphCache();
 		const sharedLayout = '/app/src/layouts/root.tsx';
@@ -226,6 +284,7 @@ describe('SessionPageBrowserGraphCache', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/a.tsx',
+				routeInstanceKey: '',
 				entryFingerprint: 'a',
 				policy: 'development',
 			},
@@ -238,6 +297,7 @@ describe('SessionPageBrowserGraphCache', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/b.tsx',
+				routeInstanceKey: '',
 				entryFingerprint: 'b',
 				policy: 'development',
 			},
@@ -254,6 +314,7 @@ describe('SessionPageBrowserGraphCache', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/a.tsx',
+				routeInstanceKey: '',
 				entryFingerprint: 'a',
 				policy: 'development',
 			},
@@ -269,6 +330,7 @@ describe('SessionPageBrowserGraphCache', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/b.tsx',
+				routeInstanceKey: '',
 				entryFingerprint: 'b',
 				policy: 'development',
 			},
@@ -307,6 +369,7 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 		collectContribution: async () => ({
 			dependencies: [createGroupedDependency()],
 		}),
+		collectSiblingContribution: async () => undefined,
 	});
 
 	expect(result?.entryAssets).toEqual([]);
@@ -342,6 +405,7 @@ test('PageBrowserGraphService reuses HMR graph records for unchanged requests', 
 				} satisfies AssetDefinition,
 			],
 		}),
+		collectSiblingContribution: async () => undefined,
 	};
 
 	await service.resolvePageBrowserGraph(input);
@@ -391,4 +455,43 @@ test('collectPageBrowserGraphDependencyPaths includes bundled source paths', () 
 
 	expect(dependencyPaths.has('/app/pages/index.tsx')).toBe(true);
 	expect(dependencyPaths.has('/app/src/components/Button.tsx')).toBe(true);
+});
+
+test('PageBrowserGraphService isolates graphs for sibling catch-all route instances', async () => {
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => [
+		{
+			filepath: '/assets/demo.js',
+			kind: 'script',
+			inline: false,
+		},
+	]);
+	const assetProcessingService = {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+
+	const weatherResult = await service.resolvePageBrowserGraph({
+		routeFile: '/app/pages/docs/[...slug]/index.tsx',
+		routeInstanceKey: 'slug=examples/weather-app',
+		integrationName: 'react',
+		collectContribution: async () => ({
+			assets: [{ kind: 'script', inline: false, filepath: '/assets/weather.js' }],
+		}),
+		collectSiblingContribution: async () => undefined,
+	});
+	const todoResult = await service.resolvePageBrowserGraph({
+		routeFile: '/app/pages/docs/[...slug]/index.tsx',
+		routeInstanceKey: 'slug=examples/todo-app',
+		integrationName: 'react',
+		collectContribution: async () => ({
+			assets: [{ kind: 'script', inline: false, filepath: '/assets/todo.js' }],
+		}),
+		collectSiblingContribution: async () => undefined,
+	});
+
+	expect(weatherResult?.entryAssets).toEqual([
+		expect.objectContaining({ filepath: '/assets/weather.js' }),
+	]);
+	expect(todoResult?.entryAssets).toEqual([expect.objectContaining({ filepath: '/assets/todo.js' })]);
 });

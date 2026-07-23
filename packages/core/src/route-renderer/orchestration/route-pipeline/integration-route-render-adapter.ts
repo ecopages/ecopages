@@ -11,7 +11,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
-import { loadPageBrowserGraphContribution } from '../page-browser-graph/page-browser-graph-contribution.loader.ts';
+import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import type {
 	RouteHtmlFinalization,
@@ -35,6 +35,13 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution | undefined>;
+	collectResolvedDependenciesContribution(
+		context: PageBrowserGraphContributionContext,
+	): Promise<PageBrowserGraphContribution | undefined>;
+	buildPageBrowserGraphContributionContext(
+		routeFile: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+	): Promise<PageBrowserGraphContributionContext>;
 	renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
 	getHtmlDocumentContributions(options: {
@@ -59,12 +66,13 @@ export function createIntegrationRouteRenderAdapter<C>(
 		name: host.name,
 		resolveRouteRenderInputs: (routeOptions) => host.resolveRouteRenderInputs(routeOptions),
 		resolveRouteDependencies: (input) => host.resolveRouteDependencies(input),
-		collectPageBrowserGraphContribution: (routeFile) =>
-			loadPageBrowserGraphContribution(
-				routeFile,
-				(file) => host.importPageFile(file),
-				(context) => host.collectPageBrowserGraphContribution(context),
+		collectPageBrowserGraphContribution: async (context) =>
+			mergePageBrowserGraphContributions(
+				await host.collectPageBrowserGraphContribution(context),
+				await host.collectResolvedDependenciesContribution(context),
 			),
+		buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
+			host.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),
 		getRouteHtmlFinalization: (renderOptions) =>
 			buildRouteHtmlFinalization({

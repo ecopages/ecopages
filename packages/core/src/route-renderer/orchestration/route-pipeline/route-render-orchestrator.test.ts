@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type {
 	EcoComponent,
+	EcoPageFile,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
+	PageBrowserGraphContributionContext,
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -16,6 +18,7 @@ import {
 	RouteRenderOrchestrator,
 } from './route-render-orchestrator.ts';
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
+import { createRouteInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 
 function createFlowAdapter(input: {
 	resolvePageModule: (file: string) => Promise<{
@@ -33,7 +36,9 @@ function createFlowAdapter(input: {
 		routeOptions: RouteRendererOptions,
 	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
 	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<any[]>;
-	collectPageBrowserGraphContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
+	collectPageBrowserGraphContribution: (
+		context: PageBrowserGraphContributionContext,
+	) => Promise<PageBrowserGraphContribution | undefined>;
 	renderRouteBody: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
 	transformRouteResponse: (response: Response) => Promise<RouteRendererBody>;
@@ -49,6 +54,10 @@ function createFlowAdapter(input: {
 
 			return {
 				Page: pageModule.Page,
+				pageModule: {
+					default: pageModule.Page,
+					...pageModule.integrationSpecificProps,
+				} as EcoPageFile,
 				HtmlTemplate,
 				Layouts,
 				Layout,
@@ -61,8 +70,28 @@ function createFlowAdapter(input: {
 		resolveRouteDependencies: async ({ components }) => ({
 			resolvedDependencies: await input.resolveDependencies(components),
 		}),
-		collectPageBrowserGraphContribution: async (routeFile) =>
-			await input.collectPageBrowserGraphContribution(routeFile),
+		collectPageBrowserGraphContribution: async (context) =>
+			await input.collectPageBrowserGraphContribution(context),
+		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => {
+			const pageModule = await input.resolvePageModule(routeFile);
+			const { props } = await input.resolvePageData(pageModule, {
+				file: routeFile,
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			});
+
+			return {
+				file: routeFile,
+				pageModule: {
+					default: pageModule.Page,
+					...pageModule.integrationSpecificProps,
+				} as EcoPageFile,
+				props,
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+				routeInstanceKey: createRouteInstanceKey({ params: routeOptions?.params }),
+			};
+		},
 		renderRouteBody: input.renderRouteBody,
 		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),
 		transformRouteResponse: input.transformRouteResponse,

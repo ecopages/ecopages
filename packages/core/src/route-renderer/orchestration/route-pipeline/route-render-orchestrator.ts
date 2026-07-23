@@ -6,6 +6,7 @@ import type {
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
+	PageBrowserGraphContributionContext,
 	PageBrowserGraphResult,
 	PageMetadataProps,
 	RouteRendererBody,
@@ -30,10 +31,12 @@ import {
 } from '../ownership-graph/component-graph-collectors.ts';
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
+import { createRouteInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
+	pageModule: EcoPageFile;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps>;
 	Layouts: EcoComponent[];
 	Layout?: EcoComponent;
@@ -74,9 +77,18 @@ export interface RouteRenderOrchestratorAdapter<C> {
 		components: (EcoComponent | Partial<EcoComponent>)[];
 	}): Promise<RouteRenderOrchestratorResolvedDependencies>;
 	/**
-	 * Collects declarative Page Browser Graph requirements for one route.
+	 * Collects declarative Page Browser Graph requirements for one route instance.
 	 */
-	collectPageBrowserGraphContribution(routeFile: string): Promise<PageBrowserGraphContribution | undefined>;
+	collectPageBrowserGraphContribution(
+		context: PageBrowserGraphContributionContext,
+	): Promise<PageBrowserGraphContribution | undefined>;
+	/**
+	 * Builds the graph contribution context for one route file and optional params.
+	 */
+	buildPageBrowserGraphContributionContext(
+		routeFile: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+	): Promise<PageBrowserGraphContributionContext>;
 	/**
 	 * Executes the Integration-specific route render.
 	 */
@@ -162,14 +174,28 @@ export class RouteRenderOrchestrator {
 		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
+		const routeInstanceKey = createRouteInstanceKey({ params: routeOptions.params });
+		const graphContext: PageBrowserGraphContributionContext = {
+			file: routeOptions.file,
+			pageModule: resolvedInputs.pageModule,
+			props: resolvedInputs.props,
+			params: routeOptions.params,
+			query: routeOptions.query,
+			routeInstanceKey,
+		};
 		const [{ resolvedDependencies }, pageBrowserGraph] = await Promise.all([
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,
 			}),
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
+				routeInstanceKey,
 				integrationName: adapter.name,
-				collectContribution: async (routeFile) => await adapter.collectPageBrowserGraphContribution(routeFile),
+				collectContribution: () => adapter.collectPageBrowserGraphContribution(graphContext),
+				collectSiblingContribution: async (routeFile) => {
+					const siblingContext = await adapter.buildPageBrowserGraphContributionContext(routeFile);
+					return adapter.collectPageBrowserGraphContribution(siblingContext);
+				},
 			}),
 		]);
 
@@ -199,8 +225,10 @@ export class RouteRenderOrchestrator {
 
 	async resolveDeclaredPageBrowserGraph(input: {
 		routeFile: string;
+		routeInstanceKey?: string;
 		integrationName: string;
-		collectContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
+		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+		collectSiblingContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
 	}): Promise<PageBrowserGraphResult | undefined> {
 		return await this.pageBrowserGraphService.resolvePageBrowserGraph(input);
 	}
@@ -250,8 +278,10 @@ export class RouteRenderOrchestrator {
 		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && htmlFinalization.finalizeHtml === undefined;
 
 		if (canReuseCapturedBody) {
+			const responseBody =
+				typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
 			const body = await adapter.transformRouteResponse(
-				new Response(renderExecution.body as BodyInit, {
+				new Response(responseBody, {
 					headers: {
 						'Content-Type': 'text/html',
 					},

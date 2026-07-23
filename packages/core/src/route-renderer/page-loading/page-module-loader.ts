@@ -126,6 +126,7 @@ export class PageModuleLoaderService {
 		file: string;
 		importPageFileFn?: (file: string) => Promise<EcoPageFile>;
 	}): Promise<{
+		module: EcoPageFile;
 		Page: EcoPageFile['default'] | EcoPageComponent<any>;
 		getStaticProps?: GetStaticProps<Record<string, unknown>>;
 		getMetadata?: GetMetadata;
@@ -140,6 +141,7 @@ export class PageModuleLoaderService {
 		} = module;
 
 		return {
+			module,
 			Page,
 			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
 			getMetadata: Page.metadata ?? moduleGetMetadata,

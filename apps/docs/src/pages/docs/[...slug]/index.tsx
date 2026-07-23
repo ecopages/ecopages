@@ -10,6 +10,7 @@ import { DocsLayout } from '@/layouts/docs-layout';
 type DocsCatchAllProps = {
 	section: string;
 	slug: string;
+	contentSlug: string;
 	title: string;
 	description?: string;
 };
@@ -27,6 +28,7 @@ const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 		props: {
 			section: entry.segments[0]!,
 			slug: entry.segments[entry.segments.length - 1]!,
+			contentSlug: entry.slug,
 			title: entry.title,
 			description: entry.description,
 		},
@@ -44,6 +46,18 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
+	dependencies: ({ props }) => {
+		const component = getComponent(props.contentSlug);
+		const dependencies = component.config?.dependencies;
+		if (!dependencies) {
+			return undefined;
+		}
+
+		return {
+			...dependencies,
+			ownerFile: component.config?.__eco?.file,
+		};
+	},
 	render: async ({ section, slug }) => {
 		const Content = getComponent(`${section}/${slug}`);
 

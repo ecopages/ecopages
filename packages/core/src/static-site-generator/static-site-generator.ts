@@ -560,7 +560,10 @@ export class StaticSiteGenerator {
 		try {
 			if (shouldPrebuildProductionPageBrowserGraphs() && routeRendererFactory) {
 				await prebuildProductionPageBrowserGraphs(
-					routes.map((route) => route.templateRoute.filePath),
+					routes.map((route) => ({
+						routeFile: route.templateRoute.filePath,
+						params: route.params,
+					})),
 					routeRendererFactory,
 				);
 			}

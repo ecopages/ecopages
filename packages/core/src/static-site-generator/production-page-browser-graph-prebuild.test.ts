@@ -26,23 +26,33 @@ test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
 	assert.equal(shouldPrebuildProductionPageBrowserGraphs(), false);
 });
 
-test('prebuildProductionPageBrowserGraphs deduplicates and sorts route files', async () => {
-	const calls: string[] = [];
+test('prebuildProductionPageBrowserGraphs deduplicates and sorts route instances', async () => {
+	const calls: Array<{ routeFile: string; params?: Record<string, string | string[]> }> = [];
 	const routeRendererFactory = {
 		getPageRenderer: () =>
 			({
-				prebuildProductionPageBrowserGraph: async (filePath: string) => {
-					calls.push(filePath);
+				prebuildProductionPageBrowserGraph: async (
+					filePath: string,
+					options?: { params?: Record<string, string | string[]> },
+				) => {
+					calls.push({ routeFile: filePath, params: options?.params });
 				},
 			}) as never,
 	};
 
 	await prebuildProductionPageBrowserGraphs(
-		['/tmp/b/page.tsx', '/tmp/a/page.tsx', '/tmp/a/page.tsx'],
+		[
+			{ routeFile: '/tmp/b/page.tsx', params: { slug: 'beta' } },
+			{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } },
+			{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } },
+		],
 		routeRendererFactory,
 	);
 
-	assert.deepEqual(calls, ['/tmp/a/page.tsx', '/tmp/b/page.tsx']);
+	assert.deepEqual(calls, [
+		{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } },
+		{ routeFile: '/tmp/b/page.tsx', params: { slug: 'beta' } },
+	]);
 });
 
 test('clearProductionPageBrowserGraphSession clears production session records', () => {

@@ -22,7 +22,7 @@ describe('codegen', () => {
 		expect(output).not.toContain('getComponent');
 	});
 
-	test('renderCollectionComponentsModule emits MDX imports and getComponent', () => {
+	test('renderCollectionComponentsModule emits namespace MDX imports, attach helper, and getComponent', () => {
 		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
 			{
 				entry: {
@@ -35,7 +35,11 @@ describe('codegen', () => {
 			},
 		]);
 
-		expect(output).toContain("import docs_intro from '../../app/src/content/docs/intro.mdx';");
+		expect(output).toContain("import * as docs_intro_module from '../../app/src/content/docs/intro.mdx';");
+		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
+		expect(output).toContain(
+			"'intro': attachMdxExports(docs_intro_module, '/app/src/content/docs/intro.mdx'),",
+		);
 		expect(output).toContain('export function getComponent(slug: string)');
 		expect(output).not.toContain('export const entries');
 	});

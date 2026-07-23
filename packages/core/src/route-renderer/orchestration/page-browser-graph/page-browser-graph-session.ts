@@ -598,6 +598,10 @@ export function collectPageBrowserGraphDependencyPaths(
 		}
 	}
 
+	for (const watchPath of contribution.watchPaths ?? []) {
+		dependencyPaths.add(normalizeDependencyPath(watchPath));
+	}
+
 	return dependencyPaths;
 }
 

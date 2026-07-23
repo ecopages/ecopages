@@ -437,6 +437,20 @@ test('createPageBrowserGraphEntryFingerprint avoids cross-integration collisions
 	expect(reactFingerprint).not.toBe(kitaFingerprint);
 });
 
+test('collectPageBrowserGraphDependencyPaths includes watch paths', () => {
+	const dependencyPaths = collectPageBrowserGraphDependencyPaths(
+		'/app/pages/docs/[...slug]/index.tsx',
+		{
+			watchPaths: ['/app/content/docs/intro.mdx', '/app/components/demo.tsx'],
+		},
+		[],
+	);
+
+	expect(dependencyPaths.has('/app/pages/docs/[...slug]/index.tsx')).toBe(true);
+	expect(dependencyPaths.has('/app/content/docs/intro.mdx')).toBe(true);
+	expect(dependencyPaths.has('/app/components/demo.tsx')).toBe(true);
+});
+
 test('collectPageBrowserGraphDependencyPaths includes bundled source paths', () => {
 	const dependencyPaths = collectPageBrowserGraphDependencyPaths(
 		'/app/pages/index.tsx',

@@ -1084,6 +1084,8 @@ export type PageBrowserGraphContributionContext = {
 export interface PageBrowserGraphContribution {
 	dependencies?: AssetDefinition[];
 	assets?: ProcessedAsset[];
+	/** Source files that should invalidate this graph entry when they change. */
+	watchPaths?: string[];
 }
 
 export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';

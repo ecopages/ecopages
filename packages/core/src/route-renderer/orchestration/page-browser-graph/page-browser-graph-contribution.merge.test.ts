@@ -18,6 +18,17 @@ describe('mergePageBrowserGraphContributions', () => {
 		});
 	});
 
+	test('merges watchPaths from multiple contributions', () => {
+		const merged = mergePageBrowserGraphContributions(
+			{ watchPaths: ['/app/content/intro.mdx'] },
+			{ watchPaths: ['/app/components/demo.tsx', '/app/content/intro.mdx'] },
+		);
+
+		expect(merged).toEqual({
+			watchPaths: ['/app/content/intro.mdx', '/app/components/demo.tsx'],
+		});
+	});
+
 	test('returns undefined when all contributions are empty', () => {
 		expect(mergePageBrowserGraphContributions(undefined, { assets: [] })).toBeUndefined();
 	});

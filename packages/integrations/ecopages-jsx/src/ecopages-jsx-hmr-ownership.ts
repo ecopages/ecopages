@@ -13,9 +13,9 @@
  * changes, so the renderer's per-render hook stays O(1) in the steady state.
  */
 
-import path from 'node:path';
 import { rapidhash } from '@ecopages/core/hash';
-import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
+import { collectComponentConfigFilePaths } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
+import type { EcoComponent } from '@ecopages/core';
 
 export type EjsxHmrOwnershipState = {
 	fileOwners: ReadonlySet<string>;
@@ -46,7 +46,22 @@ export function getEjsxHmrOwnership(): EjsxHmrOwnershipState {
  * the renderer's per-render hook is free in the steady state.
  */
 export function updateEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
-	const files = collectFileOwners(components);
+	publishEjsxHmrOwnership(collectFileOwners(components));
+}
+
+/**
+ * Merges one render tree into a pending ownership set during an active render.
+ */
+export function mergeEjsxHmrOwnership(target: Set<string>, components: ReadonlyArray<EcoComponent | undefined>): void {
+	for (const file of collectFileOwners(components)) {
+		target.add(file);
+	}
+}
+
+/**
+ * Publishes the merged ownership set for the completed render.
+ */
+export function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
 	const hash = hashFileSet(files);
 
 	if (hash === currentState.hash) {
@@ -54,7 +69,7 @@ export function updateEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | 
 	}
 
 	currentState = {
-		fileOwners: files,
+		fileOwners: new Set(files),
 		hash,
 	};
 }
@@ -67,36 +82,7 @@ export function resetEjsxHmrOwnership(): void {
 }
 
 function collectFileOwners(components: ReadonlyArray<EcoComponent | undefined>): Set<string> {
-	const files = new Set<string>();
-	const visited = new Set<string>();
-
-	const visit = (config: EcoComponentConfig | undefined) => {
-		const file = config?.__eco?.file;
-		if (!file) {
-			return;
-		}
-
-		const resolved = path.resolve(file);
-		if (visited.has(resolved)) {
-			return;
-		}
-		visited.add(resolved);
-		files.add(resolved);
-
-		for (const dependency of config?.dependencies?.components ?? []) {
-			visit(dependency?.config);
-		}
-
-		for (const layout of config?.layouts ?? []) {
-			visit(layout?.config);
-		}
-	};
-
-	for (const component of components) {
-		visit(component?.config);
-	}
-
-	return files;
+	return collectComponentConfigFilePaths(components, { includeLayouts: true });
 }
 
 function hashFileSet(files: ReadonlySet<string>): string {

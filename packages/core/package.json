@@ -97,6 +97,10 @@
 			"types": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
 			"default": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts"
 		},
+		"./route-renderer/page-loading/file-scoped-dependency-components": {
+			"types": "./src/route-renderer/page-loading/file-scoped-dependency-components.ts",
+			"default": "./src/route-renderer/page-loading/file-scoped-dependency-components.ts"
+		},
 		"./route-renderer/orchestration/foreign-child/owning-renderer-resolution": {
 			"types": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts",
 			"default": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts"

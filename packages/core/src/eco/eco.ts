@@ -189,14 +189,19 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 function page<T, E>(
 	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
 ): EcoPageComponent<T> {
-	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
+	const { layout, dependencies: dependenciesInput, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
 
 	const layoutEntries = normalizePageLayouts(layout);
+	const resolveDependencies = typeof dependenciesInput === 'function' ? dependenciesInput : undefined;
+	const staticDependencies =
+		typeof dependenciesInput === 'function'
+			? mergeLayoutDependencies(undefined, layoutEntries)
+			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
 		__eco: options.__eco,
 		integration: options.integration,
-		dependencies: mergeLayoutDependencies(dependencies, layoutEntries),
+		dependencies: staticDependencies,
 		render,
 	};
 
@@ -209,6 +214,7 @@ function page<T, E>(
 	if (staticPaths) pageComponent.staticPaths = staticPaths;
 	if (staticProps) pageComponent.staticProps = staticProps;
 	if (metadata) pageComponent.metadata = metadata;
+	if (resolveDependencies) pageComponent.resolveDependencies = resolveDependencies;
 	if (cache) pageComponent.cache = cache;
 	if (requires) pageComponent.requires = requires;
 	if (middleware) pageComponent.middleware = middleware;

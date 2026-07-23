@@ -26,6 +26,7 @@ describe('kitchen-sink graph lifecycle regression contract', () => {
 			{
 				integrationName: 'kita',
 				routeFile,
+				routeInstanceKey: '',
 				entryFingerprint: 'index',
 				policy: 'development',
 			},

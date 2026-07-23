@@ -20,6 +20,7 @@ describe('prepareHmrFileChange', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/index.tsx',
+				routeInstanceKey: '',
 				entryFingerprint: 'index',
 				policy: 'development',
 			},
@@ -35,6 +36,7 @@ describe('prepareHmrFileChange', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/index.tsx',
+				routeInstanceKey: '',
 				policy: 'development',
 				entryFingerprint: 'index',
 			},

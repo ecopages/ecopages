@@ -2,7 +2,7 @@ import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries, getEntryBySegments } from 'ecopages:content/docs';
-import { getComponent } from 'ecopages:content/docs/server';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
 import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
@@ -46,18 +46,7 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
-	dependencies: ({ props }) => {
-		const component = getComponent(props.contentSlug);
-		const dependencies = component.config?.dependencies;
-		if (!dependencies) {
-			return undefined;
-		}
-
-		return {
-			...dependencies,
-			ownerFile: component.config?.__eco?.file,
-		};
-	},
+	dependencies: ({ props }) => getEntryDependencies(props.contentSlug),
 	render: async ({ section, slug }) => {
 		const Content = getComponent(`${section}/${slug}`);
 

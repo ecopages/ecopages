@@ -29,17 +29,12 @@ function commitPendingHmrOwnership(state: EcopagesJsxSsrRenderState): void {
 	pending.clear();
 }
 
-function runWithCommittedHmrOwnership<T>(
+async function runWithCommittedHmrOwnership<T>(
 	state: EcopagesJsxSsrRenderState,
 	render: () => T | Promise<T>,
-): T | Promise<T> {
-	const result = render();
-	if (result instanceof Promise) {
-		return result.finally(() => commitPendingHmrOwnership(state));
-	}
-
+): Promise<T> {
 	try {
-		return result;
+		return await render();
 	} finally {
 		commitPendingHmrOwnership(state);
 	}
@@ -73,16 +68,16 @@ export class EcopagesJsxRenderSession {
 	 * JSX SSR scope bridge. HMR ownership accumulated during the outer scope is
 	 * published once when that scope completes.
 	 */
-	withActiveScope<T>(render: () => T | Promise<T>): T | Promise<T> {
+	async withActiveScope<T>(render: () => T | Promise<T>): Promise<T> {
 		const activeState = renderStateStorage.getStore();
 		if (activeState) {
-			return withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, activeState, render);
+			return await withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, activeState, render);
 		}
 
 		const jsxScopeState = getActiveSsrScopeValue<EcopagesJsxSsrRenderState>(ECOPAGES_JSX_SSR_RENDER_STATE_KEY);
 		if (jsxScopeState) {
 			ensurePendingHmrFileOwners(jsxScopeState);
-			return runWithCommittedHmrOwnership(jsxScopeState, () =>
+			return await runWithCommittedHmrOwnership(jsxScopeState, () =>
 				renderStateStorage.run(jsxScopeState, () => render()),
 			);
 		}
@@ -92,7 +87,7 @@ export class EcopagesJsxRenderSession {
 			pendingHmrFileOwners: new Set<string>(),
 		};
 
-		return runWithCommittedHmrOwnership(state, () =>
+		return await runWithCommittedHmrOwnership(state, () =>
 			renderStateStorage.run(state, () =>
 				withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, state, render),
 			),

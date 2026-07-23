@@ -212,113 +212,125 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
-		return await this.withPreparedRadiantRuntime(() =>
-			this.renderSession.withActiveScope(async () => {
-				try {
-					const result = await this.renderPageWithDocumentShell({
-						page: {
-							component: options.Page,
-							props: {
-								...options.pageProps,
-								locals: options.pageLocals,
+		return await this.withPreparedRadiantRuntime(
+			async () =>
+				await this.renderSession.withActiveScope(async () => {
+					try {
+						const result = await this.renderPageWithDocumentShell({
+							page: {
+								component: options.Page,
+								props: {
+									...options.pageProps,
+									locals: options.pageLocals,
+								},
 							},
-						},
-						layout: options.Layout
-							? {
-									component: options.Layout,
-									props: {
-										...options.pageProps,
-										locals: options.locals,
-									},
-								}
-							: undefined,
-						htmlTemplate: options.HtmlTemplate,
-						metadata: options.metadata,
-						pageProps: options.pageProps ?? {},
-					});
+							layout: options.Layout
+								? {
+										component: options.Layout,
+										props: {
+											...options.pageProps,
+											locals: options.locals,
+										},
+									}
+								: undefined,
+							htmlTemplate: options.HtmlTemplate,
+							metadata: options.metadata,
+							pageProps: options.pageProps ?? {},
+						});
 
-					this.recordHmrOwnership([options.Page, options.Layout, options.HtmlTemplate]);
+						this.recordHmrOwnership([options.Page, options.Layout, options.HtmlTemplate]);
 
-					return result;
-				} catch (error) {
-					throw this.createRenderError('Error rendering page', error);
-				}
-			}),
+						return result;
+					} catch (error) {
+						throw this.createRenderError('Error rendering page', error);
+					}
+				}),
 		);
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return await this.withPreparedRadiantRuntime(() =>
-			this.renderSession.withActiveScope(async () => {
-				const assetFrame = this.renderSession.beginCollectedAssetFrame();
+		return await this.withPreparedRadiantRuntime(
+			async () =>
+				await this.renderSession.withActiveScope(async () => {
+					const assetFrame = this.renderSession.beginCollectedAssetFrame();
 
-				try {
-					if (typeof input.component !== 'function') {
-						throw new TypeError('JSX renderer expected a callable component.');
-					}
-					const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
+					try {
+						if (typeof input.component !== 'function') {
+							throw new TypeError('JSX renderer expected a callable component.');
+						}
+						const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
 
-					const componentProps =
-						input.children === undefined
-							? input.props
-							: {
-									...input.props,
-									children:
-										typeof input.children === 'string'
-											? createMarkupNodeLike(input.children)
-											: input.children,
-								};
-					const content = await this.withCustomElementRenderHook(() => component(componentProps));
-					const rendered = await this.renderJsx(content);
-					const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
-						currentIntegrationName: this.name,
-						html: rendered.html,
-						runtimeContext:
-							this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
-								input,
-								getForeignSubtreeResolutionContextKey(this.name),
-							),
-						queueLabel: 'Ecopages JSX',
-						getOwningRenderer: (integrationName, rendererCache) =>
-							resolveOwningIntegrationRenderer({
-								appConfig: this.appConfig,
-								runtimeOrigin: this.runtimeOrigin,
+						const componentProps =
+							input.children === undefined
+								? input.props
+								: {
+										...input.props,
+										children:
+											typeof input.children === 'string'
+												? createMarkupNodeLike(input.children)
+												: input.children,
+									};
+						const content = await this.withCustomElementRenderHook(() => component(componentProps));
+						const rendered = await this.renderJsx(content);
+						const queuedForeignSubtreeResolution =
+							await this.foreignSubtreeExecutionService.resolveQueuedHtml({
 								currentIntegrationName: this.name,
-								currentRenderer: this,
-								integrationName,
-								cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
-							}),
-						applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-							this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-						dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-						renderQueuedChildren: (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-					});
-					const componentAssets =
-						input.component.config?.dependencies &&
-						typeof this.assetProcessingService?.processDependencies === 'function'
-							? await this.processComponentDependencies([input.component])
-							: [];
-					const assets = this.htmlTransformer.dedupeProcessedAssets([
-						...this.renderSession.endCollectedAssetFrame(assetFrame),
-						...queuedForeignSubtreeResolution.assets,
-						...componentAssets,
-					]);
+								html: rendered.html,
+								runtimeContext:
+									this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+										input,
+										getForeignSubtreeResolutionContextKey(this.name),
+									),
+								queueLabel: 'Ecopages JSX',
+								getOwningRenderer: (integrationName, rendererCache) =>
+									resolveOwningIntegrationRenderer({
+										appConfig: this.appConfig,
+										runtimeOrigin: this.runtimeOrigin,
+										currentIntegrationName: this.name,
+										currentRenderer: this,
+										integrationName,
+										cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
+									}),
+								applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+									this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+								dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+								renderQueuedChildren: (
+									children,
+									_runtimeContext,
+									queuedResolutionsByToken,
+									resolveToken,
+								) =>
+									this.renderQueuedForeignSubtreeChildren(
+										children,
+										queuedResolutionsByToken,
+										resolveToken,
+									),
+							});
+						const componentAssets =
+							input.component.config?.dependencies &&
+							typeof this.assetProcessingService?.processDependencies === 'function'
+								? await this.processComponentDependencies([input.component])
+								: [];
+						const assets = this.htmlTransformer.dedupeProcessedAssets([
+							...this.renderSession.endCollectedAssetFrame(assetFrame),
+							...queuedForeignSubtreeResolution.assets,
+							...componentAssets,
+						]);
 
-					this.recordHmrOwnership([input.component as EcoComponent]);
+						this.recordHmrOwnership([input.component as EcoComponent]);
 
-					return this.finalizeIslandComponentRender(input, {
-						html: queuedForeignSubtreeResolution.html,
-						canAttachAttributes: true,
-						rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
-						integrationName: this.name,
-						assets,
-					});
-				} catch (error) {
-					this.renderSession.endCollectedAssetFrame(assetFrame);
-					throw this.createRenderError('Error rendering component', error);
-				}
-			}),
+						return this.finalizeIslandComponentRender(input, {
+							html: queuedForeignSubtreeResolution.html,
+							canAttachAttributes: true,
+							rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
+							integrationName: this.name,
+							assets,
+						});
+					} catch (error) {
+						this.renderSession.endCollectedAssetFrame(assetFrame);
+						throw this.createRenderError('Error rendering component', error);
+					}
+				}),
 		);
 	}
 
@@ -327,29 +339,30 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
-		return await this.withPreparedRadiantRuntime(() =>
-			this.renderSession.withActiveScope(async () => {
-				try {
-					if (typeof view !== 'function') {
-						throw new TypeError('JSX renderer expected a callable view component.');
+		return await this.withPreparedRadiantRuntime(
+			async () =>
+				await this.renderSession.withActiveScope(async () => {
+					try {
+						if (typeof view !== 'function') {
+							throw new TypeError('JSX renderer expected a callable view component.');
+						}
+						const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
+						const layouts = viewComponent.config?.layouts;
+
+						const response = await this.renderViewWithDocumentShell({
+							view: viewComponent,
+							props: props as Record<string, unknown>,
+							ctx,
+							layout: layouts?.[layouts.length - 1],
+						});
+
+						this.recordHmrOwnership([view as EcoComponent]);
+
+						return response;
+					} catch (error) {
+						throw this.createRenderError('Error rendering view', error);
 					}
-					const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
-					const layouts = viewComponent.config?.layouts;
-
-					const response = await this.renderViewWithDocumentShell({
-						view: viewComponent,
-						props: props as Record<string, unknown>,
-						ctx,
-						layout: layouts?.[layouts.length - 1],
-					});
-
-					this.recordHmrOwnership([view as EcoComponent]);
-
-					return response;
-				} catch (error) {
-					throw this.createRenderError('Error rendering view', error);
-				}
-			}),
+				}),
 		);
 	}
 

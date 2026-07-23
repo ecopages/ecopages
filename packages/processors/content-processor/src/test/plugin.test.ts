@@ -141,7 +141,11 @@ order: 1
 `,
 		);
 
-		await plugin.watchConfig?.onChange?.({ path: introPath } as never);
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Expected content processor watch onChange handler');
+		}
+		await watchConfig.onChange({ path: introPath } as never);
 
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
@@ -202,7 +206,11 @@ order: 1
 `,
 		);
 
-		await plugin.watchConfig?.onChange?.({ path: introPath } as never);
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Expected content processor watch onChange handler');
+		}
+		await watchConfig.onChange({ path: introPath } as never);
 
 		expect(fileSystem.readFileSync(cacheFile)).not.toBe(entriesBefore);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('Intro Updated');

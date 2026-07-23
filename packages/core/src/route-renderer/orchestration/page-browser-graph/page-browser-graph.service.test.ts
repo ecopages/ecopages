@@ -490,8 +490,6 @@ test('PageBrowserGraphService isolates graphs for sibling catch-all route instan
 		collectSiblingContribution: async () => undefined,
 	});
 
-	expect(weatherResult?.entryAssets).toEqual([
-		expect.objectContaining({ filepath: '/assets/weather.js' }),
-	]);
+	expect(weatherResult?.entryAssets).toEqual([expect.objectContaining({ filepath: '/assets/weather.js' })]);
 	expect(todoResult?.entryAssets).toEqual([expect.objectContaining({ filepath: '/assets/todo.js' })]);
 });

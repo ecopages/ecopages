@@ -46,7 +46,10 @@ import {
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
 import { createRouteInstanceKey } from './page-browser-graph/route-instance-key.ts';
 import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
-import { collectFileScopedDependencyComponents, splitPageDependenciesResult } from '../page-loading/file-scoped-dependency-components.ts';
+import {
+	collectFileScopedDependencyComponents,
+	splitPageDependenciesResult,
+} from '../page-loading/file-scoped-dependency-components.ts';
 import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
@@ -828,10 +831,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		const { dependencies, ownerFile } = splitPageDependenciesResult(dependenciesResult);
 
-		return this.resolvePageBrowserGraphContributionFromDependencies(
-			dependencies,
-			ownerFile ?? context.file,
-		);
+		return this.resolvePageBrowserGraphContributionFromDependencies(dependencies, ownerFile ?? context.file);
 	}
 
 	protected async resolvePageBrowserGraphContributionFromDependencies(

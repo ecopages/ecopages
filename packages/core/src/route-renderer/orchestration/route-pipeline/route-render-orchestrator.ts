@@ -278,8 +278,7 @@ export class RouteRenderOrchestrator {
 		const canReuseCapturedBody = !hasUnresolvedMarkerHtml && htmlFinalization.finalizeHtml === undefined;
 
 		if (canReuseCapturedBody) {
-			const responseBody =
-				typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
+			const responseBody = typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
 			const body = await adapter.transformRouteResponse(
 				new Response(responseBody, {
 					headers: {

@@ -55,7 +55,9 @@ export async function prebuildProductionPageBrowserGraphs(
 		...new Map(
 			routeInstances.map((instance) => [serializeProductionRouteInstance(instance), instance] as const),
 		).values(),
-	].sort((left, right) => serializeProductionRouteInstance(left).localeCompare(serializeProductionRouteInstance(right)));
+	].sort((left, right) =>
+		serializeProductionRouteInstance(left).localeCompare(serializeProductionRouteInstance(right)),
+	);
 
 	for (const routeInstance of uniqueRouteInstances) {
 		const renderer = routeRendererFactory.getPageRenderer(routeInstance.routeFile) as IntegrationRenderer<unknown>;

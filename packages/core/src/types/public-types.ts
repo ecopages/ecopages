@@ -11,7 +11,12 @@ import type { EntrypointDependencyGraph } from '../services/runtime-state/entryp
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
 export type { EcoPagesAppConfig } from './internal-types.ts';
-export type { EcoPageComponent, GetPageDependencies, GetPageDependenciesContext, PageDependenciesResult } from '../eco/eco.types.ts';
+export type {
+	EcoPageComponent,
+	GetPageDependencies,
+	GetPageDependenciesContext,
+	PageDependenciesResult,
+} from '../eco/eco.types.ts';
 export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 
 /**

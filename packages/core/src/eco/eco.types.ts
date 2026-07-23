@@ -116,9 +116,7 @@ export type GetPageDependencies<T = Record<string, unknown>> = (
 /**
  * Static page dependencies or a per-render resolver.
  */
-export type PageDependenciesInput<T = Record<string, unknown>> =
-	| EcoComponentDependencies
-	| GetPageDependencies<T>;
+export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
 
 /**
  * Lazy trigger options map directly to scripts-injector attributes.

@@ -123,6 +123,182 @@ describe('IntegrationRenderer', () => {
 		);
 	});
 
+	it('resolves resolveDependencies scripts through file-scoped dependency roots', async () => {
+		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/demo.js' }]);
+		const Page = (() => 'Page') as EcoPageComponent<any>;
+		Page.resolveDependencies = async () => ({
+			scripts: ['./demo.client.ts'],
+		});
+		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
+			name = 'declarative-renderer';
+			PageModule: EcoPageFile = { default: Page };
+
+			async render(): Promise<RouteRendererBody> {
+				return '<html><body>Page</body></html>';
+			}
+
+			async renderToResponse(): Promise<Response> {
+				return new Response('<html><body>Page</body></html>');
+			}
+
+			protected override async importPageFile(): Promise<EcoPageFile> {
+				return this.PageModule;
+			}
+
+			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+				return (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+			}
+
+			public async testPrepareRenderOptions(options: RouteRendererOptions) {
+				return await super.prepareRenderOptions(options);
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/demo.tsx', params: {}, query: {} });
+
+		expect(result.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+			{ kind: 'script', inline: false, srcUrl: '/demo.js' },
+		]);
+		expect(processDependencies).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'script',
+					source: 'file',
+					filepath: '/app/pages/demo.client.ts',
+				}),
+			]),
+			'declarative-renderer',
+		);
+	});
+
+	it('resolves resolveDependencies ownerFile relative to the declaring file', async () => {
+		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/demo.js' }]);
+		const Page = (() => 'Page') as EcoPageComponent<any>;
+		Page.resolveDependencies = async () => ({
+			scripts: ['./demo.client.ts'],
+			ownerFile: '/app/content/docs/demo.mdx',
+		});
+		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
+			name = 'declarative-renderer';
+			PageModule: EcoPageFile = { default: Page };
+
+			async render(): Promise<RouteRendererBody> {
+				return '<html><body>Page</body></html>';
+			}
+
+			async renderToResponse(): Promise<Response> {
+				return new Response('<html><body>Page</body></html>');
+			}
+
+			protected override async importPageFile(): Promise<EcoPageFile> {
+				return this.PageModule;
+			}
+
+			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+				return (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+			}
+
+			public async testPrepareRenderOptions(options: RouteRendererOptions) {
+				return await super.prepareRenderOptions(options);
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		await renderer.testPrepareRenderOptions({
+			file: '/app/pages/docs/[...slug]/index.tsx',
+			params: {},
+			query: {},
+		});
+
+		expect(processDependencies).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'script',
+					source: 'file',
+					filepath: '/app/content/docs/demo.client.ts',
+				}),
+			]),
+			'declarative-renderer',
+		);
+	});
+
+	it('resolves resolveDependencies modules through file-scoped dependency roots', async () => {
+		const processDependencies = vi.fn(async (dependencies: Array<{ content?: string; name?: string }>) =>
+			dependencies.map((dependency) => ({
+				kind: 'script' as const,
+				inline: true,
+				content: dependency.content ?? dependency.name ?? 'module',
+			})),
+		);
+		const appConfig = {
+			absolutePaths: {
+				pagesDir: '/app/pages',
+				htmlTemplatePath: '/app/index.ghtml.ts',
+			},
+			integrations: [],
+			defaultMetadata: {
+				title: 'Default Title',
+				description: 'Default Description',
+			},
+			srcDir: '/app',
+		} as unknown as EcoPagesAppConfig;
+		const Page = (() => 'Page') as EcoPageComponent<any>;
+		Page.resolveDependencies = async () => ({
+			modules: ['react-aria-components{Table}'],
+		});
+		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
+			name = 'declarative-renderer';
+			PageModule: EcoPageFile = { default: Page };
+
+			async render(): Promise<RouteRendererBody> {
+				return '<html><body>Page</body></html>';
+			}
+
+			async renderToResponse(): Promise<Response> {
+				return new Response('<html><body>Page</body></html>');
+			}
+
+			protected override async importPageFile(): Promise<EcoPageFile> {
+				return this.PageModule;
+			}
+
+			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+				return (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+			}
+
+			public async testPrepareRenderOptions(options: RouteRendererOptions) {
+				return await super.prepareRenderOptions(options);
+			}
+		})({
+			appConfig,
+			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/demo.tsx', params: {}, query: {} });
+
+		expect(processDependencies).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'script',
+					source: 'content',
+					content: expect.stringContaining('react-aria-components'),
+				}),
+			]),
+			'declarative-renderer',
+		);
+		expect(result.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+			{ kind: 'script', inline: true, content: expect.stringContaining('react-aria-components') },
+		]);
+	});
+
 	it('transformRouteResponse prefers renderer-owned page package updates over stale prepare-time package', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,

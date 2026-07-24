@@ -77,10 +77,208 @@ order: 1
 		const serverCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts');
 		expect(fileSystem.exists(serverCacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getComponent');
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getEntryDependencies');
 		expect(fileSystem.exists(typesFile)).toBe(true);
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs"');
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs/server"');
 		expect(plugin.collectionModules.docs).toBe(cacheFile);
 		expect(plugin.collectionServerModules.docs).toBe(serverCacheFile);
+	});
+
+	test('body-only MDX edits do not rewrite generated collection modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-body-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const serverCacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.server.ts',
+		);
+		const typesFile = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name, 'virtual-module.d.ts');
+		const entriesBefore = fileSystem.readFileSync(cacheFile);
+		const serverBefore = fileSystem.readFileSync(serverCacheFile);
+		const typesBefore = fileSystem.readFileSync(typesFile);
+
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro updated body
+`,
+		);
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Expected content processor watch onChange handler');
+		}
+		await watchConfig.onChange({ path: introPath } as never);
+
+		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
+		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
+		expect(fileSystem.readFileSync(typesFile)).toBe(typesBefore);
+	});
+
+	test('frontmatter edits rewrite the entries module but not the server barrel', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-frontmatter-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const serverCacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.server.ts',
+		);
+		const entriesBefore = fileSystem.readFileSync(cacheFile);
+		const serverBefore = fileSystem.readFileSync(serverCacheFile);
+
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro Updated
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Expected content processor watch onChange handler');
+		}
+		await watchConfig.onChange({ path: introPath } as never);
+
+		expect(fileSystem.readFileSync(cacheFile)).not.toBe(entriesBefore);
+		expect(fileSystem.readFileSync(cacheFile)).toContain('Intro Updated');
+		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
+	});
+
+	test('create, delete, and rename events regenerate collection modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-mutations-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		const guidePath = path.join(contentDir, 'guide.mdx');
+		const renamedGuidePath = path.join(contentDir, 'getting-started', 'guide.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onCreate || !watchConfig.onDelete) {
+			throw new Error('Expected content processor create and delete watch handlers');
+		}
+
+		fileSystem.write(
+			guidePath,
+			`---
+title: Guide
+description: Welcome
+order: 2
+---
+# Guide
+`,
+		);
+		await watchConfig.onCreate({ path: guidePath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"guide"');
+
+		fileSystem.ensureDir(path.dirname(renamedGuidePath));
+		fileSystem.write(renamedGuidePath, fileSystem.readFileSync(guidePath));
+		fileSystem.remove(guidePath);
+		await watchConfig.onDelete({ path: guidePath } as never);
+		await watchConfig.onCreate({ path: renamedGuidePath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"getting-started/guide"');
+		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"guide"');
+
+		fileSystem.remove(introPath);
+		await watchConfig.onDelete({ path: introPath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
 	});
 });

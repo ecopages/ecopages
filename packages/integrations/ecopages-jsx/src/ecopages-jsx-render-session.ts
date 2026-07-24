@@ -1,13 +1,44 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { EcoComponent } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { getActiveSsrScopeValue, withActiveSsrScopeValue } from '@ecopages/jsx/server';
+import { mergeEjsxHmrOwnership, publishEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
 type EcopagesJsxSsrRenderState = {
 	collectedAssetFrames: ProcessedAsset[][];
+	pendingHmrFileOwners: Set<string>;
 };
 
 export const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
 const renderStateStorage = new AsyncLocalStorage<EcopagesJsxSsrRenderState>();
+
+function ensurePendingHmrFileOwners(state: EcopagesJsxSsrRenderState): Set<string> {
+	if (!state.pendingHmrFileOwners) {
+		state.pendingHmrFileOwners = new Set<string>();
+	}
+	return state.pendingHmrFileOwners;
+}
+
+function commitPendingHmrOwnership(state: EcopagesJsxSsrRenderState): void {
+	const pending = state.pendingHmrFileOwners;
+	if (!pending || pending.size === 0) {
+		return;
+	}
+
+	publishEjsxHmrOwnership(pending);
+	pending.clear();
+}
+
+async function runWithCommittedHmrOwnership<T>(
+	state: EcopagesJsxSsrRenderState,
+	render: () => T | Promise<T>,
+): Promise<T> {
+	try {
+		return await render();
+	} finally {
+		commitPendingHmrOwnership(state);
+	}
+}
 
 /**
  * Tracks JSX SSR asset-collection state for one active render flow.
@@ -34,25 +65,32 @@ export class EcopagesJsxRenderSession {
 	 * mirrored back into the JSX SSR scope so nested `renderToString()` calls see
 	 * the same asset frame stack. When no session exists yet, a new state is
 	 * created and published through both the internal async-local store and the
-	 * JSX SSR scope bridge.
+	 * JSX SSR scope bridge. HMR ownership accumulated during the outer scope is
+	 * published once when that scope completes.
 	 */
-	withActiveScope<T>(render: () => T): T {
+	async withActiveScope<T>(render: () => T | Promise<T>): Promise<T> {
 		const activeState = renderStateStorage.getStore();
 		if (activeState) {
-			return withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, activeState, render);
+			return await withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, activeState, render);
 		}
 
 		const jsxScopeState = getActiveSsrScopeValue<EcopagesJsxSsrRenderState>(ECOPAGES_JSX_SSR_RENDER_STATE_KEY);
 		if (jsxScopeState) {
-			return renderStateStorage.run(jsxScopeState, () => render());
+			ensurePendingHmrFileOwners(jsxScopeState);
+			return await runWithCommittedHmrOwnership(jsxScopeState, () =>
+				renderStateStorage.run(jsxScopeState, () => render()),
+			);
 		}
 
 		const state: EcopagesJsxSsrRenderState = {
 			collectedAssetFrames: [],
+			pendingHmrFileOwners: new Set<string>(),
 		};
 
-		return renderStateStorage.run(state, () =>
-			withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, state, render),
+		return await runWithCommittedHmrOwnership(state, () =>
+			renderStateStorage.run(state, () =>
+				withActiveSsrScopeValue(ECOPAGES_JSX_SSR_RENDER_STATE_KEY, state, render),
+			),
 		);
 	}
 
@@ -71,6 +109,10 @@ export class EcopagesJsxRenderSession {
 		}
 
 		return this.dedupeProcessedAssets(activeFrame);
+	}
+
+	mergeHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
+		mergeEjsxHmrOwnership(ensurePendingHmrFileOwners(this.getState()), components);
 	}
 
 	recordCollectedAssets(collectedAssets: ProcessedAsset[]): ProcessedAsset[] {

@@ -1,10 +1,5 @@
 import type { PageParams } from '@ecopages/core';
 
-export type ResolvedDocsSlug = {
-	section: string;
-	slug: string;
-};
-
 type CatchAllSlugParam = PageParams[string];
 
 /**
@@ -18,16 +13,4 @@ export function parseDocsCatchAllSegments(slug: CatchAllSlugParam): string[] {
 	}
 
 	return segments;
-}
-
-/**
- * Maps catch-all `slug` param segments to a docs section and page slug.
- */
-export function resolveFromCatchAll(slug: CatchAllSlugParam): ResolvedDocsSlug {
-	const segments = parseDocsCatchAllSegments(slug);
-
-	return {
-		section: segments[0]!,
-		slug: segments[1]!,
-	};
 }

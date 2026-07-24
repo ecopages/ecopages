@@ -2,33 +2,27 @@ import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries, getEntryBySegments } from 'ecopages:content/docs';
-import { getComponent } from 'ecopages:content/docs/server';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+import type { Entry } from 'ecopages:content/docs';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
 import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 type DocsCatchAllProps = {
-	section: string;
-	slug: string;
-	title: string;
-	description?: string;
+	entry: Entry;
 };
 
-export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { title, description } }) => ({
-	title: `Docs | ${title}`,
-	description: description ?? '',
+export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { entry } }) => ({
+	title: `Docs | ${entry.title}`,
+	description: entry.description ?? '',
 });
 
 const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 	const segments = parseDocsCatchAllSegments(pathname.params.slug);
-	const entry = getEntryBySegments(segments);
 
 	return {
 		props: {
-			section: entry.segments[0]!,
-			slug: entry.segments[entry.segments.length - 1]!,
-			title: entry.title,
-			description: entry.description,
+			entry: getEntryBySegments(segments),
 		},
 	};
 };
@@ -44,8 +38,9 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
-	render: async ({ section, slug }) => {
-		const Content = getComponent(`${section}/${slug}`);
+	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
+	render: async ({ entry }) => {
+		const Content = getComponent(entry.slug);
 
 		return await Content({ components: docsMdxComponents });
 	},

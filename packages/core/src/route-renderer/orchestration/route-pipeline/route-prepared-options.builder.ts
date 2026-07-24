@@ -32,21 +32,27 @@ type PreparedRenderInputs = {
 export function buildPreparedRenderOptions<C = unknown>(input: {
 	routeOptions: RouteRendererOptions;
 	resolvedInputs: PreparedRenderInputs;
+	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	allDependencies: ProcessedAsset[];
 	pageBrowserGraph?: PageBrowserGraphResult;
 	appConfig: EcoPagesAppConfig;
 }): IntegrationRendererRenderOptions<C> {
-	const { routeOptions, resolvedInputs, resolvedDependencies, allDependencies, pageBrowserGraph, appConfig } = input;
+	const {
+		routeOptions,
+		resolvedInputs,
+		resolvedPageDependencyComponents,
+		resolvedDependencies,
+		allDependencies,
+		pageBrowserGraph,
+		appConfig,
+	} = input;
 	const { Page, HtmlTemplate, Layouts, Layout, layoutEntries, props, metadata, integrationSpecificProps } =
 		resolvedInputs;
 
 	const dedupedDependencies = dedupeProcessedAssets(allDependencies);
 	const pagePackage = createPagePackage(dedupedDependencies, { pageBrowserGraph });
-	const resolvedProps = {
-		...props,
-		...(routeOptions.props ?? {}),
-	};
+	const resolvedProps = props;
 	const pageProps = {
 		...resolvedProps,
 		params: routeOptions.params || {},
@@ -64,6 +70,7 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 	const locals = localsAvailable ? routeOptions.locals : undefined;
 	const preparedOptions: IntegrationRendererRenderOptions<C> = {
 		...routeOptions,
+		resolvedPageDependencyComponents,
 		resolvedDependencies,
 		pagePackage,
 		HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,

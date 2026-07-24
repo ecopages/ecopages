@@ -2,7 +2,13 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import path from 'node:path';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
-import { getEjsxHmrOwnership, resetEjsxHmrOwnership, updateEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
+import {
+	getEjsxHmrOwnership,
+	mergeEjsxHmrOwnership,
+	publishEjsxHmrOwnership,
+	resetEjsxHmrOwnership,
+	updateEjsxHmrOwnership,
+} from './ecopages-jsx-hmr-ownership.ts';
 import type { EcoComponent, EcoComponentConfig, ResolvedHmrEntrypoint } from '@ecopages/core';
 
 const SRC_DIR = '/test/project/src';
@@ -302,5 +308,42 @@ describe('ecopages-jsx-hmr-ownership', () => {
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/a.tsx`)).toBe(true);
+	});
+
+	it('merges nested render trees before publishing ownership', () => {
+		const mdxFile = `${SRC_DIR}/content/docs/intro.mdx`;
+		const depFile = `${COMPONENTS_DIR}/demo.tsx`;
+		const pageFile = `${PAGES_DIR}/docs/[...slug]/index.tsx`;
+
+		const dep = makeComponent(depFile);
+		const mdx = makeComponent(mdxFile, {
+			dependencies: { components: [dep] },
+		});
+		const page = makeComponent(pageFile);
+
+		const pending = new Set<string>();
+		mergeEjsxHmrOwnership(pending, [mdx]);
+		mergeEjsxHmrOwnership(pending, [page]);
+		publishEjsxHmrOwnership(pending);
+
+		const state = getEjsxHmrOwnership();
+		expect(state.fileOwners.has(pageFile)).toBe(true);
+		expect(state.fileOwners.has(mdxFile)).toBe(true);
+		expect(state.fileOwners.has(depFile)).toBe(true);
+	});
+
+	it('replaces ownership when page publish follows a separate component publish', () => {
+		const mdxFile = `${SRC_DIR}/content/docs/intro.mdx`;
+		const pageFile = `${PAGES_DIR}/docs/[...slug]/index.tsx`;
+
+		const mdx = makeComponent(mdxFile);
+		const page = makeComponent(pageFile);
+
+		updateEjsxHmrOwnership([mdx]);
+		updateEjsxHmrOwnership([page]);
+
+		const state = getEjsxHmrOwnership();
+		expect(state.fileOwners.has(pageFile)).toBe(true);
+		expect(state.fileOwners.has(mdxFile)).toBe(false);
 	});
 });

@@ -6,7 +6,8 @@
 - Section titles and sidebar icons are configured in `src/content/docs.ts`.
 - MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`).
 - Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
-- Do not add per-page `export const config` in MDX files; routing and layout live in the catch-all page.
+- Do not add layout or routing `export const config` in MDX files; the catch-all page owns routing and layout.
+- Interactive demo pages may declare `export const config = { dependencies: { components: [...] } }` in MDX. The catch-all page forwards them with `getEntryDependencies(props.entry.slug)`.
 - Shared JSX (`Banner`, `CodeTabs`, etc.) is registered in `src/lib/docs/mdx-components.ts` and passed as `docsMdxComponents` at render time.
 - Add explicit imports only when content needs module bindings (for example `ecopages:images` spreads).
 
@@ -27,4 +28,4 @@
 
 ## Routing
 
-- The catch-all page resolves entries via `getEntryBySegments()` and renders `<Content components={docsMdxComponents} />`.
+- The catch-all page resolves entries via `getEntryBySegments()`, renders `<Content components={docsMdxComponents} />`, and forwards entry-specific deps with `getEntryDependencies(props.entry.slug)`.

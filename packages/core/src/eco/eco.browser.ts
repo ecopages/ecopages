@@ -61,7 +61,7 @@ function page<T, E>(
 ): EcoPageComponent<T> {
 	const {
 		layout: pageLayout,
-		dependencies,
+		dependencies: dependenciesInput,
 		render,
 		staticPaths,
 		staticProps,
@@ -72,11 +72,16 @@ function page<T, E>(
 	} = options;
 
 	const layoutEntries = normalizePageLayouts(pageLayout);
+	const resolveDependencies = typeof dependenciesInput === 'function' ? dependenciesInput : undefined;
+	const staticDependencies =
+		typeof dependenciesInput === 'function'
+			? mergeLayoutDependencies(undefined, layoutEntries)
+			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
 	const pageComponent = createComponentFactory({
 		__eco: options.__eco,
 		integration: options.integration,
-		dependencies: mergeLayoutDependencies(dependencies, layoutEntries),
+		dependencies: staticDependencies,
 		render,
 	} as ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E>) as EcoPageComponent<T>;
 
@@ -94,6 +99,10 @@ function page<T, E>(
 
 	if (metadata) {
 		pageComponent.metadata = metadata;
+	}
+
+	if (resolveDependencies) {
+		pageComponent.resolveDependencies = resolveDependencies;
 	}
 
 	if (cache) {

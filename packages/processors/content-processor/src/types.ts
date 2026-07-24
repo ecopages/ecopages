@@ -1,4 +1,4 @@
-import type { EcoComponent } from '@ecopages/core';
+import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 import type { EntryComparator } from './sort.ts';
 
 export type { EntryComparator } from './sort.ts';
@@ -27,6 +27,7 @@ export type ContentCollectionEntriesModule<TEntry extends Record<string, unknown
 /** Runtime shape of a generated `ecopages:content/<collection>/server` module. */
 export type ContentCollectionComponentsModule = {
 	getComponent(slug: string): EcoComponent<Record<string, unknown>>;
+	getEntryDependencies(slug: string): PageDependenciesResult | undefined;
 };
 
 /** @deprecated Import entries and server modules separately. */

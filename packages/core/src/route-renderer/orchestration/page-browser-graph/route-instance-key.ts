@@ -1,60 +1,77 @@
-import type { PageParams } from '../../../types/public-types.ts';
+import type { PageParams, PageQuery } from '../../../types/public-types.ts';
+
+export type PageDependencyInstance = {
+	params?: PageParams;
+	query?: PageQuery;
+};
 
 export type GroupedGraphScope = {
 	integrationName: string;
-	routeInstanceKey?: string;
+	planKey: string;
 };
 
 /**
- * Builds a stable cache key for one concrete route instance behind a template route file.
+ * Builds a stable cache key for one concrete dependency resolver input.
+ *
+ * @remarks
+ * The representation deliberately retains scalar versus array values. Delimiter-based
+ * encodings would make otherwise distinct route inputs collide.
  */
-export function createRouteInstanceKey(input: { params?: PageParams }): string {
-	if (!input.params || Object.keys(input.params).length === 0) {
+export function createPageDependencyInstanceKey(input: PageDependencyInstance): string {
+	const params = canonicalizeInput(input.params);
+	const query = canonicalizeInput(input.query);
+	if (params.length === 0 && query.length === 0) {
 		return '';
 	}
 
-	return Object.entries(input.params)
-		.sort(([left], [right]) => left.localeCompare(right))
-		.map(([key, value]) => {
-			const serialized = Array.isArray(value) ? value.join('/') : value;
-			return `${key}=${serialized}`;
-		})
-		.join('&');
+	return JSON.stringify({ params, query });
 }
 
 /**
- * Combines a route file with an optional route-instance key for grouped graph maps.
+ * Combines a route file with an optional dependency-instance key for grouped graph maps.
  */
-export function createRouteGraphLookupKey(routeFile: string, routeInstanceKey = ''): string {
-	return routeInstanceKey ? `${routeFile}::${routeInstanceKey}` : routeFile;
+export function createRouteGraphLookupKey(routeFile: string, dependencyInstanceKey = ''): string {
+	return JSON.stringify([routeFile, dependencyInstanceKey]);
 }
 
 /**
- * Serializes the grouped graph cache scope for one integration and route instance.
+ * Serializes the grouped graph cache scope for one integration and dependency instance.
  */
 export function serializeGroupedGraphCacheKey(scope: GroupedGraphScope): string {
-	const routeInstanceKey = scope.routeInstanceKey ?? '';
-	return `grouped::${scope.integrationName}::${routeInstanceKey}`;
+	return JSON.stringify(['grouped', scope.integrationName, scope.planKey]);
 }
 
 /**
- * Reconstructs route params from a serialized route-instance key.
+ * Reconstructs dependency resolver inputs from a serialized dependency-instance key.
  */
-export function parseRouteInstanceKey(routeInstanceKey: string): PageParams {
-	if (!routeInstanceKey) {
+export function parsePageDependencyInstanceKey(dependencyInstanceKey: string): PageDependencyInstance {
+	if (!dependencyInstanceKey) {
 		return {};
 	}
 
-	return Object.fromEntries(
-		routeInstanceKey.split('&').map((entry) => {
-			const separatorIndex = entry.indexOf('=');
-			if (separatorIndex === -1) {
-				return [entry, ''];
-			}
+	const parsed: unknown = JSON.parse(dependencyInstanceKey);
+	if (!isSerializedDependencyInstance(parsed)) {
+		throw new TypeError('Invalid page dependency instance key.');
+	}
 
-			const key = entry.slice(0, separatorIndex);
-			const value = entry.slice(separatorIndex + 1);
-			return [key, value.includes('/') ? value.split('/') : value];
-		}),
-	);
+	return {
+		...(parsed.params.length > 0 ? { params: Object.fromEntries(parsed.params) } : {}),
+		...(parsed.query.length > 0 ? { query: Object.fromEntries(parsed.query) } : {}),
+	};
+}
+
+function canonicalizeInput(input: PageParams | PageQuery | undefined): Array<[string, string | string[]]> {
+	return Object.entries(input ?? {})
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]);
+}
+
+function isSerializedDependencyInstance(
+	value: unknown,
+): value is { params: Array<[string, string | string[]]>; query: Array<[string, string | string[]]> } {
+	if (!value || typeof value !== 'object' || !('params' in value) || !('query' in value)) {
+		return false;
+	}
+
+	return Array.isArray(value.params) && Array.isArray(value.query);
 }

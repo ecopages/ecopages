@@ -1003,6 +1003,8 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoPageLayoutComponent<any>;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
+	/** @internal Resolved page dependencies carried through the render pipeline. */
+	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
@@ -1078,7 +1080,7 @@ export type PageBrowserGraphContributionContext = {
 	props?: Record<string, unknown>;
 	params?: PageParams;
 	query?: PageQuery;
-	routeInstanceKey?: string;
+	dependencyInstanceKey?: string;
 };
 
 export interface PageBrowserGraphContribution {

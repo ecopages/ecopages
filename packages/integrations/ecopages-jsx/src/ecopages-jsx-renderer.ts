@@ -238,7 +238,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 							pageProps: options.pageProps ?? {},
 						});
 
-						this.recordHmrOwnership([options.Page, options.Layout, options.HtmlTemplate]);
+						this.recordHmrOwnership([
+							options.Page,
+							options.Layout,
+							options.HtmlTemplate,
+							...(options.resolvedPageDependencyComponents ?? []),
+						]);
 
 						return result;
 					} catch (error) {

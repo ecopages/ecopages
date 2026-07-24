@@ -30,8 +30,11 @@ import {
 	collectUsedIntegrationDependenciesFromGraph,
 } from '../ownership-graph/component-graph-collectors.ts';
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
+import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
-import { createRouteInstanceKey } from '../page-browser-graph/route-instance-key.ts';
+import type { GroupedGraphBuildPlan } from '../page-browser-graph/grouped-graph-build-plan.ts';
+import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
+import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
@@ -82,6 +85,9 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution | undefined>;
+	resolvePageDependencies(
+		context: PageBrowserGraphContributionContext,
+	): Promise<ResolvedPageDependencies | undefined>;
 	/**
 	 * Builds the graph contribution context for one route file and optional params.
 	 */
@@ -162,7 +168,15 @@ export class RouteRenderOrchestrator {
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
-		const { Page, HtmlTemplate, Layouts } = resolvedInputs;
+		const finalProps = {
+			...resolvedInputs.props,
+			...(routeOptions.props ?? {}),
+		};
+		const finalResolvedInputs = {
+			...resolvedInputs,
+			props: finalProps,
+		};
+		const { Page, HtmlTemplate, Layouts } = finalResolvedInputs;
 		const validationErrors = this.ownershipValidationService.validate({
 			currentIntegrationName: adapter.name,
 			roots: [
@@ -174,30 +188,35 @@ export class RouteRenderOrchestrator {
 		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
-		const routeInstanceKey = createRouteInstanceKey({ params: routeOptions.params });
-		const graphContext: PageBrowserGraphContributionContext = {
-			file: routeOptions.file,
-			pageModule: resolvedInputs.pageModule,
-			props: resolvedInputs.props,
+		const dependencyInstanceKey = createPageDependencyInstanceKey({
 			params: routeOptions.params,
 			query: routeOptions.query,
-			routeInstanceKey,
+		});
+		const graphContext: PageBrowserGraphContributionContext = {
+			file: routeOptions.file,
+			pageModule: finalResolvedInputs.pageModule,
+			props: finalProps,
+			params: routeOptions.params,
+			query: routeOptions.query,
+			dependencyInstanceKey,
 		};
+		const resolvedPageDependencies = await adapter.resolvePageDependencies(graphContext);
 		const [{ resolvedDependencies }, pageBrowserGraph] = await Promise.all([
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,
 			}),
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
-				routeInstanceKey,
+				dependencyInstanceKey,
 				integrationName: adapter.name,
-				collectContribution: () => adapter.collectPageBrowserGraphContribution(graphContext),
-				collectSiblingContribution: async (routeFile) => {
-					const siblingContext = await adapter.buildPageBrowserGraphContributionContext(routeFile);
-					return adapter.collectPageBrowserGraphContribution(siblingContext);
-				},
+				collectContribution: async () =>
+					mergePageBrowserGraphContributions(
+						await adapter.collectPageBrowserGraphContribution(graphContext),
+						resolvedPageDependencies?.contribution,
+					),
 			}),
 		]);
+		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 
 		const allDependencies = [
 			...resolvedDependencies,
@@ -215,7 +234,8 @@ export class RouteRenderOrchestrator {
 
 		return buildPreparedRenderOptions<C>({
 			routeOptions,
-			resolvedInputs,
+			resolvedInputs: finalResolvedInputs,
+			resolvedPageDependencyComponents,
 			resolvedDependencies,
 			allDependencies,
 			pageBrowserGraph,
@@ -225,10 +245,10 @@ export class RouteRenderOrchestrator {
 
 	async resolveDeclaredPageBrowserGraph(input: {
 		routeFile: string;
-		routeInstanceKey?: string;
+		dependencyInstanceKey?: string;
 		integrationName: string;
 		collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
-		collectSiblingContribution: (routeFile: string) => Promise<PageBrowserGraphContribution | undefined>;
+		groupedBuildPlan?: GroupedGraphBuildPlan;
 	}): Promise<PageBrowserGraphResult | undefined> {
 		return await this.pageBrowserGraphService.resolvePageBrowserGraph(input);
 	}

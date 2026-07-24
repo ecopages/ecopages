@@ -18,7 +18,7 @@ import {
 	RouteRenderOrchestrator,
 } from './route-render-orchestrator.ts';
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
-import { createRouteInstanceKey } from '../page-browser-graph/route-instance-key.ts';
+import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 
 function createFlowAdapter(input: {
 	resolvePageModule: (file: string) => Promise<{
@@ -72,6 +72,7 @@ function createFlowAdapter(input: {
 		}),
 		collectPageBrowserGraphContribution: async (context) =>
 			await input.collectPageBrowserGraphContribution(context),
+		resolvePageDependencies: async () => undefined,
 		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeFile);
 			const { props } = await input.resolvePageData(pageModule, {
@@ -89,7 +90,10 @@ function createFlowAdapter(input: {
 				props,
 				params: routeOptions?.params,
 				query: routeOptions?.query,
-				routeInstanceKey: createRouteInstanceKey({ params: routeOptions?.params }),
+				dependencyInstanceKey: createPageDependencyInstanceKey({
+					params: routeOptions?.params,
+					query: routeOptions?.query,
+				}),
 			};
 		},
 		renderRouteBody: input.renderRouteBody,

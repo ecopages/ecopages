@@ -20,10 +20,11 @@ describe('prepareHmrFileChange', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/index.tsx',
-				routeInstanceKey: '',
+				dependencyInstanceKey: '',
 				entryFingerprint: 'index',
 				policy: 'development',
 			},
+			new Set(['/app/pages/index.tsx', sharedLayout]),
 			async () => ({
 				result: { entryAssets: [], chunkAssets: [] },
 				dependencyPaths: new Set(['/app/pages/index.tsx', sharedLayout]),
@@ -36,7 +37,7 @@ describe('prepareHmrFileChange', () => {
 			{
 				integrationName: 'react',
 				routeFile: '/app/pages/index.tsx',
-				routeInstanceKey: '',
+				dependencyInstanceKey: '',
 				policy: 'development',
 				entryFingerprint: 'index',
 			},

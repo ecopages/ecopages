@@ -1,41 +1,50 @@
 import { describe, expect, test } from 'vitest';
 import {
+	createPageDependencyInstanceKey,
 	createRouteGraphLookupKey,
-	createRouteInstanceKey,
-	parseRouteInstanceKey,
+	parsePageDependencyInstanceKey,
 	serializeGroupedGraphCacheKey,
 } from './route-instance-key.ts';
 
-describe('route-instance-key', () => {
-	test('createRouteInstanceKey returns empty string for static routes', () => {
-		expect(createRouteInstanceKey({ params: {} })).toBe('');
-		expect(createRouteInstanceKey({})).toBe('');
+describe('page dependency instance key', () => {
+	test('returns an empty key for routes without dependency inputs', () => {
+		expect(createPageDependencyInstanceKey({ params: {} })).toBe('');
+		expect(createPageDependencyInstanceKey({})).toBe('');
 	});
 
-	test('createRouteInstanceKey serializes catch-all params', () => {
-		expect(createRouteInstanceKey({ params: { slug: ['docs', 'intro'] } })).toBe('slug=docs/intro');
+	test('canonically serializes params and query inputs', () => {
+		expect(
+			createPageDependencyInstanceKey({
+				params: { slug: ['docs', 'intro'] },
+				query: { mode: 'preview' },
+			}),
+		).toBe(JSON.stringify({ params: [['slug', ['docs', 'intro']]], query: [['mode', 'preview']] }));
 	});
 
-	test('parseRouteInstanceKey round-trips serialized params', () => {
-		const key = createRouteInstanceKey({ params: { slug: ['docs', 'intro'] } });
-		expect(parseRouteInstanceKey(key)).toEqual({ slug: ['docs', 'intro'] });
+	test('round-trips delimiters and preserves scalar versus array values', () => {
+		const input = {
+			params: { scalar: 'docs/a&b=c', segments: ['docs', 'a/b', 'c=d'] },
+			query: { filter: ['draft', 'a&b=c'], mode: 'preview' },
+		};
+
+		expect(parsePageDependencyInstanceKey(createPageDependencyInstanceKey(input))).toEqual(input);
 	});
 
 	test('createRouteGraphLookupKey scopes grouped graph maps', () => {
 		expect(createRouteGraphLookupKey('/app/pages/docs/[...slug]/index.tsx')).toBe(
-			'/app/pages/docs/[...slug]/index.tsx',
+			JSON.stringify(['/app/pages/docs/[...slug]/index.tsx', '']),
 		);
-		expect(createRouteGraphLookupKey('/app/pages/docs/[...slug]/index.tsx', 'slug=docs/intro')).toBe(
-			'/app/pages/docs/[...slug]/index.tsx::slug=docs/intro',
+		expect(createRouteGraphLookupKey('/app/pages/docs/[...slug]/index.tsx', '{"params":[]}')).toBe(
+			JSON.stringify(['/app/pages/docs/[...slug]/index.tsx', '{"params":[]}']),
 		);
 	});
 
-	test('serializeGroupedGraphCacheKey scopes grouped graph caches by route instance', () => {
+	test('serializeGroupedGraphCacheKey scopes grouped graph caches by integration and plan', () => {
 		expect(
 			serializeGroupedGraphCacheKey({
 				integrationName: 'react',
-				routeInstanceKey: 'slug=docs/intro',
+				planKey: 'plan-a',
 			}),
-		).toBe('grouped::react::slug=docs/intro');
+		).toBe(JSON.stringify(['grouped', 'react', 'plan-a']));
 	});
 });

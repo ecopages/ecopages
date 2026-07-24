@@ -26,18 +26,31 @@ test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
 	assert.equal(shouldPrebuildProductionPageBrowserGraphs(), false);
 });
 
-test('prebuildProductionPageBrowserGraphs deduplicates and sorts route instances', async () => {
-	const calls: Array<{ routeFile: string; params?: Record<string, string | string[]> }> = [];
+test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route instances by renderer', async () => {
+	const calls: Array<{
+		routeFile: string;
+		params?: Record<string, string | string[]>;
+		groupedBuildPlan?: { planKey: string };
+	}> = [];
+	const groupedBuildPlan = { integrationName: 'react', planKey: 'plan', instances: [] };
+	const renderer = {
+		buildGroupedGraphBuildPlan: async () => groupedBuildPlan,
+		prebuildProductionPageBrowserGraph: async (
+			filePath: string,
+			options?: {
+				params?: Record<string, string | string[]>;
+				groupedBuildPlan?: { planKey: string };
+			},
+		) => {
+			calls.push({
+				routeFile: filePath,
+				params: options?.params,
+				groupedBuildPlan: options?.groupedBuildPlan,
+			});
+		},
+	};
 	const routeRendererFactory = {
-		getPageRenderer: () =>
-			({
-				prebuildProductionPageBrowserGraph: async (
-					filePath: string,
-					options?: { params?: Record<string, string | string[]> },
-				) => {
-					calls.push({ routeFile: filePath, params: options?.params });
-				},
-			}) as never,
+		getPageRenderer: () => renderer as never,
 	};
 
 	await prebuildProductionPageBrowserGraphs(
@@ -50,8 +63,16 @@ test('prebuildProductionPageBrowserGraphs deduplicates and sorts route instances
 	);
 
 	assert.deepEqual(calls, [
-		{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } },
-		{ routeFile: '/tmp/b/page.tsx', params: { slug: 'beta' } },
+		{
+			routeFile: '/tmp/a/page.tsx',
+			params: { slug: 'alpha' },
+			groupedBuildPlan,
+		},
+		{
+			routeFile: '/tmp/b/page.tsx',
+			params: { slug: 'beta' },
+			groupedBuildPlan,
+		},
 	]);
 });
 

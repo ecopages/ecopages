@@ -3,8 +3,16 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { EcoPagesAppConfig } from '@ecopages/core';
+import type {
+	EcoComponent,
+	EcoFunctionComponent,
+	EcoPagesAppConfig,
+	HtmlTemplateProps,
+	PageProps,
+} from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { test } from 'vitest';
+import { getEjsxHmrOwnership, resetEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
@@ -203,4 +211,48 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 	assert.equal(rendererA.isMdxFile('/tmp/page.guide.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
 	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
+});
+
+test('EcopagesJsxRenderer records declared content dependencies for HMR ownership', async () => {
+	resetEjsxHmrOwnership();
+	const renderer = new TestEcopagesJsxRenderer({
+		appConfig: createAppConfig(tmpdir()),
+		assetProcessingService: {} as never,
+		resolvedIntegrationDependencies: [],
+		jsxConfig: {},
+		runtimeOrigin: 'http://localhost:3000',
+	});
+	const demo = (() => '<demo></demo>') as EcoComponent;
+	demo.config = {
+		__eco: { id: 'demo', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+	};
+	const content = (() => '<article>Content</article>') as EcoComponent;
+	content.config = {
+		__eco: { id: 'intro', file: '/app/content/docs/intro.mdx', integration: 'ecopages-jsx' },
+		dependencies: { components: [demo] },
+	};
+	const page = (() => '<main>Page</main>') as EcoFunctionComponent<PageProps, JsxRenderable>;
+	page.config = {
+		__eco: { id: 'page', file: '/app/pages/docs/[...slug]/index.tsx', integration: 'ecopages-jsx' },
+	};
+	const htmlTemplate = (({ children }: { children?: unknown }) => children) as EcoFunctionComponent<
+		HtmlTemplateProps,
+		JsxRenderable
+	>;
+	htmlTemplate.config = {
+		__eco: { id: 'html', file: '/app/html.tsx', integration: 'ecopages-jsx' },
+	};
+
+	await renderer.render({
+		file: '/app/pages/docs/[...slug]/index.tsx',
+		Page: page,
+		HtmlTemplate: htmlTemplate,
+		metadata: { title: '', description: '' },
+		resolvedDependencies: [],
+		resolvedPageDependencyComponents: [content],
+	});
+
+	const { fileOwners } = getEjsxHmrOwnership();
+	assert.equal(fileOwners.has('/app/content/docs/intro.mdx'), true);
+	assert.equal(fileOwners.has('/app/components/demo.tsx'), true);
 });

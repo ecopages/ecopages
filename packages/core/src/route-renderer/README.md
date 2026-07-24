@@ -84,7 +84,7 @@ The route-render contract is:
 
 1. `RouteRendererFactory` selects the owning integration renderer.
 2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderOrchestrator`.
-3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves page data, resolves dependencies, and builds the page browser graph.
+3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves final page props, resolves dependencies, and builds the page browser graph. Graph cache identity includes route params and query; contribution collection receives those same final props.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
 6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
@@ -93,6 +93,7 @@ Important:
 
 - route-level fallback resolution is gone; unresolved artifacts are now a hard failure
 - ownership is declared from component metadata, not inferred from final HTML
+- declared page dependencies are resolved from final render inputs and carried to the owning integration; integrations may use them for renderer-specific lifecycle work such as HMR ownership
 - same-integration children stay renderer-local and do not need to pass through a universal transport
 
 ## Declared Foreign Child Contract

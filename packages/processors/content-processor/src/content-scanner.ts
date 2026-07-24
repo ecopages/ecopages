@@ -123,10 +123,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 	 * Returns `no-op` when only the MDX body changed so callers can skip
 	 * rewriting generated collection modules during dev HMR.
 	 */
-	async updateEntryForPath(
-		filePath: string,
-		event: 'change' | 'create' | 'delete',
-	): Promise<ContentEntryPathUpdateResult> {
+	async updateEntryForPath(filePath: string, event: 'change' | 'delete'): Promise<ContentEntryPathUpdateResult> {
 		const resolvedPath = resolve(filePath);
 		const cache = await this.getCache();
 
@@ -137,14 +134,6 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 		const relativePath = relative(this.config.contentRoot, resolvedPath);
 		const nextSlug = slugFromRelativePath(relativePath, this.extensions);
 		const previousSlug = this.findSlugForFilePath(cache, resolvedPath);
-
-		if (event === 'create' && !previousSlug) {
-			return this.upsertEntryAtPath(cache, resolvedPath, nextSlug, previousSlug);
-		}
-
-		if (previousSlug && previousSlug !== nextSlug) {
-			return 'structure';
-		}
 
 		return this.upsertEntryAtPath(cache, resolvedPath, nextSlug, previousSlug);
 	}
@@ -198,15 +187,12 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 			return 'structure';
 		}
 
-		const entryMatches = JSON.stringify(previousEntry) === JSON.stringify(nextEntry) && previousSlug === nextSlug;
+		const entryMatches = JSON.stringify(previousEntry) === JSON.stringify(nextEntry);
 		if (entryMatches) {
 			return 'no-op';
 		}
 
 		cache.manifest = cache.manifest.map((entry) => (entry.slug === previousSlug ? nextEntry : entry));
-		if (previousSlug !== nextSlug) {
-			cache.filePathsBySlug.delete(previousSlug);
-		}
 		cache.filePathsBySlug.set(nextSlug, filePath);
 		cache.manifest.sort((left, right) => this.orderBy(left, right));
 

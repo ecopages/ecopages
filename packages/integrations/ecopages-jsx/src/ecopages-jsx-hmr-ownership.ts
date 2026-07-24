@@ -45,7 +45,9 @@ export function getEjsxHmrOwnership(): EjsxHmrOwnershipState {
  * state is replaced only when the resulting file set has a different hash, so
  * the renderer's per-render hook is free in the steady state.
  */
-export function updateEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
+export function updateEjsxHmrOwnership(
+	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
+): void {
 	publishEjsxHmrOwnership(collectFileOwners(components));
 }
 
@@ -81,7 +83,7 @@ export function resetEjsxHmrOwnership(): void {
 	currentState = EMPTY_STATE;
 }
 
-function collectFileOwners(components: ReadonlyArray<EcoComponent | undefined>): Set<string> {
+function collectFileOwners(components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>): Set<string> {
 	return collectComponentConfigFilePaths(components, { includeLayouts: true });
 }
 

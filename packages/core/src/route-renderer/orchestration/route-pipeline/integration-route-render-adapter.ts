@@ -11,7 +11,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
-import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
+import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import type {
 	RouteHtmlFinalization,
@@ -35,9 +35,9 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution | undefined>;
-	collectResolvedDependenciesContribution(
+	resolvePageDependencies(
 		context: PageBrowserGraphContributionContext,
-	): Promise<PageBrowserGraphContribution | undefined>;
+	): Promise<ResolvedPageDependencies | undefined>;
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
@@ -66,11 +66,8 @@ export function createIntegrationRouteRenderAdapter<C>(
 		name: host.name,
 		resolveRouteRenderInputs: (routeOptions) => host.resolveRouteRenderInputs(routeOptions),
 		resolveRouteDependencies: (input) => host.resolveRouteDependencies(input),
-		collectPageBrowserGraphContribution: async (context) =>
-			mergePageBrowserGraphContributions(
-				await host.collectPageBrowserGraphContribution(context),
-				await host.collectResolvedDependenciesContribution(context),
-			),
+		collectPageBrowserGraphContribution: (context) => host.collectPageBrowserGraphContribution(context),
+		resolvePageDependencies: (context) => host.resolvePageDependencies(context),
 		buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 			host.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),

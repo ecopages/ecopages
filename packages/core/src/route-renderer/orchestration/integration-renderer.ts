@@ -44,13 +44,20 @@ import {
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-pipeline/route-render-orchestrator.ts';
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
-import { createRouteInstanceKey } from './page-browser-graph/route-instance-key.ts';
+import { createPageDependencyInstanceKey } from './page-browser-graph/route-instance-key.ts';
 import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
 import {
 	collectDependencyWatchPaths,
 	collectFileScopedDependencyComponents,
-	splitPageDependenciesResult,
 } from '../page-loading/file-scoped-dependency-components.ts';
+import {
+	resolvePageDependenciesFromContext,
+	type ResolvedPageDependencies,
+} from '../page-loading/resolved-page-dependencies.ts';
+import {
+	createGroupedGraphBuildPlanKey,
+	type GroupedGraphBuildPlan,
+} from './page-browser-graph/grouped-graph-build-plan.ts';
 import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
@@ -158,10 +165,47 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	public async prebuildProductionPageBrowserGraph(
 		routeFile: string,
-		options?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		options?: Pick<RouteRendererOptions, 'params' | 'query'> & {
+			groupedBuildPlan?: GroupedGraphBuildPlan;
+		},
 	): Promise<void> {
 		await this.ensureIntegrationRuntimeActivated();
-		await this.resolvePageBrowserGraphForRoute(routeFile, options);
+		await this.resolvePageBrowserGraphForRoute(routeFile, options, options?.groupedBuildPlan);
+	}
+
+	/**
+	 * Builds one production grouped graph plan for the supplied static route instances.
+	 */
+	public async buildGroupedGraphBuildPlan(
+		instances: ReadonlyArray<{
+			routeFile: string;
+			params?: RouteRendererOptions['params'];
+			query?: RouteRendererOptions['query'];
+		}>,
+	): Promise<GroupedGraphBuildPlan> {
+		const builtInstances = await Promise.all(
+			instances.map(async (routeInstance) => {
+				const context = await this.buildPageBrowserGraphContributionContext(
+					routeInstance.routeFile,
+					routeInstance,
+				);
+				const resolvedPageDependencies = await this.resolvePageDependencies(context);
+				return {
+					routeFile: routeInstance.routeFile,
+					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
+					contribution: mergePageBrowserGraphContributions(
+						await this.collectPageBrowserGraphContribution(context),
+						resolvedPageDependencies?.contribution,
+					),
+				};
+			}),
+		);
+
+		return {
+			integrationName: this.name,
+			planKey: createGroupedGraphBuildPlanKey(this.name, builtInstances),
+			instances: builtInstances,
+		};
 	}
 
 	/**
@@ -291,25 +335,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async resolvePageBrowserGraphForRoute(
 		filePath: string,
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		groupedBuildPlan?: GroupedGraphBuildPlan,
 	): Promise<PageBrowserGraphResult | undefined> {
 		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
+		const resolvedPageDependencies = await this.resolvePageDependencies(graphContext);
 
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
 			routeFile: filePath,
-			routeInstanceKey: graphContext.routeInstanceKey,
+			dependencyInstanceKey: graphContext.dependencyInstanceKey,
 			integrationName: this.name,
+			groupedBuildPlan,
 			collectContribution: async () =>
 				mergePageBrowserGraphContributions(
 					await this.collectPageBrowserGraphContribution(graphContext),
-					await this.collectResolvedDependenciesContribution(graphContext),
+					resolvedPageDependencies?.contribution,
 				),
-			collectSiblingContribution: async (routeFile) => {
-				const siblingContext = await this.buildPageBrowserGraphContributionContext(routeFile);
-				return mergePageBrowserGraphContributions(
-					await this.collectPageBrowserGraphContribution(siblingContext),
-					await this.collectResolvedDependenciesContribution(siblingContext),
-				);
-			},
 		});
 	}
 
@@ -736,7 +776,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),
 			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
-			collectResolvedDependenciesContribution: (context) => this.collectResolvedDependenciesContribution(context),
+			resolvePageDependencies: (context) => this.resolvePageDependencies(context),
 			buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 				this.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
@@ -807,32 +847,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			props,
 			params: routeOptions?.params,
 			query: routeOptions?.query,
-			routeInstanceKey: createRouteInstanceKey({ params: routeOptions?.params }),
+			dependencyInstanceKey: createPageDependencyInstanceKey({
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			}),
 		};
 	}
 
-	protected async collectResolvedDependenciesContribution(
+	protected async resolvePageDependencies(
 		context: PageBrowserGraphContributionContext,
-	): Promise<PageBrowserGraphContribution | undefined> {
-		const pageComponent = context.pageModule.default as EcoPageComponent<unknown>;
-		const resolveDependencies = pageComponent.resolveDependencies;
-		if (!resolveDependencies) {
-			return undefined;
-		}
-
-		const dependenciesResult = await resolveDependencies({
-			props: (context.props ?? {}) as Record<string, unknown>,
-			params: context.params,
-			query: context.query,
-		});
-
-		if (!dependenciesResult) {
-			return undefined;
-		}
-
-		const { dependencies, ownerFile } = splitPageDependenciesResult(dependenciesResult);
-
-		return this.resolvePageBrowserGraphContributionFromDependencies(dependencies, ownerFile ?? context.file);
+	): Promise<ResolvedPageDependencies | undefined> {
+		return resolvePageDependenciesFromContext(context, this.name, (dependencies, ownerFile) =>
+			this.resolvePageBrowserGraphContributionFromDependencies(dependencies, ownerFile),
+		);
 	}
 
 	protected async resolvePageBrowserGraphContributionFromDependencies(

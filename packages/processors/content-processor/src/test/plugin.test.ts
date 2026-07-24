@@ -216,4 +216,69 @@ order: 1
 		expect(fileSystem.readFileSync(cacheFile)).toContain('Intro Updated');
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
 	});
+
+	test('create, delete, and rename events regenerate collection modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-mutations-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		const guidePath = path.join(contentDir, 'guide.mdx');
+		const renamedGuidePath = path.join(contentDir, 'getting-started', 'guide.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onCreate || !watchConfig.onDelete) {
+			throw new Error('Expected content processor create and delete watch handlers');
+		}
+
+		fileSystem.write(
+			guidePath,
+			`---
+title: Guide
+description: Welcome
+order: 2
+---
+# Guide
+`,
+		);
+		await watchConfig.onCreate({ path: guidePath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"guide"');
+
+		fileSystem.ensureDir(path.dirname(renamedGuidePath));
+		fileSystem.write(renamedGuidePath, fileSystem.readFileSync(guidePath));
+		fileSystem.remove(guidePath);
+		await watchConfig.onDelete({ path: guidePath } as never);
+		await watchConfig.onCreate({ path: renamedGuidePath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"getting-started/guide"');
+		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"guide"');
+
+		fileSystem.remove(introPath);
+		await watchConfig.onDelete({ path: introPath } as never);
+		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
+	});
 });

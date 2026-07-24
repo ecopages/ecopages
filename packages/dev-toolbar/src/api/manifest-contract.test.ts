@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEV_MANIFEST_ELEMENT_ID as coreManifestElementId } from '../../../core/src/dev-toolbar/dev-toolbar-manifest-contract.ts';
+import { DEV_MANIFEST_ELEMENT_ID as coreManifestElementId } from '@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract';
 import { DEV_MANIFEST_ELEMENT_ID } from './manifest-contract.ts';
 
 describe('manifest contract', () => {

@@ -1,4 +1,4 @@
-import { join, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { validateStandardSchema, type StandardSchema } from '@ecopages/core';
 import { VFile } from 'vfile';
 import { matter } from 'vfile-matter';
@@ -19,6 +19,8 @@ type ContentCache<T extends Record<string, unknown>> = {
 	manifest: ContentEntry<T>[];
 	filePathsBySlug: Map<string, string>;
 };
+
+export type ContentEntryPathUpdateResult = 'no-op' | 'manifest' | 'structure';
 
 function slugFromRelativePath(relativePath: string, extensions: string[]): string {
 	for (const ext of extensions) {
@@ -112,5 +114,88 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 			entry,
 			filePath: cache.filePathsBySlug.get(entry.slug)!,
 		}));
+	}
+
+	/**
+	 * Re-parses one content file and updates the in-memory manifest.
+	 *
+	 * @remarks
+	 * Returns `no-op` when only the MDX body changed so callers can skip
+	 * rewriting generated collection modules during dev HMR.
+	 */
+	async updateEntryForPath(filePath: string, event: 'change' | 'delete'): Promise<ContentEntryPathUpdateResult> {
+		const resolvedPath = resolve(filePath);
+		const cache = await this.getCache();
+
+		if (event === 'delete') {
+			return this.removeEntryAtPath(cache, resolvedPath);
+		}
+
+		const relativePath = relative(this.config.contentRoot, resolvedPath);
+		const nextSlug = slugFromRelativePath(relativePath, this.extensions);
+		const previousSlug = this.findSlugForFilePath(cache, resolvedPath);
+
+		return this.upsertEntryAtPath(cache, resolvedPath, nextSlug, previousSlug);
+	}
+
+	private findSlugForFilePath(cache: ContentCache<T>, filePath: string): string | undefined {
+		for (const [slug, currentPath] of cache.filePathsBySlug) {
+			if (resolve(currentPath) === filePath) {
+				return slug;
+			}
+		}
+
+		return undefined;
+	}
+
+	private removeEntryAtPath(cache: ContentCache<T>, filePath: string): ContentEntryPathUpdateResult {
+		const slug = this.findSlugForFilePath(cache, filePath);
+		if (!slug) {
+			return 'no-op';
+		}
+
+		cache.filePathsBySlug.delete(slug);
+		cache.manifest = cache.manifest.filter((entry) => entry.slug !== slug);
+		return 'structure';
+	}
+
+	private async upsertEntryAtPath(
+		cache: ContentCache<T>,
+		filePath: string,
+		nextSlug: string,
+		previousSlug: string | undefined,
+	): Promise<ContentEntryPathUpdateResult> {
+		const raw = await fileSystem.readFile(filePath);
+		const nextEntry: ContentEntry<T> = {
+			...(await this.parseFrontmatter(raw)),
+			slug: nextSlug,
+			segments: nextSlug.split('/'),
+		};
+
+		if (!previousSlug) {
+			cache.manifest.push(nextEntry);
+			cache.filePathsBySlug.set(nextSlug, filePath);
+			cache.manifest.sort((left, right) => this.orderBy(left, right));
+			return 'structure';
+		}
+
+		const previousEntry = cache.manifest.find((entry) => entry.slug === previousSlug);
+		if (!previousEntry) {
+			cache.manifest.push(nextEntry);
+			cache.filePathsBySlug.set(nextSlug, filePath);
+			cache.manifest.sort((left, right) => this.orderBy(left, right));
+			return 'structure';
+		}
+
+		const entryMatches = JSON.stringify(previousEntry) === JSON.stringify(nextEntry);
+		if (entryMatches) {
+			return 'no-op';
+		}
+
+		cache.manifest = cache.manifest.map((entry) => (entry.slug === previousSlug ? nextEntry : entry));
+		cache.filePathsBySlug.set(nextSlug, filePath);
+		cache.manifest.sort((left, right) => this.orderBy(left, right));
+
+		return 'manifest';
 	}
 }

@@ -9,7 +9,9 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
+	EcoComponentDependencies,
 	EcoFunctionComponent,
+	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	BaseIntegrationContext,
@@ -42,7 +44,20 @@ import {
 	type RouteRenderOrchestratorResolvedInputs,
 } from './route-pipeline/route-render-orchestrator.ts';
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
-import { loadPageBrowserGraphContribution } from './page-browser-graph/page-browser-graph-contribution.loader.ts';
+import { createPageDependencyInstanceKey } from './page-browser-graph/route-instance-key.ts';
+import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
+import {
+	collectDependencyWatchPaths,
+	collectFileScopedDependencyComponents,
+} from '../page-loading/file-scoped-dependency-components.ts';
+import {
+	resolvePageDependenciesFromContext,
+	type ResolvedPageDependencies,
+} from '../page-loading/resolved-page-dependencies.ts';
+import {
+	createGroupedGraphBuildPlanKey,
+	type GroupedGraphBuildPlan,
+} from './page-browser-graph/grouped-graph-build-plan.ts';
 import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
@@ -146,11 +161,51 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Prebuilds the production Page Browser Graph for one route file.
+	 * Prebuilds the production Page Browser Graph for one route file and optional params.
 	 */
-	public async prebuildProductionPageBrowserGraph(routeFile: string): Promise<void> {
+	public async prebuildProductionPageBrowserGraph(
+		routeFile: string,
+		options?: Pick<RouteRendererOptions, 'params' | 'query'> & {
+			groupedBuildPlan?: GroupedGraphBuildPlan;
+		},
+	): Promise<void> {
 		await this.ensureIntegrationRuntimeActivated();
-		await this.resolvePageBrowserGraphForFile(routeFile);
+		await this.resolvePageBrowserGraphForRoute(routeFile, options, options?.groupedBuildPlan);
+	}
+
+	/**
+	 * Builds one production grouped graph plan for the supplied static route instances.
+	 */
+	public async buildGroupedGraphBuildPlan(
+		instances: ReadonlyArray<{
+			routeFile: string;
+			params?: RouteRendererOptions['params'];
+			query?: RouteRendererOptions['query'];
+		}>,
+	): Promise<GroupedGraphBuildPlan> {
+		const builtInstances = await Promise.all(
+			instances.map(async (routeInstance) => {
+				const context = await this.buildPageBrowserGraphContributionContext(
+					routeInstance.routeFile,
+					routeInstance,
+				);
+				const resolvedPageDependencies = await this.resolvePageDependencies(context);
+				return {
+					routeFile: routeInstance.routeFile,
+					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
+					contribution: mergePageBrowserGraphContributions(
+						await this.collectPageBrowserGraphContribution(context),
+						resolvedPageDependencies?.contribution,
+					),
+				};
+			}),
+		);
+
+		return {
+			integrationName: this.name,
+			planKey: createGroupedGraphBuildPlanKey(this.name, builtInstances),
+			instances: builtInstances,
+		};
 	}
 
 	/**
@@ -268,14 +323,32 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	protected async resolvePageBrowserGraphForFile(filePath: string): Promise<PageBrowserGraphResult | undefined> {
+		/**
+		 * @remarks
+		 * Integration renderers such as React still call this file-only entry point
+		 * during explicit view rendering. Route-instance-aware callers should prefer
+		 * `resolvePageBrowserGraphForRoute`.
+		 */
+		return this.resolvePageBrowserGraphForRoute(filePath);
+	}
+
+	protected async resolvePageBrowserGraphForRoute(
+		filePath: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		groupedBuildPlan?: GroupedGraphBuildPlan,
+	): Promise<PageBrowserGraphResult | undefined> {
+		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
+		const resolvedPageDependencies = await this.resolvePageDependencies(graphContext);
+
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
 			routeFile: filePath,
+			dependencyInstanceKey: graphContext.dependencyInstanceKey,
 			integrationName: this.name,
-			collectContribution: (routeFile) =>
-				loadPageBrowserGraphContribution(
-					routeFile,
-					(targetFile) => this.importPageFile(targetFile),
-					(context) => this.collectPageBrowserGraphContribution(context),
+			groupedBuildPlan,
+			collectContribution: async () =>
+				mergePageBrowserGraphContributions(
+					await this.collectPageBrowserGraphContribution(graphContext),
+					resolvedPageDependencies?.contribution,
 				),
 		});
 	}
@@ -703,6 +776,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),
 			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
+			resolvePageDependencies: (context) => this.resolvePageDependencies(context),
+			buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
+				this.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
@@ -722,21 +798,22 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async resolveRouteRenderInputs(
 		routeOptions: RouteRendererOptions,
 	): Promise<RouteRenderOrchestratorResolvedInputs> {
-		const pageModule = await this.pageModuleLoaderService.resolvePageModule({
+		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
 		});
-		const { Page, integrationSpecificProps } = pageModule;
+		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const Layouts = resolvePageLayoutComponents(Page.config?.layouts);
 		const Layout = resolveInnermostPageLayout(Layouts);
 		const { props, metadata } = await this.pageModuleLoaderService.resolvePageData({
-			pageModule,
+			pageModule: resolvedPageModule,
 			routeOptions,
 		});
 
 		return {
 			Page,
+			pageModule,
 			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps>,
 			Layouts,
 			Layout,
@@ -744,6 +821,64 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			props,
 			metadata,
 			integrationSpecificProps,
+		};
+	}
+
+	protected async buildPageBrowserGraphContributionContext(
+		routeFile: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+	): Promise<PageBrowserGraphContributionContext> {
+		const { module: pageModule, ...resolvedPageModule } = await this.pageModuleLoaderService.resolvePageModule({
+			file: routeFile,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
+		const { props } = await this.pageModuleLoaderService.resolvePageData({
+			pageModule: resolvedPageModule,
+			routeOptions: {
+				file: routeFile,
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			},
+		});
+
+		return {
+			file: routeFile,
+			pageModule,
+			props,
+			params: routeOptions?.params,
+			query: routeOptions?.query,
+			dependencyInstanceKey: createPageDependencyInstanceKey({
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			}),
+		};
+	}
+
+	protected async resolvePageDependencies(
+		context: PageBrowserGraphContributionContext,
+	): Promise<ResolvedPageDependencies | undefined> {
+		return resolvePageDependenciesFromContext(context, this.name, (dependencies, ownerFile) =>
+			this.resolvePageBrowserGraphContributionFromDependencies(dependencies, ownerFile),
+		);
+	}
+
+	protected async resolvePageBrowserGraphContributionFromDependencies(
+		dependencies: EcoComponentDependencies,
+		ownerFile: string,
+	): Promise<PageBrowserGraphContribution | undefined> {
+		const components = collectFileScopedDependencyComponents({
+			ownerFile,
+			integrationName: this.name,
+			dependencies,
+		});
+
+		if (components.length === 0) {
+			return undefined;
+		}
+
+		return {
+			assets: await this.processComponentDependencies(components),
+			watchPaths: collectDependencyWatchPaths(ownerFile, components),
 		};
 	}
 

@@ -75,6 +75,7 @@ describe('PageModuleLoaderService', () => {
 		expect(result.getStaticProps).toBe(Page.staticProps);
 		expect(result.getMetadata).toBe(Page.metadata);
 		expect(result.integrationSpecificProps).toEqual({ extra: 'integration-value' });
+		expect(result.module).toBe(module);
 	});
 
 	it('should resolve page data end-to-end', async () => {

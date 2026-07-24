@@ -20,6 +20,8 @@ import type {
 	LayoutProps,
 	RequestLocals,
 	RequestPageContext,
+	PageParams,
+	PageQuery,
 } from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
 
@@ -89,6 +91,34 @@ type RequiresKeys = keyof RequestLocals;
 export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
 
 /**
+ * Context passed to a page `dependencies` resolver for one concrete route render.
+ */
+export type GetPageDependenciesContext<T = Record<string, unknown>> = {
+	props: PagePropsFor<T>;
+	params?: PageParams;
+	query?: PageQuery;
+};
+
+/**
+ * Page dependency bag optionally scoped to a declaring file.
+ */
+export type PageDependenciesResult = EcoComponentDependencies & {
+	ownerFile?: string;
+};
+
+/**
+ * Resolves request-specific page dependencies for one route render.
+ */
+export type GetPageDependencies<T = Record<string, unknown>> = (
+	context: GetPageDependenciesContext<T>,
+) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
+
+/**
+ * Static page dependencies or a per-render resolver.
+ */
+export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
+
+/**
  * Lazy trigger options map directly to scripts-injector attributes.
  * Only one trigger type can be active at a time.
  */
@@ -129,7 +159,11 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
 	integration?: string;
-	dependencies?: EcoComponentDependencies;
+	/**
+	 * Declares browser dependencies for the page, or resolves them per render after
+	 * `staticProps` are available.
+	 */
+	dependencies?: PageDependenciesInput<T>;
 	layout?: EcoPageLayouts<E>;
 
 	/**
@@ -227,6 +261,7 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;
+	resolveDependencies?: GetPageDependencies<T>;
 	cache?: CacheStrategy;
 	requires?: PageRequires;
 	middleware?: FileRouteMiddleware[];

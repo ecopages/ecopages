@@ -11,7 +11,12 @@ import type { EntrypointDependencyGraph } from '../services/runtime-state/entryp
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
 export type { EcoPagesAppConfig } from './internal-types.ts';
-export type { EcoPageComponent } from '../eco/eco.types.ts';
+export type {
+	EcoPageComponent,
+	GetPageDependencies,
+	GetPageDependenciesContext,
+	PageDependenciesResult,
+} from '../eco/eco.types.ts';
 export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 
 /**
@@ -998,6 +1003,8 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoPageLayoutComponent<any>;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
+	/** @internal Resolved page dependencies carried through the render pipeline. */
+	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
@@ -1070,11 +1077,17 @@ export interface PageBrowserGraphResult {
 export type PageBrowserGraphContributionContext = {
 	file: string;
 	pageModule: EcoPageFile;
+	props?: Record<string, unknown>;
+	params?: PageParams;
+	query?: PageQuery;
+	dependencyInstanceKey?: string;
 };
 
 export interface PageBrowserGraphContribution {
 	dependencies?: AssetDefinition[];
 	assets?: ProcessedAsset[];
+	/** Source files that should invalidate this graph entry when they change. */
+	watchPaths?: string[];
 }
 
 export type OwnershipValidationErrorCode = 'UNKNOWN_INTEGRATION_OWNER' | 'MISSING_COMPONENT_METADATA';

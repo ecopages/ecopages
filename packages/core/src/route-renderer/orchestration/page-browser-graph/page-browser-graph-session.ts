@@ -1,4 +1,6 @@
 import path from 'node:path';
+import type { GroupedGraphScope } from './route-instance-key.ts';
+import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
 import { createHash } from 'node:crypto';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/public-types.ts';
@@ -13,6 +15,7 @@ export type GraphPolicy = 'development' | 'production';
 export type GraphKey = {
 	integrationName: string;
 	routeFile: string;
+	dependencyInstanceKey: string;
 	entryFingerprint: string;
 	policy: GraphPolicy;
 };
@@ -28,6 +31,11 @@ export type GraphRecord = {
 export type GraphBuildResult = {
 	result: PageBrowserGraphResult;
 	dependencyPaths: ReadonlySet<string>;
+	/**
+	 * @remarks
+	 * When false, the build result is returned to callers but not committed to the session cache.
+	 */
+	cacheable?: boolean;
 };
 
 type GroupedGraphRecord = {
@@ -53,12 +61,20 @@ function isSkipCacheGroupedOutcome(
 export type AffectedGraphIdentity = {
 	integrationName: string;
 	routeFile: string;
+	dependencyInstanceKey: string;
 	policy: GraphPolicy;
 	entryFingerprint: string;
 };
 
 function serializeGraphKey(key: GraphKey): string {
-	return `${key.policy}::${key.integrationName}::${key.routeFile}::${key.entryFingerprint}`;
+	return JSON.stringify([
+		'graph',
+		key.policy,
+		key.integrationName,
+		key.routeFile,
+		key.dependencyInstanceKey,
+		key.entryFingerprint,
+	]);
 }
 
 function normalizeDependencyPath(filePath: string): string {
@@ -66,14 +82,26 @@ function normalizeDependencyPath(filePath: string): string {
 }
 
 function parseSerializedGraphKey(serializedKey: string): AffectedGraphIdentity | undefined {
-	if (serializedKey.startsWith('grouped::')) {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(serializedKey);
+	} catch {
+		return undefined;
+	}
+	if (
+		!Array.isArray(parsed) ||
+		parsed.length !== 6 ||
+		parsed[0] !== 'graph' ||
+		typeof parsed[1] !== 'string' ||
+		typeof parsed[2] !== 'string' ||
+		typeof parsed[3] !== 'string' ||
+		typeof parsed[4] !== 'string' ||
+		typeof parsed[5] !== 'string'
+	) {
 		return undefined;
 	}
 
-	const [policy, integrationName, routeFile, entryFingerprint] = serializedKey.split('::');
-	if (!policy || !integrationName || !routeFile || entryFingerprint === undefined) {
-		return undefined;
-	}
+	const [, policy, integrationName, routeFile, dependencyInstanceKey, entryFingerprint] = parsed;
 
 	if (policy !== 'development' && policy !== 'production') {
 		return undefined;
@@ -83,6 +111,7 @@ function parseSerializedGraphKey(serializedKey: string): AffectedGraphIdentity |
 		policy,
 		integrationName,
 		routeFile,
+		dependencyInstanceKey,
 		entryFingerprint,
 	};
 }
@@ -107,16 +136,26 @@ export class GraphDependencyIndex {
 		}
 	}
 
-	bindGroupedRecord(integrationName: string, record: GroupedGraphRecord): void {
-		const serializedKey = `grouped::${integrationName}`;
+	bindGroupedRecord(cacheKey: string, record: GroupedGraphRecord): void {
 		for (const dependencyPath of record.dependencyPaths) {
+			this.addDependencyBinding(normalizeDependencyPath(dependencyPath), cacheKey);
+		}
+	}
+
+	unbindGroupedRecord(cacheKey: string, record: GroupedGraphRecord): void {
+		for (const dependencyPath of record.dependencyPaths) {
+			this.removeDependencyBinding(normalizeDependencyPath(dependencyPath), cacheKey);
+		}
+	}
+
+	bindPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
+		for (const dependencyPath of dependencyPaths) {
 			this.addDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
 		}
 	}
 
-	unbindGroupedRecord(integrationName: string, record: GroupedGraphRecord): void {
-		const serializedKey = `grouped::${integrationName}`;
-		for (const dependencyPath of record.dependencyPaths) {
+	unbindPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
+		for (const dependencyPath of dependencyPaths) {
 			this.removeDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
 		}
 	}
@@ -154,6 +193,8 @@ export class GraphDependencyIndex {
 export class SessionPageBrowserGraphCache {
 	private readonly records = new Map<string, GraphRecord>();
 	private readonly inFlight = new Map<string, Promise<PageBrowserGraphResult | undefined>>();
+	private readonly inFlightDependencyPaths = new Map<string, ReadonlySet<string>>();
+	private readonly inFlightGenerations = new Map<string, number>();
 	private readonly groupedRecords = new Map<string, GroupedGraphRecord>();
 	private readonly groupedInFlight = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
 	private readonly dependencyIndex = new GraphDependencyIndex();
@@ -161,36 +202,32 @@ export class SessionPageBrowserGraphCache {
 	private readonly groupedGenerations = new Map<string, number>();
 	private buildCount = 0;
 
-	getGraphByRoute(
-		integrationName: string,
-		routeFile: string,
-		policy: GraphPolicy,
-	): PageBrowserGraphResult | undefined {
-		const normalizedRoute = normalizeDependencyPath(routeFile);
-		for (const record of this.records.values()) {
-			if (record.key.integrationName !== integrationName) {
-				continue;
-			}
-
-			if (record.key.policy !== policy) {
-				continue;
-			}
-
-			if (normalizeDependencyPath(record.key.routeFile) !== normalizedRoute) {
-				continue;
-			}
-
-			return record.result;
-		}
-
-		return undefined;
-	}
-
 	/**
 	 * Page Browser Graph compilations in this dev-server session.
 	 */
 	getBuildCount(): number {
 		return this.buildCount;
+	}
+
+	getGraphByRoute(
+		integrationName: string,
+		routeFile: string,
+		policy: GraphPolicy,
+		dependencyInstanceKey = '',
+	): PageBrowserGraphResult | undefined {
+		const normalizedRoute = normalizeDependencyPath(routeFile);
+		for (const record of this.records.values()) {
+			if (
+				record.key.integrationName === integrationName &&
+				record.key.policy === policy &&
+				normalizeDependencyPath(record.key.routeFile) === normalizedRoute &&
+				record.key.dependencyInstanceKey === dependencyInstanceKey
+			) {
+				return record.result;
+			}
+		}
+
+		return undefined;
 	}
 
 	getAffectedGraphIdentities(filePath: string): AffectedGraphIdentity[] {
@@ -206,6 +243,7 @@ export class SessionPageBrowserGraphCache {
 
 	resolveGraph(
 		key: GraphKey,
+		provisionalDependencyPaths: ReadonlySet<string>,
 		build: () => Promise<GraphBuildResult | undefined>,
 	): Promise<PageBrowserGraphResult | undefined> {
 		const serializedKey = serializeGraphKey(key);
@@ -221,33 +259,37 @@ export class SessionPageBrowserGraphCache {
 		}
 
 		const buildGeneration = this.bumpGraphGeneration(serializedKey);
+		this.inFlightDependencyPaths.set(serializedKey, provisionalDependencyPaths);
+		this.inFlightGenerations.set(serializedKey, buildGeneration);
+		this.bindDependencyPaths(serializedKey, provisionalDependencyPaths);
 		const buildPromise = this.runGraphBuild(serializedKey, key, buildGeneration, build);
 		this.inFlight.set(serializedKey, buildPromise);
 		return buildPromise;
 	}
 
 	resolveGroupedGraph(
-		integrationName: string,
+		scope: GroupedGraphScope,
 		build: () => Promise<GroupedGraphBuildOutcome | undefined>,
 	): Promise<Map<string, ProcessedAsset[]>> {
-		const cached = this.groupedRecords.get(integrationName);
+		const cacheKey = serializeGroupedGraphCacheKey(scope);
+		const cached = this.groupedRecords.get(cacheKey);
 		if (cached) {
 			return Promise.resolve(cached.assetsByRoute);
 		}
 
-		const pending = this.groupedInFlight.get(integrationName);
+		const pending = this.groupedInFlight.get(cacheKey);
 		if (pending) {
 			return pending;
 		}
 
-		const buildGeneration = this.bumpGroupedGeneration(integrationName);
-		const buildPromise = this.runGroupedBuild(integrationName, buildGeneration, build);
-		this.groupedInFlight.set(integrationName, buildPromise);
+		const buildGeneration = this.bumpGroupedGeneration(cacheKey);
+		const buildPromise = this.runGroupedBuild(cacheKey, buildGeneration, build);
+		this.groupedInFlight.set(cacheKey, buildPromise);
 		return buildPromise;
 	}
 
-	peekGroupedGraph(integrationName: string): Map<string, ProcessedAsset[]> | undefined {
-		return this.groupedRecords.get(integrationName)?.assetsByRoute;
+	peekGroupedGraph(scope: GroupedGraphScope): Map<string, ProcessedAsset[]> | undefined {
+		return this.groupedRecords.get(serializeGroupedGraphCacheKey(scope))?.assetsByRoute;
 	}
 
 	invalidateByFilePath(filePath: string): number {
@@ -256,9 +298,8 @@ export class SessionPageBrowserGraphCache {
 		let invalidated = 0;
 
 		for (const serializedKey of affectedKeys) {
-			if (serializedKey.startsWith('grouped::')) {
-				const integrationName = serializedKey.slice('grouped::'.length);
-				invalidated += this.invalidateGroupedRecord(integrationName);
+			if (this.groupedRecords.has(serializedKey) || this.groupedInFlight.has(serializedKey)) {
+				invalidated += this.invalidateGroupedRecord(serializedKey);
 				continue;
 			}
 
@@ -279,9 +320,7 @@ export class SessionPageBrowserGraphCache {
 				continue;
 			}
 
-			this.bumpGraphGeneration(serializedKey);
-			this.inFlight.delete(serializedKey);
-			invalidated += 1;
+			invalidated += this.invalidateSerializedGraphKey(serializedKey);
 		}
 
 		if (invalidated > 0) {
@@ -322,6 +361,8 @@ export class SessionPageBrowserGraphCache {
 	resetForTests(): void {
 		this.records.clear();
 		this.inFlight.clear();
+		this.inFlightDependencyPaths.clear();
+		this.inFlightGenerations.clear();
 		this.groupedRecords.clear();
 		this.groupedInFlight.clear();
 		this.graphGenerations.clear();
@@ -343,18 +384,24 @@ export class SessionPageBrowserGraphCache {
 			this.dependencyIndex.unbindRecord(record);
 			this.records.delete(serializedKey);
 			this.inFlight.delete(serializedKey);
+			const inFlightDependencyPaths = this.inFlightDependencyPaths.get(serializedKey);
+			if (inFlightDependencyPaths) {
+				this.unbindDependencyPaths(serializedKey, inFlightDependencyPaths);
+				this.inFlightDependencyPaths.delete(serializedKey);
+			}
+			this.inFlightGenerations.delete(serializedKey);
 			this.graphGenerations.delete(serializedKey);
 		}
 
 		if (policy === 'production') {
-			for (const integrationName of [...this.groupedRecords.keys()]) {
-				const groupedRecord = this.groupedRecords.get(integrationName);
+			for (const cacheKey of [...this.groupedRecords.keys()]) {
+				const groupedRecord = this.groupedRecords.get(cacheKey);
 				if (groupedRecord) {
-					this.dependencyIndex.unbindGroupedRecord(integrationName, groupedRecord);
+					this.dependencyIndex.unbindGroupedRecord(cacheKey, groupedRecord);
 				}
-				this.groupedRecords.delete(integrationName);
-				this.groupedInFlight.delete(integrationName);
-				this.groupedGenerations.delete(integrationName);
+				this.groupedRecords.delete(cacheKey);
+				this.groupedInFlight.delete(cacheKey);
+				this.groupedGenerations.delete(cacheKey);
 			}
 		}
 	}
@@ -367,6 +414,10 @@ export class SessionPageBrowserGraphCache {
 			}
 
 			if (normalizeDependencyPath(record.key.routeFile) !== normalizedRoute) {
+				continue;
+			}
+
+			if (record.key.dependencyInstanceKey !== key.dependencyInstanceKey) {
 				continue;
 			}
 
@@ -384,9 +435,9 @@ export class SessionPageBrowserGraphCache {
 		return next;
 	}
 
-	private bumpGroupedGeneration(integrationName: string): number {
-		const next = (this.groupedGenerations.get(integrationName) ?? 0) + 1;
-		this.groupedGenerations.set(integrationName, next);
+	private bumpGroupedGeneration(cacheKey: string): number {
+		const next = (this.groupedGenerations.get(cacheKey) ?? 0) + 1;
+		this.groupedGenerations.set(cacheKey, next);
 		return next;
 	}
 
@@ -397,20 +448,27 @@ export class SessionPageBrowserGraphCache {
 			this.records.delete(serializedKey);
 		}
 
-		this.bumpGraphGeneration(serializedKey);
-		this.inFlight.delete(serializedKey);
-		return record ? 1 : 0;
-	}
-
-	private invalidateGroupedRecord(integrationName: string): number {
-		const groupedRecord = this.groupedRecords.get(integrationName);
-		if (groupedRecord) {
-			this.dependencyIndex.unbindGroupedRecord(integrationName, groupedRecord);
-			this.groupedRecords.delete(integrationName);
+		const inFlightDependencyPaths = this.inFlightDependencyPaths.get(serializedKey);
+		if (inFlightDependencyPaths) {
+			this.unbindDependencyPaths(serializedKey, inFlightDependencyPaths);
+			this.inFlightDependencyPaths.delete(serializedKey);
 		}
 
-		this.bumpGroupedGeneration(integrationName);
-		this.groupedInFlight.delete(integrationName);
+		const hadInFlightBuild = this.inFlight.delete(serializedKey);
+		this.inFlightGenerations.delete(serializedKey);
+		this.bumpGraphGeneration(serializedKey);
+		return record || hadInFlightBuild ? 1 : 0;
+	}
+
+	private invalidateGroupedRecord(cacheKey: string): number {
+		const groupedRecord = this.groupedRecords.get(cacheKey);
+		if (groupedRecord) {
+			this.dependencyIndex.unbindGroupedRecord(cacheKey, groupedRecord);
+			this.groupedRecords.delete(cacheKey);
+		}
+
+		this.bumpGroupedGeneration(cacheKey);
+		this.groupedInFlight.delete(cacheKey);
 		return groupedRecord ? 1 : 0;
 	}
 
@@ -432,6 +490,12 @@ export class SessionPageBrowserGraphCache {
 				return existing?.result;
 			}
 
+			if (buildResult.cacheable === false) {
+				this.releaseInFlightDependencyPaths(serializedKey, buildGeneration);
+				return buildResult.result;
+			}
+
+			this.releaseInFlightDependencyPaths(serializedKey, buildGeneration);
 			this.pruneStaleRouteRecords(key);
 
 			const previous = this.records.get(serializedKey);
@@ -452,12 +516,12 @@ export class SessionPageBrowserGraphCache {
 		} catch (error) {
 			return Promise.reject(error);
 		} finally {
-			this.inFlight.delete(serializedKey);
+			this.clearInFlightBuild(serializedKey, buildGeneration);
 		}
 	}
 
 	private async runGroupedBuild(
-		integrationName: string,
+		cacheKey: string,
 		buildGeneration: number,
 		build: () => Promise<GroupedGraphBuildOutcome | undefined>,
 	): Promise<Map<string, ProcessedAsset[]>> {
@@ -472,14 +536,14 @@ export class SessionPageBrowserGraphCache {
 				return buildResult.assetsByRoute;
 			}
 
-			if (!this.canCommitGroupedBuild(integrationName, buildGeneration)) {
-				const existing = this.groupedRecords.get(integrationName);
+			if (!this.canCommitGroupedBuild(cacheKey, buildGeneration)) {
+				const existing = this.groupedRecords.get(cacheKey);
 				return existing?.assetsByRoute ?? new Map();
 			}
 
-			const previous = this.groupedRecords.get(integrationName);
+			const previous = this.groupedRecords.get(cacheKey);
 			if (previous) {
-				this.dependencyIndex.unbindGroupedRecord(integrationName, previous);
+				this.dependencyIndex.unbindGroupedRecord(cacheKey, previous);
 			}
 
 			const record: GroupedGraphRecord = {
@@ -487,13 +551,13 @@ export class SessionPageBrowserGraphCache {
 				dependencyPaths: buildResult.dependencyPaths,
 				generation: buildGeneration,
 			};
-			this.groupedRecords.set(integrationName, record);
-			this.dependencyIndex.bindGroupedRecord(integrationName, record);
+			this.groupedRecords.set(cacheKey, record);
+			this.dependencyIndex.bindGroupedRecord(cacheKey, record);
 			return record.assetsByRoute;
 		} catch (error) {
 			return Promise.reject(error);
 		} finally {
-			this.groupedInFlight.delete(integrationName);
+			this.groupedInFlight.delete(cacheKey);
 		}
 	}
 
@@ -501,8 +565,40 @@ export class SessionPageBrowserGraphCache {
 		return this.graphGenerations.get(serializedKey) === buildGeneration;
 	}
 
-	private canCommitGroupedBuild(integrationName: string, buildGeneration: number): boolean {
-		return this.groupedGenerations.get(integrationName) === buildGeneration;
+	private canCommitGroupedBuild(cacheKey: string, buildGeneration: number): boolean {
+		return this.groupedGenerations.get(cacheKey) === buildGeneration;
+	}
+
+	private bindDependencyPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
+		this.dependencyIndex.bindPaths(serializedKey, dependencyPaths);
+	}
+
+	private unbindDependencyPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
+		this.dependencyIndex.unbindPaths(serializedKey, dependencyPaths);
+	}
+
+	private clearInFlightBuild(serializedKey: string, buildGeneration: number): void {
+		if (this.inFlightGenerations.get(serializedKey) !== buildGeneration) {
+			return;
+		}
+
+		this.releaseInFlightDependencyPaths(serializedKey, buildGeneration);
+		this.inFlight.delete(serializedKey);
+		this.inFlightGenerations.delete(serializedKey);
+	}
+
+	private releaseInFlightDependencyPaths(serializedKey: string, buildGeneration: number): void {
+		if (this.inFlightGenerations.get(serializedKey) !== buildGeneration) {
+			return;
+		}
+
+		const dependencyPaths = this.inFlightDependencyPaths.get(serializedKey);
+		if (!dependencyPaths) {
+			return;
+		}
+
+		this.unbindDependencyPaths(serializedKey, dependencyPaths);
+		this.inFlightDependencyPaths.delete(serializedKey);
 	}
 }
 
@@ -584,6 +680,10 @@ export function collectPageBrowserGraphDependencyPaths(
 		for (const bundledSourceFilepath of asset.bundledSourceFilepaths ?? []) {
 			dependencyPaths.add(normalizeDependencyPath(bundledSourceFilepath));
 		}
+	}
+
+	for (const watchPath of contribution.watchPaths ?? []) {
+		dependencyPaths.add(normalizeDependencyPath(watchPath));
 	}
 
 	return dependencyPaths;

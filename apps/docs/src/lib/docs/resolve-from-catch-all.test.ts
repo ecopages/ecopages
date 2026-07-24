@@ -1,22 +1,16 @@
 import { expect, test } from 'vitest';
-import { parseDocsCatchAllSegments, resolveFromCatchAll } from './resolve-from-catch-all';
+import { parseDocsCatchAllSegments } from './resolve-from-catch-all';
 
-test('resolveFromCatchAll maps string[] slug to section and page slug', () => {
-	expect(resolveFromCatchAll(['getting-started', 'introduction'])).toEqual({
-		section: 'getting-started',
-		slug: 'introduction',
-	});
+test('parseDocsCatchAllSegments normalizes string[] slug params', () => {
+	expect(parseDocsCatchAllSegments(['getting-started', 'introduction'])).toEqual(['getting-started', 'introduction']);
 });
 
-test('resolveFromCatchAll accepts joined slug strings', () => {
-	expect(resolveFromCatchAll('getting-started/introduction')).toEqual({
-		section: 'getting-started',
-		slug: 'introduction',
-	});
+test('parseDocsCatchAllSegments accepts joined slug strings', () => {
+	expect(parseDocsCatchAllSegments('getting-started/introduction')).toEqual(['getting-started', 'introduction']);
 });
 
-test('resolveFromCatchAll rejects missing segments', () => {
-	expect(() => resolveFromCatchAll(['introduction'])).toThrow(/Invalid docs slug/);
+test('parseDocsCatchAllSegments rejects missing segments', () => {
+	expect(() => parseDocsCatchAllSegments(['introduction'])).toThrow(/Invalid docs slug/);
 });
 
 test('parseDocsCatchAllSegments rejects empty slug params', () => {

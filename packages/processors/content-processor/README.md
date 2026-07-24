@@ -147,20 +147,22 @@ Run `ecopages dev` or `ecopages build` before expecting IDE types. Restart the T
 
 ## Virtual module API
 
-Each collection exposes `ecopages:content/<collection>`:
+Each collection exposes `ecopages:content/<collection>` for metadata and `ecopages:content/<collection>/server` for MDX components:
 
 ```typescript
-import { entries, getEntry, getEntryBySegments, getComponent } from 'ecopages:content/docs';
+import { entries, getEntry, getEntryBySegments } from 'ecopages:content/docs';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Description                                                                                     |
-| :----------------------------- | :---------------------------------------------------------------------------------------------- |
-| `entries`                      | Readonly manifest of all entries, sorted by `orderBy`.                                          |
-| `getEntry(slug)`               | Lookup by joined slug, e.g. `'getting-started/intro'`.                                          |
-| `getEntryBySegments(segments)` | Lookup by segment array, e.g. `['getting-started', 'intro']`.                                   |
-| `getComponent(slug)`           | MDX component for the entry.                                                                    |
-| `Entry`                        | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`. |
+| Export                         | Module  | Description                                                                                     |
+| :----------------------------- | :------ | :---------------------------------------------------------------------------------------------- |
+| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                          |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`.                                          |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`.                                   |
+| `getComponent(slug)`           | server  | MDX component for the entry.                                                                    |
+| `getEntryDependencies(slug)`   | server  | Browser dependency bag for the entry, with MDX source ownership for catch-all routes.           |
+| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`. |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 
@@ -170,7 +172,8 @@ Define a catch-all or per-entry route with `eco.page`. Import the collection man
 
 ```typescript
 import { eco } from '@ecopages/core';
-import { entries, getComponent, getEntryBySegments } from 'ecopages:content/docs';
+import { entries, getEntryBySegments } from 'ecopages:content/docs';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
 
 export default eco.page<{ entry: Entry }>({
@@ -188,6 +191,7 @@ export default eco.page<{ entry: Entry }>({
 			props: { entry: getEntryBySegments(segments) },
 		};
 	},
+	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
 		title: entry.title,
 		description: entry.description,
@@ -198,6 +202,24 @@ export default eco.page<{ entry: Entry }>({
 	},
 });
 ```
+
+Content MDX entries may declare interactive demo dependencies without polluting the catch-all page shell:
+
+```mdx
+import { WeatherApp } from '@/components/weather-app/weather-app';
+
+export const config = {
+	dependencies: {
+		components: [WeatherApp],
+	},
+};
+
+# Weather app
+
+<WeatherApp />
+```
+
+`getComponent()` returns the MDX default component with exported `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
 
 ## Navigation (app-side)
 

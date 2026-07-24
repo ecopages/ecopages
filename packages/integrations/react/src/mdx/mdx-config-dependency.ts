@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { DependencyAttributes, EcoComponent, EcoComponentConfig } from '@ecopages/core';
-import { rapidhash } from '@ecopages/core/hash';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
 import {
 	AssetFactory,
 	type AssetDefinition,
@@ -67,14 +67,7 @@ export class MdxConfigDependencyService {
 
 		if (config?.dependencies) {
 			components.push({
-				config: {
-					...config,
-					__eco: {
-						id: rapidhash(pagePath).toString(36),
-						file: pagePath,
-						integration: this.config.integrationName,
-					},
-				},
+				config: attachEcoFileMetadataToConfig(config, pagePath, this.config.integrationName),
 			});
 		}
 

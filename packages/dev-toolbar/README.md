@@ -1,6 +1,6 @@
 # @ecopages/dev-toolbar
 
-Development-only browser toolbar for Ecopages, inspired by [Astro's dev toolbar](https://docs.astro.build/en/guides/dev-toolbar/).
+Development-only browser toolbar for Ecopages. Mounts during `ecopages dev` and does not ship to production builds.
 
 User-facing docs: [Dev toolbar](https://ecopages.dev/docs/core/dev-toolbar) (enablement, manifest, built-in apps).
 

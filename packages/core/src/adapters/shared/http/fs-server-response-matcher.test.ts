@@ -9,6 +9,7 @@ import type { PageRendererResolver } from '../../../route-renderer/route-rendere
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { HttpError } from '../../../errors/http-error.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
@@ -403,6 +404,41 @@ describe('FileSystemResponseMatcher', () => {
 	});
 
 	describe('error taxonomy', () => {
+		it('should return custom HTML 404 when a matched route throws HttpError.NotFound', async () => {
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				HttpError.NotFound('Unknown content entry'),
+			);
+			const factoryWithStub404 = createRouteRendererFactoryWithStub404(
+				throwingFactory,
+				appConfig.absolutePaths.error404TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub404,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			const response = await matcher.handleMatch(match);
+
+			expect(response.status).toBe(404);
+			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(await response.text()).toContain('<h1>404 - Page Not Found</h1>');
+		});
+
 		it('should return custom HTML 500 when a matched route render throws', async () => {
 			const renderError = new Error('page render failed');
 			const throwingFactory = createRouteRendererFactoryWithThrowingPage(

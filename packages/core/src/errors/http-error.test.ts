@@ -131,4 +131,24 @@ describe('HttpError', () => {
 			expect(error.message).toBe('Database connection failed');
 		});
 	});
+
+	describe('isHttpError', () => {
+		test('returns true for HttpError instances', () => {
+			expect(HttpError.isHttpError(HttpError.NotFound())).toBe(true);
+		});
+
+		test('returns true for duck-typed HttpError-shaped objects', () => {
+			const foreign = Object.assign(new Error('Unknown docs entry'), {
+				name: 'HttpError',
+				status: 404,
+			});
+
+			expect(HttpError.isHttpError(foreign)).toBe(true);
+		});
+
+		test('returns false for plain errors', () => {
+			expect(HttpError.isHttpError(new Error('boom'))).toBe(false);
+			expect(HttpError.isHttpError(null)).toBe(false);
+		});
+	});
 });

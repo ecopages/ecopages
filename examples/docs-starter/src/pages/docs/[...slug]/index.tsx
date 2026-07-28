@@ -1,7 +1,8 @@
 import { eco } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { entries, getEntryBySegments } from 'ecopages:content/docs';
+import { entries } from 'ecopages:content/docs';
 import { getComponent } from 'ecopages:content/docs/server';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
 import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
@@ -21,7 +22,12 @@ export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { title, de
 
 const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 	const segments = parseDocsCatchAllSegments(pathname.params.slug);
-	const entry = getEntryBySegments(segments);
+	const slug = segments.join('/');
+	const entry = entries.find((candidate) => candidate.slug === slug);
+
+	if (!entry) {
+		throw HttpError.NotFound(`Unknown docs entry: ${slug}`);
+	}
 
 	return {
 		props: {

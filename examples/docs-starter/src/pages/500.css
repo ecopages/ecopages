@@ -1,0 +1,28 @@
+.error500 {
+	@apply min-h-[calc(100vh-64px)] flex items-center justify-center p-8;
+
+	&__content {
+		@apply max-w-xl w-full text-center;
+	}
+
+	&__code {
+		@apply font-bold font-heading mb-4 select-none tracking-tighter text-on-background/30 text-8xl;
+		line-height: 0.85;
+	}
+
+	&__title {
+		@apply text-2xl md:text-3xl font-bold font-heading text-on-background mb-3 tracking-tight;
+	}
+
+	&__message {
+		@apply text-base md:text-lg text-on-background/60 mb-8 leading-relaxed font-sans max-w-prose mx-auto;
+	}
+
+	&__stack {
+		@apply text-left text-xs md:text-sm font-mono text-on-background/70 bg-on-background/5 border border-on-background/10 rounded-md p-4 mb-8 overflow-x-auto whitespace-pre-wrap max-h-80;
+	}
+
+	&__actions {
+		@apply flex justify-center;
+	}
+}

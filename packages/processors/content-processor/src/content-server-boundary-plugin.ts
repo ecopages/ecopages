@@ -5,7 +5,7 @@ import { CONTENT_SERVER_VIRTUAL_MODULE_PATTERN } from './constants.ts';
  * Keeps `ecopages:content/<collection>/server` out of browser bundles.
  *
  * @remarks
- * Server modules static-import every MDX entry for `getComponent`. Browser builds
+ * Server modules lazy-load MDX entries via dynamic `import()` for `getComponent`. Browser builds
  * must never follow that graph — highlighted MDX output belongs in SSR HTML only.
  */
 export function createContentServerBoundaryPlugin(): EcoBuildPlugin {

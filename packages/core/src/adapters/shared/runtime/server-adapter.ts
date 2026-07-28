@@ -7,10 +7,7 @@ import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { AllowlistedMemoryCacheStore } from '../../../services/cache/allowlisted-memory-cache-store.ts';
-import {
-	PageCacheService,
-	registerAppPageCacheService,
-} from '../../../services/cache/page-cache-service.ts';
+import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';

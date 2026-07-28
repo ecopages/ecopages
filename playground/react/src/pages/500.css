@@ -1,0 +1,20 @@
+.error500 {
+	@apply flex flex-col gap-4 items-center justify-center bg-slate-200 rounded-md p-4 my-20 max-w-fit mx-auto shadow-md;
+	h1 {
+		@apply text-4xl font-bold text-slate-900;
+	}
+	p {
+		@apply text-lg text-slate-700 p-8 bg-slate-100 rounded-md;
+	}
+}
+
+.error500__stack {
+	text-align: left;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.75rem;
+	white-space: pre-wrap;
+	overflow-x: auto;
+	max-height: 20rem;
+	padding: 1rem;
+	margin-top: 1rem;
+}

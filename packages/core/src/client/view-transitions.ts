@@ -1,5 +1,5 @@
 /**
- * View Transition API helpers for `data-view-transition` markup.
+ * View Transition API helpers for `data-view-transition` markup and safe root defaults.
  * @module
  */
 
@@ -7,6 +7,55 @@ const VIEW_TRANSITION_ATTR = 'data-view-transition';
 const VIEW_TRANSITION_ANIMATE_ATTR = 'data-view-transition-animate';
 const VIEW_TRANSITION_DURATION_ATTR = 'data-view-transition-duration';
 const DYNAMIC_STYLES_ID = 'eco-vt-dynamic-styles';
+const ROOT_STYLES_ID = 'eco-vt-root-styles';
+
+/**
+ * @remarks
+ * UA default is `html { view-transition-name: root }`, which snapshots the whole
+ * document and crossfades with plus-lighter (flashes lighter on dark UIs). Routers
+ * inject this opt-out when `viewTransitions` is enabled. Named `data-view-transition`
+ * morphs still run. Full-page fades are not a supported default — use named elements
+ * or app-owned motion outside the View Transitions API.
+ */
+const ROOT_STYLES_CSS = `html {
+	view-transition-name: none;
+}
+`;
+
+/**
+ * Whether a document tree contains elements that participate in named view transitions.
+ */
+export function documentHasNamedViewTransitions(doc: Document): boolean {
+	return doc.querySelector(`[${VIEW_TRANSITION_ATTR}]`) !== null;
+}
+
+/**
+ * Whether SPA navigation should use `startViewTransition` (old or incoming page).
+ */
+export function navigationHasNamedViewTransitions(current: Document, incoming: Document): boolean {
+	return documentHasNamedViewTransitions(current) || documentHasNamedViewTransitions(incoming);
+}
+
+/**
+ * Injects persisted CSS that opts the document out of the root view-transition group.
+ *
+ * @remarks
+ * Uses `data-eco-persist` so head morphing does not drop the stylesheet between navigations.
+ * Named `data-view-transition` morph / fade rules live in a separate dynamic style tag.
+ */
+export function ensureRootViewTransitionStyles(): void {
+	let styleEl = document.getElementById(ROOT_STYLES_ID);
+	if (!styleEl) {
+		styleEl = document.createElement('style');
+		styleEl.id = ROOT_STYLES_ID;
+		styleEl.setAttribute('data-eco-persist', '');
+		document.head.append(styleEl);
+	}
+
+	if (styleEl.textContent !== ROOT_STYLES_CSS) {
+		styleEl.textContent = ROOT_STYLES_CSS;
+	}
+}
 
 /**
  * Assigns `view-transition-name` from `data-view-transition` and injects morph styles.

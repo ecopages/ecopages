@@ -19,7 +19,29 @@ export type ContentCollectionDefinition<TFrontmatter extends Record<string, unkn
 	 * Format: `./path/to/schema-file#ExportedTypeName`
 	 */
 	entryType?: string;
+	/**
+	 * Public URL prefix for entries in this collection, e.g. `/docs`.
+	 * Used with {@link ContentDevPrewarmConfig} to build dev prewarm paths.
+	 */
+	routePrefix?: string;
+	/**
+	 * Which entries to SSR-prewarm in dev when {@link routePrefix} is set.
+	 * Rendering is performed by core; this only declares pathnames from the manifest.
+	 */
+	devPrewarm?: ContentDevPrewarmConfig;
+	/**
+	 * When `beforeReady`, core awaits SSR prewarm for declared paths before the dev server reports ready.
+	 * @default 'background'
+	 */
+	devPrewarmReadiness?: 'background' | 'beforeReady';
 };
+
+/** Dev prewarm selection for a content collection manifest. */
+export type ContentDevPrewarmConfig =
+	| 'first'
+	| 'all'
+	| { slugs: readonly string[] }
+	| { limit: number };
 
 /**
  * Collection registry keyed by collection name.

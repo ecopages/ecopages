@@ -407,6 +407,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
 
+			await this.startDevStaticRoutePrewarmWhenReady();
+
 			const watcher = new ProjectWatcher({
 				config: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({

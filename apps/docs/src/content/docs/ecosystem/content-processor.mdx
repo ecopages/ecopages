@@ -78,6 +78,26 @@ Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
 
 Do not add `slug` or `segments` to your frontmatter schema — the processor derives them from the file path.
 
+### Dev prewarm
+
+Collections can warm known static content routes during development. Add the public route prefix and choose which
+manifest entries to render:
+
+```typescript
+docs: {
+	contentDir: 'content/docs',
+	schema: docsFrontmatterSchema,
+	routePrefix: '/docs',
+	devPrewarm: 'all',
+	devPrewarmReadiness: 'beforeReady',
+}
+```
+
+`devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. The default readiness is `'background'`;
+`'beforeReady'` waits until the selected paths are rendered before Ecopages reports the framework ready signal
+(not before the listen port opens). Prewarming stores HTML only for the selected paths on the watch page cache
+allowlist and does not enable caching for other development routes.
+
 ### Docs app wiring
 
 - **Frontmatter schema and section config** — `src/content/docs.ts`
@@ -99,29 +119,30 @@ order: 1
 Catch-all render pattern:
 
 ```typescript
-import { getComponent } from 'ecopages:content/docs';
+import { getComponent } from 'ecopages:content/docs/server';
 import { docsMdxComponents } from '@/lib/docs/mdx-components';
 
-const Content = getComponent('getting-started/introduction');
+const Content = await getComponent('getting-started/introduction');
 return await Content({ components: docsMdxComponents });
 ```
 
 ## Virtual module API
 
-Each collection exposes `ecopages:content/<collection>`:
+Each collection exposes `ecopages:content/<collection>` for metadata and `ecopages:content/<collection>/server` for MDX components:
 
 ```typescript
-import { entries, getEntry, getEntryBySegments, getComponent } from 'ecopages:content/docs';
+import { entries, getEntry, getEntryBySegments } from 'ecopages:content/docs';
+import { getComponent } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export | Description |
-| :----- | :---------- |
-| `entries` | Readonly manifest, sorted by `orderBy` |
-| `getEntry(slug)` | Lookup by joined slug, e.g. `'getting-started/introduction'` |
-| `getEntryBySegments(segments)` | Lookup by segment array |
-| `getComponent(slug)` | MDX component for the entry |
-| `Entry` | Type only — frontmatter fields plus `slug` and `segments` |
+| Export | Module | Description |
+| :----- | :----- | :---------- |
+| `entries` | entries | Readonly manifest, sorted by `orderBy` |
+| `getEntry(slug)` | entries | Lookup by joined slug, e.g. `'getting-started/introduction'` |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array |
+| `getComponent(slug)` | server | `Promise` of the MDX component for the entry |
+| `Entry` | entries | Type only — frontmatter fields plus `slug` and `segments` |
 
 Keep `Entry` on a separate `import type` line in bundled page files.
 

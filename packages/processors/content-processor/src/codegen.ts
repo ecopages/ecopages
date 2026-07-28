@@ -1,10 +1,6 @@
 import { relative, resolve, dirname, join } from 'node:path';
 import type { ContentEntry } from './types.ts';
 
-function slugToIdentifier(collectionName: string, slug: string): string {
-	return `${collectionName}_${slug.replace(/[^a-zA-Z0-9]/g, '_')}`;
-}
-
 function serializeEntry(entry: ContentEntry): string {
 	return JSON.stringify(entry);
 }
@@ -83,21 +79,19 @@ function attachMdxExports(module: ContentMdxModule, sourceFile: string): EcoComp
 }
 
 export function renderCollectionComponentsModule(
-	collectionName: string,
+	_collectionName: string,
 	outputDir: string,
 	entrySources: Array<{ entry: ContentEntry; filePath: string }>,
 ): string {
-	const importLines: string[] = [];
-	const componentMapLines: string[] = [];
+	const loaderLines: string[] = [];
 	const entrySourceFilesBySlugLines: string[] = [];
 
 	for (const { entry, filePath } of entrySources) {
-		const identifier = slugToIdentifier(collectionName, entry.slug);
 		const importPath = relative(outputDir, filePath).split('\\').join('/');
+		const escapedImportPath = importPath.replace(/'/g, "\\'");
 		const sourceFile = filePath.split('\\').join('/');
 		const escapedSourceFile = sourceFile.replace(/'/g, "\\'");
-		importLines.push(`import * as ${identifier}_module from '${importPath}';`);
-		componentMapLines.push(`\t'${entry.slug}': attachMdxExports(${identifier}_module, '${escapedSourceFile}'),`);
+		loaderLines.push(`\t'${entry.slug}': () => import('${escapedImportPath}'),`);
 		entrySourceFilesBySlugLines.push(`\t'${entry.slug}': '${escapedSourceFile}',`);
 	}
 
@@ -107,24 +101,48 @@ import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 
 ${renderAttachMdxExportsHelper()}
 
-${importLines.join('\n')}
-
-const componentsBySlug: Record<string, EcoComponent<Record<string, unknown>>> = {
-${componentMapLines.join('\n')}
+const loadersBySlug: Record<string, () => Promise<ContentMdxModule>> = {
+${loaderLines.join('\n')}
 };
 
 const entrySourceFilesBySlug: Record<string, string> = {
 ${entrySourceFilesBySlugLines.join('\n')}
 };
 
-export function getComponent(slug: string): EcoComponent<Record<string, unknown>> {
-	const component = componentsBySlug[slug];
-	if (!component) throw new Error(\`Unknown content entry: \${slug}\`);
-	return component;
+const componentCache = new Map<string, EcoComponent<Record<string, unknown>>>();
+const componentLoadPromises = new Map<string, Promise<EcoComponent<Record<string, unknown>>>>();
+
+export async function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>> {
+	const cached = componentCache.get(slug);
+	if (cached) {
+		return cached;
+	}
+
+	const pending = componentLoadPromises.get(slug);
+	if (pending) {
+		return pending;
+	}
+
+	const load = loadersBySlug[slug];
+	if (!load) {
+		throw new Error(\`Unknown content entry: \${slug}\`);
+	}
+
+	const loadPromise = (async () => {
+		const module = await load();
+		const component = attachMdxExports(module, entrySourceFilesBySlug[slug]!);
+		componentCache.set(slug, component);
+		return component;
+	})().finally(() => {
+		componentLoadPromises.delete(slug);
+	});
+
+	componentLoadPromises.set(slug, loadPromise);
+	return loadPromise;
 }
 
-export function getEntryDependencies(slug: string): PageDependenciesResult | undefined {
-	const component = getComponent(slug);
+export async function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined> {
+	const component = await getComponent(slug);
 	const dependencies = component.config?.dependencies;
 	if (!dependencies) {
 		return undefined;
@@ -186,8 +204,8 @@ function renderCollectionComponentsTypesModule(collectionName: string): string {
 	return `declare module "ecopages:content/${collectionName}/server" {
 	import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 
-	export function getComponent(slug: string): EcoComponent<Record<string, unknown>>;
-	export function getEntryDependencies(slug: string): PageDependenciesResult | undefined;
+	export function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
 }`;
 }
 

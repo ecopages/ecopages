@@ -23,7 +23,7 @@ The processor gives you a typed manifest and MDX components at build time. Wire 
 
 ## Features
 
-- **Build-time scanning** — content metadata and MDX imports are resolved before page bundles ship.
+- **Build-time scanning** — content metadata is resolved before page bundles ship; MDX entry modules load on demand per slug on the server.
 - **Standard Schema validation** — frontmatter schemas stay in your app; the library validates through the Standard Schema interface.
 - **Typed virtual modules** — `ecopages:content/<collection>` with generated `Entry` types.
 - **Multiple collections** — docs, blog, changelog, or any keyed collection you configure.
@@ -75,13 +75,16 @@ export default await new ConfigBuilder()
 
 ### Collection options
 
-| Option       | Required | Description                                                                                                                                          |
-| :----------- | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contentDir` |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                             |
-| `schema`     |   yes    | Standard Schema validator for frontmatter.                                                                                                           |
-| `entryType`  |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`. |
-| `orderBy`    |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.              |
-| `extensions` |    no    | File extensions to scan. Default: `['.mdx']`.                                                                                                        |
+| Option                | Required | Description                                                                                                                                                                                   |
+| :-------------------- | :------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contentDir`          |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                      |
+| `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                    |
+| `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                          |
+| `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                       |
+| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`.                                                                                                                                                 |
+| `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                          |
+| `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; HTML is stored only for these allowlisted paths on the watch page cache. |
+| `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                     |
 
 Collection keys must be kebab-case (`docs`, `api-reference`). Each key becomes `ecopages:content/<key>`.
 
@@ -160,8 +163,8 @@ import type { Entry } from 'ecopages:content/docs';
 | `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                          |
 | `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`.                                          |
 | `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`.                                   |
-| `getComponent(slug)`           | server  | MDX component for the entry.                                                                    |
-| `getEntryDependencies(slug)`   | server  | Browser dependency bag for the entry, with MDX source ownership for catch-all routes.           |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug).                            |
+| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership.               |
 | `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`. |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
@@ -191,13 +194,13 @@ export default eco.page<{ entry: Entry }>({
 			props: { entry: getEntryBySegments(segments) },
 		};
 	},
-	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
+	dependencies: async ({ props }) => getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
 		title: entry.title,
 		description: entry.description,
 	}),
 	render: async ({ entry }) => {
-		const Content = getComponent(entry.slug);
+		const Content = await getComponent(entry.slug);
 		return <Content />;
 	},
 });
@@ -219,7 +222,7 @@ export const config = {
 <WeatherApp />
 ```
 
-`getComponent()` returns the MDX default component with exported `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
+`getComponent()` lazy-loads one MDX module per slug and returns the default component with exported `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
 
 ## Navigation (app-side)
 

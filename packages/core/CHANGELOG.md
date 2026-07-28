@@ -15,10 +15,13 @@ All notable changes to `@ecopages/core` are documented here.
 - Removed deprecated `config.layout` innermost alias on page configs. Use `config.layouts` and `config.layoutEntries` instead.
 - `createAliasResolverPlugin` now takes the app **project root** (not `srcDir`) and resolves aliases from tsconfig `compilerOptions.paths` only. Apps without tsconfig `paths` get no alias resolver handlers. Hardcoded `@/` → `srcDir` mapping is removed.
 - Removed dev HMR entrypoint disk cache, grouped cold-graph prewarm, and `ECOPAGES_DEV_COLD_CLIENT_GRAPH*` env vars. Dev client modules are transpiled per source file on demand with in-memory caching and lazy `/assets/vendors` prebundles.
+- Removed `ECOPAGES_DEV_PREWARM_ALL_STATIC_ROUTES`. Dev SSR prewarm only renders processor-declared pathnames from `collectDevPrewarmPlan()`.
 
 ### Features
 
-- Dev transform serves per-module browser ESM: transpile one file, rewrite imports to `__eco_dev__` or vendor URLs, memory cache only.
+- Page HTML cache in watch mode defaults to off for undeclared routes; processor `devPrewarm` registers an allowlist on the single watch `PageCacheService` so only those pathnames retain HTML. Set `cache.enabled: true` to cache every dev route.
+- Page Browser Graph per-route reuse is disabled while HMR is enabled; session graphs still cache after build with dependency invalidation.
+- Watch mode SSR-prewarms processor-declared content paths after the HMR-ready response pipeline is configured (`routePrefix` + `devPrewarm`). Optional `devPrewarmReadiness: 'beforeReady'` blocks the framework ready signal until prewarm completes. Concurrent prewarm uses `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM` (default `3`).
 - Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
 - Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
 - Added `EcoDeclaredComponent` validation for `dependencies.components` entries.

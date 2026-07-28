@@ -22,7 +22,7 @@ describe('codegen', () => {
 		expect(output).not.toContain('getComponent');
 	});
 
-	test('renderCollectionComponentsModule emits namespace MDX imports, attach helper, and getComponent', () => {
+	test('renderCollectionComponentsModule emits lazy MDX loaders, attach helper, and async getComponent', () => {
 		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
 			{
 				entry: {
@@ -35,13 +35,15 @@ describe('codegen', () => {
 			},
 		]);
 
-		expect(output).toContain("import * as docs_intro_module from '../../app/src/content/docs/intro.mdx';");
+		expect(output).toContain("'intro': () => import('../../app/src/content/docs/intro.mdx'),");
+		expect(output).not.toContain('import * as docs_intro_module from');
 		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
-		expect(output).toContain("'intro': attachMdxExports(docs_intro_module, '/app/src/content/docs/intro.mdx'),");
+		expect(output).toContain('const componentCache = new Map');
+		expect(output).toContain('const componentLoadPromises = new Map');
 		expect(output).toContain("import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';");
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
-		expect(output).toContain('export function getComponent(slug: string)');
-		expect(output).toContain('export function getEntryDependencies(slug: string)');
+		expect(output).toContain('export async function getComponent(slug: string)');
+		expect(output).toContain('export async function getEntryDependencies(slug: string)');
 		expect(output).toContain('ownerFile: entrySourceFilesBySlug[slug]');
 		expect(output).not.toContain('export const entries');
 	});
@@ -69,7 +71,7 @@ describe('codegen', () => {
 		expect(output).toContain('declare module "ecopages:content/docs"');
 		expect(output).toContain('declare module "ecopages:content/docs/server"');
 		expect(output).toContain(
-			'export function getEntryDependencies(slug: string): PageDependenciesResult | undefined',
+			'export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>',
 		);
 		expect(output).toContain('declare module "ecopages:content/blog"');
 		expect(output).toContain('declare module "ecopages:content/blog/server"');

@@ -18,6 +18,7 @@ const port = process.env.ECOPAGES_PORT || '4009';
 const DOCS_BUILD_INPUT_ROOTS = [
 	docsSrc,
 	path.join(repoRoot, 'packages', 'core', 'src'),
+	path.join(repoRoot, 'packages', 'processors', 'content-processor', 'src'),
 	path.join(repoRoot, 'packages', 'integrations', 'react', 'src'),
 	path.join(repoRoot, 'packages', 'integrations', 'ecopages-jsx', 'src'),
 	path.join(repoRoot, 'packages', 'react-router', 'src'),
@@ -73,6 +74,14 @@ function getNewestMtime(dir) {
 
 function isDistFresh() {
 	if (!existsSync(docsDist)) {
+		return false;
+	}
+
+	/**
+	 * Interrupted builds can leave public assets without rendered HTML. Treat those
+	 * as stale so preview never serves a hollow dist that 404s every docs route.
+	 */
+	if (!existsSync(path.join(docsDist, 'index.html'))) {
 		return false;
 	}
 

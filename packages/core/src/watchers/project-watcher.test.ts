@@ -217,9 +217,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 			});
 
 			const pendingChange = (watcher as any).handleFileChange(pageFilePath, 'add');
-			await Promise.resolve();
-
-			expect(asyncRefreshCallback).toHaveBeenCalledTimes(1);
+			await vi.waitFor(() => {
+				expect(asyncRefreshCallback).toHaveBeenCalledTimes(1);
+			});
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 
 			releaseRefresh();

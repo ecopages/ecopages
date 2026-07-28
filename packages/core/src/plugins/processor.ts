@@ -173,6 +173,16 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	async prepareBuildContributions(): Promise<void> {}
 
 	/**
+	 * Declares watch-mode SSR prewarm pathnames and readiness for core.
+	 *
+	 * @remarks
+	 * Processors return paths and readiness only; core owns parallel rendering and page cache population.
+	 */
+	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[]; readiness: 'background' | 'beforeReady' }> {
+		return Promise.resolve({ pathnames: [], readiness: 'background' });
+	}
+
+	/**
 	 * Reports whether this processor's build inputs changed since the last
 	 * incremental static build.
 	 *

@@ -272,5 +272,21 @@ test.describe('React Router', () => {
 			});
 			expect(hasInjectedStyles).toBeTruthy();
 		});
+
+		test('root view-transition styles opt document out of root group by default', async ({ page }) => {
+			const rootStyles = await page.evaluate(() => {
+				const style = document.getElementById('eco-vt-root-styles');
+				return {
+					persist: style?.hasAttribute('data-eco-persist') ?? false,
+					css: style?.textContent ?? '',
+					htmlName: getComputedStyle(document.documentElement).viewTransitionName,
+				};
+			});
+
+			expect(rootStyles.persist).toBe(true);
+			expect(rootStyles.css).toContain('view-transition-name: none');
+			expect(rootStyles.css).not.toContain('!important');
+			expect(rootStyles.htmlName).toBe('none');
+		});
 	});
 });

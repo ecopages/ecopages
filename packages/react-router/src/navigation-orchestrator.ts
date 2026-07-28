@@ -12,6 +12,7 @@
 import { isStaticAssetHref } from '@ecopages/core/router/link-intent';
 import type { EcoNavigationDirection } from '@ecopages/core/router/navigation-coordinator';
 import { completeNavigationLifecycle, dispatchBeforeSwap } from '@ecopages/core/router/navigation-lifecycle';
+import { navigationHasNamedViewTransitions } from '@ecopages/core/client/view-transitions';
 import {
 	type FetchedPageDocument,
 	type LoadedPageModule,
@@ -211,7 +212,11 @@ export async function applySpaNavigation(
 	effects.saveScrollPositions();
 	effects.updateHistory(page.finalPath, requestedUrl, outcome.direction);
 
-	if (!options.skipViewTransition && effects.startViewTransition) {
+	if (
+		!options.skipViewTransition &&
+		effects.startViewTransition &&
+		navigationHasNamedViewTransitions(document, page.doc)
+	) {
 		await effects.startViewTransition(async () => {
 			if (effects.isStale()) {
 				cleanupHead();

@@ -137,6 +137,10 @@ const MyComponent = () => {
 
 The router automatically integrates with the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API).
 
+When enabled (default), the router opts the document out of the UA root view-transition group and only runs `startViewTransition` for `data-view-transition` shared-element morphs. Set `viewTransitions: false` to disable entirely.
+
+**Visual regression check:** dark background page → SPA navigate → no lighter flash with defaults.
+
 To animate elements between pages using Shared Element Transitions, mark them with a unique `data-view-transition` id that matches across both pages:
 
 ```tsx

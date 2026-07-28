@@ -34,7 +34,7 @@ import {
 	resolveReactNavigation,
 } from './navigation-orchestrator.ts';
 import { morphHead } from './head-morpher.ts';
-import { applyViewTransitionNames } from '@ecopages/core/client/view-transitions';
+import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client/view-transitions';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
 import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
 import {
@@ -310,6 +310,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 
 		setCurrentPage({ Component: page, props: pageProps, refreshPersistedLayout: true });
 	}, [page, pageProps]);
+
+	useEffect(() => {
+		if (options.viewTransitions) {
+			ensureRootViewTransitionStyles();
+		}
+	}, [options.viewTransitions]);
 
 	useEffect(() => {
 		committedPathRef.current = window.location.pathname + window.location.search;

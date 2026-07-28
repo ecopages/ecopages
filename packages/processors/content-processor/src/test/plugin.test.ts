@@ -76,8 +76,8 @@ order: 1
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('getComponent');
 		const serverCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts');
 		expect(fileSystem.exists(serverCacheFile)).toBe(true);
-		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getComponent');
-		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export function getEntryDependencies');
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getComponent');
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getEntryDependencies');
 		expect(fileSystem.exists(typesFile)).toBe(true);
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs"');
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs/server"');
@@ -280,5 +280,44 @@ order: 2
 		fileSystem.remove(introPath);
 		await watchConfig.onDelete({ path: introPath } as never);
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
+	});
+
+	test('collectDevPrewarmPlan honors collection pathnames and readiness', async () => {
+		const rootDir = createTempRoot('ecopages-content-prewarm-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+
+		const plugin = contentProcessorPlugin({
+			options: {
+				collections: {
+					docs: {
+						contentDir: 'content/docs',
+						schema: testContentSchema,
+						routePrefix: '/docs',
+						devPrewarm: 'first',
+						devPrewarmReadiness: 'beforeReady',
+					},
+				},
+			},
+		});
+
+		await new ConfigBuilder().setRootDir(rootDir).setBaseUrl('http://localhost:3000').setProcessors([plugin]).build();
+
+		expect(await plugin.collectDevPrewarmPlan()).toEqual({
+			pathnames: ['/docs/intro'],
+			readiness: 'beforeReady',
+		});
 	});
 });

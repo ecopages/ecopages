@@ -37,11 +37,7 @@ export type ContentCollectionDefinition<TFrontmatter extends Record<string, unkn
 };
 
 /** Dev prewarm selection for a content collection manifest. */
-export type ContentDevPrewarmConfig =
-	| 'first'
-	| 'all'
-	| { slugs: readonly string[] }
-	| { limit: number };
+export type ContentDevPrewarmConfig = 'first' | 'all' | { slugs: readonly string[] } | { limit: number };
 
 /**
  * Collection registry keyed by collection name.

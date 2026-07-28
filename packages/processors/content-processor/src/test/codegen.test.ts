@@ -35,10 +35,8 @@ describe('codegen', () => {
 			},
 		]);
 
-		expect(output).toContain(
-			"'intro': () => import('../../app/src/content/docs/intro.mdx'),",
-		);
-		expect(output).not.toContain("import * as docs_intro_module from");
+		expect(output).toContain("'intro': () => import('../../app/src/content/docs/intro.mdx'),");
+		expect(output).not.toContain('import * as docs_intro_module from');
 		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
 		expect(output).toContain('const componentCache = new Map');
 		expect(output).toContain('const componentLoadPromises = new Map');

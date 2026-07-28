@@ -111,9 +111,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 		return fileSystem.readFile(filePath);
 	}
 
-	async getEntrySources(): Promise<
-		Array<{ entry: ContentEntry<T>; filePath: string }>
-	> {
+	async getEntrySources(): Promise<Array<{ entry: ContentEntry<T>; filePath: string }>> {
 		const cache = await this.getCache();
 		return cache.manifest.map((entry) => ({
 			entry,

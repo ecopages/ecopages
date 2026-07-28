@@ -313,7 +313,11 @@ order: 1
 			},
 		});
 
-		await new ConfigBuilder().setRootDir(rootDir).setBaseUrl('http://localhost:3000').setProcessors([plugin]).build();
+		await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
 
 		expect(await plugin.collectDevPrewarmPlan()).toEqual({
 			pathnames: ['/docs/intro'],

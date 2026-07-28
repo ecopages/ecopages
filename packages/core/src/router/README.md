@@ -60,6 +60,14 @@ Match priority:
 
 ## `client/`
 
+### View transitions (`@ecopages/core/client/view-transitions`)
+
+Shared helpers used by `@ecopages/browser-router` and `@ecopages/react-router`:
+
+- `applyViewTransitionNames` / `clearViewTransitionNames` — named `data-view-transition` morph / fade styles (`eco-vt-dynamic-styles`).
+- `ensureRootViewTransitionStyles` — persisted CSS (`eco-vt-root-styles`, `data-eco-persist`) with `html { view-transition-name: none }` when VT is enabled.
+- `documentHasNamedViewTransitions` / `navigationHasNamedViewTransitions` — gate `startViewTransition` to pages with `data-view-transition` markup.
+
 ### Navigation Coordinator (`navigation-coordinator.ts`)
 
 A singleton browser-side runtime stored on `window.__ECO_PAGES__.navigation`.

@@ -5,6 +5,7 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 
@@ -20,6 +21,7 @@ export class PageCacheService {
 	private store: CacheStore;
 	private enabled: boolean;
 	private regenerationPromises = new Map<string, Promise<string>>();
+	private missPromises = new Map<string, Promise<CacheResult>>();
 
 	constructor(options: PageCacheServiceOptions = {}) {
 		this.store = options.store ?? new MemoryCacheStore();
@@ -85,6 +87,24 @@ export class PageCacheService {
 			return { html, status: 'miss', strategy };
 		}
 
+		const pendingMiss = this.missPromises.get(key);
+		if (pendingMiss) {
+			return pendingMiss;
+		}
+
+		const missPromise = this.resolveOrCreate(key, defaultStrategy, renderFn).finally(() => {
+			this.missPromises.delete(key);
+		});
+
+		this.missPromises.set(key, missPromise);
+		return missPromise;
+	}
+
+	private async resolveOrCreate(
+		key: string,
+		defaultStrategy: CacheStrategy,
+		renderFn: () => Promise<RenderResult>,
+	): Promise<CacheResult> {
 		const entry = await this.store.get(key);
 
 		if (!entry) {
@@ -199,4 +219,32 @@ export function getCacheControlHeader(strategy: CacheStrategy | 'disabled'): str
 	}
 
 	return 'no-store';
+}
+
+const pageCacheByAppConfig = new WeakMap<EcoPagesAppConfig, PageCacheService>();
+
+/**
+ * Registers the page cache service for one app config instance.
+ */
+export function registerAppPageCacheService(appConfig: EcoPagesAppConfig, service: PageCacheService | null): void {
+	if (service) {
+		pageCacheByAppConfig.set(appConfig, service);
+		return;
+	}
+
+	pageCacheByAppConfig.delete(appConfig);
+}
+
+/**
+ * Returns the registered page cache service for one app config, if any.
+ */
+export function getAppPageCacheService(appConfig: EcoPagesAppConfig): PageCacheService | null {
+	return pageCacheByAppConfig.get(appConfig) ?? null;
+}
+
+/**
+ * Clears rendered HTML cache entries for one app during development invalidation.
+ */
+export async function clearAppPageCache(appConfig: EcoPagesAppConfig): Promise<void> {
+	await getAppPageCacheService(appConfig)?.clear();
 }

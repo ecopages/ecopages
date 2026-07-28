@@ -100,8 +100,8 @@ export interface CacheConfig {
 
 	/**
 	 * Whether caching is enabled.
-	 * Automatically disabled in dev mode unless explicitly set.
-	 * @default true (production), false (development)
+	 * In watch mode, defaults to `false` unless explicitly enabled.
+	 * @default true in production builds, false in watch when omitted
 	 */
 	enabled?: boolean;
 

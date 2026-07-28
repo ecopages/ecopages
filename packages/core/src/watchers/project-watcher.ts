@@ -9,6 +9,7 @@ import {
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
+import { clearAppPageCache } from '../services/cache/page-cache-service.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
@@ -217,6 +218,7 @@ export class ProjectWatcher {
 
 			this.uncacheModules();
 			const resolvedFilePath = path.resolve(filePath);
+			await clearAppPageCache(this.appConfig);
 			const graphPreparation = this.hmrManager.isEnabled()
 				? prepareHmrFileChange(this.appConfig, resolvedFilePath)
 				: undefined;

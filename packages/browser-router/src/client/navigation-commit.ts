@@ -115,7 +115,7 @@ export class NavigationCommit {
 		};
 
 		if (useViewTransitions) {
-			await this.viewTransitionManager.transition(commitSwap);
+			await this.viewTransitionManager.transition(commitSwap, { incomingDocument: newDocument });
 		} else {
 			commitSwap();
 		}

@@ -275,8 +275,35 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
 	});
 
+	it('skips startViewTransition when no named transition elements are present', async () => {
+		resetDocument();
+		const manager = new ViewTransitionManager(true);
+		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
+			const updateCallbackDone = Promise.resolve().then(async () => {
+				await callback();
+			});
+
+			return {
+				finished: Promise.resolve(),
+				ready: Promise.resolve(),
+				updateCallbackDone,
+				skipTransition() {},
+			};
+		});
+
+		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
+
+		await manager.transition(() => {
+			document.body.innerHTML = '<div>Updated</div>';
+		});
+
+		expect(startViewTransition).not.toHaveBeenCalled();
+		expect(document.body.innerHTML).toContain('Updated');
+	});
+
 	it('ignores skipped view transition finish rejections after the DOM update commits', async () => {
 		resetDocument();
+		document.body.innerHTML = '<div data-view-transition="hero">Old</div>';
 		const manager = new ViewTransitionManager(true);
 		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
@@ -302,5 +329,22 @@ describe('DomSwapper service behavior', () => {
 		expect(startViewTransition).toHaveBeenCalledTimes(1);
 		expect(document.body.innerHTML).toContain('Updated');
 		expect(consoleSpy).not.toHaveBeenCalled();
+	});
+
+	it('injects persisted root styles when view transitions are enabled', () => {
+		resetDocument();
+		new ViewTransitionManager(true);
+
+		const style = document.getElementById('eco-vt-root-styles');
+		expect(style?.hasAttribute('data-eco-persist')).toBe(true);
+		expect(style?.textContent).toContain('view-transition-name: none');
+		expect(style?.textContent).not.toContain('!important');
+	});
+
+	it('does not inject root styles when view transitions are disabled', () => {
+		resetDocument();
+		new ViewTransitionManager(false);
+
+		expect(document.getElementById('eco-vt-root-styles')).toBeNull();
 	});
 });

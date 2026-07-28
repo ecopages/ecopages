@@ -53,6 +53,8 @@ const router = createRouter({
 });
 ```
 
+By default, when view transitions are enabled, the router opts the document out of the UA root group (no lighter flash on dark themes) and only calls `startViewTransition` when a page uses `data-view-transition` shared-element morphs. Set `viewTransitions: false` to disable.
+
 By default, browser-router only syncs root `<html>` metadata it owns. Client-managed attributes and classes such as theme state are preserved unless you explicitly include them in `documentElementAttributesToSync`.
 
 For advanced cases, browser-router also exports low-level document sync tooling without changing the router instance API:
@@ -92,7 +94,7 @@ Call `router.stop()` before replacing the router script in long-lived sessions (
 | `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute to force full page reload                                                         |
 | `updateHistory`                   | `boolean`                       | `true`                                       | Whether to update browser history                                                           |
 | `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Scroll behavior after navigation                                                            |
-| `viewTransitions`                 | `boolean`                       | `false`                                      | Use View Transition API for animations                                                      |
+| `viewTransitions`                 | `boolean`                       | `true`                                       | View Transition API; disables UA root crossfade by default. `false` disables.               |
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Use smooth scrolling during navigation                                                      |
 
 ## Persistence

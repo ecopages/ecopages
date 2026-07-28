@@ -6,13 +6,9 @@
  *
  * Use the ecopages npm package instead:
  * @import 'ecopages/css/view-transitions.css';
+ *
+ * Root opt-out is injected by the router when view transitions are enabled.
  */
-
-/* Disable root animation to prevent full page flash during transitions */
-::view-transition-old(root),
-::view-transition-new(root) {
-	animation: none;
-}
 
 /* Shared element transitions animate position/size smoothly */
 ::view-transition-group(*) {

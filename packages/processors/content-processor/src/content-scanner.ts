@@ -71,7 +71,10 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 					slug,
 					segments: slug.split('/'),
 				};
-				return { filePath, entry };
+				return {
+					filePath,
+					entry,
+				};
 			}),
 		);
 

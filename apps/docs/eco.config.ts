@@ -5,7 +5,7 @@ import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
+import { compareDocsEntries, docsFrontmatterSchema, DOCS_ROOT } from './src/content/docs';
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 
 const config = await new ConfigBuilder()
@@ -33,6 +33,9 @@ const config = await new ConfigBuilder()
 						schema: docsFrontmatterSchema,
 						orderBy: compareDocsEntries,
 						entryType: './src/content/docs#DocsFrontmatter',
+						routePrefix: DOCS_ROOT,
+						devPrewarm: 'all',
+						devPrewarmReadiness: 'beforeReady',
 					},
 				},
 			},

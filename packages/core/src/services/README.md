@@ -18,6 +18,7 @@ Typical responsibilities include:
 
 - `module-loading/`: framework-owned config/app bootstrap loading and server-side source loading
 - `assets/`: shared browser build coordination and processed asset pipelines
+- `cache/`: page HTML cache stores and request coordination, including watch-mode allowlisted memory storage for prewarm pathnames
 - `invalidation/`: file-change classification and invalidation policy
 - `runtime-state/`: app-owned invalidation state and dependency graphs
 - `runtime-manifest/`: node runtime manifest derivation and persistence

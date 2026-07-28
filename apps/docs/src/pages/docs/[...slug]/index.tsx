@@ -45,9 +45,9 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
-	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
+	dependencies: async ({ props }) => getEntryDependencies(props.entry.slug),
 	render: async ({ entry }) => {
-		const Content = getComponent(entry.slug);
+		const Content = await getComponent(entry.slug);
 
 		return await Content({ components: docsMdxComponents });
 	},

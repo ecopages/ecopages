@@ -642,6 +642,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});
+			await this.startDevStaticRoutePrewarmWhenReady();
 		}
 
 		this.fullyInitialized = true;

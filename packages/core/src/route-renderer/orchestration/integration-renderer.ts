@@ -11,7 +11,6 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoFunctionComponent,
-	EcoPageComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	BaseIntegrationContext,

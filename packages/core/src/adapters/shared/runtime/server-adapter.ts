@@ -6,7 +6,8 @@ import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { AllowlistedMemoryCacheStore } from '../../../services/cache/allowlisted-memory-cache-store.ts';
+import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';
@@ -14,6 +15,8 @@ import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matche
 import { FileSystemServerResponseFactory } from '../http/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
+import { startDevStaticRoutePrewarm, runDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
+import { collectAppDevPrewarmPlan } from './collect-dev-prewarm-plan.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import {
@@ -70,6 +73,43 @@ export abstract class SharedServerAdapter<
 		getCacheService: () => this.getCacheService(),
 	});
 	protected hostOwnsDevClient = false;
+	private devStaticRoutePrewarmStarted = false;
+	private sharedPageCacheService: PageCacheService | null | undefined;
+	private watchAllowlistStore: AllowlistedMemoryCacheStore | null = null;
+
+	/**
+	 * Warms declared static paths after the final watch-mode response pipeline exists.
+	 */
+	protected async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
+		if (!this.options?.watch || this.devStaticRoutePrewarmStarted) {
+			return;
+		}
+
+		this.devStaticRoutePrewarmStarted = true;
+
+		const runtimeOrigin = this.runtimeOrigin;
+		const plan = await collectAppDevPrewarmPlan(this.appConfig);
+		const options = {
+			pathnames: plan.pathnames,
+			readiness: plan.readiness,
+			renderPath: async (pathname: string) => {
+				const response = await this.routeHandler.handleResponse(
+					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
+				);
+				await response.arrayBuffer();
+			},
+			onPathnamesResolved: (pathnames: readonly string[]) => {
+				this.watchAllowlistStore?.registerAllowedKeys(pathnames);
+			},
+		};
+
+		if (plan.readiness === 'beforeReady') {
+			await runDevStaticRoutePrewarm(options);
+			return;
+		}
+
+		startDevStaticRoutePrewarm(options);
+	}
 
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];
@@ -195,7 +235,7 @@ export abstract class SharedServerAdapter<
 			},
 		});
 
-		const cacheService = this.createSharedPageCacheService();
+		const cacheService = this.getOrCreateSharedPageCacheService();
 		const fileSystemResponseMatcher = new FileSystemResponseMatcher({
 			appConfig: this.appConfig,
 			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
@@ -220,10 +260,36 @@ export abstract class SharedServerAdapter<
 		};
 	}
 
-	private createSharedPageCacheService(): PageCacheService | null {
+	private getOrCreateSharedPageCacheService(): PageCacheService | null {
+		if (this.sharedPageCacheService !== undefined) {
+			return this.sharedPageCacheService;
+		}
+
 		const cacheConfig = this.appConfig.cache;
-		const isCacheEnabled = cacheConfig?.enabled ?? !this.options?.watch;
+		const watch = Boolean(this.options?.watch);
+
+		if (watch) {
+			const useFullWatchCache = cacheConfig?.enabled === true;
+			const store = useFullWatchCache
+				? cacheConfig?.store === 'memory' || !cacheConfig?.store
+					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
+					: cacheConfig.store
+				: new AllowlistedMemoryCacheStore({ maxEntries: cacheConfig?.maxEntries });
+
+			if (!useFullWatchCache && store instanceof AllowlistedMemoryCacheStore) {
+				this.watchAllowlistStore = store;
+			}
+
+			const service = new PageCacheService({ store, enabled: true });
+			this.sharedPageCacheService = service;
+			registerAppPageCacheService(this.appConfig, service);
+			return service;
+		}
+
+		const isCacheEnabled = cacheConfig?.enabled ?? true;
 		if (!isCacheEnabled) {
+			this.sharedPageCacheService = null;
+			registerAppPageCacheService(this.appConfig, null);
 			return null;
 		}
 
@@ -231,7 +297,10 @@ export abstract class SharedServerAdapter<
 			cacheConfig?.store === 'memory' || !cacheConfig?.store
 				? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
 				: cacheConfig.store;
-		return new PageCacheService({ store, enabled: true });
+		const service = new PageCacheService({ store, enabled: true });
+		this.sharedPageCacheService = service;
+		registerAppPageCacheService(this.appConfig, service);
+		return service;
 	}
 
 	protected getCacheService(): CacheInvalidator | null {

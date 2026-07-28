@@ -26,8 +26,8 @@ export type ContentCollectionEntriesModule<TEntry extends Record<string, unknown
 
 /** Runtime shape of a generated `ecopages:content/<collection>/server` module. */
 export type ContentCollectionComponentsModule = {
-	getComponent(slug: string): EcoComponent<Record<string, unknown>>;
-	getEntryDependencies(slug: string): PageDependenciesResult | undefined;
+	getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
 };
 
 /** @deprecated Import entries and server modules separately. */

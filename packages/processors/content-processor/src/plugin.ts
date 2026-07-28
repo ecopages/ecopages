@@ -30,6 +30,7 @@ import {
 import { createContentServerBoundaryPlugin } from './content-server-boundary-plugin.ts';
 import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts';
 import type { ContentProcessorConfig } from './collection-types.ts';
+import { buildContentDevPrewarmPathnames } from './dev-prewarm-paths.ts';
 
 const logger = new Logger('[@ecopages/content-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -304,6 +305,41 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 
 	override async process(_input: unknown): Promise<void> {
 		await this.regenerateAllCollections();
+	}
+
+	/**
+	 * Declares watch-mode SSR prewarm pathnames and readiness derived from collection manifests.
+	 *
+	 * @remarks
+	 * Core executes rendering in parallel; this hook only maps `routePrefix` + entry slugs to URLs.
+	 */
+	override async collectDevPrewarmPlan(): Promise<{
+		pathnames: readonly string[];
+		readiness: 'background' | 'beforeReady';
+	}> {
+		await this.ensureCollectionsGenerated();
+
+		const pathnames: string[] = [];
+		let readiness: 'background' | 'beforeReady' = 'background';
+
+		for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
+			if (definition.devPrewarmReadiness === 'beforeReady') {
+				readiness = 'beforeReady';
+			}
+
+			if (!definition.devPrewarm || !definition.routePrefix) {
+				continue;
+			}
+
+			const scanner = this.getOrCreateScanner(collectionName);
+			const entries = await scanner.getManifest();
+			pathnames.push(...buildContentDevPrewarmPathnames(definition, entries));
+		}
+
+		return {
+			pathnames: [...new Set(pathnames)],
+			readiness,
+		};
 	}
 }
 

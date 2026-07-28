@@ -18,6 +18,12 @@ export interface EcoRouterOptions {
 	 * Whether to use the View Transitions API for page animations.
 	 * When enabled and supported, page transitions animate using CSS view-transition pseudo-elements.
 	 * Falls back to instant swap if not supported by the browser.
+	 *
+	 * @remarks
+	 * When enabled, injects `html { view-transition-name: none }` so the UA root
+	 * group does not flash lighter on dark UIs. `startViewTransition` runs only when
+	 * the current or incoming page has `data-view-transition` elements. Use
+	 * `viewTransitions: false` to disable entirely.
 	 * @default true
 	 */
 	viewTransitions?: boolean;

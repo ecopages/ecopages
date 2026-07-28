@@ -106,7 +106,9 @@ See [Creating Layouts](/docs/core/layouts) for per-tier props, dependency rules,
 
 ### View Transitions
 
-**Default Behavior**: The router automatically optimizes shared element transitions to "morph" the geometry without ghosting (no cross-fade).
+**Default Behavior**: When enabled, the router opts the document out of the UA root group (no lighter flash on dark UIs). `startViewTransition` runs only for `data-view-transition` shared-element morphs, not full-page crossfades. Set `viewTransitions: false` to disable.
+
+**Visual check:** dark background → SPA navigate → no lighter flash with defaults.
 
 #### Directives
 

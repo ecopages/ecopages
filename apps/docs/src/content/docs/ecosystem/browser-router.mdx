@@ -73,12 +73,16 @@ You can customize the router behavior by passing an options object:
 | `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
 | `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
 | `smoothScroll` | `boolean` | `false` | Enables smooth scrolling. |
-| `viewTransitions` | `boolean` | `true` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) support. |
+| `viewTransitions` | `boolean` | `true` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
 | `prefetch` | `PrefetchConfig \| false` | `Object` | Configuration for prefetching behavior. |
 
 ### View Transitions
 
-The browser router supports the native View Transitions API. 
+The browser router supports the native View Transitions API.
+
+When enabled (default), the router opts the document out of the UA root view-transition group so dark themes do not flash lighter. `startViewTransition` runs only when the current or incoming page has matching `data-view-transition` elements for shared-element morphs.
+
+**Visual check:** dark background → SPA navigate → no lighter flash with defaults.
 
 To create a shared element transition, simply add the `data-view-transition` attribute to matching elements on different pages:
 
@@ -255,7 +259,7 @@ You can override prefetching behavior on individual links:
 
 ### View Transitions
 
-If `viewTransitions: true` is enabled, Ecopages will trigger a View Transition on navigation. You can customize the animation using standard CSS or the provided optional styles.
+If `viewTransitions` is enabled (default `true`), the router opts the document out of the UA root group and only uses `startViewTransition` when pages define `data-view-transition` shared elements. Set `false` to disable. Optional presets: `@import 'ecopages/css/view-transitions.css'` and `data-eco-transition` on elements.
 
 #### Using Included Styles
 

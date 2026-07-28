@@ -24,6 +24,26 @@ export class HttpError extends Error {
 	}
 
 	/**
+	 * Detects HttpError across bundle boundaries where `instanceof` can fail.
+	 *
+	 * @remarks
+	 * Page modules may load a different class identity than core runtime code.
+	 * Prefer this over `instanceof` when catching errors from app page bundles.
+	 */
+	static isHttpError(error: unknown): error is HttpError {
+		if (error instanceof HttpError) {
+			return true;
+		}
+
+		return (
+			typeof error === 'object' &&
+			error !== null &&
+			(error as { name?: unknown }).name === 'HttpError' &&
+			typeof (error as { status?: unknown }).status === 'number'
+		);
+	}
+
+	/**
 	 * Serialize error to JSON for API responses.
 	 */
 	toJSON(): HttpErrorJson {

@@ -9,6 +9,7 @@ import { PageRequestCacheCoordinator } from '../../../services/cache/page-reques
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals, RouteRendererBody } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
+import { HttpError } from '../../../errors/http-error.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
@@ -145,6 +146,9 @@ export class FileSystemResponseMatcher {
 		} catch (error) {
 			if (error instanceof Response) {
 				return error;
+			}
+			if (HttpError.isHttpError(error) && error.status === 404) {
+				return await this.renderCustomNotFoundResponseOrServerError(match.requestedPathname);
 			}
 			if (error instanceof LocalsAccessError) {
 				return await this.createInternalServerErrorResponse(error.message, match.requestedPathname, error);

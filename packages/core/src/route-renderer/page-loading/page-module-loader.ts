@@ -12,6 +12,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
+import { HttpError } from '../../errors/http-error.ts';
 
 /**
  * Loads route page modules and normalizes their data hooks for rendering.
@@ -85,7 +86,11 @@ export class PageModuleLoaderService {
 				})
 					.then((data) => data)
 					.catch((err) => {
-						throw new Error(`Error fetching static props: ${err.message}`);
+						if (HttpError.isHttpError(err) || err instanceof Response) {
+							throw err;
+						}
+						const message = err instanceof Error ? err.message : String(err);
+						throw new Error(`Error fetching static props: ${message}`, { cause: err });
 					})
 			: {
 					props: {},

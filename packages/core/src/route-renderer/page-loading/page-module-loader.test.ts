@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoPageFile } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
+import { HttpError } from '../../errors/http-error.ts';
 
 describe('PageModuleLoaderService', () => {
 	const appConfig = {
@@ -25,6 +26,47 @@ describe('PageModuleLoaderService', () => {
 		});
 
 		expect(result.props).toEqual({ title: 'Page title' });
+	});
+
+	it('should preserve HttpError from getStaticProps', async () => {
+		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const notFound = HttpError.NotFound('Unknown docs entry');
+
+		await expect(
+			service.getStaticPropsForPage({
+				getStaticProps: async () => {
+					throw notFound;
+				},
+			}),
+		).rejects.toBe(notFound);
+	});
+
+	it('should preserve duck-typed HttpError from page bundles', async () => {
+		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const foreignNotFound = Object.assign(new Error('Unknown docs entry'), {
+			name: 'HttpError',
+			status: 404,
+		});
+
+		await expect(
+			service.getStaticPropsForPage({
+				getStaticProps: async () => {
+					throw foreignNotFound;
+				},
+			}),
+		).rejects.toBe(foreignNotFound);
+	});
+
+	it('should wrap unexpected getStaticProps failures', async () => {
+		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+
+		await expect(
+			service.getStaticPropsForPage({
+				getStaticProps: async () => {
+					throw new Error('boom');
+				},
+			}),
+		).rejects.toThrow('Error fetching static props: boom');
 	});
 
 	it('should merge default and dynamic metadata', async () => {

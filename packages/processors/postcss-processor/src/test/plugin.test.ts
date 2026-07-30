@@ -2,7 +2,7 @@ import { describe, expect, test, afterAll, beforeAll, vi } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import postcss from 'postcss';
-import postcssNested from 'postcss-nested';
+import postcssNested from 'postcss-nested/index.js';
 import { PostCssProcessorPlugin } from '../plugin';
 import type { IClientBridge } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';

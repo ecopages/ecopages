@@ -31,7 +31,7 @@
 		"cssnano": "^8.0.2",
 		"postcss": "^8.5.14",
 		"postcss-import": "^16.1.1",
-		"postcss-nested": "^7.0.2"
+		"postcss-nested": "^8.0.0"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

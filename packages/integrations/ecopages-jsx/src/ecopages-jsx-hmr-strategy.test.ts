@@ -20,7 +20,7 @@ const TEMPLATE_EXTENSIONS = ['.tsx', '.mdx'];
 
 function makeConfig(file: string, extras: Partial<EcoComponentConfig> = {}): EcoComponentConfig {
 	return {
-		__eco: {
+		identity: {
 			id: `id-${file}`,
 			file,
 			integration: 'ecopages-jsx',
@@ -228,7 +228,7 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/copy-for-llm/index.tsx`)).toBe(true);
 	});
 
-	it('walks nested dependencies.components[*].config.__eco.file', () => {
+	it('walks nested dependencies.components[*].config.identity.file', () => {
 		const nested = makeComponent(`${COMPONENTS_DIR}/breadcrumb/breadcrumb.tsx`);
 		const root = makeComponent(`${COMPONENTS_DIR}/docs-bar/index.tsx`, {
 			dependencies: { components: [nested] },
@@ -240,7 +240,7 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/breadcrumb/breadcrumb.tsx`)).toBe(true);
 	});
 
-	it('walks layouts[*].config.__eco.file', () => {
+	it('walks layouts[*].config.identity.file', () => {
 		const layout = makeComponent(`${LAYOUTS_DIR}/base-layout.tsx`);
 		const page = makeComponent(`${PAGES_DIR}/index.tsx`, {
 			layouts: [layout],

@@ -80,7 +80,7 @@ export class LitSsrLazyPreloader {
 			visitedConfigs.add(config);
 
 			const scriptEntries = config.dependencies?.scripts ?? [];
-			const componentFile = config.__eco?.file;
+			const componentFile = config.identity?.file;
 
 			if (componentFile) {
 				const componentDir = path.dirname(componentFile);

@@ -224,23 +224,23 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 	});
 	const demo = (() => '<demo></demo>') as EcoComponent;
 	demo.config = {
-		__eco: { id: 'demo', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+		identity: { id: 'demo', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
 	};
 	const content = (() => '<article>Content</article>') as EcoComponent;
 	content.config = {
-		__eco: { id: 'intro', file: '/app/content/docs/intro.mdx', integration: 'ecopages-jsx' },
+		identity: { id: 'intro', file: '/app/content/docs/intro.mdx', integration: 'ecopages-jsx' },
 		dependencies: { components: [demo] },
 	};
 	const page = (() => '<main>Page</main>') as EcoFunctionComponent<PageProps, JsxRenderable>;
 	page.config = {
-		__eco: { id: 'page', file: '/app/pages/docs/[...slug]/index.tsx', integration: 'ecopages-jsx' },
+		identity: { id: 'page', file: '/app/pages/docs/[...slug]/index.tsx', integration: 'ecopages-jsx' },
 	};
 	const htmlTemplate = (({ children }: { children?: unknown }) => children) as EcoFunctionComponent<
 		HtmlTemplateProps,
 		JsxRenderable
 	>;
 	htmlTemplate.config = {
-		__eco: { id: 'html', file: '/app/html.tsx', integration: 'ecopages-jsx' },
+		identity: { id: 'html', file: '/app/html.tsx', integration: 'ecopages-jsx' },
 	};
 
 	await renderer.render({

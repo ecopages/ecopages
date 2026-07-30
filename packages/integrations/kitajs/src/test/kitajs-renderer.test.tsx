@@ -137,7 +137,7 @@ describe('KitaRenderer', () => {
 		const { renderer, assetProcessingService } = createRendererWithAssets();
 		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
 		Component.config = {
-			__eco: {
+			identity: {
 				id: 'kita-comp',
 				file: '/project/src/components/kita-comp.kita.tsx',
 				integration: 'kitajs',
@@ -161,7 +161,7 @@ describe('KitaRenderer', () => {
 		const { renderer } = createRendererWithAssets();
 		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
 		Component.config = {
-			__eco: {
+			identity: {
 				id: 'kita-island',
 				file: '/project/src/components/kita-island.kita.tsx',
 				integration: 'kitajs',
@@ -243,7 +243,7 @@ describe('KitaRenderer', () => {
 		});
 
 		const DeferredWidget = eco.component({
-			__eco: {
+			identity: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
@@ -332,7 +332,7 @@ describe('KitaRenderer', () => {
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
 
 		const DeferredWidget = eco.component({
-			__eco: {
+			identity: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
@@ -391,7 +391,7 @@ describe('KitaRenderer', () => {
 		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
 
 		const DeferredWidget = eco.component({
-			__eco: {
+			identity: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
@@ -463,7 +463,7 @@ describe('KitaRenderer', () => {
 		});
 
 		const EcopagesJsxLeaf = eco.component<{}, MarkupNodeLike>({
-			__eco: {
+			identity: {
 				id: 'kitajs-foreign-ecopages-jsx-leaf',
 				file: '/app/components/kitajs-foreign-ecopages-jsx-leaf.eco.tsx',
 				integration: 'ecopages-jsx',
@@ -476,7 +476,7 @@ describe('KitaRenderer', () => {
 		});
 
 		const KitaHost = eco.component<{}, EcoPagesElement>({
-			__eco: {
+			identity: {
 				id: 'kitajs-foreign-ecopages-jsx-host',
 				file: '/app/components/kitajs-foreign-ecopages-jsx-host.kita.tsx',
 				integration: 'kitajs',

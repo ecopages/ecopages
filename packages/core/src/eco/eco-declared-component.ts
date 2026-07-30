@@ -12,8 +12,8 @@ export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-co
 export function isEcoDeclaredComponent(component: unknown): component is EcoDeclaredComponent {
 	return (
 		typeof component === 'function' &&
-		typeof getComponentIdentity(component as EcoComponent)?.file === 'string' &&
-		typeof getComponentIdentity(component as EcoComponent)?.integration === 'string'
+		(Boolean(getComponentIdentity(component as EcoComponent)) ||
+			typeof (component as EcoComponent).config?.integration === 'string')
 	);
 }
 

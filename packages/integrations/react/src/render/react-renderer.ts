@@ -123,6 +123,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			routerAdapter: this.routerAdapter,
 			runtimeModules: reactConfig?.runtimeModules,
 			mdxCompilerOptions: this.mdxCompilerOptions,
+			clientGraphBoundaryCache: reactConfig?.clientGraphBoundaryCache,
 		});
 
 		this.pageModuleService = new PageModuleService({

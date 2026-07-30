@@ -1,5 +1,6 @@
 import type { EcoComponent, EcoDeclaredComponent } from '../types/public-types.ts';
 import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
+import { getComponentIdentity } from './component-identity.ts';
 
 export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-component-dependency-error.ts';
 
@@ -11,8 +12,8 @@ export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-co
 export function isEcoDeclaredComponent(component: unknown): component is EcoDeclaredComponent {
 	return (
 		typeof component === 'function' &&
-		typeof (component as EcoComponent).config?.__eco?.file === 'string' &&
-		typeof (component as EcoComponent).config?.__eco?.integration === 'string'
+		typeof getComponentIdentity(component as EcoComponent)?.file === 'string' &&
+		typeof getComponentIdentity(component as EcoComponent)?.integration === 'string'
 	);
 }
 

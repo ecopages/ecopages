@@ -19,13 +19,14 @@ These contracts are responsible for:
 - `processor.ts`: asset-transformation contract for processors
 - `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
-- `eco-component-meta-plugin.ts`: shared metadata transform used by core loading/build paths
+- `eco-component-meta-plugin.ts`: compatibility attribution transform for source modules; runtime consumers use the canonical component-identity accessor
 
 ## Ownership Rules
 
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
+- Component identity is read through `getComponentIdentity()`. Legacy injected `__eco` metadata remains supported while integrations migrate, so ownership and dependency diagnostics retain stable file attribution.
 
 ## Lifecycle Summary
 

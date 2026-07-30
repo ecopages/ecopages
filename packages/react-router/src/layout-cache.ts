@@ -16,13 +16,14 @@
  * @module layout-cache
  */
 
-import type { EcoInjectedMeta } from '@ecopages/core';
+import { getComponentIdentity, type ComponentIdentity, type EcoInjectedMeta } from '@ecopages/core';
 import type { ComponentType } from 'react';
 
 export type LayoutComponent = ComponentType<Record<string, unknown>>;
 
 export type LayoutComponentWithMeta = LayoutComponent & {
 	config?: {
+		identity?: ComponentIdentity;
 		__eco?: EcoInjectedMeta;
 	};
 };
@@ -85,7 +86,8 @@ function getLayoutSourceSignature(Layout: LayoutComponent): string {
  */
 export function getLayoutCacheKey(Layout: LayoutComponent): string {
 	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
-	const layoutMetaKey = layoutConfig?.__eco?.file || layoutConfig?.__eco?.id;
+	const identity = getComponentIdentity(layoutConfig);
+	const layoutMetaKey = identity?.file || identity?.id;
 
 	if (layoutMetaKey) {
 		return normalizeLayoutKey(layoutMetaKey);

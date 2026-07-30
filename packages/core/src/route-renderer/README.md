@@ -94,7 +94,7 @@ The route-render contract is:
 Important:
 
 - route-level fallback resolution is gone; unresolved artifacts are now a hard failure
-- ownership is declared from component metadata, not inferred from final HTML
+- ownership is declared from canonical component identity (with legacy metadata accepted during migration), not inferred from final HTML
 - declared page dependencies are resolved from final render inputs and carried to the owning integration; integrations may use them for renderer-specific lifecycle work such as HMR ownership
 - same-integration children stay renderer-local and do not need to pass through a universal transport
 

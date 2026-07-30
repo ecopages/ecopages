@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import type { ComponentIdentity } from '../eco/component-identity.ts';
 import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
@@ -456,6 +457,8 @@ export interface EcoInjectedMeta {
 }
 
 export type EcoComponentConfig = {
+	/** Canonical integration, module, and stable component attribution. */
+	identity?: ComponentIdentity;
 	/** @internal Injected by eco-component-meta-plugin */
 	__eco?: EcoInjectedMeta;
 	/**

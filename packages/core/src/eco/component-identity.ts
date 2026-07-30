@@ -1,0 +1,35 @@
+import type { EcoComponent, EcoComponentConfig, EcoInjectedMeta } from '../types/public-types.ts';
+
+/** Stable attribution for a Component created by an Integration-owned module. */
+export type ComponentIdentity = {
+	id: string;
+	file: string;
+	integration: string;
+};
+
+type ComponentOrConfig = EcoComponent | EcoComponentConfig | undefined;
+
+function asConfig(value: ComponentOrConfig): EcoComponentConfig | undefined {
+	if (!value) return undefined;
+	if (typeof value === 'function') return value.config;
+	if ('config' in value) return value.config;
+	return value as EcoComponentConfig;
+}
+
+/** Gets component attribution while accepting legacy injected metadata during migration. */
+export function getComponentIdentity(value: ComponentOrConfig): ComponentIdentity | undefined {
+	const config = asConfig(value);
+	return config?.identity ?? config?.__eco;
+}
+
+/** Attaches canonical component attribution to a component config. */
+export function bindComponentIdentity<T extends EcoComponent>(component: T, identity: ComponentIdentity): T {
+	if (!component.config) component.config = {};
+	component.config.identity = identity;
+	return component;
+}
+
+/** Converts legacy injected metadata into the canonical identity shape. */
+export function componentIdentityFromMeta(meta: EcoInjectedMeta | undefined): ComponentIdentity | undefined {
+	return meta;
+}

@@ -36,6 +36,7 @@ import {
 } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
+import { componentIdentityFromMeta } from './component-identity.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -96,6 +97,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 	}) as EcoDeclaredComponent<P, E>;
 
 	comp.config = {
+		identity: componentIdentityFromMeta(options.__eco),
 		__eco: options.__eco,
 		integration: options.integration,
 		dependencies: options.dependencies,
@@ -138,8 +140,12 @@ function embed<P extends Record<string, unknown>, R>(
 ): R {
 	const activeRenderContext = getComponentRenderContext();
 	const ecoComponent = component as unknown as EcoComponent<P, R>;
-	const targetIntegration = ecoComponent.config?.integration ?? ecoComponent.config?.__eco?.integration;
-	const componentFile = ecoComponent.config?.__eco?.file ?? 'unknown component';
+	const targetIntegration =
+		ecoComponent.config?.integration ??
+		ecoComponent.config?.identity?.integration ??
+		ecoComponent.config?.__eco?.integration;
+	const componentFile =
+		ecoComponent.config?.identity?.file ?? ecoComponent.config?.__eco?.file ?? 'unknown component';
 	const nextProps = (children === undefined ? props : { ...props, children }) as P;
 
 	try {

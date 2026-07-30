@@ -89,6 +89,22 @@ describe('RadiantNavigation', () => {
 		expect(navigation.classList.contains('hidden')).toBe(true);
 	});
 
+	it('closes the drawer when a navigation link is clicked', async () => {
+		const navigation = createNavigation(['/docs/start', '/docs/current']);
+		const closeMenuSpy = vi.fn();
+		window.addEventListener(BurgerEvents.CLOSE_MENU, closeMenuSpy);
+
+		window.dispatchEvent(new CustomEvent(BurgerEvents.TOGGLE_MENU));
+		expect(navigation.classList.contains('hidden')).toBe(false);
+
+		navigation.querySelector<HTMLAnchorElement>('[href="/docs/current"]')?.click();
+
+		expect(closeMenuSpy).toHaveBeenCalledOnce();
+		expect(navigation.classList.contains('hidden')).toBe(true);
+
+		window.removeEventListener(BurgerEvents.CLOSE_MENU, closeMenuSpy);
+	});
+
 	it('updates the active link after browser history navigation', async () => {
 		window.history.replaceState({}, '', '/docs/start');
 		const navigation = createNavigation(['/docs/start', '/docs/current', '/docs/next']);

@@ -2,6 +2,7 @@ import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from 
 import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
+import { getComponentIdentity } from '../../eco/component-identity.ts';
 
 /**
  * Attaches file-backed `__eco` metadata to one component config.
@@ -13,6 +14,11 @@ export function attachEcoFileMetadataToConfig(
 ): EcoComponentConfig {
 	return {
 		...config,
+		identity: {
+			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
+			file: ownerFile,
+			integration: getComponentIdentity(config)?.integration ?? integrationName,
+		},
 		__eco: {
 			id: config.__eco?.id ?? rapidhash(ownerFile).toString(36),
 			file: ownerFile,
@@ -90,8 +96,11 @@ export function collectComponentConfigFilePaths(
 	}
 
 	const visit = (config: EcoComponentConfig | undefined) => {
-		const file = config?.__eco?.file;
+		const file = getComponentIdentity(config)?.file;
 		if (!file) {
+			return;
+		}
+		if (!config) {
 			return;
 		}
 

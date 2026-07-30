@@ -10,7 +10,7 @@ const CONTENT_DIR = '/test/project/src/content/docs';
 function makeComponent(file: string, config: Partial<EcoComponentConfig> = {}): EcoComponent {
 	const fn = (() => undefined) as unknown as EcoComponent;
 	(fn as { config?: EcoComponentConfig }).config = {
-		__eco: {
+		identity: {
 			id: `id-${file}`,
 			file,
 			integration: 'ecopages-jsx',

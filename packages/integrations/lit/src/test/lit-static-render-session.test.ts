@@ -20,7 +20,7 @@ describe('LitStaticRenderSession', () => {
 	it('preloads SSR scripts and always starts the render worker', async () => {
 		const lazyScriptComponent = {
 			config: {
-				__eco: { file: '/app/src/components/lit-counter.lit.tsx' },
+				identity: { file: '/app/src/components/lit-counter.lit.tsx' },
 				dependencies: {
 					scripts: [{ lazy: true, ssr: true, src: './lit-counter.script.ts' }],
 				},
@@ -161,7 +161,7 @@ describe('LitStaticRenderSession', () => {
 	it('preloads SSR scripts only for Lit template routes', async () => {
 		const litComponent = {
 			config: {
-				__eco: { file: '/app/src/pages/lit.lit.tsx' },
+				identity: { file: '/app/src/pages/lit.lit.tsx' },
 			},
 		} as unknown as EcoComponent;
 

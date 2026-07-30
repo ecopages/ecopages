@@ -85,8 +85,8 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	const Page = module.default;
 	const normalizedConfig: EcoComponentConfig = {
 		...(module.config ?? Page.config ?? {}),
-		__eco: module.config?.__eco ??
-			Page.config?.__eco ?? {
+		identity: module.config?.identity ??
+			Page.config?.identity ?? {
 				id: String(rapidhash(file)),
 				file,
 				integration: ECOPAGES_JSX_PLUGIN_NAME,

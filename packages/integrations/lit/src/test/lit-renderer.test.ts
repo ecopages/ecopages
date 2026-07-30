@@ -274,7 +274,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const Component = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'lit-counter',
 					file: '/project/src/components/lit-counter.lit.tsx',
 					integration: 'lit',
@@ -303,7 +303,7 @@ describe('LitRenderer', () => {
 			const Component = (async (props: { label: string }) =>
 				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'lit-comp',
 					file: '/project/src/components/lit-comp.lit.ts',
 					integration: 'lit',
@@ -328,7 +328,7 @@ describe('LitRenderer', () => {
 			const Component = (async (props: { label: string }) =>
 				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'lit-island',
 					file: '/project/src/components/lit-island.lit.ts',
 					integration: 'lit',
@@ -414,7 +414,7 @@ describe('LitRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				__eco: {
+				identity: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.ts',
 					integration: 'deferred',
@@ -462,7 +462,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const nested = (() => '<div>Nested</div>') as unknown as EcoComponent<object>;
 			nested.config = {
-				__eco: {
+				identity: {
 					id: 'nested',
 					file: '/project/src/components/nested.lit.tsx',
 					integration: 'lit',
@@ -474,7 +474,7 @@ describe('LitRenderer', () => {
 
 			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
 			view.config = {
-				__eco: {
+				identity: {
 					id: 'view',
 					file: '/project/src/pages/index.lit.tsx',
 					integration: 'lit',
@@ -495,7 +495,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
 			view.config = {
-				__eco: {
+				identity: {
 					id: 'view',
 					file: '/project/src/pages/index.lit.tsx',
 					integration: 'lit',
@@ -514,7 +514,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
 			view.config = {
-				__eco: {
+				identity: {
 					id: 'view',
 					file: '/project/src/pages/index.lit.tsx',
 					integration: 'lit',
@@ -639,7 +639,7 @@ describe('LitRenderer', () => {
 					`<html><body><main class="shell">${children}</main></body></html>`,
 				{
 					config: {
-						__eco: {
+						identity: {
 							integration: 'ghtml',
 						},
 					},
@@ -672,7 +672,7 @@ describe('LitRenderer', () => {
 				async ({ children }: HtmlTemplateProps) => `<html><body>${String(children)}</body></html>`,
 				{
 					config: {
-						__eco: {
+						identity: {
 							integration: 'ghtml',
 						},
 					},
@@ -707,7 +707,7 @@ describe('LitRenderer', () => {
 					`<html><body><main class="shell">${String(children)}</main></body></html>`,
 				{
 					config: {
-						__eco: {
+						identity: {
 							integration: 'ghtml',
 						},
 					},
@@ -774,7 +774,7 @@ describe('LitRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				__eco: {
+				identity: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.ts',
 					integration: 'deferred',
@@ -961,7 +961,7 @@ describe('LitRenderer', () => {
 				async ({ children }: HtmlTemplateProps) => `<html><body>${String(children)}</body></html>`,
 				{
 					config: {
-						__eco: {
+						identity: {
 							integration: 'ghtml',
 						},
 					},

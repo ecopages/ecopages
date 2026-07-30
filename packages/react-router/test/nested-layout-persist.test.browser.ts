@@ -25,7 +25,7 @@ vi.mock('../src/navigation.ts', async (importOriginal) => {
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
 type NestedLayoutComponent = FC<{ children?: ReactNode }> & {
-	config?: { __eco?: { id: string; file: string; integration: string } };
+	config?: { identity?: { id: string; file: string; integration: string } };
 };
 
 type StatefulLayoutTestHandle = {

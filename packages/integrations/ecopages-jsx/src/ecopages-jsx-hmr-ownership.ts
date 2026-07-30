@@ -40,7 +40,7 @@ export function getEjsxHmrOwnership(): EjsxHmrOwnershipState {
  * Updates the active render tree from one or more root components.
  *
  * @remarks
- * Walks each root's `config.__eco.file`, `config.dependencies.components[*].config`,
+ * Walks each root's `config.identity.file`, `config.dependencies.components[*].config`,
  * and `config.layouts[*].config` recursively, collecting every file path. The
  * state is replaced only when the resulting file set has a different hash, so
  * the renderer's per-render hook is free in the steady state.

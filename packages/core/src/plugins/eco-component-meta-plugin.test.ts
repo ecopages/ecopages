@@ -8,12 +8,12 @@ import type { EcoPagesAppConfig } from '../types/internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
 /**
- * Creates a regex pattern to match __eco injection with any id hash.
+ * Creates a regex pattern to match identity attribution with any id hash.
  * The id is a base36 hash that varies, so we match it with a pattern.
  */
 function ecoMetaPattern(file: string, integration: string): RegExp {
 	const escapedFile = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	return new RegExp(`__eco: \\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\}`);
+	return new RegExp(`identity: \\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\}`);
 }
 
 describe('eco-component-meta-plugin', () => {
@@ -90,7 +90,7 @@ describe('eco-component-meta-plugin', () => {
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
-	it('should inject __eco into X.config assignment in TSX files', async () => {
+	it('does not attribute arbitrary config assignments', async () => {
 		const content = `
             MyComponent.config = {
                 dependencies: {}
@@ -100,7 +100,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/component.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toMatch(ecoMetaPattern('/path/to/component.tsx', 'react'));
+		expect(result.contents).not.toContain('identity:');
 	});
 
 	it('should NOT inject __eco into config patterns in non-EcoComponent files', async () => {
@@ -117,7 +117,7 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).not.toContain('__eco:');
 	});
 
-	it('should inject __eco into EcoComponent-typed object with config property', async () => {
+	it('does not attribute manually shaped components', async () => {
 		const content = `
             import type { EcoComponent } from '@ecopages/core';
 
@@ -130,7 +130,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/lit-counter.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toMatch(ecoMetaPattern('/path/to/lit-counter.ts', 'ghtml'));
+		expect(result.contents).not.toContain('identity:');
 	});
 
 	it('should inject __eco into eco.component() call', async () => {
@@ -267,7 +267,7 @@ export const Input = eco.component({
 
 		expect(result).toBeDefined();
 		const matches = result.contents.match(
-			/__eco: \{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
+			/identity: \{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
 		);
 		expect(matches).toHaveLength(2);
 	});

@@ -21,7 +21,6 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
-import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
@@ -735,15 +734,8 @@ export class ConfigBuilder {
 	 * Initializes default loaders that are required for EcoPages to function.
 	 *
 	 * @remarks
-	 * `eco-component-meta` is registered twice on purpose:
-	 *
-	 * - `sourceTransforms` is the canonical browser/HMR path. The Rolldown bridge
-	 *   runs these after first-wins `onLoad` plugins rewrite module source.
-	 * - `loaders` keeps the same transform available to server-oriented builds
-	 *   that still use competing `onLoad` handlers directly.
-	 *
-	 * Browser builds exclude the loader copy in {@link getAppBrowserBuildPlugins}
-	 * when the transform name is already present in `sourceTransforms`.
+	 * Component identity attribution is a source transform so browser, HMR, and
+	 * server module paths share one lexical attribution mechanism.
 	 */
 	private async initializeDefaultLoaders(): Promise<void> {
 		const componentMetaTransform = createEcoComponentMetaTransform({ config: this.config });
@@ -751,10 +743,6 @@ export class ConfigBuilder {
 			this.config.sourceTransforms.set(componentMetaTransform.name, componentMetaTransform);
 		}
 
-		const componentMetaPlugin = createEcoComponentMetaPlugin({ config: this.config });
-		if (!this.config.loaders.has(componentMetaPlugin.name)) {
-			this.config.loaders.set(componentMetaPlugin.name, componentMetaPlugin);
-		}
 	}
 
 	private reviewBaseUrl(baseUrl: string): void {

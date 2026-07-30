@@ -43,6 +43,11 @@ export class RadiantNavigation extends RadiantElement {
 		});
 	}
 
+	@onEvent({ selector: '[data-nav-link]', type: 'click' })
+	onNavLinkClick(): void {
+		window.dispatchEvent(new CustomEvent(BurgerEvents.CLOSE_MENU));
+	}
+
 	@onEvent({ window: true, type: BurgerEvents.TOGGLE_MENU })
 	toggleNavigation(): void {
 		this.classList.toggle('hidden');

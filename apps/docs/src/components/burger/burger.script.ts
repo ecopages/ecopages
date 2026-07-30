@@ -22,11 +22,15 @@ export class RadiantBurger extends RadiantElement {
 		}
 	}
 
+	@onEvent({ window: true, type: BurgerEvents.CLOSE_MENU })
+	closeMenu() {
+		this.burger.removeAttribute('aria-expanded');
+		document.body.classList.remove('overflow-hidden');
+	}
+
 	@onEvent({ window: true, type: 'resize' })
 	@debounce(200)
 	onResizeReset() {
-		this.burger.removeAttribute('aria-expanded');
-		document.body.classList.remove('overflow-hidden');
 		window.dispatchEvent(new CustomEvent(BurgerEvents.CLOSE_MENU));
 	}
 }

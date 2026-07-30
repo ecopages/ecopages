@@ -1,5 +1,10 @@
 import path from 'node:path';
-import type { DependencyAttributes, EcoComponent, EcoComponentConfig } from '@ecopages/core';
+import {
+	getComponentIdentity,
+	type DependencyAttributes,
+	type EcoComponent,
+	type EcoComponentConfig,
+} from '@ecopages/core';
 import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
 import {
 	AssetFactory,
@@ -107,7 +112,7 @@ export class MdxConfigDependencyService {
 		});
 
 		collectFromConfigForest(getComponentConfigs(components), (config) => {
-			const componentFile = config.identity?.file;
+			const componentFile = getComponentIdentity(config)?.file;
 			if (!componentFile) {
 				return [];
 			}

@@ -6,8 +6,8 @@
  * instance for each stable layout key across navigations. Layout identity is
  * resolved in this order:
  *
- * 1. `config.identity.file`
- * 2. `config.identity.id`
+ * 1. `getComponentIdentity(layout)?.file`
+ * 2. `getComponentIdentity(layout)?.id`
  * 3. Plain React fallback: `displayName`/`name` plus wrapper source signature
  *
  * Eco layouts are expected to carry injected component identity in client/HMR

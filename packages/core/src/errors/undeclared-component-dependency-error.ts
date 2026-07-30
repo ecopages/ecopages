@@ -5,7 +5,7 @@ export function getUndeclaredComponentDependencyMessage(parentComponentFile?: st
 
 /**
  * Thrown when `dependencies.components` contains a plain function or component
- * without plugin-injected `config.identity` attribution.
+ * without plugin-bound component identity attribution.
  */
 export class UndeclaredComponentDependencyError extends Error {
 	override name = 'UndeclaredComponentDependencyError';

@@ -2,7 +2,7 @@ import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from 
 import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
-import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
 
 /**
  * Attaches canonical file-backed identity to one component config.
@@ -12,14 +12,14 @@ export function attachEcoFileMetadataToConfig(
 	ownerFile: string,
 	integrationName: string,
 ): EcoComponentConfig {
-	return {
-		...config,
-		identity: {
+	return bindComponentIdentity(
+		{
 			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
 			file: ownerFile,
 			integration: getComponentIdentity(config)?.integration ?? integrationName,
 		},
-	};
+		config,
+	);
 }
 
 /**
@@ -77,7 +77,7 @@ export type CollectComponentConfigFilePathsOptions = {
 };
 
 /**
- * Walks component configs and collects every resolved `config.identity.file` path.
+ * Walks component configs and collects every resolved identity file path.
  */
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,

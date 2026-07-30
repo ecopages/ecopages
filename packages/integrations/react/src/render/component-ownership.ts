@@ -21,7 +21,7 @@ export type RequiresAwareComponent = {
  *
  * @remarks
  * Honors both the explicit `config.integration` override and build-time
- * `config.identity.integration` attribution.
+ * `getComponentIdentity(component)?.integration` attribution.
  */
 export function getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
 	return component?.config?.integration ?? component?.config?.identity?.integration;

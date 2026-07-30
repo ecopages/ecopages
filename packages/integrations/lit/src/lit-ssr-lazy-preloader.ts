@@ -1,4 +1,4 @@
-import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
+import { getComponentIdentity, type EcoComponent, type EcoComponentConfig } from '@ecopages/core';
 import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import path from 'node:path';
@@ -80,7 +80,7 @@ export class LitSsrLazyPreloader {
 			visitedConfigs.add(config);
 
 			const scriptEntries = config.dependencies?.scripts ?? [];
-			const componentFile = config.identity?.file;
+			const componentFile = getComponentIdentity(component)?.file;
 
 			if (componentFile) {
 				const componentDir = path.dirname(componentFile);

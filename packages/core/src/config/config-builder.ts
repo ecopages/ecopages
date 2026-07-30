@@ -735,14 +735,13 @@ export class ConfigBuilder {
 	 *
 	 * @remarks
 	 * Component identity attribution is a source transform so browser, HMR, and
-	 * server module paths share one lexical attribution mechanism.
+	 * server module paths share one component-identity attribution mechanism.
 	 */
 	private async initializeDefaultLoaders(): Promise<void> {
 		const componentMetaTransform = createEcoComponentMetaTransform({ config: this.config });
 		if (!this.config.sourceTransforms.has(componentMetaTransform.name)) {
 			this.config.sourceTransforms.set(componentMetaTransform.name, componentMetaTransform);
 		}
-
 	}
 
 	private reviewBaseUrl(baseUrl: string): void {

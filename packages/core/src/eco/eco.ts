@@ -36,6 +36,7 @@ import {
 } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
+import { getComponentIdentity } from './component-identity.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -138,10 +139,8 @@ function embed<P extends Record<string, unknown>, R>(
 ): R {
 	const activeRenderContext = getComponentRenderContext();
 	const ecoComponent = component as unknown as EcoComponent<P, R>;
-	const targetIntegration =
-		ecoComponent.config?.integration ??
-		ecoComponent.config?.identity?.integration;
-	const componentFile = ecoComponent.config?.identity?.file ?? 'unknown component';
+	const targetIntegration = ecoComponent.config?.integration ?? getComponentIdentity(ecoComponent)?.integration;
+	const componentFile = getComponentIdentity(ecoComponent)?.file ?? 'unknown component';
 	const nextProps = (children === undefined ? props : { ...props, children }) as P;
 
 	try {

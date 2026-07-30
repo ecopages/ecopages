@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponent } from '../types/public-types.ts';
 import { bindComponentIdentity, getComponentIdentity } from './component-identity.ts';
 
 describe('component identity', () => {
-	it('binds and reads canonical attribution', () => {
-		const component = (() => null) as unknown as EcoComponent;
-		bindComponentIdentity(component, { id: 'layout', file: '/app/layout.tsx', integration: 'react' });
-		expect(getComponentIdentity(component)).toEqual({
+	it('merges canonical attribution into factory options', () => {
+		const config = bindComponentIdentity(
+			{ id: 'layout', file: '/app/layout.tsx', integration: 'react' },
+			{ render: () => null },
+		);
+
+		expect(config.identity).toEqual({
 			id: 'layout',
 			file: '/app/layout.tsx',
 			integration: 'react',
 		});
 	});
 
-	it('reads legacy metadata while consumers migrate', () => {
+	it('reads identity from a config through the accessor', () => {
 		expect(
 			getComponentIdentity({
 				identity: { id: 'page', file: '/app/page.tsx', integration: 'react' },

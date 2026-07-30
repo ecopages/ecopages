@@ -276,7 +276,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const match = matcher.match('http://localhost:3000/about');
 
 			expect(match).not.toBeNull();
-		await expect(matcher.handleMatch(match!)).rejects.toThrow('missing component identity integration');
+			await expect(matcher.handleMatch(match!)).rejects.toThrow('missing component identity integration');
 		});
 
 		test('should throw error when renderer is not found', async () => {

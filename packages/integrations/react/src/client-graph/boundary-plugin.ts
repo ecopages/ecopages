@@ -162,7 +162,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					globallyDeclaredSources,
 					requestedExports,
 					options?.projectRoot,
-					isPageOrLayoutEntry(args.path) || source.includes('eco.page'),
+					isPageOrLayoutEntry(args.path),
 				);
 				recordModuleTransformProfile({
 					category,

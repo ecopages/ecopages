@@ -19,7 +19,7 @@ These contracts are responsible for:
 - `processor.ts`: asset-transformation contract for processors
 - `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
-- `eco-component-meta-plugin.ts`: compatibility attribution transform for source modules; runtime consumers use the canonical component-identity accessor
+- `eco-component-meta-plugin.ts`: lexical component-identity attribution transform for source modules; runtime consumers use the canonical component-identity accessor
 
 ## Ownership Rules
 

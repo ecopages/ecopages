@@ -36,6 +36,32 @@ function readFactoryName(source: string, start: number): string | undefined {
 	return undefined;
 }
 
+function skipNonCode(source: string, start: number): number | undefined {
+	const character = source[start];
+	const next = source[start + 1];
+	if (character === '/' && next === '/') {
+		const lineEnd = source.indexOf('\n', start + 2);
+		return lineEnd < 0 ? source.length : lineEnd;
+	}
+	if (character === '/' && next === '*') {
+		const commentEnd = source.indexOf('*/', start + 2);
+		return commentEnd < 0 ? source.length : commentEnd + 1;
+	}
+	if (character !== '"' && character !== "'" && character !== '`') {
+		return undefined;
+	}
+	for (let index = start + 1; index < source.length; index += 1) {
+		if (source[index] === '\\') {
+			index += 1;
+			continue;
+		}
+		if (source[index] === character) {
+			return index;
+		}
+	}
+	return source.length;
+}
+
 /**
  * Finds the matching closing delimiter without treating comments, strings, or
  * template literals as source syntax.
@@ -81,6 +107,11 @@ function findClosingDelimiter(source: string, start: number, open: string, close
 function findFactoryObjectStarts(source: string): number[] {
 	const starts: number[] = [];
 	for (let index = 0; index < source.length; index += 1) {
+		const skipped = skipNonCode(source, index);
+		if (skipped !== undefined) {
+			index = skipped;
+			continue;
+		}
 		if (!source.startsWith('eco.', index) || isIdentifierCharacter(source[index - 1])) continue;
 		const factoryName = readFactoryName(source, index + 4);
 		if (!factoryName) continue;
@@ -111,6 +142,11 @@ function findFactoryObjectStarts(source: string): number[] {
 function findConfigAssignmentObjectStarts(source: string): number[] {
 	const starts: number[] = [];
 	for (let index = 0; index < source.length; index += 1) {
+		const skipped = skipNonCode(source, index);
+		if (skipped !== undefined) {
+			index = skipped;
+			continue;
+		}
 		if (!source.startsWith('.config', index)) continue;
 		let cursor = index + '.config'.length;
 		while (isWhitespace(source[cursor])) cursor += 1;

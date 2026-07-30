@@ -133,6 +133,18 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).not.toContain('identity:');
 	});
 
+	it('does not inject identity into embedded source strings', async () => {
+		const content = `
+            const source = "export const Widget = eco.component({ render: () => null });";
+            export const Page = eco.page({ render: () => source });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/page.tsx');
+
+		expect(result.contents).toContain('const source = "export const Widget = eco.component({ render: () => null });";');
+		expect(result.contents.match(/identity:/g)).toHaveLength(1);
+	});
+
 	it('should inject __eco into eco.component() call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';

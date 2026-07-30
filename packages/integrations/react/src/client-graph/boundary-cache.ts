@@ -38,6 +38,8 @@ export type CachedTransform = {
 	sourceHash: number | bigint;
 	/** Hash of the globally-allowed modules map at the time the transform was cached. */
 	allowListHash: number | bigint;
+	/** Hash of the requested export rules already propagated to this module. */
+	inboundRulesHash: number | bigint;
 	/** The transformed source (or original if `modified` is false). */
 	transformed: string;
 	/** Whether the transform changed the source. */
@@ -91,12 +93,23 @@ export class ClientGraphBoundaryCache {
 	 * the entry was stored. The caller is responsible for re-running the
 	 * transform in that case and calling `set` to update the entry.
 	 */
-	get(filePath: string, source: string, globallyAllowedSpecifiers: Iterable<string>): CachedTransform | undefined {
+	get(
+		filePath: string,
+		source: string,
+		globallyAllowedSpecifiers: Iterable<string>,
+		inboundRules?: RequestedExportRules,
+	): CachedTransform | undefined {
 		const sourceHash = rapidhash(source);
 		const allowListHash = hashAllowList(globallyAllowedSpecifiers);
+		const inboundRulesHash = hashRequestedExportRules(inboundRules);
 
 		const existing = this.entries.get(filePath);
-		if (existing && existing.sourceHash === sourceHash && existing.allowListHash === allowListHash) {
+		if (
+			existing &&
+			existing.sourceHash === sourceHash &&
+			existing.allowListHash === allowListHash &&
+			existing.inboundRulesHash === inboundRulesHash
+		) {
 			this.hits += 1;
 			// Refresh LRU position.
 			this.entries.delete(filePath);
@@ -119,10 +132,12 @@ export class ClientGraphBoundaryCache {
 		filePath: string,
 		source: string,
 		globallyAllowedSpecifiers: Iterable<string>,
-		entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash'>,
+		entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash' | 'inboundRulesHash'>,
+		inboundRules?: RequestedExportRules,
 	): void {
 		const sourceHash = rapidhash(source);
 		const allowListHash = hashAllowList(globallyAllowedSpecifiers);
+		const inboundRulesHash = hashRequestedExportRules(inboundRules);
 
 		const rulesAddedCopy = new Map<string, RequestedExportRules>();
 		for (const [key, rules] of entry.rulesAdded) {
@@ -132,6 +147,7 @@ export class ClientGraphBoundaryCache {
 		const full: CachedTransform = {
 			sourceHash,
 			allowListHash,
+			inboundRulesHash,
 			transformed: entry.transformed,
 			modified: entry.modified,
 			rulesAdded: rulesAddedCopy,
@@ -202,4 +218,10 @@ export class ClientGraphBoundaryCache {
 function hashAllowList(specifiers: Iterable<string>): number | bigint {
 	const sorted = Array.from(specifiers).sort();
 	return rapidhash(sorted.join('\n'));
+}
+
+function hashRequestedExportRules(rules: RequestedExportRules | undefined): number | bigint {
+	if (rules === '*') return rapidhash('*');
+	if (!rules) return rapidhash('');
+	return rapidhash(Array.from(rules).sort().join('\n'));
 }

@@ -2,6 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { ClientGraphBoundaryCache } from './boundary-cache.ts';
 
 describe('ClientGraphBoundaryCache', () => {
+	it('misses when inbound requested exports differ', () => {
+		const cache = new ClientGraphBoundaryCache();
+		cache.set(
+			'/entry.tsx',
+			'export const one = 1;',
+			[],
+			{
+				transformed: 'export const one = 1;',
+				modified: false,
+				rulesAdded: new Map(),
+			},
+			new Set(['one']),
+		);
+		expect(cache.get('/entry.tsx', 'export const one = 1;', [], new Set(['two']))).toBeUndefined();
+	});
 	const filePath = '/a.ts';
 	const allowList = ['react', 'react-dom'];
 

@@ -13,10 +13,13 @@ import {
 	parseDeclaredModules,
 	toModuleBaseSpecifier,
 	mergeRequestedExportRules,
+	normalizeRequestedExportsKey,
 	snapshotRegistry,
 	diffRequestedExportRules,
 } from './specifier-classification.ts';
 import { transformModuleImports } from './ast-transform.ts';
+import { classifyClientGraphModule, isPageOrLayoutEntry } from './module-classification.ts';
+import { recordModuleTransformProfile } from '@ecopages/core/cache';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
@@ -74,6 +77,10 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 			const allowListForCache = Array.from(globallyDeclaredSources.keys()).sort();
 
 			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) => {
+				const category = classifyClientGraphModule(args.path, options?.projectRoot);
+				if (category === 'package' || category === 'vendored' || category === 'virtual') {
+					return undefined;
+				}
 				let source: string;
 				try {
 					source = readFileSync(args.path, 'utf-8');
@@ -88,8 +95,16 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				 * the cached transformed source. Skips the entire
 				 * `parseSync` + AST walk on a no-op rebuild.
 				 */
+				const inboundRules = requestedExports.get(normalizeRequestedExportsKey(args.path));
 				if (cache) {
-					const cached = cache.get(args.path, source, allowListForCache);
+					const cacheStartedAt = performance.now();
+					const cached = cache.get(args.path, source, allowListForCache, inboundRules);
+					recordModuleTransformProfile({
+						category,
+						phase: 'cache-lookup',
+						ms: performance.now() - cacheStartedAt,
+						cacheHit: Boolean(cached),
+					});
 					if (cached) {
 						for (const [moduleKey, rules] of cached.rulesAdded) {
 							mergeRequestedExportRules(requestedExports, moduleKey, rules);
@@ -140,13 +155,20 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				// to `'*'`. A snapshot keyed only on newly-added entries
 				// would under-populate the registry on cache hit.
 				const registryBefore = snapshotRegistry(requestedExports);
+				const analysisStartedAt = performance.now();
 				const { transformed: oxcTransformed, modified: importsModified } = transformModuleImports(
 					transformed,
 					args.path,
 					globallyDeclaredSources,
 					requestedExports,
 					options?.projectRoot,
+					isPageOrLayoutEntry(args.path) || source.includes('eco.page'),
 				);
+				recordModuleTransformProfile({
+					category,
+					phase: 'analysis',
+					ms: performance.now() - analysisStartedAt,
+				});
 
 				if (importsModified) {
 					modified = true;
@@ -162,12 +184,12 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 						if (!diff) continue;
 						rulesAdded.set(key, diff);
 					}
-					const entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash'> = {
+					const entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash' | 'inboundRulesHash'> = {
 						transformed,
 						modified,
 						rulesAdded,
 					};
-					cache.set(args.path, source, allowListForCache, entry);
+					cache.set(args.path, source, allowListForCache, entry, inboundRules);
 				}
 
 				if (!modified) return undefined;

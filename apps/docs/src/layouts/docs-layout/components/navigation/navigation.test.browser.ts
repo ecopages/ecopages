@@ -97,7 +97,9 @@ describe('RadiantNavigation', () => {
 		window.dispatchEvent(new CustomEvent(BurgerEvents.TOGGLE_MENU));
 		expect(navigation.classList.contains('hidden')).toBe(false);
 
-		navigation.querySelector<HTMLAnchorElement>('[href="/docs/current"]')?.click();
+		const link = navigation.querySelector<HTMLAnchorElement>('[href="/docs/current"]');
+		link?.addEventListener('click', (event) => event.preventDefault(), { once: true });
+		link?.click();
 
 		expect(closeMenuSpy).toHaveBeenCalledOnce();
 		expect(navigation.classList.contains('hidden')).toBe(true);

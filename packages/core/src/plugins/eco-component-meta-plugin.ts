@@ -130,7 +130,10 @@ export function injectEcoMeta(contents: string, filePath: string, integration: s
 }
 
 export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
-	const extensions = options.config.integrations.flatMap((integration) => integration.extensions).map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+	const extensions = options.config.integrations
+		.flatMap((integration) => integration.extensions)
+		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)))
+		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 	const filter = new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
 	return {
 		name: 'eco-component-identity-attribution',

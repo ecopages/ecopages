@@ -26,7 +26,6 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 	'staticPaths',
 ]);
 
-
 /**
  * Extracts a static property key name from an object literal property node.
  *
@@ -454,7 +453,9 @@ export function transformModuleImports(
 	walkImports(program);
 
 	if (edits.length === 0) {
-		return stripServerOnlyPageOptions ? stripServerOnlyEcoPageOptions(source, program) : { transformed: source, modified: false };
+		return stripServerOnlyPageOptions
+			? stripServerOnlyEcoPageOptions(source, program)
+			: { transformed: source, modified: false };
 	}
 
 	edits.sort((a, b) => b.start - a.start);

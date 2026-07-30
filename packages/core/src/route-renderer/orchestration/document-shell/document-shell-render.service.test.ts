@@ -10,7 +10,7 @@ import {
 
 function stubComponent(id: string): EcoComponent {
 	const component = (() => '') as EcoComponent;
-	component.config = { __eco: { id, file: `/app/${id}.tsx`, integration: 'test' } };
+	component.config = { identity: { id, file: `/app/${id}.tsx`, integration: 'test' } };
 	return component;
 }
 
@@ -24,7 +24,7 @@ describe('document-shell-render.service', () => {
 				integrationContext?: { rendererCache?: Map<string, unknown> };
 			}) => {
 				rendererCaches.push(input.integrationContext?.rendererCache);
-				const id = input.component.config?.__eco?.id ?? 'unknown';
+				const id = input.component.config?.identity?.id ?? 'unknown';
 				return {
 					html: input.children ? `<${id}>${String(input.children)}</${id}>` : `<${id} />`,
 					assets: [],
@@ -36,15 +36,15 @@ describe('document-shell-render.service', () => {
 		);
 
 		const Page = eco.page({
-			__eco: { id: 'page', file: '/app/pages/index.kita.tsx', integration: 'kitajs' },
+			identity: { id: 'page', file: '/app/pages/index.kita.tsx', integration: 'kitajs' },
 			render: () => '<page />',
 		});
 		const Layout = eco.layout({
-			__eco: { id: 'layout', file: '/app/layouts/root.kita.tsx', integration: 'kitajs' },
+			identity: { id: 'layout', file: '/app/layouts/root.kita.tsx', integration: 'kitajs' },
 			render: ({ children }) => `<layout>${children}</layout>`,
 		});
 		const HtmlTemplate = eco.html({
-			__eco: { id: 'html', file: '/app/html.kita.tsx', integration: 'kitajs' },
+			identity: { id: 'html', file: '/app/html.kita.tsx', integration: 'kitajs' },
 			render: ({ children }) => `<html>${children}</html>`,
 		});
 
@@ -70,7 +70,7 @@ describe('document-shell-render.service', () => {
 	it('should nest multiple layouts outer to inner by default', async () => {
 		const renderComponentWithForeignChildren = vi.fn(
 			async (input: { component: EcoComponent; children?: unknown }) => {
-				const id = input.component.config?.__eco?.id ?? 'node';
+				const id = input.component.config?.identity?.id ?? 'node';
 				return {
 					html: `<${id}>${input.children ?? ''}</${id}>`,
 					assets: [],

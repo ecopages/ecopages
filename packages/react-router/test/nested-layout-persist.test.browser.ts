@@ -59,7 +59,7 @@ function createStatefulEcoLayout(
 	};
 
 	Layout.displayName = testId;
-	Layout.config = { __eco: { ...eco, integration: 'react' } };
+	Layout.config = { identity: { ...eco, integration: 'react' } };
 	const StatefulLayout = Layout as NestedLayoutComponent & { testState: StatefulLayoutTestHandle };
 	StatefulLayout.testState = testState;
 	return StatefulLayout;
@@ -70,7 +70,7 @@ function createNestedEcoLayout(testId: string, eco: { id: string; file: string }
 		createElement('div', { 'data-testid': testId }, testId, children);
 
 	Layout.displayName = testId;
-	Layout.config = { __eco: { ...eco, integration: 'react' } };
+	Layout.config = { identity: { ...eco, integration: 'react' } };
 	return Layout;
 }
 

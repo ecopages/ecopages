@@ -59,7 +59,7 @@ describe('EcoConfigBuilder', () => {
 
 		expect(getAppBuildOwnership(config)).toBe('rolldown');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
-		expect(getAppBuildManifest(config).loaderPlugins.length).toBeGreaterThan(0);
+		expect(getAppBuildManifest(config).loaderPlugins).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
 		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();

@@ -27,9 +27,8 @@ export {
 	type EcoViteCompatiblePlugin,
 } from './plugins/source-transform.ts';
 export { createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
-export {
+	export {
 	bindComponentIdentity,
-	componentIdentityFromMeta,
 	getComponentIdentity,
 	type ComponentIdentity,
 } from './eco/component-identity.ts';

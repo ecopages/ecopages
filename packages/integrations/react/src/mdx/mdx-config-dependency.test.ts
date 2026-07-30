@@ -31,7 +31,7 @@ describe('MdxConfigDependencyService', () => {
 		});
 
 		const declaredLitComponentConfig: EcoComponentConfig = {
-			__eco: {
+			identity: {
 				id: 'declared-lit-counter',
 				file: path.resolve(__dirname, '../test/fixture/declared-lit-counter.lit.tsx'),
 				integration: 'lit',

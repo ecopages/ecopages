@@ -201,7 +201,7 @@ describe('eco namespace', () => {
 		test('should render inline when the foreign-child runtime returns inline for a React component', async () => {
 			const ReactButton = eco.component({
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'react-button',
 					file: '/app/components/react-button.react.tsx',
 					integration: 'react',
@@ -222,7 +222,7 @@ describe('eco namespace', () => {
 		test('should resolve foreign children immediately when the runtime returns resolved output', async () => {
 			const ReactButton = eco.component({
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'react-button-resolved-runtime',
 					file: '/app/components/react-button-resolved-runtime.react.tsx',
 					integration: 'react',
@@ -247,7 +247,7 @@ describe('eco namespace', () => {
 		test('should render inline with runtime-normalized props', async () => {
 			const KitaShell = eco.component<{ children?: string }>({
 				integration: 'kitajs',
-				__eco: {
+				identity: {
 					id: 'kitajs-shell-inline-props',
 					file: '/app/components/kitajs-shell-inline-props.kita.tsx',
 					integration: 'kitajs',
@@ -319,7 +319,7 @@ describe('eco namespace', () => {
 		test('should let the foreign-child runtime replace embedded output when the target integration is delegated', async () => {
 			const ReactButton = eco.component<{ label: string }>({
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'react-button-embedded-runtime',
 					file: '/app/components/react-button-embedded-runtime.react.tsx',
 					integration: 'react',
@@ -344,7 +344,7 @@ describe('eco namespace', () => {
 		test('should render embedded component output inline when the foreign-child runtime does not delegate the target integration', async () => {
 			const ReactButton = eco.component<{ label: string }>({
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'react-button-embedded-inline-runtime',
 					file: '/app/components/react-button-embedded-inline-runtime.react.tsx',
 					integration: 'react',
@@ -369,7 +369,7 @@ describe('eco namespace', () => {
 		test('should surface an eco.embed-specific error when the active integration misses foreign-child handoff', async () => {
 			const ReactButton = eco.component<{ label: string }>({
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'react-button-missing-runtime-handoff',
 					file: '/app/components/react-button-missing-runtime-handoff.react.tsx',
 					integration: 'react',
@@ -624,7 +624,7 @@ describe('eco namespace', () => {
 	describe('integration', () => {
 		test('should work with nested components', () => {
 			const Button = eco.component<{ label: string }>({
-				__eco: {
+				identity: {
 					id: 'button',
 					file: '/app/components/button.kita.tsx',
 					integration: 'kitajs',
@@ -643,7 +643,7 @@ describe('eco namespace', () => {
 			});
 
 			const Card = eco.component<{ title: string; children: string }>({
-				__eco: {
+				identity: {
 					id: 'card',
 					file: '/app/components/card.kita.tsx',
 					integration: 'kitajs',
@@ -659,7 +659,7 @@ describe('eco namespace', () => {
 
 		test('should normalize nested page layouts onto config.layouts', () => {
 			const OuterLayout = eco.layout({
-				__eco: {
+				identity: {
 					id: 'outer',
 					file: '/app/layouts/outer.kita.tsx',
 					integration: 'kitajs',
@@ -667,7 +667,7 @@ describe('eco namespace', () => {
 				render: ({ children }) => `<outer>${children}</outer>`,
 			});
 			const InnerLayout = eco.layout({
-				__eco: {
+				identity: {
 					id: 'inner',
 					file: '/app/layouts/inner.kita.tsx',
 					integration: 'kitajs',

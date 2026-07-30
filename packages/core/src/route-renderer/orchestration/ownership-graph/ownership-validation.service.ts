@@ -53,7 +53,7 @@ export class OwnershipValidationService {
 				if (!componentMeta) {
 					errors.push({
 						code: 'MISSING_COMPONENT_METADATA',
-						message: `[ecopages] Foreign child "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
+						message: `[ecopages] Foreign child "${componentId}" must provide stable component identity so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
 						componentId,
 						integrationName,
 					});

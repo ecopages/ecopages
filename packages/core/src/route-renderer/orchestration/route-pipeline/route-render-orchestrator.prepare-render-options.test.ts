@@ -182,7 +182,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
 			integration: 'react',
-			__eco: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
+			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
 		};
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.cache = 'dynamic';
@@ -1090,7 +1090,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
-			__eco: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+			identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
 			dependencies: {
 				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
 			},
@@ -1161,7 +1161,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
 		LitCounter.config = {
-			__eco: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
+			identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
 			dependencies: {
 				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
 			},
@@ -1221,7 +1221,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 		Nested.config = {
 			integration: 'react',
-			__eco: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
+			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
 		};
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.config = {
@@ -1379,7 +1379,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-component',
 				file: '/app/components/foreign-component.tsx',
 				integration: 'foreign-renderer',
@@ -1388,7 +1388,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const Layout = (() => '<main>Layout</main>') as EcoComponent<Record<string, unknown>>;
 		Layout.config = {
-			__eco: {
+			identity: {
 				id: 'layout-component',
 				file: '/app/layouts/default.tsx',
 				integration: 'ghtml',
@@ -1401,7 +1401,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const Page = (() => 'Page Content') as EcoPageComponent<any>;
 		Page.config = {
 			layouts: [Layout],
-			__eco: {
+			identity: {
 				id: 'page-component',
 				file: '/app/pages/index.tsx',
 				integration: 'ghtml',
@@ -1410,7 +1410,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		HtmlTemplate.config = {
-			__eco: {
+			identity: {
 				id: 'html-template',
 				file: '/app/index.ghtml.ts',
 				integration: 'ghtml',
@@ -1465,12 +1465,12 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		const OuterLayout = (() => '<outer></outer>') as EcoComponent;
 		OuterLayout.config = {
 			integration: 'react',
-			__eco: { id: 'outer', file: '/app/layouts/outer.tsx', integration: 'react' },
+			identity: { id: 'outer', file: '/app/layouts/outer.tsx', integration: 'react' },
 		};
 		const InnerLayout = (() => '<inner></inner>') as EcoComponent;
 		InnerLayout.config = {
 			integration: 'react',
-			__eco: { id: 'inner', file: '/app/layouts/inner.tsx', integration: 'react' },
+			identity: { id: 'inner', file: '/app/layouts/inner.tsx', integration: 'react' },
 		};
 		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 		Page.config = {

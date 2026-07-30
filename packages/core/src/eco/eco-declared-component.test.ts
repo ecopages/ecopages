@@ -6,7 +6,7 @@ import { UndeclaredComponentDependencyError } from '../errors/undeclared-compone
 describe('eco-declared-component', () => {
 	it('should accept eco.component results with __eco metadata', () => {
 		const Button = eco.component({
-			__eco: {
+			identity: {
 				id: 'button',
 				file: '/app/components/button.kita.tsx',
 				integration: 'kitajs',

@@ -36,7 +36,6 @@ import {
 } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
-import { componentIdentityFromMeta } from './component-identity.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -53,7 +52,7 @@ import { componentIdentityFromMeta } from './component-identity.ts';
  * @returns Configured eco component.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
-	const integrationName = options.integration ?? options.identity?.integration ?? options.__eco?.integration;
+	const integrationName = options.integration ?? options.identity?.integration;
 	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
@@ -89,7 +88,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 			integrationName !== activeRenderContext.currentIntegration
 		) {
 			throw new Error(
-				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.identity?.file ?? options.__eco?.file ?? 'unknown component'}.`,
+				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.identity?.file ?? 'unknown component'}.`,
 			);
 		}
 
@@ -97,8 +96,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 	}) as EcoDeclaredComponent<P, E>;
 
 	comp.config = {
-		identity: options.identity ?? componentIdentityFromMeta(options.__eco),
-		__eco: options.__eco,
+		identity: options.identity,
 		integration: options.integration,
 		dependencies: options.dependencies,
 	};
@@ -142,10 +140,8 @@ function embed<P extends Record<string, unknown>, R>(
 	const ecoComponent = component as unknown as EcoComponent<P, R>;
 	const targetIntegration =
 		ecoComponent.config?.integration ??
-		ecoComponent.config?.identity?.integration ??
-		ecoComponent.config?.__eco?.integration;
-	const componentFile =
-		ecoComponent.config?.identity?.file ?? ecoComponent.config?.__eco?.file ?? 'unknown component';
+		ecoComponent.config?.identity?.integration;
+	const componentFile = ecoComponent.config?.identity?.file ?? 'unknown component';
 	const nextProps = (children === undefined ? props : { ...props, children }) as P;
 
 	try {
@@ -216,7 +212,6 @@ function page<T, E>(
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
 		identity: options.identity,
-		__eco: options.__eco,
 		integration: options.integration,
 		dependencies: staticDependencies,
 		render,

@@ -13,14 +13,12 @@ import type {
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
 import type { ComponentOptions, Eco, HtmlOptions, LayoutOptions, PageOptionsBase, PagePropsFor } from './eco.types.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
-import { componentIdentityFromMeta } from './component-identity.ts';
 
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const component = ((props: P) => options.render(props)) as EcoComponent<P, E>;
 
 	component.config = {
-		identity: options.identity ?? componentIdentityFromMeta(options.__eco),
-		__eco: options.__eco,
+		identity: options.identity,
 		integration: options.integration,
 		dependencies: options.dependencies,
 	};
@@ -82,7 +80,6 @@ function page<T, E>(
 
 	const pageComponent = createComponentFactory({
 		identity: options.identity,
-		__eco: options.__eco,
 		integration: options.integration,
 		dependencies: staticDependencies,
 		render,

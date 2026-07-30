@@ -46,7 +46,7 @@ export function buildResolvedLazyTriggers(
 ): ResolvedLazyTrigger[] {
 	if (groups.length === 0) return [];
 
-	const componentFile = config.__eco?.file ?? '';
+	const componentFile = config.identity?.file ?? '';
 	const sortedUrls = groups
 		.flatMap((group) => group.scripts)
 		.sort()

@@ -21,7 +21,6 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
 import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
-import { createEcoComponentMetaPlugin } from '../plugins/eco-component-meta-plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
@@ -742,11 +741,6 @@ export class ConfigBuilder {
 		const componentMetaTransform = createEcoComponentMetaTransform({ config: this.config });
 		if (!this.config.sourceTransforms.has(componentMetaTransform.name)) {
 			this.config.sourceTransforms.set(componentMetaTransform.name, componentMetaTransform);
-		}
-
-		const componentMetaPlugin = createEcoComponentMetaPlugin({ config: this.config });
-		if (!this.config.loaders.has(componentMetaPlugin.name)) {
-			this.config.loaders.set(componentMetaPlugin.name, componentMetaPlugin);
 		}
 
 	}

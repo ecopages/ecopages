@@ -8,7 +8,6 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoHtmlComponent,
-	EcoInjectedMeta,
 	EcoLayoutComponent,
 	EcoPageLayouts,
 	EcoPagesElement,
@@ -133,8 +132,6 @@ export type LazyTrigger = DependencyLazyTrigger;
 export interface ComponentOptions<P, E = EcoPagesElement> {
 	/** @internal Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E | Promise<E>;
@@ -161,8 +158,6 @@ export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>
 export interface PageOptionsBase<T, E = EcoPagesElement> {
 	/** @internal Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
 	integration?: string;
 	/**
 	 * Declares browser dependencies for the page, or resolves them per render after

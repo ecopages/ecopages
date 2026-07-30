@@ -16,7 +16,7 @@ describe('component identity', () => {
 	it('reads legacy metadata while consumers migrate', () => {
 		expect(
 			getComponentIdentity({
-				__eco: { id: 'page', file: '/app/page.tsx', integration: 'react' },
+				identity: { id: 'page', file: '/app/page.tsx', integration: 'react' },
 			}),
 		).toEqual({ id: 'page', file: '/app/page.tsx', integration: 'react' });
 	});

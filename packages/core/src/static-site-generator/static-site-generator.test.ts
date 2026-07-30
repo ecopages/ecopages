@@ -741,7 +741,7 @@ describe('StaticSiteGenerator', () => {
 			const renderToResponse = vi.fn(async () => new Response('<html>Private</html>'));
 			const privateView = Object.assign(() => null, {
 				cache: 'static',
-				config: { __eco: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
+				config: { identity: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
 				metadata: async () => ({
 					title: 'Private',
 					description: 'Private',
@@ -824,7 +824,7 @@ describe('StaticSiteGenerator', () => {
 						path: '/blog/[slug]',
 						loader: async () => ({
 							default: Object.assign(() => null, {
-								config: { __eco: testInjectedMeta },
+								config: { identity: testInjectedMeta },
 								staticPaths: async () => ({ paths: [{ params: { slug: 'hello-world' } }] }),
 								staticProps,
 							}),
@@ -863,7 +863,7 @@ describe('StaticSiteGenerator', () => {
 						path: '/blog/[slug]',
 						loader: async () => ({
 							default: Object.assign(() => null, {
-								config: { __eco: testInjectedMeta },
+								config: { identity: testInjectedMeta },
 							}),
 						}),
 					},
@@ -902,7 +902,7 @@ describe('StaticSiteGenerator', () => {
 						path: '/dashboard',
 						loader: async () => ({
 							default: Object.assign(() => null, {
-								config: { __eco: { ...testInjectedMeta, file: '/src/views/dashboard.tsx' } },
+								config: { identity: { ...testInjectedMeta, file: '/src/views/dashboard.tsx' } },
 							}),
 						}),
 					},
@@ -940,7 +940,7 @@ describe('StaticSiteGenerator', () => {
 						path: '/dashboard',
 						loader: async () => ({
 							default: Object.assign(() => null, {
-								config: { __eco: { ...testInjectedMeta, file: '/src/views/dashboard.tsx' } },
+								config: { identity: { ...testInjectedMeta, file: '/src/views/dashboard.tsx' } },
 							}),
 						}),
 					},

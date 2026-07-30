@@ -97,7 +97,7 @@ export function collectComponentDependencies(
 	for (const component of components) {
 		if (!component) continue;
 
-		const componentFile = component.config?.__eco?.file;
+		const componentFile = component.config?.identity?.file;
 		if (!componentFile) continue;
 
 		const stylesheetDependencyKeys = new Set<string>();
@@ -110,7 +110,7 @@ export function collectComponentDependencies(
 		const collect = (config: EcoComponent['config']) => {
 			if (!config) return;
 
-			const file = config.__eco?.file;
+			const file = config.identity?.file;
 			if (!file) return;
 			const dir = path.dirname(file);
 			const dependenciesConfig = config.dependencies;

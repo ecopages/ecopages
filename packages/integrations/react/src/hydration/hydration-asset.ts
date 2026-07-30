@@ -48,7 +48,7 @@ type PageDependencyOptions = {
 };
 
 export function getIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
-	return rapidhash(`${componentFile}:${config?.__eco?.id ?? ''}`).toString();
+	return rapidhash(`${componentFile}:${config?.identity?.id ?? ''}`).toString();
 }
 
 /**
@@ -176,7 +176,7 @@ export class HydrationAssetService {
 	 * Includes the bundled component entry and a shared hydration bootstrap script.
 	 *
 	 * @param componentFile - Absolute path to the component source file
-	 * @param config - Optional component config with `__eco` metadata
+	 * @param config - Optional component config with identity attribution
 	 * @returns Processed assets ready for injection
 	 */
 	async buildComponentRenderAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
@@ -196,7 +196,7 @@ export class HydrationAssetService {
 			reactImportPath: runtimeImports.react,
 			reactDomClientImportPath: runtimeImports.reactDomClient,
 			targetSelector: `[data-eco-component-key="${componentKey}"]`,
-			componentRef: config?.__eco?.id,
+			componentRef: config?.identity?.id,
 			componentFile,
 			minify: !hmrEnabled,
 			hmrEnabled,

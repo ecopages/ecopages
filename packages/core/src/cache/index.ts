@@ -12,4 +12,4 @@ export {
 	type ModuleParseOptions,
 	type ParserLanguage,
 } from './module-parse-cache.ts';
-export { flushModuleTransformProfile, recordModuleTransformProfile } from './module-transform-profiler.ts';
+export { recordModuleTransformProfile } from './module-transform-profiler.ts';

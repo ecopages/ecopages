@@ -50,8 +50,7 @@ export function walkComponentGraph(input: {
 		}
 
 		seenComponents.add(ecoComponent);
-		const integrationName =
-			ecoComponent.config?.integration ?? ecoComponent.config?.__eco?.integration ?? parentIntegrationName;
+		const integrationName = ecoComponent.config?.integration ?? ecoComponent.config?.identity?.integration ?? parentIntegrationName;
 
 		if (input.onConfig && ecoComponent.config && !seenConfigs.has(ecoComponent.config)) {
 			seenConfigs.add(ecoComponent.config);
@@ -124,9 +123,8 @@ export function mapComponentGraph<T>(input: {
 		parentIntegrationName: string,
 		lineage: Set<object>,
 	): T => {
-		const integrationName =
-			component.config?.integration ?? component.config?.__eco?.integration ?? parentIntegrationName;
-		const componentMeta = component.config?.__eco;
+		const integrationName = component.config?.integration ?? component.config?.identity?.integration ?? parentIntegrationName;
+		const componentMeta = component.config?.identity;
 		const isForeignToParent = integrationName !== parentIntegrationName;
 		const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(nextSyntheticId += 1)}`;
 

@@ -60,7 +60,7 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
 	unsupportedBodyType: (bodyType: string) => `Unsupported body type for static generation: ${bodyType}`,
 	missingIntegration: (routePath: string) =>
-		`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`,
+		`View at ${routePath} is missing component identity integration. Ensure it's defined with eco.page().`,
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 	dynamicRouteRequiresStaticPaths: (routePath: string) =>
 		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
@@ -656,7 +656,7 @@ export class StaticSiteGenerator {
 	}
 
 	private resolveExplicitViewSourceFile(view: EcoPageComponent<any>): string | undefined {
-		const sourceFile = view.config?.__eco?.file;
+		const sourceFile = view.config?.identity?.file;
 		if (!sourceFile) {
 			return undefined;
 		}

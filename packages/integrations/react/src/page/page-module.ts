@@ -1,7 +1,7 @@
 /**
  * Page module loading and configuration resolution service for React integration.
  *
- * Handles component config metadata resolution and module hydration analysis.
+ * Handles component identity resolution and module hydration analysis.
  * MDX page modules load through the core {@link PageModuleImportService} path
  * using the React plugin's server build contributions.
  *
@@ -44,16 +44,16 @@ export class PageModuleService {
 	}
 
 	/**
-	 * Ensures that an EcoComponentConfig has proper `__eco` metadata attached.
+	 * Ensures that an EcoComponentConfig has canonical identity attached.
 	 */
 	ensureConfigFileMetadata(config: EcoComponentConfig, pagePath: string): EcoComponentConfig {
-		if (config.__eco?.file) {
+		if (config.identity?.file) {
 			return config;
 		}
 
 		const buildEcoMeta = (file: string) => ({
-			id: config.__eco?.id ?? rapidhash(file).toString(36),
-			integration: config.__eco?.integration ?? this.config.integrationName,
+			id: config.identity?.id ?? rapidhash(file).toString(36),
+			integration: config.identity?.integration ?? this.config.integrationName,
 			file,
 		});
 
@@ -77,7 +77,7 @@ export class PageModuleService {
 				if (fileSystem.exists(resolvedDependency)) {
 					return {
 						...config,
-						__eco: buildEcoMeta(path.join(candidateDir, path.basename(pagePath))),
+						identity: buildEcoMeta(path.join(candidateDir, path.basename(pagePath))),
 					};
 				}
 			}
@@ -85,7 +85,7 @@ export class PageModuleService {
 
 		return {
 			...config,
-			__eco: buildEcoMeta(pagePath),
+			identity: buildEcoMeta(pagePath),
 		};
 	}
 

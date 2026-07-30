@@ -201,7 +201,7 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 | ------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `getJsxOwnershipPlugins()`           | App-wide server/transpile builds          | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime.            |
 | `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
-| `eco-component-meta-plugin`          | Component metadata injection              | Prepends the **owning** integration pragma only when injecting `__eco` metadata into native files.                      |
+| component identity source transform   | Component identity attribution             | Prepends the **owning** integration pragma when injecting `identity` into native files.                                 |
 
 `foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
 

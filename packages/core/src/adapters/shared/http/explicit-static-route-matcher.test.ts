@@ -6,7 +6,7 @@ function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 	view.config = {
 		integration,
-		__eco: { id: 'test', file: '/test/-view.ts', integration },
+		identity: { id: 'test', file: '/test/-view.ts', integration },
 	};
 	return view;
 }
@@ -238,7 +238,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 			view.config = {
 				integration: 'ghtml',
-				__eco: { id: 'test', file: '/test/-view.ts', integration: 'ghtml' },
+				identity: { id: 'test', file: '/test/-view.ts', integration: 'ghtml' },
 			};
 
 			const mockResponse = new Response('<html>Test</html>');
@@ -263,7 +263,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should throw error when view is missing __eco.integration', async () => {
 			const viewWithoutIntegration = (() => '<div>Test</div>') as EcoPageComponent<any>;
 			viewWithoutIntegration.config = {
-				__eco: undefined,
+				identity: undefined,
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({

@@ -107,7 +107,7 @@ export class MdxConfigDependencyService {
 		});
 
 		collectFromConfigForest(getComponentConfigs(components), (config) => {
-			const componentFile = config.__eco?.file;
+			const componentFile = config.identity?.file;
 			if (!componentFile) {
 				return [];
 			}

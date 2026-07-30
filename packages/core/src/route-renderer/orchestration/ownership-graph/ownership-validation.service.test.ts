@@ -13,7 +13,7 @@ describe('OwnershipValidationService', () => {
 		const plainChild = (() => '<child />') as EcoComponent;
 		const page = (() => '<page />') as EcoComponent;
 		page.config = {
-			__eco: {
+			identity: {
 				id: 'page',
 				file: '/app/pages/index.kita.tsx',
 				integration: 'kitajs',

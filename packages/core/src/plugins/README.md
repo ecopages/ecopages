@@ -26,7 +26,7 @@ These contracts are responsible for:
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
-- Component identity is read through `getComponentIdentity()`. Legacy injected `__eco` metadata remains supported while integrations migrate, so ownership and dependency diagnostics retain stable file attribution.
+- Component identity is injected as `config.identity` and read through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
 
 ## Lifecycle Summary
 

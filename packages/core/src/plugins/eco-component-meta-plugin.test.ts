@@ -114,7 +114,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/settings.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('identity:');
 	});
 
 	it('does not attribute manually shaped components', async () => {
@@ -296,7 +296,7 @@ export const Thing = other.component({
 		const result = await runPluginOnContent(content, '/path/to/thing.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('identity:');
 	});
 
 	it('should not inject into non-config variable declarations', async () => {
@@ -309,7 +309,7 @@ const settings = {
 		const result = await runPluginOnContent(content, '/path/to/settings.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('identity:');
 	});
 
 	it('should handle file paths with special characters in directory', async () => {

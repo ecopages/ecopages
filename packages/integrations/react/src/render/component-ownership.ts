@@ -20,12 +20,11 @@ export type RequiresAwareComponent = {
  * Reads the declared integration name for a component or layout.
  *
  * @remarks
- * Honors both the explicit `config.integration` override and injected
- * `config.__eco.integration` metadata because pages can arrive through authored
- * config as well as build-time component metadata.
+ * Honors both the explicit `config.integration` override and build-time
+ * `config.identity.integration` attribution.
  */
 export function getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
-	return component?.config?.integration ?? component?.config?.__eco?.integration;
+	return component?.config?.integration ?? component?.config?.identity?.integration;
 }
 
 /**

@@ -244,7 +244,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'component-id',
 					file: pageFilePath,
 					integration: 'react',
@@ -278,7 +278,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'component-id',
 					file: pageFilePath,
 					integration: 'react',
@@ -308,7 +308,7 @@ describe('ReactRenderer', () => {
 				children?: React.ReactNode;
 			}>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'component-id',
 					file: pageFilePath,
 					integration: 'react',
@@ -336,7 +336,7 @@ describe('ReactRenderer', () => {
 				locals?: unknown;
 			}>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'component-id',
 					file: pageFilePath,
 					integration: 'react',
@@ -402,7 +402,7 @@ describe('ReactRenderer', () => {
 			});
 
 			const DeferredShell = eco.component<{ children?: React.ReactNode }, string>({
-				__eco: {
+				identity: {
 					id: 'deferred-shell',
 					file: '/app/components/deferred-shell.deferred.tsx',
 					integration: 'deferred',
@@ -452,7 +452,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 			Component.config = {
-				__eco: {
+				identity: {
 					id: 'component-id',
 					file: pageFilePath,
 					integration: 'react',
@@ -782,7 +782,7 @@ describe('ReactRenderer', () => {
 		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
 		const DeferredWidget = eco.component<{}, string>({
-			__eco: {
+			identity: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.tsx',
 				integration: 'deferred',
@@ -872,7 +872,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 			MockView.config = {
-				__eco: {
+				identity: {
 					id: 'mock-view',
 					file: pageFilePath,
 					integration: 'react',
@@ -941,7 +941,7 @@ describe('ReactRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component<{}, string>({
-				__eco: {
+				identity: {
 					id: 'deferred-widget-partial',
 					file: '/app/components/deferred-widget-partial.deferred.tsx',
 					integration: 'deferred',
@@ -1033,7 +1033,7 @@ describe('ReactRenderer', () => {
 			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
 			const DeferredWidget = eco.component<{}, string>({
-				__eco: {
+				identity: {
 					id: 'deferred-widget-view',
 					file: '/app/components/deferred-widget-view.deferred.tsx',
 					integration: 'deferred',

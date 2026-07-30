@@ -7,7 +7,7 @@ export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-co
 /**
  * @remarks
  * Declared components are produced by `eco.component()`, `eco.layout()`, and
- * `eco.html()` after the component-meta plugin injects `config.__eco`.
+ * `eco.html()` after the component identity transform binds `config.identity`.
  */
 export function isEcoDeclaredComponent(component: unknown): component is EcoDeclaredComponent {
 	return (
@@ -18,7 +18,7 @@ export function isEcoDeclaredComponent(component: unknown): component is EcoDecl
 }
 
 /**
- * @throws {UndeclaredComponentDependencyError} When the value lacks `config.__eco`.
+ * @throws {UndeclaredComponentDependencyError} When the value lacks `config.identity`.
  */
 export function assertEcoDeclaredComponent(
 	component: unknown,

@@ -393,7 +393,7 @@ export type EcoComponentDependencies = {
 	/**
 	 * Child components whose assets and foreign-child graph are collected transitively.
 	 * Each entry must be an `eco.component()`, `eco.layout()`, or `eco.html()` result
-	 * with plugin-injected `config.__eco` metadata.
+	 * with plugin-injected `config.identity` metadata.
 	 */
 	components?: EcoDeclaredComponent[];
 };
@@ -403,7 +403,7 @@ export type EcoComponentDependencies = {
  *
  * @remarks
  * Used for `dependencies.components` and eco factory return types. Plugin-injected
- * `config.__eco` is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
+ * `config.identity` is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
  */
 export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R>;
 
@@ -442,25 +442,9 @@ export type EcoPagesConfig = Omit<
 > &
 	Pick<EcoPagesAppConfig, 'baseUrl' | 'rootDir'>;
 
-/**
- * Internal metadata injected by eco-component-meta-plugin.
- * Contains component file path and integration info for dependency resolution.
- * @internal
- */
-export interface EcoInjectedMeta {
-	/** Hashed identifier for client-side use (doesn't expose file paths) */
-	id: string;
-	/** Full file path of the component (use path.dirname() to get directory) */
-	file: string;
-	/** The integration identifier (e.g., 'react', 'kitajs', 'lit', 'ghtml', 'mdx') */
-	integration: string;
-}
-
 export type EcoComponentConfig = {
 	/** Canonical integration, module, and stable component attribution. */
 	identity?: ComponentIdentity;
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
 	/**
 	 * Explicit integration override for this component.
 	 * When provided, this takes precedence over auto-detected integration metadata.

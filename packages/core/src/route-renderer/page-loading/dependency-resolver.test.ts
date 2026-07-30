@@ -51,7 +51,7 @@ describe('DependencyResolverService', () => {
 
 		const component = ((_) => '<table></table>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'table',
 				integration: 'react',
 				file: '/app/components/table/table.tsx',
@@ -109,7 +109,7 @@ describe('DependencyResolverService', () => {
 			const service = new DependencyResolverService(appConfig, assetProcessingService);
 			const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 			component.config = {
-				__eco: {
+				identity: {
 					id: 'module-order',
 					integration: 'react',
 					file: '/app/components/module-order/component.tsx',
@@ -155,7 +155,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'component',
 				integration: 'react',
 				file: componentFile,
@@ -198,7 +198,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'imported-script',
 				integration: 'ecopages-jsx',
 				file: componentFile,
@@ -276,7 +276,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'imported-lazy-script',
 				integration: 'ecopages-jsx',
 				file: componentFile,
@@ -330,7 +330,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'undeclared-import',
 				integration: 'ecopages-jsx',
 				file: componentFile,
@@ -367,7 +367,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'attrs-inline',
 				integration: 'react',
 				file: '/app/components/attrs-inline/component.tsx',
@@ -469,7 +469,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(bundleAppConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'page-bundle',
 				integration: 'react',
 				file: componentFile,
@@ -541,7 +541,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(bundleAppConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'page-style-dev',
 				integration: 'react',
 				file: componentFile,
@@ -591,7 +591,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'invalid-lazy-entry',
 				integration: 'react',
 				file: '/app/components/invalid-lazy-entry/component.tsx',
@@ -636,7 +636,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'multi-lazy-groups',
 				integration: 'lit',
 				file: '/app/components/multi-lazy-groups/component.tsx',
@@ -678,7 +678,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'html-shell',
 				integration: 'react',
 				file: '/app/includes/html.tsx',
@@ -725,7 +725,7 @@ describe('DependencyResolverService', () => {
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const nestedComponent = ((_) => '<button></button>') as EcoComponent<Record<string, unknown>>;
 		nestedComponent.config = {
-			__eco: {
+			identity: {
 				id: 'theme-toggle',
 				integration: 'react',
 				file: '/app/components/theme-toggle.tsx',
@@ -737,7 +737,7 @@ describe('DependencyResolverService', () => {
 
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'page',
 				integration: 'kitajs',
 				file: '/app/views/page.tsx',
@@ -768,7 +768,7 @@ describe('DependencyResolverService', () => {
 		const plainChild = (() => '<child />') as EcoComponent;
 		const component = ((_) => '<parent></parent>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
-			__eco: {
+			identity: {
 				id: 'parent',
 				integration: 'kitajs',
 				file: '/app/components/parent.kita.tsx',

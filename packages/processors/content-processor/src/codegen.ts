@@ -60,11 +60,11 @@ function attachMdxExports(module: ContentMdxModule, sourceFile: string): EcoComp
 		component.config = {
 			...component.config,
 			...module.config,
-			__eco: {
-				...(component.config?.__eco ?? module.config.__eco),
-				id: module.config.__eco?.id ?? component.config?.__eco?.id ?? sourceFile,
+			identity: {
+				...(component.config?.identity ?? module.config.identity),
+				id: module.config.identity?.id ?? component.config?.identity?.id ?? sourceFile,
 				file: sourceFile,
-				integration: module.config.__eco?.integration ?? component.config?.__eco?.integration ?? 'content',
+				integration: module.config.identity?.integration ?? component.config?.identity?.integration ?? 'content',
 			},
 		};
 	}

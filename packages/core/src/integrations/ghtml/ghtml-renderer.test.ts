@@ -147,7 +147,7 @@ describe('GhtmlRenderer', () => {
 		});
 		DeferredWidget.config = {
 			...DeferredWidget.config,
-			__eco: {
+			identity: {
 				id: 'deferred-widget',
 				file: '/app/components/deferred-widget.deferred.ts',
 				integration: 'deferred',

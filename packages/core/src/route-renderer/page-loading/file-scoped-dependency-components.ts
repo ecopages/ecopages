@@ -5,7 +5,7 @@ import { rapidhash } from '../../utils/hash.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 
 /**
- * Attaches file-backed `__eco` metadata to one component config.
+ * Attaches canonical file-backed identity to one component config.
  */
 export function attachEcoFileMetadataToConfig(
 	config: EcoComponentConfig,
@@ -18,11 +18,6 @@ export function attachEcoFileMetadataToConfig(
 			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
 			file: ownerFile,
 			integration: getComponentIdentity(config)?.integration ?? integrationName,
-		},
-		__eco: {
-			id: config.__eco?.id ?? rapidhash(ownerFile).toString(36),
-			file: ownerFile,
-			integration: config.__eco?.integration ?? integrationName,
 		},
 	};
 }
@@ -82,7 +77,7 @@ export type CollectComponentConfigFilePathsOptions = {
 };
 
 /**
- * Walks component configs and collects every resolved `config.__eco.file` path.
+ * Walks component configs and collects every resolved `config.identity.file` path.
  */
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,

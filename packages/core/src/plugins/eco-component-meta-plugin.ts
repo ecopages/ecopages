@@ -20,7 +20,20 @@ function integrationForFile(filePath: string, config: EcoPagesAppConfig): Integr
 }
 
 function isIdentifierCharacter(value: string | undefined): boolean {
-	return Boolean(value && /[A-Za-z0-9_$]/.test(value));
+	return Boolean(value && 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$'.includes(value));
+}
+
+function isWhitespace(value: string | undefined): boolean {
+	return value === ' ' || value === '\t' || value === '\n' || value === '\r';
+}
+
+function readFactoryName(source: string, start: number): string | undefined {
+	for (const name of ['page', 'component', 'layout', 'html']) {
+		if (source.startsWith(name, start) && !isIdentifierCharacter(source[start + name.length])) {
+			return name;
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -69,10 +82,10 @@ function findFactoryObjectStarts(source: string): number[] {
 	const starts: number[] = [];
 	for (let index = 0; index < source.length; index += 1) {
 		if (!source.startsWith('eco.', index) || isIdentifierCharacter(source[index - 1])) continue;
-		const match = /^(page|component|layout|html)\b/.exec(source.slice(index + 4));
-		if (!match) continue;
-		let cursor = index + 4 + match[0].length;
-		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		const factoryName = readFactoryName(source, index + 4);
+		if (!factoryName) continue;
+		let cursor = index + 4 + factoryName.length;
+		while (isWhitespace(source[cursor])) cursor += 1;
 		if (source[cursor] === '<') {
 			let genericDepth = 0;
 			while (cursor < source.length) {
@@ -85,11 +98,11 @@ function findFactoryObjectStarts(source: string): number[] {
 			}
 			if (genericDepth !== 0) continue;
 			cursor += 1;
-			while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+			while (isWhitespace(source[cursor])) cursor += 1;
 		}
 		if (source[cursor] !== '(') continue;
 		cursor += 1;
-		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		while (isWhitespace(source[cursor])) cursor += 1;
 		if (source[cursor] === '{') starts.push(cursor);
 	}
 	return starts;
@@ -100,10 +113,10 @@ function findConfigAssignmentObjectStarts(source: string): number[] {
 	for (let index = 0; index < source.length; index += 1) {
 		if (!source.startsWith('.config', index)) continue;
 		let cursor = index + '.config'.length;
-		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		while (isWhitespace(source[cursor])) cursor += 1;
 		if (source[cursor] !== '=') continue;
 		cursor += 1;
-		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		while (isWhitespace(source[cursor])) cursor += 1;
 		if (source[cursor] === '{') starts.push(cursor);
 	}
 	return starts;

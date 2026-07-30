@@ -53,7 +53,7 @@ import { componentIdentityFromMeta } from './component-identity.ts';
  * @returns Configured eco component.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
-	const integrationName = options.integration ?? options.__eco?.integration;
+	const integrationName = options.integration ?? options.identity?.integration ?? options.__eco?.integration;
 	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
@@ -89,7 +89,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 			integrationName !== activeRenderContext.currentIntegration
 		) {
 			throw new Error(
-				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.__eco?.file ?? 'unknown component'}.`,
+				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.identity?.file ?? options.__eco?.file ?? 'unknown component'}.`,
 			);
 		}
 
@@ -97,7 +97,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 	}) as EcoDeclaredComponent<P, E>;
 
 	comp.config = {
-		identity: componentIdentityFromMeta(options.__eco),
+		identity: options.identity ?? componentIdentityFromMeta(options.__eco),
 		__eco: options.__eco,
 		integration: options.integration,
 		dependencies: options.dependencies,
@@ -215,6 +215,7 @@ function page<T, E>(
 			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
+		identity: options.identity,
 		__eco: options.__eco,
 		integration: options.integration,
 		dependencies: staticDependencies,

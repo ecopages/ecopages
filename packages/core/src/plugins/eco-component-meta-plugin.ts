@@ -123,6 +123,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		enforce: 'pre',
 		filter,
 		transform(code, id) {
+			if (id.endsWith('.mdx')) return { code };
 			const integration = integrationForFile(id, options.config);
 			return { code: prependJsxImportSourceIfMissing(injectEcoMeta(code, id, integration.name), integration.jsxImportSource) };
 		},

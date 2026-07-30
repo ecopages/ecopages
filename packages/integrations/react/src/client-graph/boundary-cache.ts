@@ -17,6 +17,14 @@
  * The cache is content-hashed (via `rapidhash`) so a `touch`/`utimes`
  * does not invalidate a still-valid entry.
  *
+ * Cache identity is `(filePath, source, allowListRules, inboundRules)`.
+ * Allow-list hashing includes each package's permitted exports, not just
+ * package names — otherwise `node:fs{readFileSync}` and
+ * `node:fs{writeFileSync}` would collide.
+ *
+ * Modules that inline external file contents (`readFileSync` rewrite) are
+ * not stored: their output depends on files outside the importer source.
+ *
  * **`rulesAdded` semantics:** the map holds the **after-state** of
  * every registry key this transform touched — both newly added keys
  * and keys that were grown (Set union) or promoted to `'*'`. On
@@ -32,6 +40,9 @@ import { rapidhash } from '@ecopages/core/utils/hash';
 const DEFAULT_MAX_ENTRIES = 5_000;
 
 export type RequestedExportRules = Set<string> | '*';
+
+/** Globally declared modules with their permitted export rules. */
+export type ClientGraphAllowList = ReadonlyMap<string, RequestedExportRules>;
 
 export type CachedTransform = {
 	/** Hash of the source string at the time the transform was cached. */
@@ -69,9 +80,10 @@ function cloneRules(rules: RequestedExportRules): RequestedExportRules {
  * LRU-bounded cache for client-graph-boundary transform results.
  *
  * One instance is owned by the React plugin for the app's lifetime and
- * shared across all builds. The cache key is `(filePath, source, allowList)`
- * so a file whose source or whose global allow list changes gets a fresh
- * entry, while everything else hits.
+ * shared across all builds. The cache key is
+ * `(filePath, source, allowListRules, inboundRules)` so a file whose
+ * source, allow-list export rules, or inbound requested exports change
+ * gets a fresh entry.
  */
 export class ClientGraphBoundaryCache {
 	private readonly entries = new Map<string, CachedTransform>();
@@ -89,18 +101,17 @@ export class ClientGraphBoundaryCache {
 	/**
 	 * Look up a cached transform for `filePath`.
 	 *
-	 * Returns `undefined` if the source or allow list has changed since
-	 * the entry was stored. The caller is responsible for re-running the
-	 * transform in that case and calling `set` to update the entry.
+	 * Returns `undefined` if the source, allow-list rules, or inbound
+	 * requested exports have changed since the entry was stored.
 	 */
 	get(
 		filePath: string,
 		source: string,
-		globallyAllowedSpecifiers: Iterable<string>,
+		allowList: ClientGraphAllowList,
 		inboundRules?: RequestedExportRules,
 	): CachedTransform | undefined {
 		const sourceHash = rapidhash(source);
-		const allowListHash = hashAllowList(globallyAllowedSpecifiers);
+		const allowListHash = hashAllowList(allowList);
 		const inboundRulesHash = hashRequestedExportRules(inboundRules);
 
 		const existing = this.entries.get(filePath);
@@ -111,7 +122,6 @@ export class ClientGraphBoundaryCache {
 			existing.inboundRulesHash === inboundRulesHash
 		) {
 			this.hits += 1;
-			// Refresh LRU position.
 			this.entries.delete(filePath);
 			this.entries.set(filePath, existing);
 			return existing;
@@ -131,12 +141,12 @@ export class ClientGraphBoundaryCache {
 	set(
 		filePath: string,
 		source: string,
-		globallyAllowedSpecifiers: Iterable<string>,
+		allowList: ClientGraphAllowList,
 		entry: Omit<CachedTransform, 'sourceHash' | 'allowListHash' | 'inboundRulesHash'>,
 		inboundRules?: RequestedExportRules,
 	): void {
 		const sourceHash = rapidhash(source);
-		const allowListHash = hashAllowList(globallyAllowedSpecifiers);
+		const allowListHash = hashAllowList(allowList);
 		const inboundRulesHash = hashRequestedExportRules(inboundRules);
 
 		const rulesAddedCopy = new Map<string, RequestedExportRules>();
@@ -172,8 +182,7 @@ export class ClientGraphBoundaryCache {
 	}
 
 	/**
-	 * Invalidate every file whose key matches a prefix. Useful for
-	 * "anything under `src/pages/` changed" signals.
+	 * Invalidate every file whose key matches a predicate.
 	 */
 	invalidateMatching(predicate: (filePath: string) => boolean): number {
 		let removed = 0;
@@ -211,13 +220,20 @@ export class ClientGraphBoundaryCache {
 }
 
 /**
- * Hash a list of globally-allowed specifiers. The order of iteration
- * must be stable for the hash to be deterministic; we sort before
- * hashing.
+ * Hash allow-list package names together with each package's permitted exports.
  */
-function hashAllowList(specifiers: Iterable<string>): number | bigint {
-	const sorted = Array.from(specifiers).sort();
-	return rapidhash(sorted.join('\n'));
+export function hashAllowList(allowList: ClientGraphAllowList): number | bigint {
+	const lines: string[] = [];
+	for (const packageName of Array.from(allowList.keys()).sort()) {
+		const rules = allowList.get(packageName);
+		if (rules === '*') {
+			lines.push(`${packageName}=*`);
+			continue;
+		}
+		const named = rules ? Array.from(rules).sort().join(',') : '';
+		lines.push(`${packageName}={${named}}`);
+	}
+	return rapidhash(lines.join('\n'));
 }
 
 function hashRequestedExportRules(rules: RequestedExportRules | undefined): number | bigint {

@@ -5,7 +5,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
+import { dirname, extname, resolve, sep } from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { ClientGraphBoundaryCache, type CachedTransform } from './boundary-cache.ts';
 import type { RequestedExportRules } from './boundary-cache.ts';
@@ -69,13 +69,6 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 				globallyDeclaredSources.set(toModuleBaseSpecifier(alwaysAllow), '*');
 			}
 
-			/**
-			 * Stable list of globally-allowed specifiers, used as part of
-			 * the cache key. Sorted on construction so iteration order is
-			 * deterministic for hashing.
-			 */
-			const allowListForCache = Array.from(globallyDeclaredSources.keys()).sort();
-
 			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) => {
 				const category = classifyClientGraphModule(args.path, options?.projectRoot);
 				if (category === 'package' || category === 'vendored' || category === 'virtual') {
@@ -90,15 +83,14 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 
 				/**
 				 * Fast path: if the cache has a transform result for this
-				 * exact (filePath, source, allowList) tuple, replay the
-				 * captured `rulesAdded` into the live registry and return
-				 * the cached transformed source. Skips the entire
-				 * `parseSync` + AST walk on a no-op rebuild.
+				 * exact (filePath, source, allowListRules, inboundRules) tuple,
+				 * replay the captured `rulesAdded` into the live registry and
+				 * return the cached transformed source.
 				 */
 				const inboundRules = requestedExports.get(normalizeRequestedExportsKey(args.path));
 				if (cache) {
 					const cacheStartedAt = performance.now();
-					const cached = cache.get(args.path, source, allowListForCache, inboundRules);
+					const cached = cache.get(args.path, source, globallyDeclaredSources, inboundRules);
 					recordModuleTransformProfile({
 						category,
 						phase: 'cache-lookup',
@@ -117,17 +109,17 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 
 				let transformed = source;
 				let modified = false;
+				let inlinedExternalFile = false;
 
 				if (source.includes('readFileSync')) {
 					const readFileTransformed = transformed.replace(
 						/\bfs\.readFileSync\s*\(\s*path\.resolve\s*\(\s*(['"`])([^'"`\n]+)\1\s*\)\s*,\s*['"`]utf-?8['"`]\s*\)/g,
 						(_match, _q, relPath) => {
 							modified = true;
+							inlinedExternalFile = true;
 							try {
 								const sourceDir = dirname(args.path);
-								const srcDirIndex = args.path.lastIndexOf('/src/');
-								const inferredProjectRoot =
-									srcDirIndex >= 0 ? args.path.slice(0, srcDirIndex) : undefined;
+								const inferredProjectRoot = inferProjectRootFromSourcePath(args.path);
 								const candidates = [
 									resolve(absWorkingDir, relPath),
 									resolve(process.cwd(), relPath),
@@ -175,8 +167,11 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					transformed = oxcTransformed;
 				}
 
-				// Build the rulesAdded diff for cache storage.
-				if (cache) {
+				/**
+				 * Skip persistent cache when the transform inlined another file:
+				 * output depends on content outside the importer source hash.
+				 */
+				if (cache && !inlinedExternalFile) {
 					const rulesAdded = new Map<string, RequestedExportRules>();
 					for (const [key, afterRules] of requestedExports) {
 						const beforeRules = registryBefore.get(key);
@@ -189,7 +184,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 						modified,
 						rulesAdded,
 					};
-					cache.set(args.path, source, allowListForCache, entry, inboundRules);
+					cache.set(args.path, source, globallyDeclaredSources, entry, inboundRules);
 				}
 
 				if (!modified) return undefined;
@@ -199,4 +194,11 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 			});
 		},
 	};
+}
+
+function inferProjectRootFromSourcePath(filePath: string): string | undefined {
+	const parts = filePath.split(/[\\/]/);
+	const srcIndex = parts.lastIndexOf('src');
+	if (srcIndex <= 0) return undefined;
+	return parts.slice(0, srcIndex).join(sep);
 }

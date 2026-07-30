@@ -11,24 +11,8 @@
  * by the browser to hydrate the page, and which imports are unused on the client (and thus can be pruned).
  */
 
-import { parseSync } from 'oxc-parser';
-import { extname } from 'node:path';
-
-type ParserLanguage = 'js' | 'jsx' | 'ts' | 'tsx';
-
-/**
- * Determines the appropriate parser language configuration for a given file name.
- *
- * @param filename - The absolute or relative path to the file.
- * @returns The Oxc parser language dialect to use ('js', 'jsx', 'ts', or 'tsx').
- */
-export function parserLanguageForFile(filename: string): ParserLanguage {
-	const extension = extname(filename).toLowerCase();
-	if (extension === '.tsx') return 'tsx';
-	if (extension === '.ts') return 'ts';
-	if (extension === '.jsx') return 'jsx';
-	return 'js';
-}
+import { parseModuleSource } from '@ecopages/core/cache';
+import type { ParseResult } from 'oxc-parser';
 
 /**
  * Represents the computed results of a reachability analysis pass.
@@ -82,7 +66,7 @@ type ExplicitlyRequestedExports = Set<string> | '*';
 export function analyzeReachability(
 	source: string,
 	filename: string,
-	program?: ReturnType<typeof parseSync>['program'],
+	program?: ParseResult['program'],
 	explicitlyRequestedExports?: ExplicitlyRequestedExports,
 ): ReachabilityResult {
 	/**
@@ -92,17 +76,14 @@ export function analyzeReachability(
 	 * pipeline), we reuse it directly to avoid double-parsing the same source text.
 	 * Otherwise we parse here and return early with an empty "unanalyzed" result on failure.
 	 */
-	let resolvedProgram: ReturnType<typeof parseSync>['program'];
+	let resolvedProgram: ParseResult['program'];
 
 	if (program) {
 		resolvedProgram = program;
 	} else {
 		let result;
 		try {
-			result = parseSync(filename, source, {
-				sourceType: 'module',
-				lang: parserLanguageForFile(filename),
-			});
+			result = parseModuleSource(filename, source);
 		} catch {
 			return {
 				reachableImports: new Map(),

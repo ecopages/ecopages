@@ -36,6 +36,14 @@ describe('ModuleParseCache', () => {
 		expect(b).not.toBe(a);
 	});
 
+	it('normalizes omitted source options to the same cache entry', () => {
+		const cache = new ModuleParseCache();
+		const source = 'export const Component = <div />;';
+		const implicit = cache.getOrParse('/component.jsx', source);
+		const explicit = cache.getOrParse('/component.jsx', source, { lang: 'jsx', sourceType: 'module' });
+		expect(explicit).toBe(implicit);
+	});
+
 	it('evicts oldest entry when capacity exceeded', () => {
 		const cache = new ModuleParseCache(2);
 		cache.getOrParse('/a.ts', 'a');

@@ -2,8 +2,7 @@
  * AST transforms for the client graph boundary plugin.
  */
 
-import { extname } from 'node:path';
-import { cachedParseSync } from '@ecopages/core/cache';
+import { parseModuleSource } from '@ecopages/core/cache';
 import type { RequestedExportRules } from './boundary-cache.ts';
 import { analyzeReachability } from './reachability-analyzer.ts';
 import {
@@ -27,19 +26,6 @@ const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 	'staticPaths',
 ]);
 
-/**
- * Returns the proper OxC parser dialect to use for string source parsing.
- *
- * @param filename - File path.
- * @returns Language string.
- */
-function parserLanguageForFile(filename: string): 'js' | 'jsx' | 'ts' | 'tsx' {
-	const extension = extname(filename).toLowerCase();
-	if (extension === '.tsx') return 'tsx';
-	if (extension === '.ts') return 'ts';
-	if (extension === '.jsx') return 'jsx';
-	return 'js';
-}
 
 /**
  * Extracts a static property key name from an object literal property node.
@@ -155,6 +141,7 @@ export function transformModuleImports(
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
 	projectRoot?: string,
+	stripServerOnlyPageOptions = false,
 ): { transformed: string; modified: boolean } {
 	/**
 	 * Parse the source
@@ -166,10 +153,7 @@ export function transformModuleImports(
 	 */
 	let result;
 	try {
-		result = cachedParseSync(filename, source, {
-			sourceType: 'module',
-			lang: parserLanguageForFile(filename),
-		});
+		result = parseModuleSource(filename, source);
 	} catch {
 		return { transformed: source, modified: false };
 	}
@@ -470,7 +454,7 @@ export function transformModuleImports(
 	walkImports(program);
 
 	if (edits.length === 0) {
-		return stripServerOnlyEcoPageOptions(source, program);
+		return stripServerOnlyPageOptions ? stripServerOnlyEcoPageOptions(source, program) : { transformed: source, modified: false };
 	}
 
 	edits.sort((a, b) => b.start - a.start);
@@ -481,15 +465,14 @@ export function transformModuleImports(
 
 	let reparsedResult;
 	try {
-		reparsedResult = cachedParseSync(filename, transformed, {
-			sourceType: 'module',
-			lang: parserLanguageForFile(filename),
-		});
+		reparsedResult = parseModuleSource(filename, transformed);
 	} catch {
 		return { transformed, modified: true };
 	}
 
-	const strippedPageOptions = stripServerOnlyEcoPageOptions(transformed, reparsedResult.program);
+	const strippedPageOptions = stripServerOnlyPageOptions
+		? stripServerOnlyEcoPageOptions(transformed, reparsedResult.program)
+		: { transformed, modified: false };
 	if (strippedPageOptions.modified) {
 		return strippedPageOptions;
 	}

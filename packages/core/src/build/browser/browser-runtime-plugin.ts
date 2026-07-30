@@ -23,7 +23,7 @@
 import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
-import { cachedParseSync } from '../../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import type { EcoBuildLoader, EcoBuildPlugin } from '../contracts/build-types.ts';
 import { getBrowserRuntimeSpecifierMap, type BrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import { buildSpecifierFilter } from './browser-runtime-plugin-helpers.ts';
@@ -139,10 +139,7 @@ export function rewriteBrowserRuntimeImports(
 	const edits: Edit[] = [];
 
 	try {
-		const result = cachedParseSync(filePath, code, {
-			sourceType: 'module',
-			lang: path.extname(filePath).endsWith('x') ? 'tsx' : 'ts',
-		});
+		const result = parseModuleSource(filePath, code);
 
 		const walk = (node: unknown) => {
 			if (!isRecord(node)) {

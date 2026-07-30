@@ -24,7 +24,7 @@ export function collectIntegrationNamesFromGraph(
 		roots: toGraphRoots(components),
 		currentIntegrationName,
 		onComponent: ({ component }) => {
-			const integrationName = component.config?.integration ?? getComponentIdentity(component)?.integration;
+			const integrationName = getComponentIdentity(component)?.integration ?? component.config?.integration;
 			if (integrationName) {
 				integrationNames.add(integrationName);
 			}
@@ -66,7 +66,7 @@ export function hasForeignChildDescendantsInGraph(component: EcoComponent, curre
 			}
 
 			const integrationName =
-				currentComponent.config?.integration ?? getComponentIdentity(currentComponent)?.integration;
+				getComponentIdentity(currentComponent)?.integration ?? currentComponent.config?.integration;
 			if (integrationName && integrationName !== currentIntegrationName) {
 				foundForeign = true;
 				return false;

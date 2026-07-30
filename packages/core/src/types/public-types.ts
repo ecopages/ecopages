@@ -393,7 +393,7 @@ export type EcoComponentDependencies = {
 	/**
 	 * Child components whose assets and foreign-child graph are collected transitively.
 	 * Each entry must be an `eco.component()`, `eco.layout()`, or `eco.html()` result
-	 * with plugin-injected `config.identity` metadata.
+	 * with bound component identity.
 	 */
 	components?: EcoDeclaredComponent[];
 };
@@ -402,8 +402,8 @@ export type EcoComponentDependencies = {
  * Component returned from `eco.component()`, `eco.layout()`, or `eco.html()`.
  *
  * @remarks
- * Used for `dependencies.components` and eco factory return types. Plugin-injected
- * `config.identity` is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
+ * Used for `dependencies.components` and eco factory return types. Bound
+ * component identity is enforced at runtime via `isEcoDeclaredComponent()`, not by this alias.
  */
 export type EcoDeclaredComponent<P = any, R = any> = EcoComponent<P, R>;
 

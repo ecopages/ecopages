@@ -1,22 +1,10 @@
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import type { GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 import { BaseLayout } from '../../layouts/base-layout';
 
 export type BlogPostProps = {
 	slug: string;
-};
-
-const BlogPost: EcoComponent<PageProps<BlogPostProps>> = ({ query, slug }) =>
-	html`!${BaseLayout({
-		children: html`<div>
-			<h1>Blog Post ${slug} !${JSON.stringify(query || [])}</h1>
-		</div>`,
-	})}`;
-
-BlogPost.config = {
-	dependencies: {
-		components: [BaseLayout],
-	},
 };
 
 export const getStaticPaths: GetStaticPaths = async () => {
@@ -40,4 +28,14 @@ export const getMetadata: GetMetadata<BlogPostProps> = async ({ params }) => {
 	};
 };
 
-export default BlogPost;
+export default eco.page<PageProps<BlogPostProps>>({
+	dependencies: {
+		components: [BaseLayout],
+	},
+	render: ({ query, slug }) =>
+		html`!${BaseLayout({
+			children: html`<div>
+				<h1>Blog Post ${slug} !${JSON.stringify(query || [])}</h1>
+			</div>`,
+		})}`,
+});

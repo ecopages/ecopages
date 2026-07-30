@@ -1,4 +1,5 @@
 import type { EcoComponent, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
+import { getComponentIdentity } from '../../../eco/component-identity.ts';
 
 export type DeclaredOwnershipRoot = {
 	component: EcoComponent;
@@ -50,7 +51,8 @@ export function walkComponentGraph(input: {
 		}
 
 		seenComponents.add(ecoComponent);
-		const integrationName = ecoComponent.config?.integration ?? ecoComponent.config?.identity?.integration ?? parentIntegrationName;
+		const identity = getComponentIdentity(ecoComponent);
+		const integrationName = ecoComponent.config?.integration ?? identity?.integration ?? parentIntegrationName;
 
 		if (input.onConfig && ecoComponent.config && !seenConfigs.has(ecoComponent.config)) {
 			seenConfigs.add(ecoComponent.config);
@@ -123,10 +125,10 @@ export function mapComponentGraph<T>(input: {
 		parentIntegrationName: string,
 		lineage: Set<object>,
 	): T => {
-		const integrationName = component.config?.integration ?? component.config?.identity?.integration ?? parentIntegrationName;
-		const componentMeta = component.config?.identity;
+		const identity = getComponentIdentity(component);
+		const integrationName = component.config?.integration ?? identity?.integration ?? parentIntegrationName;
 		const isForeignToParent = integrationName !== parentIntegrationName;
-		const componentId = componentMeta?.id ?? componentMeta?.file ?? `${source}:${(nextSyntheticId += 1)}`;
+		const componentId = identity?.id ?? identity?.file ?? `${source}:${(nextSyntheticId += 1)}`;
 
 		const nextLineage = new Set(lineage);
 		nextLineage.add(component);

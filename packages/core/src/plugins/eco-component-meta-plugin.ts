@@ -3,6 +3,7 @@ import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
 import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 
 type IntegrationOwnership = { name: string; jsxImportSource?: string };
@@ -19,163 +20,115 @@ function integrationForFile(filePath: string, config: EcoPagesAppConfig): Integr
 	return match ? { name: match[1].name, jsxImportSource: match[1].jsxImportSource } : { name: 'ghtml' };
 }
 
-function isIdentifierCharacter(value: string | undefined): boolean {
-	return Boolean(value && 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$'.includes(value));
+type AstNode = {
+	type?: string;
+	start?: number;
+	end?: number;
+	[key: string]: unknown;
+};
+
+type SourceEdit = { start: number; end: number; replacement: string };
+
+function isAstNode(value: unknown): value is AstNode {
+	return typeof value === 'object' && value !== null;
 }
 
-function isWhitespace(value: string | undefined): boolean {
-	return value === ' ' || value === '\t' || value === '\n' || value === '\r';
+function isEcoFactoryCall(node: AstNode): boolean {
+	if (node.type !== 'CallExpression' || !isAstNode(node.callee)) return false;
+	const callee = node.callee;
+	if (callee.type !== 'MemberExpression' && callee.type !== 'StaticMemberExpression') return false;
+	if (!isAstNode(callee.object) || callee.object.type !== 'Identifier' || callee.object.name !== 'eco') return false;
+	if (!isAstNode(callee.property) || callee.property.type !== 'Identifier') return false;
+	return ['page', 'component', 'layout', 'html'].includes(String(callee.property.name));
 }
 
-function readFactoryName(source: string, start: number): string | undefined {
-	for (const name of ['page', 'component', 'layout', 'html']) {
-		if (source.startsWith(name, start) && !isIdentifierCharacter(source[start + name.length])) {
-			return name;
-		}
-	}
-	return undefined;
+function isIdentityBinding(node: unknown): boolean {
+	if (!isAstNode(node) || node.type !== 'CallExpression' || !isAstNode(node.callee)) return false;
+	return node.callee.type === 'Identifier' && node.callee.name === 'bindComponentIdentity';
 }
 
-function skipNonCode(source: string, start: number): number | undefined {
-	const character = source[start];
-	const next = source[start + 1];
-	if (character === '/' && next === '/') {
-		const lineEnd = source.indexOf('\n', start + 2);
-		return lineEnd < 0 ? source.length : lineEnd;
+function walkAst(node: unknown, visit: (node: AstNode) => void): void {
+	if (Array.isArray(node)) {
+		for (const child of node) walkAst(child, visit);
+		return;
 	}
-	if (character === '/' && next === '*') {
-		const commentEnd = source.indexOf('*/', start + 2);
-		return commentEnd < 0 ? source.length : commentEnd + 1;
-	}
-	if (character !== '"' && character !== "'" && character !== '`') {
-		return undefined;
-	}
-	for (let index = start + 1; index < source.length; index += 1) {
-		if (source[index] === '\\') {
-			index += 1;
-			continue;
-		}
-		if (source[index] === character) {
-			return index;
-		}
-	}
-	return source.length;
+	if (!isAstNode(node)) return;
+	visit(node);
+	for (const value of Object.values(node)) walkAst(value, visit);
 }
 
-/**
- * Finds the matching closing delimiter without treating comments, strings, or
- * template literals as source syntax.
- */
-function findClosingDelimiter(source: string, start: number, open: string, close: string): number | undefined {
-	let depth = 0;
-	let quote: string | undefined;
-	for (let index = start; index < source.length; index += 1) {
-		const character = source[index];
-		const next = source[index + 1];
-		if (quote) {
-			if (character === '\\') {
-				index += 1;
-			} else if (character === quote) {
-				quote = undefined;
-			}
-			continue;
-		}
-		if (character === '/' && next === '/') {
-			index = source.indexOf('\n', index + 2);
-			if (index < 0) return undefined;
-			continue;
-		}
-		if (character === '/' && next === '*') {
-			index = source.indexOf('*/', index + 2);
-			if (index < 0) return undefined;
-			index += 1;
-			continue;
-		}
-		if (character === '"' || character === "'" || character === '`') {
-			quote = character;
-			continue;
-		}
-		if (character === open) depth += 1;
-		if (character === close) {
-			depth -= 1;
-			if (depth === 0) return index;
-		}
+function addIdentityBindingImport(contents: string, program: AstNode): string {
+	const imports = (program.body as unknown[]).filter(
+		(node): node is AstNode =>
+			isAstNode(node) &&
+			node.type === 'ImportDeclaration' &&
+			isAstNode(node.source) &&
+			node.source.value === '@ecopages/core',
+	);
+	const valueImport = imports.find((node) => node.importKind !== 'type');
+	if (!valueImport) return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
+
+	const specifiers = Array.isArray(valueImport.specifiers) ? valueImport.specifiers.filter(isAstNode) : [];
+	if (
+		specifiers.some(
+			(specifier) =>
+				specifier.type === 'ImportSpecifier' &&
+				isAstNode(specifier.imported) &&
+				specifier.imported.name === 'bindComponentIdentity',
+		)
+	) {
+		return contents;
 	}
-	return undefined;
+
+	const namedSpecifiers = specifiers.filter((specifier) => specifier.type === 'ImportSpecifier');
+	if (namedSpecifiers.length > 0) {
+		const lastSpecifier = namedSpecifiers[namedSpecifiers.length - 1]!;
+		return `${contents.slice(0, lastSpecifier.end)}, bindComponentIdentity${contents.slice(lastSpecifier.end)}`;
+	}
+
+	if (specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')) {
+		return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
+	}
+
+	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
+	if (defaultSpecifier) {
+		return `${contents.slice(0, defaultSpecifier.end)}, { bindComponentIdentity }${contents.slice(defaultSpecifier.end)}`;
+	}
+
+	return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
 }
 
-function findFactoryObjectStarts(source: string): number[] {
-	const starts: number[] = [];
-	for (let index = 0; index < source.length; index += 1) {
-		const skipped = skipNonCode(source, index);
-		if (skipped !== undefined) {
-			index = skipped;
-			continue;
-		}
-		if (!source.startsWith('eco.', index) || isIdentifierCharacter(source[index - 1])) continue;
-		const factoryName = readFactoryName(source, index + 4);
-		if (!factoryName) continue;
-		let cursor = index + 4 + factoryName.length;
-		while (isWhitespace(source[cursor])) cursor += 1;
-		if (source[cursor] === '<') {
-			let genericDepth = 0;
-			while (cursor < source.length) {
-				if (source[cursor] === '<') genericDepth += 1;
-				if (source[cursor] === '>' && source[cursor - 1] !== '=') {
-					genericDepth -= 1;
-					if (genericDepth === 0) break;
-				}
-				cursor += 1;
-			}
-			if (genericDepth !== 0) continue;
-			cursor += 1;
-			while (isWhitespace(source[cursor])) cursor += 1;
-		}
-		if (source[cursor] !== '(') continue;
-		cursor += 1;
-		while (isWhitespace(source[cursor])) cursor += 1;
-		if (source[cursor] === '{') starts.push(cursor);
-	}
-	return starts;
-}
+/** Attributes real `eco.*()` factory calls with canonical component identity. */
+export function attributeComponentIdentity(contents: string, filePath: string, integration: string): string {
+	if (!contents.includes('eco.')) return contents;
 
-function findConfigAssignmentObjectStarts(source: string): number[] {
-	const starts: number[] = [];
-	for (let index = 0; index < source.length; index += 1) {
-		const skipped = skipNonCode(source, index);
-		if (skipped !== undefined) {
-			index = skipped;
-			continue;
-		}
-		if (!source.startsWith('.config', index)) continue;
-		let cursor = index + '.config'.length;
-		while (isWhitespace(source[cursor])) cursor += 1;
-		if (source[cursor] !== '=') continue;
-		cursor += 1;
-		while (isWhitespace(source[cursor])) cursor += 1;
-		if (source[cursor] === '{') starts.push(cursor);
+	let program: AstNode;
+	try {
+		program = parseModuleSource(filePath, contents).program as unknown as AstNode;
+	} catch {
+		return contents;
 	}
-	return starts;
-}
 
-/**
- * Adds lexical module attribution only to literal `eco.*({...})` declarations.
- *
- * @remarks
- * This deliberately avoids recursive config/object matching. The scanner tracks
- * JavaScript lexical state and balanced delimiters, so comments and strings do
- * not create false factory declarations.
- */
-export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
-	if (!contents.includes('eco.') && !contents.includes('.config')) return contents;
-	const identity = ` identity: { id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} },`;
-	const starts = [...findFactoryObjectStarts(contents), ...findConfigAssignmentObjectStarts(contents)];
-	if (starts.length === 0) return contents;
+	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const edits: SourceEdit[] = [];
+	walkAst(program, (node) => {
+		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
+		const firstArgument = node.arguments[0];
+		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
+		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
+		edits.push({
+			start: firstArgument.start,
+			end: firstArgument.end,
+			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)})`,
+		});
+	});
+	if (edits.length === 0) return contents;
+
 	let transformed = contents;
-	for (const start of starts.sort((left, right) => right - left)) {
-		transformed = `${transformed.slice(0, start + 1)}${identity}${transformed.slice(start + 1)}`;
+	for (const edit of edits.sort((left, right) => right.start - left.start)) {
+		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
 	}
-	return transformed;
+	return addIdentityBindingImport(transformed, program);
 }
 
 export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
@@ -191,7 +144,12 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		transform(code, id) {
 			if (id.endsWith('.mdx')) return { code };
 			const integration = integrationForFile(id, options.config);
-			return { code: prependJsxImportSourceIfMissing(injectEcoMeta(code, id, integration.name), integration.jsxImportSource) };
+			return {
+				code: prependJsxImportSourceIfMissing(
+					attributeComponentIdentity(code, id, integration.name),
+					integration.jsxImportSource,
+				),
+			};
 		},
 	};
 }
@@ -200,7 +158,6 @@ export function createEcoComponentMetaVitePlugin(options: EcoComponentDirPluginO
 	return createVitePluginFromSourceTransform(createEcoComponentMetaTransform(options));
 }
 
-/** @deprecated App configuration registers the source transform directly. */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
 	return createEcoBuildPluginFromSourceTransform(createEcoComponentMetaTransform(options));
 }

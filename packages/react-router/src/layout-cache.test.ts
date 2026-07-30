@@ -35,7 +35,7 @@ function createLayout(options?: {
 }
 
 describe('getLayoutCacheKey', () => {
-	it('uses injected __eco.file when available', () => {
+	it('uses identity.file when available', () => {
 		const layout = createLayout({
 			identity: { file: '/app/src/layouts/base-layout.tsx', id: 'base', integration: 'react' },
 		});
@@ -43,7 +43,7 @@ describe('getLayoutCacheKey', () => {
 		expect(getLayoutCacheKey(layout)).toBe('/app/src/layouts/base-layout.tsx');
 	});
 
-	it('uses injected __eco.id when file is absent', () => {
+	it('uses identity.id when file is absent', () => {
 		const layout = createLayout();
 		layout.config = {
 			identity: { id: 'docs-layout', integration: 'react' } as ComponentIdentity,
@@ -52,7 +52,7 @@ describe('getLayoutCacheKey', () => {
 		expect(getLayoutCacheKey(layout)).toBe('docs-layout');
 	});
 
-	it('does not collide for eco.component wrappers when __eco.file distinguishes them', () => {
+	it('does not collide for eco.component wrappers when identity.file distinguishes them', () => {
 		const minimalLayout = createLayout({
 			identity: { file: '/app/src/layouts/minimal-layout.tsx', id: 'minimal', integration: 'react' },
 		});

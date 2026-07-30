@@ -7,9 +7,7 @@ export type ComponentIdentity = {
 	integration: string;
 };
 
-type ComponentOrConfig = EcoComponent | EcoComponentConfig | undefined;
-
-function asConfig(value: ComponentOrConfig): EcoComponentConfig | undefined {
+function asConfig(value: EcoComponent | EcoComponentConfig | undefined): EcoComponentConfig | undefined {
 	if (!value) return undefined;
 	if (typeof value === 'function') return value.config;
 	if ('config' in value) return value.config;
@@ -17,14 +15,17 @@ function asConfig(value: ComponentOrConfig): EcoComponentConfig | undefined {
 }
 
 /** Gets canonical component attribution. */
-export function getComponentIdentity(value: ComponentOrConfig): ComponentIdentity | undefined {
+export function getComponentIdentity(
+	value: EcoComponent | EcoComponentConfig | undefined,
+): ComponentIdentity | undefined {
 	const config = asConfig(value);
 	return config?.identity;
 }
 
-/** Attaches canonical component attribution to a component config. */
-export function bindComponentIdentity<T extends EcoComponent>(component: T, identity: ComponentIdentity): T {
-	if (!component.config) component.config = {};
-	component.config.identity = identity;
-	return component;
+/** Merges attribution into factory options. */
+export function bindComponentIdentity<T extends object>(
+	identity: ComponentIdentity,
+	options: T,
+): T & { identity: ComponentIdentity } {
+	return { ...options, identity };
 }

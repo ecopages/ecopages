@@ -90,7 +90,7 @@ describe('eco-component-meta-plugin', () => {
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
-	it('does not attribute arbitrary config assignments', async () => {
+	it('attributes direct component config assignments', async () => {
 		const content = `
             MyComponent.config = {
                 dependencies: {}
@@ -100,7 +100,7 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/component.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('identity:');
+		expect(result.contents).toMatch(ecoMetaPattern('/path/to/component.tsx', 'react'));
 	});
 
 	it('should NOT inject __eco into config patterns in non-EcoComponent files', async () => {

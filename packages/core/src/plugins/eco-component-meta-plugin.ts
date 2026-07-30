@@ -95,6 +95,20 @@ function findFactoryObjectStarts(source: string): number[] {
 	return starts;
 }
 
+function findConfigAssignmentObjectStarts(source: string): number[] {
+	const starts: number[] = [];
+	for (let index = 0; index < source.length; index += 1) {
+		if (!source.startsWith('.config', index)) continue;
+		let cursor = index + '.config'.length;
+		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		if (source[cursor] !== '=') continue;
+		cursor += 1;
+		while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+		if (source[cursor] === '{') starts.push(cursor);
+	}
+	return starts;
+}
+
 /**
  * Adds lexical module attribution only to literal `eco.*({...})` declarations.
  *
@@ -104,9 +118,9 @@ function findFactoryObjectStarts(source: string): number[] {
  * not create false factory declarations.
  */
 export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
-	if (!contents.includes('eco.')) return contents;
+	if (!contents.includes('eco.') && !contents.includes('.config')) return contents;
 	const identity = ` identity: { id: "${rapidhash(filePath).toString(36)}", file: "${filePath}", integration: "${integration}" },`;
-	const starts = findFactoryObjectStarts(contents);
+	const starts = [...findFactoryObjectStarts(contents), ...findConfigAssignmentObjectStarts(contents)];
 	if (starts.length === 0) return contents;
 	let transformed = contents;
 	for (const start of starts.sort((left, right) => right - left)) {

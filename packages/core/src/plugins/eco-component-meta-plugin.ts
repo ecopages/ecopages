@@ -168,7 +168,7 @@ function findConfigAssignmentObjectStarts(source: string): number[] {
  */
 export function injectEcoMeta(contents: string, filePath: string, integration: string): string {
 	if (!contents.includes('eco.') && !contents.includes('.config')) return contents;
-	const identity = ` identity: { id: "${rapidhash(filePath).toString(36)}", file: "${filePath}", integration: "${integration}" },`;
+	const identity = ` identity: { id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} },`;
 	const starts = [...findFactoryObjectStarts(contents), ...findConfigAssignmentObjectStarts(contents)];
 	if (starts.length === 0) return contents;
 	let transformed = contents;

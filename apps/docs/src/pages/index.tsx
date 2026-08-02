@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiButton } from '@ecopages/radiant-ui/button';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
 import {
@@ -10,7 +11,6 @@ import {
 	pageExample,
 	pageExampleCode,
 } from '@/homepage/examples.server';
-import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 
 const HomeCard = ({
 	href,
@@ -71,9 +71,9 @@ export default eco.page<{}, JsxRenderable>({
 							label="Package managers"
 							tabs={[
 								{
-									id: 'bun',
-									label: 'bun',
-									code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev',
+									id: 'npm',
+									label: 'npm',
+									code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev',
 								},
 								{
 									id: 'pnpm',
@@ -81,22 +81,20 @@ export default eco.page<{}, JsxRenderable>({
 									code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm dev',
 								},
 								{
-									id: 'npm',
-									label: 'npm',
-									code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev',
+									id: 'bun',
+									label: 'bun',
+									code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev',
 								},
 							]}
 							copyLabel="Copy init command"
-							defaultSelectedKey="bun"
+							defaultSelectedKey="npm"
 						/>
 
 						<div class="home-header__actions">
-							<a href="/docs/getting-started/introduction" class="button button--default">
-								Read introduction
-							</a>
-							<a href="/docs/getting-started/installation" class="button button--outline">
+							<RuiButton href="/docs/getting-started/introduction">Read introduction</RuiButton>
+							<RuiButton href="/docs/getting-started/installation" variant="outline">
 								See installation
-							</a>
+							</RuiButton>
 						</div>
 					</div>
 
@@ -107,31 +105,19 @@ export default eco.page<{}, JsxRenderable>({
 								{
 									id: 'eco-config',
 									label: 'eco.config.ts',
-									code: (
-										<figure data-rehype-pretty-code-figure class="home-code-block">
-											{unsafeHtml(configExample)}
-										</figure>
-									),
+									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${configExample}</figure>`,
 									content: configExampleCode,
 								},
 								{
 									id: 'eco-component',
 									label: 'eco.component.tsx',
-									code: (
-										<figure data-rehype-pretty-code-figure class="home-code-block">
-											{unsafeHtml(componentExample)}
-										</figure>
-									),
+									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${componentExample}</figure>`,
 									content: componentExampleCode,
 								},
 								{
 									id: 'home-page',
 									label: 'src/pages/index.tsx',
-									code: (
-										<figure data-rehype-pretty-code-figure class="home-code-block">
-											{unsafeHtml(pageExample)}
-										</figure>
-									),
+									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${pageExample}</figure>`,
 									content: pageExampleCode,
 								},
 							]}

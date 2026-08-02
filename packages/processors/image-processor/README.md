@@ -9,7 +9,7 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 - **Automatic Image Optimization**: Converts and compresses images to modern formats at build time.
 - **Responsive Image Generation**: Creates multiple variants for different screen sizes.
 - **Virtual Module Integration**: Type-safe imports through `ecopages:images`.
-- **Ecopages Components**: Ready-to-use HTML (`EcoImage`) and React (`EcoImage`) components.
+- **Ecopages Components**: Ready-to-use HTML, Ecopages JSX, and React (`EcoImage`) components.
 - **Multiple Layout Options**: Fixed, constrained, and full-width layouts built-in.
 
 ## Installation
@@ -70,9 +70,9 @@ import { heroImage, profilePicture } from 'ecopages:images';
 
 ### Components
 
-The plugin provides ready-to-use components for HTML (`@kitajs/html`) and React:
+The plugin provides ready-to-use components for string HTML (KitaJS), Ecopages JSX, and React.
 
-**HTML Component:**
+**HTML Component** (returns a markup string; use as a function, or in string-based JSX runtimes like KitaJS):
 
 ```typescript
 import { EcoImage } from '@ecopages/image-processor/component/html';
@@ -83,6 +83,14 @@ EcoImage({
 	alt: 'Hero banner',
 	priority: true,
 });
+```
+
+**Ecopages JSX Component:**
+
+```jsx
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+
+<EcoImage {...heroImage} alt="Hero banner" layout="constrained" priority />;
 ```
 
 **React Component:**

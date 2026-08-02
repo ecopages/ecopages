@@ -1,10 +1,12 @@
 ---
-title: "Image Processor"
-description: "Optimize images at build time and render responsive EcoImage markup."
+title: 'Image Processor'
+description: 'Optimize images at build time and render responsive EcoImage markup.'
 order: 9
 ---
 
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import { CodeTabs } from '@/components/code-tabs';
+
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 
 # Image Processor
@@ -18,11 +20,11 @@ Install the package:
 <CodeTabs
 	name="image-processor-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/image-processor' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/image-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/image-processor' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/image-processor' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ## Configuration
@@ -83,11 +85,14 @@ The image processor provides several entry points:
 - Main processor: `@ecopages/image-processor`
 - Type definitions: `@ecopages/image-processor/types`
 - HTML Component: `@ecopages/image-processor/component/html`
+- Ecopages JSX Component: `@ecopages/image-processor/component/jsx`
 - React Component: `@ecopages/image-processor/component/react`
 
 ## Components Usage
 
 ### HTML Component
+
+Returns a markup string. Call it as a function, or use it as JSX in string-based runtimes such as KitaJS.
 
 ```typescript
 import { EcoImage } from '@ecopages/image-processor/component/html';
@@ -99,6 +104,18 @@ const imageHtml = EcoImage({
 	height: 600,
 	loading: 'lazy',
 });
+```
+
+### Ecopages JSX Component
+
+```typescript
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+
+function MyComponent() {
+	return (
+		<EcoImage src="/images/hero.jpg" alt="Hero image" width={800} height={600} loading="lazy" />
+	);
+}
 ```
 
 ### React Component
@@ -117,13 +134,12 @@ The `ecopages:images` virtual module provides a unified, type-safe way to handle
 
 ```typescript
 // All images from your source directory are available as named exports
-import { heroImage, profilePicture, blogThumbnail } from "ecopages:images";
+import { heroImage, profilePicture, blogThumbnail } from 'ecopages:images';
 
 // Names are automatically converted to camelCase
 // example:
 // src/images/hero-image.jpg -> heroImage
 // src/images/profile_picture.png -> profilePicture
-
 ```
 
 You do not need to manually add `ecopages:images` to `dependencies.modules`; importing from `ecopages:images` is automatically detected and bundled.
@@ -136,10 +152,10 @@ You do not need to manually add `ecopages:images` to `dependencies.modules`; imp
 - **Type Safety**: Prevents imports of non-existent images
 - **Unified API**: Consistent way to handle images across your project
 
-
 ## Dependencies
 
 The image processor uses:
+
 - [sharp](https://sharp.pixelplumbing.com/) for high-performance image processing
 - React 19 for the React component integration
 - [@ecopages/logger](https://www.npmjs.com/package/@ecopages/logger) for logging
@@ -147,7 +163,7 @@ The image processor uses:
 ## Examples
 
 ```tsx
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 
 <div class="grid gap-8">
@@ -171,7 +187,7 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 		width={200}
 		height={200}
 	/>
-</div>
+</div>;
 ```
 
 <div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">
@@ -198,7 +214,7 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 </div>
 
 ```tsx
-import { EcoImage } from '@ecopages/image-processor/component/html';
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 
 <div class="grid gap-8">
@@ -210,13 +226,8 @@ import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
 		unstyled={true}
 		data-test="attribute"
 	/>
-	<EcoImage
-		{...janKoprivaNex3P5IbnpgUnsplashJpg}
-		alt="green plant on persons hand"
-		width={300}
-		aspectRatio="1/2"
-	/>
-</div>
+	<EcoImage {...janKoprivaNex3P5IbnpgUnsplashJpg} alt="green plant on persons hand" width={300} aspectRatio="1/2" />
+</div>;
 ```
 
 <div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">

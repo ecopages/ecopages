@@ -1,8 +1,11 @@
 ---
-title: "Browser Router"
-description: "Add client-side SPA navigation to Ecopages sites with browser-router."
+title: 'Browser Router'
+description: 'Add client-side SPA navigation to Ecopages sites with browser-router.'
 order: 5
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
 
 # Client-Side Navigation
 
@@ -10,10 +13,16 @@ The `@ecopages/browser-router` package enables Single Page Application (SPA) nav
 
 This preserves element state (like audio players, web component internals, or form values) and enables native View Transitions.
 
-<Banner type="alert">
-  <BannerTitle>Framework Compatibility</BannerTitle>
-  <p>This package works with MPA-style rendering (KitaJS, Lit, vanilla JS). <strong>Not compatible with React/Preact</strong>, these frameworks manage their own virtual DOM. For React apps, use a framework-specific routing solution.</p>
-</Banner>
+<RuiAlert variant="error" layout="banner" class="unstyled">
+	<RuiAlertTitle>Framework Compatibility</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			This package works with MPA-style rendering (KitaJS, Lit, vanilla JS).{' '}
+			<strong>Not compatible with React/Preact</strong>, these frameworks manage their own virtual DOM. For React
+			apps, use a framework-specific routing solution.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 ## Installation
 
@@ -22,22 +31,31 @@ Please run the following command to install the package:
 <CodeTabs
 	name="browser-router-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/browser-router' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/browser-router' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/browser-router' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/browser-router' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ## Setup
 
 To enable client-side routing, initialize the router in your global script (e.g., `src/layouts/base-layout.script.ts`).
 
-<Banner type="info">
-  <BannerTitle>Consistent Head Ordering Required</BannerTitle>
-  <p>To prevent "Flash of Unstyled Content" (FOUC), ensure the router script is injected in a <strong>consistent order</strong> within the <code>&lt;head&gt;</code> across all pages.</p>
-  <p>Inconsistent ordering (e.g., script loaded between stylesheets on one page but after them on another) causes <code>morphdom</code> to detach and re-add stylesheets during navigation. Using a global layout script (like <code>base-layout.script.ts</code>) helps ensure this consistency.</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Consistent Head Ordering Required</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			To prevent "Flash of Unstyled Content" (FOUC), ensure the router script is injected in a{' '}
+			<strong>consistent order</strong> within the <code>&lt;head&gt;</code> across all pages.
+		</p>
+		<p>
+			Inconsistent ordering (e.g., script loaded between stylesheets on one page but after them on another) causes{' '}
+			<code>morphdom</code> to detach and re-add stylesheets during navigation. Using a global layout script (like{' '}
+			<code>base-layout.script.ts</code>) helps ensure this consistency.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 The simplest approach is to use `createRouter`, which creates and starts the router in one call:
 
@@ -45,7 +63,7 @@ The simplest approach is to use `createRouter`, which creates and starts the rou
 import { createRouter } from '@ecopages/browser-router/client';
 
 const router = createRouter({
-  viewTransitions: true,
+	viewTransitions: true,
 });
 ```
 
@@ -55,7 +73,7 @@ For manual control over when the router starts and stops, use the `EcoRouter` cl
 import { EcoRouter } from '@ecopages/browser-router/client';
 
 const router = new EcoRouter({
-  viewTransitions: true,
+	viewTransitions: true,
 });
 
 router.start();
@@ -65,16 +83,16 @@ router.start();
 
 You can customize the router behavior by passing an options object:
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `linkSelector` | `string` | `'a[href]'` | Selector for links to intercept. |
-| `documentElementAttributesToSync` | `string[]` | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document. Attributes not listed here are preserved on the live page. |
-| `persistAttribute` | `string` | `'data-eco-persist'` | Attribute to mark elements that should persist across navigations. |
-| `reloadAttribute` | `string` | `'data-eco-reload'` | Attribute (on link or element) to force a full hard reload. |
-| `scrollBehavior` | `'top' \| 'preserve' \| 'auto'` | `'top'` | Controls scroll behavior after navigation. |
-| `smoothScroll` | `boolean` | `false` | Enables smooth scrolling. |
-| `viewTransitions` | `boolean` | `true` | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
-| `prefetch` | `PrefetchConfig \| false` | `Object` | Configuration for prefetching behavior. |
+| Option                            | Type                            | Default                                      | Description                                                                                                                                                     |
+| :-------------------------------- | :------------------------------ | :------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linkSelector`                    | `string`                        | `'a[href]'`                                  | Selector for links to intercept.                                                                                                                                |
+| `documentElementAttributesToSync` | `string[]`                      | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document. Attributes not listed here are preserved on the live page.                                              |
+| `persistAttribute`                | `string`                        | `'data-eco-persist'`                         | Attribute to mark elements that should persist across navigations.                                                                                              |
+| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute (on link or element) to force a full hard reload.                                                                                                     |
+| `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Controls scroll behavior after navigation.                                                                                                                      |
+| `smoothScroll`                    | `boolean`                       | `false`                                      | Enables smooth scrolling.                                                                                                                                       |
+| `viewTransitions`                 | `boolean`                       | `true`                                       | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
+| `prefetch`                        | `PrefetchConfig \| false`       | `Object`                                     | Configuration for prefetching behavior.                                                                                                                         |
 
 ### View Transitions
 
@@ -100,15 +118,15 @@ The router automatically handles the transition names and ensures a clean "morph
 
 You can control the transition behavior using `data-view-transition-animate`:
 
-| Value | Description |
-| :--- | :--- |
+| Value       | Description                                                                                                                                    |
+| :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`morph`** | (Default) Disables the cross-fade animation, resulting in a clean geometric morph. Ideal for shared element transitions to prevent "ghosting". |
-| **`fade`** | Uses the standard browser cross-fade animation. Useful if you specifically want the old and new elements to fade into each other. |
+| **`fade`**  | Uses the standard browser cross-fade animation. Useful if you specifically want the old and new elements to fade into each other.              |
 
 ```html
 <!-- Example: Opt-out of the default morph -->
 <div data-view-transition="hero-1" data-view-transition-animate="fade">...</div>
-````
+```
 
 #### Duration
 
@@ -127,10 +145,10 @@ You can also control the speed of a specific transition using `data-view-transit
 
 ```typescript
 const router = createRouter({
-  viewTransitions: true,
-  scrollBehavior: 'preserve',
-  linkSelector: 'a:not([data-no-route])',
-  documentElementAttributesToSync: ['lang', 'dir', 'data-theme'],
+	viewTransitions: true,
+	scrollBehavior: 'preserve',
+	linkSelector: 'a:not([data-no-route])',
+	documentElementAttributesToSync: ['lang', 'dir', 'data-theme'],
 });
 ```
 
@@ -140,18 +158,18 @@ If you need lower-level control without overriding the router pipeline, import t
 
 ```typescript
 import {
-  createRouter,
-  DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
-  syncDocumentElementAttributes,
+	createRouter,
+	DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
+	syncDocumentElementAttributes,
 } from '@ecopages/browser-router';
 
 const router = createRouter();
 
 document.addEventListener('eco:before-swap', (event) => {
-  syncDocumentElementAttributes(document, event.detail.newDocument, [
-    ...DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
-    'data-theme',
-  ]);
+	syncDocumentElementAttributes(document, event.detail.newDocument, [
+		...DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
+		'data-theme',
+	]);
 });
 ```
 
@@ -164,17 +182,19 @@ Elements marked with `data-eco-persist` are **never recreated** during navigatio
 Add the `data-eco-persist` attribute with a unique ID:
 
 ```tsx
-<audio 
-  controls 
-  src="/music.mp3" 
-  data-eco-persist="global-player" 
-/>
+<audio controls src="/music.mp3" data-eco-persist="global-player" />
 ```
 
-<Banner type="info">
-  <BannerTitle>How It Works</BannerTitle>
-  <p>Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal state intact.</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>How It Works</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Unlike traditional DOM swapping which destroys and recreates elements, morphdom diffs the current DOM
+			against the new HTML. Persisted elements are matched by their ID and left untouched, keeping their internal
+			state intact.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 ### Script Re-execution
 
@@ -183,29 +203,23 @@ By default, scripts in the `<head>` are not re-executed during navigation if the
 To force a script to re-execute on navigation, add `data-eco-rerun="true"`:
 
 ```html
-<script 
-  type="module" 
-  data-eco-rerun="true" 
->
-  // This runs on initial load AND every navigation
-  initAnalytics(window.location.pathname);
+<script type="module" data-eco-rerun="true">
+	// This runs on initial load AND every navigation
+	initAnalytics(window.location.pathname);
 </script>
 ```
 
 Optionally, add `data-eco-script-id="unique-id"` to identify the script. When present, the router removes the previous instance before re-adding the new one, preventing accumulation of duplicate script tags in the head.
 
 ```html
-<script 
-  type="module" 
-  data-eco-rerun="true" 
-  data-eco-script-id="analytics-tracker"
->
-  // This runs on initial load AND every navigation
-  initAnalytics(window.location.pathname);
+<script type="module" data-eco-rerun="true" data-eco-script-id="analytics-tracker">
+	// This runs on initial load AND every navigation
+	initAnalytics(window.location.pathname);
 </script>
 ```
 
 **How it works:**
+
 - Any script with `data-eco-rerun` is re-executed on every navigation.
 - If `data-eco-script-id` is also present, the previous instance is removed first to avoid accumulating duplicate tags.
 
@@ -219,16 +233,16 @@ You can configure prefetching in the `createRouter` options:
 
 ```typescript
 const router = createRouter({
-  prefetch: {
-    // 'intent' (default) | 'hover' | 'viewport'
-    strategy: 'intent',
-    // Delay in ms before prefetching on hover (default: 65)
-    delay: 65,
-    // Attribute to disable prefetching on specific links
-    noPrefetchAttribute: 'data-eco-no-prefetch',
-    // Whether to respect data-saver mode (default: true)
-    respectDataSaver: true
-  }
+	prefetch: {
+		// 'intent' (default) | 'hover' | 'viewport'
+		strategy: 'intent',
+		// Delay in ms before prefetching on hover (default: 65)
+		delay: 65,
+		// Attribute to disable prefetching on specific links
+		noPrefetchAttribute: 'data-eco-no-prefetch',
+		// Whether to respect data-saver mode (default: true)
+		respectDataSaver: true,
+	},
 });
 ```
 
@@ -236,11 +250,11 @@ To disable prefetching entirely, set `prefetch: false`.
 
 #### Strategies
 
-| Strategy | Description |
-| :--- | :--- |
-| `intent` | (Recommended) Prefetches on hover (with delay) and acts as a fallback for `viewport`. Balances speed and bandwidth. |
-| `hover` | Prefetches only when the user hovers over a link. |
-| `viewport` | Prefetches links as soon as they enter the viewport using IntersectionObserver. |
+| Strategy   | Description                                                                                                         |
+| :--------- | :------------------------------------------------------------------------------------------------------------------ |
+| `intent`   | (Recommended) Prefetches on hover (with delay) and acts as a fallback for `viewport`. Balances speed and bandwidth. |
+| `hover`    | Prefetches only when the user hovers over a link.                                                                   |
+| `viewport` | Prefetches links as soon as they enter the viewport using IntersectionObserver.                                     |
 
 #### Per-Link Control
 
@@ -263,10 +277,15 @@ If `viewTransitions` is enabled (default `true`), the router opts the document o
 
 #### Using Included Styles
 
-<Banner type="info">
-  <BannerTitle>CSS exported via ecopages npm package</BannerTitle>
-  <p>Due to a <a href="https://github.com/jsr-io/jsr/issues/293">JSR limitation</a>, CSS files cannot be exported from JSR packages. View transition styles are shipped via the <code>ecopages</code> npm package instead.</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>CSS exported via ecopages npm package</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Due to a <a href="https://github.com/jsr-io/jsr/issues/293">JSR limitation</a>, CSS files cannot be exported
+			from JSR packages. View transition styles are shipped via the <code>ecopages</code> npm package instead.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 The `ecopages` npm package includes default view transition animations. Import them in your CSS:
 
@@ -276,17 +295,17 @@ The `ecopages` npm package includes default view transition animations. Import t
 
 Then use the `data-eco-transition` attribute on elements to apply specific animations:
 
-| Value | Description |
-| :--- | :--- |
-| `fade` | Fades the element in and out during transition. |
-| `slide` | Slides the element horizontally during transition. |
-| `zoom` | Scales the element in and out during transition. |
-| `slide-up` | Slides the element vertically upward during transition. |
+| Value        | Description                                               |
+| :----------- | :-------------------------------------------------------- |
+| `fade`       | Fades the element in and out during transition.           |
+| `slide`      | Slides the element horizontally during transition.        |
+| `zoom`       | Scales the element in and out during transition.          |
+| `slide-up`   | Slides the element vertically upward during transition.   |
 | `slide-down` | Slides the element vertically downward during transition. |
 
 ```html
 <main data-eco-transition="slide">
-  <!-- Content slides in -->
+	<!-- Content slides in -->
 </main>
 ```
 
@@ -294,18 +313,18 @@ Then use the `data-eco-transition` attribute on elements to apply specific anima
 
 The router emits lifecycle custom events on the `document` object, allowing you to hook into the navigation process.
 
-| Event | Detail | Description |
-| :--- | :--- | :--- |
+| Event             | Detail                                    | Description                                                                                                                                              |
+| :---------------- | :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `eco:before-swap` | `{ url, direction, newDocument, reload }` | Fired after fetching new content but **before** updating the DOM. Use `newDocument` to inspect upcoming content. Call `reload()` to force a hard reload. |
-| `eco:after-swap` | `{ url, direction }` | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics. |
-| `eco:page-load` | `{ url, direction }` | Fired on both initial load and subsequent navigations. |
+| `eco:after-swap`  | `{ url, direction }`                      | Fired **after** the DOM has been updated. Useful for re-initializing scripts or analytics.                                                               |
+| `eco:page-load`   | `{ url, direction }`                      | Fired on both initial load and subsequent navigations.                                                                                                   |
 
 ### Example: Re-initializing Scripts
 
 ```typescript
 document.addEventListener('eco:after-swap', () => {
-  console.log('Page updated!');
-  // Re-run any page-specific logic here
+	console.log('Page updated!');
+	// Re-run any page-specific logic here
 });
 ```
 
@@ -315,7 +334,7 @@ For components that need to react to URL changes (like updating active states), 
 
 ```typescript
 document.addEventListener('eco:page-load', () => {
-  // Update active states, re-highlight nav links, etc.
-  highlightActiveLink();
+	// Update active states, re-highlight nav links, etc.
+	highlightActiveLink();
 });
 ```

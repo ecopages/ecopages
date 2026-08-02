@@ -1,8 +1,10 @@
 ---
-title: "Installation"
-description: "Create a new Ecopages project by installing the core package and your chosen rendering integration."
+title: 'Installation'
+description: 'Create a new Ecopages project by installing the core package and your chosen rendering integration.'
 order: 2
 ---
+
+import { CodeTabs } from '@/components/code-tabs';
 
 # Installation
 
@@ -11,23 +13,23 @@ To create a new Ecopages project, install the core package plus the rendering in
 <CodeTabs
 	name="getting-started-installation"
 	tabs={[
-    {
-      id: 'pnpm',
-      label: 'pnpm',
-      code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
-    },
-    {
-      id: 'npm',
-      label: 'npm',
-      code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
-    },
-    {
-      id: 'bun',
-      label: 'bun',
-      code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
-    },
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 This example installs the core package along with the Ecopages JSX integration and its peer runtimes. You can swap in KitaJS, React, Lit, or standalone MDX instead depending on the route ownership model you want.
@@ -44,13 +46,13 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
-  .setRootDir(appRoot)
+	.setRootDir(appRoot)
 	// Optional: Set the canonical base URL for your site.
 	// Used for generating absolute URLs in production builds.
 	// If omitted, it defaults to http://localhost:3000 during development.
 	// Can be overridden by the ECOPAGES_BASE_URL environment variable.
 	.setBaseUrl('https://your-production-domain.com')
-  .setIntegrations([ecopagesJsxPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 
 export default config;
@@ -77,8 +79,8 @@ ECOPAGES_LOGGER_DEBUG=true
 
 **Configuration Precedence:**
 
-*   **Server Hostname/Port:** Constructor `serverOptions` > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
-*   **Canonical Base URL:** `eco.config.ts` (`setBaseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
+- **Server Hostname/Port:** Constructor `serverOptions` > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
+- **Canonical Base URL:** `eco.config.ts` (`setBaseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
 
 ## Project Structure
 
@@ -126,11 +128,11 @@ Add the following scripts to your `package.json`:
 ```json
 {
 	"scripts": {
-    "build": "ecopages build",
-    "dev": "ecopages dev",
-    "preview": "ecopages preview",
-    "start": "ecopages start",
-    "watch:dev": "ecopages dev:watch"
+		"build": "ecopages build",
+		"dev": "ecopages dev",
+		"preview": "ecopages preview",
+		"start": "ecopages start",
+		"watch:dev": "ecopages dev:watch"
 	}
 }
 ```

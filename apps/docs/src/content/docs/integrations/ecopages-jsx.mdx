@@ -1,8 +1,11 @@
 ---
-title: "Ecopages JSX"
-description: "Build JSX-first routes through the Ecopages JSX integration and runtime."
+title: 'Ecopages JSX'
+description: 'Build JSX-first routes through the Ecopages JSX integration and runtime.'
 order: 6
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
 
 # Ecopages JSX Integration
 
@@ -16,14 +19,14 @@ Install the integration and its peer runtimes:
 	name="ecopages-jsx-install"
 	tabs={[
 		{
-			id: 'pnpm',
-			label: 'pnpm',
-			code: 'pnpm add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
-		},
-		{
 			id: 'npm',
 			label: 'npm',
 			code: 'npm install @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
 		},
 		{
 			id: 'bun',
@@ -31,7 +34,7 @@ Install the integration and its peer runtimes:
 			code: 'bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
 		},
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ## Usage
@@ -99,7 +102,7 @@ Use `extensions` when JSX routes should use a custom suffix instead of the defau
 ```typescript
 ecopagesJsxPlugin({
 	extensions: ['.page.tsx'],
-})
+});
 ```
 
 ## Radiant Support
@@ -109,17 +112,21 @@ Radiant support is enabled by default. When `radiant: true`, the plugin wires th
 ```typescript
 ecopagesJsxPlugin({
 	radiant: true,
-})
+});
 ```
 
 Set `radiant: false` when the app does not use Radiant web components and should not include that runtime contract.
 
-<Banner type="info">
-	<BannerTitle>KitaJS vs Ecopages JSX</BannerTitle>
-	<p>
-		Use <a href="/docs/integrations/kitajs">KitaJS</a> when an HTML-first renderer should own <code>.kita.tsx</code> shells. Use Ecopages JSX when Ecopages should own standard <code>.tsx</code> routes, JSX runtime bundling, and optional Radiant hydration.
-	</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>KitaJS vs Ecopages JSX</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Use <a href="/docs/integrations/kitajs">KitaJS</a> when an HTML-first renderer should own{' '}
+			<code>.kita.tsx</code> shells. Use Ecopages JSX when Ecopages should own standard <code>.tsx</code> routes,
+			JSX runtime bundling, and optional Radiant hydration.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 ## MDX Support
 

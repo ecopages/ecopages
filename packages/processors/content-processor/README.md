@@ -75,16 +75,16 @@ export default await new ConfigBuilder()
 
 ### Collection options
 
-| Option                | Required | Description                                                                                                                                                                                   |
-| :-------------------- | :------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contentDir`          |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                      |
-| `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                    |
-| `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                          |
-| `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                       |
-| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`.                                                                                                                                                 |
-| `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                          |
-| `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; HTML is stored only for these allowlisted paths on the watch page cache. |
-| `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                     |
+| Option                | Required | Description                                                                                                                                                                                    |
+| :-------------------- | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contentDir`          |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                       |
+| `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
+| `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
+| `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
+| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`.                                                                                                                                                  |
+| `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
+| `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
+| `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                      |
 
 Collection keys must be kebab-case (`docs`, `api-reference`). Each key becomes `ecopages:content/<key>`.
 
@@ -272,6 +272,7 @@ const raw = await scanner.getRawContent('getting-started/intro');
 | Path                                                                 | Purpose                                                |
 | :------------------------------------------------------------------- | :----------------------------------------------------- |
 | `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).  |
+| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.         |
 | `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules. |
 
 Do not edit generated files manually.
@@ -282,7 +283,7 @@ Invalid frontmatter throws `SchemaError` from `@standard-schema/utils` during sc
 
 ## Dev / HMR
 
-In development, the processor watches collection files to regenerate `ecopages:content/*` manifests when MDX changes. Collection MDX is still server source: Ecopages invalidates server modules and runs HMR so page imports pick up the updated MDX component.
+In development, the processor watches collection files to regenerate `ecopages:content/*` manifests when MDX changes. The generated server artifact is built lazily on the first server import and reused by its content-derived identity; MDX edits invalidate that artifact before the next Page build. Collection MDX is still server source: Ecopages invalidates server modules and runs HMR so page imports pick up the updated MDX component.
 
 Watch config drives manifest regeneration only. Asset ownership (which would skip server invalidation) requires declared processor capabilities. Content-processor does not claim MDX as an asset, so no `capabilities` workaround is needed in `eco.config.ts`.
 

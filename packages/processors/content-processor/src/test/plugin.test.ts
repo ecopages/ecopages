@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
+import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
+import { getCollectionServerBuildArtifact } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';
@@ -150,6 +152,29 @@ order: 1
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
 		expect(fileSystem.readFileSync(typesFile)).toBe(typesBefore);
+	});
+
+	test('setup generates virtual modules without compiling the collection artifact', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-lazy-artifact-');
+		tempRoots.push(rootDir);
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+
+		installBuildRuntime(appConfig);
+		await plugin.setup();
+
+		expect(getCollectionServerBuildArtifact(appConfig, 'docs')).toBeUndefined();
 	});
 
 	test('frontmatter edits rewrite the entries module but not the server barrel', async () => {
@@ -323,5 +348,45 @@ order: 1
 			pathnames: ['/docs/intro'],
 			readiness: 'beforeReady',
 		});
+	});
+
+	test('generates separate client and server collection modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-split-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		for (let index = 0; index < 5; index += 1) {
+			fileSystem.write(
+				path.join(contentDir, `entry-${index}.mdx`),
+				`---
+title: Entry ${index}
+description: Test
+order: ${index}
+---
+# Entry ${index}
+`,
+			);
+		}
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+
+		const workDir = appConfig.absolutePaths.workDir;
+		const clientCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');
+		const serverCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.server.ts');
+
+		expect(fileSystem.exists(clientCacheFile)).toBe(true);
+		expect(fileSystem.exists(serverCacheFile)).toBe(true);
+		expect(fileSystem.readFileSync(clientCacheFile)).not.toContain('export async function getComponent');
+		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getComponent');
+		expect(fileSystem.readFileSync(serverCacheFile).match(/import\(/g)?.length ?? 0).toBe(5);
 	});
 });

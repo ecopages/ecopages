@@ -23,6 +23,7 @@ const originalWrite = fileSystem.write;
 const originalReadFileSync = fileSystem.readFileSync;
 const originalRemove = fileSystem.remove;
 const originalExists = fileSystem.exists;
+const originalHash = fileSystem.hash;
 
 beforeEach(() => {
 	fileSystem.ensureDir = vi.fn(() => {});
@@ -31,6 +32,7 @@ beforeEach(() => {
 	fileSystem.readFileSync = vi.fn(() => Buffer.from('') as any);
 	fileSystem.remove = vi.fn(() => {});
 	fileSystem.exists = vi.fn(() => false);
+	fileSystem.hash = vi.fn(() => 'test-hash');
 });
 
 afterEach(() => {
@@ -40,6 +42,7 @@ afterEach(() => {
 	fileSystem.readFileSync = originalReadFileSync;
 	fileSystem.remove = originalRemove;
 	fileSystem.exists = originalExists;
+	fileSystem.hash = originalHash;
 	vi.restoreAllMocks();
 });
 
@@ -267,15 +270,46 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	expect(results2[0].srcUrl).toBe('/assets/cached.js');
 });
 
+test('AssetProcessingService - reuses file stylesheets until their source changes', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+	let sourceHash = 'style-v1';
+	fileSystem.hash = vi.fn(() => sourceHash);
+
+	const service = new AssetProcessingService(Config);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/docs.css',
+		kind: 'stylesheet' as const,
+		inline: false,
+	}));
+	service.registerProcessor('stylesheet', 'file', { process: processMock });
+
+	const dependency: AssetDefinition = {
+		kind: 'stylesheet',
+		source: 'file',
+		filepath: 'path/to/docs.css',
+	};
+
+	await service.processDependencies([dependency], 'styles-1');
+	await service.processDependencies([dependency], 'styles-2');
+	sourceHash = 'style-v2';
+	await service.processDependencies([dependency], 'styles-3');
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
 test('AssetProcessingService - stale cached emitted files are rebuilt when output is missing', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
-	const existsMock = vi
-		.fn()
-		.mockImplementationOnce(() => true)
-		.mockImplementationOnce(() => false)
-		.mockImplementation(() => true);
-	fileSystem.exists = existsMock;
+	let emittedFileExists = true;
+	fileSystem.exists = vi.fn((filepath: string) => {
+		if (filepath === 'path/to/stale.js') {
+			return true;
+		}
+
+		return emittedFileExists;
+	});
 
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
@@ -288,6 +322,7 @@ test('AssetProcessingService - stale cached emitted files are rebuilt when outpu
 	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/stale.js' };
 
 	await service.processDependencies([dependency], 'key1');
+	emittedFileExists = false;
 	await service.processDependencies([dependency], 'key2');
 
 	expect(processMock).toHaveBeenCalledTimes(2);

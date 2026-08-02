@@ -230,6 +230,27 @@ export class SessionPageBrowserGraphCache {
 		return undefined;
 	}
 
+	getDependencyPathsByRoute(
+		integrationName: string,
+		routeFile: string,
+		policy: GraphPolicy,
+		dependencyInstanceKey = '',
+	): ReadonlySet<string> | undefined {
+		const normalizedRoute = normalizeDependencyPath(routeFile);
+		for (const record of this.records.values()) {
+			if (
+				record.key.integrationName === integrationName &&
+				record.key.policy === policy &&
+				normalizeDependencyPath(record.key.routeFile) === normalizedRoute &&
+				record.key.dependencyInstanceKey === dependencyInstanceKey
+			) {
+				return record.dependencyPaths;
+			}
+		}
+
+		return undefined;
+	}
+
 	getAffectedGraphIdentities(filePath: string): AffectedGraphIdentity[] {
 		const identities: AffectedGraphIdentity[] = [];
 		for (const serializedKey of this.dependencyIndex.getAffectedKeys(filePath)) {

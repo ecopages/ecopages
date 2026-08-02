@@ -574,14 +574,14 @@ importers:
   packages/integrations/ecopages-jsx:
     dependencies:
       '@ecopages/jsx':
-        specifier: 0.3.0-beta.4
-        version: 0.3.0-beta.4(@ecopages/signals@0.3.0-beta.4)
+        specifier: 0.3.0-beta.5
+        version: 0.3.0-beta.5(@ecopages/signals@0.3.0-beta.5)
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../mdx
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.4
-        version: 0.3.0-beta.4(@ecopages/jsx@0.3.0-beta.4(@ecopages/signals@0.3.0-beta.4))
+        specifier: 0.3.0-beta.5
+        version: 0.3.0-beta.5(@ecopages/jsx@0.3.0-beta.5(@ecopages/signals@0.3.0-beta.5))
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1

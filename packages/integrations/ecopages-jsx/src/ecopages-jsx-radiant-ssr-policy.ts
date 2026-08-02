@@ -13,10 +13,12 @@ type RadiantLightDomShimWindow = {
 	Node: typeof Node;
 	document: Document;
 	customElements: CustomElementRegistry;
+	requestAnimationFrame: typeof requestAnimationFrame;
+	cancelAnimationFrame: typeof cancelAnimationFrame;
 };
 
 type RadiantServerRuntimeModules = {
-	installLightDomShim: () => RadiantLightDomShimWindow;
+	ensureLightDomShim: () => RadiantLightDomShimWindow | undefined;
 	resolveRadiantElementRenderBridge: (instance: unknown) =>
 		| {
 				renderHost: () => { nodeType: 1; outerHTML: string };
@@ -34,13 +36,14 @@ type RadiantServerRuntimeModules = {
  * renders do not need them. Resolved runtime modules are cached on the policy
  * instance so repeated renders on the same renderer reuse one load without
  * process-wide mutable class state. Light-DOM constructor installation remains
- * process-global and idempotent via {@link ensureRadiantLightDomGlobals}.
+ * process-global and idempotent via {@link ensureRadiantLightDomGlobals}; the
+ * Radiant installer also repairs incomplete DOM globals left by another runtime.
  */
 export class EcopagesJsxRadiantSsrPolicy {
 	private runtimeModules: RadiantServerRuntimeModules | undefined;
 	private runtimeModulesPromise:
 		| Promise<{
-				installLightDomShim: () => RadiantLightDomShimWindow;
+				ensureLightDomShim: () => RadiantLightDomShimWindow | undefined;
 				withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
 		  }>
 		| undefined;
@@ -110,7 +113,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 			this.runtimeModulesPromise = (async () => {
 				const lightDomShimModule = await import(radiantLightDomShimEntry);
-				ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
+				ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 
 				const radiantElementSsrRuntimeModule = (await import(radiantElementSsrRuntimeModuleUrl)) as {
 					resolveRadiantElementRenderBridge: (instance: unknown) =>
@@ -123,7 +126,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 				};
 
 				const modules = {
-					installLightDomShim: lightDomShimModule.installLightDomShim,
+					ensureLightDomShim: lightDomShimModule.ensureLightDomShim,
 					resolveRadiantElementRenderBridge: radiantElementSsrRuntimeModule.resolveRadiantElementRenderBridge,
 					withServerRadiantElementSsrRuntime:
 						radiantElementSsrRuntimeModule.withServerRadiantElementSsrRuntime,
@@ -138,7 +141,7 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 		const lightDomShimModule = this.runtimeModules;
 		if (lightDomShimModule) {
-			ensureRadiantLightDomGlobals(lightDomShimModule.installLightDomShim);
+			ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 		}
 	}
 }
@@ -149,14 +152,11 @@ export class EcopagesJsxRadiantSsrPolicy {
  * @remarks
  * Custom-element constructors must be process-global; undoing them between tests
  * is unsafe. Callers that clear globals for isolation must rely on a fresh policy
- * instance so {@link EcopagesJsxRadiantSsrPolicy.prepareRuntime} re-runs install.
+ * instance so {@link EcopagesJsxRadiantSsrPolicy.prepareRuntime} re-runs the
+ * completeness check.
  */
-function ensureRadiantLightDomGlobals(installLightDomShim: () => RadiantLightDomShimWindow): void {
-	if (typeof globalThis.HTMLElement !== 'undefined') {
-		return;
-	}
-
-	const window = installLightDomShim();
+function ensureRadiantLightDomGlobals(ensureLightDomShim: () => RadiantLightDomShimWindow | undefined): void {
+	const window = ensureLightDomShim();
 	if (!window) {
 		return;
 	}
@@ -173,6 +173,8 @@ function ensureRadiantLightDomGlobals(installLightDomShim: () => RadiantLightDom
 		Node: window.Node,
 		document: window.document,
 		customElements: window.customElements,
+		requestAnimationFrame: window.requestAnimationFrame,
+		cancelAnimationFrame: window.cancelAnimationFrame,
 		window,
 	});
 }

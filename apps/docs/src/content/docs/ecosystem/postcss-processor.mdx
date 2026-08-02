@@ -1,8 +1,10 @@
 ---
-title: "PostCSS Processor"
-description: "Process and transform CSS with the PostCSS processor plugin."
+title: 'PostCSS Processor'
+description: 'Process and transform CSS with the PostCSS processor plugin.'
 order: 8
 ---
+
+import { CodeTabs } from '@/components/code-tabs';
 
 # PostCSS Processor
 
@@ -15,11 +17,11 @@ Install the package:
 <CodeTabs
 	name="postcss-processor-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/postcss-processor' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/postcss-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/postcss-processor' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/postcss-processor' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ## Presets
@@ -33,11 +35,11 @@ This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwin
 <CodeTabs
 	name="postcss-processor-tailwind-v3"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D tailwindcss@3.4.19' },
 		{ id: 'npm', label: 'npm', code: 'npm install -D tailwindcss@3.4.19' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D tailwindcss@3.4.19' },
 		{ id: 'bun', label: 'bun', code: 'bun add -d tailwindcss@3.4.19' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ```typescript
@@ -45,11 +47,7 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
-const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin(tailwindV3Preset())
-  ])
-  .build();
+const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(tailwindV3Preset())]).build();
 
 export default config;
 ```
@@ -61,11 +59,11 @@ This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It inclu
 <CodeTabs
 	name="postcss-processor-tailwind-v4"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D @tailwindcss/postcss tailwindcss' },
 		{ id: 'npm', label: 'npm', code: 'npm install -D @tailwindcss/postcss tailwindcss' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D @tailwindcss/postcss tailwindcss' },
 		{ id: 'bun', label: 'bun', code: 'bun add -d @tailwindcss/postcss tailwindcss' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ```typescript
@@ -77,17 +75,18 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin(tailwindV4Preset({
-      // Path to your main CSS file containing `@import "tailwindcss";`
-      referencePath: path.resolve(appRoot, 'src/styles/app.css'),
-    }))
-  ])
-  .build();
+	.setProcessors([
+		postcssProcessorPlugin(
+			tailwindV4Preset({
+				// Path to your main CSS file containing `@import "tailwindcss";`
+				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
+			}),
+		),
+	])
+	.build();
 
 export default config;
 ```
-
 
 ### Browser Support
 
@@ -106,13 +105,13 @@ The plugin automatically detects and uses standard `postcss.config.{js,cjs,mjs,t
 ```javascript
 // postcss.config.js
 module.exports = {
-  plugins: {
-    'postcss-import': {},
-    'tailwindcss/nesting': {},
-    tailwindcss: {},
-    autoprefixer: {},
-    cssnano: {},
-  },
+	plugins: {
+		'postcss-import': {},
+		'tailwindcss/nesting': {},
+		tailwindcss: {},
+		autoprefixer: {},
+		cssnano: {},
+	},
 };
 ```
 
@@ -122,11 +121,7 @@ Then simply add the plugin without arguments:
 // eco.config.ts
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
-const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin()
-  ])
-  .build();
+const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin()]).build();
 ```
 
 ### Manual Plugin Configuration
@@ -138,11 +133,11 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import myPlugin from 'postcss-my-plugin';
 
 postcssProcessorPlugin({
-  filter: /\.css$/,
-  plugins: {
-    'my-plugin': myPlugin(),
-  },
-})
+	filter: /\.css$/,
+	plugins: {
+		'my-plugin': myPlugin(),
+	},
+});
 ```
 
 ### Advanced Configuration
@@ -154,21 +149,19 @@ import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
 const config = await new ConfigBuilder()
-  .setProcessors([
-    postcssProcessorPlugin({
-      // Define a filter for files to process (defaults to /\.css$/)
-      filter: /\.css$/,
-      // Provide a function to transform input before processing
-      transformInput: async (css) => `/* My Custom Header */\n${css}`,
-      // Provide a function to transform output after processing
-      transformOutput: async (css) => css.replace('blue', 'red'),
-      // Explicitly provide plugins (overrides defaults)
-      plugins: {
-        /* custom plugins */
-      },
-    }),
-  ])
-  .build();
+	.setProcessors([
+		postcssProcessorPlugin({
+			// Define a filter for files to process (defaults to /\.css$/)
+			filter: /\.css$/,
+			// Provide a function to transform input before processing
+			transformInput: async (css) => `/* My Custom Header */\n${css}`,
+			// Provide a function to transform output after processing
+			transformOutput: async (css) => css.replace('blue', 'red'),
+			// Explicitly provide plugins (overrides defaults)
+			plugins: {/* custom plugins */},
+		}),
+	])
+	.build();
 
 export default config;
 ```
@@ -198,15 +191,13 @@ import { PostCssProcessor } from '@ecopages/postcss-processor';
 const cssFromFile = await PostCssProcessor.processPath('path/to/file.css');
 
 // Process a string
-const cssString = await PostCssProcessor.processStringOrBuffer(
-  '.foo { @apply bg-red-500; }', 
-  { filePath: 'mock.css' }
-);
+const cssString = await PostCssProcessor.processStringOrBuffer('.foo { @apply bg-red-500; }', { filePath: 'mock.css' });
 ```
 
 ## Error Handling
 
 The processor includes built-in error handling:
+
 - File not found errors are thrown with clear messages.
 - Processing errors are caught and logged.
 - On error (e.g., syntax error in CSS), processing methods return an empty string to prevent build crashes, while logging the error details.

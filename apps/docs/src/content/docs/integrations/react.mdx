@@ -1,25 +1,26 @@
 ---
-title: "React"
-description: "Use React 19 components and SSR within the Ecopages rendering model."
+title: 'React'
+description: 'Use React 19 components and SSR within the Ecopages rendering model.'
 order: 3
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
 
 # React Integration
 
 The `@ecopages/react` package introduces first-class integration with [React](https://reactjs.org/) version 19, enabling developers to build dynamic components using the latest React features within the Ecopages platform.
-
-
 
 ## Installation
 
 <CodeTabs
 	name="react-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/react' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/react' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 Also install React's required peer packages in your app: `react` and `react-dom`. In TypeScript projects, install `@types/react` and `@types/react-dom` as well.
@@ -63,11 +64,11 @@ export const Counter = eco.component({
 		return (
 			<div className="counter">
 				<p>Count: {count}</p>
-				<button onClick={() => setCount(prev => prev - 1)}>-</button>
-				<button onClick={() => setCount(prev => prev + 1)}>+</button>
+				<button onClick={() => setCount((prev) => prev - 1)}>-</button>
+				<button onClick={() => setCount((prev) => prev + 1)}>+</button>
 			</div>
 		);
-	}
+	},
 });
 ```
 
@@ -81,15 +82,15 @@ You can also write standard React components directly when they only need React 
 import { useState } from 'react';
 
 export function SimpleCounter() {
-    const [count, setCount] = useState(0);
-    return (
-        <button 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            onClick={() => setCount(count + 1)}
-        >
-            Count: {count}
-        </button>
-    );
+	const [count, setCount] = useState(0);
+	return (
+		<button
+			className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+			onClick={() => setCount(count + 1)}
+		>
+			Count: {count}
+		</button>
+	);
 }
 ```
 
@@ -113,7 +114,7 @@ export default eco.page({
 				<Counter />
 			</BaseLayout>
 		);
-	}
+	},
 });
 ```
 
@@ -141,8 +142,8 @@ The `ClientOnly` component is useful for parts of the UI that should strictly re
 import { ClientOnly } from '@ecopages/react/utils/client-only';
 
 <ClientOnly fallback={<Spinner />}>
-    <BrowserSpecificFeature />
-</ClientOnly>
+	<BrowserSpecificFeature />
+</ClientOnly>;
 ```
 
 ## Key Features
@@ -184,9 +185,13 @@ export default config;
 
 This is the recommended approach when using a client-side router, as it ensures seamless navigation between TSX and MDX pages.
 
-<Banner type="info">
-	<BannerTitle>Standalone MDX</BannerTitle>
-	<p>
-		Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should compile against a non-React JSX runtime. React-backed MDX belongs on the React plugin even when you are not using client-side routing.
-	</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Standalone MDX</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should compile against
+			a non-React JSX runtime. React-backed MDX belongs on the React plugin even when you are not using
+			client-side routing.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>

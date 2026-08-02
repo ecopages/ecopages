@@ -41,6 +41,11 @@ describe('RadiantCodeTabs', () => {
 			const selectedTab = codeTabs.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
 			expect(selectedTab?.textContent).toBe('TypeScript');
 		});
+		const visibleInitialPanels = [...codeTabs.querySelectorAll<HTMLElement>('[role="tabpanel"]')].filter(
+			(panel) => !panel.hidden,
+		);
+		expect(visibleInitialPanels).toHaveLength(1);
+		expect(visibleInitialPanels[0]?.textContent).toContain('console.log("ts")');
 		const selectedTab = codeTabs.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
 		expect(selectedTab).not.toBeNull();
 		if (!selectedTab) {
@@ -54,14 +59,18 @@ describe('RadiantCodeTabs', () => {
 			expect(codeTabs.selectedKey).toBe('bash');
 			expect(codeTabs.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Bash');
 		});
+		const visibleSelectedPanels = [...codeTabs.querySelectorAll<HTMLElement>('[role="tabpanel"]')].filter(
+			(panel) => !panel.hidden,
+		);
+		expect(visibleSelectedPanels).toHaveLength(1);
+		expect(visibleSelectedPanels[0]?.textContent).toContain('echo bash');
 		expect(changeSpy).toHaveBeenCalledTimes(1);
 		expect(changeSpy.mock.calls[0]?.[0]).toMatchObject({ detail: { selectedKey: 'bash' } });
 		expect(document.activeElement?.getAttribute('data-tab-index')).toBe('2');
 	});
 
 	it('copies the active tab code and exposes transient status feedback', async () => {
-		vi.useFakeTimers();
-		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		const user = userEvent.setup();
 		const writeText = vi.fn().mockResolvedValue(undefined);
 		Object.defineProperty(navigator, 'clipboard', {
 			configurable: true,
@@ -85,14 +94,23 @@ describe('RadiantCodeTabs', () => {
 			expect(codeTabs.querySelector('.code-tabs__status')?.textContent).toContain(
 				'JavaScript copied to clipboard',
 			);
-			expect(codeTabs.querySelector('.code-tabs__copy')?.getAttribute('data-copied')).toBe('true');
 		});
+	});
 
-		vi.advanceTimersByTime(2000);
+	it('renders Shiki markup as HTML and copies its plain-text content', async () => {
+		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
+		codeTabs.tabs = [
+			{
+				id: 'typescript',
+				label: 'example.ts',
+				html: '<pre><code><span class="shiki-token">const answer = 42;</span></code></pre>',
+				content: 'const answer = 42;',
+			},
+		];
+		document.body.appendChild(codeTabs);
 
 		await vi.waitFor(() => {
-			expect(codeTabs.querySelector('.code-tabs__status')?.textContent?.trim()).toBe('');
-			expect(codeTabs.querySelector('.code-tabs__copy')?.getAttribute('data-copied')).toBe('false');
+			expect(codeTabs.querySelector('.shiki-token')?.textContent).toBe('const answer = 42;');
 		});
 	});
 

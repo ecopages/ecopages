@@ -1,8 +1,10 @@
 ---
-title: "Vite Plugin"
-description: "Run Ecopages alongside Vite dev server transforms and plugin ecosystem."
+title: 'Vite Plugin'
+description: 'Run Ecopages alongside Vite dev server transforms and plugin ecosystem.'
 order: 3
 ---
+
+import { CodeTabs } from '@/components/code-tabs';
 
 # Vite Plugin
 
@@ -15,11 +17,11 @@ The plugin is **private to the monorepo** today but documents the host-side inte
 <CodeTabs
 	name="vite-plugin-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D vite @ecopages/vite-plugin @ecopages/core' },
 		{ id: 'npm', label: 'npm', code: 'npm install -D vite @ecopages/vite-plugin @ecopages/core' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add -D vite @ecopages/vite-plugin @ecopages/core' },
 		{ id: 'bun', label: 'bun', code: 'bun add -d vite @ecopages/vite-plugin @ecopages/core' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 Export your app config from `eco.config.ts` using `ConfigBuilder` (see [Configuration](/docs/getting-started/configuration)).

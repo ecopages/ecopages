@@ -1,8 +1,10 @@
 ---
-title: "Deployment"
-description: "Deploy static Ecopages sites and apps with server routes to production hosts."
+title: 'Deployment'
+description: 'Deploy static Ecopages sites and apps with server routes to production hosts.'
 order: 3
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Deployment
 
@@ -19,6 +21,7 @@ pnpm run build
 ```
 
 This command will:
+
 1. Set `NODE_ENV=production`.
 2. Clean the `dist` directory.
 3. Generate static HTML for all files in `src/pages`.
@@ -34,11 +37,13 @@ If your site **does not** use API routes or programmatic server logic, you can h
 - **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
 - **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
 
-<Banner type="info">
-  **Base URL Configuration**
-
-  Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and links are absolute.
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Base URL Configuration</RuiAlertTitle>
+	<RuiAlertDescription>
+		Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and
+		links are absolute.
+	</RuiAlertDescription>
+</RuiAlert>
 
 ---
 
@@ -47,6 +52,7 @@ If your site **does not** use API routes or programmatic server logic, you can h
 If your application uses **API routes** or **dynamic server logic**, you need a runtime environment compatible with the adapter you configured (Bun or Node).
 
 ### 1. Using `pnpm run start`
+
 After building, you can start the production server:
 
 ```bash
@@ -54,6 +60,7 @@ pnpm run start
 ```
 
 ### 2. Docker Deployment
+
 You can easily containerize your Ecopages app using the official Bun image when using the Bun adapter.
 
 ```dockerfile
@@ -72,6 +79,7 @@ CMD ["bun", "run", "start"]
 ```
 
 ### 3. VPS / PaaS (Railway, Fly.io)
+
 Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.
 
 ---
@@ -80,9 +88,9 @@ Deploy the server by pointing the platform to your `app.ts` as the entry point a
 
 Before going live, check that these environment variables are set on your hosting provider:
 
-| Variable | Recommended Value |
-| :--- | :--- |
-| `NODE_ENV` | `production` |
+| Variable            | Recommended Value                                    |
+| :------------------ | :--------------------------------------------------- |
+| `NODE_ENV`          | `production`                                         |
 | `ECOPAGES_BASE_URL` | Your production domain (e.g., `https://example.com`) |
-| `ECOPAGES_PORT` | The port required by your host (e.g., `8080`) |
-| `ECOPAGES_HOSTNAME` | `0.0.0.0` (for Docker/Cloud environments) |
+| `ECOPAGES_PORT`     | The port required by your host (e.g., `8080`)        |
+| `ECOPAGES_HOSTNAME` | `0.0.0.0` (for Docker/Cloud environments)            |

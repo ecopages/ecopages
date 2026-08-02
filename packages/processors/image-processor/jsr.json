@@ -5,6 +5,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./component/html": "./src/component/html.ts",
+		"./component/jsx": "./src/component/jsx.ts",
 		"./component/react": "./src/component/react.ts"
 	},
 	"exclude": ["src/test"],

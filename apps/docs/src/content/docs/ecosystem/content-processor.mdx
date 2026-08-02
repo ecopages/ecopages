@@ -1,8 +1,10 @@
 ---
-title: "Content Processor"
-description: "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules."
+title: 'Content Processor'
+description: 'Scan MDX collections at build time and expose typed ecopages:content/* virtual modules.'
 order: 10
 ---
+
+import { CodeTabs } from '@/components/code-tabs';
 
 # Content Processor
 
@@ -12,23 +14,23 @@ This docs app uses it for every page under `src/content/docs/`.
 
 ## What the processor owns
 
-| Layer | Owner |
-| :---- | :---- |
-| File discovery, frontmatter validation, manifest sort | `@ecopages/content-processor` |
-| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor` |
-| `ContentScanner` for build scripts (for example `llms.txt`) | `@ecopages/content-processor` |
-| Routes, layouts, sidebar, breadcrumbs, pagination | Your app — derive from `entries` and frontmatter |
+| Layer                                                                 | Owner                                            |
+| :-------------------------------------------------------------------- | :----------------------------------------------- |
+| File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                    |
+| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                    |
+| `ContentScanner` for build scripts (for example `llms.txt`)           | `@ecopages/content-processor`                    |
+| Routes, layouts, sidebar, breadcrumbs, pagination                     | Your app — derive from `entries` and frontmatter |
 
 ## Installation
 
 <CodeTabs
 	name="content-processor-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/content-processor' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/content-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/content-processor' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/content-processor' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 Peer dependency: `@ecopages/core`.
@@ -88,22 +90,23 @@ docs: {
 	contentDir: 'content/docs',
 	schema: docsFrontmatterSchema,
 	routePrefix: '/docs',
-	devPrewarm: 'all',
-	devPrewarmReadiness: 'beforeReady',
+	devPrewarm: 'first',
+	devPrewarmReadiness: 'background',
 }
 ```
 
 `devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. The default readiness is `'background'`;
 `'beforeReady'` waits until the selected paths are rendered before Ecopages reports the framework ready signal
 (not before the listen port opens). Prewarming stores HTML only for the selected paths on the watch page cache
-allowlist and does not enable caching for other development routes.
+allowlist and does not enable caching for other development routes. Keep the selection small during interactive
+development: `'all'` renders every collection route concurrently and can compete with the page you are navigating to.
 
 ### Docs app wiring
 
 - **Frontmatter schema and section config** — `src/content/docs.ts`
 - **Sidebar navigation** — `src/lib/content-nav.ts` joins section config with processor `entries`
 - **Catch-all route** — `src/pages/docs/[...slug]/index.tsx` resolves entries and renders MDX
-- **Shared MDX components** — `src/lib/docs/mdx-components.ts` exports `docsMdxComponents` passed at render time
+- **MDX component dependencies** — each document imports the components it renders
 - **Layout chrome** — `src/layouts/docs-layout/`
 
 Example frontmatter:
@@ -120,10 +123,9 @@ Catch-all render pattern:
 
 ```typescript
 import { getComponent } from 'ecopages:content/docs/server';
-import { docsMdxComponents } from '@/lib/docs/mdx-components';
 
 const Content = await getComponent('getting-started/introduction');
-return await Content({ components: docsMdxComponents });
+return await Content();
 ```
 
 ## Virtual module API
@@ -136,24 +138,24 @@ import { getComponent } from 'ecopages:content/docs/server';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export | Module | Description |
-| :----- | :----- | :---------- |
-| `entries` | entries | Readonly manifest, sorted by `orderBy` |
-| `getEntry(slug)` | entries | Lookup by joined slug, e.g. `'getting-started/introduction'` |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array |
-| `getComponent(slug)` | server | `Promise` of the MDX component for the entry |
-| `Entry` | entries | Type only — frontmatter fields plus `slug` and `segments` |
+| Export                         | Module  | Description                                                  |
+| :----------------------------- | :------ | :----------------------------------------------------------- |
+| `entries`                      | entries | Readonly manifest, sorted by `orderBy`                       |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/introduction'` |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array                                      |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry                 |
+| `Entry`                        | entries | Type only — frontmatter fields plus `slug` and `segments`    |
 
 Keep `Entry` on a separate `import type` line in bundled page files.
 
 ## Package exports
 
-| Import | Purpose |
-| :----- | :------ |
-| `@ecopages/content-processor` | `ContentScanner`, sort helpers, shared types |
-| `@ecopages/content-processor/plugin` | `contentProcessorPlugin()` for `eco.config.ts` |
-| `@ecopages/content-processor/types` | `ContentEntry`, `ContentCollectionModule`, `EntryComparator` |
-| `@ecopages/content-processor/mdx` | `remarkFrontmatter`, `withContentMdxPlugins()` |
+| Import                               | Purpose                                                      |
+| :----------------------------------- | :----------------------------------------------------------- |
+| `@ecopages/content-processor`        | `ContentScanner`, sort helpers, shared types                 |
+| `@ecopages/content-processor/plugin` | `contentProcessorPlugin()` for `eco.config.ts`               |
+| `@ecopages/content-processor/types`  | `ContentEntry`, `ContentCollectionModule`, `EntryComparator` |
+| `@ecopages/content-processor/mdx`    | `remarkFrontmatter`, `withContentMdxPlugins()`               |
 
 ## TypeScript
 

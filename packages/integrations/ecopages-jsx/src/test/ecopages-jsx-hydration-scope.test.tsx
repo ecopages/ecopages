@@ -97,7 +97,7 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 					}
 				: HTMLElement;
 		const runtimeModules = {
-			installLightDomShim: () => undefined,
+			ensureLightDomShim: () => undefined,
 			resolveRadiantElementRenderBridge: (instance: unknown) => {
 				if (
 					typeof instance === 'object' &&

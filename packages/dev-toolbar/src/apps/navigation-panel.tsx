@@ -12,6 +12,7 @@ import {
 	type NavigationTelemetryEntry,
 	type NavigationTelemetrySnapshot,
 } from '../runtime/navigation-telemetry.ts';
+import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 function formatMs(value: number | undefined): string {
 	return typeof value === 'number' ? `${value}ms` : 'n/a';
@@ -30,16 +31,20 @@ export class EcoDevToolbarNavigation extends RadiantElement {
 	@state snapshot: NavigationTelemetrySnapshot | undefined = readNavigationTelemetrySnapshot();
 	@state manifest: EcoDevManifest | undefined = readDevManifestFromDocument();
 	@state historyPage = 0;
+	private unsubscribeNavigationEvents: (() => void) | undefined;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
-		this.ownerDocument.addEventListener('eco:page-load', this.refresh);
-		this.ownerDocument.addEventListener('eco:after-swap', this.refresh);
+		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
+			this.ownerDocument,
+			['eco:page-load', 'eco:after-swap'],
+			this.refresh,
+		);
 	}
 
 	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('eco:page-load', this.refresh);
-		this.ownerDocument.removeEventListener('eco:after-swap', this.refresh);
+		this.unsubscribeNavigationEvents?.();
+		this.unsubscribeNavigationEvents = undefined;
 		super.disconnectedCallback();
 	}
 

@@ -276,4 +276,144 @@ describe('DomSwapper DOM behavior', () => {
 		expect(document.querySelectorAll('#when-to-use')).toHaveLength(0);
 		expect(document.querySelectorAll('#example')).toHaveLength(0);
 	});
+
+	it('moves a persisted light-DOM custom element into a different parent tree without duplicating it', () => {
+		resetDocument();
+		registerLightDomCounter();
+		const swapper = new DomSwapper('data-eco-persist');
+		document.body.innerHTML = [
+			'<header>',
+			'<nav><ul><li>',
+			renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+			'</li></ul></nav>',
+			'</header>',
+			'<main>Home</main>',
+		].join('');
+
+		const currentToggle = document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null;
+		currentToggle?.setAttribute('count', '3');
+		if (currentToggle) {
+			currentToggle.marker = 'kept';
+		}
+
+		const nextDocument = parseDocument(
+			[
+				'<html><body>',
+				'<docs-shell>',
+				'<div class="site-header"><nav>',
+				renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+				'</nav></div>',
+				'<aside data-eco-persist="docs-sidebar">Sidebar</aside>',
+				'<main>Docs</main>',
+				'</docs-shell>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphBody(nextDocument);
+
+		const toggles = document.querySelectorAll('#toggle-dark-mode');
+		expect(toggles).toHaveLength(1);
+		expect(toggles[0]).toBe(currentToggle);
+		expect((toggles[0] as HTMLElement & { marker?: string }).marker).toBe('kept');
+		expect(toggles[0]?.closest('docs-shell nav')).not.toBeNull();
+		expect(document.querySelector('header')).toBeNull();
+	});
+
+	it('does not duplicate a persisted toggle when the destination wraps it in a light-DOM custom element shell', () => {
+		resetDocument();
+		registerLightDomCounter();
+		if (!customElements.get('docs-shell')) {
+			customElements.define(
+				'docs-shell',
+				class extends HTMLElement {
+					connectedCallback() {
+						this.setAttribute('data-shell', 'ready');
+					}
+				},
+			);
+		}
+
+		const swapper = new DomSwapper('data-eco-persist');
+		document.body.innerHTML = [
+			'<header class="header">',
+			'<nav class="navigation"><ul><li>',
+			renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+			'</li></ul></nav>',
+			'</header>',
+			'<main>Home</main>',
+		].join('');
+
+		const currentToggle = document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null;
+		if (currentToggle) {
+			currentToggle.marker = 'kept';
+		}
+
+		const nextDocument = parseDocument(
+			[
+				'<html><body>',
+				'<docs-shell class="docs-layout">',
+				'<div class="site-header"><nav>',
+				'<a href="https://github.com/ecopages/ecopages">GitHub</a>',
+				renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+				'</nav></div>',
+				'<test-light-dom-counter data-eco-persist="docs-sidebar" count="0"><span data-ref="count">0</span></test-light-dom-counter>',
+				'<main>Docs</main>',
+				'</docs-shell>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphBody(nextDocument);
+
+		expect(document.querySelectorAll('#toggle-dark-mode')).toHaveLength(1);
+		expect(document.querySelector('#toggle-dark-mode')).toBe(currentToggle);
+		expect(
+			(document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null)?.marker,
+		).toBe('kept');
+		expect(document.querySelectorAll('[data-eco-persist="theme-toggle"]')).toHaveLength(1);
+		expect(document.querySelector('header.header')).toBeNull();
+	});
+
+	it('does not duplicate a persisted toggle across layouts when replacing the body', () => {
+		resetDocument();
+		registerLightDomCounter();
+		const swapper = new DomSwapper('data-eco-persist');
+		document.body.innerHTML = [
+			'<header class="header">',
+			'<nav class="navigation"><ul><li>',
+			renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+			'</li></ul></nav>',
+			'</header>',
+			'<main>Home</main>',
+		].join('');
+
+		const currentToggle = document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null;
+		if (currentToggle) {
+			currentToggle.marker = 'kept';
+		}
+
+		const nextDocument = parseDocument(
+			[
+				'<html><body>',
+				'<div class="docs-layout">',
+				'<div class="site-header"><nav>',
+				renderLightDomCounter('id="toggle-dark-mode" data-eco-persist="theme-toggle" count="0"'),
+				'</nav></div>',
+				'<aside data-eco-persist="docs-sidebar">Sidebar</aside>',
+				'<main>Docs</main>',
+				'</div>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.replaceBody(nextDocument);
+
+		expect(document.querySelectorAll('#toggle-dark-mode')).toHaveLength(1);
+		expect(document.querySelector('#toggle-dark-mode')).toBe(currentToggle);
+		expect(
+			(document.querySelector('#toggle-dark-mode') as (HTMLElement & { marker?: string }) | null)?.marker,
+		).toBe('kept');
+		expect(document.querySelector('header.header')).toBeNull();
+	});
 });

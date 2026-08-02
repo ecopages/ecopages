@@ -3,7 +3,7 @@ import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
 import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 
 type IntegrationOwnership = { name: string; jsxImportSource?: string };
@@ -104,7 +104,7 @@ export function attributeComponentIdentity(contents: string, filePath: string, i
 
 	let program: AstNode;
 	try {
-		program = parseModuleSource(filePath, contents).program as unknown as AstNode;
+		program = cachedParseSync(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
 		return contents;
 	}

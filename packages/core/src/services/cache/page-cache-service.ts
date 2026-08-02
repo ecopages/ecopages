@@ -8,10 +8,12 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
+import { HtmlPageCacheDependencyIndex } from './html-page-cache-dependency-index.ts';
 
 export interface PageCacheServiceOptions {
 	store?: CacheStore;
 	enabled?: boolean;
+	dependencyIndex?: HtmlPageCacheDependencyIndex;
 }
 
 /**
@@ -20,12 +22,14 @@ export interface PageCacheServiceOptions {
 export class PageCacheService {
 	private store: CacheStore;
 	private enabled: boolean;
+	private readonly dependencyIndex: HtmlPageCacheDependencyIndex;
 	private regenerationPromises = new Map<string, Promise<string>>();
 	private missPromises = new Map<string, Promise<CacheResult>>();
 
 	constructor(options: PageCacheServiceOptions = {}) {
 		this.store = options.store ?? new MemoryCacheStore();
 		this.enabled = options.enabled ?? true;
+		this.dependencyIndex = options.dependencyIndex ?? new HtmlPageCacheDependencyIndex();
 	}
 
 	/**
@@ -81,6 +85,7 @@ export class PageCacheService {
 		key: string,
 		defaultStrategy: CacheStrategy,
 		renderFn: () => Promise<RenderResult>,
+		options?: { sourceDependencyPaths?: readonly string[] },
 	): Promise<CacheResult> {
 		if (!this.enabled) {
 			const { html, strategy } = await renderFn();
@@ -92,7 +97,7 @@ export class PageCacheService {
 			return pendingMiss;
 		}
 
-		const missPromise = this.resolveOrCreate(key, defaultStrategy, renderFn).finally(() => {
+		const missPromise = this.resolveOrCreate(key, defaultStrategy, renderFn, options).finally(() => {
 			this.missPromises.delete(key);
 		});
 
@@ -104,11 +109,12 @@ export class PageCacheService {
 		key: string,
 		defaultStrategy: CacheStrategy,
 		renderFn: () => Promise<RenderResult>,
+		options?: { sourceDependencyPaths?: readonly string[] },
 	): Promise<CacheResult> {
 		const entry = await this.store.get(key);
 
 		if (!entry) {
-			const { html, strategy } = await renderFn();
+			const { html, strategy, sourceDependencyPaths } = await renderFn();
 			const effectiveStrategy = strategy ?? defaultStrategy;
 
 			if (effectiveStrategy === 'dynamic') {
@@ -117,6 +123,7 @@ export class PageCacheService {
 
 			const newEntry = this.createEntry(html, effectiveStrategy);
 			await this.store.set(key, newEntry);
+			this.registerDependencyPaths(key, options?.sourceDependencyPaths, sourceDependencyPaths);
 			return { html, status: 'miss', strategy: effectiveStrategy };
 		}
 
@@ -128,6 +135,24 @@ export class PageCacheService {
 		return { html: entry.html, status: 'stale', strategy: entry.strategy };
 	}
 
+	private registerDependencyPaths(
+		key: string,
+		initialPaths: readonly string[] | undefined,
+		renderedPaths: readonly string[] | undefined,
+	): void {
+		const mergedPaths = new Set<string>();
+		for (const sourcePath of initialPaths ?? []) {
+			mergedPaths.add(sourcePath);
+		}
+		for (const sourcePath of renderedPaths ?? []) {
+			mergedPaths.add(sourcePath);
+		}
+
+		if (mergedPaths.size > 0) {
+			this.dependencyIndex.register(key, [...mergedPaths]);
+		}
+	}
+
 	/**
 	 * Regenerate content in the background without blocking the response.
 	 * Uses promise deduplication to prevent multiple concurrent regenerations.
@@ -135,7 +160,7 @@ export class PageCacheService {
 	private regenerateInBackground(
 		key: string,
 		fallbackStrategy: CacheStrategy,
-		renderFn: () => Promise<{ html: string; strategy: CacheStrategy }>,
+		renderFn: () => Promise<RenderResult>,
 	): void {
 		if (this.regenerationPromises.has(key)) {
 			return;
@@ -143,10 +168,11 @@ export class PageCacheService {
 
 		const regeneratePromise = (async () => {
 			try {
-				const { html, strategy } = await renderFn();
+				const { html, strategy, sourceDependencyPaths } = await renderFn();
 				const effectiveStrategy = strategy ?? fallbackStrategy;
 				const newEntry = this.createEntry(html, effectiveStrategy);
 				await this.store.set(key, newEntry);
+				this.registerDependencyPaths(key, undefined, sourceDependencyPaths);
 				return html;
 			} finally {
 				this.regenerationPromises.delete(key);
@@ -177,9 +203,31 @@ export class PageCacheService {
 	}
 
 	/**
+	 * Invalidates cached HTML entries that registered the given source paths.
+	 */
+	async invalidateBySourceDependencyPaths(sourcePaths: readonly string[]): Promise<number> {
+		const cacheKeys = this.dependencyIndex.resolveCacheKeysForSourcePaths(sourcePaths);
+		let count = 0;
+
+		for (const cacheKey of cacheKeys) {
+			if (await this.store.delete(cacheKey)) {
+				count += 1;
+			}
+			this.dependencyIndex.unregister(cacheKey);
+		}
+
+		return count;
+	}
+
+	getDependencyIndex(): HtmlPageCacheDependencyIndex {
+		return this.dependencyIndex;
+	}
+
+	/**
 	 * Clear all cached entries.
 	 */
 	async clear(): Promise<void> {
+		this.dependencyIndex.clear();
 		return this.store.clear();
 	}
 
@@ -247,4 +295,14 @@ export function getAppPageCacheService(appConfig: EcoPagesAppConfig): PageCacheS
  */
 export async function clearAppPageCache(appConfig: EcoPagesAppConfig): Promise<void> {
 	await getAppPageCacheService(appConfig)?.clear();
+}
+
+/**
+ * Invalidates rendered HTML cache entries that depend on the given source paths.
+ */
+export async function invalidateAppPageCacheBySourcePaths(
+	appConfig: EcoPagesAppConfig,
+	sourcePaths: readonly string[],
+): Promise<number> {
+	return (await getAppPageCacheService(appConfig)?.invalidateBySourceDependencyPaths(sourcePaths)) ?? 0;
 }

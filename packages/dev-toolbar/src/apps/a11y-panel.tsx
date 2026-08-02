@@ -8,6 +8,7 @@ import { toA11yBadge } from './a11y/a11y-badge.ts';
 import { resolveA11yIssueElement, runA11yChecks, toA11yIssueView, type A11yIssueView } from './a11y/run-a11y-checks.ts';
 import { groupA11yIssues } from './a11y/a11y-issue-groups.ts';
 import { highlightElement } from '../runtime/highlight-element.ts';
+import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 const auditCache = new Map<string, A11yIssueView[]>();
 
@@ -41,6 +42,7 @@ export class EcoDevToolbarA11y extends RadiantElement {
 	private auditGeneration = 0;
 	private auditDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 	private clearHighlight: (() => void) | undefined;
+	private unsubscribeNavigationEvents: (() => void) | undefined;
 
 	private get toolbar(): DevToolbarHost | null {
 		return this.closest('eco-dev-toolbar') as DevToolbarHost | null;
@@ -48,14 +50,17 @@ export class EcoDevToolbarA11y extends RadiantElement {
 
 	override connectedCallback(): void {
 		super.connectedCallback();
-		this.ownerDocument.addEventListener('eco:page-load', this.scheduleAudit);
-		this.ownerDocument.addEventListener('eco:after-swap', this.scheduleAudit);
+		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
+			this.ownerDocument,
+			['eco:page-load', 'eco:after-swap'],
+			this.scheduleAudit,
+		);
 		void this.runAudit();
 	}
 
 	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('eco:page-load', this.scheduleAudit);
-		this.ownerDocument.removeEventListener('eco:after-swap', this.scheduleAudit);
+		this.unsubscribeNavigationEvents?.();
+		this.unsubscribeNavigationEvents = undefined;
 		if (this.auditDebounceTimer !== undefined) {
 			clearTimeout(this.auditDebounceTimer);
 			this.auditDebounceTimer = undefined;

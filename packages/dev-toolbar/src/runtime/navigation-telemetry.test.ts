@@ -53,11 +53,15 @@ function createDocumentHarness() {
 		handlers.add(listener);
 		listeners.set(event, handlers);
 	});
+	const removeEventListener = vi.fn((event: string, listener: () => void) => {
+		listeners.get(event)?.delete(listener);
+	});
 	const doc = {
 		body,
 		head,
 		readyState: 'complete' as DocumentReadyState,
 		addEventListener,
+		removeEventListener,
 		createElement: vi.fn(() => {
 			const element = {
 				id: '',
@@ -72,7 +76,7 @@ function createDocumentHarness() {
 		dispatchEvent: vi.fn(),
 	};
 
-	return { doc: doc as unknown as Document, elements, listeners };
+	return { addEventListener, doc: doc as unknown as Document, elements, listeners, removeEventListener };
 }
 
 describe('navigation telemetry', () => {
@@ -118,6 +122,19 @@ describe('navigation telemetry', () => {
 		expect(snapshot.history[0]?.kind).toBe('initial');
 		expect(snapshot.history[0]?.durationMs).toBe(95);
 		expect(elements.get(NAV_TELEMETRY_ELEMENT_ID)?.textContent).toContain('"kind":"initial"');
+	});
+
+	it('reuses the browser runtime when HMR re-evaluates the telemetry module', async () => {
+		const { addEventListener, doc } = createDocumentHarness();
+		const api = initNavigationTelemetry(doc);
+
+		vi.resetModules();
+		const reloadedModule = await import('./navigation-telemetry.ts');
+		const reloadedApi = reloadedModule.initNavigationTelemetry(doc);
+
+		expect(reloadedApi).toBe(api);
+		expect(addEventListener.mock.calls.filter(([event]) => event === 'eco:page-load')).toHaveLength(1);
+		reloadedModule.resetNavigationTelemetryForTests();
 	});
 
 	it('records client navigation durations across swap events', () => {

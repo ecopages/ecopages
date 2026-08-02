@@ -1,9 +1,7 @@
 .site-header {
-	padding: 1rem 2rem;
-	border-bottom: 1px solid #e5e7eb;
+	@apply border-b border-border bg-background-accent px-6 py-4;
 }
 
 .site-header a {
-	font-weight: 600;
-	text-decoration: none;
+	@apply font-semibold text-on-background no-underline;
 }

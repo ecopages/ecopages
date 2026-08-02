@@ -3,8 +3,7 @@ import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/docs';
-import { getComponent } from 'ecopages:content/docs/server';
-import { docsMdxComponents } from '@/lib/docs/mdx-components';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
 import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
@@ -50,9 +49,10 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
+	dependencies: async ({ props }) => getEntryDependencies(`${props.section}/${props.slug}`),
 	render: async ({ section, slug }) => {
 		const Content = await getComponent(`${section}/${slug}`);
 
-		return await Content({ components: docsMdxComponents });
+		return await Content();
 	},
 });

@@ -1,6 +1,20 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import {
+	RuiSidebar,
+	RuiSidebarContent,
+	RuiSidebarGroup,
+	RuiSidebarGroupHeader,
+	RuiSidebarInset,
+	RuiSidebarMenu,
+	RuiSidebarMenuButton,
+	RuiSidebarMenuItem,
+	RuiSidebarProvider,
+	RuiSidebarSeparator,
+	RuiSidebarTrigger,
+} from '@ecopages/radiant-ui/sidebar';
+import { RuiToc } from '@ecopages/radiant-ui/toc';
 import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import { docsNav } from '@/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -13,12 +27,8 @@ type DocsLayoutPageProps = {
 
 type DocsLayoutRenderProps = LayoutProps<JsxRenderable> & DocsLayoutPageProps;
 
-type ShellLayoutProps = {
-	class?: string;
-	children?: JsxRenderable;
-};
-
-const ShellLayout = BaseLayout as (props: ShellLayoutProps) => JsxRenderable;
+const DOCS_SIDEBAR_ID = 'docs-sidebar';
+const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
 
 function breadcrumbForPage(section: string | undefined, slug: string | undefined): BreadcrumbItem[] {
 	if (!section || !slug) {
@@ -51,6 +61,7 @@ function breadcrumbForPage(section: string | undefined, slug: string | undefined
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
+		scripts: ['./docs-layout.script.ts'],
 		components: [BaseLayout, DocsBar],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
@@ -58,30 +69,75 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 		const crumbs = breadcrumbForPage(section, slug);
 
 		return (
-			<ShellLayout class="docs-layout">
-				<aside class="docs-layout__aside">
-					<nav aria-label="Docs">
-						<ul>
-							{docsNav.sections.map((contentSection) => (
-								<li>
-									<p>{contentSection.title}</p>
-									<ul>
-										{contentSection.items.map((page) => (
-											<li>
-												<a href={page.href}>{page.title}</a>
-											</li>
-										))}
-									</ul>
-								</li>
-							))}
-						</ul>
-					</nav>
-				</aside>
-				<div class="docs-layout__content">
-					<DocsBar crumbs={crumbs} llmUrl={llmUrl} />
-					<div class="prose">{children}</div>
-				</div>
-			</ShellLayout>
+			<BaseLayout showHeader={false}>
+				<RuiSidebarProvider
+					layout="docs"
+					class="docs-layout"
+					siteHeader={
+						<div class="rui-sidebar-provider__site-header-inner">
+							<div class="rui-sidebar-provider__site-header-start">
+								<RuiSidebarTrigger
+									class="md:hidden"
+									placement="inset"
+									controls={DOCS_SIDEBAR_ID}
+									triggerLabel="Toggle documentation navigation"
+								/>
+								<a class="rui-sidebar-provider__site-header-brand" href="/">
+									Docs starter
+								</a>
+							</div>
+						</div>
+					}
+					sidebar={
+						<RuiSidebar
+							id={DOCS_SIDEBAR_ID}
+							data={{ ecoPersist: DOCS_SIDEBAR_ID }}
+							collapsible="off"
+							defaultWidth={250}
+							mobileBreakpoint={768}
+							label="Documentation navigation"
+							matchActive
+							scrollActiveOnMount
+							navigationEvents={ECO_NAVIGATION_EVENTS}
+						>
+							<RuiSidebarContent aria-label="Documentation navigation">
+								{docsNav.sections.map((section, index) => (
+									<>
+										{index > 0 ? <RuiSidebarSeparator aria-label="Section divider" /> : null}
+										<RuiSidebarGroup aria-label={section.title}>
+											<RuiSidebarGroupHeader label={section.title} />
+											<RuiSidebarMenu aria-label={`${section.title} links`}>
+												{section.items.map((page) => (
+													<RuiSidebarMenuItem>
+														<RuiSidebarMenuButton as="a" href={page.href}>
+															{page.title}
+														</RuiSidebarMenuButton>
+													</RuiSidebarMenuItem>
+												))}
+											</RuiSidebarMenu>
+										</RuiSidebarGroup>
+									</>
+								))}
+							</RuiSidebarContent>
+						</RuiSidebar>
+					}
+				>
+					<RuiSidebarInset>
+						<div class="docs-layout__content">
+							<DocsBar crumbs={crumbs} llmUrl={llmUrl} />
+							<div class="prose">{children}</div>
+						</div>
+					</RuiSidebarInset>
+					<RuiToc
+						class="docs-layout__toc"
+						target=".docs-layout__content"
+						headingSelector="h2,h3"
+						label="On this page"
+						scrollOffset={120}
+						navigationEvents={ECO_NAVIGATION_EVENTS}
+					/>
+				</RuiSidebarProvider>
+			</BaseLayout>
 		);
 	},
 });

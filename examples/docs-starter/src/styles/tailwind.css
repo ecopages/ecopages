@@ -1,2 +1,4 @@
 @import 'tailwindcss';
+@import '@ecopages/radiant-ui/themes/default';
 @import './theme.css';
+@import '@ecopages/radiant-ui/styles.css';

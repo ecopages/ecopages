@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import { RuiButton } from '@ecopages/radiant-ui/button';
 import type { Error500TemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { DocsLayout } from '@/layouts/docs-layout';
@@ -22,9 +23,9 @@ export default eco.page<Error500TemplateProps, JsxRenderable>({
 					</p>
 					{stack ? <pre class="error500__stack">{stack}</pre> : null}
 					<div class="error500__actions">
-						<a href="/" class="button button--outline">
+						<RuiButton href="/" variant="outline">
 							Return Home
-						</a>
+						</RuiButton>
 					</div>
 				</div>
 			</div>

@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import { RuiButton } from '@ecopages/radiant-ui/button';
 import { BaseLayout } from '@/layouts/base-layout';
 
 export default eco.page({
@@ -8,7 +9,7 @@ export default eco.page({
 			<div class="prose">
 				<h1>Docs starter</h1>
 				<p>
-					<a href="/docs/getting-started/introduction">Open the docs</a>
+					<RuiButton href="/docs/getting-started/introduction">Open the docs</RuiButton>
 				</p>
 			</div>
 		);

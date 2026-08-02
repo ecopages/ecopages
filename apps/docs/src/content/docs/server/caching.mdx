@@ -1,8 +1,10 @@
 ---
-title: "Caching"
-description: "Configure static, dynamic, and ISR caching strategies for pages and responses."
+title: 'Caching'
+description: 'Configure static, dynamic, and ISR caching strategies for pages and responses.'
 order: 7
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Page Caching
 
@@ -36,9 +38,12 @@ export default eco.page({
 });
 ```
 
-<Banner type="info" title="Note">
-  Dynamic pages set `Cache-Control: no-store` headers to prevent browser and CDN caching.
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Note</RuiAlertTitle>
+	<RuiAlertDescription>
+		Dynamic pages set `Cache-Control: no-store` headers to prevent browser and CDN caching.
+	</RuiAlertDescription>
+</RuiAlert>
 
 ### Incremental Static Regeneration (ISR)
 
@@ -77,12 +82,12 @@ const config = await new ConfigBuilder()
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `enabled` | `boolean` | `true` (prod)<br/>`false` (dev) | Controls whether the cache service is active. In production it is enabled by default; in development (watch mode) it is disabled by default unless explicitly set to `true`. Set to `false` to explicitly disable the cache service in any environment (useful for debugging or when using an external CDN exclusively). |
-| `defaultStrategy` | `CacheStrategy` | `'static'` | The default caching strategy for pages that do not specify one. |
-| `maxEntries` | `number` | `1000` | Maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached. |
-| `store` | `CacheStore` | `'memory'` | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis). |
+| Option            | Type            | Default                         | Description                                                                                                                                                                                                                                                                                                              |
+| :---------------- | :-------------- | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`         | `boolean`       | `true` (prod)<br/>`false` (dev) | Controls whether the cache service is active. In production it is enabled by default; in development (watch mode) it is disabled by default unless explicitly set to `true`. Set to `false` to explicitly disable the cache service in any environment (useful for debugging or when using an external CDN exclusively). |
+| `defaultStrategy` | `CacheStrategy` | `'static'`                      | The default caching strategy for pages that do not specify one.                                                                                                                                                                                                                                                          |
+| `maxEntries`      | `number`        | `1000`                          | Maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached.                                                                                                                                                                                                        |
+| `store`           | `CacheStore`    | `'memory'`                      | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis).                                                                                                                                                                                                       |
 
 ## On-Demand Invalidation
 

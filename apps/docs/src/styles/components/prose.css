@@ -31,7 +31,7 @@
 		@apply mt-2 mb-7;
 	}
 
-	a {
+	a:not(.unstyled, .unstyled *) {
 		@apply text-link font-medium underline underline-offset-4 decoration-link/30 hover:decoration-link transition-colors duration-200;
 	}
 
@@ -39,8 +39,8 @@
 		@apply font-semibold;
 	}
 
-	ul,
-	ol {
+	ul:not(.unstyled, .unstyled *),
+	ol:not(.unstyled, .unstyled *) {
 		@apply pl-6 my-6 text-on-background;
 
 		li {
@@ -48,7 +48,7 @@
 		}
 	}
 
-	ul {
+	ul:not(.unstyled, .unstyled *) {
 		@apply list-disc;
 
 		li::marker {
@@ -56,7 +56,7 @@
 		}
 	}
 
-	ol {
+	ol:not(.unstyled, .unstyled *) {
 		@apply list-decimal;
 
 		li::marker {

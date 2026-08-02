@@ -1,8 +1,10 @@
 ---
-title: "Architecture"
-description: "How Ecopages is structured: modular runtime hosts, app-owned services, and multiple rendering engines."
+title: 'Architecture'
+description: 'How Ecopages is structured: modular runtime hosts, app-owned services, and multiple rendering engines.'
 order: 2
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Architecture Overview
 
@@ -68,8 +70,11 @@ Server startup and server-side module execution are owned by core through the `S
 - **Explicit Dependencies**: Components declare their own scripts and styles, preventing global bloat.
 - **Hybrid by Choice**: Optimization for static builds while maintaining full server capabilities.
 
-<Banner type="info">
-  **Extensibility**
-
-  Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the `IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn how.
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Extensibility</RuiAlertTitle>
+	<RuiAlertDescription>
+		Ecopages' strength lies in its **Integration System**. You can add support for any view library by extending the
+		`IntegrationPlugin` class. Check out the [Custom Integration](/docs/plugins/custom-integration) guide to learn
+		how.
+	</RuiAlertDescription>
+</RuiAlert>

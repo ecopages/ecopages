@@ -6,6 +6,9 @@ It encompasses valuable information detailing its usage and provides a thorough 
 
 The aim is to offer users a clear understanding of how to effectively utilize ecopages and leverage its capabilities to their full extent.
 
+The docs shell uses `@ecopages/radiant-ui` for its responsive navigation, breadcrumb, tabs, alerts, buttons, and theme switch. The table of contents is owned by the docs app so its navigation lifecycle is isolated from server rendering.
+Each MDX document imports the interactive components it renders, so client assets are scoped to the pages that use them.
+
 ## Local development
 
 ```bash
@@ -13,6 +16,10 @@ pnpm dev
 ```
 
 Copy `.env.example` to `.env` and adjust port/base URL if needed.
+
+The docs app deliberately does not prewarm the entire collection in development. Broad route prewarming competes
+with interactive navigation for the same page-build pipeline; pages are rendered on demand instead. Client navigation
+uses hover-only prefetching so the large sidebar does not fill that same server queue with speculative renders.
 
 ## Debugging slow first page load
 

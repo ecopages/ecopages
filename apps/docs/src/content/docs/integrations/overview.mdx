@@ -1,8 +1,10 @@
 ---
-title: "Overview"
-description: "Overview of Ecopages integrations for JSX, React, Lit, MDX, and KitaJS."
+title: 'Overview'
+description: 'Overview of Ecopages integrations for JSX, React, Lit, MDX, and KitaJS.'
 order: 1
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Integrations Overview
 
@@ -10,39 +12,44 @@ Ecopages is framework-agnostic. You can use one or multiple rendering integratio
 
 ## Comparison Table
 
-| Integration | Technology | Primary Use Case | SSR Support |
-| :--- | :--- | :--- | :--- |
-| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant | JSX-first routes, MDX, custom elements | Full |
-| **[KitaJS](/docs/integrations/kitajs)** | JSX (Fast) | High-performance static sites | Full |
-| **[React 19](/docs/integrations/react)** | React | Dynamic apps, rich interactivity | Full |
-| **[Lit](/docs/integrations/lit)** | Web Components | Reusable UI, micro-frontends | Full |
-| **[MDX](/docs/integrations/mdx)** | Markdown + JSX | Documentation, Blogs, Content | Full |
+| Integration                                         | Technology     | Primary Use Case                       | SSR Support |
+| :-------------------------------------------------- | :------------- | :------------------------------------- | :---------- |
+| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant  | JSX-first routes, MDX, custom elements | Full        |
+| **[KitaJS](/docs/integrations/kitajs)**             | JSX (Fast)     | High-performance static sites          | Full        |
+| **[React 19](/docs/integrations/react)**            | React          | Dynamic apps, rich interactivity       | Full        |
+| **[Lit](/docs/integrations/lit)**                   | Web Components | Reusable UI, micro-frontends           | Full        |
+| **[MDX](/docs/integrations/mdx)**                   | Markdown + JSX | Documentation, Blogs, Content          | Full        |
 
 ---
 
 ## Choosing an Integration
 
 ### Use Ecopages JSX if...
+
 - You want standard `.tsx` routes owned directly by Ecopages.
 - You want optional Radiant SSR and hydration for web components.
 - You want one integration to own both JSX routes and JSX-backed MDX routes.
 
 ### Use KitaJS if...
+
 - You want the best possible performance for static pages.
 - You like JSX syntax but want an HTML-first renderer to own `.kita.tsx` shells.
 - You are building a content-heavy site (docs, blogs, marketing).
 
 ### Use React if...
+
 - You are building a complex dashboard or interactive app.
 - You want to leverage the massive React ecosystem and libraries.
 - You want React-managed pages or component islands inside a mixed-renderer app.
 
 ### Use Lit if...
+
 - You want to build standard-compliant Web Components.
 - You want your components to be portable across different projects.
 - You prefer a more "native" browser feel with declarative templates.
 
 ### Use MDX if...
+
 - Your primary focus is content (Markdown).
 - You want to embed interactive components directly into your articles.
 
@@ -54,10 +61,14 @@ You can combine multiple integrations in your `eco.config.ts`. This allows you t
 
 Hydratable components across integrations share the [Island Hosts](/docs/core/island-hosts) contract so devtools can discover them without integration-specific selectors.
 
-
-<Banner type="info">
-	<BannerTitle>Pro Tip</BannerTitle>
-	<p>
-		Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets third-party JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. React-backed MDX should be enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>. Ecopages JSX MDX should use <code>ecopagesJsxPlugin({`{ mdx: { enabled: true } }`})</code>.
-	</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Pro Tip</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets third-party
+			JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. React-backed MDX should be
+			enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>. Ecopages JSX MDX should use{' '}
+			<code>ecopagesJsxPlugin({`{ mdx: { enabled: true } }`})</code>.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>

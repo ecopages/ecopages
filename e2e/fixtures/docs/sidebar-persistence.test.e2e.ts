@@ -61,4 +61,21 @@ test.describe('Docs Sidebar Persistence', () => {
 		);
 		expect(themeMarkerAfter).toBe('kept');
 	});
+
+	test('does not duplicate the theme toggle when navigating from index into docs', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('theme', 'dark');
+		});
+
+		await gotoAndWait(page, '/');
+		await expect(page.locator('#toggle-dark-mode')).toHaveCount(1);
+
+		await page.locator('.navigation a[href="/docs/getting-started/introduction"]').click();
+		await page.waitForURL('**/docs/getting-started/introduction');
+		await waitForPageReady(page, '/docs/getting-started/introduction');
+
+		await expect(page.locator(SIDEBAR)).toBeVisible();
+		await expect(page.locator('#toggle-dark-mode')).toHaveCount(1);
+		await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+	});
 });

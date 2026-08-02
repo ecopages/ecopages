@@ -107,4 +107,44 @@ describe('DevTransformVendorRegistry', () => {
 
 		await expect(registry.resolveVendorUrl('@ecopages/react')).rejects.toThrow('resolved to a server-only entry');
 	});
+
+	it('does not read a stale cached vendor path after the output is removed', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-stale-output');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify(
+				{
+					name: 'dev-transform-vendor-stale-output',
+					type: 'module',
+					dependencies: { '@ecopages/core': `file:${path.join(repoRoot, 'packages', 'core')}` },
+				},
+				null,
+				2,
+			),
+			'utf8',
+		);
+		fs.mkdirSync(path.join(rootDir, 'node_modules', '@ecopages'), { recursive: true });
+		fs.symlinkSync(
+			path.join(repoRoot, 'packages', 'core'),
+			path.join(rootDir, 'node_modules', '@ecopages', 'core'),
+			'dir',
+		);
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map(),
+		});
+
+		const url = await registry.resolveVendorUrl('@ecopages/core');
+		const outputPath = path.join(
+			config.absolutePaths.distDir,
+			url.replace(/^\/assets\/vendors\//u, 'assets/vendors/'),
+		);
+		fs.rmSync(outputPath);
+
+		expect(registry.tryHandleVendorRequest(url)).toBeNull();
+	});
 });

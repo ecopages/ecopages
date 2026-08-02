@@ -10,11 +10,11 @@ import {
 
 describe('page-layout-normalization', () => {
 	const OuterLayout = eco.layout({
-		__eco: { id: 'outer', file: '/app/layouts/outer.kita.tsx', integration: 'kitajs' },
+		identity: { id: 'outer', file: '/app/layouts/outer.kita.tsx', integration: 'kitajs' },
 		render: ({ children }) => `<outer>${children}</outer>`,
 	});
 	const InnerLayout = eco.layout({
-		__eco: { id: 'inner', file: '/app/layouts/inner.kita.tsx', integration: 'kitajs' },
+		identity: { id: 'inner', file: '/app/layouts/inner.kita.tsx', integration: 'kitajs' },
 		render: ({ children }) => `<inner>${children}</inner>`,
 	});
 
@@ -42,7 +42,7 @@ describe('page-layout-normalization', () => {
 
 	it('should merge layout components into dependencies without duplicates', () => {
 		const Button = eco.component({
-			__eco: { id: 'button', file: '/app/components/button.kita.tsx', integration: 'kitajs' },
+			identity: { id: 'button', file: '/app/components/button.kita.tsx', integration: 'kitajs' },
 			render: () => '<button />',
 		});
 

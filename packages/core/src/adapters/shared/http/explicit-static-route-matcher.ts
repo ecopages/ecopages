@@ -7,7 +7,7 @@ import { matchExplicitStaticPathPattern } from '../../abstract/segment-path-matc
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	missingIntegration: (routePath: string) =>
-		`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page() and exported as default.`,
+		`View at ${routePath} is missing component identity integration. Ensure it's defined with eco.page() and exported as default.`,
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 } as const;
 

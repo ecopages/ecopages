@@ -1,6 +1,7 @@
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../../eco/eco-declared-component.ts';
+import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import { mapComponentGraph } from './component-graph.ts';
 
 type OwnershipValidationInput = {
@@ -36,14 +37,14 @@ export class OwnershipValidationService {
 			roots: input.roots,
 			currentIntegrationName: input.currentIntegrationName,
 			mapNode: ({ component, integrationName, componentId, isForeignToParent }, children) => {
-				const parentFile = component.config?.__eco?.file;
+				const parentFile = getComponentIdentity(component)?.file;
 				for (const child of component.config?.dependencies?.components ?? []) {
 					if (child) {
 						assertEcoDeclaredComponent(child, { parentComponentFile: parentFile });
 					}
 				}
 
-				const componentMeta = component.config?.__eco;
+				const componentMeta = getComponentIdentity(component);
 				const errors = children.flat();
 
 				if (!isForeignToParent) {
@@ -57,7 +58,7 @@ export class OwnershipValidationService {
 				if (!componentMeta) {
 					errors.push({
 						code: 'MISSING_COMPONENT_METADATA',
-						message: `[ecopages] Foreign child "${componentId}" must provide stable __eco metadata so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
+						message: `[ecopages] Foreign child "${componentId}" must provide stable component identity so ownership diagnostics stay actionable. Declared dependencies must include all possible foreign children.`,
 						componentId,
 						integrationName,
 					});

@@ -4,9 +4,9 @@ import { assertEcoDeclaredComponent, isEcoDeclaredComponent } from './eco-declar
 import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
 
 describe('eco-declared-component', () => {
-	it('should accept eco.component results with __eco metadata', () => {
+	it('accepts eco.component results with identity', () => {
 		const Button = eco.component({
-			__eco: {
+			identity: {
 				id: 'button',
 				file: '/app/components/button.kita.tsx',
 				integration: 'kitajs',
@@ -18,7 +18,7 @@ describe('eco-declared-component', () => {
 		expect(() => assertEcoDeclaredComponent(Button)).not.toThrow();
 	});
 
-	it('should reject plain functions and components without __eco metadata', () => {
+	it('rejects plain functions and components without identity', () => {
 		const plainFunction = () => '<div />';
 
 		expect(isEcoDeclaredComponent(plainFunction)).toBe(false);

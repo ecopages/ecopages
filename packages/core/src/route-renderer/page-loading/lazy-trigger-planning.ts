@@ -4,6 +4,7 @@ import type {
 	LazyTriggerRule,
 	ResolvedLazyTrigger,
 } from '../../types/public-types.ts';
+import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { rapidhash } from '../../utils/hash.ts';
 
 /**
@@ -46,7 +47,7 @@ export function buildResolvedLazyTriggers(
 ): ResolvedLazyTrigger[] {
 	if (groups.length === 0) return [];
 
-	const componentFile = config.__eco?.file ?? '';
+	const componentFile = getComponentIdentity(config)?.file ?? '';
 	const sortedUrls = groups
 		.flatMap((group) => group.scripts)
 		.sort()

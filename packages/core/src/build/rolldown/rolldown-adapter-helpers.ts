@@ -383,7 +383,7 @@ export function resolveRolldownOptions(
 	}
 
 	const bundlePlugins = options.plugins ?? [];
-	const sourceTransforms = options.target === 'browser' ? (options.sourceTransforms ?? []) : [];
+	const sourceTransforms = options.sourceTransforms ?? [];
 	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
 	const allPlugins = [
 		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),

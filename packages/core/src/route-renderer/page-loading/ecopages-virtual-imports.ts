@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
-import { cachedParseSync } from '../../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 
 export type EcopagesVirtualImport = {
 	from: string;
@@ -27,7 +27,7 @@ export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImpo
 
 	let result;
 	try {
-		result = cachedParseSync(file, source, { sourceType: 'module' });
+		result = parseModuleSource(file, source);
 	} catch {
 		return [];
 	}

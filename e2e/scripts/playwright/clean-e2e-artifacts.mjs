@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const fixturesRoot = path.join(repoRoot, 'e2e', 'fixtures');
 const kitchenSinkDir = path.join(repoRoot, 'playground', 'kitchen-sink');
+const reactPlaygroundDir = path.join(repoRoot, 'playground', 'react');
 
 const SCOPED_ARTIFACT_PATTERN = /^(?:dist(?:-.+)?|\.eco(?:-.+)?)$/;
 
@@ -55,3 +56,4 @@ for (const fixtureDir of fixtureDirs) {
 }
 
 removeScopedArtifacts(kitchenSinkDir);
+removeScopedArtifacts(reactPlaygroundDir);

@@ -697,7 +697,7 @@ describe('IntegrationRenderer', () => {
 			const NestedComponent = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
 			NestedComponent.config = {
 				integration: 'explicit-renderer',
-				__eco: {
+				identity: {
 					id: 'nested-component',
 					file: '/app/components/nested-component.ts',
 					integration: 'test-renderer',
@@ -744,7 +744,7 @@ describe('IntegrationRenderer', () => {
 			const Child = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
 			Child.config = {
 				integration: 'test-renderer',
-				__eco: {
+				identity: {
 					id: 'child-component',
 					file: '/app/components/child-component.ts',
 					integration: 'test-renderer',
@@ -754,7 +754,7 @@ describe('IntegrationRenderer', () => {
 			const Root = (() => '<section>Root</section>') as EcoComponent<Record<string, unknown>>;
 			Root.config = {
 				integration: 'test-renderer',
-				__eco: {
+				identity: {
 					id: 'root-component',
 					file: '/app/components/root-component.ts',
 					integration: 'test-renderer',
@@ -775,7 +775,7 @@ describe('IntegrationRenderer', () => {
 			const ForeignChild = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
 			ForeignChild.config = {
 				integration: 'react',
-				__eco: {
+				identity: {
 					id: 'foreign-child-component',
 					file: '/app/components/foreign-child-component.tsx',
 					integration: 'react',
@@ -785,7 +785,7 @@ describe('IntegrationRenderer', () => {
 			const Root = (() => '<section>Root</section>') as EcoComponent<Record<string, unknown>>;
 			Root.config = {
 				integration: 'test-renderer',
-				__eco: {
+				identity: {
 					id: 'root-component',
 					file: '/app/components/root-component.ts',
 					integration: 'test-renderer',

@@ -220,7 +220,7 @@ function getRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean
       const nextProps = getPageData();
       ${getHmrImportStatement(isMdx)}
       const currentPageLayoutStack = (Component) =>
-        (Component.config?.layouts ?? []).map((layout) => layout?.config?.__eco?.file ?? '').join('|');
+        (Component.config?.layouts ?? []).map((layout) => layout?.config?.identity?.file ?? '').join('|');
       const currentPageLayoutStackKey = currentPageLayoutStack(Page);
       const nextPageLayoutStackKey = currentPageLayoutStack(NewPage);
 
@@ -528,7 +528,7 @@ export function createIslandHydrationScript(options: IslandHydrationScriptOption
 		: '';
 
 	if (options.minify) {
-		return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.__eco;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.rerunScripts=window.__ECO_PAGES__.rerunScripts||{};window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}]=m;document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
+		return `import{createRoot as cr}from"${options.reactDomClientImportPath}";import{createElement as ce}from"${options.reactImportPath}";import*as M from"${options.importPath}";const r=${componentRef};const f=${componentFile};const mv=Object.values(M);const c=mv.find((e)=>{if(typeof e!=="function")return false;const ec=e.config?.identity;if(!ec)return false;if(r&&ec.id===r)return true;if(f&&ec.file===f)return true;return false;})??(typeof M.default==="function"?M.default:mv.find((e)=>typeof e==="function")??null);const m=()=>{const ts=document.querySelectorAll(${targetSelector});if(!c||ts.length===0)return;ts.forEach((t)=>{if(!(t instanceof HTMLElement))return;const p=JSON.parse(atob(t.getAttribute("data-eco-props")||"e30="));const ct=document.createElement("eco-island");ct.style.display="block";t.replaceWith(ct);cr(ct).render(ce(c,p))})};window.__ECO_PAGES__=window.__ECO_PAGES__||{};window.__ECO_PAGES__.rerunScripts=window.__ECO_PAGES__.rerunScripts||{};window.__ECO_PAGES__.rerunScripts[${JSON.stringify(scriptId)}]=m;document.readyState==="loading"?document.addEventListener("DOMContentLoaded",m,{once:true}):m()`;
 	}
 
 	return `
@@ -544,7 +544,7 @@ const resolveComponent = (module = ComponentModule) => {
   const matchByMetadata = moduleValues.find((entry) => {
     if (typeof entry !== "function") return false;
     const config = entry.config;
-    const eco = config?.__eco;
+    const eco = config?.identity;
     if (!eco) return false;
     if (id && eco.id === id) return true;
     if (file && eco.file === file) return true;

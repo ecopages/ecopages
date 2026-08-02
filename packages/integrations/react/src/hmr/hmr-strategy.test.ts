@@ -653,7 +653,7 @@ describe('ReactHmrStrategy', () => {
 							layouts: [
 								{
 									config: {
-										__eco: {
+										identity: {
 											id: 'layout',
 											file: '/tmp/src/layouts/base-layout.tsx',
 											integration: 'react',
@@ -662,7 +662,7 @@ describe('ReactHmrStrategy', () => {
 											components: [
 												{
 													config: {
-														__eco: {
+														identity: {
 															id: 'shell',
 															file: changedComponent,
 															integration: 'react',
@@ -770,7 +770,7 @@ describe('ReactHmrStrategy', () => {
 							layouts: [
 								{
 									config: {
-										__eco: {
+										identity: {
 											id: 'layout',
 											file: '/tmp/src/layouts/base-layout.tsx',
 											integration: 'react',
@@ -779,7 +779,7 @@ describe('ReactHmrStrategy', () => {
 											components: [
 												{
 													config: {
-														__eco: {
+														identity: {
 															id: 'shell',
 															file: changedComponent,
 															integration: 'react',
@@ -840,7 +840,7 @@ describe('ReactHmrStrategy', () => {
 							layouts: [
 								{
 									config: {
-										__eco: {
+										identity: {
 											id: 'layout',
 											file: '/tmp/src/layouts/base-layout.tsx',
 											integration: 'react',
@@ -849,7 +849,7 @@ describe('ReactHmrStrategy', () => {
 											components: [
 												{
 													config: {
-														__eco: {
+														identity: {
 															id: 'shell',
 															file: changedComponent,
 															integration: 'react',

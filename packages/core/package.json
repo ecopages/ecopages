@@ -160,6 +160,10 @@
 			"types": "./src/diagnostics/startup-trace.ts",
 			"default": "./src/diagnostics/startup-trace.ts"
 		},
+		"./diagnostics/request-pipeline-metrics": {
+			"types": "./src/diagnostics/request-pipeline-metrics.ts",
+			"default": "./src/diagnostics/request-pipeline-metrics.ts"
+		},
 		"./bun": {
 			"types": "./src/adapters/bun/index.ts",
 			"default": "./src/adapters/bun/index.ts"
@@ -243,6 +247,14 @@
 		"./build/build-contracts": {
 			"types": "./src/build/contracts/build-contracts.ts",
 			"default": "./src/build/contracts/build-contracts.ts"
+		},
+		"./build/contracts/content-virtual-modules": {
+			"types": "./src/build/contracts/content-virtual-modules.ts",
+			"default": "./src/build/contracts/content-virtual-modules.ts"
+		},
+		"./services/module-loading/collection-server-module-build.service": {
+			"types": "./src/services/module-loading/collection-server-module-build.service.ts",
+			"default": "./src/services/module-loading/collection-server-module-build.service.ts"
 		},
 		"./build/production-build-cache": {
 			"types": "./src/build/cache/production-build-cache.ts",

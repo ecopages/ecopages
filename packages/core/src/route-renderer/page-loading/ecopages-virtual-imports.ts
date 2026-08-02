@@ -1,21 +1,15 @@
 import { readFileSync } from 'node:fs';
-import { parseSync } from 'oxc-parser';
+<<<<<<< ours
+import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
+import { cachedParseSync } from '../../cache/module-parse-cache.ts';
 
 export type EcopagesVirtualImport = {
 	from: string;
 	imports: string[] | undefined;
 };
 
-/** Matches `ecopages:content/<collection>/server` — SSR-only MDX resolver modules. */
-const CONTENT_SERVER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/server$/;
-
-/**
- * @remarks
- * Content server modules static-import every MDX entry. They must never become
- * browser module-script dependencies discovered from page or component sources.
- */
 export function isBrowserEcopagesVirtualImport(specifier: string): boolean {
-	return specifier.startsWith('ecopages:') && !CONTENT_SERVER_VIRTUAL_MODULE_PATTERN.test(specifier);
+	return specifier.startsWith('ecopages:') && !isContentServerVirtualModule(specifier);
 }
 
 /**
@@ -34,7 +28,7 @@ export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImpo
 
 	let result;
 	try {
-		result = parseSync(file, source, { sourceType: 'module' });
+		result = cachedParseSync(file, source, { sourceType: 'module' });
 	} catch {
 		return [];
 	}

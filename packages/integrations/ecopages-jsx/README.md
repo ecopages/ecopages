@@ -48,6 +48,7 @@ Radiant support is enabled by default. When `radiant: true`, the plugin keeps th
 
 - Ecopages JSX owns page-level JSX SSR and container hydration.
 - Radiant SSR is activated on the server through `@ecopages/radiant/server/render-component`.
+- The server reuses Radiant's complete light-DOM surface, replacing partial globals before Radiant elements are imported.
 - Radiant host hydration is activated on the client through an explicit head bootstrap that imports `@ecopages/radiant/client/install-hydrator` before intrinsic custom-element modules load.
 
 That means server-rendered `RadiantElement` hosts hydrate in place only when both the SSR markers and the explicit client hydrator are present. Without the client hydrator, Radiant intentionally falls back to a fresh client render on first connect.

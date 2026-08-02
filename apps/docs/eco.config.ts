@@ -34,8 +34,6 @@ const config = await new ConfigBuilder()
 						orderBy: compareDocsEntries,
 						entryType: './src/content/docs#DocsFrontmatter',
 						routePrefix: DOCS_ROOT,
-						devPrewarm: 'all',
-						devPrewarmReadiness: 'beforeReady',
 					},
 				},
 			},

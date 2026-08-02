@@ -6,97 +6,76 @@ radiant-code-tabs {
 	@apply mt-8 block max-w-100;
 }
 
-.code-tabs {
-	@apply flex h-full w-full min-w-0 max-w-full flex-col items-stretch justify-between overflow-hidden rounded-sm border border-border bg-background-accent font-mono text-sm text-on-background shadow-xs;
+radiant-code-tabs .rui-tabs__list {
+	@apply min-w-0 flex-nowrap overflow-x-auto;
+}
 
-	&__list {
-		@apply flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-border/50 bg-background-accent/50 px-2 pt-2;
+radiant-code-tabs .rui-tabs__tab {
+	@apply shrink-0 text-xs;
+}
+
+.code-tabs__tab-label {
+	@apply inline-flex min-w-0 items-center gap-1.5;
+}
+
+.code-tabs__tab-text {
+	@apply truncate;
+}
+
+.code-tabs__tab-icon {
+	@apply size-3.5 shrink-0;
+}
+
+.code-tabs__tab-icon--mono {
+	@apply text-current opacity-70;
+}
+
+.code-tabs__tab-icon--brand {
+	@apply rounded-[2px];
+}
+
+radiant-code-tabs .rui-tabs__panel {
+	@apply min-w-0 p-0;
+}
+
+.code-tabs__body {
+	@apply relative w-full min-w-0 px-4 py-3 font-mono;
+
+	&:has([data-rehype-pretty-code-figure]) {
+		@apply p-0;
 	}
+}
 
-	&__tab {
-		@apply inline-flex shrink-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-3 py-1.5 text-center text-xs opacity-60 transition-colors;
-		@apply hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
-		block-size: var(--code-tabs-tab-height, auto);
-		inline-size: var(--code-tabs-tab-width, auto);
+.code-tabs__code {
+	@apply block w-full max-w-full min-w-0 text-[13px];
 
-		&[aria-selected='true'] {
-			@apply border-primary font-medium text-primary opacity-100;
-		}
-	}
-
-	&__panel {
-		@apply contents;
-	}
-
-	&__body {
-		@apply relative w-full min-h-12 min-w-0 px-4 py-3;
-		min-block-size: var(--code-tabs-panel-height, auto);
-		min-inline-size: 0;
-
-		&:has([data-rehype-pretty-code-figure]) {
-			@apply flex flex-col p-0;
-			height: var(--code-tabs-panel-height, auto);
-		}
-	}
-
-	&__code {
-		@apply block w-full max-w-full min-w-0 text-[15px];
-
-		&:has([data-rehype-pretty-code-figure]) {
-			@apply flex flex-col flex-1 min-h-0 overflow-y-hidden;
-		}
+	&:has([data-rehype-pretty-code-figure]) {
+		@apply flex min-h-0 w-full max-w-full flex-col overflow-y-hidden p-0;
 
 		[data-rehype-pretty-code-figure] {
-			@apply flex flex-col flex-1 min-h-0 w-full max-w-full min-w-0 overflow-y-hidden rounded-none;
-			& > pre {
-				@apply flex-1 min-h-0 w-full max-w-full min-w-0 overflow-x-auto whitespace-pre rounded-none;
+			@apply my-0 flex min-h-0 w-full max-w-full flex-1 flex-col overflow-y-hidden rounded-none;
 
-				.line:empty::after {
-					content: '\00a0';
-				}
+			& > pre {
+				@apply min-h-0 w-full max-w-full flex-1 overflow-x-auto whitespace-pre rounded-none;
 			}
 		}
 	}
+}
 
-	&__copy {
-		@apply pointer-events-none absolute top-1.5 right-1.5 z-10 inline-flex h-8 shrink-0 translate-y-1 items-center justify-center gap-2 rounded-sm border border-border bg-background px-2 text-on-background opacity-0 transition-all;
-		@apply hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background-accent;
+.code-tabs__copy {
+	@apply absolute right-1.5 top-1.5 z-10 inline-flex h-8 items-center justify-center rounded-sm border border-border bg-background px-2 text-sm text-on-background opacity-0 transition-opacity;
 
-		.code-tabs__body:hover &,
-		.code-tabs__body:focus-within &,
-		&[data-copied='true'] {
-			@apply pointer-events-auto translate-y-0 opacity-100;
-		}
-
-		&[data-copied='true'] {
-			@apply text-primary;
-		}
+	&:hover,
+	&:focus-visible {
+		@apply border-primary/40 text-primary opacity-100;
 	}
 
-	&__icon {
-		@apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-current;
-
-		&::before {
-			content: '⧉';
-			@apply text-sm leading-none;
-		}
-
-		.code-tabs__copy[data-copied='true'] &::before {
-			content: '✓';
-		}
+	.code-tabs__body:hover &,
+	.code-tabs__body:focus-within & {
+		@apply opacity-100;
 	}
+}
 
-	&__status {
-		@apply sr-only;
-	}
-
-	&__measure {
-		@apply pointer-events-none absolute invisible;
-		left: 0;
-		top: 0;
-	}
-
-	&__measure-panel {
-		@apply block w-max;
-	}
+.code-tabs__status {
+	@apply sr-only;
 }

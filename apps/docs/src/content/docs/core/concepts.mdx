@@ -1,8 +1,10 @@
 ---
-title: "Concepts"
-description: "Learn how Ecopages core works before diving into pages, routing, and integrations."
+title: 'Concepts'
+description: 'Learn how Ecopages core works before diving into pages, routing, and integrations.'
 order: 1
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Understanding Ecopages Core
 
@@ -44,7 +46,7 @@ const config = await new ConfigBuilder()
 	.setProcessors([
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-        referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
 		),
 	])
@@ -69,43 +71,48 @@ import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 
 const HomePage = eco.component({
-  dependencies: {
-    // Scripts must be explicitly declared
-    scripts: ['./home-page.script.ts'],
-    // Stylesheets must be explicitly declared
-    stylesheets: ['./home-page.css'],
-    // Child components to crawl for their own dependencies
-    components: [BaseLayout],
-  },
-  render: () => html`
-    <div class="main-content">
-      <h1>Welcome to Ecopages</h1>
-    </div>
-  `
+	dependencies: {
+		// Scripts must be explicitly declared
+		scripts: ['./home-page.script.ts'],
+		// Stylesheets must be explicitly declared
+		stylesheets: ['./home-page.css'],
+		// Child components to crawl for their own dependencies
+		components: [BaseLayout],
+	},
+	render: () => html`
+		<div class="main-content">
+			<h1>Welcome to Ecopages</h1>
+		</div>
+	`,
 });
 ```
 
-<Banner type="info">
-  **Explicit Dependencies**
-
-  <p>Ecopages does **not** automatically detect script files by name pattern. You must always include them in the `dependencies.scripts` array if you want them to be processed and included in the build.</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Explicit Dependencies</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Ecopages does **not** automatically detect script files by name pattern. You must always include them in the
+			`dependencies.scripts` array if you want them to be processed and included in the build.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 ### Lazy Dependencies
 
 You can also defer loading of scripts until they are needed using per-entry `dependencies.scripts[].lazy` options. This is useful for improving initial page load performance.
 
 The supported triggers are:
+
 - `on:idle`: Loads when the browser is idle.
 - `on:visible`: Loads when the element enters the viewport.
 - `on:interaction`: Loads when the user interacts with the element (e.g. mouseover, click, focus).
 
 ```typescript
 const MyComponent = eco.component({
-  dependencies: {
-    scripts: [{ src: './heavy-script.ts', lazy: { 'on:visible': true } }], // or provide a specific selector string
-  },
-  render: () => html`<div>Heavy Content</div>`
+	dependencies: {
+		scripts: [{ src: './heavy-script.ts', lazy: { 'on:visible': true } }], // or provide a specific selector string
+	},
+	render: () => html`<div>Heavy Content</div>`,
 });
 ```
 
@@ -132,6 +139,7 @@ const MyPage = () => html`${Component()}`;
 ## Project Structure
 
 Ecopages expects a specific project structure:
+
 ```
 
 my-project/
@@ -145,6 +153,7 @@ my-project/
 └── package.json
 
 ```
+
 - `src/components/`: Stores reusable components (Recommended)
 - `src/pages/`: Contains your page files (e.g., `.tsx`, `.mdx`, `.kita.tsx`, `.lit.tsx`) (**Default**)
 - `src/layouts/`: Holds layout components (Recommended)
@@ -167,31 +176,30 @@ import { eco } from '@ecopages/core';
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
 export default eco.page({
-  staticPaths: async () => {
-    const posts = getAllBlogPosts();
+	staticPaths: async () => {
+		const posts = getAllBlogPosts();
 
-    return {
-      paths: posts.map(post => ({
-        params: { slug: post.slug }
-      }))
-    };
-  },
+		return {
+			paths: posts.map((post) => ({
+				params: { slug: post.slug },
+			})),
+		};
+	},
 
-  staticProps: async ({ pathname }) => {
-    const slug = pathname.params.slug;
-    const post = getBlogPost(slug);
+	staticProps: async ({ pathname }) => {
+		const slug = pathname.params.slug;
+		const post = getBlogPost(slug);
 
-    if (!post) {
-      throw new Error(`Post not found: ${slug}`);
-    }
+		if (!post) {
+			throw new Error(`Post not found: ${slug}`);
+		}
 
-    return { props: { post } };
-  },
+		return { props: { post } };
+	},
 
-  render: ({ post }) => html`...`
+	render: ({ post }) => html`...`,
 });
 ```
-
 
 ## Runtime Support
 

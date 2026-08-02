@@ -1,8 +1,10 @@
 ---
-title: "Configuration"
-description: "Customize your Ecopages project through eco.config.ts — integrations, processors, metadata, and watch paths."
+title: 'Configuration'
+description: 'Customize your Ecopages project through eco.config.ts — integrations, processors, metadata, and watch paths.'
 order: 3
 ---
+
+import { ApiField } from '@/components/api-field/api-field';
 
 # Configuration
 
@@ -77,13 +79,13 @@ Ecopages now discovers the document shell and error pages semantically:
 
 No template filename setter is required in `eco.config.ts`. If `500.*` is missing or fails while rendering, the page pipeline falls back to plain-text `Internal Server Error`. In development, the custom 500 page receives `message` and `stack` props from the thrown error.
 
-
 <ApiField name="distDir" type="string" defaultValue="dist" setter="setDistDir">
 	The output directory for the built files.
 </ApiField>
 
 <ApiField name="workDir" type="string" defaultValue=".eco" setter="setWorkDir">
-	The internal workspace used for development and runtime-only artifacts. This directory is not intended for deployment.
+	The internal workspace used for development and runtime-only artifacts. This directory is not intended for
+	deployment.
 </ApiField>
 
 <ApiField name="componentsDir" type="string" defaultValue="components" setter="setComponentsDir">
@@ -117,11 +119,13 @@ No template filename setter is required in `eco.config.ts`. If `500.*` is missin
 </ApiField>
 
 <ApiField name="sourceTransforms" type="EcoSourceTransform[]" defaultValue="[]" setter="setSourceTransforms">
-	Filter-based module source rewrites for browser and HMR builds. See [Source Transforms](/docs/plugins/source-transforms).
+	Filter-based module source rewrites for browser and HMR builds. See [Source
+	Transforms](/docs/plugins/source-transforms).
 </ApiField>
 
 <ApiField name="devToolbar" type="DevToolbarConfig" setter="setDevToolbar">
-	Development-only in-browser inspector. Install `@ecopages/dev-toolbar` and call `setDevToolbar(devToolbar())`. See [Dev toolbar](/docs/core/dev-toolbar).
+	Development-only in-browser inspector. Install `@ecopages/dev-toolbar` and call `setDevToolbar(devToolbar())`. See
+	[Dev toolbar](/docs/core/dev-toolbar).
 </ApiField>
 
 ## Integrations

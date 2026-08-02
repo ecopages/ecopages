@@ -1,26 +1,35 @@
 ---
-title: "Introduction"
-description: "Get started with Ecopages — a modern static site generator built on Bun and Node.js."
+title: 'Introduction'
+description: 'Get started with Ecopages — a modern static site generator built on Bun and Node.js.'
 order: 1
 ---
 
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
+
 # Welcome to Ecopages
 
-<Banner type="alert">
-	<BannerTitle>Beta Notice</BannerTitle>
-	<p>
-		Ecopages is currently in beta (`0.2.0` prerelease on the release branch). The API may change before the stable release. <a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">Check out the examples.</a>
-	</p>
-</Banner>
+<RuiAlert variant="error" layout="banner" class="unstyled">
+	<RuiAlertTitle>Beta Notice</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Ecopages is currently in beta (`0.2.0` prerelease on the release branch). The API may change before the
+			stable release.{' '}
+			<a href="https://github.com/ecopages/ecopages/tree/main/examples" target="_blank">
+				Check out the examples.
+			</a>
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 <CodeTabs
 	name="introduction-init"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/) and supports Node.js.
@@ -42,18 +51,19 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
 
 4. **Lightweight, Safe Backend**:
-   - **Typed Handlers**: Define API handlers with full type inference using `defineApiHandler`.
-   - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
-   - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
+    - **Typed Handlers**: Define API handlers with full type inference using `defineApiHandler`.
+    - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
+    - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
 5. **AI-ready docs**: [`skill.txt`](/skill.txt), [`SKILL.md`](/skill/SKILL.md), and [`llms.txt`](/llms.txt) for agents.
 
 6. **Choose Your Templating**:
-  - **[Ecopages JSX](/docs/integrations/ecopages-jsx)** – Ecopages-owned `.tsx` routes with optional Radiant support
-   - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, compiles to string concatenation
-   - **[React 19](/docs/integrations/react)** – Full React with hydration when you need it
-   - **[Lit](/docs/integrations/lit)** – Web Components with SSR
-   - **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
+
+- **[Ecopages JSX](/docs/integrations/ecopages-jsx)** – Ecopages-owned `.tsx` routes with optional Radiant support
+- **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, compiles to string concatenation
+- **[React 19](/docs/integrations/react)** – Full React with hydration when you need it
+- **[Lit](/docs/integrations/lit)** – Web Components with SSR
+- **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
 
 7. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
 
@@ -75,6 +85,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 Here's how you can combine static pages with a typed backend:
 
 ### 1. Create a Component
+
 Use `eco.component` to create reusable components with isolated dependencies.
 
 ```typescript
@@ -89,6 +100,7 @@ export const Greeting = eco.component<{ name: string }>({
 ```
 
 ### 2. Create a Page
+
 Compose your page using components. Dependencies are automatically managed.
 
 ```typescript
@@ -114,9 +126,11 @@ export default eco.page({
 ```
 
 ### 3. Add Typed API Handlers
+
 You can define handlers inline or use `defineApiHandler` for better organization and type safety.
 
 #### Inline Handler
+
 Good for simple, quick endpoints.
 
 ```typescript
@@ -127,11 +141,12 @@ import config from './eco.config';
 const app = await createApp({ appConfig: config });
 
 app.get('/api/hello', async (ctx) => {
-  return ctx.response.json({ message: 'Hello world!' });
+	return ctx.response.json({ message: 'Hello world!' });
 });
 ```
 
 #### Organized & Type-Safe Handlers
+
 For larger apps, define handlers in separate files using `defineApiHandler`. This gives you automatic type inference for body, query, and path parameters based on your schema.
 
 ```typescript
@@ -140,16 +155,16 @@ import { defineApiHandler } from '@ecopages/core';
 import { z } from 'zod';
 
 export const greetHandler = defineApiHandler({
-  path: '/api/greet',
-  method: 'POST',
-  schema: {
-    body: z.object({ name: z.string() }),
-  },
-  handler: async (ctx) => {
-    // ctx.body is automatically typed as { name: string }
-    const { name } = ctx.body;
-    return ctx.response.json({ message: `Hello, ${name}!` });
-  },
+	path: '/api/greet',
+	method: 'POST',
+	schema: {
+		body: z.object({ name: z.string() }),
+	},
+	handler: async (ctx) => {
+		// ctx.body is automatically typed as { name: string }
+		const { name } = ctx.body;
+		return ctx.response.json({ message: `Hello, ${name}!` });
+	},
 });
 ```
 
@@ -169,18 +184,30 @@ Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/
 <CodeTabs
 	name="introduction-next-steps"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: `pnpm dlx ecopages init my-ecopages
-cd my-ecopages
-pnpm install
-pnpm run dev` },
-		{ id: 'npm', label: 'npm', code: `npx ecopages init my-ecopages
+		{
+			id: 'npm',
+			label: 'npm',
+			code: `npx ecopages init my-ecopages
 cd my-ecopages
 npm install
-npm run dev` },
-		{ id: 'bun', label: 'bun', code: `bunx ecopages init my-ecopages
+npm run dev`,
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: `pnpm dlx ecopages init my-ecopages
+cd my-ecopages
+pnpm install
+pnpm run dev`,
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: `bunx ecopages init my-ecopages
 cd my-ecopages
 bun install
-bun run dev` },
+bun run dev`,
+		},
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />

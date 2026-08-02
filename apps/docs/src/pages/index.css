@@ -19,7 +19,7 @@
 
 .home-hero__code {
 	@apply hidden lg:col-span-5 lg:flex lg:flex-col;
-	.code-tabs {
+	rui-tabs {
 		@apply rounded-none;
 	}
 	radiant-code-tabs {

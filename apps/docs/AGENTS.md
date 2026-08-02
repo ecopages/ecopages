@@ -8,8 +8,8 @@
 - Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
 - Do not add layout or routing `export const config` in MDX files; the catch-all page owns routing and layout.
 - Interactive demo pages may declare `export const config = { dependencies: { components: [...] } }` in MDX. The catch-all page forwards them with `getEntryDependencies(props.entry.slug)`.
-- Shared JSX (`Banner`, `CodeTabs`, etc.) is registered in `src/lib/docs/mdx-components.ts` and passed as `docsMdxComponents` at render time.
-- Add explicit imports only when content needs module bindings (for example `ecopages:images` spreads).
+- Each MDX document imports the interactive components it renders (`CodeTabs`, `RuiAlert`, `ApiField`, and so on).
+- Docs chrome uses `@ecopages/radiant-ui` (sidebar, toc, breadcrumb, tabs, alerts, buttons, theme switch).
 
 ## Configuration
 
@@ -28,4 +28,4 @@
 
 ## Routing
 
-- The catch-all page resolves entries via `getEntryBySegments()`, renders `<Content components={docsMdxComponents} />`, and forwards entry-specific deps with `getEntryDependencies(props.entry.slug)`.
+- The catch-all page resolves entries via `getEntryBySegments()`, renders page chrome plus `<Content />`, and forwards entry-specific deps with `getEntryDependencies(props.entry.slug)`.

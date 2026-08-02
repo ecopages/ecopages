@@ -1,17 +1,25 @@
 ---
-title: "React Router"
-description: "Enable SPA navigation for React apps using the React Router integration."
+title: 'React Router'
+description: 'Enable SPA navigation for React apps using the React Router integration.'
 order: 6
 ---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
 
 # React Router
 
 The `@ecopages/react-router` package enables Single Page Application (SPA) navigation for EcoPages React applications. It provides seamless client-side navigation while preserving full SSR benefits.
 
-<Banner type="info">
-  <BannerTitle>React Only</BannerTitle>
-  <p>This package is specifically designed for React applications. For MPA-style rendering (KitaJS, Lit, vanilla JS), use <a href="/docs/ecosystem/browser-router">@ecopages/browser-router</a> instead.</p>
-</Banner>
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>React Only</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			This package is specifically designed for React applications. For MPA-style rendering (KitaJS, Lit, vanilla
+			JS), use <a href="/docs/ecosystem/browser-router">@ecopages/browser-router</a> instead.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
 
 ## Features
 
@@ -25,13 +33,13 @@ The `@ecopages/react-router` package enables Single Page Application (SPA) navig
 ## Installation
 
 <CodeTabs
-  name="react-router-install"
+	name="react-router-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react-router' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/react-router' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/react-router' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/react-router' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 ## Setup
@@ -48,11 +56,9 @@ import { ecoRouter } from '@ecopages/react-router';
 const appRoot = process.cwd();
 
 const config = await new ConfigBuilder()
-  .setRootDir(appRoot)
-  .setIntegrations([
-    reactPlugin({ router: ecoRouter() }),
-  ])
-  .build();
+	.setRootDir(appRoot)
+	.setIntegrations([reactPlugin({ router: ecoRouter() })])
+	.build();
 
 export default config;
 ```
@@ -114,12 +120,13 @@ See [Creating Layouts](/docs/core/layouts) for per-tier props, dependency rules,
 
 Control the animation style with `data-view-transition-animate`:
 
-| Value | Description |
-| :--- | :--- |
+| Value       | Description                                                              |
+| :---------- | :----------------------------------------------------------------------- |
 | **`morph`** | (Default) a clean geometric morph. Prevents ghosting on shared elements. |
-| **`fade`** | Standard cross-fade animation. Use this to opt-out of the automatic fix. |
+| **`fade`**  | Standard cross-fade animation. Use this to opt-out of the automatic fix. |
 
 Example:
+
 ```tsx
 <div data-view-transition="hero" data-view-transition-animate="fade">
 ```
@@ -127,6 +134,7 @@ Example:
 #### Duration
 
 Control the speed of a specific transition:
+
 ```tsx
 <div data-view-transition="hero" data-view-transition-duration="500ms">
 ```
@@ -149,12 +157,12 @@ The router uses an **HTML-First** navigation strategy. This simplifies the archi
 1. **Initial Load**: Server renders the full page with SSR.
 2. **Hydration**: React hydrates the page, router starts listening for clicks.
 3. **Navigation**: When a link is clicked:
-   - **Fetch**: Router fetches the target page HTML.
-   - **Prep**: Extracts component URL and props; imports the new component.
-   - **Transition**:
-     - Captures "Old" state (Screenshot).
-     - React renders "New" state (DOM update).
-     - Browser animates from Old to New.
+    - **Fetch**: Router fetches the target page HTML.
+    - **Prep**: Extracts component URL and props; imports the new component.
+    - **Transition**:
+        - Captures "Old" state (Screenshot).
+        - React renders "New" state (DOM update).
+        - Browser animates from Old to New.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -180,7 +188,7 @@ Factory function that creates a router adapter for the React plugin.
 ```typescript
 import { ecoRouter } from '@ecopages/react-router';
 
-reactPlugin({ router: ecoRouter() })
+reactPlugin({ router: ecoRouter() });
 ```
 
 ### `useRouter()`
@@ -191,17 +199,17 @@ Hook for programmatic navigation.
 import { useRouter } from '@ecopages/react-router';
 
 const MyComponent = () => {
-  const { navigate, isPending } = useRouter();
+	const { navigate, isPending } = useRouter();
 
-  const handleClick = () => {
-    navigate('/about');
-  };
+	const handleClick = () => {
+		navigate('/about');
+	};
 
-  return (
-    <button onClick={handleClick} disabled={isPending}>
-      {isPending ? 'Loading...' : 'Go to About'}
-    </button>
-  );
+	return (
+		<button onClick={handleClick} disabled={isPending}>
+			{isPending ? 'Loading...' : 'Go to About'}
+		</button>
+	);
 };
 ```
 
@@ -209,12 +217,13 @@ const MyComponent = () => {
 
 The router respects these HTML attributes:
 
-| Attribute | Description |
-| :--- | :--- |
+| Attribute         | Description                                        |
+| :---------------- | :------------------------------------------------- |
 | `data-eco-reload` | Force a full page reload instead of SPA navigation |
-| `target="_blank"` | Opens in new tab (not intercepted) |
+| `target="_blank"` | Opens in new tab (not intercepted)                 |
 
 Links are automatically skipped when:
+
 - Modifier keys are held (Ctrl, Cmd, Shift, Alt)
 - Link has `download` attribute
 - Link points to a different origin
@@ -225,13 +234,14 @@ Links are automatically skipped when:
 The router uses a **pluggable adapter pattern** that separates concerns:
 
 **ReactRouterAdapter Interface:**
+
 ```typescript
 interface ReactRouterAdapter {
-  name: string;
-  bundle: { importPath, outputName, externals };
-  importMapKey: string;
-  components: { router, pageContent };
-  getRouterProps(page, props): string;
+	name: string;
+	bundle: { importPath; outputName; externals };
+	importMapKey: string;
+	components: { router; pageContent };
+	getRouterProps(page, props): string;
 }
 ```
 
@@ -239,13 +249,13 @@ This allows for alternative router implementations while keeping the core integr
 
 ## Comparison with Browser Router
 
-| Feature | @ecopages/react-router | @ecopages/browser-router |
-| :--- | :--- | :--- |
-| Framework | React only | MPA (KitaJS, Lit, vanilla) |
-| DOM Strategy | React reconciliation | morphdom diffing |
-| Layout Persistence | Via React component tree | Via `data-eco-persist` |
-| View Transitions | Supported | Supported |
-| State Preservation | React state in layout | DOM element state |
+| Feature            | @ecopages/react-router   | @ecopages/browser-router   |
+| :----------------- | :----------------------- | :------------------------- |
+| Framework          | React only               | MPA (KitaJS, Lit, vanilla) |
+| DOM Strategy       | React reconciliation     | morphdom diffing           |
+| Layout Persistence | Via React component tree | Via `data-eco-persist`     |
+| View Transitions   | Supported                | Supported                  |
+| State Preservation | React state in layout    | DOM element state          |
 
 ## License
 

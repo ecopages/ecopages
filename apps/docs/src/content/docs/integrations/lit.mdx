@@ -1,8 +1,10 @@
 ---
-title: "Lit"
-description: "Use Lit web components and reactive properties in Ecopages projects."
+title: 'Lit'
+description: 'Use Lit web components and reactive properties in Ecopages projects.'
 order: 4
 ---
+
+import { CodeTabs } from '@/components/code-tabs';
 
 # Lit Integration
 
@@ -15,11 +17,11 @@ Install the integration package:
 <CodeTabs
 	name="lit-install"
 	tabs={[
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lit' },
 		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/lit' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/lit' },
 		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/lit' },
 	]}
-	defaultSelectedKey="pnpm"
+	defaultSelectedKey="npm"
 />
 
 Also install Lit's required peer packages in your app: `lit`, `@lit-labs/ssr`, and `@lit-labs/ssr-client`.
@@ -44,9 +46,9 @@ export default config;
 ```
 
 ## Creating Components with Lit
- 
+
 Once the Lit integration is set up, you can create components. Ecopages provides a `StyledMixin` to attach string-based styles to your Lit components without any extra processor setup.
- 
+
 ```typescript
 import { StyledMixin } from '@ecopages/lit/styled-mixin';
 import { html, LitElement } from 'lit';
@@ -59,19 +61,19 @@ const styles = `
 		align-items: center;
 	}
 `;
- 
+
 @customElement('lit-counter')
 export class LitCounter extends StyledMixin(LitElement, [styles]) {
 	@property({ type: Number }) count = 0;
- 
+
 	decrement() {
 		if (this.count > 0) this.count--;
 	}
- 
+
 	increment() {
 		this.count++;
 	}
- 
+
 	override render() {
 		return html`
 			<button @click=${this.decrement}>-</button>
@@ -97,9 +99,7 @@ export const LitCounter = eco.component({
 	dependencies: {
 		scripts: ['lit-counter.script.ts'],
 	},
-	render: (props: { count: number }) => html`
-		<lit-counter count=${props.count}></lit-counter>
-	`,
+	render: (props: { count: number }) => html` <lit-counter count=${props.count}></lit-counter> `,
 });
 ```
 

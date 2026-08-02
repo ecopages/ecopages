@@ -10,9 +10,9 @@ export default eco.html({
 	render: ({ children, metadata, headContent, language = 'en' }: HtmlTemplateProps) =>
 		html`<html lang="${language}">
 			!${Head({
-			metadata,
-			children: headContent,
-		})}
+				metadata,
+				children: headContent,
+			})}
 			!${children}
 		</html>`,
 });

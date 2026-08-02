@@ -63,12 +63,7 @@ const DocsNavigation = () => (
 const DocsSiteHeader = () => (
 	<div class="rui-sidebar-provider__site-header-inner">
 		<div class="rui-sidebar-provider__site-header-start">
-			<RuiSidebarTrigger
-				class="md:hidden"
-				placement="inset"
-				controls={DOCS_SIDEBAR_ID}
-				triggerLabel="Toggle documentation navigation"
-			/>
+			<RuiSidebarTrigger class="md:hidden" placement="inset" triggerLabel="Toggle documentation navigation" />
 			<Logo href="/" target="_self" title="Ecopages" />
 			<span class="rui-sidebar-provider__site-header-version">v {rootJson.version}</span>
 		</div>

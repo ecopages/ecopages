@@ -18,11 +18,15 @@ Typical responsibilities include:
 
 - `module-loading/`: framework-owned config/app bootstrap loading and server-side source loading
 - `assets/`: shared browser build coordination and processed asset pipelines
-- `cache/`: page HTML cache stores and request coordination, including watch-mode allowlisted memory storage for prewarm pathnames
+- `cache/`: page HTML cache stores, selective source-path invalidation, and request coordination
 - `invalidation/`: file-change classification and invalidation policy
 - `runtime-state/`: app-owned invalidation state and dependency graphs
 - `runtime-manifest/`: node runtime manifest derivation and persistence
 - `html/`: final HTML dependency injection and rewriter selection
+
+The asset-processing service caches emitted file assets by source identity in development as well as production.
+When a source file changes, its source hash or explicit invalidation removes the cached asset before the next render,
+so shared layout styles do not need to be rebuilt for every navigated page while HMR remains fresh.
 
 ## Design Rule
 

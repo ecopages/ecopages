@@ -132,6 +132,8 @@ export class ConfigBuilder {
 			description: 'This is a static site generated with Ecopages',
 		},
 		additionalWatchPaths: [],
+		devPrewarmPaths: [],
+		devPrewarmBeforeReadyPaths: [],
 		templatesExt: [],
 		absolutePaths: {
 			config: '',
@@ -387,6 +389,28 @@ export class ConfigBuilder {
 	 */
 	setAdditionalWatchPaths(additionalWatchPaths: string[]): this {
 		this.config.additionalWatchPaths = additionalWatchPaths;
+		return this;
+	}
+
+	/**
+	 * Sets static paths to SSR-prewarm in development.
+	 *
+	 * @param devPrewarmPaths - Absolute URL pathnames such as `/` or `/docs`.
+	 * @returns The ConfigBuilder instance for method chaining.
+	 */
+	setDevPrewarmPaths(devPrewarmPaths: string[]): this {
+		this.config.devPrewarmPaths = devPrewarmPaths;
+		return this;
+	}
+
+	/**
+	 * Sets static paths to SSR-prewarm before the development server reports ready.
+	 *
+	 * @param devPrewarmBeforeReadyPaths - Critical absolute URL pathnames such as `/`.
+	 * @returns The ConfigBuilder instance for method chaining.
+	 */
+	setDevPrewarmBeforeReadyPaths(devPrewarmBeforeReadyPaths: string[]): this {
+		this.config.devPrewarmBeforeReadyPaths = devPrewarmBeforeReadyPaths;
 		return this;
 	}
 

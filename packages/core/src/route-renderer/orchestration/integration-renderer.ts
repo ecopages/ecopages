@@ -80,14 +80,9 @@ import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
- *
- * Request-time metadata inspection and static-generation probes use these
- * options to isolate their module identity from the main render cache while
- * still going through the owning integration's import setup.
  */
 export type RouteModuleLoadOptions = {
 	bypassCache?: boolean;
-	cacheScope?: string;
 };
 
 /**
@@ -683,14 +678,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 	}
 
-	protected usesIntegrationPageImporter(_file: string): boolean {
-		return false;
-	}
-
-	protected async importIntegrationPageFile(_file: string, _options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
-		invariant(false, 'Integration page importer must be implemented when enabled');
-	}
-
 	protected normalizeImportedPageFile<TPageModule extends EcoPageFile>(
 		_file: string,
 		pageModule: TPageModule,
@@ -700,22 +687,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	/**
 	 * Imports the page file from the specified path.
-	 * It uses dynamic import to load the file and returns the imported module.
 	 *
 	 * @param file - The file path to import.
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
-		const bypassCache = options?.bypassCache ?? false;
-		const pageModule = this.usesIntegrationPageImporter(file)
-			? await this.importIntegrationPageFile(file, {
-					bypassCache,
-					cacheScope: options?.cacheScope,
-				})
-			: await this.pageModuleLoaderService.importPageFile(file, {
-					bypassCache,
-					cacheScope: options?.cacheScope,
-				});
+		const pageModule = await this.pageModuleLoaderService.importPageFile(file, {
+			bypassCache: options?.bypassCache,
+		});
 
 		return this.normalizeImportedPageFile(file, pageModule);
 	}
@@ -799,6 +778,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<RouteRenderOrchestratorResolvedInputs> {
 		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
+			pageModule: routeOptions.pageModule,
 			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
 		});
 		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;

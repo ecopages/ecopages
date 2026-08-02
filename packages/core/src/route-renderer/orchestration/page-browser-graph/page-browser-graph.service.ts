@@ -73,6 +73,24 @@ export class PageBrowserGraphService {
 	}
 
 	/**
+	 * Returns dependency paths recorded for one resolved Page Browser Graph.
+	 */
+	getDependencyPathsForRoute(input: {
+		integrationName: string;
+		routeFile: string;
+		dependencyInstanceKey?: string;
+		policy?: GraphPolicy;
+	}): ReadonlySet<string> | undefined {
+		const policy = input.policy ?? this.resolveGraphPolicy();
+		return getAppPageBrowserGraphSession(this.appConfig).getDependencyPathsByRoute(
+			input.integrationName,
+			input.routeFile,
+			policy,
+			input.dependencyInstanceKey ?? '',
+		);
+	}
+
+	/**
 	 * Resolves or builds one Page Browser Graph under the given policy.
 	 */
 	async getOrBuild(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {

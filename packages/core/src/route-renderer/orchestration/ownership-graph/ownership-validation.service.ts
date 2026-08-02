@@ -2,7 +2,7 @@ import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../../eco/eco-declared-component.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { mapComponentGraph, walkComponentGraph } from './component-graph.ts';
+import { mapComponentGraph } from './component-graph.ts';
 
 type OwnershipValidationInput = {
 	currentIntegrationName: string;
@@ -33,12 +33,17 @@ export class OwnershipValidationService {
 	 * Validates foreign ownership edges reachable from the supplied route roots.
 	 */
 	validate(input: OwnershipValidationInput): OwnershipValidationError[] {
-		this.assertDeclaredComponentDependencies(input);
-
 		return mapComponentGraph<OwnershipValidationError[]>({
 			roots: input.roots,
 			currentIntegrationName: input.currentIntegrationName,
 			mapNode: ({ component, integrationName, componentId, isForeignToParent }, children) => {
+				const parentFile = getComponentIdentity(component)?.file;
+				for (const child of component.config?.dependencies?.components ?? []) {
+					if (child) {
+						assertEcoDeclaredComponent(child, { parentComponentFile: parentFile });
+					}
+				}
+
 				const componentMeta = getComponentIdentity(component);
 				const errors = children.flat();
 
@@ -72,23 +77,6 @@ export class OwnershipValidationService {
 				return errors;
 			},
 		}).flat();
-	}
-
-	private assertDeclaredComponentDependencies(input: OwnershipValidationInput): void {
-		walkComponentGraph({
-			roots: input.roots,
-			currentIntegrationName: input.currentIntegrationName,
-			onComponent: ({ component }) => {
-				const parentFile = getComponentIdentity(component)?.file;
-				for (const child of component.config?.dependencies?.components ?? []) {
-					if (!child) {
-						continue;
-					}
-
-					assertEcoDeclaredComponent(child, { parentComponentFile: parentFile });
-				}
-			},
-		});
 	}
 
 	private isRegisteredIntegration(integrationName: string, currentIntegrationName: string): boolean {

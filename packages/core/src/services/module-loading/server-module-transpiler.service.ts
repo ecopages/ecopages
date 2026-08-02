@@ -21,7 +21,6 @@ export type ServerModuleTranspilerBootstrapArgs = {
 	getBuildExecutor?: () => BuildExecutor | undefined;
 	canLoadSourceModuleFromHost?: (filePath: string) => boolean;
 	getHostModuleLoader?: SourceModuleLoaderFactory;
-	getInvalidationVersion?: () => number;
 	invalidateModules?: (changedFiles?: string[]) => void;
 	pageModuleImportService?: ServerModuleImportDependency;
 	/** Factory evaluated on each importModule call to produce plugins applied to every load. */
@@ -39,7 +38,6 @@ export class ServerModuleTranspiler {
 	private readonly pageModuleImportService: ServerModuleImportDependency;
 	private readonly getRootDir: () => string;
 	private readonly getBuildExecutor: () => BuildExecutor | undefined;
-	private readonly getInvalidationVersion: () => number | undefined;
 	private readonly invalidateModules: (changedFiles?: string[]) => void;
 	private readonly getDefaultPlugins: () => EcoBuildPlugin[];
 
@@ -56,7 +54,6 @@ export class ServerModuleTranspiler {
 			});
 		this.getRootDir = () => args.rootDir;
 		this.getBuildExecutor = args.getBuildExecutor ?? (() => undefined);
-		this.getInvalidationVersion = () => args.getInvalidationVersion?.();
 		this.getDefaultPlugins = args.getDefaultPlugins ?? (() => []);
 		this.invalidateModules = (changedFiles) => {
 			if (args.invalidateModules) {
@@ -80,7 +77,6 @@ export class ServerModuleTranspiler {
 			...(mergedPlugins.length > 0 ? { plugins: mergedPlugins } : {}),
 			rootDir: this.getRootDir(),
 			buildExecutor: this.getBuildExecutor(),
-			invalidationVersion: this.getInvalidationVersion(),
 		});
 	}
 

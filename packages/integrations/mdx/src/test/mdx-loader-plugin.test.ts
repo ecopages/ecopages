@@ -100,4 +100,27 @@ describe('createMdxLoaderPlugin', () => {
 		expect(filter.test('/tmp/docs.md')).toBe(true);
 		expect(filter.test('/tmp/react-content.mdx')).toBe(false);
 	});
+
+	it('reuses compiled output for unchanged MDX source', async () => {
+		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
+			await import('../core/mdx-transform-cache.ts');
+		resetMdxTransformCacheForTests();
+
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+
+		const { builder, getOnLoadCallback } = createBuilderHarness();
+		const plugin = createMdxLoaderPlugin();
+		plugin.setup(builder);
+		const onLoad = getOnLoadCallback();
+
+		await onLoad({ path: filePath });
+		await onLoad({ path: filePath });
+
+		expect(getMdxCompileInvocationCount()).toBe(1);
+		resetMdxTransformCacheForTests();
+	});
 });

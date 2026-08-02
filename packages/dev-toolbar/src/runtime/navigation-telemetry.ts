@@ -1,4 +1,5 @@
 import { DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY } from './constants.ts';
+import { subscribeToNavigationEvents } from './navigation-events.ts';
 
 export const NAV_TELEMETRY_ELEMENT_ID = '__ECO_DEV_NAV_TELEMETRY__';
 export const NAV_TELEMETRY_STORAGE_KEY = 'ecopages:dev-toolbar:nav-telemetry';
@@ -54,11 +55,18 @@ type EcoNavigationWindow = Window & {
 	__ecopages_browser_router__?: unknown;
 	__ECO_DEV_HYDRATION_MS__?: number;
 	__ECO_DEV_NAV_TELEMETRY__?: NavigationTelemetryApi;
+	__ECO_DEV_NAV_TELEMETRY_RUNTIME__?: NavigationTelemetryRuntime;
 };
 
 export type NavigationTelemetryApi = {
 	getSnapshot: () => NavigationTelemetrySnapshot;
 	clearHistory: () => NavigationTelemetrySnapshot;
+};
+
+type NavigationTelemetryRuntime = {
+	document: Document;
+	api: NavigationTelemetryApi;
+	dispose: () => void;
 };
 
 let nextEntryId = 0;
@@ -67,9 +75,20 @@ let history: NavigationTelemetryEntry[] = [];
 let swapStartedAt: number | null = null;
 let initialized = false;
 let telemetryDocument: Document | undefined;
+let disposeTelemetryListeners: (() => void) | undefined;
 
 /** @internal */
 export function resetNavigationTelemetryForTests(): void {
+	disposeTelemetryListeners?.();
+	disposeTelemetryListeners = undefined;
+
+	if (typeof window !== 'undefined') {
+		const telemetryWindow = window as EcoNavigationWindow;
+		telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__?.dispose();
+		delete telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__;
+		delete telemetryWindow.__ECO_DEV_NAV_TELEMETRY__;
+	}
+
 	initialized = false;
 	telemetryDocument = undefined;
 	nextEntryId = 0;
@@ -311,8 +330,18 @@ function createNavigationTelemetryApi(): NavigationTelemetryApi {
  * Boots route timing collection, DOM JSON trace export, and `window.__ECO_DEV_NAV_TELEMETRY__`.
  */
 export function initNavigationTelemetry(doc: Document = document): NavigationTelemetryApi {
+	const telemetryWindow = window as EcoNavigationWindow;
+	const existingRuntime = telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__;
+	if (existingRuntime?.document === doc) {
+		return existingRuntime.api;
+	}
+
+	existingRuntime?.dispose();
+	disposeTelemetryListeners?.();
+	disposeTelemetryListeners = undefined;
+
 	if (initialized) {
-		return createNavigationTelemetryApi();
+		initialized = false;
 	}
 
 	initialized = true;
@@ -338,18 +367,29 @@ export function initNavigationTelemetry(doc: Document = document): NavigationTel
 		recordInitialLoad(doc);
 	};
 
-	doc.addEventListener('eco:before-swap', handleBeforeSwap);
-	doc.addEventListener('eco:after-swap', handleAfterSwap);
-	doc.addEventListener('eco:page-load', handlePageLoad);
+	const handleDomContentLoaded = () => recordInitialLoad(doc);
+
+	const unsubscribeBeforeSwap = subscribeToNavigationEvents(doc, ['eco:before-swap'], handleBeforeSwap);
+	const unsubscribeAfterSwap = subscribeToNavigationEvents(doc, ['eco:after-swap'], handleAfterSwap);
+	const unsubscribePageLoad = subscribeToNavigationEvents(doc, ['eco:page-load'], handlePageLoad);
 
 	if (doc.readyState === 'complete' || doc.readyState === 'interactive') {
 		recordInitialLoad(doc);
 	} else {
-		doc.addEventListener('DOMContentLoaded', () => recordInitialLoad(doc), { once: true });
+		doc.addEventListener('DOMContentLoaded', handleDomContentLoaded, { once: true });
 	}
 
 	const api = createNavigationTelemetryApi();
-	(window as EcoNavigationWindow).__ECO_DEV_NAV_TELEMETRY__ = api;
+	const dispose = () => {
+		unsubscribeBeforeSwap();
+		unsubscribeAfterSwap();
+		unsubscribePageLoad();
+		doc.removeEventListener('DOMContentLoaded', handleDomContentLoaded);
+	};
+
+	disposeTelemetryListeners = dispose;
+	telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__ = { api, dispose, document: doc };
+	telemetryWindow.__ECO_DEV_NAV_TELEMETRY__ = api;
 	syncTelemetryElement(doc);
 	return api;
 }

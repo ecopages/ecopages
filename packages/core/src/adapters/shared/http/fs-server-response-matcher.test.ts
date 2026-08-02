@@ -705,9 +705,45 @@ describe('FileSystemResponseMatcher', () => {
 			await (matcher as any).importPageModule(INDEX_TEMPLATE_FILE);
 
 			expect((matcher as any).routeRendererFactory.getPageRenderer).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE);
-			expect(loadPageModule).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE, {
-				cacheScope: 'request-metadata',
+			expect(loadPageModule).toHaveBeenCalledWith(INDEX_TEMPLATE_FILE);
+		});
+
+		it('reuses the inspected page module during render without a second load', async () => {
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory,
+				fileSystemResponseFactory,
 			});
+
+			const pageModule = { default: { cache: 'static' as const, middleware: [] } };
+			const loadPageModule = vi.fn(async () => pageModule);
+			const execute = vi.fn(async (options: { pageModule?: unknown }) => {
+				expect(options.pageModule).toBe(pageModule);
+				return { body: '<html></html>', cacheStrategy: 'static' as const };
+			});
+			(matcher as any).routeRendererFactory = {
+				getPageRenderer: vi.fn(() => ({
+					loadPageModule,
+					execute,
+				})),
+			};
+
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+			await matcher.handleMatch(match);
+
+			expect(loadPageModule).toHaveBeenCalledTimes(1);
+			expect(execute).toHaveBeenCalledTimes(1);
 		});
 	});
 });

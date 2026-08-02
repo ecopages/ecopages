@@ -10,6 +10,7 @@ import {
 	type IslandRecordView,
 } from '../islands/read-island-records.ts';
 import { highlightElement } from '../runtime/highlight-element.ts';
+import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 function islandsSignature(islands: IslandRecordView[]): string {
 	return islands.map((island) => `${island.id}|${island.hostTag}|${island.hydrated}|${island.kind}`).join('\n');
@@ -25,18 +26,22 @@ export class EcoDevToolbarIslands extends RadiantElement {
 	private clearHighlight: (() => void) | undefined;
 	private liveIslandTargets: HTMLElement[] = [];
 	private suppressRefreshUntil = 0;
+	private unsubscribeNavigationEvents: (() => void) | undefined;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.refresh();
 		this.wireMutationObserver();
-		this.ownerDocument.addEventListener('eco:page-load', this.scheduleRefresh);
-		this.ownerDocument.addEventListener('eco:after-swap', this.scheduleRefresh);
+		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
+			this.ownerDocument,
+			['eco:page-load', 'eco:after-swap'],
+			this.scheduleRefresh,
+		);
 	}
 
 	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('eco:page-load', this.scheduleRefresh);
-		this.ownerDocument.removeEventListener('eco:after-swap', this.scheduleRefresh);
+		this.unsubscribeNavigationEvents?.();
+		this.unsubscribeNavigationEvents = undefined;
 		this.mutationObserver?.disconnect();
 		this.mutationObserver = undefined;
 		if (this.refreshFrame !== undefined) {

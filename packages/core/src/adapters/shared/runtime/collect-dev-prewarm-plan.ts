@@ -4,6 +4,7 @@ import type { DevPrewarmReadiness } from './dev-static-route-prewarm.ts';
 
 export type DevPrewarmPlan = {
 	pathnames: readonly string[];
+	beforeReadyPathnames: readonly string[];
 	readiness: DevPrewarmReadiness;
 };
 
@@ -11,7 +12,8 @@ export type DevPrewarmPlan = {
  * Aggregates processor-declared dev prewarm pathnames and readiness into one plan.
  */
 export async function collectAppDevPrewarmPlan(appConfig: EcoPagesAppConfig): Promise<DevPrewarmPlan> {
-	const pathnames = new Set<string>();
+	const pathnames = new Set(appConfig.devPrewarmPaths ?? []);
+	const beforeReadyPathnames = new Set(appConfig.devPrewarmBeforeReadyPaths ?? []);
 	let readiness: DevPrewarmReadiness = 'background';
 
 	for (const processor of appConfig.processors.values()) {
@@ -22,11 +24,19 @@ export async function collectAppDevPrewarmPlan(appConfig: EcoPagesAppConfig): Pr
 		}
 		if (plan.readiness === 'beforeReady') {
 			readiness = 'beforeReady';
+			for (const pathname of plan.pathnames) {
+				beforeReadyPathnames.add(pathname);
+			}
 		}
+	}
+
+	for (const pathname of beforeReadyPathnames) {
+		pathnames.add(pathname);
 	}
 
 	return {
 		pathnames: [...pathnames],
+		beforeReadyPathnames: [...beforeReadyPathnames],
 		readiness,
 	};
 }

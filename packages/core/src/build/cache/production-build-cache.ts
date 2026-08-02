@@ -8,7 +8,8 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
  * Shared manifest fields for persisted production build caches.
  */
 export interface ProductionCacheManifestBase {
-	invalidationVersion: string;
+	invalidationVersion?: string;
+	corePackageVersion?: string;
 	buildInputsFingerprint?: string;
 	buildKey?: string;
 	builtAt?: number;
@@ -72,9 +73,9 @@ export function writeProductionCacheManifest(manifestPath: string, manifest: unk
 
 export function isProductionCacheManifestCurrent(
 	manifest: ProductionCacheManifestBase | undefined,
-	invalidationVersion: string,
+	packageVersion: string,
 ): boolean {
-	return manifest?.invalidationVersion === invalidationVersion;
+	return (manifest?.corePackageVersion ?? manifest?.invalidationVersion) === packageVersion;
 }
 
 export function matchesProductionCacheFingerprint(

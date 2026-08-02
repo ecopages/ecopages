@@ -25,6 +25,7 @@ import { DevToolbarLegacyAppHost } from './legacy-app-host.ts';
 import { DevToolbarNavigationLoading } from './navigation-loading.ts';
 import { DevToolbarStealthController, type StealthPhase } from './stealth-controller.ts';
 import type { EcoDevToolbarNavigation } from '../apps/navigation-panel.tsx';
+import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 const BUILT_IN_APPS = [
 	{ id: 'navigation', label: 'Navigation' },
@@ -54,6 +55,7 @@ export class EcoDevToolbar extends RadiantElement {
 
 	private cleanupActiveApp: (() => void) | undefined;
 	private documentListenersWired = false;
+	private unsubscribeNavigationEvents: (() => void) | undefined;
 	private readonly routeListeners = new Set<() => void>();
 	private readonly legacyAppHost = new DevToolbarLegacyAppHost();
 	private readonly stealthController: DevToolbarStealthController;
@@ -231,11 +233,27 @@ export class EcoDevToolbar extends RadiantElement {
 		}
 
 		document.addEventListener('click', this.handleOutsideClick, true);
-		document.addEventListener('eco:before-swap', this.handleNavigationStart);
-		document.addEventListener('eco:after-swap', this.handleNavigationEnd);
-		document.addEventListener('eco:page-load', this.handleNavigationEnd);
-		document.addEventListener('eco:page-load', this.handleRouteChange);
-		document.addEventListener('eco:after-swap', this.handleRouteChange);
+		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
+			document,
+			['eco:before-swap'],
+			this.handleNavigationStart,
+		);
+		const unsubscribeNavigationEnd = subscribeToNavigationEvents(
+			document,
+			['eco:after-swap', 'eco:page-load'],
+			this.handleNavigationEnd,
+		);
+		const unsubscribeRouteChange = subscribeToNavigationEvents(
+			document,
+			['eco:after-swap', 'eco:page-load'],
+			this.handleRouteChange,
+		);
+		const unsubscribeExisting = this.unsubscribeNavigationEvents;
+		this.unsubscribeNavigationEvents = () => {
+			unsubscribeExisting();
+			unsubscribeNavigationEnd();
+			unsubscribeRouteChange();
+		};
 		this.documentListenersWired = true;
 	}
 
@@ -245,11 +263,8 @@ export class EcoDevToolbar extends RadiantElement {
 		}
 
 		document.removeEventListener('click', this.handleOutsideClick, true);
-		document.removeEventListener('eco:before-swap', this.handleNavigationStart);
-		document.removeEventListener('eco:after-swap', this.handleNavigationEnd);
-		document.removeEventListener('eco:page-load', this.handleNavigationEnd);
-		document.removeEventListener('eco:page-load', this.handleRouteChange);
-		document.removeEventListener('eco:after-swap', this.handleRouteChange);
+		this.unsubscribeNavigationEvents?.();
+		this.unsubscribeNavigationEvents = undefined;
 		this.documentListenersWired = false;
 	}
 

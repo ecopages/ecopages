@@ -54,7 +54,6 @@ export function setAppHostModuleLoader(appConfig: EcoPagesAppConfig, hostModuleL
  * {@link createServerBuildRequest}; this loader does not merge app plugins.
  */
 export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLoader {
-	const invalidationService = new DevelopmentInvalidationService(appConfig);
 	const pageModuleImportService = new PageModuleImportService(appConfig, {
 		canLoadSourceModuleFromHost: (filePath) => shouldAppUseHostModuleLoader(appConfig, filePath),
 		getHostModuleLoader: () => getAppHostModuleLoader(appConfig),
@@ -67,13 +66,9 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 		},
 		pageModuleImportService,
 		async importModule<T = unknown>(options: PageModuleBuildImportOptions) {
-			const invalidationVersion =
-				options.invalidationVersion ?? invalidationService.getServerModuleInvalidationVersion();
-
 			return await pageModuleImportService.importModule<T>({
 				...options,
 				buildExecutor: options.buildExecutor ?? requireBuildRuntime(appConfig).getProfile('route-module'),
-				invalidationVersion,
 			});
 		},
 		invalidateDevelopmentGraph() {

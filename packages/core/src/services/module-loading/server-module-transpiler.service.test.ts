@@ -73,7 +73,6 @@ describe('ServerModuleTranspiler', () => {
 				outdir: '/app/.eco/.server-modules',
 				rootDir: '/app',
 				buildExecutor,
-				invalidationVersion: undefined,
 			},
 		]);
 	});
@@ -100,7 +99,6 @@ describe('ServerModuleTranspiler', () => {
 				outdir: '/bootstrap-app/.eco/.server-modules',
 				rootDir: '/bootstrap-app',
 				buildExecutor,
-				invalidationVersion: undefined,
 			},
 		]);
 	});
@@ -173,7 +171,7 @@ describe('ServerModuleTranspiler', () => {
 		assert.equal(moduleLoader.owner, 'host');
 	});
 
-	it('applies the app invalidation version to app-owned module imports', async () => {
+	it('does not pass a process-wide invalidation version into app-owned module imports', async () => {
 		const calls: Array<unknown> = [];
 		const appConfig = {
 			rootDir: '/app',
@@ -221,17 +219,16 @@ describe('ServerModuleTranspiler', () => {
 		const importOptions = calls[0] as {
 			buildExecutor: unknown;
 			filePath: string;
-			invalidationVersion: number;
 			outdir: string;
 			plugins?: Array<{ name: string }>;
 			rootDir: string;
+			invalidationVersion?: number;
 		};
 
 		assert.deepEqual(
 			{
 				buildExecutor: importOptions.buildExecutor,
 				filePath: importOptions.filePath,
-				invalidationVersion: importOptions.invalidationVersion,
 				outdir: importOptions.outdir,
 				rootDir: importOptions.rootDir,
 			},
@@ -240,8 +237,8 @@ describe('ServerModuleTranspiler', () => {
 				rootDir: '/app',
 				outdir: '/app/.eco/.server-modules',
 				buildExecutor: routeModuleExecutor,
-				invalidationVersion: 1,
 			},
 		);
+		assert.equal(importOptions.invalidationVersion, undefined);
 	});
 });

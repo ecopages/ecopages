@@ -68,7 +68,7 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
 	assert.equal(request.target, 'es2022');
-	assert.equal(request.sourceTransforms, undefined);
+	assert.deepEqual(request.sourceTransforms, []);
 });
 
 test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {

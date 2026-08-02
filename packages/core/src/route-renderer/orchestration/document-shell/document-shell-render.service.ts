@@ -95,7 +95,7 @@ function resolveDocumentShellLayouts(
 }
 
 function resolveComponentIntegrationName(component: EcoComponent): string {
-	return component.config?.integration ?? component.config?.__eco?.integration ?? 'ecopages';
+	return component.config?.integration ?? component.config?.identity?.integration ?? 'ecopages';
 }
 
 /**

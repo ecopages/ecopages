@@ -1,7 +1,7 @@
 /**
  * Page module loading and configuration resolution service for React integration.
  *
- * Handles component config metadata resolution and module hydration analysis.
+ * Handles component identity resolution and module hydration analysis.
  * MDX page modules load through the core {@link PageModuleImportService} path
  * using the React plugin's server build contributions.
  *
@@ -9,7 +9,7 @@
  */
 
 import path from 'node:path';
-import type { EcoComponentConfig, EcoPageFile } from '@ecopages/core';
+import { bindComponentIdentity, getComponentIdentity, type EcoComponentConfig, type EcoPageFile } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
 import { fileSystem } from '@ecopages/file-system';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
@@ -44,16 +44,17 @@ export class PageModuleService {
 	}
 
 	/**
-	 * Ensures that an EcoComponentConfig has proper `__eco` metadata attached.
+	 * Ensures that an EcoComponentConfig has canonical identity attached.
 	 */
 	ensureConfigFileMetadata(config: EcoComponentConfig, pagePath: string): EcoComponentConfig {
-		if (config.__eco?.file) {
+		const identity = getComponentIdentity(config);
+		if (identity?.file) {
 			return config;
 		}
 
-		const buildEcoMeta = (file: string) => ({
-			id: config.__eco?.id ?? rapidhash(file).toString(36),
-			integration: config.__eco?.integration ?? this.config.integrationName,
+		const buildIdentity = (file: string) => ({
+			id: identity?.id ?? rapidhash(file).toString(36),
+			integration: identity?.integration ?? this.config.integrationName,
 			file,
 		});
 
@@ -75,18 +76,15 @@ export class PageModuleService {
 			for (const candidateDir of candidateDirs) {
 				const resolvedDependency = path.resolve(candidateDir, dependencyPath);
 				if (fileSystem.exists(resolvedDependency)) {
-					return {
-						...config,
-						__eco: buildEcoMeta(path.join(candidateDir, path.basename(pagePath))),
-					};
+					return bindComponentIdentity(
+						buildIdentity(path.join(candidateDir, path.basename(pagePath))),
+						config,
+					);
 				}
 			}
 		}
 
-		return {
-			...config,
-			__eco: buildEcoMeta(pagePath),
-		};
+		return bindComponentIdentity(buildIdentity(pagePath), config);
 	}
 
 	hasModulesInConfig(config: EcoComponentConfig | undefined): boolean {

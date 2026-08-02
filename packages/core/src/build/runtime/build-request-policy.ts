@@ -12,7 +12,7 @@ import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
  *
  * @remarks
  * Always goes through {@link getAppServerBuildPlugins} so sealed-manifest and
- * loader-fallback apps share one plugin list with the alias resolver. Used by
+ * source-transform apps share one plugin list with the alias resolver. Used by
  * both request assembly and unified-graph cache keys.
  */
 export function resolveServerAppBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
@@ -58,9 +58,8 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * @remarks
  * Defaults `profile` to `'route-module'`. Plugins are
  * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
- * {@link mergeCallerBuildPlugins}. Does not attach `sourceTransforms` — unlike
- * {@link createBrowserBuildRequest}. Pass the returned options into
- * {@link BuildRuntime.getProfile}; the runtime no longer injects plugins.
+ * {@link mergeCallerBuildPlugins}. Source transforms are applied on every
+ * compilation target, so server module loading shares browser attribution.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const profile = input.profile ?? 'route-module';
@@ -72,6 +71,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
+		sourceTransforms: getAppSourceTransforms(appConfig),
 	};
 }
 

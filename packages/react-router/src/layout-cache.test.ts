@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoInjectedMeta } from '@ecopages/core';
+import type { ComponentIdentity } from '@ecopages/core';
 import { createElement, type ReactNode } from 'react';
 import {
 	clearLayoutCache,
@@ -14,7 +14,7 @@ function createLayout(options?: {
 	displayName?: string;
 	name?: string;
 	renderLabel?: string;
-	__eco?: { id?: string; file?: string; integration?: string };
+	identity?: { id?: string; file?: string; integration?: string };
 }): LayoutComponentWithMeta {
 	const renderLabel = options?.renderLabel ?? 'default';
 	const component = ((props: { children?: ReactNode }) =>
@@ -22,12 +22,12 @@ function createLayout(options?: {
 	if (options?.displayName) {
 		component.displayName = options.displayName;
 	}
-	if (options?.__eco?.file && options.__eco.id) {
+	if (options?.identity?.file && options.identity.id) {
 		component.config = {
-			__eco: {
-				id: options.__eco.id,
-				file: options.__eco.file,
-				integration: options.__eco.integration ?? 'react',
+			identity: {
+				id: options.identity.id,
+				file: options.identity.file,
+				integration: options.identity.integration ?? 'react',
 			},
 		};
 	}
@@ -35,29 +35,29 @@ function createLayout(options?: {
 }
 
 describe('getLayoutCacheKey', () => {
-	it('uses injected __eco.file when available', () => {
+	it('uses identity.file when available', () => {
 		const layout = createLayout({
-			__eco: { file: '/app/src/layouts/base-layout.tsx', id: 'base', integration: 'react' },
+			identity: { file: '/app/src/layouts/base-layout.tsx', id: 'base', integration: 'react' },
 		});
 
 		expect(getLayoutCacheKey(layout)).toBe('/app/src/layouts/base-layout.tsx');
 	});
 
-	it('uses injected __eco.id when file is absent', () => {
+	it('uses identity.id when file is absent', () => {
 		const layout = createLayout();
 		layout.config = {
-			__eco: { id: 'docs-layout', integration: 'react' } as EcoInjectedMeta,
+			identity: { id: 'docs-layout', integration: 'react' } as ComponentIdentity,
 		};
 
 		expect(getLayoutCacheKey(layout)).toBe('docs-layout');
 	});
 
-	it('does not collide for eco.component wrappers when __eco.file distinguishes them', () => {
+	it('does not collide for eco.component wrappers when identity.file distinguishes them', () => {
 		const minimalLayout = createLayout({
-			__eco: { file: '/app/src/layouts/minimal-layout.tsx', id: 'minimal', integration: 'react' },
+			identity: { file: '/app/src/layouts/minimal-layout.tsx', id: 'minimal', integration: 'react' },
 		});
 		const appLayout = createLayout({
-			__eco: { file: '/app/src/layouts/app-layout.tsx', id: 'app', integration: 'react' },
+			identity: { file: '/app/src/layouts/app-layout.tsx', id: 'app', integration: 'react' },
 		});
 
 		expect(Function.prototype.toString.call(minimalLayout)).toBe(Function.prototype.toString.call(appLayout));
@@ -106,12 +106,12 @@ describe('resolvePersistedLayout', () => {
 			clearLayoutCache();
 			const firstLayout = createLayout({
 				displayName: 'SharedLayout',
-				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+				identity: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
 			});
 			const secondLayout = createLayout({
 				displayName: 'SharedLayout',
 				renderLabel: 'v2',
-				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+				identity: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
 			});
 
 			const first = resolvePersistedLayout(firstLayout, false);
@@ -127,12 +127,12 @@ describe('resolvePersistedLayout', () => {
 			clearLayoutCache();
 			const firstLayout = createLayout({
 				displayName: 'SharedLayout',
-				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+				identity: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
 			});
 			const secondLayout = createLayout({
 				displayName: 'SharedLayout',
 				renderLabel: 'v2',
-				__eco: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
+				identity: { file: '/app/layouts/shared.tsx', id: 'shared', integration: 'react' },
 			});
 
 			resolvePersistedLayout(firstLayout, false);
@@ -149,17 +149,17 @@ describe('resolvePersistedLayoutStack', () => {
 			clearLayoutCache();
 			const outer = createLayout({
 				displayName: 'OuterLayout',
-				__eco: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
+				identity: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
 			});
 			const inner = createLayout({
 				displayName: 'InnerLayout',
-				__eco: { file: '/app/layouts/inner.tsx', id: 'inner', integration: 'react' },
+				identity: { file: '/app/layouts/inner.tsx', id: 'inner', integration: 'react' },
 			});
 
 			const firstStack = resolvePersistedLayoutStack([outer, inner], false);
 			const outerReplacement = createLayout({
 				displayName: 'OuterLayout',
-				__eco: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
+				identity: { file: '/app/layouts/outer.tsx', id: 'outer', integration: 'react' },
 			});
 			const secondStack = resolvePersistedLayoutStack([outerReplacement, inner], false);
 
@@ -176,20 +176,20 @@ describe('resolvePersistedLayoutStack', () => {
 			clearLayoutCache();
 			const parentFirstImport = createLayout({
 				displayName: 'AppShell',
-				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+				identity: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
 			});
 			const parentSecondImport = createLayout({
 				displayName: 'AppShell',
 				renderLabel: 'reimported',
-				__eco: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
+				identity: { file: '/app/layouts/app-shell.tsx', id: 'app-shell', integration: 'react' },
 			});
 			const docsInner = createLayout({
 				displayName: 'DocsInner',
-				__eco: { file: '/app/layouts/docs-inner.tsx', id: 'docs-inner', integration: 'react' },
+				identity: { file: '/app/layouts/docs-inner.tsx', id: 'docs-inner', integration: 'react' },
 			});
 			const settingsInner = createLayout({
 				displayName: 'SettingsInner',
-				__eco: { file: '/app/layouts/settings-inner.tsx', id: 'settings-inner', integration: 'react' },
+				identity: { file: '/app/layouts/settings-inner.tsx', id: 'settings-inner', integration: 'react' },
 			});
 
 			const docsStack = resolvePersistedLayoutStack([parentFirstImport, docsInner], false);

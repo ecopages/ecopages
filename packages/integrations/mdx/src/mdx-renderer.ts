@@ -48,7 +48,7 @@ export class MDXRenderer extends StringMarkupRenderer {
 			components.push({
 				config: {
 					...config,
-					__eco: {
+					identity: {
 						id: rapidhash(pagePath).toString(36),
 						file: pagePath,
 						integration: this.name,

@@ -1,4 +1,5 @@
-import type { EcoComponent, GetMetadata, PageProps } from '@ecopages/core';
+import type { GetMetadata, PageProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 import { BaseLayout } from '../layouts/base-layout';
 
@@ -9,21 +10,18 @@ export const getMetadata: GetMetadata = () => ({
 	keywords: ['typescript', 'framework', 'static'],
 });
 
-const HomePage: EcoComponent<PageProps> = ({ params, query }) =>
-	html`!${BaseLayout({
-		class: 'main-content',
-		children: html`<h1 class="main-title">Home Page</h1>
-			<a href="/dynamic/a">Dynamic</a>
-			<a href="/dynamic/b?q=query">With Query</a>
-			<p>!${JSON.stringify(query || [])}</p>
-			<p>!${JSON.stringify(params || [])}</p>`,
-	})}`;
-
-HomePage.config = {
+export default eco.page<PageProps>({
 	dependencies: {
 		stylesheets: ['./index.css'],
 		components: [BaseLayout],
 	},
-};
-
-export default HomePage;
+	render: ({ params, query }) =>
+		html`!${BaseLayout({
+			class: 'main-content',
+			children: html`<h1 class="main-title">Home Page</h1>
+				<a href="/dynamic/a">Dynamic</a>
+				<a href="/dynamic/b?q=query">With Query</a>
+				<p>!${JSON.stringify(query || [])}</p>
+				<p>!${JSON.stringify(params || [])}</p>`,
+		})}`,
+});

@@ -56,7 +56,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 	 * Throws an error if the integration cannot be determined or is not found.
 	 */
 	const getRendererForView = <P>(view: EcoComponent<P>): IntegrationRenderer => {
-		const integrationName = view.config?.integration ?? view.config?.__eco?.integration;
+		const integrationName = view.config?.integration ?? view.config?.identity?.integration;
 		invariant(
 			!!integrationName,
 			'Cannot determine integration for view. Set view.config.integration explicitly or ensure the view is defined with eco.page() in a file with a recognized extension.',

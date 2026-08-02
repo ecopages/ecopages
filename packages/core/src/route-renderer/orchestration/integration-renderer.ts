@@ -565,7 +565,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						: undefined;
 
 		if (input.children !== undefined && serializedChildren === undefined) {
-			const componentFile = input.component.config?.__eco?.file ?? 'unknown component';
+			const componentFile = input.component.config?.identity?.file ?? 'unknown component';
 			const childTag = Object.prototype.toString.call(input.children);
 
 			throw new TypeError(
@@ -576,7 +576,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
 		const content = await component(props);
 		if (typeof content !== 'string') {
-			const componentFile = input.component.config?.__eco?.file ?? 'unknown component';
+			const componentFile = input.component.config?.identity?.file ?? 'unknown component';
 			const contentTag = Object.prototype.toString.call(content);
 
 			throw new TypeError(

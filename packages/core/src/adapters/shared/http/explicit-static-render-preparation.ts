@@ -9,9 +9,9 @@ type ExplicitStaticRenderPreparationResult = {
 };
 
 function getViewIntegrationName(view: {
-	config?: { integration?: string; __eco?: { integration?: string } };
+	config?: { integration?: string; identity?: { integration?: string } };
 }): string | undefined {
-	return view.config?.integration ?? view.config?.__eco?.integration;
+	return view.config?.integration ?? view.config?.identity?.integration;
 }
 
 /**

@@ -53,8 +53,8 @@ function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey:
 		createElement('div', { 'data-testid': `${name}-layout` }, layoutLabel, children);
 
 	Layout.displayName = `${layoutKey}-layout`;
-	(Layout as typeof Layout & { config?: { __eco?: { id: string } } }).config = {
-		__eco: { id: layoutKey },
+	(Layout as typeof Layout & { config?: { identity?: { id: string } } }).config = {
+		identity: { id: layoutKey },
 	};
 
 	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
@@ -91,7 +91,7 @@ function createEcoComponentStyleLayout(layoutTestId: string, options: { file: st
 		typeof createMockPageComponent
 	> & {
 		config?: {
-			__eco?: { id: string; file: string; integration: string };
+			identity?: { id: string; file: string; integration: string };
 			dependencies?: {
 				stylesheets?: string[];
 			};
@@ -99,7 +99,7 @@ function createEcoComponentStyleLayout(layoutTestId: string, options: { file: st
 	};
 
 	Layout.config = {
-		__eco: { id: layoutTestId, file: options.file, integration: 'react' },
+		identity: { id: layoutTestId, file: options.file, integration: 'react' },
 		dependencies: {
 			stylesheets: options.stylesheets,
 		},
@@ -460,8 +460,8 @@ describe('EcoRouter HMR Integration', () => {
 				layoutMountCount += 1;
 				return createElement('div', { 'data-testid': 'bootstrap-layout' }, children);
 			};
-			(Layout as typeof Layout & { config?: { __eco?: { id: string } } }).config = {
-				__eco: { id: 'bootstrap-layout' },
+			(Layout as typeof Layout & { config?: { identity?: { id: string } } }).config = {
+				identity: { id: 'bootstrap-layout' },
 			};
 
 			const Page = (() => createElement('div', { 'data-testid': 'bootstrap-page' }, 'page')) as ReturnType<

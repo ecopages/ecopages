@@ -273,7 +273,7 @@ test('createRolldownPluginBridge applies source transforms after first-wins onLo
 				return {
 					code: code.replace(
 						'eco.component({',
-						`eco.component({ __eco: { id: "layout", file: "${id}", integration: "react" },`,
+						`eco.component({ identity: { id: "layout", file: "${id}", integration: "react" },`,
 					),
 				};
 			},

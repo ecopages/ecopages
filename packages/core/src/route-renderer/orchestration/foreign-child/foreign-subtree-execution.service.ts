@@ -525,7 +525,7 @@ export class ForeignSubtreeExecutionService {
 		component: EcoComponent,
 		currentIntegrationName: string,
 	): string | undefined {
-		const integrationName = component.config?.integration ?? component.config?.__eco?.integration;
+		const integrationName = component.config?.integration ?? component.config?.identity?.integration;
 		if (!integrationName || integrationName === 'html' || integrationName === currentIntegrationName) {
 			return undefined;
 		}

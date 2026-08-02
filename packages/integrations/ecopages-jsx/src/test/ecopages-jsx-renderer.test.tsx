@@ -289,7 +289,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				__eco: {
+				identity: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.tsx',
 					integration: 'deferred',
@@ -864,7 +864,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const EcopagesJsxLeaf = eco.component<{}, JsxRenderable>({
-				__eco: {
+				identity: {
 					id: 'generated-bounce-leaf',
 					file: '/app/components/generated-bounce-leaf.eco.tsx',
 					integration: 'ecopages-jsx',
@@ -874,7 +874,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const KitaGroup = eco.component<{}, string>({
-				__eco: {
+				identity: {
 					id: 'generated-bounce-kita-group',
 					file: '/app/components/generated-bounce-group.kita.tsx',
 					integration: 'kitajs',
@@ -887,7 +887,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const KitaShell = eco.component<StringChildProps, string>({
-				__eco: {
+				identity: {
 					id: 'generated-bounce-kita-shell',
 					file: '/app/components/generated-bounce-shell.kita.tsx',
 					integration: 'kitajs',
@@ -900,7 +900,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const GeneratedShell = eco.component<{ children?: JsxRenderable | string }, JsxRenderable>({
-				__eco: {
+				identity: {
 					id: 'generated-bounce-shell',
 					file: '/app/components/generated-bounce-shell.eco.tsx',
 					integration: 'ecopages-jsx',
@@ -920,7 +920,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const Page = eco.component<{}, JsxRenderable>({
-				__eco: {
+				identity: {
 					id: 'generated-bounce-page',
 					file: '/app/pages/generated-bounce-page.eco.tsx',
 					integration: 'ecopages-jsx',
@@ -1189,7 +1189,7 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const DeferredWidget = eco.component({
-				__eco: {
+				identity: {
 					id: 'deferred-widget',
 					file: '/app/components/deferred-widget.deferred.tsx',
 					integration: 'deferred',

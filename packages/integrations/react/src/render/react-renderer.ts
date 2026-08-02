@@ -19,6 +19,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 } from '@ecopages/core';
+import { getComponentIdentity } from '@ecopages/core';
 import {
 	IntegrationRenderer,
 	type HtmlDocumentContribution,
@@ -537,7 +538,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		await this.prepareViewDependencies(input.view, input.layout);
 		if (!input.ctx.partial) {
-			await this.appendHydrationAssetsForFile(input.view.config?.__eco?.file);
+			await this.appendHydrationAssetsForFile(getComponentIdentity(input.view)?.file);
 		}
 
 		const HtmlTemplate = await this.getHtmlTemplate();

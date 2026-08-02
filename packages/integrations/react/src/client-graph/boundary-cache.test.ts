@@ -1,9 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { ClientGraphBoundaryCache } from './boundary-cache.ts';
+import { ClientGraphBoundaryCache, hashAllowList } from './boundary-cache.ts';
 
 describe('ClientGraphBoundaryCache', () => {
 	const filePath = '/a.ts';
-	const allowList = ['react', 'react-dom'];
+	const allowList = new Map<string, Set<string> | '*'>([
+		['react', '*'],
+		['react-dom', '*'],
+	]);
+
+	it('misses when inbound requested exports differ', () => {
+		const cache = new ClientGraphBoundaryCache();
+		cache.set(
+			'/entry.tsx',
+			'export const one = 1;',
+			new Map(),
+			{
+				transformed: 'export const one = 1;',
+				modified: false,
+				rulesAdded: new Map(),
+			},
+			new Set(['one']),
+		);
+		expect(cache.get('/entry.tsx', 'export const one = 1;', new Map(), new Set(['two']))).toBeUndefined();
+	});
+
+	it('misses when allow-list export rules differ for the same package', () => {
+		const cache = new ClientGraphBoundaryCache();
+		const readOnlyFs = new Map<string, Set<string> | '*'>([['node:fs', new Set(['readFileSync'])]]);
+		const writeFs = new Map<string, Set<string> | '*'>([['node:fs', new Set(['writeFileSync'])]]);
+		cache.set(filePath, 'src', readOnlyFs, {
+			transformed: 'src',
+			modified: false,
+			rulesAdded: new Map(),
+		});
+		expect(cache.get(filePath, 'src', writeFs)).toBeUndefined();
+		expect(hashAllowList(readOnlyFs)).not.toBe(hashAllowList(writeFs));
+	});
 
 	it('returns undefined for an uncached file', () => {
 		const cache = new ClientGraphBoundaryCache();
@@ -35,14 +67,24 @@ describe('ClientGraphBoundaryCache', () => {
 		expect(cache.get(filePath, 'export const x = 2;', allowList)).toBeUndefined();
 	});
 
-	it('misses when allow list changes', () => {
+	it('misses when allow list package set changes', () => {
 		const cache = new ClientGraphBoundaryCache();
 		cache.set(filePath, 'src', allowList, {
 			transformed: 'src',
 			modified: false,
 			rulesAdded: new Map(),
 		});
-		expect(cache.get(filePath, 'src', ['react', 'react-dom', 'lit'])).toBeUndefined();
+		expect(
+			cache.get(
+				filePath,
+				'src',
+				new Map([
+					['react', '*'],
+					['react-dom', '*'],
+					['lit', '*'],
+				]),
+			),
+		).toBeUndefined();
 	});
 
 	it('evicts oldest entry when capacity exceeded', () => {
@@ -51,7 +93,6 @@ describe('ClientGraphBoundaryCache', () => {
 		cache.set('/b', 'b', allowList, { transformed: 'b', modified: false, rulesAdded: new Map() });
 		cache.set('/c', 'c', allowList, { transformed: 'c', modified: false, rulesAdded: new Map() });
 		expect(cache.size).toBe(2);
-		// /a should have been evicted; reading it is a miss
 		expect(cache.get('/a', 'a', allowList)).toBeUndefined();
 	});
 
@@ -96,9 +137,7 @@ describe('ClientGraphBoundaryCache', () => {
 			modified: false,
 			rulesAdded: new Map([['/b', originalRules]]),
 		});
-		// Mutate the live set
 		originalRules.add('Baz');
-		// Cache should not reflect the mutation
 		const cached = cache.get('/a', 'a', allowList);
 		const cachedRules = cached?.rulesAdded.get('/b');
 		expect(cachedRules).toBeInstanceOf(Set);
@@ -106,11 +145,6 @@ describe('ClientGraphBoundaryCache', () => {
 	});
 
 	it('rulesAdded stores the after-state, not just additions (Set growth)', () => {
-		// Regression for code review: the original snapshot logic captured
-		// only entries whose key was newly added (using Map.size delta),
-		// missing the case where a transform grows an existing key's
-		// Set via union. The cache must store the after-state so replay
-		// against a fresh registry produces the same final value.
 		const cache = new ClientGraphBoundaryCache();
 		const grown = new Set(['Foo', 'Bar']);
 		cache.set('/b', 'b', allowList, {

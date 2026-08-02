@@ -33,11 +33,11 @@ These concepts intentionally live in different places:
 
 Mixed-integration apps use two separate mechanisms:
 
-| Layer   | Mechanism                                                         | Purpose                                                                                  |
-| ------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Build   | `getJsxOwnershipPlugins()` / `getHostScopedJsxOwnershipPlugins()` | Prepend `@jsxImportSource` so bundled `.tsx` files compile with the correct JSX runtime  |
-| Build   | `eco-component-meta-plugin`                                       | Prepends the owning integration pragma when injecting `__eco` metadata into native files |
-| Runtime | `eco.component()` / `eco.embed()` + foreign-child runtime         | Hand off cross-integration children during SSR                                           |
+| Layer   | Mechanism                                                         | Purpose                                                                                                                                        |
+| ------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build   | `getJsxOwnershipPlugins()` / `getHostScopedJsxOwnershipPlugins()` | Prepend `@jsxImportSource` so bundled `.tsx` files compile with the correct JSX runtime                                                        |
+| Build   | component identity source transform                               | After a lexical `eco.` gate, uses Oxc to wrap native factory options with `bindComponentIdentity()` and prepends the owning integration pragma |
+| Runtime | `eco.component()` / `eco.embed()` + foreign-child runtime         | Hand off cross-integration children during SSR                                                                                                 |
 
 See [`../build/README.md`](../build/README.md) for the JSX ownership helper split.
 
@@ -94,7 +94,7 @@ The route-render contract is:
 Important:
 
 - route-level fallback resolution is gone; unresolved artifacts are now a hard failure
-- ownership is declared from component metadata, not inferred from final HTML
+- ownership is declared from canonical component identity, not inferred from final HTML
 - declared page dependencies are resolved from final render inputs and carried to the owning integration; integrations may use them for renderer-specific lifecycle work such as HMR ownership
 - same-integration children stay renderer-local and do not need to pass through a universal transport
 

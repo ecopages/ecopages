@@ -77,5 +77,5 @@ All notable changes to `@ecopages/core` are documented here.
 - `defineApiHandler` keeps the same call shape, but the handler context is now explicitly runtime-agnostic.
 - The old explicit `renderingMode` config option has been removed and full orchestration is always active.
 - `eco.page({ layout })` accepts one layout or an **outer → inner** array. Arrays normalize to `config.layouts` and `config.layoutEntries`.
-- Entries in `dependencies.components` (including layouts merged from `eco.page({ layout })`) must be declared with `eco.component()`, `eco.layout()`, or `eco.html()` so `config.__eco` is present.
+- Entries in `dependencies.components` (including layouts merged from `eco.page({ layout })`) must be declared with `eco.component()`, `eco.layout()`, or `eco.html()` so `config.identity` is present.
 - `DefaultHmrContext` now requires a `getEntrypointDependencyGraph(): EntrypointDependencyGraph` method. This enables selective HMR invalidation so integrations can rebuild only the entrypoints affected by a changed dependency instead of all watched entrypoints. Implementations should return the shared `EntrypointDependencyGraph` instance from `@ecopages/core/services/runtime-state/entrypoint-dependency-graph.service`.

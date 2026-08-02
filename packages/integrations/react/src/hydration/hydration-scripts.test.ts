@@ -106,7 +106,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.register({');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.claimOwnership?.("react-router");');
 		expect(script).toContain('const currentPageLayoutStack = (Component) =>');
-		expect(script).toContain("layout?.config?.__eco?.file ?? '').join('|')");
+		expect(script).toContain("layout?.config?.identity?.file ?? '').join('|')");
 		expect(script).toContain('clearCache: currentPageLayoutStackKey !== nextPageLayoutStackKey');
 		expect(script).toContain('moduleUrl: newUrl');
 		expect(script).toContain('const initialPageData = readPageDataDocument();');

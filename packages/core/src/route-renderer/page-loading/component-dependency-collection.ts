@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { DependencyLazyTrigger, EcoComponent } from '../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
+import { getComponentIdentity } from '../../eco/component-identity.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
@@ -97,7 +98,7 @@ export function collectComponentDependencies(
 	for (const component of components) {
 		if (!component) continue;
 
-		const componentFile = component.config?.__eco?.file;
+		const componentFile = getComponentIdentity(component)?.file;
 		if (!componentFile) continue;
 
 		const stylesheetDependencyKeys = new Set<string>();
@@ -110,7 +111,7 @@ export function collectComponentDependencies(
 		const collect = (config: EcoComponent['config']) => {
 			if (!config) return;
 
-			const file = config.__eco?.file;
+			const file = getComponentIdentity(config)?.file;
 			if (!file) return;
 			const dir = path.dirname(file);
 			const dependenciesConfig = config.dependencies;

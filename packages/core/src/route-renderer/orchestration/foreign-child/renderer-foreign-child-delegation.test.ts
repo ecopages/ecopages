@@ -125,7 +125,7 @@ describe('renderer foreign-child delegation', () => {
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-component',
 				file: '/app/components/foreign-component.tsx',
 				integration: 'foreign-renderer',
@@ -180,7 +180,7 @@ describe('renderer foreign-child delegation', () => {
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-component',
 				file: '/app/components/foreign-component.tsx',
 				integration: 'foreign-renderer',
@@ -229,7 +229,7 @@ describe('renderer foreign-child delegation', () => {
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-component',
 				file: '/app/components/foreign-component.tsx',
 				integration: 'foreign-renderer',
@@ -318,7 +318,7 @@ describe('renderer foreign-child delegation', () => {
 		const Component = (() => '<section />') as EcoComponent<Record<string, unknown>>;
 		Component.config = {
 			integration: 'test-renderer',
-			__eco: {
+			identity: {
 				id: 'component',
 				file: '/app/components/component.ts',
 				integration: 'test-renderer',
@@ -375,7 +375,7 @@ describe('renderer foreign-child delegation', () => {
 		const View = (() => '<section>Inline</section>') as EcoComponent<Record<string, unknown>>;
 		View.config = {
 			integration: 'test-renderer',
-			__eco: {
+			identity: {
 				id: 'inline-view',
 				file: '/app/components/inline-view.ts',
 				integration: 'test-renderer',
@@ -406,7 +406,7 @@ describe('renderer foreign-child delegation', () => {
 		const ForeignChild = (() => '<span>Foreign</span>') as EcoComponent<Record<string, unknown>>;
 		ForeignChild.config = {
 			integration: 'react',
-			__eco: {
+			identity: {
 				id: 'foreign-child',
 				file: '/app/components/foreign-child.tsx',
 				integration: 'react',
@@ -416,7 +416,7 @@ describe('renderer foreign-child delegation', () => {
 		const View = (() => '<section>Foreign Subtree</section>') as EcoComponent<Record<string, unknown>>;
 		View.config = {
 			integration: 'test-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-subtree-view',
 				file: '/app/components/foreign-subtree-view.ts',
 				integration: 'test-renderer',
@@ -448,7 +448,7 @@ describe('renderer foreign-child delegation', () => {
 	it('reuses one foreign renderer instance across shared view shell composition', async () => {
 		const foreignRenderer = {
 			renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) => {
-				const componentId = input.component.config?.__eco?.id;
+				const componentId = input.component.config?.identity?.id;
 
 				if (componentId === 'foreign-html-template') {
 					return {
@@ -497,7 +497,7 @@ describe('renderer foreign-child delegation', () => {
 		const View = (() => '<section>Foreign View</section>') as EcoComponent<Record<string, unknown>>;
 		View.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-view',
 				file: '/app/components/foreign-view.ts',
 				integration: 'foreign-renderer',
@@ -507,7 +507,7 @@ describe('renderer foreign-child delegation', () => {
 		const Layout = (() => '<main />') as EcoComponent<Record<string, unknown>>;
 		Layout.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-layout',
 				file: '/app/components/foreign-layout.ts',
 				integration: 'foreign-renderer',
@@ -517,7 +517,7 @@ describe('renderer foreign-child delegation', () => {
 		renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
 		renderer.HtmlTemplate.config = {
 			integration: 'foreign-renderer',
-			__eco: {
+			identity: {
 				id: 'foreign-html-template',
 				file: '/app/components/foreign-html-template.ts',
 				integration: 'foreign-renderer',

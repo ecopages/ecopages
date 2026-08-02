@@ -8,12 +8,14 @@ import type { EcoPagesAppConfig } from '../types/internal-types';
 import { fileSystem } from '@ecopages/file-system';
 
 /**
- * Creates a regex pattern to match __eco injection with any id hash.
+ * Creates a regex pattern to match identity attribution with any id hash.
  * The id is a base36 hash that varies, so we match it with a pattern.
  */
 function ecoMetaPattern(file: string, integration: string): RegExp {
 	const escapedFile = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	return new RegExp(`__eco: \\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\}`);
+	return new RegExp(
+		`bindComponentIdentity\\(\\{ id: "[a-z0-9]+", file: "${escapedFile}", integration: "${integration}" \\},`,
+	);
 }
 
 describe('eco-component-meta-plugin', () => {
@@ -90,8 +92,9 @@ describe('eco-component-meta-plugin', () => {
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
-	it('should inject __eco into X.config assignment in TSX files', async () => {
+	it('does not attribute direct component config assignments', async () => {
 		const content = `
+			const MyComponent = eco.component({ render: () => null });
             MyComponent.config = {
                 dependencies: {}
             };
@@ -101,9 +104,10 @@ describe('eco-component-meta-plugin', () => {
 
 		expect(result).toBeDefined();
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/component.tsx', 'react'));
+		expect(result.contents).toContain('MyComponent.config = {\n                dependencies: {}');
 	});
 
-	it('should NOT inject __eco into config patterns in non-EcoComponent files', async () => {
+	it('does not bind identity into config patterns in non-EcoComponent files', async () => {
 		const content = `
             export const config = {
                 apiUrl: 'https://api.example.com',
@@ -114,10 +118,10 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/settings.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('bindComponentIdentity');
 	});
 
-	it('should inject __eco into EcoComponent-typed object with config property', async () => {
+	it('does not attribute manually shaped components', async () => {
 		const content = `
             import type { EcoComponent } from '@ecopages/core';
 
@@ -130,10 +134,24 @@ describe('eco-component-meta-plugin', () => {
 		const result = await runPluginOnContent(content, '/path/to/lit-counter.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toMatch(ecoMetaPattern('/path/to/lit-counter.ts', 'ghtml'));
+		expect(result.contents).not.toContain('bindComponentIdentity');
 	});
 
-	it('should inject __eco into eco.component() call', async () => {
+	it('does not inject identity into embedded source strings', async () => {
+		const content = `
+            const source = "export const Widget = eco.component({ render: () => null });";
+            export const Page = eco.page({ render: () => source });
+        `;
+
+		const result = await runPluginOnContent(content, '/path/to/page.tsx');
+
+		expect(result.contents).toContain(
+			'const source = "export const Widget = eco.component({ render: () => null });";',
+		);
+		expect(result.contents.match(/bindComponentIdentity/g)).toHaveLength(2);
+	});
+
+	it('binds identity into eco.component() call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export const Counter = eco.component${'<CounterProps>'}({
@@ -146,10 +164,10 @@ describe('eco-component-meta-plugin', () => {
 
 		expect(result).toBeDefined();
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/counter.tsx', 'react'));
-		expect(result.contents).toContain('eco.component' + '<CounterProps>({');
+		expect(result.contents).toContain('eco.component' + '<CounterProps>(bindComponentIdentity(');
 	});
 
-	it('should inject __eco into eco.page call', async () => {
+	it('binds identity into eco.page call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export default eco.page({
@@ -164,7 +182,7 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
-	it('should inject __eco into eco.layout call', async () => {
+	it('binds identity into eco.layout call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export const MainLayout = eco.layout({
@@ -177,7 +195,7 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/layouts/main-layout.tsx', 'react'));
 	});
 
-	it('should inject __eco into eco.html call', async () => {
+	it('binds identity into eco.html call', async () => {
 		const content = `
             import { eco } from '@ecopages/core';
             export default eco.html({
@@ -190,7 +208,7 @@ describe('eco-component-meta-plugin', () => {
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/html.tsx', 'react'));
 	});
 
-	it('should inject __eco into eco.component() with lazy dependencies', async () => {
+	it('binds identity into eco.component() with lazy dependencies', async () => {
 		const content = `
             export const LazyCounter = eco.component({
                 dependencies: {
@@ -267,7 +285,7 @@ export const Input = eco.component({
 
 		expect(result).toBeDefined();
 		const matches = result.contents.match(
-			/__eco: \{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
+			/bindComponentIdentity\(\{ id: "[a-z0-9]+", file: "\/path\/to\/components\.tsx", integration: "react" \},/g,
 		);
 		expect(matches).toHaveLength(2);
 	});
@@ -285,6 +303,21 @@ export const Simple = eco.component({});
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/simple.tsx', 'react'));
 	});
 
+	it('does not bind identity twice when the factory argument is already bound', async () => {
+		const content = `
+import { bindComponentIdentity, eco } from '@ecopages/core';
+
+export const Simple = eco.component(bindComponentIdentity(
+	{ id: 'simple', file: '/path/to/simple.tsx', integration: 'react' },
+	{},
+));
+`;
+
+		const result = await runPluginOnContent(content, '/path/to/simple.tsx');
+
+		expect(result.contents.match(/bindComponentIdentity/g)).toHaveLength(2);
+	});
+
 	it('should not inject into non-eco call expressions', async () => {
 		const content = `
 import { other } from 'some-lib';
@@ -296,7 +329,7 @@ export const Thing = other.component({
 		const result = await runPluginOnContent(content, '/path/to/thing.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('bindComponentIdentity');
 	});
 
 	it('should not inject into non-config variable declarations', async () => {
@@ -309,7 +342,7 @@ const settings = {
 		const result = await runPluginOnContent(content, '/path/to/settings.ts');
 
 		expect(result).toBeDefined();
-		expect(result.contents).not.toContain('__eco:');
+		expect(result.contents).not.toContain('bindComponentIdentity');
 	});
 
 	it('should handle file paths with special characters in directory', async () => {
@@ -355,7 +388,7 @@ export const Counter = eco.component({
 		const result = await runPluginOnContent(content, '/path/to/counter.tsx');
 
 		expect(result).toBeDefined();
-		expect(result.contents).toContain("import { eco } from '@ecopages/core';");
+		expect(result.contents).toContain("import { eco, bindComponentIdentity } from '@ecopages/core';");
 		expect(result.contents).toContain("scripts: ['./counter.ts']");
 		expect(result.contents).toContain("render: () => '<button>0</button>'");
 	});
@@ -375,7 +408,7 @@ export default eco.page({
 	});
 
 	describe('Regression: eco-blog views failure', () => {
-		it('should inject __eco into a kitajs page with complex props and no manual __eco', async () => {
+		it('binds identity into a kitajs page with complex props', async () => {
 			const content = `import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
 import type { Post } from '@/lib/db';
@@ -408,7 +441,7 @@ export const BlogList = eco.page<BlogListProps>({
 			);
 		});
 
-		it('should inject __eco even if the eco call is not at the top level', async () => {
+		it('binds identity when the eco call is not at the top level', async () => {
 			const content = `
                 import { eco } from '@ecopages/core';
                 const createPage = () => eco.page({ render: () => 'hi' });

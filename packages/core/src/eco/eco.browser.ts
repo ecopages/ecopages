@@ -18,7 +18,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoCompo
 	const component = ((props: P) => options.render(props)) as EcoComponent<P, E>;
 
 	component.config = {
-		__eco: options.__eco,
+		identity: options.identity,
 		integration: options.integration,
 		dependencies: options.dependencies,
 	};
@@ -79,7 +79,7 @@ function page<T, E>(
 			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
 	const pageComponent = createComponentFactory({
-		__eco: options.__eco,
+		identity: options.identity,
 		integration: options.integration,
 		dependencies: staticDependencies,
 		render,

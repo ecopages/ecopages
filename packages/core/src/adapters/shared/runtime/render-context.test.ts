@@ -39,7 +39,7 @@ describe('createRenderContext', () => {
 		string
 	>;
 	ViewFn.config = {
-		__eco: {
+		identity: {
 			id: 'test',
 			file: '/some/dir/-view.ts',
 			integration: '-integration',
@@ -92,7 +92,7 @@ describe('createRenderContext', () => {
 		RenderToResponse.mockClear();
 		const importedView = (() => '<div></div>') as EcoFunctionComponent<{ slug: string }, string>;
 		importedView.config = {
-			__eco: {
+			identity: {
 				id: 'imported-view',
 				file: '/tmp/imported-view.kita.tsx',
 				integration: '-integration',
@@ -124,7 +124,7 @@ describe('createRenderContext', () => {
 		RenderToResponse.mockClear();
 		const importedView = (() => '<div></div>') as EcoFunctionComponent<{ slug: string }, string>;
 		importedView.config = {
-			__eco: {
+			identity: {
 				id: 'imported-view-url',
 				file: '/tmp/imported-view-url.kita.tsx',
 				integration: '-integration',
@@ -173,13 +173,13 @@ describe('createRenderContext', () => {
 
 		it('should throw if view integration is unknown', async () => {
 			const badViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
-			badViewFn.config = { __eco: { id: 'test', file: '/bad-view.ts', integration: 'unknown' } };
+			badViewFn.config = { identity: { id: 'test', file: '/bad-view.ts', integration: 'unknown' } };
 			await expect(renderContext.render(badViewFn, {})).rejects.toThrow('No integration found for: unknown');
 		});
 
 		it('should throw if view integration is missing', async () => {
 			const badViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
-			badViewFn.config = { __eco: undefined };
+			badViewFn.config = { identity: undefined };
 			await expect(renderContext.render(badViewFn, {})).rejects.toThrow('Cannot determine integration for view');
 		});
 
@@ -191,7 +191,7 @@ describe('createRenderContext', () => {
 			const explicitViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
 			explicitViewFn.config = {
 				integration: 'explicit-renderer',
-				__eco: { id: 'test', file: '/some/file.tsx', integration: '-integration' },
+				identity: { id: 'test', file: '/some/file.tsx', integration: '-integration' },
 			};
 
 			await renderContext.render(explicitViewFn, {});

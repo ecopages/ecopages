@@ -3,7 +3,7 @@
  */
 
 import type { ComponentRenderInput, ComponentRenderResult, EcoComponent, EcoPagesElement } from '@ecopages/core';
-import { buildIslandHostAttributes } from '@ecopages/core';
+import { buildIslandHostAttributes, getComponentIdentity } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { ReactNode } from 'react';
@@ -304,7 +304,7 @@ export async function renderReactManagedComponent(options: {
 	html = queuedForeignSubtreeResolution.html;
 	const canAttachAttributes = hasSingleRootElement(html);
 	const rootTag = getRootTagName(html);
-	const componentFile = componentConfig?.__eco?.file;
+	const componentFile = getComponentIdentity(componentConfig)?.file;
 
 	let rootAttributes: Record<string, string> | undefined;
 	let assets: ProcessedAsset[] | undefined;

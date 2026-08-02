@@ -8,6 +8,7 @@ import type {
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { walkComponentGraph, type ComponentGraphRoot } from './component-graph.ts';
+import { getComponentIdentity } from '../../../eco/component-identity.ts';
 
 function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
 	return components.filter(Boolean).map((component) => ({ component }));
@@ -23,7 +24,7 @@ export function collectIntegrationNamesFromGraph(
 		roots: toGraphRoots(components),
 		currentIntegrationName,
 		onComponent: ({ component }) => {
-			const integrationName = component.config?.integration ?? component.config?.__eco?.integration;
+			const integrationName = getComponentIdentity(component)?.integration ?? component.config?.integration;
 			if (integrationName) {
 				integrationNames.add(integrationName);
 			}
@@ -64,7 +65,8 @@ export function hasForeignChildDescendantsInGraph(component: EcoComponent, curre
 				return false;
 			}
 
-			const integrationName = currentComponent.config?.integration ?? currentComponent.config?.__eco?.integration;
+			const integrationName =
+				getComponentIdentity(currentComponent)?.integration ?? currentComponent.config?.integration;
 			if (integrationName && integrationName !== currentIntegrationName) {
 				foundForeign = true;
 				return false;
@@ -92,8 +94,8 @@ export function collectEagerSsrLazyScriptDefinitions(
 		currentIntegrationName: '',
 		visitLayout: true,
 		onConfig: (config) => {
-			const componentFile = config?.__eco?.file;
-			if (!componentFile) {
+			const componentFile = getComponentIdentity(config)?.file;
+			if (!componentFile || !config) {
 				return;
 			}
 

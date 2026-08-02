@@ -29,7 +29,7 @@ describe('createFileScopedDependencyComponent', () => {
 			},
 		});
 
-		expect(component?.config?.__eco).toEqual(
+		expect(component?.config?.identity).toEqual(
 			expect.objectContaining({
 				file: '/app/pages/demo.tsx',
 				integration: 'react',
@@ -43,7 +43,7 @@ describe('collectFileScopedDependencyComponents', () => {
 	test('keeps declared components and adds a file-scoped owner for direct assets', () => {
 		const child = (() => null) as EcoComponent;
 		child.config = {
-			__eco: { id: 'child', file: '/app/components/child.tsx', integration: 'react' },
+			identity: { id: 'child', file: '/app/components/child.tsx', integration: 'react' },
 		};
 
 		const components = collectFileScopedDependencyComponents({
@@ -57,7 +57,7 @@ describe('collectFileScopedDependencyComponents', () => {
 
 		expect(components).toHaveLength(2);
 		expect(components[0]).toBe(child);
-		expect(components[1]?.config?.__eco?.file).toBe('/app/pages/demo.tsx');
+		expect(components[1]?.config?.identity?.file).toBe('/app/pages/demo.tsx');
 		expect(components[1]?.config?.dependencies?.modules).toEqual(['react-aria-components{Table}']);
 	});
 });
@@ -70,7 +70,7 @@ describe('attachEcoFileMetadataToConfig', () => {
 			'react',
 		);
 
-		expect(config.__eco).toEqual(
+		expect(config.identity).toEqual(
 			expect.objectContaining({
 				file: '/app/pages/demo.tsx',
 				integration: 'react',
@@ -83,15 +83,15 @@ describe('collectComponentConfigFilePaths', () => {
 	test('walks nested dependency components and optional layouts', () => {
 		const layout = (() => null) as EcoComponent;
 		layout.config = {
-			__eco: { id: 'layout', file: '/app/layouts/docs.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'layout', file: '/app/layouts/docs.tsx', integration: 'ecopages-jsx' },
 		};
 		const child = (() => null) as EcoComponent;
 		child.config = {
-			__eco: { id: 'child', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'child', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
 		};
 		const page = (() => null) as EcoComponent;
 		page.config = {
-			__eco: { id: 'page', file: '/app/pages/docs/index.tsx', integration: 'ecopages-jsx' },
+			identity: { id: 'page', file: '/app/pages/docs/index.tsx', integration: 'ecopages-jsx' },
 			dependencies: { components: [child] },
 			layouts: [layout],
 		};
@@ -111,7 +111,7 @@ describe('collectDependencyWatchPaths', () => {
 		const watchPaths = collectDependencyWatchPaths('/app/content/demo.mdx', [
 			{
 				config: {
-					__eco: { id: 'demo-component', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
+					identity: { id: 'demo-component', file: '/app/components/demo.tsx', integration: 'ecopages-jsx' },
 				},
 			},
 		]);

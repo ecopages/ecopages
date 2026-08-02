@@ -2,23 +2,24 @@ import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from 
 import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
+import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
 
 /**
- * Attaches file-backed `__eco` metadata to one component config.
+ * Attaches canonical file-backed identity to one component config.
  */
 export function attachEcoFileMetadataToConfig(
 	config: EcoComponentConfig,
 	ownerFile: string,
 	integrationName: string,
 ): EcoComponentConfig {
-	return {
-		...config,
-		__eco: {
-			id: config.__eco?.id ?? rapidhash(ownerFile).toString(36),
+	return bindComponentIdentity(
+		{
+			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
 			file: ownerFile,
-			integration: config.__eco?.integration ?? integrationName,
+			integration: getComponentIdentity(config)?.integration ?? integrationName,
 		},
-	};
+		config,
+	);
 }
 
 /**
@@ -76,7 +77,7 @@ export type CollectComponentConfigFilePathsOptions = {
 };
 
 /**
- * Walks component configs and collects every resolved `config.__eco.file` path.
+ * Walks component configs and collects every resolved identity file path.
  */
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
@@ -90,8 +91,11 @@ export function collectComponentConfigFilePaths(
 	}
 
 	const visit = (config: EcoComponentConfig | undefined) => {
-		const file = config?.__eco?.file;
+		const file = getComponentIdentity(config)?.file;
 		if (!file) {
+			return;
+		}
+		if (!config) {
 			return;
 		}
 

@@ -79,7 +79,7 @@ export default eco.page({
 
 #### Nested layouts and shared parents
 
-Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Each tier is cached independently by Eco metadata (`config.__eco.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
+Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Each tier is cached independently by component identity (`config.identity.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
 
 A full document reload, HMR, or bootstrap that sets `refreshPersistedLayout` may replace a cached tier when the imported layout function reference changes, even when the cache key is unchanged.
 

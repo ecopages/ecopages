@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -103,7 +103,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('keeps imports declared via plugin options', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
 			"import fs from 'node:fs';\nimport dayjs from 'dayjs';\nexport default dayjs() + String(!!fs);\n",
@@ -124,7 +126,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('keeps relative imports untouched', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 		writeFileSync(filePath, "import { helper } from './helper';\nexport default helper;\n", 'utf-8');
 
 		try {
@@ -139,7 +143,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('keeps project alias imports untouched', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 		writeFileSync(
 			join(tempDir, 'tsconfig.json'),
 			JSON.stringify({ compilerOptions: { paths: { '@/*': ['./*'] } } }),
@@ -402,7 +408,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('strips server-only eco.page options so unreachable middleware imports do not leak into the browser bundle', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 		writeFileSync(
 			filePath,
 			[
@@ -437,7 +445,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('strips staticProps imports from .server helpers before shipping a page entry to the browser', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 
 		writeFileSync(
 			filePath,
@@ -467,7 +477,9 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 	it('strips metadata that references direct filesystem imports, leaving import cleanup to downstream treeshaking', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const filePath = join(tempDir, 'entry.tsx');
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
 
 		writeFileSync(
 			filePath,

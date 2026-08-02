@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
 
 /**
- * E2E tests for Docs left-side navigation (radiant-navigation).
+ * E2E tests for Docs left-side navigation (`rui-sidebar`).
  *
  * Covers:
  *  - Active link is highlighted on initial load
@@ -13,7 +13,10 @@ import { gotoAndWait, waitForPageReady } from '../../utils/test-helpers';
  *  - TOC clicking does not break subsequent nav link interactions
  */
 test.describe('Docs Sidebar Navigation', () => {
-	const SIDEBAR = '[data-testid="docs-sidebar"]';
+	const SIDEBAR = 'rui-sidebar#docs-sidebar';
+	const ACTIVE_NAV_LINK = /rui-sidebar__menu-button--active/;
+	const ACTIVE_NAV_SELECTOR = 'a.rui-sidebar__menu-button--active';
+	const navLink = (href: string) => `${SIDEBAR} a[href="${href}"]`;
 
 	test.beforeEach(async ({ page }) => {
 		await gotoAndWait(page, '/docs/getting-started/introduction');
@@ -21,8 +24,8 @@ test.describe('Docs Sidebar Navigation', () => {
 	});
 
 	test('highlights the active nav link on initial load', async ({ page }) => {
-		const link = page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
-		await expect(link).toHaveClass(/active/);
+		const link = page.locator(navLink('/docs/getting-started/introduction'));
+		await expect(link).toHaveClass(ACTIVE_NAV_LINK);
 	});
 
 	test('navigates via sidebar link without a full-page reload', async ({ page }) => {
@@ -31,7 +34,7 @@ test.describe('Docs Sidebar Navigation', () => {
 			if (req.resourceType() === 'document') reloads.push(req.url());
 		});
 
-		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.click(navLink('/docs/getting-started/configuration'));
 		await page.waitForURL('**/docs/getting-started/configuration');
 		await waitForPageReady(page, '/docs/getting-started/configuration');
 
@@ -40,41 +43,34 @@ test.describe('Docs Sidebar Navigation', () => {
 	});
 
 	test('active nav link updates after SPA navigation', async ({ page }) => {
-		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.click(navLink('/docs/getting-started/configuration'));
 		await page.waitForURL('**/docs/getting-started/configuration');
 		await waitForPageReady(page, '/docs/getting-started/configuration');
 
-		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/configuration"]')).toHaveClass(
-			/active/,
-		);
-		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).not.toHaveClass(
-			/active/,
-		);
+		await expect(page.locator(navLink('/docs/getting-started/configuration'))).toHaveClass(ACTIVE_NAV_LINK);
+		await expect(page.locator(navLink('/docs/getting-started/introduction'))).not.toHaveClass(ACTIVE_NAV_LINK);
 	});
 
 	test('navigation chain: multiple sequential links all work correctly', async ({ page }) => {
 		const steps = [
-			{ href: '/docs/getting-started/installation', testId: 'docs-nav-link:/docs/getting-started/installation' },
-			{
-				href: '/docs/getting-started/configuration',
-				testId: 'docs-nav-link:/docs/getting-started/configuration',
-			},
-			{ href: '/docs/ecosystem/browser-router', testId: 'docs-nav-link:/docs/ecosystem/browser-router' },
-			{ href: '/docs/getting-started/introduction', testId: 'docs-nav-link:/docs/getting-started/introduction' },
+			{ href: '/docs/getting-started/installation' },
+			{ href: '/docs/getting-started/configuration' },
+			{ href: '/docs/ecosystem/browser-router' },
+			{ href: '/docs/getting-started/introduction' },
 		];
 
 		for (const step of steps) {
-			await page.click(`[data-testid="${step.testId}"]`);
+			await page.click(navLink(step.href));
 			await page.waitForURL(`**${step.href}`);
 			await waitForPageReady(page, step.href);
 
-			await expect(page.locator(`[data-testid="${step.testId}"]`)).toHaveClass(/active/);
+			await expect(page.locator(navLink(step.href))).toHaveClass(ACTIVE_NAV_LINK);
 			await expect(page.locator(SIDEBAR)).toBeVisible();
 		}
 	});
 
 	test('nav links remain clickable after interacting with TOC', async ({ page }) => {
-		await page.click('[data-testid="docs-nav-link:/docs/ecosystem/browser-router"]');
+		await page.click(navLink('/docs/ecosystem/browser-router'));
 		await page.waitForURL('**/docs/ecosystem/browser-router');
 		await waitForPageReady(page, '/docs/ecosystem/browser-router');
 
@@ -82,17 +78,15 @@ test.describe('Docs Sidebar Navigation', () => {
 		await tocLink.click();
 		await expect(page).toHaveURL(/#.+$/);
 
-		await page.click('[data-testid="docs-nav-link:/docs/getting-started/introduction"]');
+		await page.click(navLink('/docs/getting-started/introduction'));
 		await page.waitForURL('**/docs/getting-started/introduction');
 		await waitForPageReady(page, '/docs/getting-started/introduction');
 
-		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
-			/active/,
-		);
+		await expect(page.locator(navLink('/docs/getting-started/introduction'))).toHaveClass(ACTIVE_NAV_LINK);
 	});
 
 	test('browser back navigation restores correct active link', async ({ page }) => {
-		await page.click('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
+		await page.click(navLink('/docs/getting-started/configuration'));
 		await page.waitForURL('**/docs/getting-started/configuration');
 		await waitForPageReady(page, '/docs/getting-started/configuration');
 
@@ -100,14 +94,12 @@ test.describe('Docs Sidebar Navigation', () => {
 		await page.waitForURL('**/docs/getting-started/introduction');
 		await waitForPageReady(page, '/docs/getting-started/introduction');
 
-		await expect(page.locator('[data-testid="docs-nav-link:/docs/getting-started/introduction"]')).toHaveClass(
-			/active/,
-		);
+		await expect(page.locator(navLink('/docs/getting-started/introduction'))).toHaveClass(ACTIVE_NAV_LINK);
 	});
 
 	test('rapid successive nav clicks resolve to the last clicked destination', async ({ page }) => {
-		const configLink = page.locator('[data-testid="docs-nav-link:/docs/getting-started/configuration"]');
-		const installLink = page.locator('[data-testid="docs-nav-link:/docs/getting-started/installation"]');
+		const configLink = page.locator(navLink('/docs/getting-started/configuration'));
+		const installLink = page.locator(navLink('/docs/getting-started/installation'));
 
 		await configLink.click();
 		await installLink.click();
@@ -115,7 +107,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		await page.waitForURL('**/docs/getting-started/installation', { timeout: 5000 });
 		await waitForPageReady(page, '/docs/getting-started/installation');
 
-		await expect(installLink).toHaveClass(/active/);
+		await expect(installLink).toHaveClass(ACTIVE_NAV_LINK);
 	});
 
 	test('pagination next/prev links navigate correctly', async ({ page }) => {
@@ -130,7 +122,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		await page.waitForURL(`**${nextHref}`);
 		await waitForPageReady(page, nextHref ?? undefined);
 
-		const activeLink = page.locator('[data-nav-link].active');
+		const activeLink = page.locator(`${SIDEBAR} ${ACTIVE_NAV_SELECTOR}`);
 		await expect(activeLink).toHaveCount(1);
 	});
 
@@ -161,7 +153,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		expect(initial.heading).toBe('Routing Patterns');
 		expect(initial.duplicateIds).toHaveLength(0);
 
-		await page.click('[data-testid="docs-nav-link:/docs/integrations/ecopages-jsx"]');
+		await page.click(navLink('/docs/integrations/ecopages-jsx'));
 		await page.waitForURL('**/docs/integrations/ecopages-jsx');
 		await waitForPageReady(page, '/docs/integrations/ecopages-jsx');
 
@@ -169,7 +161,7 @@ test.describe('Docs Sidebar Navigation', () => {
 		expect(afterFirstNavigation.heading).toBe('Ecopages JSX Integration');
 		expect(afterFirstNavigation.duplicateIds).toHaveLength(0);
 
-		await page.click('[data-testid="docs-nav-link:/docs/server/routing-patterns"]');
+		await page.click(navLink('/docs/server/routing-patterns'));
 		await page.waitForURL('**/docs/server/routing-patterns');
 		await waitForPageReady(page, '/docs/server/routing-patterns');
 

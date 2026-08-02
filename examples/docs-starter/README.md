@@ -8,7 +8,7 @@ Minimal Ecopages docs site using `@ecopages/content-processor`, frontmatter-driv
 - `src/content/docs.ts` — frontmatter schema, section order, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
 - `src/lib/docs/` — MDX component map and plugin options
-- `src/layouts/docs-layout/` — docs layout shell and docs bar
+- `src/layouts/docs-layout/` — Radiant UI sidebar, mobile trigger, table of contents, and docs bar
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 
 ## Configuration
@@ -19,7 +19,7 @@ Minimal Ecopages docs site using `@ecopages/content-processor`, frontmatter-driv
 
 ## Docs bar
 
-- `Breadcrumb` — resolved server-side from `docsNav`
+- `RuiBreadcrumb` — resolved server-side from `docsNav`
 - `CopyForLlm` — Radiant clipboard component (`radiant-copy-for-llm`) that fetches the LLM export URL
 
 ## LLM exports

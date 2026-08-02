@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { parseSync } from 'oxc-parser';
+import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 
 export type EcopagesVirtualImport = {
 	from: string;
@@ -34,7 +34,7 @@ export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImpo
 
 	let result;
 	try {
-		result = parseSync(file, source, { sourceType: 'module' });
+		result = parseModuleSource(file, source);
 	} catch {
 		return [];
 	}

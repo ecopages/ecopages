@@ -147,6 +147,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			mdxExtensions: this.mdxExtensions,
 			hmrPageMetadataCache: this.hmrPageMetadataCache,
 			forceBrowserGraph: this.forceBrowserGraph,
+			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 		};
 
 		if (this.mdxEnabled) {

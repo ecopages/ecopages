@@ -6,24 +6,24 @@
  * instance for each stable layout key across navigations. Layout identity is
  * resolved in this order:
  *
- * 1. `config.__eco.file`
- * 2. `config.__eco.id`
+ * 1. `getComponentIdentity(layout)?.file`
+ * 2. `getComponentIdentity(layout)?.id`
  * 3. Plain React fallback: `displayName`/`name` plus wrapper source signature
  *
- * Eco layouts are expected to carry injected `__eco` metadata in client/HMR
+ * Eco layouts are expected to carry injected component identity in client/HMR
  * bundles. The plain React fallback exists only for non-Eco layout components.
  *
  * @module layout-cache
  */
 
-import type { EcoInjectedMeta } from '@ecopages/core';
+import { getComponentIdentity, type ComponentIdentity } from '@ecopages/core';
 import type { ComponentType } from 'react';
 
 export type LayoutComponent = ComponentType<Record<string, unknown>>;
 
 export type LayoutComponentWithMeta = LayoutComponent & {
 	config?: {
-		__eco?: EcoInjectedMeta;
+		identity?: ComponentIdentity;
 	};
 };
 
@@ -80,12 +80,13 @@ function getLayoutSourceSignature(Layout: LayoutComponent): string {
 /**
  * Resolves the cache key for a layout component.
  *
- * Prefers injected `__eco` metadata when present. Falls back to the component
+ * Prefers injected component identity when present. Falls back to the component
  * name and wrapper signature for plain React layouts without Eco metadata.
  */
 export function getLayoutCacheKey(Layout: LayoutComponent): string {
 	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
-	const layoutMetaKey = layoutConfig?.__eco?.file || layoutConfig?.__eco?.id;
+	const identity = getComponentIdentity(layoutConfig);
+	const layoutMetaKey = identity?.file || identity?.id;
 
 	if (layoutMetaKey) {
 		return normalizeLayoutKey(layoutMetaKey);

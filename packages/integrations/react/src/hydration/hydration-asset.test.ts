@@ -413,7 +413,7 @@ describe('HydrationAssetService', () => {
 		});
 
 		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
 		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
@@ -445,10 +445,10 @@ describe('HydrationAssetService', () => {
 		});
 
 		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
@@ -476,7 +476,7 @@ describe('HydrationAssetService', () => {
 		const [firstBundle, firstHydration] = firstDependencies;
 		const [secondBundle, secondHydration] = secondDependencies;
 		const componentKey = getIslandComponentKey('/app/src/components/counter.tsx', {
-			__eco: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
 		expect(firstKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);

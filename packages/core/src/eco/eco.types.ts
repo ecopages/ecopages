@@ -8,7 +8,6 @@ import type {
 	EcoComponent,
 	EcoComponentDependencies,
 	EcoHtmlComponent,
-	EcoInjectedMeta,
 	EcoLayoutComponent,
 	EcoPageLayouts,
 	EcoPagesElement,
@@ -24,6 +23,7 @@ import type {
 	PageQuery,
 } from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
+import type { ComponentIdentity } from './component-identity.ts';
 
 /**
  * Extracts the props type from one eco component.
@@ -130,8 +130,8 @@ export type LazyTrigger = DependencyLazyTrigger;
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface ComponentOptions<P, E = EcoPagesElement> {
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
+	/** @internal Bound by the component identity attribution transform. */
+	identity?: ComponentIdentity;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E | Promise<E>;
@@ -156,8 +156,8 @@ export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>
  * Base options shared by all page variants
  */
 export interface PageOptionsBase<T, E = EcoPagesElement> {
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
+	/** @internal Bound by the component identity attribution transform. */
+	identity?: ComponentIdentity;
 	integration?: string;
 	/**
 	 * Declares browser dependencies for the page, or resolves them per render after

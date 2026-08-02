@@ -8,7 +8,7 @@ import {
 
 describe('layout-shell-props.service', () => {
 	const Layout = eco.layout({
-		__eco: { id: 'layout', file: '/app/layouts/base.kita.tsx', integration: 'kitajs' },
+		identity: { id: 'layout', file: '/app/layouts/base.kita.tsx', integration: 'kitajs' },
 		render: ({ children }) => `<layout>${children}</layout>`,
 	});
 

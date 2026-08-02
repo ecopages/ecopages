@@ -40,7 +40,9 @@ describe('codegen', () => {
 		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
 		expect(output).toContain('const componentCache = new Map');
 		expect(output).toContain('const componentLoadPromises = new Map');
-		expect(output).toContain("import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';");
+		expect(output).toContain(
+			"import { bindComponentIdentity, getComponentIdentity, type EcoComponent, type PageDependenciesResult } from '@ecopages/core';",
+		);
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');

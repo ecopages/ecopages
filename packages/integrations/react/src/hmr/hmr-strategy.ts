@@ -23,7 +23,7 @@ import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
-import type { EcoComponentConfig } from '@ecopages/core';
+import { getComponentIdentity, type EcoComponentConfig } from '@ecopages/core';
 import {
 	buildReactDevTransformPlugins,
 	resolveReactDeclaredModulesForEntrypoint,
@@ -176,11 +176,12 @@ export class ReactHmrStrategy extends HmrStrategy {
 		const resolvedFilePath = path.resolve(filePath);
 
 		return someInConfigTree(config, (node) => {
-			if (!node.__eco?.file) {
+			const identity = getComponentIdentity(node);
+			if (!identity?.file) {
 				return false;
 			}
 
-			return path.resolve(node.__eco.file) === resolvedFilePath;
+			return path.resolve(identity.file) === resolvedFilePath;
 		});
 	}
 

@@ -1,21 +1,18 @@
-import type { EcoComponent, HtmlTemplateProps } from '@ecopages/core';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import { html } from '@ecopages/core/html';
 import { Head } from './head.ghtml';
 
-const HtmlTemplate: EcoComponent<HtmlTemplateProps> = ({ children, metadata, headContent, language = 'en' }) => {
-	return html`<html lang="${language}">
-		!${Head({
-			metadata,
-			children: headContent,
-		})}
-		!${children}
-	</html>`;
-};
-
-HtmlTemplate.config = {
+export default eco.html({
 	dependencies: {
 		components: [Head],
 	},
-};
-
-export default HtmlTemplate;
+	render: ({ children, metadata, headContent, language = 'en' }: HtmlTemplateProps) =>
+		html`<html lang="${language}">
+			!${Head({
+				metadata,
+				children: headContent,
+			})}
+			!${children}
+		</html>`,
+});

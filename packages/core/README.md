@@ -18,6 +18,7 @@ The current core package is organized around app-owned runtime state and explici
 The important ownership rules are:
 
 - `ConfigBuilder.build()` finalizes app-owned build and runtime services.
+- Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - browser bundling and server module loading are explicit, separate paths.
 - runtime hosts stay thin and delegate framework work into core services.
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.

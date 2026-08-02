@@ -908,6 +908,14 @@ export type RouteRendererOptions = {
 	query?: PageQuery;
 	locals?: RequestLocals;
 	/**
+	 * Preloaded page module from request-time inspection.
+	 *
+	 * @remarks
+	 * When present, render preparation reuses this module instead of importing the
+	 * page file again for the same request.
+	 */
+	pageModule?: EcoPageFile;
+	/**
 	 * Extra props merged into the page props for this render.
 	 * @remarks Used by semantic error pages (for example development `message` /
 	 * `stack` on the custom 500 page).
@@ -927,6 +935,8 @@ export type RouteRenderResult = {
 	body: RouteRendererBody;
 	/** Cache strategy from page component's eco.page({ cache }) option */
 	cacheStrategy?: CacheStrategy;
+	/** Source paths observed during render preparation for HTML cache invalidation. */
+	sourceDependencyPaths?: readonly string[];
 };
 
 /**
@@ -1010,6 +1020,8 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
+	/** @internal Source paths from render preparation for HTML cache dependency registration. */
+	sourceDependencyPaths?: readonly string[];
 };
 
 /**

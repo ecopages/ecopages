@@ -1093,12 +1093,10 @@ describe('ReactRenderer', () => {
 			const tsxModule = await testRenderer.importForTest('/tmp/page.tsx');
 
 			expect(baseImporter).toHaveBeenNthCalledWith(1, '/tmp/page.mdx', {
-				bypassCache: false,
-				cacheScope: undefined,
+				bypassCache: undefined,
 			});
 			expect(baseImporter).toHaveBeenNthCalledWith(2, '/tmp/page.tsx', {
-				bypassCache: false,
-				cacheScope: undefined,
+				bypassCache: undefined,
 			});
 			expect(mdxModule.default).toBe(pageComponent);
 			expect((mdxModule.default as typeof pageComponent).config).toBe(mdxConfig);

@@ -9,7 +9,7 @@ import {
 	type DevelopmentInvalidationPlan,
 } from '../services/invalidation/development-invalidation.service.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
-import { clearAppPageCache } from '../services/cache/page-cache-service.ts';
+import { invalidateAppPageCacheBySourcePaths, clearAppPageCache } from '../services/cache/page-cache-service.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
@@ -218,7 +218,11 @@ export class ProjectWatcher {
 
 			this.uncacheModules();
 			const resolvedFilePath = path.resolve(filePath);
-			await clearAppPageCache(this.appConfig);
+			if (shouldClearAllPageHtmlCache(plan.category)) {
+				await clearAppPageCache(this.appConfig);
+			} else {
+				await invalidateAppPageCacheBySourcePaths(this.appConfig, [resolvedFilePath]);
+			}
 			const graphPreparation = this.hmrManager.isEnabled()
 				? prepareHmrFileChange(this.appConfig, resolvedFilePath)
 				: undefined;
@@ -511,4 +515,14 @@ export class ProjectWatcher {
 
 		await this.changeQueue.catch(() => undefined);
 	}
+}
+
+function shouldClearAllPageHtmlCache(category: DevelopmentInvalidationPlan['category']): boolean {
+	return (
+		category === 'other' ||
+		category === 'server-source' ||
+		category === 'additional-watch' ||
+		category === 'include-source' ||
+		category === 'explicit-server-view'
+	);
 }

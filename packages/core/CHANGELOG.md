@@ -19,7 +19,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Features
 
-- Page HTML cache in watch mode defaults to off for undeclared routes; processor `devPrewarm` registers an allowlist on the single watch `PageCacheService` so only those pathnames retain HTML. Set `cache.enabled: true` to cache every dev route.
+- Page HTML cache in watch mode uses Cache Strategy admission on a bounded memory store: static pages may be retained, dynamic pages never are. Set `cache.enabled: false` to disable watch-mode HTML caching entirely. Source-path edits invalidate only registered HTML keys; shared or unmapped dependencies clear the full page cache.
 - Page Browser Graph per-route reuse is disabled while HMR is enabled; session graphs still cache after build with dependency invalidation.
 - Watch mode SSR-prewarms processor-declared content paths after the HMR-ready response pipeline is configured (`routePrefix` + `devPrewarm`). Optional `devPrewarmReadiness: 'beforeReady'` blocks the framework ready signal until prewarm completes. Concurrent prewarm uses `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM` (default `3`).
 - Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.

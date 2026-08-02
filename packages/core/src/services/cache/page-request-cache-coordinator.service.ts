@@ -1,5 +1,10 @@
 import { getCacheControlHeader, type PageCacheService } from './page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from './cache.types.ts';
+import {
+	getRequestPipelineMetricsHeaderName,
+	isRequestPipelineMetricsEnabled,
+	serializeRequestPipelineMetricsHeader,
+} from '../../diagnostics/request-pipeline-metrics.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -125,6 +130,10 @@ export class PageRequestCacheCoordinator {
 			'Cache-Control': getCacheControlHeader(cacheStatus === 'disabled' ? 'disabled' : strategy),
 			'X-Cache': cacheStatus.toUpperCase(),
 		};
+
+		if (isRequestPipelineMetricsEnabled()) {
+			headers[getRequestPipelineMetricsHeaderName()] = serializeRequestPipelineMetricsHeader();
+		}
 
 		return new Response(html, { headers });
 	}

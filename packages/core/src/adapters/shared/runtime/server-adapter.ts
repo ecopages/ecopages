@@ -6,7 +6,6 @@ import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { AllowlistedMemoryCacheStore } from '../../../services/cache/allowlisted-memory-cache-store.ts';
 import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
@@ -75,7 +74,6 @@ export abstract class SharedServerAdapter<
 	protected hostOwnsDevClient = false;
 	private devStaticRoutePrewarmStarted = false;
 	private sharedPageCacheService: PageCacheService | null | undefined;
-	private watchAllowlistStore: AllowlistedMemoryCacheStore | null = null;
 
 	/**
 	 * Warms declared static paths after the final watch-mode response pipeline exists.
@@ -89,26 +87,31 @@ export abstract class SharedServerAdapter<
 
 		const runtimeOrigin = this.runtimeOrigin;
 		const plan = await collectAppDevPrewarmPlan(this.appConfig);
+		const beforeReadyPathnames = new Set(plan.beforeReadyPathnames);
+		const allPathnames = plan.pathnames;
 		const options = {
-			pathnames: plan.pathnames,
-			readiness: plan.readiness,
+			pathnames: allPathnames,
+			readiness: 'background' as const,
 			renderPath: async (pathname: string) => {
 				const response = await this.routeHandler.handleResponse(
 					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
 				);
 				await response.arrayBuffer();
 			},
-			onPathnamesResolved: (pathnames: readonly string[]) => {
-				this.watchAllowlistStore?.registerAllowedKeys(pathnames);
-			},
 		};
 
-		if (plan.readiness === 'beforeReady') {
-			await runDevStaticRoutePrewarm(options);
-			return;
+		if (beforeReadyPathnames.size > 0) {
+			await runDevStaticRoutePrewarm({
+				...options,
+				pathnames: [...beforeReadyPathnames],
+				readiness: 'beforeReady',
+			});
 		}
 
-		startDevStaticRoutePrewarm(options);
+		const backgroundPathnames = allPathnames.filter((pathname) => !beforeReadyPathnames.has(pathname));
+		if (backgroundPathnames.length > 0) {
+			startDevStaticRoutePrewarm({ ...options, pathnames: backgroundPathnames });
+		}
 	}
 
 	protected async initializeSharedRouteHandling(options: {
@@ -269,17 +272,16 @@ export abstract class SharedServerAdapter<
 		const watch = Boolean(this.options?.watch);
 
 		if (watch) {
-			const useFullWatchCache = cacheConfig?.enabled === true;
-			const store = useFullWatchCache
-				? cacheConfig?.store === 'memory' || !cacheConfig?.store
-					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
-					: cacheConfig.store
-				: new AllowlistedMemoryCacheStore({ maxEntries: cacheConfig?.maxEntries });
-
-			if (!useFullWatchCache && store instanceof AllowlistedMemoryCacheStore) {
-				this.watchAllowlistStore = store;
+			if (cacheConfig?.enabled === false) {
+				this.sharedPageCacheService = null;
+				registerAppPageCacheService(this.appConfig, null);
+				return null;
 			}
 
+			const store =
+				cacheConfig?.store === 'memory' || !cacheConfig?.store
+					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
+					: cacheConfig.store;
 			const service = new PageCacheService({ store, enabled: true });
 			this.sharedPageCacheService = service;
 			registerAppPageCacheService(this.appConfig, service);

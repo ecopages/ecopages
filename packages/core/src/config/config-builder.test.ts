@@ -54,6 +54,18 @@ describe('EcoConfigBuilder', () => {
 		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
 	});
 
+	test('should configure static development prewarm paths', async () => {
+		const config = await builder.setDevPrewarmPaths(['/']).build();
+
+		expect(config.devPrewarmPaths).toEqual(['/']);
+	});
+
+	test('should configure critical development prewarm paths', async () => {
+		const config = await builder.setDevPrewarmBeforeReadyPaths(['/']).build();
+
+		expect(config.devPrewarmBeforeReadyPaths).toEqual(['/']);
+	});
+
 	test('should create a dedicated build adapter per app config', async () => {
 		const config = await builder.setRootDir('/project').build();
 

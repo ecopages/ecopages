@@ -1,15 +1,7 @@
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { OwnershipPlanNodeSource, OwnershipValidationError, EcoComponent } from '../../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../../eco/eco-declared-component.ts';
-<<<<<<< ours
 import { mapComponentGraph } from './component-graph.ts';
-||||||| base
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { mapComponentGraph, walkComponentGraph } from './component-graph.ts';
-=======
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { mapComponentGraph } from './component-graph.ts';
->>>>>>> theirs
 
 type OwnershipValidationInput = {
 	currentIntegrationName: string;

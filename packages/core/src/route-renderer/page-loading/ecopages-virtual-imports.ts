@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-<<<<<<< ours
 import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
 import { cachedParseSync } from '../../cache/module-parse-cache.ts';
 

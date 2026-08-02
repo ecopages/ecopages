@@ -19,7 +19,6 @@ import type {
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -404,7 +403,7 @@ function collectRenderShellSourcePaths(
 	}
 
 	for (const component of components) {
-		const componentFile = getComponentIdentity(component)?.file;
+		const componentFile = component.config?.__eco?.file;
 		if (componentFile) {
 			sourcePaths.add(componentFile);
 		}

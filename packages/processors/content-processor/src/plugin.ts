@@ -31,6 +31,7 @@ import { createContentServerBoundaryPlugin } from './content-server-boundary-plu
 import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts';
 import type { ContentProcessorConfig } from './collection-types.ts';
 import { buildContentDevPrewarmPathnames } from './dev-prewarm-paths.ts';
+import { buildCollectionServerModule } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
 
 const logger = new Logger('[@ecopages/content-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -51,6 +52,8 @@ function assertValidCollectionName(collectionName: string): void {
 export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	private collectionsGenerated = false;
 	private readonly scanners = new Map<string, ContentScanner>();
+	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
+	private readonly collectionGenerations = new Map<string, number>();
 
 	/**
 	 * Absolute paths to generated collection entry modules, keyed by collection name.
@@ -62,6 +65,11 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 * Absolute paths to generated server-only component resolver modules.
 	 */
 	public readonly collectionServerModules: Record<string, string> = {};
+
+	/**
+	 * Absolute paths to pre-built collection server artifacts for route-module externalization.
+	 */
+	public readonly collectionServerCompiledModules: Record<string, string> = {};
 
 	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
@@ -83,12 +91,23 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	get buildPlugins(): EcoBuildPlugin[] {
 		return [
 			createContentServerBoundaryPlugin(),
-			createContentPluginBundler(this.collectionModules, this.collectionServerModules),
+			createContentPluginBundler(
+				this.collectionModules,
+				this.collectionServerModules,
+				this.collectionServerCompiledModules,
+			),
 		];
 	}
 
 	get plugins(): EcoBuildPlugin[] {
-		return [createContentPlugin(this.collectionModules, this.collectionServerModules)];
+		return [
+			createContentPlugin(
+				this.collectionModules,
+				this.collectionServerModules,
+				this.collectionServerCompiledModules,
+				(collectionName) => this.ensureCollectionServerArtifact(collectionName),
+			),
+		];
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -161,6 +180,8 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		this.writeGeneratedFile(serverOutputFile, componentsOutput);
 		this.collectionModules[collectionName] = outputFile;
 		this.collectionServerModules[collectionName] = serverOutputFile;
+		delete this.collectionServerCompiledModules[collectionName];
+		this.collectionGenerations.set(collectionName, (this.collectionGenerations.get(collectionName) ?? 0) + 1);
 
 		logger.debug('Generated content collection module', {
 			collectionName,
@@ -283,6 +304,72 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 
 		this.writeGeneratedFile(indexTypesDir, 'import "./virtual-module.d.ts";\n');
+	}
+
+	private async buildCollectionServerArtifact(
+		collectionName: string,
+		serverOutputFile: string,
+		ownedSourcePaths: string[],
+	): Promise<void> {
+		if (!this.context?.config.runtime?.buildRuntime) {
+			return;
+		}
+
+		const artifact = await buildCollectionServerModule({
+			appConfig: this.context.config,
+			collectionName,
+			sourceFilePath: serverOutputFile,
+			ownedSourcePaths,
+		});
+		this.collectionServerCompiledModules[collectionName] = artifact.outputPath;
+	}
+
+	/**
+	 * Builds one collection artifact on demand when a server build first resolves it.
+	 *
+	 * @remarks
+	 * Startup only generates the small virtual modules. The expensive MDX bundle is
+	 * single-flight and starts after the server is listening, while concurrent Page
+	 * builds share the same promise.
+	 */
+	async ensureCollectionServerArtifact(collectionName: string): Promise<void> {
+		if (!this.context?.config.runtime?.buildRuntime) {
+			return;
+		}
+
+		if (this.collectionServerCompiledModules[collectionName]) {
+			return;
+		}
+
+		const inFlight = this.collectionBuildPromises.get(collectionName);
+		if (inFlight) {
+			await inFlight;
+			if (!this.collectionServerCompiledModules[collectionName]) {
+				await this.ensureCollectionServerArtifact(collectionName);
+			}
+			return;
+		}
+
+		const generation = this.collectionGenerations.get(collectionName) ?? 0;
+		const serverOutputFile = this.collectionServerModules[collectionName];
+		if (!serverOutputFile) {
+			throw new Error(`Unknown content collection: ${collectionName}`);
+		}
+
+		const scanner = this.scanners.get(collectionName);
+		const ownedSourcePaths = scanner ? (await scanner.getEntrySources()).map(({ filePath }) => filePath) : [];
+		const buildPromise = this.buildCollectionServerArtifact(collectionName, serverOutputFile, ownedSourcePaths)
+			.then(() => {
+				if (generation !== (this.collectionGenerations.get(collectionName) ?? 0)) {
+					delete this.collectionServerCompiledModules[collectionName];
+				}
+			})
+			.finally(() => this.collectionBuildPromises.delete(collectionName));
+		this.collectionBuildPromises.set(collectionName, buildPromise);
+		await buildPromise;
+		if (!this.collectionServerCompiledModules[collectionName]) {
+			await this.ensureCollectionServerArtifact(collectionName);
+		}
 	}
 
 	private async ensureCollectionsGenerated(): Promise<void> {

@@ -50,7 +50,7 @@ export class DevTransformVendorRegistry {
 
 	async resolveVendorUrl(specifier: string): Promise<string> {
 		const known = this.resolveKnownVendorUrl(specifier);
-		if (known) {
+		if (known && this.resolveExistingVendorPath(known)) {
 			return known;
 		}
 
@@ -85,7 +85,7 @@ export class DevTransformVendorRegistry {
 		const filePath = path.join(this.vendorsDir, fileName);
 		if (!fileSystem.exists(filePath)) {
 			for (const entry of this.cache.values()) {
-				if (entry.url === pathname) {
+				if (entry.url === pathname && fileSystem.exists(entry.filePath)) {
 					return this.createVendorResponse(entry.filePath);
 				}
 			}
@@ -107,6 +107,22 @@ export class DevTransformVendorRegistry {
 				'Cache-Control': 'public, max-age=31536000, immutable',
 			},
 		});
+	}
+
+	private resolveExistingVendorPath(url: string): string | undefined {
+		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
+		const pathname = new URL(url, 'http://ecopages.local').pathname;
+		if (!pathname.startsWith(prefix)) {
+			return undefined;
+		}
+
+		const fileName = pathname.slice(prefix.length);
+		if (!fileName || fileName.includes('..')) {
+			return undefined;
+		}
+
+		const filePath = path.join(this.vendorsDir, fileName);
+		return fileSystem.exists(filePath) ? filePath : undefined;
 	}
 
 	private async prebundleSpecifier(specifier: string): Promise<VendorEntry> {

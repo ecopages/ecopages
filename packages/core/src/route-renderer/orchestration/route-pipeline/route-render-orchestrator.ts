@@ -18,6 +18,8 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
+import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
+import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -36,6 +38,7 @@ import type { GroupedGraphBuildPlan } from '../page-browser-graph/grouped-graph-
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
+import { measureRouteRenderPhase } from '../../../diagnostics/request-pipeline-metrics.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -167,7 +170,9 @@ export class RouteRenderOrchestrator {
 		routeOptions: RouteRendererOptions,
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
-		const resolvedInputs = await adapter.resolveRouteRenderInputs(routeOptions);
+		const resolvedInputs = await measureRouteRenderPhase('resolve-route-inputs', () =>
+			adapter.resolveRouteRenderInputs(routeOptions),
+		);
 		const finalProps = {
 			...resolvedInputs.props,
 			...(routeOptions.props ?? {}),
@@ -177,15 +182,17 @@ export class RouteRenderOrchestrator {
 			props: finalProps,
 		};
 		const { Page, HtmlTemplate, Layouts } = finalResolvedInputs;
-		const validationErrors = this.ownershipValidationService.validate({
-			currentIntegrationName: adapter.name,
-			roots: [
-				{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
-				...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
-				{ component: Page as EcoComponent, source: 'page' },
-			],
+		await measureRouteRenderPhase('ownership-validation', async () => {
+			const validationErrors = this.ownershipValidationService.validate({
+				currentIntegrationName: adapter.name,
+				roots: [
+					{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
+					...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
+					{ component: Page as EcoComponent, source: 'page' },
+				],
+			});
+			throwIfOwnershipInvalid(validationErrors);
 		});
-		throwIfOwnershipInvalid(validationErrors);
 
 		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
 		const dependencyInstanceKey = createPageDependencyInstanceKey({
@@ -201,10 +208,12 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		};
 		const resolvedPageDependencies = await adapter.resolvePageDependencies(graphContext);
-		const [{ resolvedDependencies }, pageBrowserGraph] = await Promise.all([
+		const { resolvedDependencies } = await measureRouteRenderPhase('resolve-dependencies', () =>
 			adapter.resolveRouteDependencies({
 				components: componentsToResolve,
 			}),
+		);
+		const pageBrowserGraph = await measureRouteRenderPhase('page-browser-graph', () =>
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
 				dependencyInstanceKey,
@@ -215,7 +224,12 @@ export class RouteRenderOrchestrator {
 						resolvedPageDependencies?.contribution,
 					),
 			}),
-		]);
+		);
+		const graphDependencyPaths = this.pageBrowserGraphService.getDependencyPathsForRoute({
+			integrationName: adapter.name,
+			routeFile: routeOptions.file,
+			dependencyInstanceKey,
+		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 
 		const allDependencies = [
@@ -232,15 +246,25 @@ export class RouteRenderOrchestrator {
 		]);
 		allDependencies.push(...globalAssets, ...eagerSsrLazyAssets);
 
-		return buildPreparedRenderOptions<C>({
-			routeOptions,
-			resolvedInputs: finalResolvedInputs,
-			resolvedPageDependencyComponents,
-			resolvedDependencies,
-			allDependencies,
-			pageBrowserGraph,
-			appConfig: this.appConfig,
+		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
+			routeFile: routeOptions.file,
+			processedAssets: allDependencies,
+			graphDependencyPaths,
+			additionalSourcePaths: collectRenderShellSourcePaths(this.appConfig, componentsToResolve),
 		});
+
+		return {
+			...buildPreparedRenderOptions<C>({
+				routeOptions,
+				resolvedInputs: finalResolvedInputs,
+				resolvedPageDependencyComponents,
+				resolvedDependencies,
+				allDependencies,
+				pageBrowserGraph,
+				appConfig: this.appConfig,
+			}),
+			sourceDependencyPaths,
+		};
 	}
 
 	async resolveDeclaredPageBrowserGraph(input: {
@@ -284,7 +308,9 @@ export class RouteRenderOrchestrator {
 		renderOptions: IntegrationRendererRenderOptions<C>,
 		adapter: RouteRenderOrchestratorAdapter<C>,
 	): Promise<RouteRenderResult> {
-		const renderExecution = await this.captureHtmlRender(async () => adapter.renderRouteBody(renderOptions));
+		const renderExecution = await measureRouteRenderPhase('render-body', () =>
+			this.captureHtmlRender(async () => adapter.renderRouteBody(renderOptions)),
+		);
 		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
 		const htmlFinalization = adapter.getRouteHtmlFinalization(renderOptions);
 		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
@@ -299,19 +325,22 @@ export class RouteRenderOrchestrator {
 
 		if (canReuseCapturedBody) {
 			const responseBody = typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
-			const body = await adapter.transformRouteResponse(
-				new Response(responseBody, {
-					headers: {
-						'Content-Type': 'text/html',
-					},
-				}),
-				htmlFinalization.htmlContributions,
-				renderOptions.pagePackage,
+			const body = await measureRouteRenderPhase('transform-response', () =>
+				adapter.transformRouteResponse(
+					new Response(responseBody, {
+						headers: {
+							'Content-Type': 'text/html',
+						},
+					}),
+					htmlFinalization.htmlContributions,
+					renderOptions.pagePackage,
+				),
 			);
 
 			return {
 				body,
 				cacheStrategy: renderOptions.cacheStrategy,
+				sourceDependencyPaths: renderOptions.sourceDependencyPaths,
 			};
 		}
 
@@ -319,19 +348,22 @@ export class RouteRenderOrchestrator {
 			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
 			: unresolvedArtifactInspection.normalizedHtml;
 
-		const body = await adapter.transformRouteResponse(
-			new Response(finalization, {
-				headers: {
-					'Content-Type': 'text/html',
-				},
-			}),
-			htmlFinalization.htmlContributions,
-			renderOptions.pagePackage,
+		const body = await measureRouteRenderPhase('transform-response', () =>
+			adapter.transformRouteResponse(
+				new Response(finalization, {
+					headers: {
+						'Content-Type': 'text/html',
+					},
+				}),
+				htmlFinalization.htmlContributions,
+				renderOptions.pagePackage,
+			),
 		);
 
 		return {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
+			sourceDependencyPaths: renderOptions.sourceDependencyPaths,
 		};
 	}
 
@@ -359,4 +391,24 @@ export class RouteRenderOrchestrator {
 			html: await new Response(capturedBody).text(),
 		};
 	}
+}
+
+function collectRenderShellSourcePaths(
+	appConfig: EcoPagesAppConfig,
+	components: Array<EcoComponent | Partial<EcoComponent>>,
+): string[] {
+	const sourcePaths = new Set<string>();
+
+	if (appConfig.absolutePaths?.htmlTemplatePath) {
+		sourcePaths.add(appConfig.absolutePaths.htmlTemplatePath);
+	}
+
+	for (const component of components) {
+		const componentFile = getComponentIdentity(component)?.file;
+		if (componentFile) {
+			sourcePaths.add(componentFile);
+		}
+	}
+
+	return [...sourcePaths];
 }

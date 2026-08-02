@@ -10,10 +10,10 @@ import {
 	shouldBuildPagesUnifiedGraph,
 } from '../../build/cache/pages-unified-graph-build.ts';
 import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
+import { recordPageModuleLoad } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { resolvePageModuleOutputFileName } from './route-module-build-cache.ts';
-import { createPluginCacheKey, createJsxCacheKey } from '../../build/cache/cache-keys.ts';
+import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from './route-module-build-manifest.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,
@@ -26,8 +26,6 @@ import { supportsSourceModuleLoading } from './source-module-support.ts';
 interface PageModuleImportBaseOptions {
 	filePath: string;
 	bypassCache?: boolean;
-	cacheScope?: string;
-	invalidationVersion?: number;
 }
 
 /**
@@ -43,6 +41,7 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
 	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
+	sourceTransforms?: BuildOptions['sourceTransforms'];
 	jsx?: {
 		development?: boolean;
 		factory?: string;
@@ -97,7 +96,7 @@ export class PageModuleImportService {
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly dependencyHasher: RouteModuleDependencyHasher;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
-	private developmentInvalidationVersion = 0;
+	private developmentImportGeneration = 0;
 
 	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
 		this.appConfig = appConfig;
@@ -121,18 +120,13 @@ export class PageModuleImportService {
 	}
 
 	/**
-	 * Invalidates all previously imported modules in development by clearing the
-	 * import cache and incrementing the invalidation version included in cache keys.
-	 *
-	 * This forces all modules to be reloaded on the next import, even if their
-	 * source content hasn't changed. This is necessary to ensure that changes to
-	 * non-content aspects of modules (e.g. dependencies, transpilation output)
-	 * are picked up during development.
+	 * Clears in-memory import promises and dependency-hash memoization so the next
+	 * import revalidates against current source and transform identity.
 	 */
 	invalidateDevelopmentGraph(): void {
+		this.developmentImportGeneration += 1;
 		this.clearImportCache();
 		this.dependencyHasher.clearMemo();
-		this.developmentInvalidationVersion += 1;
 	}
 
 	/**
@@ -149,8 +143,6 @@ export class PageModuleImportService {
 	 */
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
 		const { filePath } = options;
-		const invalidationVersion = options.invalidationVersion ?? this.developmentInvalidationVersion;
-		const { externalPackages, splitting } = options;
 
 		const fileHash = this.dependencies.hashFile(filePath);
 		const hostModuleLoader =
@@ -161,71 +153,62 @@ export class PageModuleImportService {
 				: undefined;
 
 		if (hostModuleLoader) {
-			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, invalidationVersion, options.cacheScope);
-			return (await hostModuleLoader(sourceModuleUrl.href)) as T;
+			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, this.developmentImportGeneration);
+			const loadedModule = (await hostModuleLoader(sourceModuleUrl.href)) as T;
+			recordPageModuleLoad('host-loader');
+			return loadedModule;
 		}
 
-		if (options.bypassCache) {
-			this.developmentInvalidationVersion += 1;
-			return await this.loadModule<T>({
-				...options,
-				invalidationVersion: this.developmentInvalidationVersion,
+		if (!options.bypassCache) {
+			const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
+			const cacheKey = [
+				runtime,
+				filePath,
+				createRouteModuleReuseIdentity(options, options.sourceTransforms),
 				fileHash,
+			].join('::');
+			const cachedModule = this.importCache.get(cacheKey);
+
+			if (cachedModule) {
+				if (!cachedModule.dependencyHashes) {
+					const loadedModule = (await cachedModule.promise) as T;
+					recordPageModuleLoad('import-cache-hit');
+					return loadedModule;
+				}
+
+				if (this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)) {
+					const loadedModule = (await cachedModule.promise) as T;
+					recordPageModuleLoad('import-cache-hit');
+					return loadedModule;
+				}
+
+				this.importCache.delete(cacheKey);
+			}
+
+			const importPromise = this.loadModule<T>({
+				...options,
+				fileHash,
+				importCacheKey: cacheKey,
 			});
+
+			this.importCache.set(cacheKey, { promise: importPromise });
+
+			try {
+				return await importPromise;
+			} catch (error) {
+				this.importCache.delete(cacheKey);
+				throw error;
+			}
 		}
 
-		const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
-		const cacheKey = [
-			runtime,
-			filePath,
-			options.rootDir,
-			path.resolve(options.outdir),
-			splitting ?? 'default',
-			externalPackages ?? 'default',
-			options.cacheScope ?? 'default',
-			createJsxCacheKey(options.jsx),
-			createPluginCacheKey(options.plugins),
-			fileHash,
-			invalidationVersion,
-		].join('::');
-		const cachedModule = this.importCache.get(cacheKey);
-
-		if (cachedModule) {
-			if (!cachedModule.dependencyHashes) {
-				return (await cachedModule.promise) as T;
-			}
-
-			if (this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)) {
-				return (await cachedModule.promise) as T;
-			}
-
-			this.importCache.delete(cacheKey);
-		}
-
-		const importPromise = this.loadModule<T>({
+		return await this.loadModule<T>({
 			...options,
 			fileHash,
-			importCacheKey: cacheKey,
 		});
-
-		this.importCache.set(cacheKey, { promise: importPromise });
-
-		try {
-			return await importPromise;
-		} catch (error) {
-			this.importCache.delete(cacheKey);
-			throw error;
-		}
 	}
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
-		const {
-			filePath,
-			invalidationVersion = this.developmentInvalidationVersion,
-			cacheScope,
-			fileHash,
-			importCacheKey,
-		} = options;
+		const { filePath, fileHash, importCacheKey } = options;
 
 		const {
 			rootDir,
@@ -239,8 +222,6 @@ export class PageModuleImportService {
 		const outputFileName = resolvePageModuleOutputFileName({
 			filePath,
 			fileHash,
-			cacheScope,
-			invalidationVersion,
 		});
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
 		const preferredOutputPath = path.join(outdir, outputFileName);
@@ -277,29 +258,29 @@ export class PageModuleImportService {
 			externalPackages: buildOptions.externalPackages,
 			jsx: buildOptions.jsx,
 			plugins: buildOptions.plugins,
+			sourceTransforms: buildOptions.sourceTransforms,
 			fileHash,
 		};
 		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
 		const cachedBuild = routeModuleBuildCache.lookup(cacheBuildOptions);
 
 		if (cachedBuild) {
-			return (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+			const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+			recordPageModuleLoad('disk-cache-hit');
+			return loadedModule;
 		}
 
-		if (
-			!cacheScope &&
-			shouldBuildPagesUnifiedGraph() &&
-			this.appConfig &&
-			isPagesUnifiedGraphPage(filePath, this.appConfig)
-		) {
+		if (shouldBuildPagesUnifiedGraph() && this.appConfig && isPagesUnifiedGraphPage(filePath, this.appConfig)) {
 			const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
 			if (graphModule !== undefined) {
+				recordPageModuleLoad('unified-graph');
 				return graphModule;
 			}
 		}
 
 		recordPageModuleBuildInvocation();
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
+		recordPageModuleLoad('cold-build', buildResult.outputs.length);
 
 		if (!buildResult.success) {
 			const details = buildResult.logs.map((log) => log.message).join(' | ');
@@ -333,13 +314,8 @@ export class PageModuleImportService {
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 
-		if (shouldAddRuntimeUpdateQuery(invalidationVersion, cacheScope)) {
-			compiledOutputUrl.searchParams.set(
-				'update',
-				[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
-					.filter((value) => value !== undefined)
-					.join('-'),
-			);
+		if (shouldAddRuntimeUpdateQuery()) {
+			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.developmentImportGeneration}`);
 		}
 
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
@@ -350,30 +326,16 @@ export class PageModuleImportService {
 	}
 }
 
-function createRuntimeModuleUrl(
-	filePath: string,
-	fileHash: string,
-	invalidationVersion: number,
-	cacheScope?: string,
-): URL {
+function createRuntimeModuleUrl(filePath: string, fileHash: string, developmentImportGeneration: number): URL {
 	const moduleUrl = pathToFileURL(filePath);
 
-	if (shouldAddRuntimeUpdateQuery(invalidationVersion, cacheScope)) {
-		moduleUrl.searchParams.set(
-			'update',
-			[fileHash, invalidationVersion, cacheScope ? sanitizeCacheScope(cacheScope) : undefined]
-				.filter((value) => value !== undefined)
-				.join('-'),
-		);
+	if (shouldAddRuntimeUpdateQuery()) {
+		moduleUrl.searchParams.set('update', `${fileHash}-${developmentImportGeneration}`);
 	}
 
 	return moduleUrl;
 }
 
-function shouldAddRuntimeUpdateQuery(invalidationVersion: number, cacheScope?: string): boolean {
-	return process.env.NODE_ENV === 'development' || invalidationVersion > 0 || !!cacheScope;
-}
-
-function sanitizeCacheScope(cacheScope: string): string {
-	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
+function shouldAddRuntimeUpdateQuery(): boolean {
+	return process.env.NODE_ENV === 'development';
 }

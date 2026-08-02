@@ -1,6 +1,12 @@
 import path from 'node:path';
 import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/cache/production-build-cache.ts';
-import { createJsxCacheKey, createPluginCacheKey, getCorePackageVersion } from '../../build/cache/cache-keys.ts';
+import {
+	createJsxCacheKey,
+	createPluginCacheKey,
+	createSourceTransformCacheKey,
+	getCorePackageVersion,
+} from '../../build/cache/cache-keys.ts';
+import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 
@@ -32,7 +38,7 @@ export interface RouteModuleStaticRenderCacheEntry {
 
 /** On-disk manifest describing all cached route-module builds for one server outdir. */
 export interface RouteModuleBuildCacheManifest {
-	invalidationVersion: string;
+	corePackageVersion: string;
 	configHash?: string;
 	buildInputsFingerprint?: string;
 	entries: Record<string, RouteModuleBuildCacheEntry>;
@@ -62,45 +68,22 @@ export function normalizeRouteModuleCachePath(filePath: string): string {
 	return path.resolve(filePath);
 }
 
-/** Returns whether route-module disk caching should run for the current import. */
+/**
+ * Returns whether route-module disk caching should run for the current import.
+ */
 export function shouldPersistRouteModuleBuildCache(options: PageModuleBuildImportOptions): boolean {
-	if (process.env.NODE_ENV !== 'production') {
+	if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
 		return false;
 	}
 
-	if (options.bypassCache) {
-		return false;
-	}
-
-	if ((options.invalidationVersion ?? 0) > 0) {
-		return false;
-	}
-
-	if (options.cacheScope) {
-		return false;
-	}
-
-	return true;
+	return !options.bypassCache;
 }
 
-/** Derives the deterministic on-disk filename for one transpiled route module. */
-export function resolvePageModuleOutputFileName(options: {
-	filePath: string;
-	fileHash: string;
-	cacheScope?: string;
-	invalidationVersion?: number;
-}): string {
-	const fileBaseName = path.basename(options.filePath, path.extname(options.filePath));
-	const cacheScopeSuffix = options.cacheScope ? `-${sanitizeCacheScope(options.cacheScope)}` : '';
-	const invalidationSuffix = shouldVersionBuildOutputPath(options.invalidationVersion ?? 0)
-		? `-v${options.invalidationVersion}`
-		: '';
-
-	return `${fileBaseName}-${options.fileHash}${cacheScopeSuffix}${invalidationSuffix}.mjs`;
-}
-
-/** Builds the cache key for persisted production route-module builds. */
-export function createPersistedRouteModuleBuildKey(options: PageModuleBuildImportOptions): string {
+/** Canonical reuse identity for route-module memory and disk caches. */
+export function createRouteModuleReuseIdentity(
+	options: PageModuleBuildImportOptions,
+	sourceTransforms?: BuildOptions['sourceTransforms'],
+): string {
 	return [
 		path.resolve(options.rootDir),
 		path.resolve(options.outdir),
@@ -108,24 +91,41 @@ export function createPersistedRouteModuleBuildKey(options: PageModuleBuildImpor
 		options.externalPackages ?? 'default',
 		createJsxCacheKey(options.jsx),
 		createPluginCacheKey(options.plugins),
+		createSourceTransformCacheKey(sourceTransforms),
 	].join('::');
+}
+
+/** Derives the deterministic on-disk filename for one transpiled route module. */
+export function resolvePageModuleOutputFileName(options: { filePath: string; fileHash: string }): string {
+	const fileBaseName = path.basename(options.filePath, path.extname(options.filePath));
+	return `${fileBaseName}-${options.fileHash}.mjs`;
+}
+
+/** Builds the cache key for persisted production route-module builds. */
+export function createPersistedRouteModuleBuildKey(
+	options: PageModuleBuildImportOptions,
+	sourceTransforms?: BuildOptions['sourceTransforms'],
+): string {
+	return createRouteModuleReuseIdentity(options, sourceTransforms);
 }
 
 export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCacheManifest {
 	return {
-		invalidationVersion: getCorePackageVersion(),
+		corePackageVersion: getCorePackageVersion(),
 		entries: {},
 	};
 }
 
 export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteModuleBuildCacheManifest | undefined {
-	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest>(manifestPath);
+	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest & { invalidationVersion?: string }>(
+		manifestPath,
+	);
 	if (!parsed || typeof parsed.entries !== 'object') {
 		return undefined;
 	}
 
 	return {
-		invalidationVersion: parsed.invalidationVersion ?? '',
+		corePackageVersion: parsed.corePackageVersion ?? parsed.invalidationVersion ?? '',
 		configHash: parsed.configHash,
 		buildInputsFingerprint: parsed.buildInputsFingerprint,
 		entries: parsed.entries,
@@ -137,12 +137,4 @@ export function writeRouteModuleBuildCacheManifest(
 	manifest: RouteModuleBuildCacheManifest,
 ): void {
 	writeProductionCacheManifest(manifestPath, manifest);
-}
-
-function shouldVersionBuildOutputPath(invalidationVersion: number): boolean {
-	return typeof Bun !== 'undefined' && invalidationVersion > 0;
-}
-
-function sanitizeCacheScope(cacheScope: string): string {
-	return cacheScope.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }

@@ -46,6 +46,7 @@
 		"test:bench:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/scripts/consolidate-baseline.ts",
 		"test:bench:compare": "ECOPAGES_BENCH=1 pnpm --filter @ecopages/kitchen-sink exec tsx bench/run.mts && pnpm --filter @ecopages/kitchen-sink exec tsx bench/scripts/compare-baseline.ts",
 		"test:bench:startup": "ECOPAGES_BENCH=1 node playground/kitchen-sink/bench/startup/run.mjs",
+		"test:bench:docs": "node scripts/benchmark-docs-dev.mjs",
 		"test:bench:startup:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/consolidate-baseline.ts",
 		"test:bench:startup:compare": "ECOPAGES_BENCH=1 node playground/kitchen-sink/bench/startup/run.mjs && pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/compare-baseline.ts",
 		"test:vitest:static-parity": "ECOPAGES_TEST_STATIC_BUILD_PARITY=1 pnpm run test:vitest",

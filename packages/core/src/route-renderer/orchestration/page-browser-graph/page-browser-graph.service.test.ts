@@ -788,3 +788,33 @@ test('SessionPageBrowserGraphCache skips committing non-cacheable route graph bu
 
 	expect(builds).toBe(2);
 });
+
+test('performs one graph build per cache key per request scope', async () => {
+	const session = new SessionPageBrowserGraphCache();
+	let builds = 0;
+
+	const key = {
+		integrationName: 'react',
+		routeFile: '/app/pages/docs/[...slug].tsx',
+		dependencyInstanceKey: 'slug:intro',
+		entryFingerprint: 'file:/app/pages/docs/[...slug].tsx',
+		policy: 'development' as const,
+	};
+
+	await session.resolveGraph(key, new Set(['/app/pages/docs/[...slug].tsx']), async () => {
+		builds += 1;
+		return {
+			result: { entryAssets: [], chunkAssets: [] },
+			dependencyPaths: new Set(['/app/pages/docs/[...slug].tsx']),
+		};
+	});
+	await session.resolveGraph(key, new Set(['/app/pages/docs/[...slug].tsx']), async () => {
+		builds += 1;
+		return {
+			result: { entryAssets: [], chunkAssets: [] },
+			dependencyPaths: new Set(['/app/pages/docs/[...slug].tsx']),
+		};
+	});
+
+	expect(builds).toBe(1);
+});

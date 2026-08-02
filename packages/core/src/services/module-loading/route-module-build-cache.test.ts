@@ -63,7 +63,7 @@ describe('RouteModuleBuildCache', () => {
 		);
 	});
 
-	it('does not persist cache entries outside production builds', () => {
+	it('persists unchanged development and production route-module builds', () => {
 		assert.equal(
 			shouldPersistRouteModuleBuildCache({
 				filePath: '/app/pages/about.tsx',
@@ -80,20 +80,29 @@ describe('RouteModuleBuildCache', () => {
 				rootDir: '/app',
 				outdir: tempDir,
 			}),
-			false,
+			true,
 		);
-	});
 
-	it('does not persist scoped imports used only for probes or request metadata', () => {
 		process.env.NODE_ENV = 'production';
 		assert.equal(
 			shouldPersistRouteModuleBuildCache({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
-				cacheScope: 'static-page-probe',
 			}),
-			false,
+			true,
+		);
+	});
+
+	it('persists scoped imports used only for probes or request metadata', () => {
+		process.env.NODE_ENV = 'production';
+		assert.equal(
+			shouldPersistRouteModuleBuildCache({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			}),
+			true,
 		);
 	});
 
@@ -199,12 +208,12 @@ describe('RouteModuleBuildCache', () => {
 		assert.equal(cache.lookup(options), undefined);
 	});
 
-	it('misses when the core package invalidation version changes', () => {
+	it('misses when the core package version changes', () => {
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = new RouteModuleBuildCache(tempDir, {
 			getCorePackageVersion: () => '2.0.0-test',
 			readManifest: () => ({
-				invalidationVersion: '1.0.0-test',
+				corePackageVersion: '1.0.0-test',
 				entries: {
 					'/app/pages/about.tsx': {
 						sourceHash: 'abc123',
@@ -408,7 +417,7 @@ describe('RouteModuleBuildCache', () => {
 		});
 
 		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as RouteModuleBuildCacheManifest;
-		assert.equal(manifest.invalidationVersion, '1.0.0-test');
+		assert.equal(manifest.corePackageVersion, '1.0.0-test');
 		assert.deepEqual(manifest.entries['/app/pages/about.tsx'], {
 			sourceHash: 'abc123',
 			outputPath,
@@ -448,7 +457,7 @@ describe('production build cache utilities', () => {
 		const cache = new RouteModuleBuildCache(modulesDir, {
 			getCorePackageVersion: () => '1.0.0-test',
 			readManifest: () => ({
-				invalidationVersion: '1.0.0-test',
+				corePackageVersion: '1.0.0-test',
 				entries: {
 					'/app/pages/about.tsx': {
 						sourceHash: 'abc123',

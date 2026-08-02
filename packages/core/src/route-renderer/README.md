@@ -70,10 +70,10 @@ Domain folders:
 **Page Browser Graph session behavior:**
 
 - In development, each Page Browser Graph is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes. The per-route fast path is disabled while HMR is enabled so prop-dependent `dependencies(props)` cannot reuse the wrong graph. Hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected.
-- Dev SSR prewarm registers processor-declared pathnames on an allowlisted memory store backing the single watch `PageCacheService`, then renders those paths. Undeclared routes stay uncached unless `cache.enabled: true`. The watcher awaits `clearAppPageCache` before continuing invalidation.
-- **Measuring dev page load:** set `ECOPAGES_STARTUP_TRACE=true` and compare `/`, an early docs slug, and a late manifest slug. Target: first warmed docs navigation should hit the allowlisted page cache (`X-Cache: HIT`) and avoid cold MDX compile when prewarm finished.
+- Dev SSR prewarm schedules processor-declared pathnames for background rendering. Static pages cache in watch mode when their Cache Strategy allows it; dynamic pages are never retained. The watcher invalidates HTML through `invalidateAppPageCacheBySourcePaths` when a registered source dependency changes, and falls back to global cache clear for categories whose route impact cannot be narrowed.
+- **Measuring dev page load:** set `ECOPAGES_REQUEST_PIPELINE_METRICS=1` and run `pnpm run test:bench:docs`. Compare cold vs warm navigations and phase totals from the benchmark output.
 - Production static export prebuilds browser graphs from the finalized route list into the in-memory `page-browser-graph-session` via `production-page-browser-graph-prebuild.ts`. Failed exports clear staged production session records so retries cannot reuse partial graph output.
-- Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`. Processors and loaders still initialize eagerly during `setupAppRuntimePlugins()`.
+- Integrations activate lazily on first render or graph prebuild via `ensureIntegrationRuntimeReady()`. Processors initialize their small virtual modules during `setupAppRuntimePlugins()`; content collection server artifacts are built lazily when a server build first resolves the collection.
 
 ### `page-loading/`
 

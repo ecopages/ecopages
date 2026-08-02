@@ -62,11 +62,11 @@ export class RouteModuleBuildCache {
 		}
 
 		const manifest = this.loadManifest();
-		if (manifest.invalidationVersion !== this.dependencies.getCorePackageVersion()) {
+		if (manifest.corePackageVersion !== this.dependencies.getCorePackageVersion()) {
 			return undefined;
 		}
 
-		const buildKey = createPersistedRouteModuleBuildKey(options);
+		const buildKey = createPersistedRouteModuleBuildKey(options, options.sourceTransforms);
 		const cacheFilePath = normalizeRouteModuleCachePath(options.filePath);
 		const entry = manifest.entries[cacheFilePath];
 		if (!entry || entry.sourceHash !== options.fileHash || entry.buildKey !== buildKey) {
@@ -109,12 +109,12 @@ export class RouteModuleBuildCache {
 
 		const manifest = this.loadManifest();
 		const existingEntry = manifest.entries[cacheFilePath];
-		manifest.invalidationVersion = this.dependencies.getCorePackageVersion();
+		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.entries[cacheFilePath] = {
 			sourceHash: options.fileHash,
 			outputPath: options.outputPath,
 			builtAt: Date.now(),
-			buildKey: createPersistedRouteModuleBuildKey(options),
+			buildKey: createPersistedRouteModuleBuildKey(options, options.sourceTransforms),
 			dependencyHashes,
 			renderedOutputs: existingEntry?.renderedOutputs,
 		};
@@ -144,7 +144,7 @@ export class RouteModuleBuildCache {
 		}
 
 		const manifest = this.loadManifest();
-		manifest.invalidationVersion = this.dependencies.getCorePackageVersion();
+		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.configHash = context.configHash;
 		manifest.buildInputsFingerprint = context.buildInputsFingerprint;
 		this.persistManifest(manifest);
@@ -227,7 +227,7 @@ export class RouteModuleBuildCache {
 		const cacheFilePath = normalizeRouteModuleCachePath(options.filePath);
 		const manifest = this.loadManifest();
 		const existingEntry = manifest.entries[cacheFilePath];
-		manifest.invalidationVersion = this.dependencies.getCorePackageVersion();
+		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.configHash = options.context.configHash;
 		manifest.buildInputsFingerprint = options.context.buildInputsFingerprint;
 		manifest.entries[cacheFilePath] = {

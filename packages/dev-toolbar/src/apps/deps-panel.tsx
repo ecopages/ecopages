@@ -6,6 +6,7 @@ import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { DEV_TOOLBAR_DEPS_REFRESH_DEBOUNCE_MS } from '../runtime/constants.ts';
 import { isPanelSlotVisible, observePanelSlotVisibility } from '../shell/panel-slot-visibility.ts';
 import { loadDepsInsights, type AssetInsight, type DepsInsightsSnapshot } from './deps/load-deps-insights.ts';
+import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 @customElement('eco-dev-toolbar-deps')
 export class EcoDevToolbarDeps extends RadiantElement {
@@ -21,18 +22,22 @@ export class EcoDevToolbarDeps extends RadiantElement {
 	private loadGeneration = 0;
 	private refreshDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 	private disconnectVisibilityObserver: (() => void) | undefined;
+	private unsubscribeNavigationEvents: (() => void) | undefined;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
-		this.ownerDocument.addEventListener('eco:page-load', this.scheduleRefresh);
-		this.ownerDocument.addEventListener('eco:after-swap', this.scheduleRefresh);
+		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
+			this.ownerDocument,
+			['eco:page-load', 'eco:after-swap'],
+			this.scheduleRefresh,
+		);
 		this.wireVisibilityObserver();
 		void this.refresh();
 	}
 
 	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('eco:page-load', this.scheduleRefresh);
-		this.ownerDocument.removeEventListener('eco:after-swap', this.scheduleRefresh);
+		this.unsubscribeNavigationEvents?.();
+		this.unsubscribeNavigationEvents = undefined;
 		this.disconnectVisibilityObserver?.();
 		this.disconnectVisibilityObserver = undefined;
 		if (this.refreshDebounceTimer !== undefined) {

@@ -176,14 +176,13 @@ describe('PageModuleLoaderService', () => {
 				rootDir: '/app',
 				outdir: '/app/.eco/.server-modules',
 				bypassCache: undefined,
-				cacheScope: undefined,
 				transpileErrorMessage: expect.any(Function),
 				noOutputMessage: expect.any(Function),
 			},
 		]);
 	});
 
-	it('should forward cache scope options to the app-owned module loader', async () => {
+	it('should reuse a preloaded page module without importing again', async () => {
 		const calls: Array<unknown> = [];
 		const expectedModule = {
 			default: (() => 'ok') as EcoPageComponent<any>,
@@ -207,20 +206,12 @@ describe('PageModuleLoaderService', () => {
 			'http://localhost:3000',
 		);
 
-		await service.importPageFile('/app/src/pages/index.tsx', {
-			cacheScope: 'request-metadata',
+		const resolved = await service.resolvePageModule({
+			file: '/app/src/pages/index.tsx',
+			pageModule: expectedModule,
 		});
 
-		expect(calls).toEqual([
-			{
-				filePath: '/app/src/pages/index.tsx',
-				rootDir: '/app',
-				outdir: '/app/.eco/.server-modules',
-				bypassCache: undefined,
-				cacheScope: 'request-metadata',
-				transpileErrorMessage: expect.any(Function),
-				noOutputMessage: expect.any(Function),
-			},
-		]);
+		expect(resolved.module).toBe(expectedModule);
+		expect(calls).toEqual([]);
 	});
 });

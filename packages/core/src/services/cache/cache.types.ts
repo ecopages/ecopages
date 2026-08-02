@@ -9,6 +9,8 @@
 export interface RenderResult {
 	html: string;
 	strategy: CacheStrategy;
+	/** Source paths that contributed to this render; used for selective HTML cache invalidation. */
+	sourceDependencyPaths?: readonly string[];
 }
 
 /**

@@ -5,6 +5,8 @@ import type { PageRendererResolver } from '../../../route-renderer/route-rendere
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.types.ts';
+import type { EcoPageComponent } from '../../../eco/eco.types.ts';
+import type { EcoPageFile } from '../../../types/public-types.ts';
 import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals, RouteRendererBody } from '../../../types/public-types.ts';
@@ -18,6 +20,7 @@ type FileRouteExecutionPlan = {
 	cacheKey: string;
 	request: Request;
 	pageFilePath: string;
+	pageModule: EcoPageFile;
 	pageMiddleware: FileRouteMiddleware[];
 	pageCacheStrategy: CacheStrategy;
 	localsStore: RequestLocals;
@@ -122,13 +125,18 @@ export class FileSystemResponseMatcher {
 			const renderFn = async (): Promise<RenderResult> => {
 				const result = await routeRenderer.execute({
 					file: executionPlan.pageFilePath,
+					pageModule: executionPlan.pageModule,
 					params: match.params,
 					query: match.query,
 					locals: executionPlan.localsForRender,
 				});
 				const html = await this.pageRequestCacheCoordinator.bodyToString(result.body);
 				const strategy = result.cacheStrategy ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
-				return { html, strategy };
+				return {
+					html,
+					strategy,
+					sourceDependencyPaths: result.sourceDependencyPaths,
+				};
 			};
 			const renderResponse = async (): Promise<Response> => {
 				return this.pageRequestCacheCoordinator.render({
@@ -301,15 +309,16 @@ export class FileSystemResponseMatcher {
 		const localsStore: RequestLocals = {};
 		const pageFilePath = match.templateRoute.filePath;
 		const pageModule = await this.importPageModule(pageFilePath);
-		const Page = (pageModule as any)?.default;
-		const pageMiddleware = (Page?.middleware ?? []) as FileRouteMiddleware[];
+		const pageComponent = pageModule.default as EcoPageComponent<unknown>;
+		const pageMiddleware = pageComponent.middleware ?? [];
 		const pageCacheStrategy =
-			(Page?.cache as CacheStrategy | undefined) ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
+			pageModule.cache ?? pageComponent.cache ?? this.pageRequestCacheCoordinator.getDefaultCacheStrategy();
 
 		return {
 			cacheKey,
 			request: resolvedRequest,
 			pageFilePath,
+			pageModule,
 			pageMiddleware,
 			pageCacheStrategy,
 			localsStore,
@@ -328,11 +337,9 @@ export class FileSystemResponseMatcher {
 	 * @param filePath Absolute page module path.
 	 * @returns Imported page module.
 	 */
-	private async importPageModule(filePath: string): Promise<unknown> {
+	private async importPageModule(filePath: string): Promise<EcoPageFile> {
 		const routeRenderer = this.routeRendererFactory.getPageRenderer(filePath);
-		return routeRenderer.loadPageModule(filePath, {
-			cacheScope: 'request-metadata',
-		});
+		return routeRenderer.loadPageModule(filePath);
 	}
 
 	/**

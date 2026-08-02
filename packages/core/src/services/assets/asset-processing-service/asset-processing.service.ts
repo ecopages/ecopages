@@ -23,6 +23,11 @@ import {
 	NodeModuleScriptProcessor,
 } from './processors/index.ts';
 
+type CachedAsset = {
+	asset: ProcessedAsset;
+	sourceHash?: string;
+};
+
 /**
  * Processes declared component and page asset dependencies for one app instance.
  *
@@ -36,7 +41,7 @@ export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
 	private registry = new ProcessorRegistry();
 	private hmrManager?: IHmrManager;
-	private cache = new Map<string, { asset: ProcessedAsset }>();
+	private cache = new Map<string, CachedAsset>();
 	private readonly config: EcoPagesAppConfig;
 
 	/**
@@ -287,16 +292,23 @@ export class AssetProcessingService {
 	 * Returns the cached processed asset for a dependency key when available.
 	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
-		if (process.env.NODE_ENV !== 'production' && dep.source === 'file' && dep.kind === 'stylesheet') {
-			return null;
-		}
-
 		if (dep.kind === 'script' && dep.source === 'content') {
 			return this.getCachedContentScriptAsset(dep, depKey);
 		}
 
+		const sourceHash = this.getFileSourceHash(dep);
+		if (dep.source === 'file' && sourceHash === undefined) {
+			this.cache.delete(depKey);
+			return null;
+		}
+
 		const cached = this.cache.get(depKey);
 		if (!cached) {
+			return null;
+		}
+
+		if (cached.sourceHash !== sourceHash) {
+			this.cache.delete(depKey);
 			return null;
 		}
 
@@ -338,7 +350,18 @@ export class AssetProcessingService {
 	 * Stores one processed asset in the dependency cache.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
-		this.cache.set(depKey, { asset });
+		this.cache.set(depKey, {
+			asset,
+			sourceHash: this.getFileSourceHash(dep),
+		});
+	}
+
+	private getFileSourceHash(dep: AssetDefinition): string | undefined {
+		if (dep.source !== 'file' || !('filepath' in dep) || !fileSystem.exists(dep.filepath)) {
+			return undefined;
+		}
+
+		return fileSystem.hash(dep.filepath);
 	}
 
 	/**
@@ -353,7 +376,11 @@ export class AssetProcessingService {
 	 */
 	invalidateCacheForFile(filepath: string): void {
 		for (const [key, value] of this.cache.entries()) {
-			if (value.asset.filepath === filepath) {
+			if (
+				value.asset.filepath === filepath ||
+				value.asset.sourceFilepath === filepath ||
+				value.asset.bundledSourceFilepaths?.includes(filepath)
+			) {
 				this.cache.delete(key);
 			}
 		}

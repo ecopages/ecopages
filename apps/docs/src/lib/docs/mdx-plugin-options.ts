@@ -3,7 +3,6 @@ import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypePrettyCode from 'rehype-pretty-code';
 import { rehypeSimpleTableWrapper } from '@/lib/plugins/rehype-simple-table-wrapper';
-import { remarkEscapeInlineCodeHtml } from '@/lib/plugins/remark-escape-inline-code-html';
 
 const rehypePlugins = [
 	[
@@ -22,7 +21,7 @@ const rehypePlugins = [
 export const docsMdxPluginOptions = {
 	enabled: true as const,
 	...withContentMdxPlugins({
-		remarkPlugins: [remarkGfm, remarkEscapeInlineCodeHtml],
+		remarkPlugins: [remarkGfm],
 		rehypePlugins,
 	}),
 };

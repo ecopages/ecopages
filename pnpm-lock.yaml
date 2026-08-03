@@ -796,8 +796,8 @@ importers:
         specifier: ^16.1.1
         version: 16.1.1(postcss@8.5.25)
       postcss-nested:
-        specifier: ^8.0.0
-        version: 8.0.0(postcss@8.5.25)
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.5.25)
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
@@ -5279,8 +5279,8 @@ packages:
     peerDependencies:
       postcss: ^8.2.14
 
-  postcss-nested@8.0.0:
-    resolution: {integrity: sha512-4iVyYzSpreefQJO1VLv3x2Eg5PBFDUGckCE9FeXPlyXjjO7QeKFeWYCjXVYEOsqzn4G8t1XqSziTtQfyjBQ3ag==}
+  postcss-nested@8.0.1:
+    resolution: {integrity: sha512-PvSIwDVh1NTw939iu4FBK+oeZfSm0cbErFAjXCTPiStammzobBNE2SiQNezy8Xp+Oud2uLXaLpTauv3UdxWjbQ==}
     engines: {node: ^22.0.0 || ^24.0.0 || >= 26.0.0}
     peerDependencies:
       postcss: ^8.2.14
@@ -9876,7 +9876,7 @@ snapshots:
       postcss: 8.5.25
       postcss-selector-parser: 6.1.4
 
-  postcss-nested@8.0.0(postcss@8.5.25):
+  postcss-nested@8.0.1(postcss@8.5.25):
     dependencies:
       postcss: 8.5.25
       postcss-selector-parser: 7.1.4

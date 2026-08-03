@@ -6,7 +6,7 @@ It encompasses valuable information detailing its usage and provides a thorough 
 
 The aim is to offer users a clear understanding of how to effectively utilize ecopages and leverage its capabilities to their full extent.
 
-The docs shell uses `@ecopages/radiant-ui` for its responsive navigation, breadcrumb, tabs, alerts, buttons, and theme switch. The table of contents is owned by the docs app so its navigation lifecycle is isolated from server rendering.
+The docs shell uses `@ecopages/radiant-ui` for its responsive navigation, breadcrumb, tabs, alerts, buttons, and theme switch. The sidebar and table of contents attach navigation lifecycle listeners only in the browser, so server rendering does not retain document listeners between Pages.
 Each MDX document imports the interactive components it renders, so client assets are scoped to the pages that use them.
 
 ## Local development

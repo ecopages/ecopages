@@ -24,7 +24,6 @@ import { DocsPagination } from './components/docs-pagination';
 const paginationData = JSON.stringify({
 	pages: docsNav.sections.flatMap((section) => section.items).map(({ href, title }) => ({ href, title })),
 });
-const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
 const DOCS_SIDEBAR_ID = 'docs-sidebar';
 
 export type DocsLayoutProps = {
@@ -113,7 +112,6 @@ export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
 							label="Documentation navigation"
 							matchActive
 							scrollActiveOnMount
-							navigationEvents={ECO_NAVIGATION_EVENTS}
 						>
 							<RuiSidebarContent aria-label="Documentation navigation">
 								<DocsNavigation />
@@ -133,7 +131,6 @@ export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
 						headingSelector="h2,h3"
 						label="On this page"
 						scrollOffset={120}
-						navigationEvents={ECO_NAVIGATION_EVENTS}
 					/>
 				</RuiSidebarProvider>
 			</BaseLayout>

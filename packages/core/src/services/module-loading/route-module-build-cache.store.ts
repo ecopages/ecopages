@@ -254,6 +254,26 @@ export class RouteModuleBuildCache {
 		this.manifestLoaded = false;
 	}
 
+	/**
+	 * Removes every persisted route-module entry after development invalidation.
+	 *
+	 * @remarks
+	 * Server bundles may externalize generated modules whose source dependencies
+	 * are not present in the route bundle's dependency graph. Keeping an entry
+	 * after its server graph changes can therefore reload a route that still
+	 * imports an obsolete external bundle.
+	 */
+	clearDevelopmentEntries(): void {
+		if (!this.manifestLoaded && !this.dependencies.exists(this.manifestPath)) {
+			return;
+		}
+
+		const manifest = createEmptyRouteModuleBuildCacheManifest();
+		this.manifest = manifest;
+		this.manifestLoaded = true;
+		this.persistManifest(manifest);
+	}
+
 	pruneStaleRenderedOutputs(activePathnames: ReadonlySet<string>): string[] {
 		if (process.env.NODE_ENV !== 'production') {
 			return [];

@@ -131,6 +131,7 @@ order: 1
 		const entriesBefore = fileSystem.readFileSync(cacheFile);
 		const serverBefore = fileSystem.readFileSync(serverCacheFile);
 		const typesBefore = fileSystem.readFileSync(typesFile);
+		plugin.collectionServerCompiledModules.docs = '/tmp/stale-docs-server-collection.mjs';
 
 		fileSystem.write(
 			introPath,
@@ -152,6 +153,7 @@ order: 1
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
 		expect(fileSystem.readFileSync(typesFile)).toBe(typesBefore);
+		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
 	});
 
 	test('setup generates virtual modules without compiling the collection artifact', async () => {

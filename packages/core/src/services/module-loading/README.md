@@ -49,4 +49,4 @@ Development `?update=` query params use `sourceHash` plus a per-service import g
 
 ## Development invalidation
 
-`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used only for `?update=` URLs, and clears dependency-hash memoization. Route-module disk reuse stays content-derived: unchanged source and dependency hashes keep their entries until the edited module or its graph changes.
+`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used only for `?update=` URLs, and clears dependency-hash memoization. It also clears persisted route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.

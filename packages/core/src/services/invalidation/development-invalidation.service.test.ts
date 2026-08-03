@@ -1,8 +1,12 @@
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.js';
 import { Processor } from '../../plugins/processor.js';
 import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
 import { InMemoryDevGraphService, setAppDevGraphService } from '../runtime-state/dev-graph.service.ts';
+import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../module-loading/route-module-build-manifest.ts';
 
 class StylesheetProcessor extends Processor {
 	buildPlugins = [];
@@ -112,6 +116,33 @@ describe('DevelopmentInvalidationService', () => {
 
 		service.resetRuntimeState(['/test/project/src/pages/index.tsx']);
 		expect(service.getServerModuleInvalidationVersion()).toBe(3);
+		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(2);
+	});
+
+	it('clears persisted route-module entries before a route imports them', async () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));
+		const cacheDir = path.join(rootDir, '.eco/.server-modules');
+		const manifestPath = path.join(cacheDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
+
+		try {
+			const appConfig = await new ConfigBuilder().setRootDir(rootDir).build();
+			const service = new DevelopmentInvalidationService(appConfig);
+			const staleManifest = JSON.stringify({
+				corePackageVersion: 'stale',
+				entries: { '/test/project/src/pages/index.tsx': {} },
+			});
+			mkdirSync(cacheDir, { recursive: true });
+			writeFileSync(manifestPath, staleManifest);
+
+			service.invalidateServerModules([path.join(rootDir, 'src/content/docs/intro.mdx')]);
+			expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toMatchObject({ entries: {} });
+
+			writeFileSync(manifestPath, staleManifest);
+			service.resetRuntimeState([path.join(rootDir, 'src/content/docs/intro.mdx')]);
+			expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toMatchObject({ entries: {} });
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
+		}
 	});
 
 	it('does not treat watch-only processors as asset owners', async () => {

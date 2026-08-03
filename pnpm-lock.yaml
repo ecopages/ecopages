@@ -87,11 +87,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/processors/postcss-processor
       '@ecopages/radiant':
-        specifier: 0.3.0-beta.6
-        version: 0.3.0-beta.6(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))
+        specifier: 0.3.0-beta.7
+        version: 0.3.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))
       '@ecopages/radiant-ui':
-        specifier: 0.1.0-beta.5
-        version: 0.1.0-beta.5(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))(@ecopages/radiant@0.3.0-beta.6(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)))(@ecopages/signals@0.3.0-beta.6)
+        specifier: 0.1.0-beta.7
+        version: 0.1.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))(@ecopages/radiant@0.3.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)))(@ecopages/signals@0.3.0-beta.6)
       '@ecopages/signals':
         specifier: 0.3.0-beta.6
         version: 0.3.0-beta.6
@@ -1700,8 +1700,8 @@ packages:
     peerDependencies:
       typescript: ^5.0.0
 
-  '@ecopages/radiant-ui@0.1.0-beta.5':
-    resolution: {integrity: sha512-eUb8CqX9vEabhSsozK7e74TCBPCHu2N++3T9PqKNC8EDb9IoN/LGXUuQ6v5TFWfITNviqOvLnuxHoZ+EtmwzqA==}
+  '@ecopages/radiant-ui@0.1.0-beta.7':
+    resolution: {integrity: sha512-KAOiHdY+m+Suu0ZUweTm4sRosTk1qvbRH+UJeSc8ZHreQY3Y76UPqKPMZvgmzRaNpcLE/1s4pyYzlBSevmRpJw==}
     peerDependencies:
       '@ecopages/jsx': '>=0.3.0-beta.6'
       '@ecopages/radiant': '>=0.3.0-beta.6'
@@ -1709,6 +1709,11 @@ packages:
 
   '@ecopages/radiant@0.3.0-beta.6':
     resolution: {integrity: sha512-pXBAjkZioF8pQhBcwTpLB4AbsPRmuH228n5m4yHHK/XEVp0u69f4eEsF5RgJ5t6nFiw3h5pWmF0t4llnLHVcpg==}
+    peerDependencies:
+      '@ecopages/jsx': '>=0.3.0-beta.6'
+
+  '@ecopages/radiant@0.3.0-beta.7':
+    resolution: {integrity: sha512-uPxlt9RFATPmvuWBrHpSSZOhXTiKUFc6N+GSoK5ItTcVwnw3PET/QCB5ApzKeLShIjNEor/PgyHXfKwKk2yh/A==}
     peerDependencies:
       '@ecopages/jsx': '>=0.3.0-beta.6'
 
@@ -6549,13 +6554,17 @@ snapshots:
     dependencies:
       typescript: 5.9.3
 
-  '@ecopages/radiant-ui@0.1.0-beta.5(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))(@ecopages/radiant@0.3.0-beta.6(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)))(@ecopages/signals@0.3.0-beta.6)':
+  '@ecopages/radiant-ui@0.1.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))(@ecopages/radiant@0.3.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)))(@ecopages/signals@0.3.0-beta.6)':
     dependencies:
       '@ecopages/jsx': 0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)
-      '@ecopages/radiant': 0.3.0-beta.6(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))
+      '@ecopages/radiant': 0.3.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))
       '@ecopages/signals': 0.3.0-beta.6
 
   '@ecopages/radiant@0.3.0-beta.6(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))':
+    dependencies:
+      '@ecopages/jsx': 0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)
+
+  '@ecopages/radiant@0.3.0-beta.7(@ecopages/jsx@0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6))':
     dependencies:
       '@ecopages/jsx': 0.3.0-beta.6(@ecopages/signals@0.3.0-beta.6)
 

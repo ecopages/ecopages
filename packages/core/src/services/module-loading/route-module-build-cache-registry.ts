@@ -57,3 +57,17 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 	caches.set(outdir, routeModuleBuildCache);
 	return routeModuleBuildCache;
 }
+
+/** Clears route-module cache entries that can retain stale external server modules during development. */
+export function clearAppDevelopmentRouteModuleBuildCaches(appConfig: EcoPagesAppConfig): void {
+	const serverModuleCacheOutdir = getServerModuleBuildCacheOutdir(appConfig);
+	const caches = appConfig.runtime?.routeModuleBuildCaches;
+	const serverModuleCache = caches?.get(serverModuleCacheOutdir) ?? new RouteModuleBuildCache(serverModuleCacheOutdir);
+	serverModuleCache.clearDevelopmentEntries();
+
+	for (const cache of caches?.values() ?? []) {
+		if (cache !== serverModuleCache) {
+			cache.clearDevelopmentEntries();
+		}
+	}
+}

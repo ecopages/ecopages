@@ -29,6 +29,8 @@ The processor gives you a typed manifest and MDX components at build time. Wire 
 - **Multiple collections** — docs, blog, changelog, or any keyed collection you configure.
 - **`ContentScanner`** — reuse the same scan logic in one-off build scripts (for example, `llms.txt` generation).
 
+During development, edits to an entry's MDX body invalidate its compiled server collection bundle even when its frontmatter and generated manifest are unchanged. The next request rebuilds that bundle and renders the new body.
+
 ## Installation
 
 ```bash

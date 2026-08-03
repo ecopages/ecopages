@@ -180,8 +180,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		this.writeGeneratedFile(serverOutputFile, componentsOutput);
 		this.collectionModules[collectionName] = outputFile;
 		this.collectionServerModules[collectionName] = serverOutputFile;
-		delete this.collectionServerCompiledModules[collectionName];
-		this.collectionGenerations.set(collectionName, (this.collectionGenerations.get(collectionName) ?? 0) + 1);
+		this.invalidateCollectionServerArtifact(collectionName);
 
 		logger.debug('Generated content collection module', {
 			collectionName,
@@ -189,6 +188,19 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			serverOutputFile,
 			entryCount: manifest.length,
 		});
+	}
+
+	/**
+	 * Discards the compiled collection bundle after one of its MDX sources changes.
+	 *
+	 * @remarks
+	 * A body-only edit leaves the generated manifest unchanged, but the compiled
+	 * server collection embeds every entry's MDX module. Bumping the generation
+	 * also prevents an already-running compilation from publishing stale output.
+	 */
+	private invalidateCollectionServerArtifact(collectionName: string): void {
+		delete this.collectionServerCompiledModules[collectionName];
+		this.collectionGenerations.set(collectionName, (this.collectionGenerations.get(collectionName) ?? 0) + 1);
 	}
 
 	private async regenerateCollectionEntriesModule(collectionName: string): Promise<void> {
@@ -246,6 +258,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			const updateResult = await scanner.updateEntryForPath(normalizedPath, event);
 
 			if (updateResult === 'no-op') {
+				this.invalidateCollectionServerArtifact(collectionName);
 				continue;
 			}
 

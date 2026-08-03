@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { EcoPagesAppConfig, RegisteredScriptEntrypointChangeHandler } from '../../types/internal-types.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 
 export type { RegisteredScriptEntrypointChangeHandler };
 
@@ -63,6 +64,7 @@ export class DevelopmentInvalidationService {
 	invalidateServerModules(changedFiles?: string[]): void {
 		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
 		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
 	}
 
 	/**
@@ -96,8 +98,8 @@ export class DevelopmentInvalidationService {
 	 * Resets runtime-owned graph state and invalidates server modules.
 	 */
 	resetRuntimeState(changedFiles?: string[]): void {
+		this.invalidateServerModules(changedFiles);
 		const serverInvalidationState = getAppServerInvalidationState(this.appConfig);
-		serverInvalidationState.invalidateServerModules(changedFiles);
 		serverInvalidationState.reset();
 	}
 

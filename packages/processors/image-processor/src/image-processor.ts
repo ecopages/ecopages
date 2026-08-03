@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mergeProcessorOptions } from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 import { ImageUtils } from './image-utils.ts';
 import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
@@ -35,7 +35,7 @@ export class ImageProcessor {
 		fileSystem.ensureDir(this.config.outputDir);
 	}
 
-	private async calculateDimensions(metadata: sharp.Metadata, targetWidth: number) {
+	private async calculateDimensions(metadata: Metadata, targetWidth: number) {
 		const originalWidth = metadata.width || 0;
 		const originalHeight = metadata.height || 0;
 		const aspectRatio = originalHeight / originalWidth;

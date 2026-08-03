@@ -12,7 +12,7 @@ import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import path from 'node:path';
 import type postcss from 'postcss';
-import postcssNested from 'postcss-nested/index.js';
+import postcssNested from 'postcss-nested';
 import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware.ts';
 import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 

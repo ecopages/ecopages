@@ -74,7 +74,8 @@ test.describe('Docs Sidebar Navigation', () => {
 		await page.waitForURL('**/docs/ecosystem/browser-router');
 		await waitForPageReady(page, '/docs/ecosystem/browser-router');
 
-		const tocLink = page.locator('radiant-toc a[data-toc-link]').first();
+		const tocLink = page.locator('rui-toc a.rui-toc__link').first();
+		await expect(page.locator('rui-toc')).toBeVisible();
 		await tocLink.click();
 		await expect(page).toHaveURL(/#.+$/);
 

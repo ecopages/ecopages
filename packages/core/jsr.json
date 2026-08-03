@@ -1,54 +1,42 @@
 {
-  "$schema": "https://jsr.io/schema/config-file.v1.json",
-  "name": "@ecopages/core",
-  "version": "0.2.0-beta.41",
-  "exports": {
-    ".": "./src/index.ts",
-    "./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
-    "./route-renderer/orchestration/integration-renderer": "./src/route-renderer/orchestration/integration-renderer.ts",
-    "./route-renderer/orchestration/string-markup-renderer": "./src/route-renderer/orchestration/string-markup-renderer.ts",
-    "./route-renderer/orchestration/foreign-child/component-render-context": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
-    "./route-renderer/orchestration/foreign-child/foreign-subtree-execution.service": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts",
-    "./route-renderer/orchestration/foreign-child/owning-renderer-resolution": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts",
-    "./route-renderer/orchestration/document-shell/document-shell-render.service": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
-    "./route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
-    "./errors/locals-access-error": "./src/errors/locals-access-error.ts",
-    "./constants": "./src/constants.ts",
-    "./config-builder": "./src/config/config-builder.ts",
-    "./adapters/bun": "./src/adapters/bun/index.ts",
-    "./adapters/bun/create-app": "./src/adapters/bun/create-app.ts",
-    "./services/asset-processing-service": "./src/services/assets/asset-processing-service/index.ts",
-    "./hmr/hmr-strategy": "./src/hmr/hmr-strategy.ts",
-    "./hmr/client/hmr-runtime": "./src/hmr/client/hmr-runtime.ts",
-    "./utils/deep-merge": "./src/utils/deep-merge.ts",
-    "./utils/invariant": "./src/utils/invariant.ts",
-    "./utils/parse-cli-args": "./src/utils/parse-cli-args.ts",
-    "./plugins/processor": "./src/plugins/processor.ts",
-    "./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
-    "./adapters/bun/client-bridge": "./src/adapters/bun/client-bridge.ts",
-    "./internal-types": "./src/internal-types.ts",
-    "./html": "./src/utils/html.ts",
-    "./css": "./src/utils/css.ts",
-    "./hash": "./src/utils/hash.ts"
-  },
-  "exclude": [
-    "fixtures",
-    "**/*.test.ts"
-  ],
-  "imports": {
-    "bun": "npm:@types/bun@latest"
-  },
-  "publish": {
-    "include": [
-      "src/**/*.ts",
-      "LICENSE",
-      "README.md",
-      "jsr.json",
-      "package.json"
-    ],
-    "exclude": [
-      "src/**/*.test.ts",
-      "fixtures"
-    ]
-  }
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
+	"name": "@ecopages/core",
+	"version": "0.2.0-beta.41",
+	"exports": {
+		".": "./src/index.ts",
+		"./route-renderer/route-renderer": "./src/route-renderer/route-renderer.ts",
+		"./route-renderer/orchestration/integration-renderer": "./src/route-renderer/orchestration/integration-renderer.ts",
+		"./route-renderer/orchestration/string-markup-renderer": "./src/route-renderer/orchestration/string-markup-renderer.ts",
+		"./route-renderer/orchestration/foreign-child/component-render-context": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
+		"./route-renderer/orchestration/foreign-child/foreign-subtree-execution.service": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts",
+		"./route-renderer/orchestration/foreign-child/owning-renderer-resolution": "./src/route-renderer/orchestration/foreign-child/owning-renderer-resolution.ts",
+		"./route-renderer/orchestration/document-shell/document-shell-render.service": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
+		"./route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
+		"./errors/locals-access-error": "./src/errors/locals-access-error.ts",
+		"./constants": "./src/constants.ts",
+		"./config-builder": "./src/config/config-builder.ts",
+		"./adapters/bun": "./src/adapters/bun/index.ts",
+		"./adapters/bun/create-app": "./src/adapters/bun/create-app.ts",
+		"./services/asset-processing-service": "./src/services/assets/asset-processing-service/index.ts",
+		"./hmr/hmr-strategy": "./src/hmr/hmr-strategy.ts",
+		"./hmr/client/hmr-runtime": "./src/hmr/client/hmr-runtime.ts",
+		"./utils/deep-merge": "./src/utils/deep-merge.ts",
+		"./utils/invariant": "./src/utils/invariant.ts",
+		"./utils/parse-cli-args": "./src/utils/parse-cli-args.ts",
+		"./plugins/processor": "./src/plugins/processor.ts",
+		"./plugins/integration-plugin": "./src/plugins/integration-plugin.ts",
+		"./adapters/bun/client-bridge": "./src/adapters/bun/client-bridge.ts",
+		"./internal-types": "./src/internal-types.ts",
+		"./html": "./src/utils/html.ts",
+		"./css": "./src/utils/css.ts",
+		"./hash": "./src/utils/hash.ts"
+	},
+	"exclude": ["fixtures", "**/*.test.ts"],
+	"imports": {
+		"bun": "npm:@types/bun@latest"
+	},
+	"publish": {
+		"include": ["src/**/*.ts", "LICENSE", "README.md", "jsr.json", "package.json"],
+		"exclude": ["src/**/*.test.ts", "fixtures"]
+	}
 }

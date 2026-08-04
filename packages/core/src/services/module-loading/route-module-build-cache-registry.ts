@@ -62,7 +62,8 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 export function clearAppDevelopmentRouteModuleBuildCaches(appConfig: EcoPagesAppConfig): void {
 	const serverModuleCacheOutdir = getServerModuleBuildCacheOutdir(appConfig);
 	const caches = appConfig.runtime?.routeModuleBuildCaches;
-	const serverModuleCache = caches?.get(serverModuleCacheOutdir) ?? new RouteModuleBuildCache(serverModuleCacheOutdir);
+	const serverModuleCache =
+		caches?.get(serverModuleCacheOutdir) ?? new RouteModuleBuildCache(serverModuleCacheOutdir);
 	serverModuleCache.clearDevelopmentEntries();
 
 	for (const cache of caches?.values() ?? []) {

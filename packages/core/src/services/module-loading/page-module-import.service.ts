@@ -219,10 +219,10 @@ export class PageModuleImportService {
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 		} = options;
 
-		const outputFileName = resolvePageModuleOutputFileName({
-			filePath,
-			fileHash,
-		});
+		const outputFileName = createRuntimeBuildOutputFileName(
+			resolvePageModuleOutputFileName({ filePath, fileHash }),
+			this.developmentImportGeneration,
+		);
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
 		const preferredOutputPath = path.join(outdir, outputFileName);
 		const buildOptions: BuildOptions = this.appConfig
@@ -338,4 +338,20 @@ function createRuntimeModuleUrl(filePath: string, fileHash: string, developmentI
 
 function shouldAddRuntimeUpdateQuery(): boolean {
 	return process.env.NODE_ENV === 'development';
+}
+
+/**
+ * Gives Bun a distinct compiled module path after development invalidation.
+ *
+ * @remarks
+ * Bun does not reload an already-imported module when only its URL query changes.
+ * A dependency edit can leave the entrypoint source hash unchanged, so the output
+ * filename must include the import generation as well as the runtime query.
+ */
+function createRuntimeBuildOutputFileName(outputFileName: string, developmentImportGeneration: number): string {
+	if (typeof Bun === 'undefined' || !shouldAddRuntimeUpdateQuery()) {
+		return outputFileName;
+	}
+
+	return outputFileName.replace(/\.mjs$/u, `-${developmentImportGeneration}.mjs`);
 }

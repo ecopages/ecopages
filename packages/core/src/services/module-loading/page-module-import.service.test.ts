@@ -815,6 +815,7 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should rebuild Bun page modules after development graph invalidation', async () => {
+		process.env.NODE_ENV = 'development';
 		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bun-invalidate-'));
 		let buildCount = 0;
@@ -839,6 +840,7 @@ describe('PageModuleImportService', () => {
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
+				bypassCache: true,
 			});
 
 			service.invalidateDevelopmentGraph();
@@ -847,13 +849,14 @@ describe('PageModuleImportService', () => {
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
+				bypassCache: true,
 			});
 
 			assert.equal(first.version, 1);
 			assert.equal(second.version, 2);
 			assert.equal(fakeDependencies.calls.buildModule.length, 2);
-			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
-			assert.equal(fakeDependencies.calls.buildModule[1]?.options.naming, 'page-hash123.[ext]');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123-0.[ext]');
+			assert.equal(fakeDependencies.calls.buildModule[1]?.options.naming, 'page-hash123-1.[ext]');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

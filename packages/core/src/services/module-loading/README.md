@@ -33,7 +33,7 @@ Call site (route scan, renderer, SSG, API)
 2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. Manifest field `corePackageVersion` invalidates entries when the framework package changes.
 3. **Unified graph manifest** — production static export fast path only; see build layer docs.
 
-Development `?update=` query params use `sourceHash` plus a per-service import generation counter so Node and Bun bust ESM module cache after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
+Development import URLs use `sourceHash` plus a per-service import generation counter. Node uses that value in its `?update=` query. Bun also receives a generation-specific compiled output filename because it retains a previously imported file when only its query changes. Both paths advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
 ## Files
 
@@ -49,4 +49,4 @@ Development `?update=` query params use `sourceHash` plus a per-service import g
 
 ## Development invalidation
 
-`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used only for `?update=` URLs, and clears dependency-hash memoization. It also clears persisted route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.
+`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used for runtime URLs and Bun output filenames, and clears dependency-hash memoization. It also clears persisted route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.

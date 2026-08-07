@@ -73,6 +73,30 @@ describe('DevTransformVendorRegistry', () => {
 		expect(code).toMatch(/eco/);
 	});
 
+	it('does not alias package subpaths to a root runtime vendor', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-subpath');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'dev-transform-vendor-subpath', type: 'module' }, null, 2),
+			'utf8',
+		);
+
+		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		installBuildRuntime(config);
+		const registry = new DevTransformVendorRegistry({
+			appConfig: config,
+			getRuntimeSpecifierMap: () => new Map([['@acme/ui', '/assets/vendors/acme-ui.development.js']]),
+		});
+
+		const vendorsDir = path.join(config.absolutePaths.distDir, 'assets', 'vendors');
+		fs.mkdirSync(vendorsDir, { recursive: true });
+		const vendorPath = path.join(vendorsDir, 'acme-ui.development.js');
+		fs.writeFileSync(vendorPath, 'export const shared = 1;');
+
+		expect(registry.resolveKnownVendorUrl('@acme/ui/button')).toBeUndefined();
+	});
+
 	it('reports an actionable error when a bare import resolves to a server-only entry', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-server-only');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });

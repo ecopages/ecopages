@@ -5,6 +5,8 @@ import {
 	createBrowserRuntimeManifest,
 	getBrowserRuntimeSpecifierMap,
 	mergeBrowserRuntimeManifests,
+	resolveBrowserRuntimePublicPath,
+	resolveRuntimeSpecifierPublicPath,
 } from './browser-runtime-manifest.ts';
 
 test('createBrowserRuntimeManifest indexes runtime assets by specifier', () => {
@@ -47,6 +49,26 @@ test('createBrowserRuntimeManifest deduplicates identical declarations', () => {
 	]);
 
 	assert.equal(manifest.assets.length, 1);
+});
+
+test('createBrowserRuntimeManifest deduplicates equivalent declarations from distinct owners', () => {
+	const manifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react.js',
+		},
+		{
+			specifier: 'react',
+			owner: 'react-runtime-alias-plugin',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react.js',
+		},
+	]);
+
+	assert.equal(manifest.assets.length, 1);
+	assert.equal(manifest.bySpecifier.get('react')?.owner, '@ecopages/react');
 });
 
 test('createBrowserRuntimeManifest rejects conflicting declarations', () => {
@@ -118,4 +140,51 @@ test('getBrowserRuntimeSpecifierMap returns concrete public URLs for rewriting',
 		['react', '/assets/vendors/react.js'],
 		['react-dom/client', '/assets/vendors/react-dom-client.js'],
 	]);
+});
+
+test('resolveBrowserRuntimePublicPath only maps explicitly configured specifiers', () => {
+	const manifest = createBrowserRuntimeManifest([
+		{
+			specifier: '@acme/ui',
+			owner: '@ecopages/react',
+			importPath: '@acme/ui',
+			publicPath: '/assets/vendors/acme-ui.js',
+		},
+	]);
+
+	assert.equal(resolveBrowserRuntimePublicPath('@acme/ui', manifest), '/assets/vendors/acme-ui.js');
+	assert.equal(resolveBrowserRuntimePublicPath('@acme/ui/button', manifest), undefined);
+	assert.equal(resolveBrowserRuntimePublicPath('@other/pkg', manifest), undefined);
+});
+
+test('resolveBrowserRuntimePublicPath keeps configured specifiers separate', () => {
+	const manifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react.js',
+		},
+		{
+			specifier: 'react-dom',
+			owner: '@ecopages/react',
+			importPath: 'react-dom',
+			publicPath: '/assets/vendors/react-dom.js',
+		},
+	]);
+
+	assert.equal(resolveBrowserRuntimePublicPath('react/jsx-runtime', manifest), undefined);
+	assert.equal(resolveBrowserRuntimePublicPath('react-dom/client', manifest), undefined);
+	assert.equal(resolveBrowserRuntimePublicPath('react-dom', manifest), '/assets/vendors/react-dom.js');
+});
+
+test('resolveRuntimeSpecifierPublicPath works against a bare specifier map', () => {
+	const map = new Map([
+		['@acme/ui', '/assets/vendors/acme-ui.js'],
+		['react', '/assets/vendors/react.js'],
+	]);
+
+	assert.equal(resolveRuntimeSpecifierPublicPath('@acme/ui/button', map), undefined);
+	assert.equal(resolveRuntimeSpecifierPublicPath('react/jsx-runtime', map), undefined);
+	assert.equal(resolveRuntimeSpecifierPublicPath('@other/pkg', map), undefined);
 });

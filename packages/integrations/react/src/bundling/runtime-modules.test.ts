@@ -62,4 +62,21 @@ describe('resolveReactPluginRuntimeModules', () => {
 			},
 		]);
 	});
+
+	it('preserves subpath runtime module declarations', () => {
+		expect(
+			resolveReactPluginRuntimeModules([
+				{
+					specifier: '@acme/ui/button',
+					outputName: 'acme-ui',
+				},
+			]),
+		).toEqual([
+			{
+				specifier: '@acme/ui/button',
+				outputName: 'acme-ui',
+				externals: [],
+			},
+		]);
+	});
 });

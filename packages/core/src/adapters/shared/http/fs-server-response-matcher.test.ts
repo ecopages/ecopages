@@ -42,27 +42,32 @@ function createRouteRendererFactoryWithStub404(
 	realFactory: PageRendererResolver,
 	error404TemplatePath: string,
 	options?: { executeError?: Error },
-): PageRendererResolver {
+): { factory: PageRendererResolver; execute: ReturnType<typeof vi.fn> } {
+	const execute = options?.executeError
+		? vi.fn(async () => {
+				throw options.executeError;
+			})
+		: vi.fn(async () => ({
+				body: '<h1>404 - Page Not Found</h1>',
+			}));
+
 	const stub404Renderer = {
-		execute: options?.executeError
-			? vi.fn(async () => {
-					throw options.executeError;
-				})
-			: vi.fn(async () => ({
-					body: '<h1>404 - Page Not Found</h1>',
-				})),
+		execute,
 		loadPageModule: vi.fn(async () => ({
 			default: () => null,
 		})),
 	};
 
 	return {
-		getPageRenderer(filePath: string) {
-			if (filePath === error404TemplatePath) {
-				return stub404Renderer;
-			}
+		execute,
+		factory: {
+			getPageRenderer(filePath: string) {
+				if (filePath === error404TemplatePath) {
+					return stub404Renderer;
+				}
 
-			return realFactory.getPageRenderer(filePath);
+				return realFactory.getPageRenderer(filePath);
+			},
 		},
 	};
 }
@@ -151,7 +156,7 @@ function createRouteRendererFactoryWithMissing500Template(
 	};
 }
 
-const routeRendererFactoryForNoMatchTests = createRouteRendererFactoryWithStub404(
+const { factory: routeRendererFactoryForNoMatchTests } = createRouteRendererFactoryWithStub404(
 	routeRendererFactory,
 	appConfig.absolutePaths.error404TemplatePath,
 );
@@ -410,7 +415,7 @@ describe('FileSystemResponseMatcher', () => {
 				INDEX_TEMPLATE_FILE,
 				HttpError.NotFound('Unknown content entry'),
 			);
-			const factoryWithStub404 = createRouteRendererFactoryWithStub404(
+			const { factory: factoryWithStub404, execute: execute404 } = createRouteRendererFactoryWithStub404(
 				throwingFactory,
 				appConfig.absolutePaths.error404TemplatePath,
 			);
@@ -437,6 +442,11 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response.status).toBe(404);
 			expect(response.headers.get('Content-Type')).toBe('text/html');
 			expect(await response.text()).toContain('<h1>404 - Page Not Found</h1>');
+			expect(execute404).toHaveBeenCalledWith({
+				file: appConfig.absolutePaths.error404TemplatePath,
+				props: undefined,
+				locals: {},
+			});
 		});
 
 		it('should return custom HTML 500 when a matched route render throws', async () => {
@@ -516,6 +526,7 @@ describe('FileSystemResponseMatcher', () => {
 						message: 'page render failed',
 						stack: renderError.stack,
 					},
+					locals: {},
 				});
 			} finally {
 				process.env.NODE_ENV = previousNodeEnv;
@@ -560,6 +571,7 @@ describe('FileSystemResponseMatcher', () => {
 				expect(execute).toHaveBeenCalledWith({
 					file: appConfig.absolutePaths.error500TemplatePath,
 					props: undefined,
+					locals: {},
 				});
 			} finally {
 				process.env.NODE_ENV = previousNodeEnv;
@@ -642,7 +654,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should return custom HTML 500 when the custom 404 template render throws', async () => {
 			const templateError = new Error('404 template render failed');
-			const throwing404Factory = createRouteRendererFactoryWithStub404(
+			const { factory: throwing404Factory } = createRouteRendererFactoryWithStub404(
 				routeRendererFactory,
 				appConfig.absolutePaths.error404TemplatePath,
 				{ executeError: templateError },

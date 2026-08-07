@@ -3,6 +3,7 @@
  */
 
 import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/plugins/tsconfig-import-resolver';
+import { toPackageRootSpecifier } from '@ecopages/core/plugins/package-specifier';
 import { dirname, resolve } from 'node:path';
 import type { RequestedExportRules } from './boundary-cache.ts';
 
@@ -56,18 +57,7 @@ export function isServerOnlySpecifier(specifier: string): boolean {
  * @returns The root package name, preserving scoped npm organizations.
  */
 export function toModuleBaseSpecifier(specifier: string): string {
-	if (!isBareSpecifier(specifier) || specifier.startsWith('node:')) {
-		return specifier;
-	}
-
-	if (specifier.startsWith('@')) {
-		const [scope, name] = specifier.split('/');
-		if (!scope || !name) return specifier;
-		return `${scope}/${name}`;
-	}
-
-	const [name] = specifier.split('/');
-	return name ?? specifier;
+	return toPackageRootSpecifier(specifier);
 }
 
 /**

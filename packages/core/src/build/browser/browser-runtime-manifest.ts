@@ -50,7 +50,6 @@ function normalizeDeclaration(declaration: BrowserRuntimeAssetDeclaration): Brow
 
 function hasCompatibleRuntimeAsset(existing: BrowserRuntimeAsset, incoming: BrowserRuntimeAsset): boolean {
 	return (
-		existing.owner === incoming.owner &&
 		existing.importPath === incoming.importPath &&
 		existing.publicPath === incoming.publicPath &&
 		existing.mode === incoming.mode &&
@@ -102,4 +101,20 @@ export function mergeBrowserRuntimeManifests(
 
 export function getBrowserRuntimeSpecifierMap(manifest: BrowserRuntimeManifest): ReadonlyMap<string, string> {
 	return new Map(manifest.assets.map((asset) => [asset.specifier, asset.publicPath]));
+}
+
+/** Resolves a runtime public URL for an exact specifier. */
+export function resolveRuntimeSpecifierPublicPath(
+	specifier: string,
+	publicPathsBySpecifier: ReadonlyMap<string, string>,
+): string | undefined {
+	return publicPathsBySpecifier.get(specifier);
+}
+
+/** Resolves a manifest-owned runtime public URL for an exact specifier. */
+export function resolveBrowserRuntimePublicPath(
+	specifier: string,
+	manifest: BrowserRuntimeManifest,
+): string | undefined {
+	return manifest.bySpecifier.get(specifier)?.publicPath;
 }

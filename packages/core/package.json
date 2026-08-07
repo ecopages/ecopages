@@ -300,6 +300,10 @@
 			"types": "./src/plugins/tsconfig-import-resolver.ts",
 			"default": "./src/plugins/tsconfig-import-resolver.ts"
 		},
+		"./plugins/package-specifier": {
+			"types": "./src/plugins/package-specifier.ts",
+			"default": "./src/plugins/package-specifier.ts"
+		},
 		"./plugins/jsx-import-source.utils": {
 			"types": "./src/plugins/jsx-import-source.utils.ts",
 			"default": "./src/plugins/jsx-import-source.utils.ts"

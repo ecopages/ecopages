@@ -5,6 +5,7 @@ import {
 	isRequestPipelineMetricsEnabled,
 	serializeRequestPipelineMetricsHeader,
 } from '../../diagnostics/request-pipeline-metrics.ts';
+import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -18,10 +19,16 @@ type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 export class PageRequestCacheCoordinator {
 	private cacheService: PageCacheService | null;
 	private defaultCacheStrategy: CacheStrategy;
+	private readonly getRuntimeAssetGeneration?: () => number;
 
-	constructor(cacheService: PageCacheService | null, defaultCacheStrategy: CacheStrategy) {
+	constructor(
+		cacheService: PageCacheService | null,
+		defaultCacheStrategy: CacheStrategy,
+		getRuntimeAssetGeneration?: () => number,
+	) {
 		this.cacheService = cacheService;
 		this.defaultCacheStrategy = defaultCacheStrategy;
+		this.getRuntimeAssetGeneration = getRuntimeAssetGeneration;
 	}
 
 	/**
@@ -39,6 +46,11 @@ export class PageRequestCacheCoordinator {
 			const queryString = new URLSearchParams(input.query).toString();
 			key += `?${queryString}`;
 		}
+
+		if (this.getRuntimeAssetGeneration && isDevelopmentRuntime()) {
+			key += `#__eco_rt=${this.getRuntimeAssetGeneration()}`;
+		}
+
 		return key;
 	}
 

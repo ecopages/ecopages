@@ -99,6 +99,7 @@ Important:
 - If the `500.*` template is missing or throws, the response falls back to plain-text `Internal Server Error`. The custom page is never retried.
 - In **development**, the thrown error is passed as page props (`message`, `stack`) so the custom 500 page can show the real failure. In **production**, those props are omitted so stacks are not serialized into HTML. The original error is always logged server-side.
 - Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 and has no error props unless you trigger a render failure).
+- Semantic error templates render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on `404.*` / `500.*` templates.
 
 ```tsx
 import { eco, type Error500TemplateProps } from '@ecopages/core';

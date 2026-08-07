@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
+import { getBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation';
 
 const Config = {
 	absolutePaths: {
@@ -632,6 +633,53 @@ test('AssetProcessingService - invalidateCacheForFile removes specific file from
 
 	await service.processDependencies([dependency], 'key2');
 	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService advances the browser runtime generation when a runtime source changes', async () => {
+	const previousNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'development';
+	fileSystem.exists = vi.fn(() => true);
+	fileSystem.hash = vi
+		.fn()
+		.mockReturnValueOnce('source-v1')
+		.mockReturnValueOnce('source-v1')
+		.mockReturnValue('source-v2');
+
+	try {
+		const config = { ...Config } as any;
+		const service = new AssetProcessingService(config);
+		const processMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				filepath: '/test/dist/assets/vendors/runtime-v1.js',
+				kind: 'script',
+				inline: false,
+				packageRole: 'runtime',
+			})
+			.mockResolvedValueOnce({
+				filepath: '/test/dist/assets/vendors/runtime-v2.js',
+				kind: 'script',
+				inline: false,
+				packageRole: 'runtime',
+			});
+		service.registerProcessor('script', 'file', { process: processMock });
+
+		const dependency: AssetDefinition = {
+			kind: 'script',
+			source: 'file',
+			filepath: '/test/src/runtime.ts',
+			packageRole: 'runtime',
+		};
+
+		await service.processDependencies([dependency], 'runtime-generation');
+		expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+
+		await service.processDependencies([dependency], 'runtime-generation');
+		expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
+		expect(processMock).toHaveBeenCalledTimes(2);
+	} finally {
+		process.env.NODE_ENV = previousNodeEnv;
+	}
 });
 
 test('AssetProcessingService - skips missing file dependencies', async () => {

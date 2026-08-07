@@ -17,6 +17,12 @@ All notable changes to `@ecopages/core` are documented here.
 - Removed dev HMR entrypoint disk cache, grouped cold-graph prewarm, and `ECOPAGES_DEV_COLD_CLIENT_GRAPH*` env vars. Dev client modules are transpiled per source file on demand with in-memory caching and lazy `/assets/vendors` prebundles.
 - Removed `ECOPAGES_DEV_PREWARM_ALL_STATIC_ROUTES`. Dev SSR prewarm only renders processor-declared pathnames from `collectDevPrewarmPlan()`.
 
+### Bug Fixes
+
+- Browser vendor prebundles now prefer ESM `module` / `import` entries for third-party packages (legacy `browser` export conditions are omitted) while keeping browser-first resolution for `@ecopages/core`.
+- Semantic `404.*` / `500.*` templates now receive safe empty `locals` / `pageLocals` instead of the throwing locals proxy.
+- Development rendered HTML cache keys now include browser-runtime asset generation so rebuilt bootstrap/vendor script URLs cannot go stale.
+
 ### Features
 
 - Page HTML cache in watch mode uses Cache Strategy admission on a bounded memory store: static pages may be retained, dynamic pages never are. Set `cache.enabled: false` to disable watch-mode HTML caching entirely. Source-path edits invalidate only registered HTML keys; shared or unmapped dependencies clear the full page cache.

@@ -5,7 +5,7 @@
  * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
  */
 import { defineConfig, configDefaults } from 'vitest/config';
-import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes';
+import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes.ts';
 
 const isBunRuntime = typeof process.versions.bun === 'string';
 

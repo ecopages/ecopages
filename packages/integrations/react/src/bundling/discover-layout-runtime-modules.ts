@@ -10,6 +10,7 @@ import {
 	isBarePackageImportSpecifier,
 	resolveProjectModulePath,
 } from '@ecopages/core/plugins/tsconfig-import-resolver';
+import { toPackageRootSpecifier } from '@ecopages/core/plugins/package-specifier';
 import { analyzeReachability } from '../client-graph/reachability-analyzer.ts';
 import { REACT_RUNTIME_SPECIFIERS } from './runtime-alias-map.ts';
 
@@ -74,16 +75,7 @@ export function isProviderRuntimeModulePath(filePath: string, source: string): b
  * Normalizes import specifiers to the package entry used for browser vendors.
  */
 export function normalizeRuntimePackageSpecifier(specifier: string): string {
-	if (specifier.startsWith('@')) {
-		const parts = specifier.split('/');
-		if (parts.length >= 2) {
-			return `${parts[0]}/${parts[1]}`;
-		}
-
-		return specifier;
-	}
-
-	return specifier.split('/')[0] ?? specifier;
+	return toPackageRootSpecifier(specifier);
 }
 
 function isAutoRuntimeExcludedPackage(packageRoot: string): boolean {

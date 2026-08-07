@@ -15,10 +15,8 @@ import path from 'node:path';
 import type { InputOptions, OutputOptions, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import {
-	collectBrowserRuntimeImportRewriteMap,
-	rewriteBrowserRuntimeImports,
-} from '../browser/browser-runtime-plugin.ts';
+import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
+import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import {
@@ -461,14 +459,18 @@ export function rewriteBrowserRuntimeImportsInOutputs(
 		return result;
 	}
 
-	const specifierMap = collectBrowserRuntimeImportRewriteMap(plugins);
-	if (specifierMap.size === 0) {
+	const manifests = collectBrowserRuntimeManifests(plugins);
+	const manifest = mergeBrowserRuntimeManifests(...manifests);
+	if (manifest.assets.length === 0) {
 		return result;
 	}
 
 	const moduleRequireFromContext = createRequire(path.join(contextRoot, 'package.json'));
 	const fs = moduleRequireFromContext('node:fs') as typeof import('node:fs');
-	const cacheFingerprint = `${Array.from(specifierMap.entries()).sort().join('|')}`;
+	const cacheFingerprint = manifest.assets
+		.map((asset) => `${asset.specifier}->${asset.publicPath}`)
+		.sort()
+		.join('|');
 
 	for (const output of result.outputs) {
 		if (!/\.(?:[cm]?js)$/u.test(output.path)) {
@@ -481,7 +483,7 @@ export function rewriteBrowserRuntimeImportsInOutputs(
 			continue;
 		}
 
-		const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, output.path);
+		const rewritten = rewriteBrowserRuntimeImports(code, manifest, output.path);
 		if (rewritten !== code) {
 			fs.writeFileSync(output.path, rewritten);
 		}

@@ -8,6 +8,7 @@ import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.
 import type { EcoPageComponent } from '../../../eco/eco.types.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
+import { getBrowserRuntimeAssetGeneration } from '../../../services/assets/browser-runtime-asset-generation.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals, RouteRendererBody } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
@@ -69,7 +70,9 @@ export class FileSystemResponseMatcher {
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
+		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy, () =>
+			getBrowserRuntimeAssetGeneration(this.appConfig),
+		);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
 
@@ -244,6 +247,7 @@ export class FileSystemResponseMatcher {
 		const result = await routeRenderer.execute({
 			file: templatePath,
 			props,
+			locals: {},
 		});
 
 		return createHtmlResponse(result.body);

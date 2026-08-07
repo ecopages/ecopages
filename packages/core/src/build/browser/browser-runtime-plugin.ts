@@ -11,13 +11,9 @@
  * - `onLoad` for JS/TS files → AST-walking import/export rewrite against the
  *   manifest specifier set, with a `code.includes(specifier)` fast path
  *
- * The plugin object carries the manifest's `specifier → publicPath` map
- * under `BROWSER_RUNTIME_IMPORT_REWRITE_MAP` so
- * `collectBrowserRuntimeImportRewriteMap` and the post-build rewriter can
- * read it without re-walking the manifest.
- *
- * This is the single source of truth for browser-runtime plugin behavior.
- * Per-bundler bridges can treat it as a single plugin.
+ * The plugin object carries the manifest under `BROWSER_RUNTIME_MANIFEST` so
+ * post-build rewriters can resolve exact and subpath imports without rebuilding
+ * the map by hand.
  */
 
 import path from 'node:path';
@@ -25,7 +21,12 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import type { EcoBuildLoader, EcoBuildPlugin } from '../contracts/build-types.ts';
-import { getBrowserRuntimeSpecifierMap, type BrowserRuntimeManifest } from './browser-runtime-manifest.ts';
+import {
+	getBrowserRuntimeSpecifierMap,
+	mergeBrowserRuntimeManifests,
+	resolveBrowserRuntimePublicPath,
+	type BrowserRuntimeManifest,
+} from './browser-runtime-manifest.ts';
 import { buildSpecifierFilter } from './browser-runtime-plugin-helpers.ts';
 
 type Edit = {
@@ -35,11 +36,9 @@ type Edit = {
 };
 
 /**
- * Symbol used to attach the manifest's `specifier → publicPath` map to a
- * plugin instance. Consumers read it via `getBrowserRuntimeImportRewriteMap`
- * or `collectBrowserRuntimeImportRewriteMap`.
+ * Symbol used to attach the browser-runtime manifest to a plugin instance.
  */
-export const BROWSER_RUNTIME_IMPORT_REWRITE_MAP = Symbol.for('ecopages.browserRuntimeImportRewriteMap');
+export const BROWSER_RUNTIME_MANIFEST = Symbol.for('ecopages.browserRuntimeManifest');
 
 /**
  * Default name used by `createBrowserRuntimePlugin` when the caller
@@ -74,7 +73,7 @@ export type CreateBrowserRuntimePluginOptions = {
 };
 
 type BrowserRuntimePlugin = EcoBuildPlugin & {
-	[BROWSER_RUNTIME_IMPORT_REWRITE_MAP]?: ReadonlyMap<string, string>;
+	[BROWSER_RUNTIME_MANIFEST]?: BrowserRuntimeManifest;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -101,14 +100,14 @@ function inferLoaderFromPath(filePath: string): EcoBuildLoader {
 function queueReplacement(options: {
 	code: string;
 	source: unknown;
-	specifierMap: ReadonlyMap<string, string>;
+	manifest: BrowserRuntimeManifest;
 	edits: Edit[];
 }): void {
 	if (!isRecord(options.source) || typeof options.source.value !== 'string') {
 		return;
 	}
 
-	const mappedPath = options.specifierMap.get(options.source.value);
+	const mappedPath = resolveBrowserRuntimePublicPath(options.source.value, options.manifest);
 	if (!mappedPath || typeof options.source.start !== 'number' || typeof options.source.end !== 'number') {
 		return;
 	}
@@ -129,10 +128,10 @@ function queueReplacement(options: {
  */
 export function rewriteBrowserRuntimeImports(
 	code: string,
-	specifierMap: ReadonlyMap<string, string>,
+	manifest: BrowserRuntimeManifest,
 	filePath = 'browser-runtime-imports.js',
 ): string {
-	if (specifierMap.size === 0) {
+	if (manifest.assets.length === 0) {
 		return code;
 	}
 
@@ -151,12 +150,12 @@ export function rewriteBrowserRuntimeImports(
 				node.type === 'ExportNamedDeclaration' ||
 				node.type === 'ExportAllDeclaration'
 			) {
-				queueReplacement({ code, source: node.source, specifierMap, edits });
+				queueReplacement({ code, source: node.source, manifest, edits });
 			}
 
 			if (node.type === 'ImportExpression' && isRecord(node.source)) {
 				if (node.source.type === 'StringLiteral' || node.source.type === 'Literal') {
-					queueReplacement({ code, source: node.source, specifierMap, edits });
+					queueReplacement({ code, source: node.source, manifest, edits });
 				}
 			}
 
@@ -189,29 +188,39 @@ export function rewriteBrowserRuntimeImports(
 	return rewritten;
 }
 
+function importMightReferenceRuntimeRoots(code: string, rootSpecifiers: readonly string[]): boolean {
+	return rootSpecifiers.some((specifier) => code.includes(specifier));
+}
+
+export function getBrowserRuntimeManifestFromPlugin(plugin: EcoBuildPlugin): BrowserRuntimeManifest | undefined {
+	return (plugin as BrowserRuntimePlugin)[BROWSER_RUNTIME_MANIFEST];
+}
+
+/**
+ * Returns the exact specifier → publicPath map derived from the plugin manifest.
+ */
 export function getBrowserRuntimeImportRewriteMap(plugin: EcoBuildPlugin): ReadonlyMap<string, string> | undefined {
-	return (plugin as BrowserRuntimePlugin)[BROWSER_RUNTIME_IMPORT_REWRITE_MAP];
+	const manifest = getBrowserRuntimeManifestFromPlugin(plugin);
+	return manifest ? getBrowserRuntimeSpecifierMap(manifest) : undefined;
+}
+
+export function collectBrowserRuntimeManifests(plugins: EcoBuildPlugin[] | undefined): BrowserRuntimeManifest[] {
+	const manifests: BrowserRuntimeManifest[] = [];
+
+	for (const plugin of plugins ?? []) {
+		const manifest = getBrowserRuntimeManifestFromPlugin(plugin);
+		if (manifest) {
+			manifests.push(manifest);
+		}
+	}
+
+	return manifests;
 }
 
 export function collectBrowserRuntimeImportRewriteMap(
 	plugins: EcoBuildPlugin[] | undefined,
 ): ReadonlyMap<string, string> {
-	const merged = new Map<string, string>();
-
-	for (const plugin of plugins ?? []) {
-		const specifierMap = getBrowserRuntimeImportRewriteMap(plugin);
-		if (!specifierMap) {
-			continue;
-		}
-
-		for (const [specifier, publicPath] of specifierMap.entries()) {
-			if (!merged.has(specifier)) {
-				merged.set(specifier, publicPath);
-			}
-		}
-	}
-
-	return merged;
+	return getBrowserRuntimeSpecifierMap(mergeBrowserRuntimeManifests(...collectBrowserRuntimeManifests(plugins)));
 }
 
 /**
@@ -236,14 +245,13 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 	const rewriteImports = options.rewriteImports ?? true;
 	const matchPublicPaths = options.matchPublicPaths ?? true;
 	const publicPathSet = new Set(specifierMap.values());
-
-	const specifierKeys = Array.from(specifierMap.keys());
+	const rootSpecifiers = manifest.assets.map((asset) => asset.specifier);
 
 	const plugin: BrowserRuntimePlugin = {
 		name: options.name ?? DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 		setup(build) {
 			build.onResolve({ filter: specifierFilter }, (args) => {
-				const mappedPath = specifierMap.get(args.path);
+				const mappedPath = resolveBrowserRuntimePublicPath(args.path, manifest);
 				if (!mappedPath) {
 					return undefined;
 				}
@@ -280,11 +288,11 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 					 * any manifest-owned specifiers. This avoids expensive oxc-parser calls
 					 * on every JS/TS file in the dependency graph.
 					 */
-					if (!specifierKeys.some((specifier) => code.includes(specifier))) {
+					if (!importMightReferenceRuntimeRoots(code, rootSpecifiers)) {
 						return undefined;
 					}
 
-					const rewritten = rewriteBrowserRuntimeImports(code, specifierMap, args.path);
+					const rewritten = rewriteBrowserRuntimeImports(code, manifest, args.path);
 
 					if (rewritten === code) {
 						return undefined;
@@ -300,6 +308,6 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 		},
 	};
 
-	plugin[BROWSER_RUNTIME_IMPORT_REWRITE_MAP] = specifierMap;
+	plugin[BROWSER_RUNTIME_MANIFEST] = manifest;
 	return plugin;
 }

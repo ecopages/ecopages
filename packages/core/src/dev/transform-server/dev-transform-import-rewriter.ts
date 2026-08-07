@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { cachedParseSync } from '../../cache/module-parse-cache.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../../plugins/tsconfig-import-resolver.ts';
+import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 
 /**
@@ -160,7 +161,7 @@ async function resolveImportSpecifier(options: {
 	resolveVendorUrl: (specifier: string) => Promise<string>;
 	dependencies: Set<string>;
 }): Promise<string | undefined> {
-	const runtimeUrl = options.runtimeSpecifierMap.get(options.specifier);
+	const runtimeUrl = resolveRuntimeSpecifierPublicPath(options.specifier, options.runtimeSpecifierMap);
 	if (runtimeUrl) {
 		return runtimeUrl;
 	}

@@ -18,8 +18,8 @@ test('buildSpecifierFilter returns null for an empty map', () => {
 test('buildSpecifierFilter matches a single specifier exactly', () => {
 	const filter = buildSpecifierFilter(new Map([['react', '/vendor/react.js']]))!;
 	assert.equal(filter.test('react'), true);
+	assert.equal(filter.test('react/jsx-runtime'), false);
 	assert.equal(filter.test('react-dom'), false);
-	assert.equal(filter.test('react/extra'), false);
 	assert.equal(filter.test('xreact'), false);
 });
 
@@ -32,6 +32,7 @@ test('buildSpecifierFilter matches any of multiple specifiers', () => {
 	)!;
 	assert.equal(filter.test('react'), true);
 	assert.equal(filter.test('react-dom'), true);
+	assert.equal(filter.test('react-dom/client'), false);
 	assert.equal(filter.test('vue'), false);
 });
 

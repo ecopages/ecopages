@@ -1040,7 +1040,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				file: '/app/pages/index.tsx',
 				params: {},
 				query: {},
-				locals: { hidden: true },
 			} as unknown as RouteRendererOptions,
 			createFlowAdapter({
 				resolvePageModule: async () => ({

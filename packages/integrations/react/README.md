@@ -254,6 +254,8 @@ Auto-discovery runs at plugin setup when **both** are true:
 
 Without `router`, only explicit `runtimeModules` entries are vendored.
 
+Semantic `404.*` / `500.*` templates render outside the page-request middleware pipeline. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on those files; they receive safe empty `pageLocals` instead of request-scoped locals.
+
 #### Discovery modes
 
 | Mode                               | Trigger                                          | Layout roots scanned                                       | npm packages collected                                      |
@@ -341,9 +343,11 @@ Manual entries **override** auto-discovered entries for the same specifier.
 | Symptom                                    | Likely cause                                                                     | Fix                                                                                                  |
 | ------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `No QueryClient set` after SPA navigation  | Provider library bundled per page chunk                                          | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors      |
+| Duplicate React context / Tone init logs   | Provider package is bundled through multiple client entrypoints                  | Import through the package root and register that root in `runtimeModules`                           |
 | Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root                                           | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                     |
 | Package not discovered                     | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry                                              |
 | `@/` alias not followed                    | Missing or invalid tsconfig paths                                                | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
+| Stale bootstrap script hash in dev         | Rendered HTML cached before runtime vendors/bootstrap scripts changed            | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation        |
 
 #### Tests
 

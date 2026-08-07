@@ -45,7 +45,6 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		resolvedDependencies,
 		allDependencies,
 		pageBrowserGraph,
-		appConfig,
 	} = input;
 	const { Page, HtmlTemplate, Layouts, Layout, layoutEntries, props, metadata, integrationSpecificProps } =
 		resolvedInputs;
@@ -59,15 +58,9 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 		query: routeOptions.query || {},
 	};
 	const cacheStrategy = (Page as EcoPageComponent<any>).cache;
-	const defaultCacheStrategy = appConfig.cache?.defaultStrategy ?? 'static';
-	const effectiveCacheStrategy = cacheStrategy ?? defaultCacheStrategy;
-	const localsAvailable = effectiveCacheStrategy === 'dynamic' && routeOptions.locals !== undefined;
-
-	const pageLocals = localsAvailable
-		? routeOptions.locals!
-		: (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
-
-	const locals = localsAvailable ? routeOptions.locals : undefined;
+	const pageLocals =
+		routeOptions.locals ?? (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
+	const locals = routeOptions.locals;
 	const preparedOptions: IntegrationRendererRenderOptions<C> = {
 		...routeOptions,
 		resolvedPageDependencyComponents,

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { ResolverFactory, type ResolverFactory as ResolverFactoryType } from 'oxc-resolver';
+import { toPackageRootSpecifier } from './package-specifier.ts';
 
 const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mdx'] as const;
 
@@ -135,24 +136,51 @@ function getResolverFactory(projectRoot: string): ResolverFactoryType | undefine
 	return resolver;
 }
 
-const BROWSER_PACKAGE_CONDITION_NAMES = ['browser', 'module', 'import', 'default'] as const;
-const BROWSER_PACKAGE_MAIN_FIELDS = ['browser', 'module', 'main'] as const;
+const BROWSER_FIRST_CONDITION_NAMES = ['browser', 'module', 'import', 'default'] as const;
+/**
+ * Omit `browser` so package `exports` cannot select a legacy UMD facade when both
+ * `browser` and `import` conditions are published. Legacy `mainFields.browser`
+ * remains available after `module` for packages without `exports`.
+ */
+const MODULE_FIRST_CONDITION_NAMES = ['module', 'import', 'default'] as const;
+const BROWSER_FIRST_MAIN_FIELDS = ['browser', 'module', 'main'] as const;
+const MODULE_FIRST_MAIN_FIELDS = ['module', 'browser', 'main'] as const;
+
+/**
+ * Package roots that ship an explicit browser facade and must keep browser-first
+ * resolution during vendor prebundles.
+ *
+ * @remarks
+ * Prefer expanding this set only for dual packages whose `"browser"` / `exports.browser`
+ * entry is the intentional client facade (for example `@ecopages/core`).
+ */
+const BROWSER_FIRST_PACKAGE_ROOTS = new Set<string>(['@ecopages/core']);
 
 const browserPackageResolvers = new Map<string, ResolverFactoryType>();
 
-function getBrowserPackageResolver(projectRoot: string): ResolverFactoryType {
+function usesBrowserFirstPackageResolution(specifier: string): boolean {
+	const packageRoot = toPackageRootSpecifier(specifier);
+	return BROWSER_FIRST_PACKAGE_ROOTS.has(packageRoot);
+}
+
+function getBrowserPackageResolver(
+	projectRoot: string,
+	mainFields: readonly string[],
+	conditionNames: readonly string[],
+): ResolverFactoryType {
 	const normalizedRoot = path.resolve(projectRoot);
-	const cached = browserPackageResolvers.get(normalizedRoot);
+	const cacheKey = `${normalizedRoot}\0${mainFields.join(',')}\0${conditionNames.join(',')}`;
+	const cached = browserPackageResolvers.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
 
 	const resolver = new ResolverFactory({
-		conditionNames: [...BROWSER_PACKAGE_CONDITION_NAMES],
-		mainFields: [...BROWSER_PACKAGE_MAIN_FIELDS],
+		conditionNames: [...conditionNames],
+		mainFields: [...mainFields],
 		extensions: [...RESOLVABLE_EXTENSIONS],
 	});
-	browserPackageResolvers.set(normalizedRoot, resolver);
+	browserPackageResolvers.set(cacheKey, resolver);
 	return resolver;
 }
 
@@ -160,12 +188,17 @@ function getBrowserPackageResolver(projectRoot: string): ResolverFactoryType {
  * Resolves a bare npm package entry for browser vendor prebundles.
  *
  * @remarks
- * Prefer package `"browser"` / `"exports.browser"` over Node `"import"` entries.
- * `createRequire().resolve()` is wrong here — it selects the server facade for
- * dual packages such as `@ecopages/core`.
+ * Framework-owned dual packages such as `@ecopages/core` keep browser-first
+ * `mainFields` and `conditionNames` so vendor prebundles pick the browser facade.
+ * Third-party packages prefer ESM (`module` / `import`) and omit the `browser`
+ * export condition so legacy UMD `exports.browser` entries cannot win during
+ * Rolldown bundling.
  */
 export function resolveBarePackageBrowserEntry(projectRoot: string, specifier: string): string | undefined {
-	const result = getBrowserPackageResolver(projectRoot).sync(projectRoot, specifier);
+	const browserFirst = usesBrowserFirstPackageResolution(specifier);
+	const mainFields = browserFirst ? BROWSER_FIRST_MAIN_FIELDS : MODULE_FIRST_MAIN_FIELDS;
+	const conditionNames = browserFirst ? BROWSER_FIRST_CONDITION_NAMES : MODULE_FIRST_CONDITION_NAMES;
+	const result = getBrowserPackageResolver(projectRoot, mainFields, conditionNames).sync(projectRoot, specifier);
 	if (result.error || !result.path) {
 		return undefined;
 	}

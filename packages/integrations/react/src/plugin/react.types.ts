@@ -109,6 +109,10 @@ export type ReactPluginOptions = {
 	 * });
 	 * ```
 	 *
+	 * Manual entries override auto-discovered entries for the same specifier.
+	 * Subpath imports such as `@acme/ui/button` dedupe to the registered package
+	 * root vendor URL when `@acme/ui` is configured here or auto-discovered.
+	 *
 	 * @example Advanced vendor config
 	 * ```ts
 	 * runtimeModules: [

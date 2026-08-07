@@ -6,10 +6,11 @@ import path from 'node:path';
 import { test } from 'vitest';
 import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import {
-	BROWSER_RUNTIME_IMPORT_REWRITE_MAP,
+	BROWSER_RUNTIME_MANIFEST,
 	DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 	createBrowserRuntimePlugin,
 	getBrowserRuntimeImportRewriteMap,
+	getBrowserRuntimeManifestFromPlugin,
 } from './browser-runtime-plugin.ts';
 import type { EcoBuildOnLoadResult, EcoBuildOnResolveResult } from '../contracts/build-types.ts';
 
@@ -79,7 +80,7 @@ test('createBrowserRuntimePlugin honors a custom name', () => {
 	assert.equal(plugin.name, 'custom-runtime-plugin');
 });
 
-test('createBrowserRuntimePlugin exposes the specifier map under the canonical symbol', () => {
+test('createBrowserRuntimePlugin exposes the manifest and derived specifier map', () => {
 	const plugin = createBrowserRuntimePlugin({ manifest });
 	assert.ok(plugin);
 	const map = getBrowserRuntimeImportRewriteMap(plugin);
@@ -88,7 +89,8 @@ test('createBrowserRuntimePlugin exposes the specifier map under the canonical s
 		['react', '/assets/vendors/react.js'],
 		['react-dom/client', '/assets/vendors/react-dom.js'],
 	]);
-	assert.equal((plugin as Record<symbol, unknown>)[BROWSER_RUNTIME_IMPORT_REWRITE_MAP], map);
+	assert.equal(getBrowserRuntimeManifestFromPlugin(plugin), manifest);
+	assert.equal((plugin as Record<symbol, unknown>)[BROWSER_RUNTIME_MANIFEST], manifest);
 });
 
 test('createBrowserRuntimePlugin in full mode registers alias, publicPath, and onLoad hooks', () => {
@@ -253,4 +255,27 @@ test('createBrowserRuntimePlugin onLoad returns undefined for non-absolute paths
 	setupPlugin(plugin, callbacks);
 	assert.equal(callbacks.loadCallbacks.length, 1);
 	assert.equal(await callbacks.loadCallbacks[0]?.({ path: 'virtual:entry' }), undefined);
+});
+
+test('createBrowserRuntimePlugin leaves unconfigured package subpaths unchanged', async () => {
+	const scopedManifest = createBrowserRuntimeManifest([
+		{
+			specifier: '@acme/ui',
+			owner: '@ecopages/react',
+			importPath: '@acme/ui',
+			publicPath: '/assets/vendors/acme-ui.js',
+		},
+	]);
+	const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-subpath-rewrite-'));
+	const filePath = path.join(tempDir, 'entry.tsx');
+	writeFileSync(filePath, "import { Button } from '@acme/ui/button';\n", 'utf-8');
+
+	try {
+		const callbacks = captureCallbacks();
+		const plugin = createBrowserRuntimePlugin({ manifest: scopedManifest });
+		setupPlugin(plugin, callbacks);
+		assert.equal(await callbacks.loadCallbacks[0]?.({ path: filePath }), undefined);
+	} finally {
+		rmSync(tempDir, { recursive: true, force: true });
+	}
 });

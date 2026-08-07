@@ -6,16 +6,25 @@ import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
 import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
+import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
+import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
-const BROWSER_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
+const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
+const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
 const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 
 type VendorEntry = {
 	url: string;
 	filePath: string;
 };
+
+function getVendorBundleConditions(specifier: string): readonly string[] {
+	return toPackageRootSpecifier(specifier) === '@ecopages/core'
+		? BROWSER_FIRST_VENDOR_CONDITIONS
+		: MODULE_FIRST_VENDOR_CONDITIONS;
+}
 
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
@@ -45,7 +54,7 @@ export class DevTransformVendorRegistry {
 	}
 
 	resolveKnownVendorUrl(specifier: string): string | undefined {
-		return this.getRuntimeSpecifierMap().get(specifier);
+		return resolveRuntimeSpecifierPublicPath(specifier, this.getRuntimeSpecifierMap());
 	}
 
 	async resolveVendorUrl(specifier: string): Promise<string> {
@@ -149,7 +158,7 @@ export class DevTransformVendorRegistry {
 			externalPackages: false,
 			treeshaking: true,
 			splitting: false,
-			conditions: [...BROWSER_VENDOR_CONDITIONS],
+			conditions: [...getVendorBundleConditions(specifier)],
 			excludeAppBuildPlugins: getAppBrowserBuildPlugins(this.appConfig).map((plugin) => plugin.name),
 			plugins: [...vendorPlugins],
 		});

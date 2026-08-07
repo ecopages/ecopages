@@ -3,13 +3,16 @@ import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.se
 import type { PageCacheService } from './page-cache-service.js';
 
 describe('PageRequestCacheCoordinator', () => {
-	it('should build cache keys with query parameters', () => {
-		const service = new PageRequestCacheCoordinator(null, 'static');
-
-		expect(service.buildCacheKey({ pathname: '/blog' })).toBe('/blog');
-		expect(service.buildCacheKey({ pathname: '/blog', query: { page: '2', tag: 'eco' } })).toBe(
-			'/blog?page=2&tag=eco',
-		);
+	it('should include browser-runtime generation in development cache keys', () => {
+		const previousNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'development';
+		try {
+			const service = new PageRequestCacheCoordinator(null, 'static', () => 7);
+			expect(service.buildCacheKey({ pathname: '/blog' })).toBe('/blog#__eco_rt=7');
+			expect(service.buildCacheKey({ pathname: '/blog', query: { page: '2' } })).toBe('/blog?page=2#__eco_rt=7');
+		} finally {
+			process.env.NODE_ENV = previousNodeEnv;
+		}
 	});
 
 	it('should bypass the cache service for dynamic pages', async () => {

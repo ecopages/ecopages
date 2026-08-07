@@ -15,6 +15,7 @@ import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
+import { bumpBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -298,7 +299,7 @@ export class AssetProcessingService {
 
 		const sourceHash = this.getFileSourceHash(dep);
 		if (dep.source === 'file' && sourceHash === undefined) {
-			this.cache.delete(depKey);
+			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
@@ -308,12 +309,12 @@ export class AssetProcessingService {
 		}
 
 		if (cached.sourceHash !== sourceHash) {
-			this.cache.delete(depKey);
+			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
 		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
-			this.cache.delete(depKey);
+			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
@@ -350,10 +351,30 @@ export class AssetProcessingService {
 	 * Stores one processed asset in the dependency cache.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
+		const previous = this.cache.get(depKey)?.asset;
+		const tracksBrowserRuntimeGeneration = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
+
 		this.cache.set(depKey, {
 			asset,
 			sourceHash: this.getFileSourceHash(dep),
 		});
+
+		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
+			void bumpBrowserRuntimeAssetGeneration(this.config);
+		}
+	}
+
+	/**
+	 * Removes a cached asset and advances the development HTML cache generation
+	 * when the removed asset can determine browser runtime URLs.
+	 */
+	private invalidateCachedAsset(depKey: string): void {
+		const cached = this.cache.get(depKey);
+		this.cache.delete(depKey);
+
+		if (cached?.asset.packageRole === 'runtime' || cached?.asset.packageRole === 'page-script') {
+			void bumpBrowserRuntimeAssetGeneration(this.config);
+		}
 	}
 
 	private getFileSourceHash(dep: AssetDefinition): string | undefined {
@@ -368,21 +389,33 @@ export class AssetProcessingService {
 	 * Clears all cached processed assets.
 	 */
 	clearCache(): void {
+		const invalidatesBrowserRuntime = Array.from(this.cache.values()).some(
+			({ asset }) => asset.packageRole === 'runtime' || asset.packageRole === 'page-script',
+		);
 		this.cache.clear();
+		if (invalidatesBrowserRuntime) {
+			void bumpBrowserRuntimeAssetGeneration(this.config);
+		}
 	}
 
 	/**
 	 * Removes cached assets that were produced from the given file path.
 	 */
 	invalidateCacheForFile(filepath: string): void {
+		let invalidatesBrowserRuntime = false;
 		for (const [key, value] of this.cache.entries()) {
 			if (
 				value.asset.filepath === filepath ||
 				value.asset.sourceFilepath === filepath ||
 				value.asset.bundledSourceFilepaths?.includes(filepath)
 			) {
+				invalidatesBrowserRuntime ||=
+					value.asset.packageRole === 'runtime' || value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
 			}
+		}
+		if (invalidatesBrowserRuntime) {
+			void bumpBrowserRuntimeAssetGeneration(this.config);
 		}
 	}
 

@@ -1,17 +1,9 @@
 .navigation {
 	ul {
-		@apply flex items-center gap-5;
+		@apply flex items-center gap-1;
+
 		li {
 			@apply flex items-center;
-			a {
-				@apply text-on-background/80 font-heading font-medium transition-colors duration-150 text-sm;
-				&:hover {
-					@apply text-on-background;
-				}
-				svg {
-					@apply w-4 h-4;
-				}
-			}
 		}
 	}
 }

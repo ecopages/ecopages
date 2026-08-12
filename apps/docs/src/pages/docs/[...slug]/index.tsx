@@ -105,7 +105,7 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 
 		return (
 			<section class="docs-page">
-				<div class="docs-page__header">
+				<div class="docs-bar unstyled">
 					<DocsBreadcrumb entry={entry} />
 					{llmUrl ? <CopyForLlm llmUrl={llmUrl} /> : null}
 				</div>

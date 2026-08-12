@@ -20,8 +20,8 @@ allowBuilds:
     sharp: true
 
 minimumReleaseAgeExclude:
-    - '@ecopages/jsx@0.3.0-beta.6'
-    - '@ecopages/radiant@0.3.0-beta.6 || 0.3.0-beta.7'
-    - '@ecopages/signals@0.3.0-beta.6'
+    - '@ecopages/jsx@0.3.0-beta.8'
+    - '@ecopages/radiant@0.3.0-beta.8'
+    - '@ecopages/signals@0.3.0-beta.8'
     - postcss-nested@8.0.1
-    - '@ecopages/radiant-ui@0.1.0-beta.5 || 0.1.0-beta.6 || 0.1.0-beta.7'
+    - '@ecopages/radiant-ui@0.1.0-beta.8'

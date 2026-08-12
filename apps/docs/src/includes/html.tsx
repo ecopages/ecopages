@@ -3,7 +3,7 @@ import { Head } from '@/includes/head';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
-const themeScript = `(function(){const t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}})();`;
+const themeScript = `(function(){const s=localStorage.getItem('theme');const p=s==='light'||s==='dark'||s==='system'?s:'system';const t=p==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}})();`;
 
 const HtmlTemplate = eco.component<HtmlTemplateProps, JsxRenderable>({
 	dependencies: {

@@ -1,6 +1,15 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
+import { RuiChip } from '@ecopages/radiant-ui/chip';
+import {
+	RuiFeed,
+	RuiFeedArticle,
+	RuiFeedArticleActions,
+	RuiFeedArticleContent,
+	RuiFeedArticleHeader,
+} from '@ecopages/radiant-ui/feed';
+import { RuiHeading, RuiHeadingDescription, RuiHeadingEyebrow, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
 import { BaseLayout } from '@/layouts/base-layout';
 import { CodeTabs } from '@/components/code-tabs';
 import {
@@ -12,24 +21,35 @@ import {
 	pageExampleCode,
 } from '@/homepage/examples.server';
 
-const HomeCard = ({
+const HomeFeedArticle = ({
 	href,
 	label,
 	title,
 	description,
+	position,
 }: {
 	href: string;
 	label: string;
 	title: string;
 	description: string;
+	position: number;
 }) => (
-	<a href={href} class="home-card group">
-		<article>
-			<p class="home-card__label">{label}</p>
-			<h1 class="home-card__title">{title}</h1>
-			<p class="home-card__text">{description}</p>
-		</article>
-	</a>
+	<RuiFeedArticle posinset={position} setsize={4} tabindex={-1}>
+		<RuiFeedArticleHeader>
+			<RuiHeading size="sm">
+				<RuiHeadingEyebrow>{label}</RuiHeadingEyebrow>
+				<RuiHeadingTitle as="h2">{title}</RuiHeadingTitle>
+			</RuiHeading>
+		</RuiFeedArticleHeader>
+		<RuiFeedArticleContent>
+			<p>{description}</p>
+		</RuiFeedArticleContent>
+		<RuiFeedArticleActions class="mt-auto">
+			<RuiButton href={href} variant="link" size="none">
+				Explore {label}
+			</RuiButton>
+		</RuiFeedArticleActions>
+	</RuiFeedArticle>
 );
 
 const HomePathCard = ({ href, title, description }: { href: string; title: string; description: string }) => (
@@ -58,14 +78,16 @@ export default eco.page<{}, JsxRenderable>({
 			<header class="home-header">
 				<div class="home-hero">
 					<div class="home-hero__text">
-						<p class="home-header__subtitle">Ecopages</p>
-						<h1 class="home-header__title">
-							A file-based web framework for HTML-first multi-page applications.
-						</h1>
-						<p class="home-header__description">
-							Optional interactive islands, revalidating cache, and first-party libraries including
-							Ecopages JSX, Radiant, Browser Router, React Router, and PostCSS Processor.
-						</p>
+						<RuiHeading size="xl" class="home-header__heading">
+							<RuiHeadingEyebrow>Ecopages</RuiHeadingEyebrow>
+							<RuiHeadingTitle as="h1">
+								A file-based web framework for HTML-first multi-page applications.
+							</RuiHeadingTitle>
+							<RuiHeadingDescription>
+								Optional interactive islands, revalidating cache, and first-party libraries including
+								Ecopages JSX, Radiant, Browser Router, React Router, and PostCSS Processor.
+							</RuiHeadingDescription>
+						</RuiHeading>
 
 						<CodeTabs
 							label="Package managers"
@@ -130,36 +152,43 @@ export default eco.page<{}, JsxRenderable>({
 
 			<main class="home-main">
 				<section>
-					<div class="home-cards">
-						<HomeCard
+					<RuiFeed label="Explore Ecopages" class="home-cards">
+						<HomeFeedArticle
 							href="/docs/getting-started/introduction"
 							label="Get Started"
 							title="Start with Ecopages JSX"
 							description="Use the first-party Integration for internal-first DX, then expand only when your Page needs it."
+							position={1}
 						/>
-						<HomeCard
+						<HomeFeedArticle
 							href="/docs/core/components"
 							label="Core"
 							title="Build with core primitives"
 							description="Use eco.page and eco.component to define Pages and Components with explicit Dependencies."
+							position={2}
 						/>
-						<HomeCard
+						<HomeFeedArticle
 							href="/docs/ecosystem/radiant"
 							label="Ecosystem"
 							title="Add Radiant when needed"
 							description="Layer in first-party reactive Components with Radiant without leaving the Ecopages model."
+							position={3}
 						/>
-						<HomeCard
+						<HomeFeedArticle
 							href="/docs/ecosystem/packages"
 							label="Libraries"
 							title="Use more first-party packages"
 							description="Discover core libraries built to work together: Ecopages JSX, Radiant, routers, and processors."
+							position={4}
 						/>
-					</div>
+					</RuiFeed>
 				</section>
 
 				<section class="home-path">
-					<p class="home-card__label">Suggested Path</p>
+					<RuiHeading as="header" size="sm">
+						<RuiHeadingEyebrow>Suggested path</RuiHeadingEyebrow>
+						<RuiHeadingTitle as="h2">Build confidence step by step</RuiHeadingTitle>
+					</RuiHeading>
 					<ol class="home-path__list">
 						<li>Start with introduction and installation to scaffold your first project.</li>
 						<li>Start with Ecopages JSX for the default first-party authoring experience.</li>
@@ -233,29 +262,39 @@ export default eco.page<{}, JsxRenderable>({
 				<div class="home-sidebar__section">
 					<p class="home-sidebar__label">For agents</p>
 					<div class="home-sidebar__tags">
-						<a href="/skill.txt" class="home-sidebar__tag">
+						<RuiButton href="/skill.txt" variant="outline" size="sm" class="font-mono">
 							skill.txt
-						</a>
-						<a href="/skill/SKILL.md" class="home-sidebar__tag">
+						</RuiButton>
+						<RuiButton href="/skill/SKILL.md" variant="outline" size="sm" class="font-mono">
 							SKILL.md
-						</a>
-						<a href="/llms.txt" class="home-sidebar__tag">
+						</RuiButton>
+						<RuiButton href="/llms.txt" variant="outline" size="sm" class="font-mono">
 							llms.txt
-						</a>
+						</RuiButton>
 					</div>
 				</div>
 
 				<div class="home-sidebar__section">
 					<p class="home-sidebar__label">Ecosystem</p>
 					<div class="home-sidebar__tags">
-						<span class="home-sidebar__tag">@ecopages/core</span>
-						<span class="home-sidebar__tag">@ecopages/ecopages-jsx</span>
-						<span class="home-sidebar__tag">@ecopages/radiant</span>
-						<span class="home-sidebar__tag">@ecopages/browser-router</span>
-						<span class="home-sidebar__tag">@ecopages/postcss-processor</span>
+						<RuiChip class="font-mono">@ecopages/core</RuiChip>
+						<RuiChip class="font-mono">@ecopages/ecopages-jsx</RuiChip>
+						<RuiChip class="font-mono">@ecopages/radiant</RuiChip>
+						<RuiChip class="font-mono">@ecopages/browser-router</RuiChip>
+						<RuiChip class="font-mono">@ecopages/postcss-processor</RuiChip>
 					</div>
 				</div>
 			</aside>
+
+			<footer class="home-footer">
+				<p>
+					Made with{' '}
+					<a href="https://github.com/ecopages/ecopages" target="_blank" rel="noopener noreferrer">
+						Ecopages
+					</a>
+					© {new Date().getFullYear()}
+				</p>
+			</footer>
 		</div>
 	),
 });

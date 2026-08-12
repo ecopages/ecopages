@@ -7,9 +7,10 @@
 - MDX modules resolve through `@ecopages/content-processor` (`ecopages:content/docs`).
 - Sidebar navigation is built in `src/lib/content-nav.ts` from processor `entries`.
 - Do not add layout or routing `export const config` in MDX files; the catch-all page owns routing and layout.
-- Interactive demo pages may declare `export const config = { dependencies: { components: [...] } }` in MDX. The catch-all page forwards them with `getEntryDependencies(props.entry.slug)`.
+- Shared MDX chrome like `CodeTabs` is registered on `DocsLayout` so its CSS/scripts load on every docs page. Entry-specific interactive demos still declare `export const config = { dependencies: { components: [...] } }` in MDX.
 - Each MDX document imports the interactive components it renders (`CodeTabs`, `RuiAlert`, `ApiField`, and so on).
-- Docs chrome uses `@ecopages/radiant-ui` (sidebar, toc, breadcrumb, tabs, alerts, buttons, theme switch).
+- Docs chrome uses `@ecopages/radiant-ui` (sidebar, toc, breadcrumb, tabs, alerts, buttons, cycle theme toggle).
+- Prose styles must exclude `.unstyled` / `.unstyled *` so alerts, code tabs, and other chrome are not restyled by `.prose`.
 
 ## Configuration
 

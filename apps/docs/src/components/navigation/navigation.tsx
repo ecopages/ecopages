@@ -1,12 +1,15 @@
 import { eco } from '@ecopages/core';
-import { ThemeToggle } from '../theme-toggle/theme-toggle';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiButton } from '@ecopages/radiant-ui/button';
+import { ThemeToggle } from '../theme-toggle/theme-toggle';
 
 export type NavigationProps = {
 	items: {
 		label: string | JsxRenderable;
 		href: string;
 		target?: '_blank' | '_self';
+		rel?: string;
+		'aria-label'?: string;
 	}[];
 };
 
@@ -17,17 +20,24 @@ export const Navigation = eco.component<NavigationProps, JsxRenderable>({
 	},
 	render: ({ items }) => {
 		return (
-			<nav class="navigation">
+			<nav class="navigation" aria-label="Site">
 				<ul>
-					{items.map(({ label, href, target = '_self' }) => (
+					{items.map(({ label, href, target = '_self', rel, 'aria-label': ariaLabel }) => (
 						<li>
-							<a href={href} target={target}>
+							<RuiButton
+								href={href}
+								target={target}
+								rel={rel}
+								variant="ghost"
+								size="sm"
+								aria-label={ariaLabel}
+							>
 								{label}
-							</a>
+							</RuiButton>
 						</li>
 					))}
 					<li>
-						<ThemeToggle id="toggle-dark-mode" label="Theme" hiddenLabel />
+						<ThemeToggle id="toggle-dark-mode" label="Theme" />
 					</li>
 				</ul>
 			</nav>

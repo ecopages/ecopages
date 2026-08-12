@@ -1,41 +1,41 @@
 .prose {
 	@apply text-on-background/90 text-base leading-[1.65];
 
-	h1 {
+	h1:not(.unstyled, .unstyled *) {
 		@apply text-4xl leading-tight font-extrabold text-on-background-accent mt-12 mb-6 font-heading tracking-tight;
 	}
 
-	h2 {
+	h2:not(.unstyled, .unstyled *) {
 		@apply text-3xl leading-tight font-bold text-on-background-accent mt-10 mb-5 font-heading tracking-tight;
 		scroll-margin-top: 7.5rem;
 	}
 
-	h3 {
+	h3:not(.unstyled, .unstyled *) {
 		@apply text-2xl leading-snug font-bold text-on-background-accent mt-8 mb-4 font-heading tracking-tight;
 		scroll-margin-top: 7.5rem;
 	}
 
-	h4 {
+	h4:not(.unstyled, .unstyled *) {
 		@apply text-xl leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading tracking-tight;
 	}
 
-	h5 {
+	h5:not(.unstyled, .unstyled *) {
 		@apply text-lg leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading;
 	}
 
-	h6 {
+	h6:not(.unstyled, .unstyled *) {
 		@apply text-base leading-snug font-bold text-on-background-accent mt-6 mb-4 font-heading;
 	}
 
-	p {
+	p:not(.unstyled, .unstyled *) {
 		@apply mt-2 mb-7;
 	}
 
-	a:not(.unstyled, .unstyled *) {
+	a:not(.unstyled, .unstyled *, .rui-button) {
 		@apply text-link font-medium underline underline-offset-4 decoration-link/30 hover:decoration-link transition-colors duration-200;
 	}
 
-	strong {
+	strong:not(.unstyled, .unstyled *) {
 		@apply font-semibold;
 	}
 
@@ -64,7 +64,7 @@
 		}
 	}
 
-	blockquote {
+	blockquote:not(.unstyled, .unstyled *) {
 		@apply border-l-[3px] border-primary/50 pl-5 py-2 my-8 font-serif italic text-on-background/80 bg-primary/5 rounded-r-xl;
 
 		p {
@@ -72,11 +72,11 @@
 		}
 	}
 
-	code {
+	code:not(.unstyled, .unstyled *) {
 		@apply font-mono text-[0.875em] bg-muted text-on-background-accent px-1.5 py-0.5 rounded-md border border-border/30;
 	}
 
-	pre {
+	pre:not(.unstyled, .unstyled *) {
 		@apply my-8 rounded-md bg-background-accent/10 border border-border overflow-x-auto p-5 shadow-sm;
 
 		code {
@@ -84,11 +84,11 @@
 		}
 	}
 
-	hr {
+	hr:not(.unstyled, .unstyled *) {
 		@apply border-t border-border/40 my-10;
 	}
 
-	table {
+	table:not(.unstyled, .unstyled *) {
 		@apply w-full text-left border-collapse my-8 text-sm overflow-hidden rounded-xl border border-border/30 block md:table ring-1 ring-border/20;
 
 		thead {

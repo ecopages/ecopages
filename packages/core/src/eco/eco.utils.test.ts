@@ -104,6 +104,39 @@ describe('addTriggerAttribute', () => {
 			]);
 		});
 
+		test('injects into parts-based JSX templates that end at the tag name', () => {
+			const strings = ['<theme-toggle', '></theme-toggle>'];
+			Object.defineProperty(strings, 'raw', {
+				value: ['<theme-toggle', '></theme-toggle>'],
+			});
+
+			const template = {
+				_$rType$: 1,
+				rootLocalName: 'theme-toggle',
+				parts: [{ kind: 'attr', name: 'class', type: 'attribute' }],
+				strings,
+				values: ['radiant-switch'],
+			};
+
+			const result = addTriggerAttribute(template, TRIGGER_ID) as unknown as {
+				_$rType$: number;
+				rootLocalName: string;
+				parts: unknown[];
+				strings: string[];
+				values: unknown[];
+			};
+
+			expect(result._$rType$).toBe(1);
+			expect(result.rootLocalName).toBe('theme-toggle');
+			expect(result.parts).toEqual([{ kind: 'attr', name: 'class', type: 'attribute' }]);
+			expect(result.values).toEqual(['radiant-switch']);
+			expect(result.strings).toEqual([`<theme-toggle data-eco-trigger="${TRIGGER_ID}"`, '></theme-toggle>']);
+			expect(Object.getOwnPropertyDescriptor(result.strings, 'raw')?.value).toEqual([
+				`<theme-toggle data-eco-trigger="${TRIGGER_ID}"`,
+				'></theme-toggle>',
+			]);
+		});
+
 		test('preserves SSR markup node output while injecting into outerHTML', () => {
 			const markupNode = {
 				nodeType: 1,

@@ -220,8 +220,13 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 
 		if (next && /[a-zA-Z]/.test(next)) {
 			const tagSlice = str.slice(i + 1);
-			const nameEnd = tagSlice.search(/[\s/>]/);
-			if (nameEnd === -1) break;
+			let nameEnd = tagSlice.search(/[\s/>]/);
+			if (nameEnd === -1) {
+				if (!/^[a-zA-Z][\w:-]*$/.test(tagSlice)) {
+					break;
+				}
+				nameEnd = tagSlice.length;
+			}
 			const insertAt = i + 1 + nameEnd;
 			return `${str.slice(0, insertAt)} data-eco-trigger="${triggerId}"${str.slice(insertAt)}`;
 		}
@@ -249,6 +254,11 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
  *
  * When no eligible opening tag is found the original string is returned
  * unchanged so callers never receive a broken fragment.
+ *
+ * @remarks
+ * `@ecopages/jsx` beta.8+ keeps attribute names in `parts`, so template
+ * `strings[0]` is often just the opening tag name (`<html`) with no trailing
+ * delimiter. In that shape the attribute is appended at the end of that string.
  *
  * @param content Rendered HTML string (or any value coercible to string).
  * @param triggerId Stable trigger identifier produced by `buildResolvedLazyTriggers`.

@@ -9,9 +9,11 @@ export const CodeTabs = eco.component({
 		stylesheets: ['./code-tabs.css'],
 	},
 	render(props: JsxCustomElementAttributes<HTMLElement, RadiantCodeTabsProps>) {
+		const className = props.class ? `unstyled ${props.class}` : 'unstyled';
+
 		return (
 			<radiant-code-tabs
-				class={props.class}
+				class={className}
 				name={props.name}
 				prop:label={props.label}
 				prop:tabs={props.tabs}

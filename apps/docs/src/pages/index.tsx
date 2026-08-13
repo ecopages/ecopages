@@ -90,6 +90,7 @@ export default eco.page<{}, JsxRenderable>({
 						</RuiHeading>
 
 						<CodeTabs
+							name="home-package-managers"
 							label="Package managers"
 							tabs={[
 								{
@@ -122,6 +123,7 @@ export default eco.page<{}, JsxRenderable>({
 
 					<div class="home-hero__code">
 						<CodeTabs
+							name="home-starter-files"
 							label="Starter files"
 							tabs={[
 								{

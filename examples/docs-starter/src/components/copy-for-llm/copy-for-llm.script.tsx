@@ -4,6 +4,7 @@ import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { prop } from '@ecopages/radiant/decorators/prop';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { RuiButton } from '@ecopages/radiant-ui/button';
 import { copyForLlmCheckIcon, copyForLlmSparkleIcon } from './copy-for-llm-icons';
 
 export type CopyForLlmProps = {
@@ -93,8 +94,10 @@ export class RadiantCopyForLlm extends RadiantElement {
 
 	override render() {
 		return (
-			<button
+			<RuiButton
 				type="button"
+				size="sm"
+				variant="outline"
 				class="docs-copy-for-llm"
 				aria-label={this.label}
 				data-testid="copy-for-llm"
@@ -110,7 +113,7 @@ export class RadiantCopyForLlm extends RadiantElement {
 					{copyForLlmCheckIcon}
 				</span>
 				<span class="docs-copy-for-llm__label">{this.label}</span>
-			</button>
+			</RuiButton>
 		);
 	}
 }

@@ -79,7 +79,9 @@ const DocsSiteHeader = () => (
 				triggerLabel="Open documentation navigation"
 			/>
 			<Logo href="/" target="_self" title="Ecopages" />
-			<RuiChip variant="default">v {rootJson.version}</RuiChip>
+			<RuiChip variant="default" class="max-md:hidden">
+				{rootJson.version}
+			</RuiChip>
 		</div>
 		<nav class="rui-sidebar-provider__site-header-nav" aria-label="Site">
 			<RuiButton

@@ -10,6 +10,7 @@ export type NavigationProps = {
 		target?: '_blank' | '_self';
 		rel?: string;
 		'aria-label'?: string;
+		class?: string;
 	}[];
 };
 
@@ -22,8 +23,8 @@ export const Navigation = eco.component<NavigationProps, JsxRenderable>({
 		return (
 			<nav class="navigation" aria-label="Site">
 				<ul>
-					{items.map(({ label, href, target = '_self', rel, 'aria-label': ariaLabel }) => (
-						<li>
+					{items.map(({ label, href, target = '_self', rel, 'aria-label': ariaLabel, class: className }) => (
+						<li class={className}>
 							<RuiButton
 								href={href}
 								target={target}

@@ -95,6 +95,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 							collapsible="off"
 							defaultWidth={250}
 							mobileBreakpoint={768}
+							mobileDefaultOpen={false}
 							label="Documentation navigation"
 							matchActive
 							scrollActiveOnMount

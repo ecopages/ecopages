@@ -6,7 +6,7 @@ It encompasses valuable information detailing its usage and provides a thorough 
 
 The aim is to offer users a clear understanding of how to effectively utilize ecopages and leverage its capabilities to their full extent.
 
-The docs shell uses `@ecopages/radiant-ui` for its responsive navigation, breadcrumb, tabs, alerts, buttons, and cycle theme toggle (`system` / `light` / `dark`). Sidebar and table-of-contents navigation listeners are registered only in the browser, so server rendering does not retain document listeners between pages.
+The docs shell uses `@ecopages/radiant-ui` for its responsive navigation, breadcrumb, tabs, alerts, buttons, and cycle theme toggle (`system` / `light` / `dark`). The docs sidebar is uncontrolled with `mobileDefaultOpen={false}`, so entering the mobile breakpoint closes the drawer without a page-level `rui-sidebar-mobile-change` listener. Table-of-contents navigation listeners are registered only in the browser, so server rendering does not retain document listeners between pages.
 Each MDX document imports the interactive components it renders, so client assets are scoped to the pages that use them.
 
 ## Local development

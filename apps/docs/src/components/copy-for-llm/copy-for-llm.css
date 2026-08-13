@@ -3,9 +3,6 @@ radiant-copy-for-llm {
 }
 
 .docs-copy-for-llm {
-	@apply inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-border bg-background px-3 text-sm text-on-background transition-all;
-	@apply hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
-
 	&[data-copied='true'] {
 		@apply text-primary;
 
@@ -20,10 +17,6 @@ radiant-copy-for-llm {
 
 	&[data-copy-error='true'] {
 		@apply border-secondary/60 text-secondary;
-	}
-
-	&:disabled {
-		@apply opacity-70;
 	}
 }
 

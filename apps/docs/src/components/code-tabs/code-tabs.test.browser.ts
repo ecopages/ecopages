@@ -66,7 +66,9 @@ describe('RadiantCodeTabs', () => {
 		expect(visibleSelectedPanels[0]?.textContent).toContain('echo bash');
 		expect(changeSpy).toHaveBeenCalledTimes(1);
 		expect(changeSpy.mock.calls[0]?.[0]).toMatchObject({ detail: { selectedKey: 'bash' } });
-		expect(document.activeElement?.getAttribute('data-tab-index')).toBe('2');
+		expect(document.activeElement?.getAttribute('data-tab-value')).toBe(
+			'radiant-code-tabs-image-processor-install--bash',
+		);
 	});
 
 	it('copies the active tab code and exposes transient status feedback', async () => {
@@ -120,14 +122,14 @@ describe('RadiantCodeTabs', () => {
 
 		await vi.waitFor(() => {
 			expect(codeTabs.querySelector<HTMLButtonElement>('[role="tab"]')?.id).toBe(
-				'radiant-code-tabs-image-processor-install-tab-js',
+				'tab-radiant-code-tabs-image-processor-install--js',
 			);
 		});
 
 		const activeTab = codeTabs.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
 		const panel = codeTabs.querySelector<HTMLDivElement>('[role="tabpanel"]');
-		expect(activeTab?.id).toBe('radiant-code-tabs-image-processor-install-tab-js');
-		expect(panel?.id).toBe('radiant-code-tabs-image-processor-install-panel-js');
+		expect(activeTab?.id).toBe('tab-radiant-code-tabs-image-processor-install--js');
+		expect(panel?.id).toBe('panel-radiant-code-tabs-image-processor-install--js');
 		expect(activeTab?.getAttribute('aria-controls')).toBe(panel?.id ?? null);
 		expect(panel?.getAttribute('aria-labelledby')).toBe(activeTab?.id ?? null);
 	});

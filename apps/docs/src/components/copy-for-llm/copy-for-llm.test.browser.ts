@@ -49,6 +49,13 @@ describe('RadiantCopyForLlm', () => {
 		vi.useRealTimers();
 	});
 
+	it('renders as a small RuiButton', async () => {
+		const { button } = await createCopyForLlm();
+
+		expect(button.classList.contains('rui-button')).toBe(true);
+		expect(button.classList.contains('rui-button--sm')).toBe(true);
+	});
+
 	it('copies markdown and shows the copied state', async () => {
 		const { button } = await createCopyForLlm();
 		button.click();

@@ -10,6 +10,14 @@
 	@apply min-h-svh h-svh min-w-0;
 	--rui-sidebar-background: var(--color-background);
 
+	.rui-sidebar-provider__site-header-inner {
+		@apply px-4 md:px-8;
+	}
+
+	.rui-sidebar-provider__site-header-start {
+		@apply min-w-0 gap-2 md:gap-4;
+	}
+
 	.docs-layout__content {
 		@apply min-w-0 flex-1 overflow-y-auto px-6 py-8 md:px-10 lg:px-12 md:py-10;
 	}

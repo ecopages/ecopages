@@ -10,6 +10,7 @@ import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { HttpError } from '../../../errors/http-error.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
@@ -449,6 +450,44 @@ describe('FileSystemResponseMatcher', () => {
 			});
 		});
 
+		it('should not log a server error when a matched route throws HttpError.NotFound', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				HttpError.NotFound('Unknown content entry'),
+			);
+			const { factory: factoryWithStub404 } = createRouteRendererFactoryWithStub404(
+				throwingFactory,
+				appConfig.absolutePaths.error404TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub404,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			try {
+				const response = await matcher.handleMatch(match);
+				expect(response.status).toBe(404);
+				expect(errorSpy).not.toHaveBeenCalled();
+			} finally {
+				errorSpy.mockRestore();
+			}
+		});
+
 		it('should return custom HTML 500 when a matched route render throws', async () => {
 			const renderError = new Error('page render failed');
 			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
@@ -483,6 +522,45 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response.status).toBe(500);
 			expect(response.headers.get('Content-Type')).toBe('text/html');
 			expect(await response.text()).toContain('<h1>500 - Internal Server Error</h1>');
+		});
+
+		it('should log a server error when a matched route render throws', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500 } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			try {
+				const response = await matcher.handleMatch(match);
+				expect(response.status).toBe(500);
+				expect(errorSpy).toHaveBeenCalled();
+			} finally {
+				errorSpy.mockRestore();
+			}
 		});
 
 		it('should pass message and stack to the custom 500 page in development', async () => {

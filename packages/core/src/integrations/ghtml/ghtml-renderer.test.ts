@@ -15,6 +15,7 @@ import {
 	type RenderToResponseContext,
 } from '../../route-renderer/orchestration/integration-renderer.ts';
 import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts';
+import { HttpError } from '../../errors/http-error.ts';
 import { GhtmlRenderer } from './ghtml-renderer.ts';
 
 const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
@@ -120,6 +121,26 @@ describe('GhtmlRenderer', () => {
 				HtmlTemplate,
 			}),
 		).rejects.toThrow('Error rendering page: Page failed to render');
+	});
+
+	it('should preserve HttpError.NotFound thrown during page render', async () => {
+		const renderer = createRenderer();
+		const notFound = HttpError.NotFound('Unknown content entry');
+
+		await expect(
+			renderer.render({
+				params: {},
+				query: {},
+				props: {},
+				file: 'file',
+				resolvedDependencies: [],
+				metadata,
+				Page: async () => {
+					throw notFound;
+				},
+				HtmlTemplate,
+			}),
+		).rejects.toBe(notFound);
 	});
 
 	it('should resolve deferred foreign layout content without unresolved eco-marker artifacts', async () => {

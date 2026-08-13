@@ -160,14 +160,14 @@ import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Module  | Description                                                                                     |
-| :----------------------------- | :------ | :---------------------------------------------------------------------------------------------- |
-| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                          |
-| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing. |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing. |
-| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing. |
+| Export                         | Module  | Description                                                                                                                 |
+| :----------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------- |
+| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                      |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                            |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                     |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.              |
 | `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership. Throws `HttpError.NotFound` when missing. |
-| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`. |
+| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                             |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 

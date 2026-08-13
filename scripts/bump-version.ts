@@ -15,7 +15,7 @@ function readRootPackage(): RootPackage {
 const rootPackage = readRootPackage();
 
 type BumpType = 'major' | 'minor' | 'patch';
-type PrereleaseChannel = 'alpha' | 'beta';
+type PrereleaseChannel = 'alpha' | 'beta' | 'rc';
 type Command = BumpType | 'prerelease' | 'promote';
 
 const BUMP_INDEX: Record<BumpType, number> = {
@@ -88,7 +88,7 @@ function formatVersion(version: ParsedVersion): string {
 
 /**
  * Drops a prerelease suffix without incrementing MAJOR.MINOR.PATCH.
- * e.g. 0.2.0-beta.13 → 0.2.0
+ * e.g. 0.2.0-rc.3 → 0.2.0
  */
 function promoteToStable(current: string): string {
 	const parsed = parseVersion(current);
@@ -98,6 +98,14 @@ function promoteToStable(current: string): string {
 	return formatVersion({ ...parsed, prerelease: undefined });
 }
 
+/**
+ * Next prerelease on `channel`.
+ *
+ * @remarks
+ * Same channel increments the prerelease number (`0.2.0-rc.0` → `0.2.0-rc.1`).
+ * Switching channel with `patch` keeps MAJOR.MINOR.PATCH (`0.2.0-beta.43` → `0.2.0-rc.0`).
+ * `minor` / `major` (and `patch` from stable) start `.0` on the next version line.
+ */
 function computeNextPrerelease(current: string, channel: PrereleaseChannel, bump: BumpType = 'patch'): string {
 	const parsed = parseVersion(current);
 
@@ -107,6 +115,16 @@ function computeNextPrerelease(current: string, channel: PrereleaseChannel, bump
 			prerelease: {
 				channel,
 				number: parsed.prerelease.number + 1,
+			},
+		});
+	}
+
+	if (parsed.prerelease && bump === 'patch') {
+		return formatVersion({
+			...parsed,
+			prerelease: {
+				channel,
+				number: 0,
 			},
 		});
 	}
@@ -129,17 +147,17 @@ function isBumpType(value: string | undefined): value is BumpType {
 }
 
 function isPrereleaseChannel(value: string | undefined): value is PrereleaseChannel {
-	return value === 'alpha' || value === 'beta';
+	return value === 'alpha' || value === 'beta' || value === 'rc';
 }
 
 function printUsage(): void {
 	console.log(`Usage:
 	node --experimental-strip-types scripts/bump-version.ts [patch|minor|major]
 	node --experimental-strip-types scripts/bump-version.ts promote
-	node --experimental-strip-types scripts/bump-version.ts prerelease <alpha|beta> [patch|minor|major]
+	node --experimental-strip-types scripts/bump-version.ts prerelease <alpha|beta|rc> [patch|minor|major]
 
 Options:
-  --channel <alpha|beta>
+  --channel <alpha|beta|rc>
   --bump <patch|minor|major>
   --dry-run
   -h, --help`);

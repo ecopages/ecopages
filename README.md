@@ -167,7 +167,7 @@ pnpm run bump:minor
 pnpm run bump:major
 ```
 
-Promote a prerelease to stable (drops `-alpha`/`-beta` suffix without incrementing):
+Promote a prerelease to stable (drops `-alpha`/`-beta`/`-rc` suffix without incrementing):
 
 ```bash
 pnpm run bump:stable
@@ -183,7 +183,10 @@ pnpm run bump:alpha:major
 pnpm run bump:beta
 pnpm run bump:beta:minor
 pnpm run bump:beta:major
+pnpm run bump:rc
 ```
+
+`:minor` / `:major` on alpha and beta start that channel on the next version line (from stable `0.2.0`, `bump:beta:minor` → `0.3.0-beta.0`). RC has no such variants: it freezes the current `MAJOR.MINOR.PATCH` (`0.2.0-beta.43` → `0.2.0-rc.0`, then `0.2.0-rc.1`, then `bump:stable` → `0.2.0`). To RC a different line, bump the base first.
 
 Examples:
 
@@ -191,6 +194,7 @@ Examples:
 - `0.2.0 -> 0.2.1`: `pnpm run bump:patch`
 - `0.2.0 -> 0.3.0`: `pnpm run bump:minor`
 - `0.2.0-beta.12 -> 0.2.0-beta.13`: `pnpm run bump:beta`
+- `0.2.0-beta.43 -> 0.2.0-rc.0`: `pnpm run bump:rc`
 
 The bump script also supports direct usage for previews:
 

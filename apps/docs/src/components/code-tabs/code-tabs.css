@@ -2,18 +2,6 @@ radiant-code-tabs {
 	@apply block w-full min-w-0 max-w-full my-8;
 }
 
-.home-code-tabs {
-	@apply mt-8 block max-w-100;
-}
-
-radiant-code-tabs .rui-tabs__list {
-	@apply min-w-0 flex-nowrap overflow-x-auto;
-}
-
-radiant-code-tabs .rui-tabs__tab {
-	@apply shrink-0 text-xs;
-}
-
 .code-tabs__tab-label {
 	@apply inline-flex min-w-0 items-center gap-1.5;
 }
@@ -47,7 +35,7 @@ radiant-code-tabs .rui-tabs__panel {
 }
 
 .code-tabs__code {
-	@apply block w-full max-w-full min-w-0 text-[13px];
+	@apply block w-full max-w-full min-w-0 text-sm;
 
 	&:has([data-rehype-pretty-code-figure]) {
 		@apply flex min-h-0 w-full max-w-full flex-col overflow-y-hidden p-0;
@@ -63,11 +51,11 @@ radiant-code-tabs .rui-tabs__panel {
 }
 
 .code-tabs__copy {
-	@apply absolute right-1.5 top-1.5 z-10 inline-flex h-8 items-center justify-center rounded-sm border border-border bg-background px-2 text-sm text-on-background opacity-0 transition-opacity;
+	@apply absolute right-1.5 top-1.5 z-10 opacity-0;
 
 	&:hover,
 	&:focus-visible {
-		@apply border-primary/40 text-primary opacity-100;
+		@apply opacity-100;
 	}
 
 	.code-tabs__body:hover &,

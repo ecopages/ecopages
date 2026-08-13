@@ -23,16 +23,11 @@
 
 	radiant-code-tabs,
 	rui-tabs,
-	.rui-tabs__panels,
 	.rui-tabs__panel,
 	.code-tabs__body,
 	.code-tabs__code,
 	.home-code-block {
 		@apply flex min-h-0 flex-1 flex-col;
-	}
-
-	rui-tabs {
-		@apply rounded-none;
 	}
 
 	radiant-code-tabs {
@@ -117,9 +112,9 @@
 }
 
 .home-code-block[data-rehype-pretty-code-figure] {
-	@apply my-0 border-0 rounded-sm rounded-b-none border border-border bg-background-accent overflow-x-auto;
+	@apply my-0 overflow-x-auto rounded-none border-0 bg-background-accent;
 
 	pre code {
-		@apply font-mono text-[0.875em] leading-relaxed;
+		@apply font-mono text-sm leading-relaxed;
 	}
 }

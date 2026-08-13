@@ -19,6 +19,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Unknown content lookups that throw `HttpError.NotFound` keep that status through page render wrapping, so the request matcher serves a 404 without a 500 stack dump.
 - Browser vendor prebundles now prefer ESM `module` / `import` entries for third-party packages (legacy `browser` export conditions are omitted) while keeping browser-first resolution for `@ecopages/core`.
 - Semantic `404.*` / `500.*` templates now receive safe empty `locals` / `pageLocals` instead of the throwing locals proxy.
 - Development rendered HTML cache keys now include browser-runtime asset generation so rebuilt bootstrap/vendor script URLs cannot go stale.

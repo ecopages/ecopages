@@ -289,12 +289,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Create an HttpError for render failures.
+	 * Create an HttpError for unexpected render failures.
 	 * @param message - Error message
 	 * @param cause - Original error if available
-	 * @returns HttpError with 500 status
+	 * @returns The original HttpError when the cause is already one, otherwise a 500 HttpError
+	 * @remarks HttpError from pages (for example NotFound from content lookup) must keep its
+	 * status so the request matcher can serve a 404 instead of a 500.
 	 */
 	protected createRenderError(message: string, cause?: unknown): HttpError {
+		if (HttpError.isHttpError(cause)) {
+			return cause;
+		}
 		const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
 		return HttpError.InternalServerError(errorMessage);
 	}

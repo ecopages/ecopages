@@ -163,10 +163,10 @@ import type { Entry } from 'ecopages:content/docs';
 | Export                         | Module  | Description                                                                                     |
 | :----------------------------- | :------ | :---------------------------------------------------------------------------------------------- |
 | `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                          |
-| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`.                                          |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`.                                   |
-| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug).                            |
-| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership.               |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing. |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing. |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing. |
+| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership. Throws `HttpError.NotFound` when missing. |
 | `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`. |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
@@ -207,6 +207,8 @@ export default eco.page<{ entry: Entry }>({
 	},
 });
 ```
+
+Unknown slugs throw `HttpError.NotFound`, so a catch-all that matches `/docs/[...slug]` still serves the app 404 page instead of a 500.
 
 Content MDX entries may declare interactive demo dependencies without polluting the catch-all page shell:
 

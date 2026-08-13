@@ -1,4 +1,6 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiChip } from '@ecopages/radiant-ui/chip';
 import { Burger } from '@/components/burger';
 import { Logo } from '@/components/logo/logo';
 import { Navigation, type NavigationProps } from '@/components/navigation';
@@ -9,7 +11,7 @@ export type HeaderProps = {
 	showBurger?: boolean;
 };
 
-export const Header = eco.component<HeaderProps>({
+export const Header = eco.component<HeaderProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./header.css'],
 		components: [Navigation, Logo, Burger],
@@ -21,7 +23,9 @@ export const Header = eco.component<HeaderProps>({
 					<div class="header__inner-left">
 						{showBurger ? <Burger class="md:hidden" /> : null}
 						<Logo href="/" target="_self" title="Ecopages" />
-						<p class="version">v {rootJson.version}</p>
+						<RuiChip variant="default" class="max-md:hidden">
+							{rootJson.version}
+						</RuiChip>
 					</div>
 					<Navigation {...navigation} />
 				</div>

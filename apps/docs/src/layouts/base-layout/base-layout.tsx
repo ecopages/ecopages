@@ -29,6 +29,7 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 											{
 												label: 'Docs',
 												href: '/docs/getting-started/introduction',
+												class: 'max-md:hidden',
 											},
 										]
 									: []),

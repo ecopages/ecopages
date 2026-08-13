@@ -1,7 +1,7 @@
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { unsafeHtml } from '@ecopages/jsx/jsx-runtime';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import { RuiTabs } from '@ecopages/radiant-ui/tabs';
+import { RuiTab, RuiTabList, RuiTabPanel, RuiTabPanels, RuiTabs } from '@ecopages/radiant-ui/tabs';
 import { RadiantElement, customElement, onEvent, prop, state } from '@ecopages/radiant';
 import { renderTabLabel } from './code-tab-icons';
 
@@ -92,21 +92,28 @@ export class RadiantCodeTabs extends RadiantElement {
 		return normalizedName ? `radiant-code-tabs-${normalizedName}` : this.instanceId;
 	}
 
-	private getTabId(tabId: string): string {
-		return `${this.getIdBase()}-tab-${tabId}`;
+	/**
+	 * @remarks `RuiTab` uses this as both `data-tab-value` and the HTML id suffix.
+	 * Prefixing keeps multiple code-tab hosts on one page from colliding.
+	 */
+	private tabDomId(tabId: string): string {
+		return `${this.getIdBase()}--${tabId}`;
 	}
 
-	private getPanelId(tabId: string): string {
-		return `${this.getIdBase()}-panel-${tabId}`;
+	private tabIdFromDomId(domId: string): string {
+		const prefix = `${this.getIdBase()}--`;
+		return domId.startsWith(prefix) ? domId.slice(prefix.length) : domId;
 	}
 
 	@onEvent({ selector: 'rui-tabs', type: 'rui-change' })
 	onTabChange(event: Event): void {
 		const detail = (event as CustomEvent<{ value?: string }>).detail;
-		if (detail?.value) {
-			this.selectedKey = detail.value;
-			this.dispatchEvent(new CustomEvent('change', { detail: { selectedKey: detail.value }, bubbles: true }));
+		if (!detail?.value) {
+			return;
 		}
+
+		this.selectedKey = this.tabIdFromDomId(detail.value);
+		this.dispatchEvent(new CustomEvent('change', { detail: { selectedKey: this.selectedKey }, bubbles: true }));
 	}
 
 	override render() {
@@ -120,43 +127,21 @@ export class RadiantCodeTabs extends RadiantElement {
 		const tabListLabel = this.label || 'Code examples';
 
 		return (
-			<RuiTabs variant="boxed" value={selectedKey} label={tabListLabel}>
-				<div class="rui-tabs__list code-tabs__list" role="tablist" aria-label={tabListLabel}>
-					{tabs.map((tab, index) => {
-						const isSelected = tab.id === selectedKey;
-
-						return (
-							<button
-								type="button"
-								class="rui-tabs__tab code-tabs__tab"
-								role="tab"
-								id={this.getTabId(tab.id)}
-								data-tab-value={tab.id}
-								data-tab-index={String(index)}
-								aria-controls={this.getPanelId(tab.id)}
-								aria-selected={isSelected}
-								tabIndex={isSelected ? 0 : -1}
-							>
-								{renderTabLabel({
-									id: tab.id,
-									label: tab.label,
-									code: tabClipboardText(tab),
-								})}
-							</button>
-						);
-					})}
-				</div>
-				<div class="rui-tabs__panels">
+			<RuiTabs variant="boxed" value={this.tabDomId(selectedKey)} label={tabListLabel}>
+				<RuiTabList aria-label={tabListLabel}>
 					{tabs.map((tab) => (
-						<div
-							class="rui-tabs__panel code-tabs__panel"
-							role="tabpanel"
-							id={this.getPanelId(tab.id)}
-							data-tab-value={tab.id}
-							aria-labelledby={this.getTabId(tab.id)}
-							tabIndex={0}
-							hidden={tab.id !== selectedKey}
-						>
+						<RuiTab id={this.tabDomId(tab.id)} selected={tab.id === selectedKey}>
+							{renderTabLabel({
+								id: tab.id,
+								label: tab.label,
+								code: tabClipboardText(tab),
+							})}
+						</RuiTab>
+					))}
+				</RuiTabList>
+				<RuiTabPanels>
+					{tabs.map((tab) => (
+						<RuiTabPanel id={this.tabDomId(tab.id)} selected={tab.id === selectedKey}>
 							<div class="code-tabs__body">
 								<span class="code-tabs__code">{isRichTab(tab) ? unsafeHtml(tab.html) : tab.code}</span>
 								<RuiButton
@@ -169,9 +154,9 @@ export class RadiantCodeTabs extends RadiantElement {
 									<span aria-hidden="true">Copy</span>
 								</RuiButton>
 							</div>
-						</div>
+						</RuiTabPanel>
 					))}
-				</div>
+				</RuiTabPanels>
 				<span class="code-tabs__status" aria-live="polite">
 					{this.copyStatus}
 				</span>

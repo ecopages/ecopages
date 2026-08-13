@@ -799,6 +799,8 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
 	const { codeFiles, declarationFiles, assetFiles } = scanPackageFiles(packageDir, roots);
 	const distDir = path.join(packageDir, 'dist');
 
+	console.log(`Building ${manifest.name} (${codeFiles.length} files)...`);
+
 	rmSync(distDir, { recursive: true, force: true });
 	mkdirSync(distDir, { recursive: true });
 

@@ -33,6 +33,7 @@
 		"bump:beta": "node scripts/bump-version.ts prerelease beta && pnpm run jsr:sync-version",
 		"bump:beta:minor": "node scripts/bump-version.ts prerelease beta minor && pnpm run jsr:sync-version",
 		"bump:beta:major": "node scripts/bump-version.ts prerelease beta major && pnpm run jsr:sync-version",
+		"bump:rc": "node scripts/bump-version.ts prerelease rc && pnpm run jsr:sync-version",
 		"bump:stable": "node scripts/bump-version.ts promote && pnpm run jsr:sync-version",
 		"commit": "better-commits",
 		"prepare:husky": "husky",

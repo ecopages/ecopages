@@ -18,8 +18,7 @@
 		"directory": "packages/processors/image-processor"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

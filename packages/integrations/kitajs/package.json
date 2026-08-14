@@ -30,8 +30,7 @@
 		"directory": "packages/integrations/kitajs"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

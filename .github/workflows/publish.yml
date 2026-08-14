@@ -61,74 +61,12 @@ jobs:
                       packages/integrations/kitajs/dist
                       packages/integrations/lit/dist
                       packages/integrations/mdx/dist
+                      packages/integrations/ecopages-jsx/dist
                       packages/integrations/react/dist
                       packages/processors/image-processor/dist
                       packages/processors/content-processor/dist
                       packages/processors/postcss-processor/dist
                       packages/react-router/dist
-
-    publish-jsr:
-        needs: prepare
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            id-token: write # Required for OIDC authentication
-        steps:
-            - name: Checkout Repo
-              uses: actions/checkout@v6
-
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v6
-
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-
-            - name: Setup Node
-              uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-
-            - name: Install Dependencies
-              run: pnpm install
-
-            - name: Publish package @ecopages/file-system
-              run: pnpm --filter @ecopages/file-system release:jsr
-
-            - name: Publish package @ecopages/core
-              run: pnpm --filter @ecopages/core release:jsr
-
-            - name: Publish package @ecopages/postcss-processor
-              run: pnpm --filter @ecopages/postcss-processor release:jsr
-
-            - name: Publish package @ecopages/image-processor
-              run: pnpm --filter @ecopages/image-processor release:jsr
-
-            - name: Publish package @ecopages/content-processor
-              run: pnpm --filter @ecopages/content-processor release:jsr
-
-            - name: Publish package @ecopages/kitajs
-              run: pnpm --filter @ecopages/kitajs release:jsr
-
-            - name: Publish package @ecopages/lit
-              run: pnpm --filter @ecopages/lit release:jsr
-
-            - name: Publish package @ecopages/mdx
-              run: pnpm --filter @ecopages/mdx release:jsr
-
-            # @ecopages/react and @ecopages/ecopages-jsx depend on @ecopages/mdx (workspace → registry).
-            # Publish mdx first so JSR consumers resolve the dependency during their publish.
-
-            - name: Publish package @ecopages/ecopages-jsx
-              run: pnpm --filter @ecopages/ecopages-jsx release:jsr
-
-            - name: Publish package @ecopages/react
-              run: pnpm --filter @ecopages/react release:jsr
-
-            - name: Publish package @ecopages/browser-router
-              run: pnpm --filter @ecopages/browser-router release:jsr
-
-            - name: Publish package @ecopages/react-router
-              run: pnpm --filter @ecopages/react-router release:jsr
 
     publish-npm:
         needs: prepare
@@ -187,7 +125,10 @@ jobs:
             - name: Publish npm package @ecopages/mdx
               run: pnpm run release:npm -- packages/integrations/mdx/dist
 
-            # @ecopages/react lists @ecopages/mdx in dependencies. Publish mdx first.
+            # @ecopages/react and @ecopages/ecopages-jsx list @ecopages/mdx in dependencies. Publish mdx first.
+
+            - name: Publish npm package @ecopages/ecopages-jsx
+              run: pnpm run release:npm -- packages/integrations/ecopages-jsx/dist
 
             - name: Publish npm package @ecopages/react
               run: pnpm run release:npm -- packages/integrations/react/dist

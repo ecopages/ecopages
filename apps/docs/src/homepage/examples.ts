@@ -11,7 +11,7 @@ const config = await new ConfigBuilder()
   .setBaseUrl(baseUrl)
   .setDefaultMetadata({
     title: 'Ecopages',
-    description: 'TypeScript-first static sites on Bun',
+    description: 'Pick an Integration, then author Pages',
   })
   .setIntegrations([ecopagesJsxPlugin()])
   .setProcessors([
@@ -50,15 +50,12 @@ export default eco.page({
   layout: BaseLayout,
   metadata: () => ({
     title: 'Welcome to Ecopages',
-    description: 'A modern static site generator built on Bun',
+    description: 'A static Page. Add the rest on demand.',
   }),
   render: () => (
     <section>
-      <h1>Build fast static pages with TypeScript</h1>
-      <p>
-        Start with the Ecopages JSX Integration for first-party defaults,
-        then add other Integrations as needed.
-      </p>
+      <h1>Hello</h1>
+      <p>This Page is static HTML. Add a server if you need it.</p>
       <Counter count={5} />
       <a href='/docs/getting-started/introduction'>Read the docs</a>
     </section>

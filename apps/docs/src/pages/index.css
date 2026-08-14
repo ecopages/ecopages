@@ -7,11 +7,11 @@
 }
 
 .home-hero {
-	@apply flex flex-col gap-8 lg:col-span-12 lg:grid lg:min-h-120 lg:grid-cols-subgrid lg:gap-12;
+	@apply flex flex-col gap-8 lg:col-span-12 lg:grid lg:grid-cols-subgrid lg:items-start lg:gap-12;
 }
 
 .home-hero__text {
-	@apply flex flex-col lg:col-span-7;
+	@apply flex flex-col lg:col-span-6;
 
 	radiant-code-tabs {
 		@apply mt-8;
@@ -19,16 +19,7 @@
 }
 
 .home-hero__code {
-	@apply flex min-h-128 flex-col lg:col-span-5;
-
-	radiant-code-tabs,
-	rui-tabs,
-	.rui-tabs__panel,
-	.code-tabs__body,
-	.code-tabs__code,
-	.home-code-block {
-		@apply flex min-h-0 flex-1 flex-col;
-	}
+	@apply flex min-w-0 flex-col font-mono text-sm leading-relaxed lg:col-span-6 lg:min-h-[calc(27lh)];
 
 	radiant-code-tabs {
 		@apply my-0;
@@ -37,6 +28,10 @@
 
 .home-header__heading {
 	@apply max-w-3xl;
+}
+
+.home-header__heading .rui-heading__title {
+	text-wrap: balance;
 }
 
 .home-header__actions {

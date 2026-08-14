@@ -120,7 +120,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
-	protected readonly foreignSubtreeExecutionService = new ForeignSubtreeExecutionService();
+	protected readonly foreignSubtreeExecutionService: ForeignSubtreeExecutionService =
+		new ForeignSubtreeExecutionService();
 	/**
 	 * Serializes route and view renders that mutate `htmlTransformer` state.
 	 *
@@ -887,7 +888,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async prepareRenderOptions(
 		options: RouteRendererOptions,
-		adapter = this.createRouteRenderOrchestratorAdapter(),
+		adapter: RouteRenderOrchestratorAdapter<C> = this.createRouteRenderOrchestratorAdapter(),
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, adapter);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');

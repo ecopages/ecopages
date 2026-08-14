@@ -48,13 +48,13 @@ const defineApiMethod =
 	): ApiHandler<TPath, Request, unknown> =>
 		defineApiHandler({ ...handler, method });
 
-export const defineGet = defineApiMethod('GET');
-export const definePost = defineApiMethod('POST');
-export const definePut = defineApiMethod('PUT');
-export const defineDelete = defineApiMethod('DELETE');
-export const definePatch = defineApiMethod('PATCH');
-export const defineOptions = defineApiMethod('OPTIONS');
-export const defineHead = defineApiMethod('HEAD');
+export const defineGet: ReturnType<typeof defineApiMethod<'GET'>> = defineApiMethod('GET');
+export const definePost: ReturnType<typeof defineApiMethod<'POST'>> = defineApiMethod('POST');
+export const definePut: ReturnType<typeof defineApiMethod<'PUT'>> = defineApiMethod('PUT');
+export const defineDelete: ReturnType<typeof defineApiMethod<'DELETE'>> = defineApiMethod('DELETE');
+export const definePatch: ReturnType<typeof defineApiMethod<'PATCH'>> = defineApiMethod('PATCH');
+export const defineOptions: ReturnType<typeof defineApiMethod<'OPTIONS'>> = defineApiMethod('OPTIONS');
+export const defineHead: ReturnType<typeof defineApiMethod<'HEAD'>> = defineApiMethod('HEAD');
 
 export function json(data: unknown, options?: ResponseOptions): Response {
 	return createBodyResponse('json', data, {

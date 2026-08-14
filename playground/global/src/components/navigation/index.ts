@@ -1,1 +1,1 @@
-export * from './navigation.ghtml';
+export * from './navigation.kita';

@@ -1,5 +1,4 @@
 import { smallJpg, theodorePoncetQzephogqd7WUnsplashJpg, urbanVintage78A265Wpio4UnsplashJpg } from 'ecopages:images';
-import { html } from '@ecopages/core/html';
 import { EcoImage } from '@ecopages/image-processor/component/html';
 import { customElement, onEvent, query, RadiantElement } from '@ecopages/radiant';
 
@@ -20,15 +19,15 @@ export class EcoImages extends RadiantElement {
 
 		this.renderTemplate({
 			target: this.container,
-			template: html`
-				!${EcoImage({
+			template: `
+				${EcoImage({
 					...randomImage,
 					alt: 'Random image',
 					layout: 'full-width',
 					height: 200,
 					priority: true,
 				})}
-				!${EcoImage({
+				${EcoImage({
 					...randomImage,
 					alt: 'Random image',
 					width: 600,
@@ -36,7 +35,7 @@ export class EcoImages extends RadiantElement {
 					layout: 'constrained',
 					priority: false,
 				})}
-				!${EcoImage({
+				${EcoImage({
 					...randomImage,
 					alt: 'Random image',
 					layout: 'fixed',
@@ -44,7 +43,7 @@ export class EcoImages extends RadiantElement {
 					height: 200,
 					priority: false,
 				})}
-				!${EcoImage({
+				${EcoImage({
 					...randomImage,
 					width: 400,
 					alt: 'Random image',
@@ -52,7 +51,7 @@ export class EcoImages extends RadiantElement {
 					unstyled: true,
 					'data-test': 'attribute',
 				})}
-				!${EcoImage({
+				${EcoImage({
 					...randomImage,
 					alt: 'Random image',
 					priority: false,

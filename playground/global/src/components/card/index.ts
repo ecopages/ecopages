@@ -1,1 +1,1 @@
-export * from './card.ghtml';
+export * from './card.kita';

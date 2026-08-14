@@ -18,10 +18,10 @@ You can define the caching behavior for any page using the `cache` property in t
 
 By default, pages are cached indefinitely. This is perfect for content that rarely changes.
 
-```typescript
+```tsx
 export default eco.page({
 	cache: 'static',
-	render: () => html`<h1>Hello World</h1>`,
+	render: () => <h1>Hello World</h1>,
 });
 ```
 
@@ -31,10 +31,10 @@ These pages are generated once and served from the cache until the server restar
 
 Dynamic pages are never cached. They are rendered fresh for every request. Use this for personalized content or real-time data.
 
-```typescript
+```tsx
 export default eco.page({
 	cache: 'dynamic',
-	render: () => html`<h1>Current Time: ${new Date().toISOString()}</h1>`,
+	render: () => <h1>Current Time: {new Date().toISOString()}</h1>,
 });
 ```
 
@@ -53,13 +53,13 @@ ISR allows you to cache pages for a specific duration ("revalidate" time).
 2.  **Subsequent Requests**: The cached page is served immediately.
 3.  **After Revalidation Time**: The _next_ request still gets the cached (stale) version, but it triggers a background regeneration. Future requests will see the updated content.
 
-```typescript
+```tsx
 export default eco.page({
 	cache: {
 		revalidate: 60, // Seconds
 		tags: ['blog', 'posts'],
 	},
-	render: () => html`<h1>Latest Updates</h1>`,
+	render: () => <h1>Latest Updates</h1>,
 });
 ```
 
@@ -71,12 +71,16 @@ You can configure global cache settings in your `eco.config.ts` file provided by
 
 ```typescript
 // eco.config.ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
 const config = await new ConfigBuilder()
 	.setCacheConfig({
 		enabled: true,
 		defaultStrategy: 'static',
 		maxEntries: 1000,
 	})
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 

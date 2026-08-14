@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { ConfigBuilder } from '../../config/config-builder.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
+import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { installBuildRuntime } from '../runtime/build-runtime.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
@@ -43,10 +43,10 @@ describe('pages-unified-graph-build', () => {
 	});
 
 	it('identifies configured template extensions as unified-graph eligible', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+		const appConfig = await createFixtureAppConfig();
 
 		assert.equal(
-			isPagesUnifiedGraphPage(path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts'), appConfig),
+			isPagesUnifiedGraphPage(path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts'), appConfig),
 			true,
 		);
 		assert.equal(
@@ -74,18 +74,18 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(shouldBuildPagesUnifiedGraph(), false);
 	});
 
-	it('builds all ghtml pages in one Rolldown invocation and reuses the graph manifest', async () => {
+	it('builds all string pages in one Rolldown invocation and reuses the graph manifest', async () => {
 		process.env.NODE_ENV = 'production';
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
-		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+		const appConfig = await createFixtureAppConfig();
 		installBuildRuntime(appConfig);
 
 		const entryPaths = [
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts'),
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ghtml.ts'),
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/postcss-hmr.ghtml.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/postcss-hmr.ts'),
 		];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 
@@ -124,13 +124,13 @@ describe('pages-unified-graph-build', () => {
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
-		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+		const appConfig = await createFixtureAppConfig();
 		installBuildRuntime(appConfig);
 
 		const entryPaths = [
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts'),
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ghtml.ts'),
-			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/postcss-hmr.ghtml.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/postcss-hmr.ts'),
 		];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 
@@ -174,10 +174,10 @@ describe('pages-unified-graph-build', () => {
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
-		const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+		const appConfig = await createFixtureAppConfig();
 		installBuildRuntime(appConfig);
 
-		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ghtml.ts')];
+		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts')];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 
 		resetRolldownBuildInvocationCounts();

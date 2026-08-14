@@ -30,7 +30,6 @@
 		"@oxc-project/runtime": "0.141.0",
 		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^5.0.0",
-		"ghtml": "^4.0.2",
 		"oxc-parser": "^0.141.0",
 		"oxc-resolver": "^11.24.2",
 		"rolldown": "^1.1.0",
@@ -40,6 +39,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/dev-toolbar": "workspace:*",
+		"@ecopages/testing": "workspace:*",
 		"@tanstack/react-query": "^5.90.2",
 		"@types/bun": "latest",
 		"@types/ws": "^8.18.1",
@@ -308,10 +308,6 @@
 			"types": "./src/plugins/jsx-import-source.utils.ts",
 			"default": "./src/plugins/jsx-import-source.utils.ts"
 		},
-		"./html": {
-			"import": "./src/utils/html.ts",
-			"require": "./src/utils/html.ts"
-		},
 		"./hash": {
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
@@ -328,10 +324,6 @@
 		"./errors": {
 			"types": "./src/errors/index.ts",
 			"default": "./src/errors/index.ts"
-		},
-		"./integrations/ghtml": {
-			"types": "./src/integrations/ghtml/ghtml.plugin.ts",
-			"default": "./src/integrations/ghtml/ghtml.plugin.ts"
 		},
 		"./dev/transform-server": {
 			"types": "./src/dev/transform-server/index.ts",

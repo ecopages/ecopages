@@ -18,8 +18,6 @@ import {
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import { GHTML_PLUGIN_NAME } from '../integrations/ghtml/ghtml.constants.ts';
-import { ghtmlPlugin } from '../integrations/ghtml/ghtml.plugin.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -329,9 +327,9 @@ export class ConfigBuilder {
 
 	/**
 	 * Sets the integration plugins to use.
-	 * These plugins provide additional functionality to the application.
+	 * Rendering apps must register at least one Integration that owns their route file extensions.
 	 *
-	 * @param integrations - An array of integration plugins
+	 * @param integrations - An array of integration plugins. Pass an empty array for an intentionally integration-free config.
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
 	setIntegrations(integrations: AnyIntegrationPlugin[]): this {
@@ -563,7 +561,11 @@ export class ConfigBuilder {
 		dirPath: string;
 		basename: 'html' | '404' | '500';
 	}): string {
-		const extensions = this.config.templatesExt.length > 0 ? this.config.templatesExt : ['.ghtml.ts'];
+		const extensions = this.config.templatesExt;
+		if (extensions.length === 0) {
+			return '';
+		}
+
 		const matches = extensions
 			.map((extension) => path.join(dirPath, `${basename}${extension}`))
 			.filter((candidate) => fileSystem.exists(candidate));
@@ -792,11 +794,6 @@ export class ConfigBuilder {
 	 */
 	async build(): Promise<EcoPagesAppConfig> {
 		this.reviewBaseUrl(this.config.baseUrl);
-
-		if (!this.config.integrations.some((integration) => integration.name === GHTML_PLUGIN_NAME)) {
-			this.config.integrations.push(ghtmlPlugin());
-		}
-
 		this.createIntegrationTemplatesExt(this.config.integrations);
 		this.createAbsolutePaths(this.config);
 

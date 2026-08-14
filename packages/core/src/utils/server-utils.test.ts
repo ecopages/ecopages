@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
-import { ConfigBuilder } from '../config/config-builder.ts';
+import { createFixtureAppConfig } from '../../__fixtures__/app/test-app-config.ts';
 import { ServerUtils } from './server-utils.module.ts';
 
-await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+await createFixtureAppConfig();
 
 describe('ServerUtils', () => {
 	test.each([

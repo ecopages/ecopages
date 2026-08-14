@@ -25,9 +25,11 @@ The examples below assume the following shared setup. You can copy this into you
 ```typescript
 // eco.config.ts
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 export default await new ConfigBuilder()
   .setBaseUrl('http://localhost:3000')
+  .setIntegrations([ecopagesJsxPlugin()])
   .build();
 
 // src/db.ts

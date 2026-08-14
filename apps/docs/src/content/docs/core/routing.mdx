@@ -80,8 +80,12 @@ Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define
 Set the canonical base URL in `eco.config.ts`:
 
 ```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
 const config = await new ConfigBuilder()
 	.setBaseUrl('https://example.com')
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 

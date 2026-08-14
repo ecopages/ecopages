@@ -38,6 +38,7 @@ Register transforms in `eco.config.ts`:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const config = await new ConfigBuilder()
 	.setRootDir(process.cwd())
@@ -51,6 +52,7 @@ const config = await new ConfigBuilder()
 			},
 		},
 	])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 

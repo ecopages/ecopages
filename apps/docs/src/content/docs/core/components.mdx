@@ -6,150 +6,43 @@ order: 9
 
 # Creating Components in Ecopages
 
-Components are reusable UI units composed into pages and layouts. With **Ecopages JSX**, components are typically `.tsx` files using `eco.component` and JSX in `render`. The examples below use Radiant for client interactivity; the same dependency and lazy-loading patterns apply across integrations.
+Components are reusable UI units composed into Pages and Layouts. The default starter uses Ecopages JSX, so these examples use `.tsx` files and JSX in `render`.
 
-## Basic Component Structure
+## A component with browser behavior
 
-A typical component in Ecopages consists of two files:
+Declare the styles, browser scripts, and child Components a Component needs. Ecopages uses that declaration to collect assets and preserve Integration ownership.
 
-1. A `.ts` file for the component's structure and logic
-2. A `.script.ts` file for additional client-side interactivity (optional)
-3. A `.css` file for styling (optional)
-
-Let's create a simple counter component to demonstrate this structure, we will use the Radiant library from [@ecopages/radiant](https://radiant.ecopages.app/) to add client-side interactivity.
-
-## RadiantCounter.ts
-
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
-import type { RadiantCounterProps } from './radiant-counter.script';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const RadiantCounter = eco.component<RadiantCounterProps>({
+type RadiantCounterProps = { count: number };
+
+export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./radiant-counter.script.ts'],
 		stylesheets: ['./radiant-counter.css'],
-	},
-	render: ({ count }) => html`
-	<radiant-counter count="${count}">
-		<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
-		<span data-ref="count">${count}</span>
-		<button type="button" data-ref="increment" aria-label="Increment">+</button>
-	</radiant-counter>
-	`,
-});
-```
-
-### radiant-counter.script.ts
-
-```typescript
-import { RadiantElement } from '@ecopages/radiant/core';
-import { customElement } from '@ecopages/radiant/decorators/custom-element';
-import { onEvent } from '@ecopages/radiant/decorators/on-event';
-import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
-import { query } from '@ecopages/radiant/decorators/query';
-import { reactiveProp } from '@ecopages/radiant/decorators/reactive-prop';
-
-export type RadiantCounterProps = {
-	value?: number;
-};
-
-@customElement('radiant-counter')
-export class RadiantCounter extends RadiantElement {
-	@reactiveProp({ type: Number, reflect: true }) declare value: number;
-	@query({ ref: 'count' }) countText!: HTMLElement;
-
-	@onEvent({ ref: 'decrement', type: 'click' })
-	decrement() {
-		if (this.value > 0) this.value--;
-	}
-
-	@onEvent({ ref: 'increment', type: 'click' })
-	increment() {
-		this.value++;
-	}
-
-	@onUpdated('value')
-	updateCount() {
-		this.countText.textContent = this.value.toString();
-		this.dispatchEvent(new Event('change'));
-	}
-
-}
-
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'radiant-counter': HtmlTag & RadiantCounterProps;
-		}
-	}
-}
-
-```
-
-
-## Key Points
-
-- Use the `eco.component` factory from `@ecopages/core`.
-- Pass dependencies and render function to `eco.component`.
-- Define props using an interface and pass it as a generic type.
-- Use custom elements for client-side interactivity.
-
-## Component Config
-
-The `eco.component` factory automatically handles the configuration attachment. You simply define the dependencies within the factory options.
-
-```typescript
-export const RadiantCounter = eco.component({
-	dependencies: {
-		scripts: ['./radiant-counter.script.ts'],
-		stylesheets: ['./radiant-counter.css'],
-	},
-	render: (props) => { ... }
-});
-```
-
-Mandatory fields in options:
-
-1. `render`: Function that returns the component's HTML.
-2. `dependencies`: (Optional within `eco.component` but recommended if needed) Object specifying scripts, stylesheets, and sub-components.
-
-## Lazy Loading
-
-Ecopages supports lazy loading of component scripts to improve initial page load performance. This is configured per script entry in `dependencies.scripts`.
-
-```typescript
-export const RadiantCounter = eco.component({
-	dependencies: {
 		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
-		stylesheets: ['./radiant-counter.css'],
 	},
-	render: (props) => { ... }
+	render: ({ count }) => (
+		<radiant-counter count={count}>
+			<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
+			<span data-ref="count">{count}</span>
+			<button type="button" data-ref="increment" aria-label="Increment">+</button>
+		</radiant-counter>
+	),
 });
 ```
 
-When you look at the rendered HTML, you will see that Ecopages automatically wraps your component with a `scripts-injector` custom element. This element handles the loading of your scripts based on the defined triggers (e.g., interaction or visibility).
+Radiant support is enabled by default when you configure `ecopagesJsxPlugin()`. Its SSR output becomes an island only when the Component brings browser behavior.
 
-## CSS in Ecopages Components
+## Use a component in a Page
 
-In Ecopages, CSS for components is typically defined in separate files and loaded through the component's dependencies.
-Please note that `tailwind` and `postcss` are supported by default in Ecopages. Please refer to the configuration section for more details.
+Pass route wrappers through `layout`; list nested or interactive components under `dependencies.components`.
 
-Here's how it works:
-
-1. Separate CSS Files: Each component can have its own CSS file. This promotes modularity and makes styles easier to manage.
-2. CSS File Naming: Usually, the CSS file is named the same as the component file, but with a .css extension. For example, radiant-counter.css for the RadiantCounter component.
-3. Loading CSS: The CSS file is specified in the dependencies.stylesheets array.
-
-## Using Components in Pages
-
-To use components in pages, import them and declare dependencies. Use `layout:` for route wrappers (see [Creating Layouts](/docs/core/layouts)); list interactive or nested components in `dependencies.components`.
-
-```typescript
+```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	layout: BaseLayout,
@@ -160,22 +53,29 @@ export default eco.page({
 	dependencies: {
 		components: [RadiantCounter],
 	},
-	render: () => html`
-		<h1>Ecopages</h1>
-		${RadiantCounter({ count: 5 })}
-	`,
+	render: () => (
+		<>
+			<h1>Ecopages</h1>
+			<RadiantCounter count={5} />
+		</>
+	),
 });
 ```
 
-## Best Practices for Component Creation
+## Lazy browser scripts
 
-1. **Separation of Concerns**: Keep your component's structure (`.ts`) separate from its client-side logic (`.script.ts`).
-2. **Use HTML Templates**: Leverage the `html` template literal for creating your component's structure.
-3. **Custom Elements**: Use custom elements for adding client-side interactivity to your components.
-4. **TypeScript**: Use TypeScript for better type checking and improved developer experience.
-5. **Styling**: Use separate CSS files for styling your components.
-6. **Factory Pattern**: Use `eco.component` to create consistent and correctly typed components.
+Use a lazy declaration when a script should wait for an interaction or visibility trigger.
 
-Interactive components with client scripts are stamped with [island host attributes](/docs/core/island-hosts) on their SSR root so devtools can discover them.
+```ts
+dependencies: {
+	scripts: [{ src: './search.script.ts', lazy: { 'on:interaction': 'focusin' } }],
+}
+```
 
-By following these guidelines and leveraging the power of ghtml components with `@ecopages/core`, you can create robust, reusable, and interactive components that will help you build efficient and maintainable websites with Ecopages.
+Ecopages stamps [island host attributes](/docs/core/island-hosts) on hydratable Component SSR roots so developer tools and client runtimes can discover them.
+
+## Related guides
+
+- [Ecopages JSX](/docs/integrations/ecopages-jsx) — install and configure the default starter Integration
+- [Layouts](/docs/core/layouts) — route-level shared chrome
+- [Island Hosts](/docs/core/island-hosts) — the SSR island contract

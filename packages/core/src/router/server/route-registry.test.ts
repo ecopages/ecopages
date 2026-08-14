@@ -1,6 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.js';
-import { ConfigBuilder } from '../../config/config-builder.js';
+import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.js';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
@@ -8,7 +7,7 @@ const {
 	templatesExt,
 	absolutePaths: { pagesDir },
 	...appConfig
-} = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+} = await createFixtureAppConfig();
 
 const createRegistry = (overrides?: Partial<ConstructorParameters<typeof RouteRegistry>[0]>) =>
 	new RouteRegistry({

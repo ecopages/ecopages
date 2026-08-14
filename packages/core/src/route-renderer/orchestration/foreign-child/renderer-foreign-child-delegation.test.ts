@@ -72,7 +72,7 @@ describe('renderer foreign-child delegation', () => {
 		});
 
 		const result = renderer.testShouldDelegateForeignChild({
-			currentIntegration: 'ghtml',
+			currentIntegration: 'string',
 			targetIntegration: 'react',
 		});
 

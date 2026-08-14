@@ -33,7 +33,7 @@ describe('EcoConfigBuilder', () => {
 	let builder: ConfigBuilder;
 
 	beforeEach(() => {
-		builder = new ConfigBuilder();
+		builder = new ConfigBuilder().setIntegrations([createMockIntegration('test', ['.test.ts'])]);
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
 	});
@@ -400,7 +400,17 @@ describe('EcoConfigBuilder', () => {
 			.setIntegrations(integrations)
 			.build();
 
-		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3', '.ghtml.ts', '.ghtml.tsx', '.ghtml']);
+		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3']);
+	});
+
+	test('allows a configuration without an Integration for non-rendering apps', async () => {
+		const config = await new ConfigBuilder().setBaseUrl('https://example.com').setRootDir('/project').build();
+
+		expect(config.integrations).toEqual([]);
+		expect(config.templatesExt).toEqual([]);
+		expect(config.absolutePaths.htmlTemplatePath).toBe('');
+		expect(config.absolutePaths.error404TemplatePath).toBe('');
+		expect(config.absolutePaths.error500TemplatePath).toBe('');
 	});
 
 	test('should throw error for duplicate integration names', async () => {

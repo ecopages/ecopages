@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/public-types.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 
-function createMockView(integration = 'ghtml'): EcoPageComponent<any> {
+function createMockView(integration = 'string'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 	view.config = {
 		integration,
@@ -237,8 +237,8 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should accept integration metadata from view.config.integration', async () => {
 			const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
 			view.config = {
-				integration: 'ghtml',
-				identity: { id: 'test', file: '/test/-view.ts', integration: 'ghtml' },
+				integration: 'string',
+				identity: { id: 'test', file: '/test/-view.ts', integration: 'string' },
 			};
 
 			const mockResponse = new Response('<html>Test</html>');
@@ -299,7 +299,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		});
 
 		test('should call renderer.renderToResponse with correct arguments', async () => {
-			const view = createMockView('ghtml');
+			const view = createMockView('string');
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
@@ -323,7 +323,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		});
 
 		test('should resolve staticProps and pass to renderer', async () => {
-			const view = createMockView('ghtml');
+			const view = createMockView('string');
 			view.staticProps = vi.fn(async () => ({
 				props: { title: 'About Page', content: 'Hello' },
 			}));
@@ -350,7 +350,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		});
 
 		test('should pass params to staticProps', async () => {
-			const view = createMockView('ghtml');
+			const view = createMockView('string');
 			view.staticProps = vi.fn(async ({ pathname }) => ({
 				props: { slug: pathname.params.slug },
 			}));

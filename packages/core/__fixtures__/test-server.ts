@@ -5,13 +5,12 @@
  * Usage: bun packages/core/__fixtures__/test-server.ts
  */
 
-import { ConfigBuilder } from '../src/config/config-builder';
+import { createFixtureAppConfig } from './app/test-app-config';
 import { createBunServerAdapter } from '../src/adapters/bun/server-adapter';
 import { Logger } from '@ecopages/logger';
 
 const logger = new Logger('[test-server]');
 
-const FIXTURE_APP_DIR = import.meta.dir + '/app';
 const TEST_PORT = 3002;
 const TEST_URL = `http://localhost:${TEST_PORT}`;
 
@@ -32,7 +31,7 @@ async function startServer() {
 
 	logger.info('Starting fixture server with HMR...');
 
-	const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_DIR).build();
+	const appConfig = await createFixtureAppConfig();
 
 	const serverAdapter = await createBunServerAdapter({
 		appConfig,

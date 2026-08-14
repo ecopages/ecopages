@@ -12,12 +12,12 @@ export interface EcoComponentDirPluginOptions {
 	config: EcoPagesAppConfig;
 }
 
-function integrationForFile(filePath: string, config: EcoPagesAppConfig): IntegrationOwnership {
+function integrationForFile(filePath: string, config: EcoPagesAppConfig): IntegrationOwnership | undefined {
 	const candidates = config.integrations
 		.flatMap((integration) => integration.extensions.map((extension) => [extension, integration] as const))
 		.sort(([left], [right]) => right.length - left.length);
 	const match = candidates.find(([extension]) => filePath.endsWith(extension));
-	return match ? { name: match[1].name, jsxImportSource: match[1].jsxImportSource } : { name: 'ghtml' };
+	return match ? { name: match[1].name, jsxImportSource: match[1].jsxImportSource } : undefined;
 }
 
 type AstNode = {
@@ -144,6 +144,9 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		transform(code, id) {
 			if (id.endsWith('.mdx')) return { code };
 			const integration = integrationForFile(id, options.config);
+			if (!integration) {
+				return { code };
+			}
 			return {
 				code: prependJsxImportSourceIfMissing(
 					attributeComponentIdentity(code, id, integration.name),

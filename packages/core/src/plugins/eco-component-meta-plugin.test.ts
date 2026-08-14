@@ -32,8 +32,8 @@ describe('eco-component-meta-plugin', () => {
 				jsxImportSource: 'react',
 			},
 			{
-				name: 'ghtml',
-				extensions: ['.ts', '.ghtml.ts'],
+				name: 'test-string',
+				extensions: ['.ts'],
 			},
 		],
 	} as EcoPagesAppConfig;
@@ -405,6 +405,17 @@ export default eco.page({
 
 		expect(result).toBeDefined();
 		expect(result.contents).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+	});
+
+	it('does not attribute files that no Integration owns', () => {
+		const result = transform.transform(
+			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",
+			'/path/to/notes.md',
+		);
+
+		expect(typeof result).toBe('object');
+		expect((result as { code: string }).code).not.toContain('bindComponentIdentity');
+		expect((result as { code: string }).code).not.toContain('unknown');
 	});
 
 	describe('Regression: eco-blog views failure', () => {

@@ -219,8 +219,8 @@ describe('StaticSiteGenerator', () => {
 		test('should filter out dynamic routes containing [', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
-				'/static': { filePath: '/src/pages/static.ghtml.ts', pathname: '/static' },
-				'/dynamic/[id]': { filePath: '/src/pages/dynamic/[id].ghtml.ts', pathname: '/dynamic/[id]' },
+				'/static': { filePath: '/src/pages/static.ts', pathname: '/static' },
+				'/dynamic/[id]': { filePath: '/src/pages/dynamic/[id].ts', pathname: '/dynamic/[id]' },
 			});
 
 			const RendererFactory = {
@@ -242,7 +242,7 @@ describe('StaticSiteGenerator', () => {
 		test('should create directories for nested routes', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
-				'/blog/post': { filePath: '/src/pages/blog/post.ghtml.ts', pathname: '/blog/post' },
+				'/blog/post': { filePath: '/src/pages/blog/post.ts', pathname: '/blog/post' },
 			});
 
 			const RendererFactory = {
@@ -264,7 +264,7 @@ describe('StaticSiteGenerator', () => {
 		test('should throw error when routeRendererFactory is missing for render strategy', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
-				'/page': { filePath: '/src/pages/page.ghtml.ts', pathname: '/page' },
+				'/page': { filePath: '/src/pages/page.ts', pathname: '/page' },
 			});
 
 			await ssg.generateStaticPages({
@@ -277,7 +277,7 @@ describe('StaticSiteGenerator', () => {
 		test('should write index.html for root path', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
-				'/': { filePath: '/src/pages/index.ghtml.ts', pathname: '/' },
+				'/': { filePath: '/src/pages/index.ts', pathname: '/' },
 			});
 
 			const RendererFactory = {
@@ -299,7 +299,7 @@ describe('StaticSiteGenerator', () => {
 		test('should handle Buffer content from renderer', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
-				'/': { filePath: '/src/pages/index.ghtml.ts', pathname: '/' },
+				'/': { filePath: '/src/pages/index.ts', pathname: '/' },
 			});
 
 			const bufferContent = Buffer.from('<html>Buffer Content</html>');
@@ -350,7 +350,7 @@ describe('StaticSiteGenerator', () => {
 
 		test('should probe render-strategy pages without a separate static-page-probe cache scope', async () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const filePath = '/src/pages/index.ghtml.ts';
+			const filePath = '/src/pages/index.ts';
 			const Router = createMockRouter({
 				'/': { filePath, pathname: '/' },
 			});

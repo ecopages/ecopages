@@ -5,7 +5,7 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { createTestAppConfig } from './index.ts';
+import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
@@ -44,6 +44,20 @@ class TestPlugin extends IntegrationPlugin<EcoPagesElement> {
 }
 
 describe('createTestAppConfig', () => {
+	it('installs the test-only string Integration by default', async () => {
+		const config = await createTestAppConfig();
+
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['string']);
+		expect(config.templatesExt).toEqual(['.string.ts']);
+	});
+
+	it('allows an integration-free config when requested explicitly', async () => {
+		const config = await createTestAppConfig({ integrations: [] });
+
+		expect(config.integrations).toEqual([]);
+		expect(config.templatesExt).toEqual([]);
+	});
+
 	it('allows builder overrides through configure', async () => {
 		const config = await createTestAppConfig({
 			configure: (builder) => builder.setRootDir('/tmp/test-root').setWorkDir('.eco-parallel'),
@@ -63,5 +77,24 @@ describe('createTestAppConfig', () => {
 		});
 
 		expect(plugin.runtimeOrigin).toBe('http://127.0.0.1:4100');
+	});
+});
+
+describe('createStringMarkupIntegration', () => {
+	it('owns .string.ts files by default', () => {
+		const integration = createStringMarkupIntegration();
+
+		expect(integration.name).toBe('string');
+		expect(integration.extensions).toEqual(['.string.ts']);
+	});
+
+	it('allows fixture ownership to use a custom name and extensions', () => {
+		const integration = createStringMarkupIntegration({
+			name: 'fixture-string',
+			extensions: ['.fixture.ts'],
+		});
+
+		expect(integration.name).toBe('fixture-string');
+		expect(integration.extensions).toEqual(['.fixture.ts']);
 	});
 });

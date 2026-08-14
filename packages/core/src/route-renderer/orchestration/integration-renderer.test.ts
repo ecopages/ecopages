@@ -240,7 +240,7 @@ describe('IntegrationRenderer', () => {
 		const appConfig = {
 			absolutePaths: {
 				pagesDir: '/app/pages',
-				htmlTemplatePath: '/app/index.ghtml.ts',
+				htmlTemplatePath: '/app/index.ts',
 			},
 			integrations: [],
 			defaultMetadata: {

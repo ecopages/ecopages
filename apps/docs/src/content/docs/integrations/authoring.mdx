@@ -1,0 +1,64 @@
+---
+title: 'Authoring an Integration'
+description: 'Create a minimal Ecopages Integration that renders trusted HTML strings.'
+order: 7
+---
+
+# Authoring an Integration
+
+An Integration owns a set of file extensions and the renderer that turns its Components into HTML. This minimal example is useful for understanding the boundary without bringing in JSX, a template library, or browser runtime behavior.
+
+Important: this renderer accepts **trusted HTML strings**. Template-string interpolation is not escaped. Use a renderer with an escaping model, such as Ecopages JSX, whenever values may contain untrusted input.
+
+## Define the renderer
+
+`StringMarkupRenderer` implements the document-shell and foreign-child orchestration for string-returning Components. Your renderer only supplies its Integration name.
+
+```ts
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+
+export class AcmeStringRenderer extends StringMarkupRenderer {
+	name = 'acme-string';
+}
+```
+
+## Define the Integration
+
+Use a distinct suffix so this Integration has unambiguous ownership. This example claims `.acme.ts` route and include files.
+
+```ts
+import { defineIntegration } from '@ecopages/core/plugins/define-integration';
+import { AcmeStringRenderer } from './acme-string-renderer';
+
+export const acmeStringPlugin = defineIntegration({
+	name: 'acme-string',
+	extensions: ['.acme.ts'],
+	renderer: AcmeStringRenderer,
+});
+```
+
+## Register it
+
+```ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { acmeStringPlugin } from './acme-string-integration';
+
+export default await new ConfigBuilder()
+	.setRootDir(import.meta.dirname)
+	.setIntegrations([acmeStringPlugin()])
+	.build();
+```
+
+## Author a Page
+
+```ts
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	render: () => '<main><h1>Hello from a custom Integration</h1></main>',
+});
+```
+
+The same Integration must own the Page, Layout, and Html files it composes. When an application uses multiple Integrations, declare nested Components in `dependencies.components` so Ecopages can resolve Foreign Children through their owning renderer.
+
+For a production JSX integration with automatic escaping and optional Radiant hydration, use [Ecopages JSX](/docs/integrations/ecopages-jsx).

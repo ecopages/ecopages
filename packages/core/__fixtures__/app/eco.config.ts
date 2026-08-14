@@ -1,11 +1,14 @@
-import { ConfigBuilder } from '../../src/config/config-builder';
+import { createStringMarkupIntegration } from '@ecopages/testing';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { ConfigBuilder } from '../../src/config/config-builder';
 
 type FixtureProcessor =
 	Awaited<ReturnType<ConfigBuilder['build']>>['processors'] extends Map<string, infer T> ? T : never;
 
-const builder = new ConfigBuilder().setRootDir(import.meta.dir);
+const builder = new ConfigBuilder()
+	.setRootDir(import.meta.dir)
+	.setIntegrations([createStringMarkupIntegration({ extensions: ['.ts'] })]);
 
 if (process.env.ECOPAGES_USE_POSTCSS_PROCESSOR === 'true') {
 	const postcssPluginPath = path.resolve(import.meta.dir, '../../../processors/postcss-processor/src/plugin.ts');

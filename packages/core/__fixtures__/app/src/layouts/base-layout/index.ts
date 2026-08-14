@@ -1,1 +1,1 @@
-export * from './base-layout.ghtml';
+export * from './base-layout';

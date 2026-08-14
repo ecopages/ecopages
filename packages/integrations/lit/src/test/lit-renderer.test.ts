@@ -640,7 +640,7 @@ describe('LitRenderer', () => {
 				{
 					config: {
 						identity: {
-							integration: 'ghtml',
+							integration: 'string',
 						},
 					},
 				},
@@ -673,7 +673,7 @@ describe('LitRenderer', () => {
 				{
 					config: {
 						identity: {
-							integration: 'ghtml',
+							integration: 'string',
 						},
 					},
 				},
@@ -708,7 +708,7 @@ describe('LitRenderer', () => {
 				{
 					config: {
 						identity: {
-							integration: 'ghtml',
+							integration: 'string',
 						},
 					},
 				},
@@ -962,7 +962,7 @@ describe('LitRenderer', () => {
 				{
 					config: {
 						identity: {
-							integration: 'ghtml',
+							integration: 'string',
 						},
 					},
 				},

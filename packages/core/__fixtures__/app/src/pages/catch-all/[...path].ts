@@ -1,0 +1,8 @@
+import type { PageProps } from '@ecopages/core';
+
+export default function BlogPost({ params, query }: PageProps) {
+	return `<div>
+		<h1>Catch All</h1>
+		<p>${JSON.stringify(params || [])} ${JSON.stringify(query || [])}</p>
+	</div>`;
+}

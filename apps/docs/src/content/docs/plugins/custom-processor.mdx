@@ -234,10 +234,12 @@ Register your processor in `eco.config.ts`:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { customProcessorPlugin } from './custom-processor';
 
 const config = await new ConfigBuilder()
 	.setProcessors([customProcessorPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 

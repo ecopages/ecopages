@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import {
-	FIXTURE_APP_PROJECT_DIR,
 	FIXTURE_EXISTING_CSS_FILE_IN_DIST,
 	FIXTURE_EXISTING_SVG_FILE_IN_DIST_PATH,
 } from '../../../../__fixtures__/constants.js';
+import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { ConfigBuilder } from '../../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../../config/constants.ts';
@@ -15,7 +15,7 @@ let responseFactory: FileSystemServerResponseFactory;
 
 describe('FileSystemServerResponseFactory', () => {
 	beforeAll(async () => {
-		appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+		appConfig = await createFixtureAppConfig();
 
 		for (const integration of appConfig.integrations) {
 			integration.setConfig(appConfig);

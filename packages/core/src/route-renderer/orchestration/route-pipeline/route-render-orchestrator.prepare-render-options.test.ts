@@ -55,7 +55,7 @@ function createFlowAdapter<C>(input: {
 	) => Promise<import('../../page-loading/resolved-page-dependencies.ts').ResolvedPageDependencies | undefined>;
 }): RouteRenderOrchestratorAdapter<C> {
 	return {
-		name: 'ghtml',
+		name: 'string',
 		resolveRouteRenderInputs: async (routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeOptions.file);
 			const HtmlTemplate = await input.getHtmlTemplate();
@@ -298,7 +298,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					attributes: { type: 'module' },
 				}),
 			]),
-			'ghtml',
+			'string',
 		);
 	});
 
@@ -1128,7 +1128,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					packageRole: 'dynamic-chunk',
 				}),
 			],
-			'ghtml:ssr-lazy',
+			'string:ssr-lazy',
 		);
 	});
 
@@ -1310,7 +1310,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 
 		expect(injectedOwnershipValidationService.validate).toHaveBeenCalledWith({
-			currentIntegrationName: 'ghtml',
+			currentIntegrationName: 'string',
 			roots: [
 				{ component: HtmlTemplate, source: 'html-template' },
 				{ component: Page, source: 'page' },
@@ -1390,7 +1390,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			identity: {
 				id: 'layout-component',
 				file: '/app/layouts/default.tsx',
-				integration: 'ghtml',
+				integration: 'string',
 			},
 			dependencies: {
 				components: [ForeignComponent],
@@ -1403,7 +1403,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			identity: {
 				id: 'page-component',
 				file: '/app/pages/index.tsx',
-				integration: 'ghtml',
+				integration: 'string',
 			},
 		};
 
@@ -1411,8 +1411,8 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		HtmlTemplate.config = {
 			identity: {
 				id: 'html-template',
-				file: '/app/index.ghtml.ts',
-				integration: 'ghtml',
+				file: '/app/index.ts',
+				integration: 'string',
 			},
 		};
 
@@ -1432,7 +1432,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				}),
-				name: 'ghtml',
+				name: 'string',
 			},
 		);
 

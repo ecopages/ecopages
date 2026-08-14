@@ -22,10 +22,12 @@ The extension depends on your chosen integration (e.g. `.tsx` for Ecopages JSX, 
 
 You can configure includes in your `eco.config.ts`:
 
-```typescript
+```tsx
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const config = await new ConfigBuilder()
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 
@@ -37,19 +39,16 @@ Ecopages resolves `src/includes/html.*` automatically using the registered integ
 
 The HTML template defines the overall structure of your pages. Use `eco.html()` to clearly signal that this component owns the full document shell:
 
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-const Html = eco.html<HtmlProps>({
+const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},
-	render: ({ head, body, lang = 'en' }) => html`
-	<html lang="${lang}">
-		${head}
-		${body}
-	</html>`
+	render: ({ children, language = 'en' }) => <html lang={language}>{children}</html>,
 });
 
 export default Html;
@@ -59,18 +58,19 @@ export default Html;
 
 The head template manages your document's head section:
 
-```typescript
-import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+```tsx
+import { eco, type PageHeadProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-const Head = eco.component<HeadProps>({
-	render: ({ title, meta, links, scripts }) => html`	
+const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
+	render: ({ metadata, children }) => (
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		${meta}
-		<title>${title}</title>${links}${scripts}
-	</head>`
+		<title>{metadata.title}</title>
+		{children}
+	</head>
+	)
 });
 
 export default Head;
@@ -81,16 +81,17 @@ export default Head;
 The SEO template handles meta tags for search engines and social sharing:
 
 ```typescript
-import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+import { eco, type PageMetadataProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-const Seo = eco.component<SeoProps>({
-	render: ({ title, description, image, keywords }) => html`
-	<meta name="description" content="${description}" />
-	<meta name="keywords" content="${keywords?.join(',')}" />
-	<meta property="og:title" content="${title}" />
-	<meta property="og:description" content="${description}" />
-	${image ? html`<meta property="og:image" content="${image}" />` : ''}`
+const Seo = eco.component<PageMetadataProps, JsxRenderable>({
+	render: ({ title, description, image, keywords }) => <>
+		<meta name="description" content={description} />
+		<meta name="keywords" content={keywords?.join(',')} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		{image ? <meta property="og:image" content={image} /> : null}
+	</>
 });
 
 export default Seo;

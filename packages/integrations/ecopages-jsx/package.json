@@ -30,8 +30,7 @@
 		"directory": "packages/integrations/ecopages-jsx"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "node ../../../scripts/prepare-jsr-publish.ts . --publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@kitajs/html": "^4.2.13",

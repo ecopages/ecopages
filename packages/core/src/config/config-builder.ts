@@ -43,24 +43,24 @@ export const CONFIG_BUILDER_ERRORS = {
 	DUPLICATE_INTEGRATION_EXTENSIONS: 'Integrations extensions must be unique',
 	MIXED_JSX_ENGINES:
 		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
-	duplicateProcessorName: (name: string) => `Processor with name "${name}" already exists`,
-	duplicateLoaderName: (name: string) => `Loader with name "${name}" already exists`,
-	duplicateSemanticTemplate: (kind: 'html' | '404' | '500', matches: string[]) =>
+	duplicateProcessorName: (name: string): string => `Processor with name "${name}" already exists`,
+	duplicateLoaderName: (name: string): string => `Loader with name "${name}" already exists`,
+	duplicateSemanticTemplate: (kind: 'html' | '404' | '500', matches: string[]): string =>
 		`Multiple ${kind} templates found: ${matches.join(', ')}`,
 	incompatibleRuntimeCapability: (
 		kind: 'integration' | 'processor',
 		name: string,
 		runtime: RuntimeKind,
 		reason: string,
-	) => `Cannot enable ${kind} "${name}" on ${runtime}: ${reason}`,
+	): string => `Cannot enable ${kind} "${name}" on ${runtime}: ${reason}`,
 	unsupportedRuntimeVersion: (
 		kind: 'integration' | 'processor',
 		name: string,
 		runtime: RuntimeKind,
 		current: string,
 		min: string,
-	) => `Cannot enable ${kind} "${name}" on ${runtime} ${current}: requires runtime version ${min} or newer`,
-	invalidRuntimeVersion: (kind: 'integration' | 'processor', name: string, version: string) =>
+	): string => `Cannot enable ${kind} "${name}" on ${runtime} ${current}: requires runtime version ${min} or newer`,
+	invalidRuntimeVersion: (kind: 'integration' | 'processor', name: string, version: string): string =>
 		`Cannot validate ${kind} "${name}" runtimeCapability.minRuntimeVersion "${version}" because it is not a dot-separated numeric version`,
 } as const;
 

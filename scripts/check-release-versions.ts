@@ -14,11 +14,6 @@ type PackageManifest = {
 	devDependencies?: Record<string, string>;
 };
 
-type JsrManifest = {
-	name: string;
-	version?: string;
-};
-
 type VersionMismatch = {
 	filePath: string;
 	expected: string;
@@ -51,7 +46,7 @@ function isPublishablePackageManifest(packageJsonPath: string): boolean {
 	}
 
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
-	return !manifest.private && manifest.scripts?.['release:jsr'] === 'bunx jsr publish';
+	return !manifest.private;
 }
 
 function findPublishablePackageDirs(dir: string): string[] {
@@ -109,11 +104,7 @@ export function collectInternalWorkspaceRangeMismatches(manifests: PackageManife
 	return mismatches;
 }
 
-function collectVersionMismatches(
-	expectedVersion: string,
-	packageDirs: string[],
-	cliManifestPath: string,
-): VersionMismatch[] {
+function collectVersionMismatches(expectedVersion: string, packageDirs: string[]): VersionMismatch[] {
 	const mismatches: VersionMismatch[] = [];
 
 	for (const packageDir of packageDirs) {
@@ -126,25 +117,6 @@ function collectVersionMismatches(
 				actual: packageJson.version,
 			});
 		}
-
-		const jsrJsonPath = path.join(packageDir, 'jsr.json');
-		const jsrJson = readJsonFile<JsrManifest>(jsrJsonPath);
-		if (jsrJson.version !== expectedVersion) {
-			mismatches.push({
-				filePath: jsrJsonPath,
-				expected: expectedVersion,
-				actual: jsrJson.version,
-			});
-		}
-	}
-
-	const cliManifest = readJsonFile<PackageManifest>(cliManifestPath);
-	if (cliManifest.version !== expectedVersion) {
-		mismatches.push({
-			filePath: cliManifestPath,
-			expected: expectedVersion,
-			actual: cliManifest.version,
-		});
 	}
 
 	return mismatches;
@@ -157,12 +129,10 @@ function main(): void {
 	}
 
 	const packageDirs = findPublishablePackageDirs(packagesRoot).sort();
-	const cliManifestPath = path.join(repoRoot, 'packages', 'ecopages', 'package.json');
-	const versionMismatches = collectVersionMismatches(rootPackageJson.version, packageDirs, cliManifestPath);
-	const releaseManifests = [
-		...packageDirs.map((packageDir) => readJsonFile<PackageManifest>(path.join(packageDir, 'package.json'))),
-		readJsonFile<PackageManifest>(cliManifestPath),
-	];
+	const versionMismatches = collectVersionMismatches(rootPackageJson.version, packageDirs);
+	const releaseManifests = packageDirs.map((packageDir) =>
+		readJsonFile<PackageManifest>(path.join(packageDir, 'package.json')),
+	);
 	const workspaceRangeMismatches = collectInternalWorkspaceRangeMismatches(releaseManifests);
 
 	if (versionMismatches.length > 0 || workspaceRangeMismatches.length > 0) {
@@ -185,7 +155,7 @@ function main(): void {
 			.join('\n');
 
 		throw new Error(
-			`Release versions are not synced:\n${details}\nRun pnpm run jsr:sync-version and replace same-repo package ranges with workspace:* before publishing.`,
+			`Release packages are not ready to publish:\n${details}\nRun pnpm run sync-version and keep same-repo package ranges as workspace:* before publishing.`,
 		);
 	}
 

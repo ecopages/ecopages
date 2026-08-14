@@ -95,13 +95,15 @@ export interface IntegrationPluginConfig {
 	jsxImportSource?: string;
 }
 
-type RendererClass<C> = new (options: {
+type IntegrationRendererConstructorOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
 	rendererModules?: unknown;
 	runtimeOrigin: string;
-}) => IntegrationRenderer<C>;
+};
+
+type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => IntegrationRenderer<C>;
 
 /**
  * Base class for framework integrations.
@@ -265,7 +267,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	/**
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 */
-	protected createRendererOptions(options?: { rendererModules?: unknown }) {
+	protected createRendererOptions(options?: { rendererModules?: unknown }): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}

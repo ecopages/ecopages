@@ -34,8 +34,7 @@
 		"directory": "packages/integrations/lit"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

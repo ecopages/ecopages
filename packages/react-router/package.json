@@ -26,8 +26,7 @@
 		"directory": "packages/react-router"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

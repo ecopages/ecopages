@@ -41,7 +41,7 @@ radiant-code-tabs .rui-tabs__panel {
 		@apply flex min-h-0 w-full max-w-full flex-col overflow-y-hidden p-0;
 
 		[data-rehype-pretty-code-figure] {
-			@apply my-0 flex min-h-0 w-full max-w-full flex-1 flex-col overflow-y-hidden rounded-none;
+			@apply my-0 flex min-h-0 w-full max-w-full flex-1 flex-col overflow-y-hidden rounded-none border-0 shadow-none;
 
 			& > pre {
 				@apply min-h-0 w-full max-w-full flex-1 overflow-x-auto whitespace-pre rounded-none;

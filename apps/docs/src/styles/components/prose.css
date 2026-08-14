@@ -72,15 +72,15 @@
 		}
 	}
 
-	code:not(.unstyled, .unstyled *) {
+	code:not(.unstyled, .unstyled *, :where(figure[data-rehype-pretty-code-figure] *)) {
 		@apply font-mono text-[0.875em] bg-muted text-on-background-accent px-1.5 py-0.5 rounded-md border border-border/30;
 	}
 
-	pre:not(.unstyled, .unstyled *) {
-		@apply my-8 rounded-md bg-background-accent/10 border border-border overflow-x-auto p-5 shadow-sm;
+	pre:not(.unstyled, .unstyled *, :where(figure[data-rehype-pretty-code-figure] *)) {
+		@apply my-8 rounded-md bg-background-accent border border-border overflow-x-auto p-5 shadow-sm;
 
 		code {
-			@apply bg-background-accent text-inherit p-0 rounded-none border-none text-[0.875em] leading-relaxed;
+			@apply bg-transparent text-inherit p-0 rounded-none border-none text-[0.875em] leading-relaxed;
 		}
 	}
 

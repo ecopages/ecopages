@@ -1,7 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import { RuiChip } from '@ecopages/radiant-ui/chip';
 import {
 	RuiFeed,
 	RuiFeedArticle,
@@ -62,6 +61,80 @@ const HomePathCard = ({ href, title, description }: { href: string; title: strin
 		<p class="text-sm font-semibold">{title}</p>
 		<p class="text-sm text-on-background/70">{description}</p>
 	</a>
+);
+
+type HomeFooterLink = {
+	label: string;
+	href?: string;
+	external?: boolean;
+};
+
+type HomeFooterColumnData = {
+	title: string;
+	links: HomeFooterLink[];
+};
+
+const HOME_FOOTER_COLUMNS: HomeFooterColumnData[] = [
+	{
+		title: 'Ecosystem',
+		links: [
+			{ label: 'Ecopages' },
+			{ label: 'Radiant', href: 'https://radiant.ecopages.app', external: true },
+			{ label: 'Radiant UI', href: 'https://radiant-ui.ecopages.app', external: true },
+			{ label: 'Scripts Injector', href: 'https://scripts-injector.ecopages.app', external: true },
+			{ label: 'Logger', href: 'https://github.com/ecopages/logger', external: true },
+		],
+	},
+	{
+		title: 'Integrations',
+		links: [
+			{ label: 'Ecopages JSX', href: '/docs/integrations/ecopages-jsx' },
+			{ label: 'KitaJS', href: '/docs/integrations/kitajs' },
+			{ label: 'React', href: '/docs/integrations/react' },
+			{ label: 'Lit', href: '/docs/integrations/lit' },
+			{ label: 'MDX', href: '/docs/integrations/mdx' },
+		],
+	},
+	{
+		title: 'Processors',
+		links: [
+			{ label: 'PostCSS', href: '/docs/ecosystem/postcss-processor' },
+			{ label: 'Image', href: '/docs/ecosystem/image-processor' },
+			{ label: 'Content', href: '/docs/ecosystem/content-processor' },
+		],
+	},
+	{
+		title: 'Libraries',
+		links: [
+			{ label: 'Browser Router', href: '/docs/ecosystem/browser-router' },
+			{ label: 'React Router', href: '/docs/ecosystem/react-router' },
+			{ label: 'Vite Plugin', href: '/docs/ecosystem/vite-plugin' },
+			{ label: 'File System', href: '/docs/ecosystem/file-system' },
+			{ label: 'CLI', href: '/docs/ecosystem/ecopages' },
+		],
+	},
+];
+
+const HomeFooterColumn = ({ title, links }: HomeFooterColumnData) => (
+	<div class="home-footer__col">
+		<p class="home-footer__label">{title}</p>
+		<ul class="home-footer__list">
+			{links.map((link) => (
+				<li>
+					{link.href ? (
+						<a
+							href={link.href}
+							{...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+						>
+							{link.label}
+						</a>
+					) : (
+						<span aria-current="page">{link.label}</span>
+					)}
+				</li>
+			))}
+		</ul>
+	</div>
 );
 
 export default eco.page<{}, JsxRenderable>({
@@ -282,27 +355,29 @@ export default eco.page<{}, JsxRenderable>({
 						</RuiButton>
 					</div>
 				</div>
-
-				<div class="home-sidebar__section">
-					<p class="home-sidebar__label">Ecosystem</p>
-					<div class="home-sidebar__tags">
-						<RuiChip class="font-mono">@ecopages/core</RuiChip>
-						<RuiChip class="font-mono">@ecopages/ecopages-jsx</RuiChip>
-						<RuiChip class="font-mono">@ecopages/radiant</RuiChip>
-						<RuiChip class="font-mono">@ecopages/browser-router</RuiChip>
-						<RuiChip class="font-mono">@ecopages/postcss-processor</RuiChip>
-					</div>
-				</div>
 			</aside>
 
 			<footer class="home-footer">
-				<p>
-					Made with{' '}
-					<a href="https://github.com/ecopages/ecopages" target="_blank" rel="noopener noreferrer">
-						Ecopages
-					</a>
-					© {new Date().getFullYear()}
-				</p>
+				<nav class="home-footer__nav" aria-label="Ecopages ecosystem">
+					{HOME_FOOTER_COLUMNS.map((column) => (
+						<HomeFooterColumn title={column.title} links={column.links} />
+					))}
+				</nav>
+				<div class="home-footer__bar">
+					<p>
+						Created by{' '}
+						<a href="https://github.com/andeeplus" target="_blank" rel="noopener noreferrer">
+							andeeplus
+						</a>
+					</p>
+					<p>
+						Built with{' '}
+						<a href="https://github.com/ecopages/ecopages" target="_blank" rel="noopener noreferrer">
+							Ecopages
+						</a>
+						© {new Date().getFullYear()}
+					</p>
+				</div>
 			</footer>
 		</div>
 	),

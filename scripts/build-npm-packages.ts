@@ -704,7 +704,7 @@ function transpileJavaScriptSource(sourceFile: string, source: string, compilerO
 		fileName: sourceFile,
 	});
 
-	if (result.diagnostics) {
+	if (result.diagnostics.length > 0) {
 		throw new Error(
 			`Failed to transpile ${sourceFile}:\n${ts.formatDiagnosticsWithColorAndContext(result.diagnostics, formatHost)}`,
 		);

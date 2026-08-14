@@ -34,6 +34,31 @@ function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string
 	return `${groupedBundle.id}:${groupedBundle.entryName}`;
 }
 
+type IndexedGroupedAsset = {
+	asset: ProcessedAsset;
+	index: number;
+};
+
+function indexGroupedAssetsByBundleKey(processedAssets: ProcessedAsset[]): Map<string, IndexedGroupedAsset[]> {
+	const assetsByBundleKey = new Map<string, IndexedGroupedAsset[]>();
+
+	for (const [index, asset] of processedAssets.entries()) {
+		if (!asset.groupedBundle) {
+			continue;
+		}
+
+		const bundleKey = getGroupedBundleAssetKey(asset.groupedBundle);
+		const assets = assetsByBundleKey.get(bundleKey);
+		if (assets) {
+			assets.push({ asset, index });
+		} else {
+			assetsByBundleKey.set(bundleKey, [{ asset, index }]);
+		}
+	}
+
+	return assetsByBundleKey;
+}
+
 type GroupedPageBrowserAssetsResult = {
 	assetsByRoute: Map<string, ProcessedAsset[]>;
 	dependencyPaths: ReadonlySet<string>;
@@ -326,15 +351,13 @@ export class PageBrowserGraphService {
 			`${input.integrationName}:grouped-page-browser-graph`,
 		);
 		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
+		const groupedAssetsByBundleKey = indexGroupedAssetsByBundleKey(processedGroupedDependencies);
 
 		for (const [routeFile, groupedAssetKeys] of groupedAssetKeysByRoute) {
-			const matchedAssets = processedGroupedDependencies.filter((asset) => {
-				if (!asset.groupedBundle) {
-					return false;
-				}
-
-				return groupedAssetKeys.has(getGroupedBundleAssetKey(asset.groupedBundle));
-			});
+			const matchedAssets = [...groupedAssetKeys]
+				.flatMap((assetKey) => groupedAssetsByBundleKey.get(assetKey) ?? [])
+				.sort((left, right) => left.index - right.index)
+				.map(({ asset }) => asset);
 
 			if (groupedAssetKeys.size > 0 && matchedAssets.length === 0) {
 				appLogger.warn(

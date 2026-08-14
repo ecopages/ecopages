@@ -12,43 +12,43 @@ Layouts wrap page content with shared chrome — navigation, sidebars, providers
 
 Includes files are mandatory in Ecopages and define the outer document shell. They live under `src/includes` (for example `html.tsx` and `head.tsx` with Ecopages JSX).
 
-### html.ts
+### html.tsx
 
 Defines the overall HTML envelope:
 
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Html = eco.html<{ children: string }>({
+export const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./html.css'],
 	},
-	render: ({ children }) => html`
-	<html lang="en">
-		!${children}
-	</html>
-`});
+	render: ({ children }) => <html lang="en">{children}</html>,
+});
 ```
 
-### head.ts
+### head.tsx
 
 Defines `<head>` content — title, meta, icons:
 
-```typescript
-import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
+```tsx
+import { eco, type PageHeadProps } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Head = eco.component<{ title: string; description: string }>({
-	render: ({ title, description }) => html`
+export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
+	render: ({ metadata, children }) => (
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>${title}</title>
-		<meta name="description" content="${description}" />
+		<title>{metadata.title}</title>
+		<meta name="description" content={metadata.description} />
 		<link rel="icon" href="/favicon.ico" />
+		{children}
 	</head>
-`});
+	),
+});
 ```
 
 Includes are applied automatically. Pages and route layouts render **inside** this shell — they do not replace it.

@@ -116,7 +116,7 @@ Configure your integratons, processors, and default metadata. Ecopages uses a bu
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-// import your desired plugins...
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
@@ -125,7 +125,7 @@ const config = await new ConfigBuilder()
 		title: 'My Ecopages Site',
 		description: 'Built with Ecopages',
 	})
-	// .setIntegrations([kitajsPlugin()])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 
 export default config;
@@ -278,7 +278,6 @@ Use these entrypoints when building an Ecopages app:
 - `@ecopages/core/create-app`
 - `@ecopages/core/config-builder`
 - `@ecopages/core/errors`
-- `@ecopages/core/html`
 - `@ecopages/core/hash`
 - `@ecopages/core/declarations`
 - `@ecopages/core/env`
@@ -301,7 +300,6 @@ Use these entrypoints when implementing integrations, processors, or source tran
 - `@ecopages/core/route-renderer/orchestration/integration-renderer`
 - `@ecopages/core/services/asset-processing-service`
 - `@ecopages/core/hmr/hmr-strategy`
-- `@ecopages/core/integrations/ghtml`
 
 ### Host And Runtime Composition
 

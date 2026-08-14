@@ -199,6 +199,9 @@ importers:
       '@ecopages/mdx':
         specifier: workspace:*
         version: link:../../../packages/integrations/mdx
+      '@ecopages/testing':
+        specifier: workspace:*
+        version: link:../../../packages/__internals/testing
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -211,9 +214,6 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
-      ghtml:
-        specifier: ^4.0.2
-        version: 4.0.2
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
@@ -224,6 +224,9 @@ importers:
       '@ecopages/postcss-processor':
         specifier: workspace:*
         version: link:../../../packages/processors/postcss-processor
+      '@ecopages/testing':
+        specifier: workspace:*
+        version: link:../../../packages/__internals/testing
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -458,9 +461,6 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
-      ghtml:
-        specifier: ^4.0.2
-        version: 4.0.2
       oxc-parser:
         specifier: ^0.141.0
         version: 0.141.0
@@ -477,6 +477,9 @@ importers:
       '@ecopages/dev-toolbar':
         specifier: workspace:*
         version: link:../dev-toolbar
+      '@ecopages/testing':
+        specifier: workspace:*
+        version: link:../__internals/testing
       '@tanstack/react-query':
         specifier: ^5.90.2
         version: 5.101.4(react@19.2.8)
@@ -4352,10 +4355,6 @@ packages:
 
   get-tsconfig@4.14.1:
     resolution: {integrity: sha512-Dz/6HxkrxgNehhxLVeyv8sad9UzF2xBVeaKBQNDfJ5XiSXmp2gTR0eO0RWiT2NCKS5aGP9jjkOMggTN90qU50A==}
-
-  ghtml@4.0.2:
-    resolution: {integrity: sha512-ymJljsiXUc6hrq2407EnkyCQ8dk5NVEvpAbB4fhnZ+oqP0u9Aq/YWsNkDh+Ew5lBz2uGqyLfzCBdE8J8g4NNgg==}
-    engines: {node: '>=18'}
 
   giget@2.0.0:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
@@ -8608,8 +8607,6 @@ snapshots:
   get-tsconfig@4.14.1:
     dependencies:
       resolve-pkg-maps: 1.0.0
-
-  ghtml@4.0.2: {}
 
   giget@2.0.0:
     dependencies:

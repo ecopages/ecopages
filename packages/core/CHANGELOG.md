@@ -8,6 +8,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Breaking Changes
 
+- Removed the built-in ghtml Integration, `@ecopages/core/html`, and `@ecopages/core/integrations/ghtml`. Apps must register an Integration that owns their route file extensions. `ghtml` is no longer a core dependency.
 - Removed `@ecopages/core/build/runtime-build-executor`. Use `@ecopages/core/build/build-runtime` (`installBuildRuntime`, `requireBuildRuntime`) instead.
 - `BuildRuntime` profiles no longer inject app plugins. Pass complete `BuildOptions`, including required app plugins and transforms, before calling `getProfile(...).build()`.
 - Removed the open index signature from `BuildOptions` and `BrowserBundleOptions` so request identity can cover every field exhaustively.

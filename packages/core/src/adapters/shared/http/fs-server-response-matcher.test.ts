@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
-import { APP_TEST_ROUTES, FIXTURE_APP_PROJECT_DIR, INDEX_TEMPLATE_FILE } from '../../../../__fixtures__/constants.ts';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { APP_TEST_ROUTES, INDEX_TEMPLATE_FILE } from '../../../../__fixtures__/constants.ts';
+import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { MatchResult } from '../../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import type { PageRendererResolver } from '../../../route-renderer/route-renderer.ts';
@@ -14,7 +14,7 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
-const appConfig = await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+const appConfig = await createFixtureAppConfig();
 
 for (const integration of appConfig.integrations) {
 	integration.setConfig(appConfig);

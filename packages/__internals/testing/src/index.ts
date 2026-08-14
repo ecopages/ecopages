@@ -6,11 +6,13 @@ import type {
 	EcoPagesElement,
 } from '@ecopages/core';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 
 export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
 
@@ -30,13 +32,58 @@ export type CreateDeferredIntegrationPluginOptions = {
 	renderComponent?: (input: ComponentRenderInput) => Promise<ComponentRenderResult> | ComponentRenderResult;
 };
 
+export const TEST_STRING_MARKUP_INTEGRATION_NAME = 'string';
+export const TEST_STRING_MARKUP_EXTENSIONS = ['.string.ts'] as const;
+
+export type CreateStringMarkupIntegrationOptions = {
+	/** File suffixes owned by the test Integration. @default ['.string.ts'] */
+	extensions?: string[];
+	/** Integration name used for ownership metadata. @default 'string' */
+	name?: string;
+};
+
+/**
+ * Creates a test-only Integration for Components that return HTML strings.
+ *
+ * @remarks
+ * The default Integration is named `string` and owns `.string.ts` files. It uses
+ * `StringMarkupRenderer`, so its markup is trusted and interpolation is not
+ * escaped. Fixture apps that keep plain `.ts` templates must pass
+ * `extensions: ['.ts']` explicitly. Use it only in tests and fixtures.
+ */
+export function createStringMarkupIntegration(
+	options: CreateStringMarkupIntegrationOptions = {},
+): AnyIntegrationPlugin {
+	const integrationName = options.name ?? TEST_STRING_MARKUP_INTEGRATION_NAME;
+
+	class TestStringRenderer extends StringMarkupRenderer {
+		name = integrationName;
+	}
+
+	return defineIntegration({
+		name: integrationName,
+		extensions: options.extensions ?? [...TEST_STRING_MARKUP_EXTENSIONS],
+		renderer: TestStringRenderer,
+	})();
+}
+
+/**
+ * Builds the standard app configuration used by Integration tests.
+ *
+ * @remarks
+ * A test-only string Integration is installed by default so `.string.ts`
+ * templates have an explicit owner. Pass `integrations: []` when a test
+ * intentionally needs an app configuration without an Integration. Fixture
+ * apps that author plain `.ts` templates must pass
+ * `createStringMarkupIntegration({ extensions: ['.ts'] })`.
+ */
 export async function createTestAppConfig(options: CreateTestAppConfigOptions = {}) {
 	const {
 		baseUrl = TEST_RUNTIME_ORIGIN,
 		configure,
 		description = 'Ecopages',
 		distDir,
-		integrations = [],
+		integrations = [createStringMarkupIntegration()],
 		runtimeOrigin = baseUrl,
 		title = 'Ecopages',
 	} = options;
@@ -76,7 +123,16 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 
 export type { EcoPagesAppConfig, AnyIntegrationPlugin };
 
-export function createDeferredIntegrationPlugin(options: CreateDeferredIntegrationPluginOptions = {}) {
+/**
+ * Creates a test-only Integration that supplies deterministic foreign-child markup.
+ *
+ * @remarks
+ * Use this fixture to exercise Integration ownership boundaries without loading a
+ * framework runtime. It is not a production renderer.
+ */
+export function createDeferredIntegrationPlugin(
+	options: CreateDeferredIntegrationPluginOptions = {},
+): AnyIntegrationPlugin {
 	const integrationName = options.name ?? 'deferred';
 	const extensions = options.extensions ?? ['.deferred.tsx'];
 	const renderComponent =

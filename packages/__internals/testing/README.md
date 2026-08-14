@@ -11,6 +11,7 @@ Use this package for shared testing infrastructure that has already proven stabl
 Current responsibilities:
 
 - `createTestAppConfig()` for the common Ecopages app-config test baseline.
+- `createStringMarkupIntegration()` for plain TypeScript fixture templates that return trusted HTML strings.
 - `createDeferredIntegrationPlugin()` for shared foreign-renderer contract fixtures.
 - Shared kitchen-sink shell components that are portable across package boundaries.
 
@@ -42,7 +43,7 @@ Default behavior:
 - base URL: `http://localhost:3000`
 - default metadata title/description: `Ecopages`
 - robots preferences: empty allow/disallow baseline
-- integrations: configured on the final app config and initialized with a runtime origin
+- integrations: a test-only `string` Integration that owns `.string.ts` templates, configured on the final app config and initialized with a runtime origin
 
 Supported overrides:
 
@@ -50,12 +51,14 @@ Supported overrides:
 - `runtimeOrigin`: changes the runtime origin used to initialize integrations when it should differ from `baseUrl`
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
-- `integrations`: installs and initializes integration plugins
+- `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` for an intentionally integration-free config
 - `configure(builder)`: narrow escape hatch for one-off builder customization such as `rootDir`, `workDir`, or additional watch paths
 
 Example:
 
 ```ts
+import { createTestAppConfig } from '@ecopages/testing';
+
 const config = await createTestAppConfig({
 	distDir: testDir,
 	runtimeOrigin: 'http://127.0.0.1:4100',
@@ -63,6 +66,20 @@ const config = await createTestAppConfig({
 	integrations: [plugin],
 });
 ```
+
+## String markup fixtures
+
+Use `createStringMarkupIntegration()` only when a test fixture needs TypeScript templates that return HTML strings. The default owns `.string.ts` files. Fixture apps that keep plain `.ts` templates must pass `extensions: ['.ts']`. It uses `StringMarkupRenderer`; markup is trusted and interpolation is not escaped.
+
+```ts
+import { createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
+
+const config = await createTestAppConfig({
+	integrations: [createStringMarkupIntegration({ extensions: ['.fixture.ts'] })],
+});
+```
+
+This is test infrastructure, not an application rendering default. Production applications must register an Integration that owns their route file extensions.
 
 ## Design Constraints
 

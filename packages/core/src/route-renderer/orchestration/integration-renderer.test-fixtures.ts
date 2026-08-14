@@ -41,7 +41,7 @@ export function createMockIntegrationPlugin(
 export const testAppConfig = {
 	absolutePaths: {
 		pagesDir: '/app/pages',
-		htmlTemplatePath: '/app/index.ghtml.ts',
+		htmlTemplatePath: '/app/index.ts',
 	},
 	integrations: [],
 	defaultMetadata: {

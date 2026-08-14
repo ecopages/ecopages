@@ -115,7 +115,7 @@ pnpm install
 pnpm dev
 ```
 
-If you are working inside this monorepo and want an example to use the local npm-ready `dist` packages instead of the published JSR/npm packages, use:
+If you are working inside this monorepo and want an example to use the local npm-ready `dist` packages instead of the published npm packages, use:
 
 ```bash
 pnpm run example:local-npm -- examples/starter-react
@@ -173,7 +173,7 @@ Promote a prerelease to stable (drops `-alpha`/`-beta`/`-rc` suffix without incr
 
 ```bash
 pnpm run bump:stable
-# e.g. 0.2.0-beta.13 → 0.2.0, then pnpm run jsr:sync-version (included in bump:stable)
+# e.g. 0.2.0-beta.13 → 0.2.0, then pnpm run sync-version (included in bump:stable)
 ```
 
 Prerelease bumps:
@@ -209,15 +209,15 @@ node --experimental-strip-types scripts/bump-version.ts --help
 After bumping, sync the package versions if your chosen root script did not already do it:
 
 ```bash
-pnpm run jsr:sync-version
+pnpm run sync-version
 ```
 
 Changelogs: tracking begins at `0.2.0`. Keep release notes under `## [UNRELEASED] — TBD` until publish; run `node scripts/stamp-changelogs.ts` after a stable bump to create the first published entry.
 
 Release pipeline notes:
 
-- JSR publishing runs package by package.
-- npm publishing also runs package by package.
+- npm is the only release channel. The `ecopages` CLI is the install entrypoint (`npx ecopages`, `pnpm exec ecopages`).
+- npm publishing runs package by package.
 - npm publishing uses provenance-enabled `npm publish --provenance`.
 - npm publish steps skip a package if that exact version is already published.
 - brand new npm packages usually require an initial manual npm-side setup before trusted publishing can work.

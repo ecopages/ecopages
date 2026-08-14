@@ -56,6 +56,7 @@ import {
 	getForeignSubtreeTokenPrefix,
 	resolveOwningIntegrationRenderer,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
+import type { ForeignChildRuntime } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ForeignSubtreeExecutionOwningRenderer } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { asReactComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
@@ -288,7 +289,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	protected override createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}) {
+	}): ForeignChildRuntime {
 		return this.foreignSubtreeExecutionService.createQueuedRuntime<ReactForeignSubtreeResolutionContext>({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,

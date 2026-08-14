@@ -10,6 +10,11 @@ export type ContentMdxPluginsOptions = {
 	rehypePlugins?: PluggableList;
 };
 
+export type ContentMdxPlugins = {
+	remarkPlugins: PluggableList;
+	rehypePlugins: PluggableList;
+};
+
 /**
  * Builds MDX plugin options for content collections that use YAML frontmatter.
  *
@@ -18,7 +23,7 @@ export type ContentMdxPluginsOptions = {
  * `contentProcessorPlugin()` — the processor validates frontmatter at scan time;
  * this helper wires the matching MDX remark plugin for render time.
  */
-export function withContentMdxPlugins(options: ContentMdxPluginsOptions = {}) {
+export function withContentMdxPlugins(options: ContentMdxPluginsOptions = {}): ContentMdxPlugins {
 	return {
 		remarkPlugins: [remarkFrontmatter, ...(options.remarkPlugins ?? [])],
 		rehypePlugins: options.rehypePlugins ?? [],

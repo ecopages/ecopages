@@ -1,4 +1,4 @@
-import { defineIntegration } from '@ecopages/core/plugins/define-integration';
+import { defineIntegration, type DefinedIntegration } from '@ecopages/core/plugins/define-integration';
 import { KitaRenderer } from './kitajs-renderer.ts';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
@@ -7,7 +7,7 @@ import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
  */
 export const PLUGIN_NAME = KITAJS_PLUGIN_NAME;
 
-export const kitajsPlugin = defineIntegration({
+export const kitajsPlugin: DefinedIntegration = defineIntegration({
 	name: PLUGIN_NAME,
 	extensions: ['.kita.tsx'],
 	jsxImportSource: '@kitajs/html',

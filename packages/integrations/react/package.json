@@ -40,8 +40,7 @@
 		"directory": "packages/integrations/react"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "node ../../../scripts/prepare-jsr-publish.ts . --publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

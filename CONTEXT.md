@@ -148,3 +148,4 @@ _Avoid_: dev overlay, debug widget
 
 - [AGENTS.md](./AGENTS.md) — coding standards, documentation routing, and README maintenance
 - [packages/core/README.md](./packages/core/README.md) — subsystem architecture index
+- [docs/adr/](./docs/adr/) — accepted product and release decisions

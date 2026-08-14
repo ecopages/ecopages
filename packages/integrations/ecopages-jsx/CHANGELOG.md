@@ -9,6 +9,7 @@ All notable changes to `@ecopages/ecopages-jsx` are documented here.
 ### Features
 
 - Added the Ecopages JSX integration with optional Radiant runtime support and optional MDX routes compiled against `@ecopages/jsx`.
+- Publish `@ecopages/ecopages-jsx` to npm. JSR is no longer a release channel.
 - Added the `@ecopages/ecopages-jsx/eco-embed` helper for Ecopages-JSX-owned mixed-integration authoring on top of `eco.embed()`.
 
 ### Bug Fixes

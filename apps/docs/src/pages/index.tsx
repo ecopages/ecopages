@@ -23,12 +23,14 @@ import {
 
 const HomeFeedArticle = ({
 	href,
+	cta,
 	label,
 	title,
 	description,
 	position,
 }: {
 	href: string;
+	cta: string;
 	label: string;
 	title: string;
 	description: string;
@@ -46,7 +48,7 @@ const HomeFeedArticle = ({
 		</RuiFeedArticleContent>
 		<RuiFeedArticleActions class="mt-auto">
 			<RuiButton href={href} variant="link" size="none">
-				Explore {label}
+				{cta}
 			</RuiButton>
 		</RuiFeedArticleActions>
 	</RuiFeedArticle>
@@ -71,7 +73,7 @@ export default eco.page<{}, JsxRenderable>({
 	metadata: () => ({
 		title: 'Ecopages',
 		description:
-			'A file-based web framework for HTML-first multi-page applications with optional interactive islands.',
+			'Pick an Integration, author Pages that render HTML, and add a server only when a Page needs more than static HTML.',
 	}),
 	render: () => (
 		<div class="home-layout not-prose">
@@ -79,13 +81,14 @@ export default eco.page<{}, JsxRenderable>({
 				<div class="home-hero">
 					<div class="home-hero__text">
 						<RuiHeading size="xl" class="home-header__heading">
-							<RuiHeadingEyebrow>Ecopages</RuiHeadingEyebrow>
+							<RuiHeadingEyebrow>A modern, basic web framework</RuiHeadingEyebrow>
 							<RuiHeadingTitle as="h1">
-								A file-based web framework for HTML-first multi-page applications.
+								Pick an Integration. Create Pages. Add a server if you need it.
 							</RuiHeadingTitle>
 							<RuiHeadingDescription>
-								Optional interactive islands, revalidating cache, and first-party libraries including
-								Ecopages JSX, Radiant, Browser Router, React Router, and PostCSS Processor.
+								Start with Ecopages JSX or another Integration. Author Pages that render HTML. Add a
+								Cache Strategy, typed handlers, and Explicit Routes only when a Page needs more than
+								static HTML.
 							</RuiHeadingDescription>
 						</RuiHeading>
 
@@ -116,7 +119,7 @@ export default eco.page<{}, JsxRenderable>({
 						<div class="home-header__actions">
 							<RuiButton href="/docs/getting-started/introduction">Read introduction</RuiButton>
 							<RuiButton href="/docs/getting-started/installation" variant="outline">
-								See installation
+								Install Ecopages
 							</RuiButton>
 						</div>
 					</div>
@@ -133,16 +136,16 @@ export default eco.page<{}, JsxRenderable>({
 									content: configExampleCode,
 								},
 								{
-									id: 'eco-component',
-									label: 'eco.component.tsx',
-									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${componentExample}</figure>`,
-									content: componentExampleCode,
-								},
-								{
 									id: 'home-page',
 									label: 'src/pages/index.tsx',
 									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${pageExample}</figure>`,
 									content: pageExampleCode,
+								},
+								{
+									id: 'eco-component',
+									label: 'eco.component.tsx',
+									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${componentExample}</figure>`,
+									content: componentExampleCode,
 								},
 							]}
 							copyLabel="Copy source"
@@ -156,31 +159,35 @@ export default eco.page<{}, JsxRenderable>({
 				<section>
 					<RuiFeed label="Explore Ecopages" class="home-cards">
 						<HomeFeedArticle
-							href="/docs/getting-started/introduction"
+							href="/docs/integrations/overview"
+							cta="Choose an Integration"
 							label="Get Started"
-							title="Start with Ecopages JSX"
-							description="Use the first-party Integration for internal-first DX, then expand only when your Page needs it."
+							title="Pick an Integration"
+							description="Start with Ecopages JSX, or choose React, Lit, KitaJS, or MDX when a Page needs a different renderer."
 							position={1}
 						/>
 						<HomeFeedArticle
-							href="/docs/core/components"
+							href="/docs/core/pages"
+							cta="Create Pages"
 							label="Core"
-							title="Build with core primitives"
-							description="Use eco.page and eco.component to define Pages and Components with explicit Dependencies."
+							title="Create Pages"
+							description="Define Pages with eco.page, compose them with a Layout, and declare Dependencies explicitly."
 							position={2}
 						/>
 						<HomeFeedArticle
-							href="/docs/ecosystem/radiant"
-							label="Ecosystem"
-							title="Add Radiant when needed"
-							description="Layer in first-party reactive Components with Radiant without leaving the Ecopages model."
+							href="/docs/server/explicit-routing"
+							cta="Add a server"
+							label="Server"
+							title="Add a server if you need it"
+							description="Keep Pages static until you need typed handlers or Explicit Routes."
 							position={3}
 						/>
 						<HomeFeedArticle
 							href="/docs/ecosystem/packages"
+							cta="Browse packages"
 							label="Libraries"
-							title="Use more first-party packages"
-							description="Discover core libraries built to work together: Ecopages JSX, Radiant, routers, and processors."
+							title="Add the rest on demand"
+							description="Reach for Radiant, routers, and processors when a Page needs more than HTML."
 							position={4}
 						/>
 					</RuiFeed>
@@ -192,28 +199,28 @@ export default eco.page<{}, JsxRenderable>({
 						<RuiHeadingTitle as="h2">Build confidence step by step</RuiHeadingTitle>
 					</RuiHeading>
 					<ol class="home-path__list">
-						<li>Start with introduction and installation to scaffold your first project.</li>
-						<li>Start with Ecopages JSX for the default first-party authoring experience.</li>
-						<li>Learn eco.page, Layouts, and Html includes to understand Page composition.</li>
-						<li>Add Radiant and routing libraries when your Components need richer interactivity.</li>
-						<li>Add typed handlers and Explicit Routes for Dynamic Pages.</li>
+						<li>Pick an Integration. Ecopages JSX is the default.</li>
+						<li>Create Pages that render HTML.</li>
+						<li>Compose them with a Layout and Html.</li>
+						<li>Add Radiant or another Integration only where the UI is interactive.</li>
+						<li>Add a server with typed handlers and Explicit Routes if you need request-time work.</li>
 					</ol>
 
 					<div class="mt-8 grid gap-3">
 						<HomePathCard
-							href="/docs/getting-started/installation"
-							title="Install and initialize"
-							description="Use the Ecopages CLI, start with Ecopages JSX, and run your first local development server."
+							href="/docs/integrations/overview"
+							title="Pick an Integration"
+							description="Start with Ecopages JSX, or swap in React, Lit, KitaJS, or MDX."
 						/>
 						<HomePathCard
-							href="/docs/ecosystem/radiant"
-							title="Add Radiant components"
-							description="Adopt first-party reactive Components when your UI needs client behavior."
+							href="/docs/core/pages"
+							title="Create Pages"
+							description="Author Pages with eco.page and compose them with a Layout."
 						/>
 						<HomePathCard
-							href="/docs/ecosystem/packages"
-							title="Explore first-party libraries"
-							description="Find Ecopages packages that share one model across rendering, routing, and styling."
+							href="/docs/server/explicit-routing"
+							title="Add a server if you need it"
+							description="Register typed handlers and Explicit Routes when static HTML is not enough."
 						/>
 					</div>
 				</section>

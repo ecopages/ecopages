@@ -12,11 +12,13 @@ The result is fast static pages, minimal dependencies, and code you can actually
 
 ## Built With
 
-Ecopages runs on [Bun](https://bun.sh/) and [Node.js](https://nodejs.org/), and uses [Ghtml](https://github.com/gurgunday/ghtml) for rendering. Extend it with templating integrations:
+Ecopages runs on [Bun](https://bun.sh/) and [Node.js](https://nodejs.org/). Start with the first-party Ecopages JSX integration, or register another Integration that owns the route file types you use.
 
 Ecopages supports multiple rendering libraries via plug-and-play integrations. Because Ecopages is an SSG framework operating at build-time, you must explicitly install both the integration plugin and its underlying renderer as development dependencies.
 
-- **[KitaJS](https://kitajs.org/html/)** – Fast JSX template (Recommended choice)
+- **Ecopages JSX** – Ecopages-owned JSX routes and optional Radiant hydration (Recommended choice)
+  `pnpm add -D @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant`
+- **[KitaJS](https://kitajs.org/html/)** – Fast JSX template
   `pnpm add -D @ecopages/kitajs @kitajs/html`
 - **[Lit](https://lit.dev/)** – Web Components with SSR
   `pnpm add -D @ecopages/lit lit`

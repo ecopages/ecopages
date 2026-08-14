@@ -109,11 +109,10 @@ This wrapper ensures that the script is loaded when needed and provides a typed 
 
 To use Lit components in your pages, import the wrapper and include it in your page using `eco.page`.
 
-```typescript
+```tsx
 import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 export default eco.page({
 	metadata: () => ({
@@ -123,14 +122,12 @@ export default eco.page({
 	dependencies: {
 		components: [BaseLayout, LitCounter],
 	},
-	render: () =>
-		html`${BaseLayout({
-			class: 'main-content',
-			children: html`
-				<h1>Home</h1>
-				${LitCounter({ count: 8 })}
-			`,
-		})}`,
+	render: () => (
+		<BaseLayout class="main-content">
+			<h1>Home</h1>
+			<LitCounter count={8} />
+		</BaseLayout>
+	),
 });
 ```
 

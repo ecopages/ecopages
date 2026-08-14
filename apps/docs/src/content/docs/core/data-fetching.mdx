@@ -15,13 +15,13 @@ When generating static pages, use the `eco.page` factory to provide data to your
 ### `staticProps`
 Injects custom props into your page component at build time.
 
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
 
 export type PageProps = { title: string; content: string };
 
 export default eco.page<PageProps>({
-    staticProps: async ({ pathname }) => {
+    staticProps: async () => {
         // Fetch data from a database, file, or external API
         const data = await fetch('https://api.example.com/page-data').then(res => res.json());
 
@@ -32,10 +32,12 @@ export default eco.page<PageProps>({
             },
         };
     },
-    render: ({ title, content }) => html`
-        <h1>${title}</h1>
-        <div>${content}</div>
-    `,
+    render: ({ title, content }) => (
+        <>
+            <h1>{title}</h1>
+            <div>{content}</div>
+        </>
+    ),
 });
 ```
 

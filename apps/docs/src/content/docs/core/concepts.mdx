@@ -36,6 +36,7 @@ You can customize this in your `eco.config.ts` file:
 ```typescript
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
@@ -50,6 +51,7 @@ const config = await new ConfigBuilder()
 			}),
 		),
 	])
+	.setIntegrations([ecopagesJsxPlugin()])
 	.build();
 ```
 
@@ -68,7 +70,6 @@ To ensure that your components have the necessary scripts and styles, you must e
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 const HomePage = eco.component({
 	dependencies: {
@@ -79,11 +80,11 @@ const HomePage = eco.component({
 		// Child components to crawl for their own dependencies
 		components: [BaseLayout],
 	},
-	render: () => html`
+	render: () => (
 		<div class="main-content">
 			<h1>Welcome to Ecopages</h1>
 		</div>
-	`,
+	),
 });
 ```
 
@@ -112,7 +113,7 @@ const MyComponent = eco.component({
 	dependencies: {
 		scripts: [{ src: './heavy-script.ts', lazy: { 'on:visible': true } }], // or provide a specific selector string
 	},
-	render: () => html`<div>Heavy Content</div>`,
+	render: () => <div>Heavy Content</div>,
 });
 ```
 
@@ -133,7 +134,7 @@ This capability is provided by the [MDX Integration](/docs/integrations/mdx), wh
 ```typescript
 import Component from '@/components/mdx-component';
 
-const MyPage = () => html`${Component()}`;
+const MyPage = () => Component();
 ```
 
 ## Project Structure
@@ -171,7 +172,7 @@ When fetching data in `staticPaths` or `staticProps`, Ecopages provides differen
 
 For the best performance during static generation, call your data layer functions directly:
 
-```typescript
+```tsx
 import { eco } from '@ecopages/core';
 import { getAllBlogPosts, getBlogPost } from '@/data/blog';
 
@@ -197,7 +198,7 @@ export default eco.page({
 		return { props: { post } };
 	},
 
-	render: ({ post }) => html`...`,
+	render: ({ post }) => <article>{post.title}</article>,
 });
 ```
 

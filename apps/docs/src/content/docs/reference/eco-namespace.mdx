@@ -45,7 +45,7 @@ export const Counter = eco.component({
 		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-	render: ({ count }) => html`<my-counter count=${count}></my-counter>`,
+	render: ({ count }) => <my-counter count={count}></my-counter>,
 });
 ```
 

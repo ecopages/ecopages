@@ -598,6 +598,59 @@ test('does not commit an in-flight graph after one of its watch paths changes', 
 	expect(builds).toBe(2);
 });
 
+test('preserves processed grouped-asset order for a route', async () => {
+	const routeFile = '/app/pages/docs/index.tsx';
+	const dependencyInstanceKey = createPageDependencyInstanceKey({});
+	const firstDependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'console.log("first")',
+		name: 'first',
+		groupedBundle: { id: 'docs', entryName: 'first' },
+	};
+	const secondDependency: AssetDefinition = {
+		kind: 'script',
+		source: 'content',
+		content: 'console.log("second")',
+		name: 'second',
+		groupedBundle: { id: 'docs', entryName: 'second' },
+	};
+	const contribution = { dependencies: [firstDependency, secondDependency] };
+	const groupedBuildPlan = {
+		integrationName: 'react',
+		planKey: createGroupedGraphBuildPlanKey('react', [{ routeFile, dependencyInstanceKey }]),
+		instances: [{ routeFile, dependencyInstanceKey, contribution }],
+	};
+	const assetProcessingService = {
+		processDependencies: vi.fn(async (): Promise<ProcessedAsset[]> => [
+			{
+				kind: 'script',
+				inline: false,
+				filepath: '/assets/second.js',
+				groupedBundle: secondDependency.groupedBundle,
+			},
+			{
+				kind: 'script',
+				inline: false,
+				filepath: '/assets/first.js',
+				groupedBundle: firstDependency.groupedBundle,
+			},
+		]),
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey,
+		integrationName: 'react',
+		collectContribution: async () => contribution,
+		groupedBuildPlan,
+	});
+
+	expect(result?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/second.js', '/assets/first.js']);
+});
+
 test('processes grouped assets once for a large set of static dependency instances', async () => {
 	const routeFile = '/app/pages/docs/[...slug]/index.tsx';
 	const instances = Array.from({ length: 1_000 }, (_, index) => {

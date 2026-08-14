@@ -1,20 +1,33 @@
+/**
+ * Pretty-code figures own their chrome. Background, border, and padding live on
+ * the same box so prose `pre` padding cannot show the page color around `code`.
+ */
 figure[data-rehype-pretty-code-figure] {
-	@apply my-8;
+	@apply my-8 overflow-hidden rounded-md border border-border shadow-sm;
+	background-color: var(--shiki-light-bg);
 }
 
 figure[data-rehype-pretty-code-figure] pre {
-	@apply p-4 overflow-x-auto m-0;
+	@apply m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
 	background-color: var(--shiki-light-bg);
 }
 
 figure[data-rehype-pretty-code-figure] pre > code {
 	display: grid;
+	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
 }
 
 figure[data-rehype-pretty-code-figure] pre > code,
 figure[data-rehype-pretty-code-figure] pre > code span {
 	color: var(--shiki-light);
+}
+
+figure[data-rehype-pretty-code-figure] pre > code span {
 	background-color: var(--shiki-light-bg);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] {
+	background-color: var(--shiki-dark-bg);
 }
 
 [data-theme='dark'] figure[data-rehype-pretty-code-figure] pre {
@@ -24,5 +37,8 @@ figure[data-rehype-pretty-code-figure] pre > code span {
 [data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code,
 [data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code span {
 	color: var(--shiki-dark);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code span {
 	background-color: var(--shiki-dark-bg);
 }

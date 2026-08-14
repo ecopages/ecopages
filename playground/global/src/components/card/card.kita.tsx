@@ -1,5 +1,4 @@
 import { eco } from '@ecopages/core';
-import { html } from '@ecopages/core/html';
 
 export type CardProps = {
 	title: string;
@@ -9,12 +8,10 @@ export type CardProps = {
 export const Card = eco.component<CardProps>({
 	dependencies: { stylesheets: ['./card.css'] },
 
-	render: ({ copy, title }) => {
-		return html`
-			<article class="card">
-				<h1>${title}</h1>
-				<p>${copy}</p>
-			</article>
-		`;
-	},
+	render: ({ copy, title }) => (
+		<article class="card">
+			<h1>{title}</h1>
+			<p>{copy}</p>
+		</article>
+	),
 });

@@ -80,7 +80,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 
 - `src/config/README.md`: config finalization and app-owned runtime/build state
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, executor, and development build coordination
+- `src/build/README.md`: build adapter, executor, development build coordination, and standalone Node server packaging
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server and on-demand client delivery

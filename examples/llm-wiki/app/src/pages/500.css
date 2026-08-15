@@ -1,0 +1,28 @@
+.error500 {
+	@apply flex min-h-[calc(100vh-64px)] items-center justify-center p-8;
+
+	&__content {
+		@apply w-full max-w-xl text-center;
+	}
+
+	&__code {
+		@apply text-on-background/30 mb-4 font-heading text-8xl font-bold tracking-tighter select-none;
+		line-height: 0.85;
+	}
+
+	&__title {
+		@apply text-on-background mb-3 font-heading text-2xl font-bold tracking-tight md:text-3xl;
+	}
+
+	&__message {
+		@apply text-on-background/60 mx-auto mb-8 max-w-prose font-sans text-base leading-relaxed md:text-lg;
+	}
+
+	&__stack {
+		@apply text-on-background/70 bg-on-background/5 border-on-background/10 mb-8 max-h-80 overflow-x-auto rounded-md border p-4 text-left font-mono text-xs whitespace-pre-wrap md:text-sm;
+	}
+
+	&__actions {
+		@apply flex justify-center;
+	}
+}

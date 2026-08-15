@@ -1,0 +1,9 @@
+.logo {
+	@apply font-bold text-sm tracking-tight;
+	@apply text-on-background;
+	display: inline-flex;
+	align-items: center;
+	&:hover {
+		@apply text-on-background/80;
+	}
+}

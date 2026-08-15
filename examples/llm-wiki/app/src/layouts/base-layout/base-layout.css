@@ -1,0 +1,7 @@
+.site-header {
+	@apply bg-background-accent border-b border-border px-6 py-4;
+}
+
+.site-header a {
+	@apply text-on-background font-semibold no-underline;
+}

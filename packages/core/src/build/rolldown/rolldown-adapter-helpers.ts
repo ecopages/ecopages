@@ -39,6 +39,8 @@ const nodeBuiltinSpecifiers = new Set(builtinModules);
 
 let corePackageNames: Set<string> | undefined;
 
+const CORE_RUNTIME_BUNDLED_PACKAGES = new Set<string>(['ws']);
+
 /**
  * Returns the set of packages declared as direct dependencies in core's own
  * `package.json` (all dependency fields combined).
@@ -128,12 +130,12 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
  *    TypeScript or JSX file (source packages); pre-compiled packages are left
  *    external so the app's own resolver handles them at runtime.
  * 3. **Everything else** (undeclared transitives) — split into two sub-cases:
- *    - A **direct dependency of core** that resolves to a compiled JS file
- *      (e.g. `oxc-parser`, `rolldown`, `ws`): externalized so the
- *      `runtime-build-output-normalizer` can rewrite the import to an
- *      absolute `file://` URL after the build. "Direct" means declared in
- *      core's own `package.json`; transitives that merely *resolve through*
- *      core's `require` are excluded.
+ *    - A **direct dependency of core** that resolves to a compiled JS file:
+ *      externalized so the `runtime-build-output-normalizer` can rewrite the
+ *      import to an absolute `file://` URL after the build. Runtime packages
+ *      that require CommonJS named-export interop (currently `ws`) are
+ *      bundled instead. "Direct" means declared in core's own `package.json`;
+ *      transitives that merely *resolve through* core's `require` are excluded.
  *    - **Everything else** (true transitives like `lexical`, `@lexical/react`):
  *      bundled unconditionally. pnpm strict hoisting means these packages
  *      are unreachable as bare specifiers from output directories such as
@@ -160,6 +162,9 @@ function shouldBundlePackageImport(
 	}
 
 	if (isCoreDeclaredPackageImport(id)) {
+		if (CORE_RUNTIME_BUNDLED_PACKAGES.has(getPackageName(id))) {
+			return true;
+		}
 		const coreResolvedPath = tryResolveModule(id, corePackageRequire);
 		if (coreResolvedPath && !/\.(?:[cm]?ts|tsx|jsx)$/u.test(coreResolvedPath)) {
 			return false;
@@ -167,6 +172,12 @@ function shouldBundlePackageImport(
 	}
 
 	return true;
+}
+
+function getPackageName(specifier: string): string {
+	return specifier.startsWith('@')
+		? specifier.split('/').slice(0, 2).join('/')
+		: (specifier.split('/')[0] ?? specifier);
 }
 
 function createExternalMatcher(

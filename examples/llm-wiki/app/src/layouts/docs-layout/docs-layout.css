@@ -1,0 +1,75 @@
+@import '@ecopages/radiant-ui/sidebar/docs.css';
+
+@reference '../../styles/tailwind.css';
+
+.docs-layout {
+	@apply h-svh min-h-svh min-w-0;
+
+	.docs-layout__content {
+		@apply min-w-0 flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-10 lg:px-12;
+	}
+
+	.docs-layout__toc {
+		@apply hidden w-62 shrink-0 overflow-y-auto border-l border-border/60 px-6 py-8 xl:block;
+	}
+
+	.docs-layout__pagination {
+		@apply mt-16 flex flex-col justify-between gap-4 border-t border-border/40 pt-8 sm:flex-row;
+
+		a {
+			@apply bg-background-accent/10 hover:bg-background-accent/40 flex flex-1 flex-col gap-1 rounded-lg border border-border/40 p-4 no-underline transition-all duration-200 hover:border-border/80;
+
+			.pagination-label {
+				@apply text-on-background/50 group-hover:text-on-background/70 font-mono text-xs tracking-widest uppercase transition-colors;
+			}
+
+			.pagination-title {
+				@apply text-on-background text-sm font-medium;
+			}
+
+			&.prev {
+				@apply items-start text-left;
+			}
+
+			&.next {
+				@apply items-end text-right;
+			}
+		}
+	}
+
+	.docs-layout__sources {
+		@apply mt-12 border-t border-border/40 pt-8;
+
+		h2 {
+			@apply text-on-background/60 font-mono text-xs tracking-widest uppercase;
+		}
+
+		ul {
+			@apply mt-3 flex flex-wrap gap-2;
+		}
+
+		li {
+			@apply list-none;
+		}
+
+		a {
+			@apply bg-background-accent/10 hover:bg-background-accent/40 inline-flex items-center gap-1.5 rounded-md border border-border/40 px-3 py-1.5 font-mono text-xs no-underline transition-all duration-200 hover:border-border/80;
+		}
+	}
+
+	.rui-sidebar-provider__site-header {
+		@apply bg-surface-container/20!;
+
+		&-inner {
+			@apply px-4 md:px-8;
+		}
+
+		&-start {
+			@apply min-w-0 gap-2 md:gap-4;
+		}
+
+		&-brand {
+			@apply flex items-center gap-2;
+		}
+	}
+}

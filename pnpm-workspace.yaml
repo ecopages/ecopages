@@ -10,9 +10,8 @@ packages:
     - playground/*
     - e2e/fixtures/*
     - apps/*
-    - examples/docs-starter
-    - examples/starter-jsx
-    - examples/blog-jsx
+    - examples/*
+    - examples/**/*
 
 allowBuilds:
     bun: true

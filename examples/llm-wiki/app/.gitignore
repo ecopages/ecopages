@@ -1,0 +1,8 @@
+node_modules
+dist
+.eco
+.env
+
+# generated from wiki/ on every dev/build
+src/content/wiki
+src/public/search-index.json

@@ -1,0 +1,104 @@
+.search-box__trigger {
+	.search-box__icon {
+		@apply size-4 shrink-0;
+	}
+
+	.search-box__shortcut {
+		@apply text-on-background/50 rounded border border-border/60 px-1 py-px font-mono text-[0.7rem];
+	}
+}
+
+.search-box__dialog {
+	.rui-dialog {
+		@apply items-start pt-[12vh];
+	}
+
+	.rui-dialog__surface {
+		@apply flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden p-0;
+	}
+
+	.search-box__input-row {
+		@apply relative flex items-center gap-3 border-b border-border/40 py-3 pr-12 pl-4;
+
+		.search-box__icon {
+			@apply text-on-background/50 size-5 shrink-0;
+		}
+
+		input.rui-input {
+			@apply h-auto border-none bg-transparent p-0 text-base shadow-none outline-none;
+		}
+
+		.search-box__close {
+			@apply absolute top-1/2 right-3 -translate-y-1/2;
+		}
+	}
+
+	.search-box__body {
+		@apply flex-1 overflow-y-auto p-2;
+	}
+
+	.search-box__body--minimal {
+		@apply hidden;
+	}
+
+	&:has(.search-box__body--minimal) {
+		.rui-dialog__surface {
+			@apply max-h-none;
+		}
+
+		.search-box__input-row {
+			@apply border-b-0 py-2.5;
+		}
+	}
+
+	.search-box__status {
+		@apply text-on-background/60 px-2 py-6 text-center text-sm;
+	}
+
+	.search-box__recent-heading,
+	.search-box__group-heading {
+		@apply text-on-background/50 px-2 pt-3 pb-1 text-xs first:pt-1;
+	}
+
+	.search-box__group-heading {
+		@apply font-mono tracking-widest uppercase;
+	}
+
+	.search-box__results .rui-listbox {
+		@apply max-h-none border-none bg-transparent p-0;
+	}
+
+	.search-box__option {
+		@apply flex flex-col gap-0.5;
+
+		mark {
+			border-radius: var(--radius-sm, 2px);
+			background-color: color-mix(in oklab, currentColor 22%, transparent);
+			color: inherit;
+		}
+	}
+
+	.search-box__result-title {
+		@apply text-sm font-medium;
+	}
+
+	.search-box__result-snippet {
+		@apply line-clamp-2 text-xs opacity-70;
+	}
+
+	.search-box__pagination {
+		@apply mt-1 flex items-center justify-between gap-2 border-t border-border/40 px-1 pt-1;
+	}
+
+	.search-box__page-indicator {
+		@apply text-on-background/60 text-xs whitespace-nowrap;
+	}
+
+	.search-box__hints {
+		@apply text-on-background/50 flex items-center gap-4 border-t border-border/40 px-4 py-2 text-xs;
+
+		kbd {
+			@apply text-on-background/60 rounded border border-border/60 px-1 py-0.5 font-mono text-[0.7rem];
+		}
+	}
+}

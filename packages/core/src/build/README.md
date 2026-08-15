@@ -56,7 +56,7 @@ build/
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
-- `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler, normalizes Node output imports, and exposes a normalized `BuildResult`.
+- `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler, normalizes Node output imports, and exposes a normalized `BuildResult`. App dependencies remain bare imports; Core-owned runtime packages that need CommonJS named-export interop are bundled, while other Core dependencies resolve to `file:` URLs. Generated server bundles therefore do not require app-level framework dependencies.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `runtime/serialized-build-executor.ts`: FIFO queue primitive.
 - `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).

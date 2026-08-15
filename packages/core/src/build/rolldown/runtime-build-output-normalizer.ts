@@ -8,20 +8,6 @@ const corePackageRequire = createRequire(new URL('../../../package.json', import
 const appDeclaredPackageCache = new Map<string, Set<string>>();
 const appWorkspacePackageCache = new Map<string, Set<string>>();
 
-/**
- * Core-owned packages that are part of the Node adapter's runtime surface and
- * should therefore be preserved as bare specifiers in bundled output.
- *
- * Only list packages whose bare-specifier form will be resolvable from the
- * app's Node.js runtime (i.e. they ship alongside the framework and do not
- * need to be in the app's own package.json).
- *
- * Build-time tools (e.g. oxc-parser, rolldown) deliberately omitted — their
- * imports in server-side output must be rewritten to absolute file: URLs so
- * the bundler does not embed them in app code.
- */
-const CORE_RUNTIME_BARE_SPECIFIER_PACKAGES = new Set<string>(['ws']);
-
 function tryResolveRuntimeImport(specifier: string, resolver: NodeJS.Require): string | undefined {
 	try {
 		return resolver.resolve(specifier);
@@ -164,24 +150,11 @@ export function isDeclaredAppPackageImport(specifier: string, rootDir: string): 
  * Whether the given bare specifier should be left as-is (not rewritten to a
  * file URL) in bundled output.
  *
- * Two categories qualify:
- * 1. **App-declared packages** — present in the app's own package.json; the
- *    app's resolver will find them at runtime.
- * 2. **Core runtime surface packages** — a curated subset of the framework's
- *    own dependencies that are part of its public Node adapter surface (e.g.
- *    `ws`). These ship alongside the framework and are resolvable from the
- *    bundled output's location even when the app has not declared them.
- *
- * Build-time packages declared by core (e.g. `oxc-parser`, `rolldown`) are
- * intentionally *not* included here — their imports must still be rewritten
- * to absolute `file:` URLs so they are not left as bare specifiers in app
- * output.
+ * Only app-declared packages qualify: their resolver can find them from a
+ * generated server bundle. Core dependencies remain file URLs because a
+ * bundle in `dist/.server` is not inside Core's Node.js resolution chain.
  */
 function isDeclaredInResolutionChain(specifier: string, rootDir: string): boolean {
-	const packageName = getPackageNameFromSpecifier(specifier);
-	if (CORE_RUNTIME_BARE_SPECIFIER_PACKAGES.has(packageName)) {
-		return true;
-	}
 	return isDeclaredAppPackageImport(specifier, rootDir);
 }
 

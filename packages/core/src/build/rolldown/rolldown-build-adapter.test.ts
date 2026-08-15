@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -208,6 +208,35 @@ describe('RolldownBuildAdapter', () => {
 		const code = readFileSync(firstOutput.path, 'utf-8');
 		expect(code).not.toMatch(/from ['"]oxc-parser['"]/);
 		expect(code).toContain(expectedRuntimeUrl);
+	});
+
+	test('externalPackages bundles Core runtime dependencies with CommonJS named exports', async () => {
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"import { WebSocketServer } from 'ws';\nexport { WebSocketServer };\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+		const localRequire = createRequire(import.meta.url);
+		const nodeModulesDir = path.join(workDir, 'node_modules');
+		mkdirSync(nodeModulesDir, { recursive: true });
+		symlinkSync(path.dirname(localRequire.resolve('ws')), path.join(nodeModulesDir, 'ws'), 'dir');
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		assert.ok(result.outputs.length > 0, 'at least one output file');
+		const firstOutput = result.outputs[0]!;
+		const code = readFileSync(firstOutput.path, 'utf-8');
+		expect(code).not.toMatch(/from ['"]ws['"]/);
+		expect(code).not.toMatch(/from ['"]file:.*\/ws\/index\.js['"]/);
+		expect(code).toContain('WebSocketServer');
 	});
 
 	test('externalPackages does not externalize plugin-owned virtual modules', async () => {

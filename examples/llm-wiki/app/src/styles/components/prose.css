@@ -1,0 +1,120 @@
+.prose {
+	@apply text-on-background/90 text-base leading-[1.65];
+
+	h1 {
+		@apply text-on-surface-container mt-12 mb-6 font-heading text-4xl leading-tight font-extrabold tracking-tight;
+	}
+
+	h2 {
+		@apply text-on-surface-container mt-10 mb-5 font-heading text-3xl leading-tight font-bold tracking-tight;
+		scroll-margin-top: 7.5rem;
+	}
+
+	h3 {
+		@apply text-on-surface-container mt-8 mb-4 font-heading text-2xl leading-snug font-bold tracking-tight;
+		scroll-margin-top: 7.5rem;
+	}
+
+	h4 {
+		@apply text-on-surface-container mt-6 mb-4 font-heading text-xl leading-snug font-bold tracking-tight;
+	}
+
+	h5 {
+		@apply text-on-surface-container mt-6 mb-4 font-heading text-lg leading-snug font-bold;
+	}
+
+	h6 {
+		@apply text-on-surface-container mt-6 mb-4 font-heading text-base leading-snug font-bold;
+	}
+
+	p {
+		@apply mt-2 mb-7;
+	}
+
+	a:not(.unstyled, .unstyled *) {
+		@apply text-link decoration-link/30 hover:decoration-link font-medium underline underline-offset-4 transition-colors duration-200;
+	}
+
+	strong {
+		@apply font-semibold;
+	}
+
+	ul:not(.unstyled, .unstyled *),
+	ol:not(.unstyled, .unstyled *) {
+		@apply text-on-background my-6 pl-6;
+
+		li {
+			@apply my-2 pl-2;
+		}
+	}
+
+	ul:not(.unstyled, .unstyled *) {
+		@apply list-disc;
+
+		li::marker {
+			@apply text-on-background/40;
+		}
+	}
+
+	ol:not(.unstyled, .unstyled *) {
+		@apply list-decimal;
+
+		li::marker {
+			@apply text-on-background/60 font-medium;
+		}
+	}
+
+	blockquote {
+		@apply text-on-background/80 my-8 rounded-r-xl border-l-[3px] border-primary/50 bg-primary/5 py-2 pl-5 font-serif italic;
+
+		p {
+			@apply my-0;
+		}
+	}
+
+	code:not(pre *, [data-rehype-pretty-code-figure] *) {
+		@apply text-on-surface-container-lowest bg-surface-container-lowest/50 rounded-md border border-border/30 px-1.5 py-0.5 font-mono text-[0.875em];
+	}
+
+	pre {
+		@apply bg-surface-container/10 my-8 overflow-x-auto rounded-md border border-border p-5 shadow-sm;
+
+		code {
+			@apply p-0 text-[0.875em] leading-relaxed text-inherit;
+		}
+	}
+
+	hr {
+		@apply my-10 border-t border-border/40;
+	}
+
+	table {
+		@apply my-8 block w-full border-collapse overflow-hidden rounded-xl border border-border/30 text-left text-sm ring-1 ring-border/20 md:table;
+
+		thead {
+			@apply bg-surface-container/20 border-b border-border/50;
+
+			th {
+				@apply text-on-surface-container px-4 py-3 font-semibold whitespace-nowrap;
+			}
+		}
+
+		tbody {
+			tr {
+				@apply hover:bg-surface-container/10 border-b border-border/30 transition-colors;
+
+				td {
+					@apply text-on-background px-4 py-3 align-top;
+
+					code {
+						@apply whitespace-nowrap;
+					}
+				}
+
+				&:last-child {
+					@apply border-0;
+				}
+			}
+		}
+	}
+}

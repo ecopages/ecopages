@@ -20,6 +20,7 @@ import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
 import { docsNav } from '@/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
+import { getDocsLlmUrl } from '@/lib/docs/docs-llm-url';
 import { DocsPagination } from './components/docs-pagination';
 import { DocsBar } from './docs-bar';
 
@@ -138,7 +139,7 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 		components: [BaseLayout, DocsBar, DocsPagination, ThemeToggle],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
-		const llmUrl = section && slug ? `/docs-llm/${section}/${slug}.md` : undefined;
+		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;
 		const crumbs = breadcrumbForPage(section, slug);
 
 		return (

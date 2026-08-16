@@ -7,7 +7,7 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
 		"module": "ESNext",
-		"moduleResolution": "Bundler",
+		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"paths": {
 			"@/*": ["./src/*"]

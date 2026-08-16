@@ -80,9 +80,14 @@ order: 1
 		expect(fileSystem.exists(serverCacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getComponent');
 		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getEntryDependencies');
+		const typesDir = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name);
 		expect(fileSystem.exists(typesFile)).toBe(true);
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs"');
 		expect(fileSystem.readFileSync(typesFile)).toContain('declare module "ecopages:content/docs/server"');
+		expect(JSON.parse(fileSystem.readFileSync(path.join(typesDir, 'package.json')))).toMatchObject({
+			name: '@types/ecopages-content-processor',
+			types: './index.d.ts',
+		});
 		expect(plugin.collectionModules.docs).toBe(cacheFile);
 		expect(plugin.collectionServerModules.docs).toBe(serverCacheFile);
 	});

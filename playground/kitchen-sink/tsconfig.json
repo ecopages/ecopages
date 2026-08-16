@@ -7,7 +7,7 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "@kitajs/html",
 		"module": "ESNext",
-		"moduleResolution": "Bundler",
+		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"preserveSymlinks": true,
 		"paths": {
@@ -23,7 +23,6 @@
 		"strict": true,
 		"target": "ES2021",
 		"useDefineForClassFields": true,
-		"verbatimModuleSyntax": true,
-		"types": ["node"]
+		"verbatimModuleSyntax": true
 	}
 }

@@ -121,32 +121,14 @@ Point `entryType` at the **frontmatter type** (`DocsFrontmatter`), not a hand-ro
 
 ## TypeScript setup
 
-Virtual-module types are generated at build/dev time into:
-
-```text
-node_modules/@types/ecopages-content-processor/virtual-module.d.ts
-```
-
-Add a root `modules.d.ts` (same pattern as `@ecopages/image-processor`):
+Add one import to the app `modules.d.ts`:
 
 ```typescript
-/// <reference types="ecopages-content-processor" />
-
-import '@ecopages/core/declarations';
 import '@ecopages/content-processor/types';
 ```
 
-Recommended `tsconfig.json` additions:
-
-```json
-{
-	"compilerOptions": {
-		"baseUrl": ".",
-		"types": ["bun", "ecopages-content-processor"]
-	},
-	"include": ["src", "eco.config.ts", "modules.d.ts", "node_modules/@types/ecopages-content-processor"]
-}
-```
+That declares `ecopages:content/*`. Collection modules are generated at dev/build time into
+`node_modules/@types/ecopages-content-processor`, which TypeScript loads automatically.
 
 Run `ecopages dev` or `ecopages build` before expecting IDE types. Restart the TypeScript server if types look stale after changing schema or collection config.
 
@@ -241,7 +223,7 @@ export const docsNav = entries.map((entry) => ({
 }));
 ```
 
-Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `examples/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
+Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `templates/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
 
 ## Build scripts
 
@@ -293,11 +275,11 @@ Watch config drives manifest regeneration only. Asset ownership (which would ski
 
 ## MDX integration
 
-Content files are MDX components. Ensure your JSX/MDX integration (for example, `@ecopages/ecopages-jsx`) is configured in `eco.config.ts` so `getComponent()` returns a renderable component.
+Content files are MDX components. Ensure your JSX or React integration is configured in `eco.config.ts` with MDX enabled so collection entries compile as components.
 
 Content collections with YAML frontmatter need `remark-frontmatter` in the **MDX compile pipeline**. The processor validates frontmatter at scan time (`vfile-matter`); MDX render time needs the remark plugin so `---` blocks are not emitted as content.
 
-Use `@ecopages/content-processor/mdx`:
+Use `@ecopages/content-processor/mdx` on whichever integration compiles the MDX:
 
 ```typescript
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
@@ -310,6 +292,13 @@ ecopagesJsxPlugin({
 			remarkPlugins: [remarkGfm],
 			rehypePlugins: [/* app-specific rehype plugins */],
 		}),
+	},
+});
+
+reactPlugin({
+	mdx: {
+		enabled: true,
+		...withContentMdxPlugins(),
 	},
 });
 ```

@@ -12,17 +12,5 @@ All notable changes to `@ecopages/browser-router` are documented here.
 
 ### Bug Fixes
 
-- Fixed navigation races, duplicate script injection, and stale cleanup during repeated page swaps.
-- Fixed mixed-runtime document ownership, script reruns, persisted head scripts, and client-managed `<html>` state during browser-router navigations.
-- Fixed skipped View Transition lifecycle aborts leaking as unhandled browser-router test errors.
-- Fixed body morph swaps retaining stale content when pages contain duplicate `id` attributes by limiting morphdom keying to explicitly persisted nodes.
-- Fixed browser-router stylesheet prefetching to warm future page CSS without injecting unused `preload` hints that trigger browser console warnings.
-- Fixed stable-id external rerun scripts to reuse registered bootstraps instead of cache-busting shared module chunks on every navigation.
-
-### Refactoring
-
-- Routed handoff and current-page reload behavior through the shared navigation coordinator.
-
-### Documentation
-
-- Updated the README examples for the current router API.
+- Fixed navigation races, duplicate script injection, mixed-runtime document ownership, and persisted head scripts during browser-router navigations.
+- Fixed body morph swaps with duplicate `id` attributes, stylesheet prefetch console warnings, and stable-id external rerun script cache busting.

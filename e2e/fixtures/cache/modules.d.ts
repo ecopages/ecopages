@@ -1,2 +1,2 @@
-/// <reference types="@ecopages/core/src/declarations" />
-/// <reference types="@ecopages/core/src/env" />
+import '@ecopages/core/declarations';
+import '@ecopages/core/env';

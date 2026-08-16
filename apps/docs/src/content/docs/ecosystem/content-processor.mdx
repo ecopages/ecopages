@@ -37,7 +37,7 @@ Peer dependency: `@ecopages/core`.
 
 ## Configuration
 
-Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX integration:
+Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX or React integration:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -75,6 +75,8 @@ export default await new ConfigBuilder()
 	])
 	.build();
 ```
+
+React apps use the same helper on `reactPlugin({ mdx: { enabled: true, ...withContentMdxPlugins() } })`.
 
 Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
 
@@ -159,10 +161,9 @@ Keep `Entry` on a separate `import type` line in bundled page files.
 
 ## TypeScript
 
-Add generated virtual-module types in a root `modules.d.ts`:
+Add one import to the app `modules.d.ts`:
 
 ```typescript
-import '@ecopages/core/declarations';
 import '@ecopages/content-processor/types';
 ```
 
@@ -173,4 +174,4 @@ Run `ecopages dev` or `ecopages build` before expecting IDE types for `ecopages:
 - [Custom Processor](/docs/plugins/custom-processor) — authoring processors
 - [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run
 - [MDX Integration](/docs/integrations/mdx) — MDX compile pipeline
-- [docs-starter example](https://github.com/ecopages/ecopages/tree/main/examples/docs-starter) — minimal content-processor setup
+- [docs-starter template](https://github.com/ecopages/ecopages/tree/main/templates/docs-starter) — minimal content-processor setup

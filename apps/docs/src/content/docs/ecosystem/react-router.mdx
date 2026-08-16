@@ -238,10 +238,9 @@ The router uses a **pluggable adapter pattern** that separates concerns:
 ```typescript
 interface ReactRouterAdapter {
 	name: string;
-	bundle: { importPath; outputName; externals };
-	importMapKey: string;
-	components: { router; pageContent };
-	getRouterProps(page, props): string;
+	bundle: { importPath: string; outputName: string; externals: string[] };
+	components: { router: string; pageContent: string };
+	getRouterProps(page: string, props: string): string;
 }
 ```
 

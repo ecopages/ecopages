@@ -1,0 +1,32 @@
+{
+	"name": "@ecopages/template-blog-react",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "pnpm run build && ecopages start",
+		"dev": "ecopages dev -r",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch -r",
+		"dev:hot": "ecopages dev:hot -r"
+	},
+	"devDependencies": {
+		"@ecopages/content-processor": "workspace:*",
+		"ecopages": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@ecopages/react-router": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@tailwindcss/postcss": "^4.1.18",
+		"tailwindcss": "^4.1.18",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"zod": "^4.4.3"
+	},
+	"dependencies": {
+		"react": "^19",
+		"react-dom": "^19"
+	}
+}

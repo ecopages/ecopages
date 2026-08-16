@@ -1,0 +1,79 @@
+@import 'tailwindcss';
+@import './rui-theme.css';
+@import '@ecopages/radiant-ui/button/styles.css';
+@import '@ecopages/radiant-ui/cycle-toggle/styles.css';
+@import '@ecopages/radiant-ui/heading/styles.css';
+@import './theme.css';
+@import 'ecopages/css/view-transitions.css';
+
+body {
+	@apply bg-background text-on-background min-h-dvh font-sans antialiased;
+}
+
+::selection {
+	background: color-mix(in oklab, var(--color-primary) 18%, transparent);
+	color: var(--color-on-background);
+}
+
+.prose {
+	@apply leading-relaxed text-on-background;
+
+	h1:not(.unstyled, .unstyled *),
+	h2:not(.unstyled, .unstyled *),
+	h3:not(.unstyled, .unstyled *) {
+		@apply font-display tracking-tight text-on-background;
+	}
+
+	h1:not(.unstyled, .unstyled *) {
+		font-size: 2.5rem;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 1.5rem;
+		letter-spacing: -0.03em;
+	}
+
+	h2:not(.unstyled, .unstyled *) {
+		font-size: 1.5rem;
+		font-weight: 600;
+		margin-top: 1.5rem;
+		margin-bottom: 0.75rem;
+		letter-spacing: -0.02em;
+	}
+
+	h3:not(.unstyled, .unstyled *) {
+		@apply mt-5 mb-2 text-xl text-on-background/70;
+	}
+
+	p:not(.unstyled, .unstyled *) {
+		@apply mb-4 leading-relaxed text-on-background/70;
+	}
+
+	a:not(.unstyled, .unstyled *) {
+		@apply text-link font-medium no-underline transition-colors duration-200 hover:text-primary;
+	}
+
+	ul:not(.unstyled, .unstyled *),
+	ol:not(.unstyled, .unstyled *) {
+		@apply my-4 list-disc pl-6 text-on-background/70;
+	}
+
+	li:not(.unstyled, .unstyled *) {
+		@apply my-1;
+	}
+
+	code:not(.unstyled, .unstyled *) {
+		@apply rounded bg-background-code px-1.5 py-0.5 font-mono text-sm;
+	}
+
+	pre:not(.unstyled, .unstyled *) {
+		@apply my-6 overflow-x-auto rounded-lg bg-background-code p-4 text-on-background-code;
+
+		code {
+			@apply bg-transparent p-0 text-inherit;
+		}
+	}
+}
+
+.back-link {
+	@apply mb-6;
+}

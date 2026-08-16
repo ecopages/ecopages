@@ -1,0 +1,11 @@
+.post-image-container {
+	@apply mb-6 max-w-2xl overflow-hidden rounded-container shadow-sm max-h-[50svh];
+
+	img {
+		@apply mb-0;
+	}
+}
+
+.post-image-container img {
+	@apply w-full h-auto block object-cover;
+}

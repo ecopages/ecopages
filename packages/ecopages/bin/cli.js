@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
-import { downloadTemplate } from 'giget';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan } from './launch-plan.js';
+import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
 
@@ -46,27 +45,12 @@ const sharedServerOptionDefinitions = {
 	},
 };
 
-const initOptionDefinitions = {
-	template: {
-		type: 'string',
-	},
-	repo: {
-		type: 'string',
-	},
-	help: {
-		type: 'boolean',
-		short: 'h',
-	},
-};
-
 function getMainHelpText() {
 	return [
-		`ecopages ${pkg.version}`,
-		'',
 		'Usage: ecopages <command> [options]',
 		'',
 		'Commands:',
-		'  init <dir>              Initialize a new project from a template',
+		'  init [dir]              Initialize a new project from a template',
 		'  dev                     Start the development server',
 		'  dev:watch               Start the development server with watch mode',
 		'  dev:hot                 Start the development server with hot reload',
@@ -117,19 +101,6 @@ function getBuildCommandHelpText() {
 	].join('\n');
 }
 
-function getInitCommandHelpText() {
-	return [
-		'Usage: ecopages init <dir> [options]',
-		'',
-		'Initialize a new project from a template.',
-		'',
-		'Options:',
-		'      --template <template>               Template name from ecopages/examples/',
-		'      --repo <repo>                       GitHub repo in user/repo form',
-		'  -h, --help                              Show help',
-	].join('\n');
-}
-
 function parseCommandArguments(rawArgs, options) {
 	return parseArgs({
 		args: rawArgs,
@@ -165,25 +136,6 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 		},
-	};
-}
-
-function parseInitCommandArgs(rawArgs) {
-	const { values, positionals } = parseCommandArguments(rawArgs, initOptionDefinitions);
-
-	if (values.help) {
-		console.log(getInitCommandHelpText());
-		return { help: true };
-	}
-
-	if (positionals.length !== 1) {
-		throw new Error('The `init` command requires exactly one target directory argument.');
-	}
-
-	return {
-		dir: positionals[0],
-		template: values.template ?? 'starter-jsx',
-		repo: values.repo ?? 'ecopages/ecopages',
 	};
 }
 
@@ -246,44 +198,6 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 	runLaunchPlan(launchPlan);
 }
 
-async function runInitCommand(rawArgs) {
-	const parsed = parseInitCommandArgs(rawArgs);
-
-	if (parsed.help) {
-		return;
-	}
-
-	const { dir, template, repo } = parsed;
-
-	if (existsSync(dir)) {
-		logger.error(`Target directory already exists: ${dir}`);
-		process.exit(1);
-	}
-
-	logger.info(`Creating target directory '${dir}'...`);
-
-	try {
-		await downloadTemplate(`github:${repo}/examples/${template}`, {
-			dir,
-			force: true,
-		});
-
-		const pkgPath = join(dir, 'package.json');
-		if (existsSync(pkgPath)) {
-			const projectPkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-			projectPkg.name = dir;
-			writeFileSync(pkgPath, JSON.stringify(projectPkg, null, 2) + '\n');
-			logger.info(`Renamed project to '${dir}'`);
-		}
-
-		logger.info('Project initialized! Run `bun install && bun dev` to start.');
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		logger.error(`Failed to fetch template: ${message}`);
-		process.exit(1);
-	}
-}
-
 async function runServerCommand(rawArgs, definition) {
 	const parsed = parseServerCommandArgs(rawArgs, definition.name, definition.description, definition.mode);
 
@@ -303,7 +217,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 	const [commandName, ...commandArgs] = rawArgs;
 
 	if (!commandName || commandName === '--help' || commandName === '-h') {
-		console.log(getMainHelpText());
+		console.log(withBrandBanner(pkg.version, getMainHelpText()));
 		return;
 	}
 
@@ -314,9 +228,11 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 
 	try {
 		switch (commandName) {
-			case 'init':
-				await runInitCommand(commandArgs);
+			case 'init': {
+				const { runInitCommand } = await import('./init.js');
+				await runInitCommand(commandArgs, logger);
 				return;
+			}
 			case 'dev':
 				await runServerCommand(commandArgs, {
 					name: 'dev',

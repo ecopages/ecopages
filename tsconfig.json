@@ -16,5 +16,6 @@
 		"types": ["node"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
-	}
+	},
+	"include": ["scripts/**/*.ts"]
 }

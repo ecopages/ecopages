@@ -9,41 +9,14 @@ All notable changes to `@ecopages/ecopages-jsx` are documented here.
 ### Features
 
 - Added the Ecopages JSX integration with optional Radiant runtime support and optional MDX routes compiled against `@ecopages/jsx`.
-- Publish `@ecopages/ecopages-jsx` to npm. JSR is no longer a release channel.
 - Added the `@ecopages/ecopages-jsx/eco-embed` helper for Ecopages-JSX-owned mixed-integration authoring on top of `eco.embed()`.
+
+### Breaking Changes
+
+- Removed the shared JSX runtime bundle and browser import-map asset in favor of per-script browser entries that prepend `@ecopages/radiant/client/install-hydrator` when Radiant SSR is enabled.
+- Intrinsic custom-element loading now follows explicit `dependencies.scripts` ownership instead of implicit tag-to-script discovery.
 
 ### Bug Fixes
 
-- Render Ecopages JSX page shells in plain SSR mode and keep hydrate markers scoped to intrinsic Radiant hosts that actually hydrate on the client.
-- Restored the explicit Radiant client hydrator bootstrap head script so Ecopages JSX hydration can reconnect SSR marker bindings after the shared runtime bundle removal.
-- Switched Ecopages JSX SSR to hydrate mode when calling `@ecopages/jsx/server` so Radiant hosts emit the hydration markers expected by the current JSX runtime.
-- Preserve normalized child HTML when Ecopages JSX keeps delegated children inline inside mixed-integration server renders.
-- Fixed Radiant SSR runtime resolution to import the server bridge from the published `@ecopages/radiant/server` package layout instead of a non-existent `dist/server` path.
-- Moved Ecopages JSX intrinsic custom-element asset bookkeeping into the active JSX SSR render scope and reinstalls the Radiant light-DOM shim whenever SSR runtime setup reruns so nested renders stay aligned with the current server render contract.
-- Fixed intrinsic custom-element SSR asset hooks to fall back cleanly when they run after the active JSX render frame has already unwound, avoiding spurious server warnings during docs renders.
-- Fixed lazy Ecopages JSX custom-element dependencies to stay as standalone assets instead of being folded into page-owned bundles, restoring trigger-driven loading for docs components like `theme-toggle`.
-- Fixed Ecopages JSX page-owned browser bundles to inline their JSX and Radiant runtime imports while skipping separate intrinsic custom-element script tags when the current component tree already imports those scripts.
-- Fixed intrinsic custom-element script suppression to honor dependency-declared script ownership instead of relying only on source import scanning.
-- Fixed Radiant custom-element SSR bridging so `prop:` values like array props render through the server host bridge without requiring wrapper-level attribute serialization fallbacks.
-- Aligned the Ecopages JSX browser runtime bundle with the upstream `@ecopages/jsx` runtime shipped by current alpha releases.
-- Aligned Ecopages JSX peer dependency ranges with the current `@ecopages/jsx` and `@ecopages/radiant` beta releases (`0.3.0-beta.3`).
-- Aligned Radiant SSR and hydration wiring with the public `@ecopages/radiant/server/render-component` and `@ecopages/radiant/client/hydrator` entrypoints so JSX apps install an explicit client hydrator bootstrap instead of relying on implicit side effects.
-- Updated the Ecopages JSX Radiant browser runtime for the `RadiantElement` and `RadiantController` API surface and switched the explicit hydrator bootstrap to `@ecopages/radiant/client/install-hydrator`.
-- Fixed Radiant SSR page inspection to install the light-DOM shim before JSX page modules are imported outside the normal render pass.
-- Restored direct `EcopagesJsxPlugin` construction so the exported class still accepts the public plugin options shape.
-- Aligned Ecopages JSX intrinsic custom-element loading with explicit `dependencies.scripts` ownership instead of implicit tag-to-script discovery.
-- Removed implicit JSX integration-generated intrinsic custom-element browser entries so client custom-element loading now follows the normal asset pipeline.
-- Fixed the Ecopages JSX browser runtime bundle so Radiant custom-element scripts no longer fail on a duplicate `jsxDEV` export cycle.
-- Fixed Ecopages JSX foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
-
-### Refactoring
-
-- MDX loader imports now use `@ecopages/mdx/core` instead of internal `@ecopages/mdx-core`.
-- Removed the shared JSX runtime bundle service and browser import-map asset in favor of per-script browser entries that prepend `@ecopages/radiant/client/install-hydrator` only when Radiant SSR is enabled.
-- Replaced Ecopages JSX renderer static and post-construction configuration with instance-owned renderer wiring and extracted shared plugin and renderer types into a dedicated module.
-- Extracted JSX renderer SSR asset-frame scope handling into a dedicated render-session module.
-
-### Tests
-
-- Added a kitchen-sink preview e2e regression that asserts Ecopages JSX shell tags stay marker-free while nested Radiant hosts still hydrate and remove their local markers.
-- Added renderer-level coverage for the foreign-subtree payload compatibility contract.
+- Fixed Ecopages JSX SSR/hydration wiring for Radiant hosts, intrinsic custom-element assets, mixed-integration delegated children, and page-owned browser bundles.
+- Fixed lazy custom-element dependencies to stay as standalone assets instead of being folded into page-owned bundles.

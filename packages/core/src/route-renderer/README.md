@@ -63,7 +63,7 @@ Domain folders:
 
 - `ownership-graph/`: component graph walk/collect and up-front ownership validation
 - `foreign-child/`: active render context, foreign-subtree execution, deferred template serialization
-- `document-shell/`: shared page/layout/html shell composition and attribute stamping helpers
+- `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
 - `page-browser-graph/`: browser asset graph build, session cache, and injector assets
 

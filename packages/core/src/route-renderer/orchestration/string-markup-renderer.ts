@@ -8,7 +8,10 @@ import type {
 	RouteRendererBody,
 } from '../../types/public-types.ts';
 import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
-import { resolveInnermostPageLayout } from './document-shell/layout-shell-props.service.ts';
+import {
+	resolveDocumentShellLayouts,
+	resolveInnermostPageLayout,
+} from './document-shell/layout-shell-props.service.ts';
 
 type StringMarkupViewFn<P = Record<string, unknown>> = EcoFunctionComponent<
 	P,
@@ -40,6 +43,7 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 		metadata,
 		Page,
 		Layout,
+		layoutEntries,
 		HtmlTemplate,
 		pageProps,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
@@ -49,12 +53,13 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 					component: Page,
 					props: { params, query, ...props, locals: pageLocals },
 				},
-				layout: Layout
-					? {
-							component: Layout,
-							props: locals ? { locals } : {},
-						}
-					: undefined,
+				layouts: resolveDocumentShellLayouts({
+					layout: Layout,
+					layoutEntries,
+					params,
+					query,
+					locals,
+				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: pageProps ?? props ?? {},

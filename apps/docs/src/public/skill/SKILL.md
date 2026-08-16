@@ -60,4 +60,4 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 
 Start with this skill pack for app work. For the full docs index see [llms.txt](/llms.txt); page exports live under `/docs-llm/.../*.md`.
 
-- [Ecopages examples](https://github.com/ecopages/ecopages/tree/main/examples)
+- [Ecopages templates](https://github.com/ecopages/ecopages/tree/main/templates)

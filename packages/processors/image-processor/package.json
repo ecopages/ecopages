@@ -22,7 +22,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": ">=0.3.0-rc.0"
+		"@ecopages/jsx": "^0.3.0-rc.0"
 	},
 	"peerDependenciesMeta": {
 		"@ecopages/jsx": {
@@ -38,7 +38,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "0.3.0-rc.0",
+		"@ecopages/jsx": "^0.3.0-rc.0",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3"
 	},
@@ -48,7 +48,7 @@
 			"types": "./src/index.ts"
 		},
 		"./types": {
-			"types": "./src/types.ts"
+			"types": "./src/image-types.d.ts"
 		},
 		"./component/html": {
 			"default": "./src/component/html.ts",
@@ -61,13 +61,6 @@
 		"./component/react": {
 			"default": "./src/component/react.ts",
 			"types": "./src/component/react.ts"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"ecopages:images": [
-				"./virtual-module.d.ts"
-			]
 		}
 	}
 }

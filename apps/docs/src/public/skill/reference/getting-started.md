@@ -26,7 +26,7 @@ bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install &&
 bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
 
 # Full-stack (React + Better Auth + Drizzle)
-bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+bunx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
 ```
 
 ## Installation

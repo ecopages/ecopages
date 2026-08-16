@@ -35,9 +35,11 @@
 		"bin/",
 		"css/",
 		"dist/",
-		"README.md"
+		"README.md",
+		"templates.json"
 	],
 	"dependencies": {
+		"@clack/prompts": "^1.7.0",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"giget": "^2.0.0",

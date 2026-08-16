@@ -71,6 +71,7 @@ import {
 	composeDocumentShell,
 	finalizeDocumentShellHtml,
 	renderPageDocumentShell,
+	type DocumentShellLayoutInput,
 } from './document-shell/document-shell-render.service.ts';
 import {
 	resolveInnermostPageLayout,
@@ -535,6 +536,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			component: EcoComponent;
 			props?: Record<string, unknown>;
 		};
+		layouts?: DocumentShellLayoutInput[];
 		htmlTemplate: EcoComponent;
 		metadata: PageMetadataProps;
 		pageProps: Record<string, unknown>;

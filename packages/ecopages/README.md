@@ -6,10 +6,16 @@ It provides scaffolding and development commands to streamline your workflow. It
 
 ## Quick Start
 
-Initialize a new project from the default template:
+Initialize a new project from the interactive template picker:
 
 ```bash
-bunx ecopages init my-app
+bunx ecopages init
+```
+
+For a deterministic invocation, select a template explicitly:
+
+```bash
+bunx ecopages init my-app --template react
 cd my-app
 bun install
 bun dev
@@ -17,18 +23,29 @@ bun dev
 
 ## Commands
 
-| Command                      | Description                                | Equivalent (Bun)                |
-| :--------------------------- | :----------------------------------------- | :------------------------------ |
-| `ecopages init <dir>`        | Scaffolds a new project                    | N/A                             |
-| `ecopages dev [entry]`       | Starts the dev server                      | `bun run [entry] --dev`         |
-| `ecopages dev:watch [entry]` | Dev server + hard restarts on file changes | `bun --watch run [entry] --dev` |
-| `ecopages dev:hot [entry]`   | Dev server + HMR (no hard restarts)        | `bun --hot run [entry] --dev`   |
-| `ecopages build [entry]`     | Creates a production build                 | `bun run [entry] --build`       |
-| `ecopages start [entry]`     | Starts the production server               | `bun run [entry]`               |
-| `ecopages preview [entry]`   | Previews the production build locally      | `bun run [entry] --preview`     |
+| Command               | Description                                         | Equivalent (Bun)                |
+| :-------------------- | :-------------------------------------------------- | :------------------------------ |
+| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`) | N/A                             |
+| `ecopages dev`        | Starts the dev server                               | `bun run [entry] --dev`         |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes          | `bun --watch run [entry] --dev` |
+| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                 | `bun --hot run [entry] --dev`   |
+| `ecopages build`      | Creates a production build                          | `bun run [entry] --build`       |
+| `ecopages start`      | Starts the production server                        | `bun run [entry]`               |
+| `ecopages preview`    | Previews the production build locally               | `bun run [entry] --preview`     |
 
 > [!NOTE]
-> `[entry]` defaults to `app.ts` if not provided.
+> The entry file defaults to `app.ts`. Override it with `--entry-file`.
+
+### Templates
+
+Official templates are versioned with the CLI release. Use `--template <id>` for an official template or `--from <source>` for a community Git template. Community sources support giget provider notation and GitHub, GitLab, Bitbucket, and SourceHut repository URLs.
+
+```bash
+ecopages init my-site --template jsx
+ecopages init my-site --from github:acme/my-template#v1.0.0
+```
+
+The official template IDs are `jsx`, `react`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
 
 ## Environment & Runtime Options
 

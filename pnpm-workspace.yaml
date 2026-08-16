@@ -10,8 +10,8 @@ packages:
     - playground/*
     - e2e/fixtures/*
     - apps/*
-    - examples/*
-    - examples/**/*
+    - templates/*
+    - templates/**/*
 
 allowBuilds:
     bun: true

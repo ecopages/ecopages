@@ -9,6 +9,7 @@ import {
 	mergeProcessorOptions,
 	Processor,
 	resolveGeneratedPath,
+	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
 	type ProcessorWatchConfig,
@@ -317,6 +318,13 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 
 		this.writeGeneratedFile(indexTypesDir, 'import "./virtual-module.d.ts";\n');
+
+		writeGeneratedTypesPackage({
+			root: this.context.rootDir,
+			module: this.name,
+			packageName: '@types/ecopages-content-processor',
+			writeFile: (filePath, content) => this.writeGeneratedFile(filePath, content),
+		});
 	}
 
 	private async buildCollectionServerArtifact(

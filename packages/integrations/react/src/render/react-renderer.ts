@@ -27,6 +27,7 @@ import {
 	type PageBrowserGraphContributionContext,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
@@ -448,6 +449,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		metadata,
 		Page,
 		Layout,
+		layoutEntries,
 		HtmlTemplate,
 		pageProps,
 		pagePackage,
@@ -469,12 +471,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					component: Page,
 					props: { params, query, ...props, locals: pageLocals },
 				},
-				layout: Layout
-					? {
-							component: Layout,
-							props: locals ? { locals } : {},
-						}
-					: undefined,
+				layouts: resolveDocumentShellLayouts({
+					layout: Layout,
+					layoutEntries,
+					params,
+					query,
+					locals,
+				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: allPageProps,

@@ -1,0 +1,56 @@
+@import '@ecopages/radiant-ui/sidebar/docs.css';
+
+/**
+ * Keep `@reference` after the skin `@import` so postcss-import inlines the package
+ * CSS before Tailwind sees a leading `@reference` (which would drop the import).
+ */
+@reference '../../styles/tailwind.css';
+
+.docs-layout {
+	@apply h-svh min-h-svh min-w-0;
+	--rui-sidebar-background: var(--color-background);
+
+	.rui-sidebar-provider__site-header-inner {
+		@apply px-4 md:px-8;
+	}
+
+	.rui-sidebar-provider__site-header-start {
+		@apply min-w-0 gap-2 md:gap-4;
+	}
+
+	.docs-layout__content {
+		@apply min-w-0 flex-1 overflow-y-auto px-6 py-8 md:px-10 md:py-10 lg:px-12;
+	}
+
+	.docs-layout__toc {
+		@apply hidden w-62 shrink-0 overflow-y-auto border-l border-border/60 px-6 py-8 xl:block;
+	}
+
+	.docs-layout__pagination {
+		@apply mt-16 flex flex-col justify-between gap-4 border-t border-border/40 pt-8 sm:flex-row;
+
+		a {
+			@apply flex flex-1 flex-col gap-1 rounded-lg border border-border/40 bg-background-accent/10 p-4 no-underline transition-colors duration-200;
+
+			@media (hover: hover) {
+				@apply hover:border-border/80 hover:bg-background-accent/40;
+			}
+
+			.pagination-label {
+				@apply font-mono text-[10px] uppercase tracking-widest text-on-background/75;
+			}
+
+			.pagination-title {
+				@apply text-sm font-medium text-on-background;
+			}
+
+			&.prev {
+				@apply items-start text-left;
+			}
+
+			&.next {
+				@apply items-end text-right;
+			}
+		}
+	}
+}

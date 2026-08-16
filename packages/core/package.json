@@ -92,6 +92,10 @@
 			"types": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
 			"default": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts"
 		},
+		"./route-renderer/orchestration/document-shell/layout-shell-props.service": {
+			"types": "./src/route-renderer/orchestration/document-shell/layout-shell-props.service.ts",
+			"default": "./src/route-renderer/orchestration/document-shell/layout-shell-props.service.ts"
+		},
 		"./route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils": {
 			"types": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
 			"default": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts"

@@ -1,11 +1,22 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './cli.js';
 import * as giget from 'giget';
 import * as fs from 'node:fs';
 import * as launchPlan from './launch-plan.js';
+import path from 'node:path';
+import * as prompts from '@clack/prompts';
 
 vi.mock('giget', () => ({
 	downloadTemplate: vi.fn(),
+}));
+
+vi.mock('@clack/prompts', () => ({
+	log: { step: vi.fn() },
+	isCancel: vi.fn(() => false),
+	cancel: vi.fn(),
+	text: vi.fn(),
+	select: vi.fn(),
+	confirm: vi.fn(),
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -13,7 +24,7 @@ vi.mock('node:fs', async (importOriginal) => {
 	return {
 		...actual,
 		existsSync: vi.fn((path) => actual.existsSync(path)),
-		writeFileSync: vi.fn(),
+		writeFileSync: actual.writeFileSync,
 	};
 });
 
@@ -46,7 +57,19 @@ describe('CLI Commands', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 
-		vi.mocked(fs.existsSync).mockImplementation((filePath) => filePath === 'app.ts' || filePath === 'server.ts');
+		vi.mocked(fs.existsSync).mockImplementation(
+			(filePath) =>
+				filePath === 'app.ts' || filePath === 'server.ts' || String(filePath).endsWith('package.json'),
+		);
+		vi.mocked(giget.downloadTemplate).mockImplementation(async (_source, options) => {
+			const targetDir = String(options?.dir);
+			fs.mkdirSync(targetDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(targetDir, 'package.json'),
+				'{"name":"template","dependencies":{"runtime":"workspace:*"},"devDependencies":{"ecopages":"workspace:*"},"peerDependencies":{"peer":"workspace:*"},"optionalDependencies":{"optional":"workspace:*"}}\n',
+			);
+			return { dir: targetDir, source: String(_source) } as never;
+		});
 		vi.mocked(launchPlan.createLaunchPlan).mockResolvedValue({
 			runtime: 'node',
 			command: 'node',
@@ -56,20 +79,103 @@ describe('CLI Commands', () => {
 		} as any);
 	});
 
+	afterEach(() => {
+		for (const targetDir of ['my-new-project', 'my-dir', 'interactive-app', 'remote-app', 'failed-app']) {
+			fs.rmSync(targetDir, { recursive: true, force: true });
+		}
+	});
+
 	it('runs init command with default template and repo', async () => {
 		await runCli(['init', 'my-new-project']);
-		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/examples/starter-jsx', {
+		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/templates/jsx#v0.2.0-rc.0', {
 			dir: 'my-new-project',
+			force: true,
+		});
+		const generatedManifest = JSON.parse(fs.readFileSync('my-new-project/package.json', 'utf8')) as Record<
+			string,
+			unknown
+		>;
+		expect(generatedManifest.name).toBe('my-new-project');
+		for (const blockName of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+			expect(Object.values((generatedManifest[blockName] ?? {}) as Record<string, string>)).toEqual([
+				'0.2.0-rc.0',
+			]);
+		}
+	});
+
+	it('runs init command with an official template', async () => {
+		await runCli(['init', 'my-dir', '--template', 'lit-jsx']);
+		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/templates/lit-jsx#v0.2.0-rc.0', {
+			dir: 'my-dir',
 			force: true,
 		});
 	});
 
-	it('runs init command with custom template and repo', async () => {
-		await runCli(['init', 'my-dir', '--template', 'starter-lit', '--repo', 'custom/repo']);
-		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:custom/repo/examples/starter-lit', {
-			dir: 'my-dir',
+	it('runs the interactive init flow when no directory is provided', async () => {
+		const originalTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+		Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+		vi.mocked(prompts.text)
+			.mockResolvedValueOnce('interactive-app' as never)
+			.mockResolvedValueOnce('github:custom/template#v1.0.0' as never);
+		vi.mocked(prompts.select).mockResolvedValueOnce('react' as never);
+		vi.mocked(prompts.confirm).mockResolvedValueOnce(false as never);
+
+		try {
+			await runCli(['init']);
+
+			expect(giget.downloadTemplate).toHaveBeenCalledWith(
+				'github:ecopages/ecopages/templates/react#v0.2.0-rc.0',
+				{
+					dir: 'interactive-app',
+					force: true,
+				},
+			);
+		} finally {
+			if (originalTtyDescriptor) Object.defineProperty(process.stdin, 'isTTY', originalTtyDescriptor);
+			else Reflect.deleteProperty(process.stdin, 'isTTY');
+		}
+	});
+
+	it('normalizes a GitHub community source without rewriting its dependencies', async () => {
+		await runCli(['init', 'remote-app', '--from', 'https://github.com/custom/template/tree/main/site']);
+
+		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:custom/template/site#main', {
+			dir: 'remote-app',
 			force: true,
 		});
+	});
+
+	it('rejects conflicting template sources and the removed repo option', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(
+			runCli(['init', 'conflict-app', '--template', 'react', '--from', 'github:owner/repo']),
+		).rejects.toThrow('process.exit:1');
+		await expect(runCli(['init', 'legacy-app', '--repo', 'owner/repo'])).rejects.toThrow('process.exit:1');
+
+		exitSpy.mockRestore();
+	});
+
+	it('requires a directory for non-interactive init', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['init', '--no-interactive'])).rejects.toThrow('process.exit:1');
+
+		exitSpy.mockRestore();
+	});
+
+	it('cleans up a partial target when community download fails', async () => {
+		const exitSpy = mockProcessExit();
+		vi.mocked(giget.downloadTemplate).mockImplementationOnce(async (_source, options) => {
+			const targetDir = String(options?.dir);
+			fs.mkdirSync(targetDir, { recursive: true });
+			throw new Error('download failed');
+		});
+
+		await expect(runCli(['init', 'failed-app', '--from', 'github:owner/repo'])).rejects.toThrow('process.exit:1');
+		expect(fs.existsSync('failed-app')).toBe(false);
+
+		exitSpy.mockRestore();
 	});
 
 	it('runs dev command and passes defaults to launch plan', async () => {

@@ -298,6 +298,7 @@ Use these entrypoints when implementing integrations, processors, or source tran
 - `@ecopages/core/plugins/processor`
 - `@ecopages/core/plugins/source-transform`
 - `@ecopages/core/route-renderer/orchestration/integration-renderer`
+- `@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service`
 - `@ecopages/core/services/asset-processing-service`
 - `@ecopages/core/hmr/hmr-strategy`
 

@@ -103,45 +103,45 @@ pnpm --filter @ecopages/playground-explicit-routes run start
 
 Use workspace package names in the format `@ecopages/playground-<name>`.
 
-### Examples
+### Templates
 
-Examples under [examples](examples) are meant to behave like real consumer apps.
+Templates under [templates](templates) are meant to behave like real consumer apps.
 
-If you just want to install and run one directly, go into the example directory and run its normal scripts:
+If you just want to install and run one directly, go into the template directory and run its normal scripts:
 
 ```bash
-cd examples/starter-react
+cd templates/react
 pnpm install
 pnpm dev
 ```
 
-If you are working inside this monorepo and want an example to use the local npm-ready `dist` packages instead of the published npm packages, use:
+If you are working inside this monorepo and want a template to use the local npm-ready `dist` packages instead of the published npm packages, use:
 
 ```bash
-pnpm run example:local-npm -- examples/starter-react
+pnpm run template:local-npm -- templates/react
 ```
 
-You can also run a specific command inside the example:
+You can also run a specific command inside the template:
 
 ```bash
-pnpm run example:local-npm -- examples/starter-react pnpm exec ecopages --version
-pnpm run example:local-npm -- examples/blog-react pnpm dev
-pnpm run example:local-npm -- --skip-build examples/blog-react pnpm dev
+pnpm run template:local-npm -- templates/react pnpm exec ecopages --version
+pnpm run template:local-npm -- templates/blog-react pnpm dev
+pnpm run template:local-npm -- --skip-build templates/blog-react pnpm dev
 ```
 
 What this does:
 
 - builds the local npm `dist` packages
-- creates a sandbox copy of the selected example under `.examples/<example-name>`
-- injects local package overrides only into that sandbox copy
-- installs the example against those local packages in the sandbox copy
+- creates a sandbox copy of the selected template under `.templates/<template-name>`
+- materializes local workspace packages as file dependencies only in that sandbox copy
+- installs the template against those local packages in the sandbox copy
 - runs your command
 
-Your original example files stay untouched.
+Your original template files stay untouched.
 
-The sandbox stays in `.examples`, so you can inspect it manually after the command exits.
+The sandbox stays in `.templates`, so you can inspect it manually after the command exits.
 
-If you are iterating on examples and already rebuilt the local npm packages, pass `--skip-build` to reuse the existing `dist` output.
+If you are iterating on templates and already rebuilt the local npm packages, pass `--skip-build` to reuse the existing `dist` output.
 
 ### Documentation
 

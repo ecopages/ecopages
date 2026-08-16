@@ -1,0 +1,37 @@
+---
+title: 'Introduction'
+description: 'Welcome to the docs starter — MDX pages, sidebar navigation, and a theme toggle.'
+order: 1
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
+# Introduction
+
+This template is a minimal docs site: MDX files under `src/content/docs`, one catch-all route, and Radiant UI chrome for the sidebar, table of contents, breadcrumbs, and theme toggle.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Copy and extend</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Replace this content with your product docs. Keep the frontmatter fields (`title`, `description`, `order`)
+			so the sidebar and SEO metadata stay in sync.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+## What you get
+
+- **Sidebar navigation** built from `ecopages:content/docs` in `src/content-nav.ts`
+- **On this page** table of contents from `h2` and `h3` headings
+- **Cycle theme toggle** for system, light, and dark
+- **Copy for LLM** plus [`llms.txt`](/llms.txt) generated before `dev` and `build`
+- **Previous / next** pagination across the docs set
+
+## How a page is rendered
+
+1. Add MDX at `src/content/docs/<section>/<slug>.mdx` with YAML frontmatter.
+2. The catch-all page at `src/pages/docs/[...slug]/index.tsx` resolves the entry and renders `<Content />`.
+3. `DocsLayout` supplies the sidebar, docs bar, prose styles, and pagination.
+
+LLM exports: [`llms.txt`](/llms.txt) lists every page; full bodies live at `/docs-llm/<section>/<slug>.md`. Set `llms: false` in frontmatter to exclude a page.

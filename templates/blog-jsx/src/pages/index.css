@@ -1,0 +1,39 @@
+.post-list.unstyled.rui-feed {
+	@apply mt-8 flex flex-col gap-6;
+}
+
+.post-card-link {
+	@apply flex flex-col items-start gap-4 text-on-background no-underline transition-opacity duration-200 sm:flex-row;
+}
+
+.post-card-link:hover {
+	@apply text-on-background opacity-80;
+}
+
+.post-card-image {
+	@apply h-[240px] w-full shrink-0 overflow-hidden rounded-container shadow-sm sm:h-[140px] sm:w-[200px];
+}
+
+.post-card-image img {
+	@apply m-0 h-full w-full object-cover transition-transform duration-300;
+}
+
+.post-card-link:hover .post-card-image img {
+	@apply scale-105;
+}
+
+.post-card-content {
+	@apply flex flex-col gap-2;
+}
+
+.post-card h2 {
+	@apply m-0 font-display text-xl font-semibold tracking-tight text-on-background transition-colors duration-200;
+}
+
+.post-card-link:hover h2 {
+	@apply text-primary;
+}
+
+.post-card p {
+	@apply m-0 text-sm leading-relaxed text-on-background/70;
+}

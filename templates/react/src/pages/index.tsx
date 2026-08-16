@@ -70,7 +70,7 @@ export default eco.page<{}, ReactNode>({
 								<div className="image-demo">
 									<EcoImage
 										{...logoOnGhDarkPng}
-										alt="Kita-kamakura"
+										alt="Logo on GitHub dark"
 										width={120}
 										className="rounded"
 									/>

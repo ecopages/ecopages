@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
-import { logoOnGhDarkPng } from 'ecopages:images';
+import { kitaKamakuraPng } from 'ecopages:images';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getPageTestId } from '@/data/primary-links';
 
@@ -31,7 +31,7 @@ export default eco.page({
 				<div class="card space-y-4">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Compact preview</p>
 					<EcoImage
-						{...logoOnGhDarkPng}
+						{...kitaKamakuraPng}
 						alt="Kita Kamakura compact preview"
 						layout="constrained"
 						width={320}

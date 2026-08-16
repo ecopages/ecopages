@@ -68,6 +68,17 @@ import { heroImage, profilePicture } from 'ecopages:images';
 > **No manual dependencies required.**
 > Ecopages automatically detects these virtual module imports and processes them during the build, enabling effective tree-shaking for only the required images.
 
+## TypeScript Setup
+
+Add one import to the app `modules.d.ts`:
+
+```typescript
+import '@ecopages/image-processor/types';
+```
+
+That declares `ecopages:images`. Named exports are generated at dev/build time into
+`node_modules/@types/ecopages-image-processor`, which TypeScript loads automatically.
+
 ### Components
 
 The plugin provides ready-to-use components for string HTML (KitaJS), Ecopages JSX, and React.

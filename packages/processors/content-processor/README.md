@@ -121,32 +121,14 @@ Point `entryType` at the **frontmatter type** (`DocsFrontmatter`), not a hand-ro
 
 ## TypeScript setup
 
-Virtual-module types are generated at build/dev time into:
-
-```text
-node_modules/@types/ecopages-content-processor/virtual-module.d.ts
-```
-
-Add a root `modules.d.ts` (same pattern as `@ecopages/image-processor`):
+Add one import to the app `modules.d.ts`:
 
 ```typescript
-/// <reference types="ecopages-content-processor" />
-
-import '@ecopages/core/declarations';
 import '@ecopages/content-processor/types';
 ```
 
-Recommended `tsconfig.json` additions:
-
-```json
-{
-	"compilerOptions": {
-		"baseUrl": ".",
-		"types": ["bun", "ecopages-content-processor"]
-	},
-	"include": ["src", "eco.config.ts", "modules.d.ts", "node_modules/@types/ecopages-content-processor"]
-}
-```
+That declares `ecopages:content/*`. Collection modules are generated at dev/build time into
+`node_modules/@types/ecopages-content-processor`, which TypeScript loads automatically.
 
 Run `ecopages dev` or `ecopages build` before expecting IDE types. Restart the TypeScript server if types look stale after changing schema or collection config.
 
@@ -241,7 +223,7 @@ export const docsNav = entries.map((entry) => ({
 }));
 ```
 
-Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `examples/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
+Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `templates/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
 
 ## Build scripts
 

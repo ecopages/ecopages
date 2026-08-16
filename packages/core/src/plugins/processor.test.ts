@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types';
-import { Processor, type ProcessorConfig } from './processor.ts';
+import {
+	Processor,
+	type ProcessorConfig,
+	serializeGeneratedTypesPackage,
+	writeGeneratedTypesPackage,
+} from './processor.ts';
 
 class TestProcessor extends Processor {
 	override buildPlugins?: EcoBuildPlugin[] = [];
@@ -142,5 +147,29 @@ describe('Processor capability matching', () => {
 
 		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(false);
 		expect(processor.canProcessAsset('image', '/src/assets/logo.png')).toBe(true);
+	});
+});
+
+describe('generated types package', () => {
+	test('serializes a TypeScript auto-loadable @types manifest', () => {
+		expect(JSON.parse(serializeGeneratedTypesPackage('@types/ecopages-image-processor'))).toEqual({
+			name: '@types/ecopages-image-processor',
+			version: '0.0.0',
+			types: './index.d.ts',
+		});
+	});
+
+	test('writes the manifest under the generated types directory', () => {
+		const written = new Map<string, string>();
+		writeGeneratedTypesPackage({
+			root: '/app',
+			module: 'ecopages-image-processor',
+			packageName: '@types/ecopages-image-processor',
+			writeFile: (filePath, content) => written.set(filePath, content),
+		});
+
+		expect([...written.keys()]).toEqual([
+			path.join('/app', 'node_modules/@types/ecopages-image-processor', 'package.json'),
+		]);
 	});
 });

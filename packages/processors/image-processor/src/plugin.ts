@@ -9,6 +9,7 @@ import {
 	mergeProcessorOptions,
 	Processor,
 	resolveGeneratedPath,
+	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
 	type ProcessorWatchConfig,
@@ -220,6 +221,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		}
 
 		this.initializeProcessor();
+		await this.generateSourceTypes();
 		await this.syncProcessedImagesFromDisk();
 		this.buildContributionsPrepared = true;
 	}
@@ -297,6 +299,24 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		}
 
 		fileSystem.write(filePath, content);
+	}
+
+	/**
+	 * Generates virtual-module declarations from source filenames before image
+	 * processing runs.
+	 *
+	 * @remarks
+	 * Editors need the ambient `ecopages:images` module during config build, but
+	 * actual image optimization is deferred until {@link setup}. Declaring exports
+	 * from the source directory preserves typed named imports on a clean checkout.
+	 */
+	private async generateSourceTypes(): Promise<void> {
+		if (!this.resolvedConfig) {
+			return;
+		}
+
+		const sourceImages = await getSourceImagePaths(this.resolvedConfig);
+		this.writeVirtualModuleTypes(sourceImages.map((imagePath) => path.basename(imagePath)));
 	}
 
 	/**
@@ -390,10 +410,30 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	 * Generate types for the virtual module.
 	 */
 	private generateTypes(): void {
-		if (!this.options?.outputDir) {
-			throw new Error('Output directory not set');
-		}
+		this.writeVirtualModuleTypes(Object.keys(this.processedImages));
 
+		if (!this.context) throw new Error('Processor is not configured correctly');
+
+		const runtimeVirtualModulePath = resolveGeneratedPath('cache', {
+			root: this.context.distDir,
+			module: this.name,
+			subPath: 'virtual-module.ts',
+		});
+
+		const runtimeModuleContent = Object.entries(this.processedImages)
+			.map(([key, value]) => {
+				return `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value, null, 2)} as const;`;
+			})
+			.join('\n\n');
+
+		this.writeGeneratedFile(runtimeVirtualModulePath, runtimeModuleContent);
+		logger.debug('Generated runtime virtual module for images', { runtimeVirtualModulePath });
+	}
+
+	/**
+	 * Writes the ambient declaration package for `ecopages:images`.
+	 */
+	private writeVirtualModuleTypes(imageKeys: readonly string[]): void {
 		const content = `
 /**
  * Do not edit manually. This file is auto-generated.
@@ -403,9 +443,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 ${IMAGE_VIRTUAL_MODULE_TYPES}
 
 declare module "ecopages:images" {
-	${Object.keys(this.processedImages)
-		.map((key) => `export const ${anyCaseToCamelCase(key)}: ImageSpecifications;`)
-		.join('\n    ')}
+	${imageKeys.map((key) => `export const ${anyCaseToCamelCase(key)}: ImageSpecifications;`).join('\n    ')}
 }`;
 
 		if (!this.context) throw new Error('Processor is not configured correctly');
@@ -425,25 +463,17 @@ declare module "ecopages:images" {
 			subPath: 'index.d.ts',
 		});
 
-		const indexContent = 'import "./virtual-module.d.ts";';
+		const indexContent = 'import "./virtual-module.d.ts";\n';
 
 		this.writeGeneratedFile(indexTypesDir, indexContent);
 		logger.debug('Generated index types for virtual module', { indexTypesDir });
 
-		const runtimeVirtualModulePath = resolveGeneratedPath('cache', {
-			root: this.context.distDir,
+		writeGeneratedTypesPackage({
+			root: this.context.rootDir,
 			module: this.name,
-			subPath: 'virtual-module.ts',
+			packageName: '@types/ecopages-image-processor',
+			writeFile: (filePath, content) => this.writeGeneratedFile(filePath, content),
 		});
-
-		const runtimeModuleContent = Object.entries(this.processedImages)
-			.map(([key, value]) => {
-				return `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value, null, 2)} as const;`;
-			})
-			.join('\n\n');
-
-		this.writeGeneratedFile(runtimeVirtualModulePath, runtimeModuleContent);
-		logger.debug('Generated runtime virtual module for images', { runtimeVirtualModulePath });
 	}
 
 	/**

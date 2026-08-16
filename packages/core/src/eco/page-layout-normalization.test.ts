@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponentConfig } from '../types/public-types.ts';
+import type { EcoComponentConfig, LayoutPropsContext } from '../types/public-types.ts';
 import { eco } from './eco.ts';
 import {
 	applyPageLayoutConfig,
@@ -30,7 +30,7 @@ describe('page-layout-normalization', () => {
 	});
 
 	it('should retain layout prop factories on normalized entries', () => {
-		const props = (context: { params?: Record<string, string> }) => ({
+		const props = (context: LayoutPropsContext) => ({
 			section: context.params?.slug ?? 'default',
 		});
 

@@ -22,7 +22,7 @@
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.3.0-rc.0"
+		"@ecopages/jsx": "^0.3.0-rc.2"
 	},
 	"peerDependenciesMeta": {
 		"@ecopages/jsx": {
@@ -38,7 +38,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/jsx": "^0.3.0-rc.0",
+		"@ecopages/jsx": "^0.3.0-rc.2",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3"
 	},

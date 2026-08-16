@@ -28,10 +28,10 @@ const repoRoot = path.resolve(import.meta.dirname, '..');
 const templatesRoot = path.join(repoRoot, 'templates');
 const manifestPath = path.join(repoRoot, 'packages/ecopages/templates.json');
 const latestCompatibleExternalRanges: Record<string, string> = {
-	'@ecopages/jsx': '^0.3.0-rc.0',
-	'@ecopages/radiant': '^0.3.0-rc.0',
-	'@ecopages/radiant-ui': '^0.1.0-rc.0',
-	'@ecopages/signals': '^0.3.0-rc.0',
+	'@ecopages/jsx': '^0.3.0-rc.2',
+	'@ecopages/radiant': '^0.3.0-rc.2',
+	'@ecopages/radiant-ui': '^0.1.0-rc.2',
+	'@ecopages/signals': '^0.3.0-rc.2',
 };
 
 function readJson<T>(filePath: string): T {

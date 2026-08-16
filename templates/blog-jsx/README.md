@@ -1,7 +1,8 @@
 # Blog JSX template
 
 A content-driven Ecopages JSX blog using `@ecopages/content-processor` for
-frontmatter, sorting, and MDX post rendering.
+frontmatter, sorting, and MDX post rendering. UI chrome uses `@ecopages/radiant-ui`
+with a cycle theme toggle, feed layout, and heading components.
 
 ## Setup
 

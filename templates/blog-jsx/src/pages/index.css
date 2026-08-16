@@ -1,43 +1,39 @@
-.post-card {
-	@apply my-6;
+.post-list.unstyled.rui-feed {
+	@apply mt-8 flex flex-col gap-6;
 }
 
 .post-card-link {
-	@apply flex flex-col sm:flex-row gap-4 no-underline text-inherit items-start transition-opacity duration-200;
+	@apply flex flex-col items-start gap-4 text-on-background no-underline transition-opacity duration-200 sm:flex-row;
 }
 
 .post-card-link:hover {
-	@apply opacity-80;
-}
-
-.post-card-link img {
-	@apply transition-transform duration-300;
-}
-
-.post-card-link:hover img {
-	@apply scale-105;
+	@apply text-on-background opacity-80;
 }
 
 .post-card-image {
-	@apply shrink-0 w-full h-[240px] sm:w-[200px] sm:h-[140px] overflow-hidden rounded-lg shadow-sm;
+	@apply h-[240px] w-full shrink-0 overflow-hidden rounded-container shadow-sm sm:h-[140px] sm:w-[200px];
 }
 
 .post-card-image img {
-	@apply w-full h-full object-cover;
+	@apply m-0 h-full w-full object-cover transition-transform duration-300;
 }
 
-.post-card-text {
+.post-card-link:hover .post-card-image img {
+	@apply scale-105;
+}
+
+.post-card-content {
 	@apply flex flex-col gap-2;
 }
 
 .post-card h2 {
-	@apply m-0 text-xl font-bold tracking-tight text-text transition-colors duration-200;
+	@apply m-0 font-display text-xl font-semibold tracking-tight text-on-background transition-colors duration-200;
 }
 
 .post-card-link:hover h2 {
-	@apply text-accent-hover;
+	@apply text-primary;
 }
 
 .post-card p {
-	@apply m-0 text-sm text-text-muted leading-relaxed;
+	@apply m-0 text-sm leading-relaxed text-on-background/70;
 }

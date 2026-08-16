@@ -1,48 +1,31 @@
 import { eco } from '@ecopages/core';
-import { type ReactNode, useEffect, useState } from 'react';
-import { Moon, Sun } from './icons';
+import type { ReactNode } from 'react';
+import { Monitor, Moon, Sun } from './icons';
 
 /**
- * Theme toggle button that switches between light and dark modes.
- * Uses a mounted state to prevent hydration mismatches since the theme
- * is determined client-side from the DOM/localStorage.
+ * Cycles `system` → `light` → `dark`.
+ *
+ * @remarks
+ * Click handling lives in `theme-toggle.script.ts` so the control works even when
+ * the React page tree has not hydrated (for example after a client-graph error).
  */
-export const ThemeToggle = eco.component<{}, ReactNode>({
-	render: () => {
-		const [mounted, setMounted] = useState(false);
-		const [isDark, setIsDark] = useState(false);
-
-		useEffect(() => {
-			const isDarkTheme = document.documentElement.classList.contains('dark');
-			setIsDark(isDarkTheme);
-			setMounted(true);
-		}, []);
-
-		const toggle = () => {
-			const next = !isDark;
-			setIsDark(next);
-			document.documentElement.classList.toggle('dark', next);
-			document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-			localStorage.setItem('theme', next ? 'dark' : 'light');
-		};
-
-		if (!mounted) {
-			return (
-				<div className="btn-skeleton btn-skeleton--icon" aria-hidden="true">
-					<span style={{ width: 18, height: 18 }} />
-				</div>
-			);
-		}
-
-		return (
-			<button
-				type="button"
-				onClick={toggle}
-				aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-				className="btn btn-outline btn-sm w-9 p-0"
-			>
-				{isDark ? <Sun size={18} /> : <Moon size={18} />}
-			</button>
-		);
+export const ThemeToggle = eco.component<Record<string, never>, ReactNode>({
+	dependencies: {
+		stylesheets: ['./theme-toggle.css'],
+		scripts: ['./theme-toggle.script.ts'],
 	},
+	render: () => (
+		<button type="button" className="theme-toggle" data-theme-toggle data-value="system" aria-label="Theme: System">
+			<span className="theme-toggle__icon" data-theme-icon="system">
+				<Monitor size={18} />
+			</span>
+			<span className="theme-toggle__icon" data-theme-icon="light">
+				<Sun size={18} />
+			</span>
+			<span className="theme-toggle__icon" data-theme-icon="dark">
+				<Moon size={18} />
+			</span>
+			<span className="theme-toggle__label">System</span>
+		</button>
+	),
 });

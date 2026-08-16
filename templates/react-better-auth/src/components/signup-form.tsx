@@ -1,19 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { eco } from '@ecopages/core';
+import { SocialSignIn } from './social-sign-in';
+import { clearOAuthErrorParams, messageForOAuthError } from '@/lib/oauth-error';
 
-export const SignupForm = eco.component({
+type SignupFormProps = {
+	githubEnabled: boolean;
+	oauthError?: string | null;
+};
+
+export const SignupForm = eco.component<SignupFormProps, ReactNode>({
 	dependencies: {
-		stylesheets: ['./signup-form.css'],
+		stylesheets: ['./signup-form.css', './social-sign-in.css'],
 	},
-	render: () => {
+	render: ({ githubEnabled = false, oauthError = null }) => {
 		const [name, setName] = useState('');
 		const [email, setEmail] = useState('');
 		const [password, setPassword] = useState('');
-		const [error, setError] = useState<string | null>(null);
+		const [error, setError] = useState<string | null>(oauthError);
 		const [isLoading, setIsLoading] = useState(false);
+
+		useEffect(() => {
+			const fromUrl = messageForOAuthError(new URLSearchParams(window.location.search));
+			if (fromUrl) {
+				setError(fromUrl);
+			}
+			if (fromUrl || oauthError) {
+				clearOAuthErrorParams();
+			}
+		}, [oauthError]);
 
 		async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
 			e.preventDefault();
@@ -99,6 +116,7 @@ export const SignupForm = eco.component({
 				<button type="submit" disabled={isLoading} className="btn btn-primary w-full">
 					{isLoading ? 'Creating account…' : 'Create account'}
 				</button>
+				<SocialSignIn disabled={isLoading} enabled={githubEnabled} errorCallbackURL="/signup" />
 			</form>
 		);
 	},

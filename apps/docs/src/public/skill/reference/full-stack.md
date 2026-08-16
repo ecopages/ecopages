@@ -13,26 +13,32 @@ Optional pattern for apps using Better Auth with Drizzle. See the [react-better-
 ## Installation
 
 ```bash
-bun add better-auth drizzle-orm
-bun add -D drizzle-kit
+pnpm add better-auth drizzle-orm @libsql/client
+pnpm add -D drizzle-kit
 ```
 
 ## Database
 
-Define schema in `src/lib/schema.ts` (user, session, account, verification tables). Create `src/lib/db.ts` with Drizzle + SQLite.
+Define schema in `src/lib/schema.ts` (user, session, account, verification tables). Create `src/lib/db.server.ts` with Drizzle and libSQL (`drizzle-orm/libsql` + `@libsql/client`).
 
 ## Auth configuration
 
 ```typescript
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { db } from './db';
+import { db } from './db.server';
 
 export const auth = betterAuth({
 	secret: process.env.BETTER_AUTH_SECRET ?? 'dev-secret-min-32-chars-required!!',
 	baseURL: process.env.BETTER_AUTH_URL ?? process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	database: drizzleAdapter(db, { provider: 'sqlite' }),
 	emailAndPassword: { enabled: true },
+	socialProviders: {
+		github: {
+			clientId: process.env.GITHUB_CLIENT_ID ?? '',
+			clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+		},
+	},
 });
 ```
 
@@ -82,9 +88,14 @@ Use `authMiddleware` with `defineGroupHandler` and render views from `src/views/
 ECOPAGES_BASE_URL=http://localhost:3000
 BETTER_AUTH_URL=http://localhost:3000
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
+# Optional GitHub OAuth. Leave empty for email/password only.
+# Callback URL: http://localhost:3000/api/auth/callback/github
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
 ## Resources
 
 - [Better Auth Documentation](https://www.better-auth.com/docs)
+- [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github)
 - [Drizzle ORM Documentation](https://orm.drizzle.team/)

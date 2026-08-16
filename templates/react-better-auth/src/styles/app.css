@@ -85,7 +85,7 @@
 	}
 
 	.btn-outline {
-		@apply border-(--color-border) bg-transparent hover:bg-(--color-button-muted) hover:text-(--color-on-background);
+		@apply border border-(--color-border) bg-transparent hover:bg-(--color-button-muted) hover:text-(--color-on-background);
 	}
 
 	.btn-ghost {

@@ -38,6 +38,38 @@ export function resolveGeneratedPath(
 	return path.join(...(parts as string[]));
 }
 
+/**
+ * Serializes the TypeScript `@types` package manifest for generated virtual-module declarations.
+ */
+export function serializeGeneratedTypesPackage(packageName: string): string {
+	return `${JSON.stringify(
+		{
+			name: packageName,
+			version: '0.0.0',
+			types: './index.d.ts',
+		},
+		null,
+		2,
+	)}\n`;
+}
+
+/**
+ * Writes the generated `@types` package manifest that TypeScript auto-loads from `node_modules`.
+ */
+export function writeGeneratedTypesPackage(options: {
+	root: string;
+	module: string;
+	packageName: string;
+	writeFile: (filePath: string, content: string) => void;
+}): void {
+	const packageManifestPath = resolveGeneratedPath('types', {
+		root: options.root,
+		module: options.module,
+		subPath: 'package.json',
+	});
+	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
+}
+
 export interface ProcessorWatchContext {
 	path: string;
 	bridge: IClientBridge;

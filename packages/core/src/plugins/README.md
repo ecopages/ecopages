@@ -17,7 +17,7 @@ These contracts are responsible for:
 
 - `integration-plugin.ts`: framework-semantics contract for render integrations
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
-- `processor.ts`: asset-transformation contract for processors
+- `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
 - `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
 - `eco-component-meta-plugin.ts`: component-identity attribution transform that uses a lexical `eco.` gate, then an Oxc `CallExpression` rewrite

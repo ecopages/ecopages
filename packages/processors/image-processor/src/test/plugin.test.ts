@@ -67,7 +67,17 @@ describe('ImageProcessorPlugin', () => {
 			.setProcessors([plugin])
 			.build();
 
+		const typesDir = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name);
+		const typesFile = path.join(typesDir, 'virtual-module.d.ts');
+
 		expect(processDirectorySpy).not.toHaveBeenCalled();
+		expect(fs.existsSync(typesFile)).toBe(true);
+		expect(fs.readFileSync(typesFile, 'utf8')).toContain('declare module "ecopages:images"');
+		expect(fs.readFileSync(typesFile, 'utf8')).toContain('export const heroPng: ImageSpecifications;');
+		expect(JSON.parse(fs.readFileSync(path.join(typesDir, 'package.json'), 'utf8'))).toMatchObject({
+			name: '@types/ecopages-image-processor',
+			types: './index.d.ts',
+		});
 		expect(
 			fs.existsSync(outputDir) ? fs.readdirSync(outputDir).some((file) => file.endsWith('.webp')) : false,
 		).toBe(false);

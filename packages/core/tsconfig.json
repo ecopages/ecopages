@@ -8,7 +8,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
-		"moduleResolution": "Bundler",
+		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"resolveJsonModule": true,
 		"skipLibCheck": true,

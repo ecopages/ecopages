@@ -51,18 +51,11 @@
 			"types": "./src/plugin.ts"
 		},
 		"./types": {
-			"types": "./src/types.ts"
+			"types": "./src/content-types.d.ts"
 		},
 		"./mdx": {
 			"default": "./src/mdx.ts",
 			"types": "./src/mdx.ts"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"ecopages:content/*": [
-				"./virtual-module.d.ts"
-			]
 		}
 	}
 }

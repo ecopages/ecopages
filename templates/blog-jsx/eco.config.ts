@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { comparePosts, postsFrontmatterSchema } from './src/content/posts';
+import { blogMdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
@@ -14,9 +15,8 @@ const config = await new ConfigBuilder()
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
 	.setIntegrations([
 		ecopagesJsxPlugin({
-			mdx: {
-				enabled: true,
-			},
+			radiant: true,
+			mdx: blogMdxPluginOptions,
 		}),
 	])
 	.setProcessors([

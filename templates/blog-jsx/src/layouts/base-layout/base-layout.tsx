@@ -1,10 +1,13 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiButton } from '@ecopages/radiant-ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { cx } from '@/lib/cx';
 
 export type BaseLayoutProps = {
 	children: JsxRenderable;
-	id?: string;
+	class?: string;
+	prose?: boolean;
 };
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
@@ -14,7 +17,7 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 		components: [ThemeToggle],
 	},
 
-	render: ({ children }) => {
+	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>
 				<div class="layout-container">
@@ -23,20 +26,26 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 							<a href="/" class="logo">
 								EcoBlog
 							</a>
-							<ThemeToggle />
+							<div class="header-actions">
+								<RuiButton href="/about" variant="ghost" size="md">
+									About
+								</RuiButton>
+								<ThemeToggle />
+							</div>
 						</div>
 					</header>
-					<main class="main-content">{children}</main>
+					<main class={cx('main-content', prose && 'prose', className)}>{children}</main>
 					<footer class="site-footer">
 						<p>{`© ${new Date().getFullYear()} EcoBlog. Built with EcoPages.`}</p>
-						<a
+						<RuiButton
 							href="https://github.com/ecopages/ecopages"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="footer-link"
+							variant="ghost"
+							size="md"
 						>
 							GitHub
-						</a>
+						</RuiButton>
 					</footer>
 				</div>
 			</body>

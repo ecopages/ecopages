@@ -1,33 +1,18 @@
-.theme-toggle {
-	appearance: none;
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-elevated);
-	border-radius: 0.375rem;
-	padding: 0.375rem 0.625rem;
-	font-size: var(--text-base);
-	cursor: pointer;
-	transition:
-		border-color 0.15s ease,
-		background-color 0.2s ease;
+theme-toggle {
 	display: inline-flex;
+	width: fit-content;
+	flex: 0 0 auto;
+	vertical-align: middle;
+}
+
+.theme-toggle__item-content {
+	display: inline-flex;
+	flex-direction: row;
 	align-items: center;
-	justify-content: center;
+	gap: var(--spacing-inline, var(--space-inline));
+	white-space: nowrap;
 }
 
-.theme-toggle:hover {
-	border-color: var(--color-accent);
-}
-
-.dark .theme-toggle-sun {
-	display: inline-flex;
-}
-.dark .theme-toggle-moon {
-	display: none;
-}
-
-.theme-toggle-sun {
-	display: none;
-}
-.theme-toggle-moon {
-	display: inline-flex;
+.theme-toggle__item-content > svg {
+	flex: 0 0 auto;
 }

@@ -1,36 +1,54 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiFeed, RuiFeedArticle } from '@ecopages/radiant-ui/feed';
+import { RuiHeading, RuiHeadingDescription, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { entries } from 'ecopages:content/posts';
-import { createMarkupNodeLike } from '@ecopages/jsx';
-import { EcoImage as renderEcoImage } from '@ecopages/image-processor/component/html';
 import { BaseLayout } from '@/layouts/base-layout';
 import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
 
 export default eco.page<{}, JsxRenderable>({
-	layout: BaseLayout,
+	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	dependencies: { stylesheets: ['./index.css'] },
 	metadata: () => ({ title: 'Blog | Ecopages', description: 'A content-driven Ecopages JSX blog.' }),
 	render: () => (
 		<>
-			<h1>Welcome</h1>
-			<p>A content-driven blog powered by the Ecopages content processor.</p>
-			{entries.map((post, index) => (
-				<article class="post-card" key={post.slug}>
-					<a href={`/posts/${post.slug}`} class="post-card-link">
-						{index === 0 ? (
-							<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
-								{createMarkupNodeLike(
-									renderEcoImage({ ...ezi76Gu53NklsuUnsplashJpg, alt: post.title }),
-								)}
+			<RuiHeading size="xl">
+				<RuiHeadingTitle as="h1">Welcome</RuiHeadingTitle>
+				<RuiHeadingDescription>
+					A content-driven blog powered by the Ecopages content processor.
+				</RuiHeadingDescription>
+			</RuiHeading>
+
+			<RuiFeed label="Latest posts" class="post-list unstyled">
+				{entries.map((post, index) => (
+					<RuiFeedArticle
+						key={post.slug}
+						class="post-card unstyled"
+						posinset={index + 1}
+						setsize={entries.length}
+						tabindex={-1}
+					>
+						<a href={`/posts/${post.slug}`} class="post-card-link">
+							{index === 0 ? (
+								<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
+									<EcoImage
+										{...ezi76Gu53NklsuUnsplashJpg}
+										alt={post.title}
+										width={200}
+										height={140}
+										unstyled
+									/>
+								</div>
+							) : null}
+							<div class="post-card-content">
+								<h2>{post.title}</h2>
+								<p>{post.excerpt}</p>
 							</div>
-						) : null}
-						<div class="post-card-content">
-							<h2>{post.title}</h2>
-							<p>{post.excerpt}</p>
-						</div>
-					</a>
-				</article>
-			))}
+						</a>
+					</RuiFeedArticle>
+				))}
+			</RuiFeed>
 		</>
 	),
 });

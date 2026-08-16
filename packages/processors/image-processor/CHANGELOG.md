@@ -13,7 +13,3 @@ All notable changes to `@ecopages/image-processor` are documented here.
 ### Bug Fixes
 
 - Fixed ESM internal imports, generated declaration bundling, and exported image outputs in static builds.
-
-### Tests
-
-- Added image processor and renderer coverage for the current build pipeline.

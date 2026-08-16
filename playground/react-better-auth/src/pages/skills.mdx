@@ -17,10 +17,10 @@ A comprehensive guide for LLMs to create modern web applications using Ecopages,
 
 ## Overview
 
-Ecopages is a TypeScript-first static site generator built on the Bun runtime. It is designed to be **simple, fast, and explicit**.
+Ecopages is a TypeScript-first static site generator that runs on Node.js, with optional Bun. It is designed to be **simple, fast, and explicit**.
 
 **Key Features:**
-- **Bun Runtime**: Fast, native tooling.
+- **Node and Bun**: The CLI prefers Bun when you launch from Bun, otherwise it uses Node.
 - **Templating Flexibility**: Choose the best tool for the job:
   - **KitaJS**: Fast, string-based JSX (Default).
   - **Lit**: Web Components with Server-Side Rendering (SSR).
@@ -154,10 +154,10 @@ Add these scripts to `package.json`:
 ```json
 {
   "scripts": {
-    "dev": "bun run app.ts --dev",
-    "build": "NODE_ENV=production bun run app.ts --build",
-    "preview": "NODE_ENV=production bun run app.ts --preview",
-    "start": "NODE_ENV=production bun run app.ts"
+    "dev": "ecopages dev -r",
+    "build": "ecopages build",
+    "preview": "ecopages preview",
+    "start": "pnpm run build && ecopages start"
   }
 }
 ```
@@ -281,7 +281,7 @@ export default eco.page<{ user: User }>({
 
 ```typescript
 // src/handlers/dashboard.ts
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 
 export const dashboardGroup = defineGroupHandler({
   prefix: "/dashboard",
@@ -342,7 +342,7 @@ export function SimpleButton({ label, onClick }) {
 For individual API routes:
 
 ```typescript
-import { defineApiHandler } from "@ecopages/core/bun";
+import { defineApiHandler } from "@ecopages/core";
 import { z } from "zod";
 
 const createPostSchema = {
@@ -368,7 +368,7 @@ export const createPost = defineApiHandler({
 For routes that share a prefix and middleware:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth";
 
 export const adminGroup = defineGroupHandler({
@@ -776,8 +776,8 @@ This section covers integrating Better Auth for authentication in Ecopages appli
 ### Installation
 
 ```bash
-bun add better-auth drizzle-orm
-bun add -D drizzle-kit
+pnpm add better-auth drizzle-orm @libsql/client
+pnpm add -D drizzle-kit
 ```
 
 ### Database Setup
@@ -845,11 +845,11 @@ export const verification = sqliteTable("verification", {
 Create `src/lib/db.server.ts`:
 
 ```typescript
-import { Database } from "bun:sqlite";
-import { drizzle } from "drizzle-orm/bun-sqlite";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 
-const sqlite = new Database("sqlite.db");
+const sqlite = createClient({ url: "file:sqlite.db" });
 export const db = drizzle(sqlite, { schema });
 ```
 
@@ -879,6 +879,12 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+  },
+  socialProviders: {
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID ?? "",
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+    },
   },
 });
 ```
@@ -996,7 +1002,7 @@ export const AuthNav = eco.component<AuthNavProps, ReactNode>({
 Use `authMiddleware` with `defineGroupHandler`:
 
 ```typescript
-import { defineGroupHandler } from "@ecopages/core/bun";
+import { defineGroupHandler } from "@ecopages/core";
 import { authMiddleware } from "./auth.server";
 
 export const protectedGroup = defineGroupHandler({
@@ -1029,6 +1035,10 @@ Create `.env`:
 ECOPAGES_BASE_URL=http://localhost:3000
 BETTER_AUTH_URL=http://localhost:3000
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
+# Optional GitHub OAuth. Leave empty for email/password only.
+# Callback URL: http://localhost:3000/api/auth/callback/github
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
 ### Database Migration
@@ -1043,7 +1053,7 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: "sqlite.db",
+    url: "file:sqlite.db",
   },
 });
 ```
@@ -1051,7 +1061,7 @@ export default defineConfig({
 Run migrations:
 
 ```bash
-bun run db:push
+pnpm db:push
 ```
 
 ---

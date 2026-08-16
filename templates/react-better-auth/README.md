@@ -1,15 +1,15 @@
 # React Better Auth template
 
-A modern web application built with Ecopages, Better Auth, and Drizzle ORM, running on Bun.
+A modern web application built with Ecopages, Better Auth, and Drizzle ORM.
 
 ## Features
 
 - **Ecopages** - Static-first framework with React support
-- **Better Auth** - Email/password authentication
+- **Better Auth** - Email/password and GitHub authentication
 - **Drizzle ORM** - Type-safe database queries
 - **React Router** - SPA navigation with view transitions
 - **Tailwind CSS v4** - Modern styling with editorial design system
-- **Bun** - Fast JavaScript runtime
+- **SQLite** - Local database via libSQL (Node and Bun)
 
 ## Design
 
@@ -24,14 +24,15 @@ This app features an **editorial/magazine aesthetic** with:
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) installed
+- Node.js 24 or later (Bun is optional)
 
 ### Installation
 
 1. Install dependencies:
 
 ```bash
-bun install
+pnpm install
+# or npm install / bun install
 ```
 
 2. Set up environment variables:
@@ -43,18 +44,19 @@ cp .env.example .env
 Edit `.env` and set:
 
 - `BETTER_AUTH_SECRET` - A secret string at least 32 characters long
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - GitHub OAuth app credentials (optional until you enable GitHub sign-in)
 
 3. Initialize the database:
 
 ```bash
-bun run db:push
+pnpm db:push
 ```
 
 Or generate migrations:
 
 ```bash
-bun run db:generate
-bun run db:migrate
+pnpm db:generate
+pnpm db:migrate
 ```
 
 ### Development
@@ -62,7 +64,7 @@ bun run db:migrate
 Start the development server:
 
 ```bash
-bun run dev
+pnpm dev
 ```
 
 The app will be available at `http://localhost:3000`.
@@ -72,19 +74,19 @@ The app will be available at `http://localhost:3000`.
 Build for production:
 
 ```bash
-bun run build
+pnpm build
 ```
 
 Preview the production build:
 
 ```bash
-bun run preview
+pnpm preview
 ```
 
 Start the production server:
 
 ```bash
-bun run start
+pnpm start
 ```
 
 ## Project Structure
@@ -102,11 +104,23 @@ src/
 
 ## Authentication
 
-The app uses Better Auth with email/password authentication:
+The app uses Better Auth with email/password and GitHub authentication:
 
 - **Sign up**: `/signup` - Create a new account
 - **Sign in**: `/login` - Sign in to your account
 - **Dashboard**: `/dashboard` - Protected route (requires authentication)
+
+### GitHub OAuth
+
+Create an OAuth App in the [GitHub Developer settings](https://github.com/settings/developers). Set the callback URL to:
+
+```text
+http://localhost:3000/api/auth/callback/github
+```
+
+Then put the client ID and secret in `.env` as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. The GitHub app must include the `user:email` scope.
+
+The Continue with GitHub button is shown only when both values are set. Otherwise login and signup show a dismissible warning. If you only want password login, remove that warning from `src/components/social-sign-in.tsx`.
 
 ### Layout Strategy
 
@@ -119,7 +133,7 @@ This ensures the nav always reflects the actual auth state, regardless of the pa
 
 ## Database
 
-The app uses SQLite with Drizzle ORM. The database file (`sqlite.db`) is created automatically on first run.
+The app uses SQLite through [Drizzle's libSQL driver](https://orm.drizzle.team/docs/sqlite/get-started-sqlite). The database file (`sqlite.db`) is created automatically on first run.
 
 ### Schema
 
@@ -132,12 +146,12 @@ The database includes tables for:
 
 ## Tech Stack
 
-- **Runtime**: Bun
+- **Runtime**: Node.js (Bun optional)
 - **Framework**: Ecopages
 - **UI**: React 19
 - **Routing**: @ecopages/react-router
 - **Auth**: Better Auth
-- **Database**: SQLite + Drizzle ORM
+- **Database**: SQLite + Drizzle ORM + libSQL
 - **Styling**: Tailwind CSS v4
 - **TypeScript**: Full type safety
 

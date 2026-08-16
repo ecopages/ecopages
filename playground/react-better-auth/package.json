@@ -2,13 +2,6 @@
 	"name": "@ecopages/playground-react-better-auth",
 	"private": true,
 	"type": "module",
-	"engines": {
-		"bun": ">=1.0.0"
-	},
-	"ecopages": {
-		"runtime": "bun-only",
-		"runtimeNote": "Uses bun:sqlite via Better Auth and Drizzle, so this playground is intentionally Bun-only."
-	},
 	"scripts": {
 		"start": "pnpm run build && ecopages start",
 		"dev": "ecopages dev -r",
@@ -17,7 +10,7 @@
 		"dev:watch": "ecopages dev:watch -r",
 		"dev:hot": "ecopages dev:hot -r",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "bun run src/lib/migrate.ts",
+		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push"
 	},
 	"devDependencies": {
@@ -29,7 +22,6 @@
 		"@ecopages/react": "workspace:*",
 		"@ecopages/react-router": "workspace:*",
 		"@tailwindcss/postcss": "^4.3.0",
-		"@types/bun": "latest",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"drizzle-kit": "^1.0.0-rc.2",
@@ -40,6 +32,7 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
+		"@libsql/client": "^0.17.4",
 		"better-auth": "^1.6.11",
 		"drizzle-orm": "^0.45.2",
 		"react": "^19.2.6",

@@ -41,7 +41,12 @@ export const AnnouncementBar = eco.component<AnnouncementBarProps, ReactNode>({
 						to master Ecopages!
 					</span>
 				</div>
-				<button onClick={handleClose} className="announcement-bar__close" aria-label="Close announcement">
+				<button
+					type="button"
+					onClick={handleClose}
+					className="announcement-bar__close"
+					aria-label="Close announcement"
+				>
 					<X size={16} />
 				</button>
 			</div>

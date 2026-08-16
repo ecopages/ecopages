@@ -413,6 +413,9 @@ importers:
 
   packages/ecopages:
     dependencies:
+      '@clack/prompts':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@ecopages/core':
         specifier: workspace:*
         version: link:../core

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { comparePosts, postsFrontmatterSchema } from './src/content/posts';
+import { blogMdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
@@ -16,9 +17,7 @@ const config = await new ConfigBuilder()
 	.setIntegrations([
 		reactPlugin({
 			router: ecoRouter(),
-			mdx: {
-				enabled: true,
-			},
+			mdx: blogMdxPluginOptions,
 		}),
 	])
 	.setProcessors([

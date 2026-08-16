@@ -7,7 +7,7 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 - `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`)
 - `src/content/docs.ts` — frontmatter schema, section order, icons, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
-- `src/lib/docs/` — MDX plugin options and catch-all slug helpers
+- `src/lib/docs/` — MDX plugin options, catch-all slug helpers, and LLM URL generation
 - `src/layouts/docs-layout/` — sidebar, mobile trigger, table of contents, docs bar, pagination
 - `src/pages/index.tsx` — homepage with links into the docs set
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
@@ -23,9 +23,9 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 
 - `RuiSidebar` — section groups from `docsNav`
 - `RuiToc` — `h2` / `h3` on the current page
-- `RuiBreadcrumb` — resolved server-side from `docsNav`
+- `RuiBreadcrumb` — resolved server-side from `docsNav` and passed into the docs layout
 - Cycle theme toggle — system / light / dark, persisted in `localStorage`
-- `CopyForLlm` — fetches the LLM export URL for the current page
+- `CopyForLlm` — fetches the generated `/docs-llm/<section>/<slug>.md` URL for the current page
 - Previous / next pagination across the flattened docs set
 
 ## LLM exports

@@ -4,7 +4,7 @@ import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
-import { parseDocsCatchAllSegments } from '@/lib/docs/resolve-from-catch-all';
+import { parseDocsCatchAllSegments, resolveFromCatchAll } from '@/lib/docs/resolve-from-catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
 
 type DocsCatchAllProps = {
@@ -39,7 +39,10 @@ const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
 };
 
 export default eco.page<DocsCatchAllProps, JsxRenderable>({
-	layout: DocsLayout,
+	layout: {
+		component: DocsLayout,
+		props: ({ params }) => resolveFromCatchAll(params?.slug),
+	},
 	staticPaths: async () => ({
 		paths: entries.map((entry) => ({
 			params: {

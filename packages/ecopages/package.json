@@ -35,7 +35,8 @@
 		"bin/",
 		"css/",
 		"dist/",
-		"README.md"
+		"README.md",
+		"templates.json"
 	],
 	"dependencies": {
 		"@ecopages/core": "workspace:*",

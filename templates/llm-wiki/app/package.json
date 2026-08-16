@@ -1,0 +1,35 @@
+{
+	"name": "@ecopages/template-llm-wiki",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "pnpm run build && ecopages start --port 3333 --base-url http://localhost:3333",
+		"dev": "ecopages dev --port 3333 --base-url http://localhost:3333",
+		"dev:clean": "rm -rf .eco && pnpm dev",
+		"build": "ecopages build --port 3333 --base-url http://localhost:3333",
+		"preview": "ecopages preview --port 3333 --base-url http://localhost:3333",
+		"sync:obsidian": "node --experimental-strip-types src/lib/obsidian/mirror.ts"
+	},
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/content-processor": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.3.0-rc.0",
+		"@ecopages/logger": "^0.2.3",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.3.0-rc.0",
+		"@ecopages/radiant-ui": "^0.1.0-rc.0",
+		"@mdx-js/mdx": "^3.1.1",
+		"@tailwindcss/postcss": "^4.0.0",
+		"@types/node": "22.19.9",
+		"dotenv": "^16.4.7",
+		"ecopages": "workspace:*",
+		"remark-gfm": "^4.0.1",
+		"tailwindcss": "^4.0.0",
+		"vfile": "^6.0.3",
+		"vfile-matter": "^5.0.1",
+		"zod": "^4.4.3"
+	}
+}

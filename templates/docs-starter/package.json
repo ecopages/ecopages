@@ -1,0 +1,30 @@
+{
+	"name": "@ecopages/template-docs-starter",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "pnpm run build && ecopages start",
+		"generate:llms": "tsx scripts/generate-llm-docs.ts",
+		"dev": "pnpm run generate:llms && ecopages dev",
+		"build": "pnpm run generate:llms && ecopages build",
+		"preview": "ecopages preview"
+	},
+	"devDependencies": {
+		"@ecopages/content-processor": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/ecopages-jsx": "workspace:*",
+		"@ecopages/jsx": "^0.3.0-rc.0",
+		"@ecopages/mdx": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/radiant": "^0.3.0-rc.0",
+		"@ecopages/radiant-ui": "^0.1.0-rc.0",
+		"@mdx-js/mdx": "^3.1.1",
+		"@tailwindcss/postcss": "^4.0.0",
+		"ecopages": "workspace:*",
+		"remark-gfm": "^4.0.1",
+		"tailwindcss": "^4.0.0",
+		"tsx": "^4.22.3",
+		"vfile": "^6.0.3",
+		"zod": "^4.4.3"
+	}
+}

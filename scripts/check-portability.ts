@@ -102,9 +102,9 @@ const checks: Check[] = [
 	},
 	{
 		id: 'app-runtime-subpaths',
-		roots: ['apps', 'examples', 'playground', 'e2e'],
+		roots: ['apps', 'templates', 'playground', 'e2e'],
 		message:
-			'Apps, examples, playgrounds, and fixtures should use the root @ecopages/core exports instead of runtime subpaths.',
+			'Apps, templates, playgrounds, and fixtures should use the root @ecopages/core exports instead of runtime subpaths.',
 		match: (_relativePath, content) => findMatchingLines(/@ecopages\/core\/(bun|node)(?:\/[^'"\s]+)?/, content),
 	},
 ];

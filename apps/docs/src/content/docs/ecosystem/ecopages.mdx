@@ -70,7 +70,7 @@ Use the init command with a target directory, then optionally select a template:
 
 Use these when you want a full bootstrap in one command chain.
 
-**Basic starter** - Creates a minimal Ecopages app with default setup. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/starter-jsx" target="_blank">starter-jsx</a>.
+**JSX template** - Creates a minimal Ecopages app with default setup. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx" target="_blank">jsx</a>.
 
 <CodeTabs
 	name="ecopages-basic-starter"
@@ -94,7 +94,31 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
-**Blog with KitaJS** - Creates a content-focused blog using the `blog-jsx` template. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-jsx" target="_blank">blog-jsx</a>.
+**Radiant UI template** - Creates an Ecopages JSX app using Radiant UI components and the docs theme preference control. <a href="https://github.com/ecopages/ecopages/tree/main/templates/radiant" target="_blank">radiant</a>.
+
+<CodeTabs
+	name="ecopages-radiant"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init radiant-app --template radiant && cd radiant-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init radiant-app --template radiant && cd radiant-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init radiant-app --template radiant && cd radiant-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**Blog with Ecopages JSX** - Creates a content-focused blog using the `blog-jsx` template. <a href="https://github.com/ecopages/ecopages/tree/main/templates/blog-jsx" target="_blank">blog-jsx</a>.
 
 <CodeTabs
 	name="ecopages-blog-jsx"
@@ -118,7 +142,7 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
-**Blog with React** - Creates a React-powered blog with routing preconfigured. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/blog-react" target="_blank">blog-react</a>.
+**Blog with React** - Creates a React-powered blog with routing preconfigured. <a href="https://github.com/ecopages/ecopages/tree/main/templates/blog-react" target="_blank">blog-react</a>.
 
 <CodeTabs
 	name="ecopages-blog-react"
@@ -142,7 +166,7 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
-**React app with Better Auth + Drizzle** - Creates a full app starter with auth and database workflow included. Example: <a href="https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth" target="_blank">with-react-better-auth</a>.
+**React app with Better Auth + Drizzle** - Creates a full app template with auth and database workflow included. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-better-auth" target="_blank">react-better-auth</a>.
 
 <CodeTabs
 	name="ecopages-better-auth"
@@ -150,17 +174,17 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'npm',
 			label: 'npm',
-			code: 'npx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev',
+			code: 'npx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev',
 		},
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev',
+			code: 'pnpm dlx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev',
 		},
 		{
 			id: 'bun',
 			label: 'bun',
-			code: 'bunx ecopages init with-react-better-auth --template with-react-better-auth && cd with-react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev',
+			code: 'bunx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev',
 		},
 	]}
 	defaultSelectedKey="npm"
@@ -275,8 +299,8 @@ bun dev`,
 		{
 			id: 'npm',
 			label: 'npm',
-			code: `npx ecopages init with-react-better-auth --template with-react-better-auth
-cd with-react-better-auth
+			code: `npx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
 npm install
 npm run db:generate
 npm run db:migrate
@@ -285,8 +309,8 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init with-react-better-auth --template with-react-better-auth
-cd with-react-better-auth
+			code: `pnpm dlx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
 pnpm install
 pnpm run db:generate
 pnpm run db:migrate
@@ -295,8 +319,8 @@ pnpm run dev`,
 		{
 			id: 'bun',
 			label: 'bun',
-			code: `bunx ecopages init with-react-better-auth --template with-react-better-auth
-cd with-react-better-auth
+			code: `bunx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
 bun install
 bun db:generate
 bun db:migrate

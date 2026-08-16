@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+@layer components {
+	theme-toggle {
+		@apply inline-flex;
+	}
+
+	.theme-toggle-button {
+		@apply inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors;
+		@apply bg-transparent text-on-background border-border hover:bg-background-accent;
+
+		&:hover {
+			@apply bg-gray-300 dark:bg-gray-700;
+		}
+	}
+
+	.theme-toggle-button__icon {
+		@apply flex items-center justify-center;
+	}
+}

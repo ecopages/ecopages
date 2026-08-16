@@ -1,6 +1,6 @@
 # Kitchen Sink
 
-This is a minimal Ecopages playground app generated from the starter JSX template.
+This is a minimal Ecopages playground app generated from the JSX template.
 
 ## Getting Started
 

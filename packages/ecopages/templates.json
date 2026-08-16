@@ -1,0 +1,95 @@
+{
+	"templates": [
+		{
+			"id": "jsx",
+			"displayName": "JSX",
+			"description": "A minimal Ecopages JSX application.",
+			"category": "integration",
+			"order": 10,
+			"default": true,
+			"source": "jsx",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "react",
+			"displayName": "React",
+			"description": "A minimal Ecopages React application.",
+			"category": "integration",
+			"order": 20,
+			"source": "react",
+			"packageDirectory": ".",
+			"integrations": ["react"]
+		},
+		{
+			"id": "lit-jsx",
+			"displayName": "Lit JSX",
+			"description": "A KitaJS and Lit Ecopages application.",
+			"category": "integration",
+			"order": 30,
+			"source": "lit-jsx",
+			"packageDirectory": ".",
+			"integrations": ["kitajs", "lit"]
+		},
+		{
+			"id": "radiant",
+			"displayName": "Radiant UI",
+			"description": "An Ecopages JSX application built with Radiant UI components.",
+			"category": "integration",
+			"order": 35,
+			"source": "radiant",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "radiant-ui"]
+		},
+		{
+			"id": "blog-jsx",
+			"displayName": "Blog JSX",
+			"description": "A content-driven blog rendered with Ecopages JSX.",
+			"category": "application",
+			"order": 40,
+			"source": "blog-jsx",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "blog-react",
+			"displayName": "Blog React",
+			"description": "A content-driven blog rendered with React.",
+			"category": "application",
+			"order": 50,
+			"source": "blog-react",
+			"packageDirectory": ".",
+			"integrations": ["react", "mdx"]
+		},
+		{
+			"id": "docs-starter",
+			"displayName": "Docs Starter",
+			"description": "A documentation site powered by the content processor.",
+			"category": "application",
+			"order": 60,
+			"source": "docs-starter",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx"]
+		},
+		{
+			"id": "react-better-auth",
+			"displayName": "React Better Auth",
+			"description": "A React application with Better Auth and Drizzle.",
+			"category": "application",
+			"order": 70,
+			"source": "react-better-auth",
+			"packageDirectory": ".",
+			"integrations": ["react"]
+		},
+		{
+			"id": "llm-wiki",
+			"displayName": "LLM Wiki",
+			"description": "A persistent, LLM-maintained knowledge base and site.",
+			"category": "application",
+			"order": 80,
+			"source": "llm-wiki",
+			"packageDirectory": "app",
+			"integrations": ["ecopages-jsx", "mdx"]
+		}
+	]
+}

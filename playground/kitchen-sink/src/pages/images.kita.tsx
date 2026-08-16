@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import { EcoImage } from '@ecopages/image-processor/component/html';
-import { kitaKamakuraPng } from 'ecopages:images';
+import { logoOnGhDarkPng } from 'ecopages:images';
 import { BaseLayout } from '@/layouts/base-layout';
 import { getPageTestId } from '@/data/primary-links';
 

@@ -8,7 +8,7 @@
 - Client-side auth
 - Protected routes
 
-Optional pattern for apps using Better Auth with Drizzle. See [with-react-better-auth example](https://github.com/ecopages/ecopages/tree/main/examples/with-react-better-auth).
+Optional pattern for apps using Better Auth with Drizzle. See the [react-better-auth template](https://github.com/ecopages/ecopages/tree/main/templates/react-better-auth).
 
 ## Installation
 

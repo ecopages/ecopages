@@ -6,34 +6,19 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 ## [UNRELEASED] — TBD
 
-### Breaking
+### Breaking Changes
 
 - Standalone `mdxPlugin()` now **requires** `compilerOptions.jsxImportSource` (no `@kitajs/html` default).
 - Standalone `mdxPlugin()` rejects `react` and `@ecopages/jsx` — use `reactPlugin({ mdx: { enabled: true } })` or `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
-- Internal `@ecopages/mdx-core` removed; shared loader utilities moved to `@ecopages/mdx/core`.
-
-### Bug Fixes
-
-- Fixed Bun/npm 404 when installing `@ecopages/react` (phantom `@ecopages/mdx-core` dependency).
-- Fixed loader registration, Node `source-map` interop, and renderer-owned mixed foreign-subtree rendering for standalone MDX routes.
-- Fixed standalone MDX foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
+- Dropped `@kitajs/html` peer from standalone MDX. Shared loader utilities live in `@ecopages/mdx/core`.
 
 ### Features
 
 - Added standalone non-React MDX server rendering with async compilation and opt-in `.md` support.
 
-### Documentation
+### Bug Fixes
 
-- Updated the README for standalone non-React MDX usage, `.md` opt-in handling, and compiler configuration.
-
-### Tests
-
-- Added renderer-level coverage for the foreign-subtree payload compatibility contract.
-
-### Refactoring
-
-- Consolidated MDX kernel into `@ecopages/mdx/core`; dropped `@kitajs/html` peer from standalone MDX.
-- Replaced the standalone MDX renderer factory with explicit renderer-owned compiler configuration and collected shared MDX plugin and renderer types into a dedicated module.
+- Fixed loader registration, Node `source-map` interop, and renderer-owned mixed foreign-subtree rendering for standalone MDX routes.
 
 ---
 

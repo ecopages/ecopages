@@ -6,15 +6,19 @@ All notable changes to `ecopages` are documented here.
 
 ## [UNRELEASED] — TBD
 
+### Breaking Changes
+
+- Positional entry-file arguments are rejected in favor of `--entry-file`.
+
+### Features
+
+- Simplified CLI runtime startup: runtime selection follows explicit `--runtime` overrides, package-manager hints, and Bun availability.
+- Replaced the `ecopages` bin command parser with Node's built-in `parseArgs` and normalized CLI option names onto the launch-plan contract.
+- Added GitHub sign-in to the react-better-auth template via Better Auth social providers.
+
 ### Bug Fixes
 
-- Restored `ecopages build` and `preview` source-entry execution, kept `start` on built output, and rejected positional entry-file arguments in favor of `--entry-file`.
-- Restored app-level `require(...)` support for Node runtime launches while keeping direct `tsx` execution.
-- Loaded standard `.env` files for Node runtime launches so `ecopages ... --runtime node` sees app-local environment values.
-- Restored shared server/build option parsing for `ecopages build` so documented flags like `--base-url` and `--hostname` still flow through to the launch environment.
-
-### Refactoring
-
-- Simplified CLI runtime startup and removed the thin-host bootstrap path; runtime selection now follows explicit `--runtime` overrides, package-manager hints, and Bun availability.
-- Replaced the Node app-entry bridge with direct Node execution through `tsx` and narrowed Node bootstrap behavior to native package and `import.meta` semantics.
-- Replaced the `ecopages` bin command parser with Node's built-in `parseArgs`, normalized CLI option names onto the launch-plan contract, and removed the dead direct-runtime execution-strategy wrapper from the launch plan.
+- Restored `ecopages build` and `preview` source-entry execution; `start` runs built output.
+- Restored app-level `require(...)` support and standard `.env` loading for Node runtime launches.
+- Restored shared server/build option parsing so documented flags like `--base-url` and `--hostname` flow through to the launch environment.
+- Switched the react-better-auth template from `bun:sqlite` to libSQL so `pnpm dev` runs on Node.

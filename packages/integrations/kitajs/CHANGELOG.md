@@ -13,13 +13,3 @@ All notable changes to `@ecopages/kitajs` are documented here.
 ### Bug Fixes
 
 - Fixed Kita full-route and direct `ctx.render()` rendering to stay on the renderer-owned page/layout/document path while resolving mixed boundaries inside the owning renderer.
-- Fixed Kita foreign-subtree payload compatibility coverage and removed the plugin/renderer integration-name import cycle.
-
-### Documentation
-
-- Updated the README to document `.kita.tsx` route ownership and Kita's role as an outer shell in mixed-renderer apps.
-
-### Tests
-
-- Updated integration coverage for explicit foreign-subtree composition and Node/Rolldown compatibility.
-- Added renderer-level coverage for the foreign-subtree payload compatibility contract.

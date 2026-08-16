@@ -12,6 +12,10 @@ const appRoot = path.resolve(import.meta.dirname);
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setDefaultMetadata({
+		title: 'Docs starter',
+		description: 'An Ecopages docs template with MDX pages, sidebar navigation, and a theme toggle.',
+	})
 	.setIntegrations([
 		ecopagesJsxPlugin({
 			extensions: ['.tsx'],

@@ -1,0 +1,54 @@
+.home-layout {
+	@apply flex flex-col gap-12;
+}
+
+.home-hero {
+	@apply flex max-w-3xl flex-col gap-8 border-b border-border pb-10;
+}
+
+.home-hero__heading .rui-heading__title {
+	text-wrap: balance;
+}
+
+.home-hero__actions {
+	@apply flex flex-wrap items-center gap-3;
+}
+
+.home-path__list {
+	@apply mt-4 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-on-background/80;
+}
+
+.home-cards {
+	@apply mt-8 grid gap-3 sm:grid-cols-2;
+}
+
+.home-card {
+	@apply flex flex-col gap-1 rounded-sm border border-border bg-background p-4 text-on-background no-underline transition-colors duration-200;
+}
+
+@media (hover: hover) {
+	.home-card:hover {
+		@apply bg-secondary-container/30;
+	}
+}
+
+.home-card:focus-visible {
+	@apply rounded-sm outline-2 outline-offset-2 outline-primary;
+}
+
+.home-card__section {
+	@apply m-0 text-xs font-medium tracking-wide text-on-background/60 uppercase;
+}
+
+.home-card__title {
+	@apply m-0 text-sm font-semibold text-on-background;
+}
+
+.home-card__description {
+	@apply m-0 text-sm text-on-background/70;
+}
+
+.home-hero code,
+.home-path__list code {
+	@apply rounded-md border border-border/30 bg-muted px-1.5 py-0.5 font-mono text-[0.875em];
+}

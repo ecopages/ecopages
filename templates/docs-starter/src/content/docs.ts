@@ -1,10 +1,12 @@
 import type { ContentEntry } from '@ecopages/content-processor/types';
+import type { JsxRenderable } from '@ecopages/jsx';
 import { z } from 'zod';
+import { gettingStartedIcon, guidesIcon } from './section-icons';
 
 /** Public URL prefix for docs pages. */
 export const DOCS_ROOT = '/docs';
 
-export const DOCS_SECTION_ORDER = ['getting-started'] as const;
+export const DOCS_SECTION_ORDER = ['getting-started', 'guides'] as const;
 
 export type DocsSectionId = (typeof DOCS_SECTION_ORDER)[number];
 
@@ -14,8 +16,15 @@ export const DOCS_SECTION_ORDER_INDEX = new Map<string, number>(
 
 export const LLM_SECTION_ORDER = [...DOCS_SECTION_ORDER] as const;
 
-export const DOCS_SECTION_CONFIG: Record<DocsSectionId, { title: string }> = {
-	'getting-started': { title: 'Getting Started' },
+export const DOCS_SECTION_CONFIG: Record<
+	DocsSectionId,
+	{
+		title: string;
+		icon: JsxRenderable;
+	}
+> = {
+	'getting-started': { title: 'Getting Started', icon: gettingStartedIcon },
+	guides: { title: 'Guides', icon: guidesIcon },
 };
 
 export const docsFrontmatterSchema = z.object({

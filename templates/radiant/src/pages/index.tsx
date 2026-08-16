@@ -69,7 +69,12 @@ export default eco.page<{}, JsxRenderable>({
 								</div>
 							) : card.demo === 'image' ? (
 								<div class="image-demo">
-									<EcoImage {...logoOnGhDarkPng} alt="Kita-kamakura" width={120} class="rounded" />
+									<EcoImage
+										{...logoOnGhDarkPng}
+										alt="Logo on GitHub dark"
+										width={120}
+										class="rounded"
+									/>
 								</div>
 							) : null}
 						</div>

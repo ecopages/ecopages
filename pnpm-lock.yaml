@@ -1371,6 +1371,9 @@ importers:
 
   templates/docs-starter:
     devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
       '@ecopages/content-processor':
         specifier: workspace:*
         version: link:../../packages/processors/content-processor

@@ -1301,6 +1301,9 @@ importers:
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.0
         version: 0.3.0-rc.0(@ecopages/jsx@0.3.0-rc.0(@ecopages/signals@0.3.0-rc.0))
+      '@ecopages/radiant-ui':
+        specifier: ^0.1.0-rc.0
+        version: 0.1.0-rc.0(@ecopages/jsx@0.3.0-rc.0(@ecopages/signals@0.3.0-rc.0))(@ecopages/radiant@0.3.0-rc.0(@ecopages/jsx@0.3.0-rc.0(@ecopages/signals@0.3.0-rc.0)))(@ecopages/signals@0.3.0-rc.0)
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1

@@ -21,6 +21,7 @@ import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type { ForeignSubtreeExecutionOwningRenderer } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import {
 	getForeignSubtreeResolutionContextKey,
@@ -279,6 +280,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		metadata,
 		Page,
 		Layout,
+		layoutEntries,
 		HtmlTemplate,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
@@ -294,12 +296,13 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 						locals,
 					},
 				},
-				layout: Layout
-					? {
-							component: Layout,
-							props: locals ? { locals } : {},
-						}
-					: undefined,
+				layouts: resolveDocumentShellLayouts({
+					layout: Layout,
+					layoutEntries,
+					params,
+					query,
+					locals,
+				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: props || {},

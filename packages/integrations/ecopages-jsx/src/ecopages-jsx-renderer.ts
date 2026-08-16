@@ -10,6 +10,7 @@ import {
 	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
 	ForeignSubtreeExecutionOwningRenderer,
 	QueuedForeignSubtreeResolutionContext,
@@ -224,15 +225,13 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 									locals: options.pageLocals,
 								},
 							},
-							layout: options.Layout
-								? {
-										component: options.Layout,
-										props: {
-											...options.pageProps,
-											locals: options.locals,
-										},
-									}
-								: undefined,
+							layouts: resolveDocumentShellLayouts({
+								layout: options.Layout,
+								layoutEntries: options.layoutEntries,
+								params: options.params,
+								query: options.query,
+								locals: options.locals,
+							}),
 							htmlTemplate: options.HtmlTemplate,
 							metadata: options.metadata,
 							pageProps: options.pageProps ?? {},

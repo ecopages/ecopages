@@ -693,8 +693,8 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
  * Request-scoped context available to layout prop factories on `eco.page`.
  */
 export type LayoutPropsContext = {
-	params?: Record<string, string>;
-	query?: Record<string, string>;
+	params?: PageParams;
+	query?: PageQuery;
 	locals?: RequestLocals;
 };
 

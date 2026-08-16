@@ -1,7 +1,13 @@
-import type { EcoPageLayoutEntry, LayoutPropsContext, RequestLocals } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext } from '../../../types/public-types.ts';
+import type { DocumentShellLayoutInput } from './document-shell-render.service.ts';
 
 export type LayoutShellPropsContext = LayoutPropsContext & {
 	pageProps?: Record<string, unknown>;
+};
+
+export type DocumentShellLayoutResolutionInput = LayoutShellPropsContext & {
+	layout?: EcoComponent;
+	layoutEntries?: EcoPageLayoutEntry[];
 };
 
 /**
@@ -26,13 +32,30 @@ export function resolveLayoutEntryProps(
 	const layoutPropsContext: LayoutPropsContext = {
 		params: context.params,
 		query: context.query,
-		locals: context.locals as RequestLocals | undefined,
+		locals: context.locals,
 	};
 
 	return {
 		...shellProps,
 		...entry.props(layoutPropsContext),
 	};
+}
+
+/**
+ * Resolves declarative layout entries into the document-shell inputs used during route render.
+ *
+ * @remarks Layout prop factories must be evaluated here so integrations do not
+ * silently fall back to the innermost layout and discard route-specific props.
+ */
+export function resolveDocumentShellLayouts(input: DocumentShellLayoutResolutionInput): DocumentShellLayoutInput[] {
+	if (input.layoutEntries && input.layoutEntries.length > 0) {
+		return input.layoutEntries.map((entry) => ({
+			component: entry.component,
+			props: resolveLayoutEntryProps(entry, input),
+		}));
+	}
+
+	return input.layout ? [{ component: input.layout, props: resolveLayoutShellProps(input) }] : [];
 }
 
 /**

@@ -37,7 +37,7 @@ Peer dependency: `@ecopages/core`.
 
 ## Configuration
 
-Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX integration:
+Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX or React integration:
 
 ```typescript
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -75,6 +75,8 @@ export default await new ConfigBuilder()
 	])
 	.build();
 ```
+
+React apps use the same helper on `reactPlugin({ mdx: { enabled: true, ...withContentMdxPlugins() } })`.
 
 Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
 

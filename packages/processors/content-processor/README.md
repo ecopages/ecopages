@@ -275,11 +275,11 @@ Watch config drives manifest regeneration only. Asset ownership (which would ski
 
 ## MDX integration
 
-Content files are MDX components. Ensure your JSX/MDX integration (for example, `@ecopages/ecopages-jsx`) is configured in `eco.config.ts` so `getComponent()` returns a renderable component.
+Content files are MDX components. Ensure your JSX or React integration is configured in `eco.config.ts` with MDX enabled so collection entries compile as components.
 
 Content collections with YAML frontmatter need `remark-frontmatter` in the **MDX compile pipeline**. The processor validates frontmatter at scan time (`vfile-matter`); MDX render time needs the remark plugin so `---` blocks are not emitted as content.
 
-Use `@ecopages/content-processor/mdx`:
+Use `@ecopages/content-processor/mdx` on whichever integration compiles the MDX:
 
 ```typescript
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
@@ -292,6 +292,13 @@ ecopagesJsxPlugin({
 			remarkPlugins: [remarkGfm],
 			rehypePlugins: [/* app-specific rehype plugins */],
 		}),
+	},
+});
+
+reactPlugin({
+	mdx: {
+		enabled: true,
+		...withContentMdxPlugins(),
 	},
 });
 ```

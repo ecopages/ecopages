@@ -69,7 +69,7 @@ export default eco.page<{}, ReactNode>({
 							) : card.demo === 'image' ? (
 								<div className="image-demo">
 									<EcoImage
-										{...kitaKamakuraPng}
+										{...logoOnGhDarkPng}
 										alt="Kita-kamakura"
 										width={120}
 										className="rounded"

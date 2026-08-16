@@ -31,7 +31,7 @@ export default eco.page({
 				<div class="card space-y-4">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Compact preview</p>
 					<EcoImage
-						{...kitaKamakuraPng}
+						{...logoOnGhDarkPng}
 						alt="Kita Kamakura compact preview"
 						layout="constrained"
 						width={320}

@@ -23,22 +23,22 @@ export default eco.page({
 				<p class="max-w-3xl text-base leading-8 text-muted">
 					This route exercises the image processor inside the kitchen sink with static variants, constrained
 					sizing, full-width layouts, and styling overrides against the local{' '}
-					<span class="font-mono">kita-kamakura.png</span> source file.
+					<span class="font-mono">logo-on-gh-dark.png</span> source file.
 				</p>
 			</section>
 
 			<section class="grid gap-6 lg:grid-cols-3">
 				<div class="card space-y-3">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Static variant sm</p>
-					<EcoImage {...kitaKamakuraPng} alt="Kita Kamakura small variant" staticVariant="sm" />
+					<EcoImage {...logoOnGhDarkPng} alt="Kita Kamakura small variant" staticVariant="sm" />
 				</div>
 				<div class="card space-y-3">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Static variant md</p>
-					<EcoImage {...kitaKamakuraPng} alt="Kita Kamakura medium variant" staticVariant="md" />
+					<EcoImage {...logoOnGhDarkPng} alt="Kita Kamakura medium variant" staticVariant="md" />
 				</div>
 				<div class="card space-y-3">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Static variant lg</p>
-					<EcoImage {...kitaKamakuraPng} alt="Kita Kamakura large variant" staticVariant="lg" />
+					<EcoImage {...logoOnGhDarkPng} alt="Kita Kamakura large variant" staticVariant="lg" />
 				</div>
 			</section>
 
@@ -46,7 +46,7 @@ export default eco.page({
 				<div class="card space-y-3">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Constrained layout</p>
 					<EcoImage
-						{...kitaKamakuraPng}
+						{...logoOnGhDarkPng}
 						alt="Kita Kamakura constrained"
 						layout="constrained"
 						width={420}
@@ -56,7 +56,7 @@ export default eco.page({
 				<div class="card space-y-3">
 					<p class="text-xs uppercase tracking-[0.24em] text-muted">Full-width layout</p>
 					<EcoImage
-						{...kitaKamakuraPng}
+						{...logoOnGhDarkPng}
 						alt="Kita Kamakura full width"
 						layout="full-width"
 						height={420}

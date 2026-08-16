@@ -6,7 +6,6 @@ import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan } from './launch-plan.js';
 import { withBrandBanner } from './brand.js';
-import { runInitCommand } from './init.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
 
@@ -229,9 +228,11 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 
 	try {
 		switch (commandName) {
-			case 'init':
+			case 'init': {
+				const { runInitCommand } = await import('./init.js');
 				await runInitCommand(commandArgs, logger);
 				return;
+			}
 			case 'dev':
 				await runServerCommand(commandArgs, {
 					name: 'dev',

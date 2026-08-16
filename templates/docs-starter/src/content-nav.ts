@@ -1,3 +1,4 @@
+import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/docs';
 import {
 	compareDocsEntries,
@@ -9,6 +10,7 @@ import {
 
 export type DocsNavItem = {
 	title: string;
+	description: string;
 	href: string;
 	section: string;
 	slug: string;
@@ -17,6 +19,7 @@ export type DocsNavItem = {
 export type DocsNavSection = {
 	id: string;
 	title: string;
+	icon: JsxRenderable;
 	items: DocsNavItem[];
 };
 
@@ -34,6 +37,7 @@ for (const entry of [...entries].sort(compareDocsEntries)) {
 
 	items.push({
 		title: entry.title,
+		description: entry.description,
 		href: `${DOCS_ROOT}/${sectionId}/${pageSlug}`,
 		section: sectionId,
 		slug: pageSlug,
@@ -55,6 +59,7 @@ export const docsNav: DocsNav = {
 			{
 				id: sectionId,
 				title: config.title,
+				icon: config.icon,
 				items,
 			},
 		];

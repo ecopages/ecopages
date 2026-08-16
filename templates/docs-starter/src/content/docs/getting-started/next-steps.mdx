@@ -1,11 +1,53 @@
 ---
 title: 'Next steps'
-description: 'Extend the starter with more sections, pages, and MDX content.'
+description: 'Add sections, register them in the sidebar, and customize the docs chrome.'
 order: 2
 ---
 
 # Next steps
 
-- Copy this example into your own app.
-- Add MDX pages under `src/content/docs/<section>/`.
-- Import each JSX component directly in the MDX document that uses it.
+Use this page as a checklist after you copy the starter.
+
+## Add a page
+
+1. Create `src/content/docs/<section>/<slug>.mdx`.
+2. Set `title`, `description`, and `order` in frontmatter.
+3. If the section is new, add its id to `DOCS_SECTION_ORDER` and a title (and icon) in `DOCS_SECTION_CONFIG` (`src/content/docs.ts`).
+
+```mdx
+---
+title: 'Installation'
+description: 'Install the CLI and run the docs site locally.'
+order: 2
+---
+
+# Installation
+
+Run `pnpm dev` from the project root.
+```
+
+## Import components in MDX
+
+Each MDX file imports the interactive components it renders. Shared chrome such as alerts is registered from `DocsLayout` so custom elements are defined on every docs page.
+
+```mdx
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Note</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>Use `unstyled` so prose styles do not restyle the alert.</p>
+	</RuiAlertDescription>
+</RuiAlert>
+```
+
+## Customize the shell
+
+| File | Owns |
+| --- | --- |
+| `src/layouts/docs-layout/` | Sidebar, TOC, pagination, theme toggle |
+| `src/styles/components/prose.css` | Markdown typography |
+| `src/styles/theme.css` | Fonts and semantic color aliases |
+| `src/content-nav.ts` | Sidebar groups from content entries |
+
+See [Writing content](/docs/guides/writing) for a prose sample with headings, lists, tables, and code.

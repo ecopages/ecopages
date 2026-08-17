@@ -172,17 +172,17 @@ export default eco.page<{}, JsxRenderable>({
 								{
 									id: 'npm',
 									label: 'npm',
-									code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev',
+									code: 'npx ecopages init ecopages-app',
 								},
 								{
 									id: 'pnpm',
 									label: 'pnpm',
-									code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm dev',
+									code: 'pnpx ecopages init ecopages-app',
 								},
 								{
 									id: 'bun',
 									label: 'bun',
-									code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev',
+									code: 'bunx ecopages init ecopages-app',
 								},
 							]}
 							copyLabel="Copy init command"

@@ -6,6 +6,7 @@
 
 # build
 public/js
+src/public/rss.xml
 dist
 src/public/rss.xml
 

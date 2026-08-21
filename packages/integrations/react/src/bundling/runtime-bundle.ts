@@ -18,14 +18,14 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from './runtime-interop-plugin.ts';
+import { buildReactRuntimeManifest, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
 import {
-	buildReactRuntimeAliasMap,
-	buildReactRuntimeManifest,
-	getReactRuntimeExternalSpecifiers,
-} from './runtime-alias-map.ts';
-import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
+	assertReactRuntimeModuleExternalsAreVendored,
+	type ResolvedReactPluginRuntimeModule,
+} from './runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
+	getBrowserRuntimeSpecifierMap,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build/browser-runtime-manifest';
 import { LAYOUT_COMPOSE_PACKAGE, PAGE_LAYOUT_NORMALIZATION_PACKAGE } from './bootstrap-package-paths.ts';
@@ -181,7 +181,7 @@ export class RuntimeBundleService {
 	}
 
 	getRuntimeAliasMap(mode = this.getCurrentRuntimeMode()): Record<string, string> {
-		return buildReactRuntimeAliasMap(this.getRuntimeImports(mode));
+		return Object.fromEntries(getBrowserRuntimeSpecifierMap(this.getRuntimeManifest(mode)));
 	}
 
 	getRuntimeManifest(mode = this.getCurrentRuntimeMode()): BrowserRuntimeManifest {
@@ -216,8 +216,7 @@ export class RuntimeBundleService {
 			const reactDomBundlePlugins = [reactRuntimeAliasPlugin, reactDomRuntimeInteropPlugin].filter(
 				(plugin): plugin is EcoBuildPlugin => plugin !== null,
 			);
-			const runtimeAliasPlugin = this.createRuntimeAliasPlugin(mode);
-			const mappedSpecifiers = new Set(Object.keys(this.getRuntimeAliasMap(mode)));
+			const mappedSpecifiers = new Set(this.getRuntimeManifest(mode).bySpecifier.keys());
 
 			dependencies.push(
 				createBrowserRuntimeModuleAsset({
@@ -284,13 +283,20 @@ export class RuntimeBundleService {
 						bundleOptions: {
 							define: this.createRuntimeDefines(mode),
 							external: unresolvedExternals,
-							plugins: [runtimeAliasPlugin],
+							plugins: [
+								this.createRuntimeAliasPlugin(mode, [
+									this.config.routerAdapter.bundle.importPath,
+									'@ecopages/react-router',
+								]),
+							],
 						},
 					}),
 				);
 			}
 
 			for (const runtimeModule of this.getConfiguredRuntimeModules()) {
+				assertReactRuntimeModuleExternalsAreVendored(runtimeModule, mappedSpecifiers);
+
 				dependencies.push(
 					createBrowserRuntimeModuleAsset({
 						modules: [{ specifier: runtimeModule.specifier, defaultExport: true }],
@@ -303,7 +309,7 @@ export class RuntimeBundleService {
 							define: this.createRuntimeDefines(mode),
 							external: this.getRuntimeModuleBundleExternals(runtimeModule, mappedSpecifiers),
 							excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
-							plugins: [runtimeAliasPlugin],
+							plugins: [this.createRuntimeAliasPlugin(mode, [runtimeModule.specifier])],
 						},
 					}),
 				);
@@ -341,19 +347,27 @@ export class RuntimeBundleService {
 		return dependencies;
 	}
 
-	createRuntimeAliasPlugin(mode = this.getCurrentRuntimeMode()): EcoBuildPlugin {
-		const aliasMap = this.getRuntimeAliasMap(mode);
-		const manifest = createBrowserRuntimeManifest(
-			Object.entries(aliasMap).map(([specifier, publicPath]) => ({
-				specifier,
-				owner: '',
-				importPath: specifier,
-				publicPath,
-			})),
-		);
+	/**
+	 * Builds the vendor import-rewrite plugin for one runtime asset.
+	 *
+	 * @remarks
+	 * `omitSpecifiers` drops the module being bundled so a self-import cannot
+	 * rewrite to the file currently being emitted.
+	 */
+	createRuntimeAliasPlugin(
+		mode = this.getCurrentRuntimeMode(),
+		omitSpecifiers: readonly string[] = [],
+	): EcoBuildPlugin {
+		const manifest = this.getRuntimeManifest(mode);
+		const omitted = new Set(omitSpecifiers);
+		const pluginManifest =
+			omitted.size === 0
+				? manifest
+				: createBrowserRuntimeManifest(manifest.assets.filter((asset) => !omitted.has(asset.specifier)));
+
 		return createBrowserRuntimePlugin({
 			name: `react-plugin-runtime-alias-${mode}`,
-			manifest,
+			manifest: pluginManifest,
 		})!;
 	}
 }

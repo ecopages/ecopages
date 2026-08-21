@@ -282,6 +282,8 @@ reactPlugin({
 
 Manual entries **override** auto-discovered entries for the same specifier. Discovery normalizes package subpaths to package roots; import rewrite matches **exact** specifiers registered in `runtimeModules`.
 
+`externals` on a library vendor must already be shared vendors (React, the router bundle, or another `runtimeModules` specifier). Unmapped externals throw at plugin setup instead of emitting a bare specifier the browser cannot resolve.
+
 Some npm packages must exist as **one browser module** across layout vendors, page chunks, and dev lazy prebundles. React context, MobX observables, Redux stores, TanStack Query clients, and audio runtimes (for example Tone.js) all break when two copies load.
 
 Layout auto-discovery only walks `eco.layout()` render graphs. Page-level imports of a singleton that is not registered in `runtimeModules` may be lazily prebundled into a **second** vendor in dev, or inlined into page chunks in production. If a shared library vendor also bundles that singleton internally, you get duplicate instances even though both sides import the same package name.

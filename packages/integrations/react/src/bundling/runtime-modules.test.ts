@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+	assertReactRuntimeModuleExternalsAreVendored,
 	mergeReactPluginRuntimeModules,
 	resolveReactPluginRuntimeModuleSlug,
 	resolveReactPluginRuntimeModules,
+	UnmappedReactRuntimeModuleExternalError,
 } from './runtime-modules.ts';
 
 describe('resolveReactPluginRuntimeModules', () => {
@@ -78,5 +80,33 @@ describe('resolveReactPluginRuntimeModules', () => {
 				externals: [],
 			},
 		]);
+	});
+});
+
+describe('assertReactRuntimeModuleExternalsAreVendored', () => {
+	it('accepts externals that are already shared vendors', () => {
+		expect(() =>
+			assertReactRuntimeModuleExternalsAreVendored(
+				{
+					specifier: '@acme/ui',
+					outputName: 'acme-ui',
+					externals: ['mobx', 'react'],
+				},
+				new Set(['mobx', 'react']),
+			),
+		).not.toThrow();
+	});
+
+	it('throws when an external is not a shared vendor', () => {
+		expect(() =>
+			assertReactRuntimeModuleExternalsAreVendored(
+				{
+					specifier: '@acme/ui',
+					outputName: 'acme-ui',
+					externals: ['webmidi'],
+				},
+				new Set(['react']),
+			),
+		).toThrow(UnmappedReactRuntimeModuleExternalError);
 	});
 });

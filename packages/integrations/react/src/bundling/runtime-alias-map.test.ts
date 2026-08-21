@@ -2,11 +2,21 @@ import { describe, expect, it } from 'vitest';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import {
 	buildReactRuntimeManifest,
-	buildReactRuntimeAliasMap,
 	getReactClientGraphAllowSpecifiers,
 	getReactRuntimeExternalSpecifiers,
 	REACT_RUNTIME_SPECIFIERS,
 } from './runtime-alias-map.ts';
+
+const reactRuntimeImports = {
+	react: '/assets/vendors/react.js',
+	reactDomClient: '/assets/vendors/react-dom.js',
+	reactJsxRuntime: '/assets/vendors/react.js',
+	reactJsxDevRuntime: '/assets/vendors/react.js',
+	reactDom: '/assets/vendors/react-dom.js',
+	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+	layoutCompose: '/assets/vendors/layout-compose.js',
+} as const;
 
 const reactRouterAdapter: ReactRouterAdapter = {
 	name: 'react-router',
@@ -22,18 +32,9 @@ const reactRouterAdapter: ReactRouterAdapter = {
 	getRouterProps: (page, props) => `{ page: ${page}, pageProps: ${props} }`,
 };
 
-describe('buildReactRuntimeAliasMap', () => {
+describe('buildReactRuntimeManifest', () => {
 	it('builds the canonical React runtime manifest', () => {
-		const manifest = buildReactRuntimeManifest({
-			react: '/assets/vendors/react.js',
-			reactDomClient: '/assets/vendors/react-dom.js',
-			reactJsxRuntime: '/assets/vendors/react.js',
-			reactJsxDevRuntime: '/assets/vendors/react.js',
-			reactDom: '/assets/vendors/react-dom.js',
-			useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
-			pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
-			layoutCompose: '/assets/vendors/layout-compose.js',
-		});
+		const manifest = buildReactRuntimeManifest(reactRuntimeImports);
 
 		expect(Array.from(manifest.bySpecifier.entries())).toEqual([
 			[
@@ -139,46 +140,23 @@ describe('buildReactRuntimeAliasMap', () => {
 		]);
 	});
 
-	it('builds the canonical React runtime alias map', () => {
-		expect(
-			buildReactRuntimeAliasMap({
-				react: '/assets/vendors/react.js',
-				reactDomClient: '/assets/vendors/react-dom.js',
-				reactJsxRuntime: '/assets/vendors/react.js',
-				reactJsxDevRuntime: '/assets/vendors/react.js',
-				reactDom: '/assets/vendors/react-dom.js',
-				useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
-				pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
-				layoutCompose: '/assets/vendors/layout-compose.js',
-			}),
-		).toEqual({
-			'@ecopages/react/layout-compose': '/assets/vendors/layout-compose.js',
-			react: '/assets/vendors/react.js',
-			'react/jsx-runtime': '/assets/vendors/react.js',
-			'react/jsx-dev-runtime': '/assets/vendors/react.js',
-			'react-dom': '/assets/vendors/react-dom.js',
-			'react-dom/client': '/assets/vendors/react-dom.js',
-			'use-sync-external-store/shim': '/assets/vendors/react.js',
-			'use-sync-external-store/shim/index.js': '/assets/vendors/react.js',
-			'use-sync-external-store/shim/with-selector': '/assets/vendors/use-sync-external-store-with-selector.js',
-			'use-sync-external-store/shim/with-selector.js': '/assets/vendors/use-sync-external-store-with-selector.js',
-		});
-	});
+	it('includes configured runtime modules and the router import path', () => {
+		const manifest = buildReactRuntimeManifest(
+			{ ...reactRuntimeImports, router: '/assets/vendors/router.js' },
+			[{ specifier: 'mobx', outputName: 'mobx', externals: [] }],
+			(outputName) => `/assets/vendors/${outputName}.js`,
+			{ routerImportPath: '/router.ts' },
+		);
 
-	it('keeps the runtime alias map scoped to React runtime modules', () => {
-		expect(
-			buildReactRuntimeAliasMap({
-				react: '/assets/vendors/react.js',
-				reactDomClient: '/assets/vendors/react-dom.js',
-				reactJsxRuntime: '/assets/vendors/react.js',
-				reactJsxDevRuntime: '/assets/vendors/react.js',
-				reactDom: '/assets/vendors/react-dom.js',
-				useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
-				pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
-				layoutCompose: '/assets/vendors/layout-compose.js',
-				router: '/assets/vendors/router.js',
-			}),
-		).not.toHaveProperty('/router.ts');
+		expect(manifest.bySpecifier.get('mobx')).toEqual({
+			specifier: 'mobx',
+			owner: '@ecopages/react',
+			importPath: 'mobx',
+			publicPath: '/assets/vendors/mobx.js',
+			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+		});
+		expect(manifest.bySpecifier.get('/router.ts')?.publicPath).toBe('/assets/vendors/router.js');
+		expect(manifest.bySpecifier.get('@ecopages/react-router')?.publicPath).toBe('/assets/vendors/router.js');
 	});
 
 	it('exposes the canonical runtime external specifiers', () => {

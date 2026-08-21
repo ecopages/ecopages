@@ -9,6 +9,14 @@ export type ReactPluginRuntimeModule =
 	| {
 			specifier: string;
 			outputName?: string;
+			/**
+			 * Packages left unbundled in this vendor chunk.
+			 *
+			 * @remarks
+			 * Each entry must already be a shared vendor — React, the router bundle, or
+			 * another `runtimeModules` specifier — so import rewrite can emit
+			 * `/assets/vendors/*.js`. Unmapped externals throw at plugin setup.
+			 */
 			externals?: string[];
 	  };
 
@@ -72,4 +80,38 @@ export function mergeReactPluginRuntimeModules(
 	}
 
 	return [...merged.values()];
+}
+
+/**
+ * Thrown when a `runtimeModules` entry lists an `externals` specifier that is
+ * not a shared browser vendor.
+ */
+export class UnmappedReactRuntimeModuleExternalError extends Error {
+	readonly moduleSpecifier: string;
+	readonly unmappedExternals: string[];
+
+	constructor(moduleSpecifier: string, unmappedExternals: string[]) {
+		super(
+			`reactPlugin runtimeModules entry "${moduleSpecifier}" lists externals that are not shared vendors: ${unmappedExternals.join(', ')}. ` +
+				'Register each as its own runtimeModules entry (React and the router bundle are already vendored) so browser imports rewrite to /assets/vendors/*.js.',
+		);
+		this.name = 'UnmappedReactRuntimeModuleExternalError';
+		this.moduleSpecifier = moduleSpecifier;
+		this.unmappedExternals = unmappedExternals;
+	}
+}
+
+/**
+ * Ensures every `externals` specifier on a runtime module is already a vendor.
+ */
+export function assertReactRuntimeModuleExternalsAreVendored(
+	module: ResolvedReactPluginRuntimeModule,
+	vendoredSpecifiers: ReadonlySet<string>,
+): void {
+	const unmappedExternals = module.externals.filter((external) => !vendoredSpecifiers.has(external));
+	if (unmappedExternals.length === 0) {
+		return;
+	}
+
+	throw new UnmappedReactRuntimeModuleExternalError(module.specifier, unmappedExternals);
 }

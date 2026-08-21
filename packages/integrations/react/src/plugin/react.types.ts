@@ -119,6 +119,9 @@ export type ReactPluginOptions = {
 	 * vendors. Import rewrite matches exact specifiers only — register subpaths
 	 * separately in `runtimeModules` when page code imports them directly.
 	 *
+	 * `externals` on a library vendor must already be shared vendors (React, the
+	 * router, or another `runtimeModules` specifier). Unmapped externals throw.
+	 *
 	 * @example Advanced vendor config
 	 * ```ts
 	 * runtimeModules: [

@@ -338,6 +338,8 @@ reactPlugin({
 
 Manual entries **override** auto-discovered entries for the same specifier. Discovery normalizes package subpaths to package roots; import rewrite matches **exact** specifiers registered in `runtimeModules`.
 
+`externals` on a library vendor must already be shared vendors (React, the router bundle, or another `runtimeModules` specifier). Unmapped externals throw at plugin setup instead of emitting a bare specifier the browser cannot resolve.
+
 #### Singleton packages (MobX, Redux, Query client, audio engines)
 
 Some npm packages must exist as **one browser module** across layout vendors, page chunks, and dev lazy prebundles. React context, MobX observables, Redux stores, TanStack Query clients, and audio runtimes (for example Tone.js) all break when two copies load.
@@ -367,15 +369,15 @@ Registering only the library vendor, or only the singleton, is not enough when t
 
 #### Troubleshooting
 
-| Symptom                                    | Likely cause                                                                     | Fix                                                                                                  |
-| ------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `No QueryClient set` after SPA navigation  | Provider library bundled per page chunk                                          | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors      |
-| Duplicate React context / Tone init logs   | Provider package is bundled through multiple client entrypoints                  | Import through the package root and register that root in `runtimeModules`                           |
+| Symptom                                       | Likely cause                                                                                                 | Fix                                                                                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `No QueryClient set` after SPA navigation     | Provider library bundled per page chunk                                                                      | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors                                        |
+| Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                              | Import through the package root and register that root in `runtimeModules`                                                             |
 | Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — layout vendor inlines one copy, page or dev prebundle loads another | Peer the singleton in the library; add explicit `runtimeModules` for it; list it in `externals` on the library vendor; rebuild vendors |
-| Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root                                           | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                     |
-| Package not discovered                     | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry                                              |
-| `@/` alias not followed                    | Missing or invalid tsconfig paths                                                | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |
-| Stale bootstrap script hash in dev         | Rendered HTML cached before runtime vendors/bootstrap scripts changed            | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation        |
+| Wrong packages vendored (slow dev startup)    | Shell layout scanned as discovery root                                                                       | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                                                       |
+| Package not discovered                        | Layout outside `layouts/` / `components/`, or import not reachable from `render`                             | Move layout file or add explicit `runtimeModules` entry                                                                                |
+| `@/` alias not followed                       | Missing or invalid tsconfig paths                                                                            | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                   |
+| Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                                        | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                          |
 
 #### Tests
 

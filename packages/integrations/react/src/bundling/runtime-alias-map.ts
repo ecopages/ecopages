@@ -3,7 +3,6 @@ import type { ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
-	getBrowserRuntimeSpecifierMap,
 	type BrowserRuntimeAssetDeclaration,
 	type BrowserRuntimeManifest,
 } from '@ecopages/core/build/browser-runtime-manifest';
@@ -20,10 +19,6 @@ export const REACT_RUNTIME_SPECIFIERS = [
 	'react/jsx-dev-runtime',
 	'react-dom/client',
 ] as const;
-
-export function buildReactRuntimeAliasMap(runtimeImports: ReactRuntimeImports): Record<string, string> {
-	return Object.fromEntries(getBrowserRuntimeSpecifierMap(buildReactRuntimeManifest(runtimeImports)));
-}
 
 export function buildConfiguredRuntimeModuleManifestEntries(
 	modules: readonly ResolvedReactPluginRuntimeModule[],

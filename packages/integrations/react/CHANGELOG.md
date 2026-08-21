@@ -10,6 +10,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 - `@ecopages/mdx` is now a normal runtime dependency for built-in React MDX support. Consumers do not need to add it manually.
 - Removed the router adapter `importMapKey` contract. Development and production route hydration follow the router bundle import path.
+- `runtimeModules[].externals` that are not already shared vendors (React, the router bundle, or another `runtimeModules` specifier) now throw at plugin setup.
 
 ### Features
 
@@ -22,6 +23,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Vendor import rewrite includes configured `runtimeModules`, so library vendors no longer emit bare singleton imports such as `mobx`.
 - Fixed React hydration, Fast Refresh, grouped page HMR, router-managed production bundles, and mixed-renderer foreign-subtree resolution across Bun and Vite hosts.
 - Fixed React MDX page-module loading and loader initialization under Node-style ESM and `tsx` runtimes.
 - Dev transform vendor prebundles register client-graph boundary plugins and redirect framework imports through the browser runtime manifest.

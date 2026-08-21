@@ -268,7 +268,7 @@ The fallback exists for backward compatibility. Ecopages logs a debug message wh
 #### What gets discovered
 
 1. Select layout entry files using the mode above.
-2. From each root layout's **`render` client graph** (reachability analysis), follow relative imports and tsconfig path aliases. Type-only imports and `.server.ts` modules are skipped.
+2. From each root layout's **`render` client graph** (reachability analysis), follow relative imports and tsconfig path aliases. Type-only imports, side-effect-only imports (for example `import "mobx"`), and `.server.ts` modules are skipped.
 3. Collect npm package roots (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
 4. Register each discovered package as a shared vendor.
 
@@ -336,7 +336,34 @@ reactPlugin({
 });
 ```
 
-Manual entries **override** auto-discovered entries for the same specifier.
+Manual entries **override** auto-discovered entries for the same specifier. Discovery normalizes package subpaths to package roots; import rewrite matches **exact** specifiers registered in `runtimeModules`.
+
+#### Singleton packages (MobX, Redux, Query client, audio engines)
+
+Some npm packages must exist as **one browser module** across layout vendors, page chunks, and dev lazy prebundles. React context, MobX observables, Redux stores, TanStack Query clients, and audio runtimes (for example Tone.js) all break when two copies load.
+
+Layout auto-discovery only walks `eco.layout()` render graphs. Page-level imports of a singleton that is not registered in `runtimeModules` may be lazily prebundled into a **second** vendor in dev, or inlined into page chunks in production. If a shared library vendor also bundles that singleton internally, you get duplicate instances even though both sides "import the same package name."
+
+**Library packaging:** ship singleton deps as `peerDependencies` and keep them external in the library build so `dist/` retains `import … from "mobx"` (or equivalent) instead of inlining a private copy.
+
+**Ecopages app config:** register each singleton as its own `runtimeModules` entry and list it in `externals` on any library vendor that imports it:
+
+```ts
+reactPlugin({
+	router: ecoRouter(),
+	runtimeModules: [
+		{ specifier: 'mobx', outputName: 'mobx' },
+		{ specifier: 'mobx-react-lite', outputName: 'mobx-react-lite' },
+		{
+			specifier: '@acme/store-ui',
+			outputName: 'acme-store-ui',
+			externals: ['mobx', 'mobx-react-lite', 'react', 'react-dom'],
+		},
+	],
+});
+```
+
+Registering only the library vendor, or only the singleton, is not enough when the published library still inlines the singleton. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
 
 #### Troubleshooting
 
@@ -344,6 +371,7 @@ Manual entries **override** auto-discovered entries for the same specifier.
 | ------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `No QueryClient set` after SPA navigation  | Provider library bundled per page chunk                                          | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors      |
 | Duplicate React context / Tone init logs   | Provider package is bundled through multiple client entrypoints                  | Import through the package root and register that root in `runtimeModules`                           |
+| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — layout vendor inlines one copy, page or dev prebundle loads another | Peer the singleton in the library; add explicit `runtimeModules` for it; list it in `externals` on the library vendor; rebuild vendors |
 | Wrong packages vendored (slow dev startup) | Shell layout scanned as discovery root                                           | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                     |
 | Package not discovered                     | Layout outside `layouts/` / `components/`, or import not reachable from `render` | Move layout file or add explicit `runtimeModules` entry                                              |
 | `@/` alias not followed                    | Missing or invalid tsconfig paths                                                | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping) |

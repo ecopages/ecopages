@@ -139,6 +139,8 @@ layout: [
 
 On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. Each layout tier is cached by `config.__eco.file` (or `id`). Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
 
+Provider layouts that mount shared client state (query clients, MobX stores, audio engines) should also set `runtimeProvider: true` on `eco.layout()` so Ecopages vendors one shared copy of those npm packages across page chunks. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors) in the React integration guide.
+
 **Note:** Full reloads, HMR, and bootstrap paths that refresh persisted layouts may replace a cached tier when the imported function reference changes.
 
 ## Layout dependencies

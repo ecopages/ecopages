@@ -91,6 +91,11 @@ export type ReactPluginOptions = {
 	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
 	 * It does not vendor every npm dependency reachable from shell or page UI.
 	 *
+	 * Singleton libraries (MobX, Redux, TanStack Query, audio engines) must be
+	 * peer dependencies in shared state/UI packages and registered here explicitly
+	 * when page code imports them outside the layout graph. List each singleton in
+	 * `externals` on library vendors that import it so one shared vendor URL is used.
+	 *
 	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
 	 * `eco.layout({ ... })`. Flagged layouts become the only discovery roots and
 	 * vendor every reachable npm package in that layout graph. When no layout opts
@@ -110,8 +115,9 @@ export type ReactPluginOptions = {
 	 * ```
 	 *
 	 * Manual entries override auto-discovered entries for the same specifier.
-	 * Subpath imports such as `@acme/ui/button` dedupe to the registered package
-	 * root vendor URL when `@acme/ui` is configured here or auto-discovered.
+	 * Discovery normalizes package subpaths to package roots when collecting
+	 * vendors. Import rewrite matches exact specifiers only — register subpaths
+	 * separately in `runtimeModules` when page code imports them directly.
 	 *
 	 * @example Advanced vendor config
 	 * ```ts

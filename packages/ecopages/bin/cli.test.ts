@@ -6,6 +6,9 @@ import * as launchPlan from './launch-plan.js';
 import path from 'node:path';
 import * as prompts from '@clack/prompts';
 
+const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+const cliVersionTag = `v${pkg.version}`;
+
 vi.mock('giget', () => ({
 	downloadTemplate: vi.fn(),
 }));
@@ -87,7 +90,7 @@ describe('CLI Commands', () => {
 
 	it('runs init command with default template and repo', async () => {
 		await runCli(['init', 'my-new-project']);
-		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/templates/jsx#v0.2.0-rc.0', {
+		expect(giget.downloadTemplate).toHaveBeenCalledWith(`github:ecopages/ecopages/templates/jsx#${cliVersionTag}`, {
 			dir: 'my-new-project',
 			force: true,
 		});
@@ -98,17 +101,20 @@ describe('CLI Commands', () => {
 		expect(generatedManifest.name).toBe('my-new-project');
 		for (const blockName of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
 			expect(Object.values((generatedManifest[blockName] ?? {}) as Record<string, string>)).toEqual([
-				'0.2.0-rc.0',
+				pkg.version,
 			]);
 		}
 	});
 
 	it('runs init command with an official template', async () => {
 		await runCli(['init', 'my-dir', '--template', 'lit-jsx']);
-		expect(giget.downloadTemplate).toHaveBeenCalledWith('github:ecopages/ecopages/templates/lit-jsx#v0.2.0-rc.0', {
-			dir: 'my-dir',
-			force: true,
-		});
+		expect(giget.downloadTemplate).toHaveBeenCalledWith(
+			`github:ecopages/ecopages/templates/lit-jsx#${cliVersionTag}`,
+			{
+				dir: 'my-dir',
+				force: true,
+			},
+		);
 	});
 
 	it('runs the interactive init flow when no directory is provided', async () => {
@@ -124,7 +130,7 @@ describe('CLI Commands', () => {
 			await runCli(['init']);
 
 			expect(giget.downloadTemplate).toHaveBeenCalledWith(
-				'github:ecopages/ecopages/templates/react#v0.2.0-rc.0',
+				`github:ecopages/ecopages/templates/react#${cliVersionTag}`,
 				{
 					dir: 'interactive-app',
 					force: true,

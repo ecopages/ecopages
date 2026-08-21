@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeReachability } from './reachability-analyzer';
+import { analyzeReachability, hasPagePreloadExport } from './reachability-analyzer';
 
 describe('analyzeReachability', () => {
 	it('identifies eco.page render dependencies correctly', () => {
@@ -55,6 +55,53 @@ describe('analyzeReachability', () => {
 		expect(result.analyzed).toBe(true);
 		expect(result.isFallbackRoots).toBe(false);
 		expect(result.reachableImports.get('./client-comp')).toBe('*');
+	});
+
+	it('keeps the Page preload export and its browser imports reachable', () => {
+		const source = `
+			import { loadComponent } from 'ecopages:content/posts/browser';
+
+			export async function preload({ entry }) {
+				await loadComponent(entry.slug);
+			}
+
+			export default eco.page({ render: () => null });
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('ecopages:content/posts/browser')).toEqual(new Set(['loadComponent']));
+	});
+
+	it('keeps a locally re-exported Page preload reachable', () => {
+		const source = `
+			import { loadComponent } from 'ecopages:content/posts/browser';
+
+			async function loadPost({ entry }) {
+				await loadComponent(entry.slug);
+			}
+
+			export { loadPost as preload };
+			export default eco.page({ render: () => null });
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('ecopages:content/posts/browser')).toEqual(new Set(['loadComponent']));
+	});
+
+	it('keeps a re-exported Page preload module reachable', () => {
+		const source = `
+			export { preload } from './post-preload';
+			export default eco.page({ render: () => null });
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./post-preload')).toEqual(new Set(['preload']));
 	});
 
 	it('gracefully handles files with no eco explicit roots by using fallback exports', () => {
@@ -247,5 +294,29 @@ describe('analyzeReachability', () => {
 		expect(result.analyzed).toBe(true);
 		expect(result.reachableImports.has('./auth')).toBe(false);
 		expect(result.reachableImports.get('./used')).toBeInstanceOf(Set);
+	});
+});
+
+describe('hasPagePreloadExport', () => {
+	it('detects a named preload function export', () => {
+		expect(
+			hasPagePreloadExport(
+				`
+				export async function preload({ entry }) {}
+				export default eco.page({ render: () => null });
+				`,
+				'page.tsx',
+			),
+		).toBe(true);
+	});
+
+	it('detects a re-exported preload binding', () => {
+		expect(
+			hasPagePreloadExport(`export { loadPost as preload };\nexport default function Page() {}`, 'page.tsx'),
+		).toBe(true);
+	});
+
+	it('returns false when the Page has no preload export', () => {
+		expect(hasPagePreloadExport(`export default eco.page({ render: () => null });`, 'page.tsx')).toBe(false);
 	});
 });

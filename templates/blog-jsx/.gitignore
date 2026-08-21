@@ -7,6 +7,7 @@
 # build
 public/js
 dist
+src/public/rss.xml
 
 # misc
 .DS_Store

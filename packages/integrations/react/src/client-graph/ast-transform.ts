@@ -20,6 +20,7 @@ import {
 const SERVER_ONLY_ECO_PAGE_OPTION_KEYS = new Set([
 	'cache',
 	'middleware',
+	'dependencies',
 	'requires',
 	'metadata',
 	'staticProps',
@@ -49,9 +50,9 @@ function getObjectPropertyKeyName(node: any): string | undefined {
  * Removes server-only `eco.page(...)` options from browser-bound modules.
  *
  * Import pruning alone is not sufficient because a page module can still retain
- * references to stripped server imports through config fields like `middleware`
- * or `metadata`. This pass rewrites the `eco.page(...)` object literal so only
- * browser-relevant properties remain.
+ * references to stripped server imports through options such as `middleware`,
+ * `dependencies`, or `metadata`. This pass rewrites the `eco.page(...)` object
+ * literal so only browser-relevant properties remain.
  *
  * @param source - Original or already-transformed module source.
  * @param program - Parsed OXC program for the same source text.

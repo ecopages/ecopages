@@ -72,6 +72,19 @@ body {
 			@apply bg-transparent p-0 text-inherit;
 		}
 	}
+
+	table:not(.unstyled, .unstyled *) {
+		@apply my-6 w-full border-collapse text-sm;
+	}
+
+	th:not(.unstyled, .unstyled *),
+	td:not(.unstyled, .unstyled *) {
+		@apply border border-border px-3 py-2 text-left align-top;
+	}
+
+	th:not(.unstyled, .unstyled *) {
+		@apply bg-surface-container-low font-medium text-on-background;
+	}
 }
 
 .back-link {

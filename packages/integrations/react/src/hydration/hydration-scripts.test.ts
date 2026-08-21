@@ -27,6 +27,9 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};');
 		expect(script).toContain('export default Page;');
+		expect(script).toContain('import Page from "/assets/page.js";');
+		expect(script).not.toContain('export { preload };');
+		expect(script).not.toContain('PageModule.preload');
 		expect(script).toContain('const pageModuleUrl = import.meta.url;');
 		expect(script).toContain('const isActivePageEntry = Boolean(document.querySelector');
 		expect(script).toContain('window.__ECO_PAGES__.react.pageRoot = window.__ECO_PAGES__.react.pageRoot || null;');
@@ -41,6 +44,22 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('import { composeLayoutPageTree } from "/assets/vendors/layout-compose.js";');
 		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
 		expect(script).toContain('window.__ECO_PAGES__.hmrHandlers');
+		assertNoBareEcopagesImports(script);
+	});
+
+	test('pages that export preload import, await, and re-export it', () => {
+		const script = createHydrationScript({
+			...baseOptions,
+			...browserHelperImports,
+			hmrEnabled: true,
+			hasPagePreload: true,
+		});
+
+		expect(script).toContain('import * as PageModule from "/assets/page.js";');
+		expect(script).toContain('const preload = PageModule.preload;');
+		expect(script).toContain('export { preload };');
+		expect(script).toContain('await preload?.(props);');
+		expect(script).toContain('const nextPreload = newModule.preload;');
 		assertNoBareEcopagesImports(script);
 	});
 
@@ -76,6 +95,7 @@ describe('createHydrationScript', () => {
 		expect(script).toContain('activeRoot.unmount();');
 		expect(script).toContain('window.__ECO_PAGES__?.navigation?.releaseOwnership?.("react-router");');
 		expect(script).toContain('root.render(createTree(Page, props));');
+		expect(script).not.toContain('await preload?.(props);');
 		expect(script).toContain('import { composeLayoutPageTree } from "@ecopages/react/layout-compose";');
 		expect(script).toContain('const createTree = (Component, props) => composeLayoutPageTree(Component, props);');
 		expect(script).not.toContain('hmrHandlers');
@@ -97,6 +117,7 @@ describe('createHydrationScript', () => {
 
 		expect(script).toContain('window.__ECO_PAGES__.react.cleanupPageRoot = () => {');
 		expect(script).toContain('export default Page;');
+		expect(script).not.toContain('export { preload };');
 		expect(script).toContain('const currentOwnerState = window.__ECO_PAGES__?.navigation?.getOwnerState?.();');
 		expect(script).toContain(
 			'if (!(currentOwnerState?.owner === "react-router" && currentOwnerState.canHandleSpaNavigation)) {',

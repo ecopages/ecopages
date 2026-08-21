@@ -1,8 +1,73 @@
 ---
-title: Hello World
-description: Welcome to Ecopages.
-excerpt: Welcome to Ecopages and the content processor.
-order: 1
+title: How this blog works
+description: A guided tour of Ecopages routes, layouts, and static export in this template.
+excerpt: Explore how pages, config, and static export fit together in Ecopages.
+date: 2024-01-15
+image: ezi76Gu53NklsuUnsplashJpg
 ---
 
-Welcome to the first post in this Ecopages blog.
+This post is part of the **EcoBlog** template. Instead of placeholder copy, each article walks through one slice of the stack you are running right now.
+
+## What you are looking at
+
+The home page, this article, and the other posts all come from the same Ecopages app. Filesystem routes render HTML, MDX posts live in a content collection, and static export can add SEO artifacts such as `sitemap.xml`.
+
+## Ecopages building blocks
+
+This template is a small Ecopages app: config declares processors and integrations, pages render routes, and static export writes HTML plus SEO artifacts.
+
+### 1. Configure the app
+
+`eco.config.ts` sets the base URL, registers the JSX integration, content processor, image processor, and sitemap options.
+
+```ts
+// eco.config.ts
+.setSitemap({ enabled: true, extraUrls: ['/rss.xml'] })
+```
+
+### 2. Boot with createApp
+
+`app.ts` loads config, generates RSS, then starts the runtime. Dev and build both execute this entry file first.
+
+```ts
+// app.ts
+await generateRss({
+  appRoot,
+  baseUrl,
+  contentRoot: path.join(appRoot, 'src', POSTS_CONTENT_DIR),
+  schema: postsFrontmatterSchema,
+  orderBy: comparePosts,
+  postPathPrefix: '/posts',
+  channel: {
+    title: 'EcoBlog',
+    description: 'A content-driven Ecopages React blog.',
+  },
+});
+await app.start();
+```
+
+### 3. Render filesystem routes
+
+Pages under `src/pages/` become URLs. The home page imports `entries` from the content collection; `[slug].tsx` expands one MDX file per post.
+
+### 4. Export static HTML
+
+During `ecopages build`, static pages render to `dist/` and eligible routes are listed in `sitemap.xml`.
+
+## The collection behind the feed
+
+When you open the home page, it imports `entries` from `ecopages:content/posts`. That manifest is generated from the MDX files in `src/content/posts/`, validated against a Zod schema, and sorted by ISO date.
+
+| slug | title | date | excerpt |
+| --- | --- | --- | --- |
+| ssr-benefits | RSS and sitemap generation | 2024-03-01 | Wire feeds and crawl maps without maintaining XML by hand. |
+| browser-router | Content processor collections | 2024-02-01 | Scan MDX frontmatter once and reuse it in pages, RSS, and the feed. |
+| hello-world | How this blog works | 2024-01-15 | Explore how pages, config, and static export fit together in Ecopages. |
+
+Each row is validated frontmatter from the same manifest the feed, post routes, RSS generator, and sitemap read at build time.
+
+## Where to go next
+
+- Read [Content processor collections](/posts/browser-router) to see how frontmatter becomes virtual modules.
+- Read [RSS and sitemap generation](/posts/ssr-benefits) for the export-time SEO pipeline.
+- Open the [RSS feed](/rss.xml) generated on app startup.

@@ -11,7 +11,7 @@
 }
 
 .header-actions {
-	@apply flex items-center gap-8;
+	@apply flex items-center gap-4;
 }
 
 .logo {

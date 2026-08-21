@@ -42,6 +42,11 @@ export type HydrationScriptOptions = {
 	hmrEnabled: boolean;
 	/** Whether the source file is an MDX file */
 	isMdx: boolean;
+	/**
+	 * When true, the Page module exports a named `preload` and the generated
+	 * entry must import, await, and re-export it.
+	 */
+	hasPagePreload?: boolean;
 	/** Optional router adapter for SPA navigation */
 	router?: ReactRouterAdapter;
 	/**
@@ -103,31 +108,55 @@ export type IslandHydrationScriptOptions = {
  *
  * @remarks
  * MDX pages need a namespace import so `config` can be copied onto the default
- * export before layout normalization runs.
+ * export before layout normalization runs. Named `preload` is imported only
+ * when the Page actually exports it.
  */
-function getImportStatement(importPath: string, isMdx: boolean, pageLayoutNormalizationImportPath: string): string {
-	return isMdx
-		? `import * as MDXModule from "${importPath}";
+function getImportStatement(
+	importPath: string,
+	isMdx: boolean,
+	pageLayoutNormalizationImportPath: string,
+	hasPagePreload: boolean,
+): string {
+	if (isMdx) {
+		const preloadLine = hasPagePreload ? '\nconst preload = MDXModule.preload;' : '';
+		return `import * as MDXModule from "${importPath}";
 import { ensurePageConfigLayouts } from "${pageLayoutNormalizationImportPath}";
-const Page = MDXModule.default;
+const Page = MDXModule.default;${preloadLine}
 if (MDXModule.config) {
   Page.config = MDXModule.config;
   ensurePageConfigLayouts(Page.config);
-}`
-		: `import Page from "${importPath}";`;
+}`;
+	}
+
+	if (hasPagePreload) {
+		return `import * as PageModule from "${importPath}";
+const Page = PageModule.default;
+const preload = PageModule.preload;`;
+	}
+
+	return `import Page from "${importPath}";`;
 }
 
 /**
  * Assigns `NewPage` from a hot-reloaded module, including MDX `config` reattach.
  */
-function getHmrImportStatement(isMdx: boolean): string {
+function getHmrImportStatement(isMdx: boolean, hasPagePreload: boolean): string {
+	const preloadLine = hasPagePreload ? '\nconst nextPreload = newModule.preload;' : '';
 	return isMdx
-		? `const NewPage = newModule.default;
+		? `const NewPage = newModule.default;${preloadLine}
 if (newModule.config) {
   NewPage.config = newModule.config;
   ensurePageConfigLayouts(NewPage.config);
 }`
-		: 'const NewPage = newModule.default;';
+		: `const NewPage = newModule.default;${preloadLine}`;
+}
+
+function getPreloadAwaitStatement(identifier: string, propsIdentifier: string, hasPagePreload: boolean): string {
+	return hasPagePreload ? `await ${identifier}?.(${propsIdentifier});` : '';
+}
+
+function getPreloadReexportStatement(hasPagePreload: boolean): string {
+	return hasPagePreload ? 'export { preload };' : '';
 }
 
 function getComponentType(isMdx: boolean): string {
@@ -212,13 +241,15 @@ function getHydrationTimingScript(): string {
  * HMR handler for router pages: prefers coordinator reload when layouts change,
  * otherwise re-renders the existing root.
  */
-function getRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean }): string {
-	const { importPath, isMdx } = options;
+function getRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean; hasPagePreload: boolean }): string {
+	const { importPath, isMdx, hasPagePreload } = options;
+	const preloadAwait = getPreloadAwaitStatement('nextPreload', 'nextProps', hasPagePreload);
 	return `  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
     try {
       const newModule = await import(newUrl);
       const nextProps = getPageData();
-      ${getHmrImportStatement(isMdx)}
+      ${getHmrImportStatement(isMdx, hasPagePreload)}
+      ${preloadAwait}
       const currentPageLayoutStack = (Component) =>
         (Component.config?.layouts ?? []).map((layout) => layout?.config?.identity?.file ?? '').join('|');
       const currentPageLayoutStackKey = currentPageLayoutStack(Page);
@@ -250,12 +281,18 @@ function getRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean
 /**
  * HMR handler for non-router pages: hot-imports the module and re-renders the layout tree.
  */
-function getNonRouterHmrHandlerScript(options: { importPath: string; isMdx: boolean }): string {
-	const { importPath, isMdx } = options;
+function getNonRouterHmrHandlerScript(options: {
+	importPath: string;
+	isMdx: boolean;
+	hasPagePreload: boolean;
+}): string {
+	const { importPath, isMdx, hasPagePreload } = options;
+	const preloadAwait = getPreloadAwaitStatement('nextPreload', 'props', hasPagePreload);
 	return `  window.__ECO_PAGES__.hmrHandlers["${importPath}"] = async (newUrl) => {
     try {
       const newModule = await import(newUrl);
-      ${getHmrImportStatement(isMdx)}
+      ${getHmrImportStatement(isMdx, hasPagePreload)}
+      ${preloadAwait}
       root.render(createTree(NewPage, props));
       console.log("[ecopages] ${getComponentType(isMdx)} component updated");
     } catch (e) {
@@ -284,6 +321,7 @@ function createScriptWithRouter(options: HydrationScriptOptions): string {
 		scriptId,
 		hmrEnabled,
 	} = options;
+	const hasPagePreload = options.hasPagePreload === true;
 	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
 	const { components, getRouterProps } = router!;
 	if (!routerImportPath) {
@@ -295,16 +333,19 @@ function createScriptWithRouter(options: HydrationScriptOptions): string {
 		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
 `
 		: '';
-	const hmrHandler = hmrEnabled ? getRouterHmrHandlerScript({ importPath, isMdx }) : '';
+	const hmrHandler = hmrEnabled ? getRouterHmrHandlerScript({ importPath, isMdx, hasPagePreload }) : '';
+	const preloadReexport = getPreloadReexportStatement(hasPagePreload);
+	const preloadAwait = getPreloadAwaitStatement('preload', 'props', hasPagePreload);
 
 	return `
 import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { ${components.router}, ${components.pageContent} } from "${routerImportPath}";
 ${getPageDataReaderSource(options)}
-${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath)}
+${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath, hasPagePreload)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
+${preloadReexport}
 export const config = Page.config;
 const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script-id="${scriptId}"]'));
 
@@ -332,7 +373,7 @@ const createTree = (Component, props) => {
   return createElement(${components.router}, ${getRouterProps('Component', 'props')}, pageContent);
 };
 
-const mount = () => {
+const mount = async () => {
   const pageData = readPageDataDocument();
   const props = pageData.props;
   window.__ECO_PAGES__.page = {
@@ -349,6 +390,8 @@ const mount = () => {
     root = window.__ECO_PAGES__.react.pageRoot;
     return;
   }
+
+  ${preloadAwait}
 
   window.__ECO_DEV_HYDRATION_STARTED__ = performance.now();
   root = hydrateRoot(document.body, createTree(Page, props), {
@@ -379,24 +422,28 @@ if (document.readyState === "loading") {
  */
 function createScriptWithoutRouter(options: HydrationScriptOptions): string {
 	const { importPath, isMdx, reactImportPath, reactDomClientImportPath, scriptId, hmrEnabled } = options;
+	const hasPagePreload = options.hasPagePreload === true;
 	const pageModuleUrlExpression = options.pageModuleUrlExpression ?? 'import.meta.url';
 	const layoutComposeImportPath = options.layoutComposeImportPath;
 	const pageLayoutNormalizationImportPath = options.pageLayoutNormalizationImportPath;
+	const preloadReexport = getPreloadReexportStatement(hasPagePreload);
+	const preloadAwait = getPreloadAwaitStatement('preload', 'props', hasPagePreload);
 
 	const hmrInit = hmrEnabled
 		? `window.__ECO_PAGES__.hmrHandlers = window.__ECO_PAGES__.hmrHandlers || {};
 `
 		: '';
-	const hmrHandler = hmrEnabled ? getNonRouterHmrHandlerScript({ importPath, isMdx }) : '';
+	const hmrHandler = hmrEnabled ? getNonRouterHmrHandlerScript({ importPath, isMdx, hasPagePreload }) : '';
 
 	return `
 import { hydrateRoot } from "${reactDomClientImportPath}";
 import { createElement } from "${reactImportPath}";
 import { composeLayoutPageTree } from "${layoutComposeImportPath}";
 ${getPageDataReaderSource(options)}
-${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath)}
+${getImportStatement(importPath, isMdx, pageLayoutNormalizationImportPath, hasPagePreload)}
 const pageModuleUrl = ${pageModuleUrlExpression};
 export default Page;
+${preloadReexport}
 export const config = Page.config;
 const isActivePageEntry = Boolean(document.querySelector('script[data-eco-script-id="${scriptId}"]'));
 
@@ -419,13 +466,15 @@ window.__ECO_PAGES__.page = {
 
 const createTree = (Component, props) => composeLayoutPageTree(Component, props);
 
-const mount = () => {
+const mount = async () => {
   const pageData = readPageDataDocument();
   const props = pageData.props;
   window.__ECO_PAGES__.page = {
     module: pageData.moduleUrl || pageModuleUrl,
     props
   };
+
+  ${preloadAwait}
 
   if (window.__ECO_PAGES__.react?.pageRoot) {
     root = window.__ECO_PAGES__.react.pageRoot;
@@ -458,6 +507,9 @@ if (document.readyState === "loading") {
  * @remarks
  * Always emits readable source. Production page assets set `bundle: true` so
  * core's content-script processor minifies the result. Do not hand-minify here.
+ * If the Page exports `preload`, the generated entry imports, awaits, and
+ * re-exports it. Pages without that export keep a default import so the
+ * bundler does not warn about a missing named export.
  */
 export function createHydrationScript(options: HydrationScriptOptions): string {
 	return options.router ? createScriptWithRouter(options) : createScriptWithoutRouter(options);

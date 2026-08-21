@@ -5,14 +5,14 @@
  * using the Oxc AST parser. It computes a strict "reachability graph" of all JavaScript/TypeScript
  * dependencies (imports, variables, functions, and classes) that begin from explicit client roots.
  *
- * In Ecopages, "client roots" are defined as the `render`, `errorBoundary`, or `loadingFallback`
- * properties passed into `eco.page()`, `eco.layout()`, or `eco.component()`. By tracing the execution path from
- * these roots, the analyzer determines exactly which modules and bindings are actually needed
- * by the browser to hydrate the page, and which imports are unused on the client (and thus can be pruned).
+ * In Ecopages, client roots are the `render`, `errorBoundary`, and `loadingFallback`
+ * properties passed into `eco.page()`, `eco.layout()`, or `eco.component()`. A Page's named
+ * `preload` export is an additional root. By tracing from these roots, the analyzer determines
+ * which modules and bindings the browser needs and which imports it can prune.
  */
 
 import { parseModuleSource } from '@ecopages/core/cache';
-import type { ParseResult } from 'oxc-parser';
+import type { ExportNamedDeclaration, ParseResult } from 'oxc-parser';
 
 /**
  * Represents the computed results of a reachability analysis pass.
@@ -42,6 +42,44 @@ export type ReachabilityResult = {
 	analyzed: boolean;
 };
 
+function isPreloadExportStatement(statement: ExportNamedDeclaration): boolean {
+	const declaration = statement.declaration;
+	if (declaration?.type === 'FunctionDeclaration' || declaration?.type === 'ClassDeclaration') {
+		return declaration.id?.type === 'Identifier' && declaration.id.name === 'preload';
+	}
+
+	if (declaration?.type === 'VariableDeclaration') {
+		return (
+			declaration.declarations?.some(
+				(declarator) => declarator.id.type === 'Identifier' && declarator.id.name === 'preload',
+			) ?? false
+		);
+	}
+
+	return statement.specifiers.some((specifier) => {
+		const exported = specifier.exported;
+		return exported.type === 'Identifier' ? exported.name === 'preload' : exported.value === 'preload';
+	});
+}
+
+/**
+ * Returns whether a module exports a named `preload` binding.
+ *
+ * @remarks
+ * Hydration entries only wire `preload` when this is true, so Pages without
+ * that export do not produce a missing-named-import warning.
+ */
+export function hasPagePreloadExport(source: string, filename: string): boolean {
+	try {
+		const { program } = parseModuleSource(filename, source);
+		return program.body.some(
+			(statement) => statement.type === 'ExportNamedDeclaration' && isPreloadExportStatement(statement),
+		);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Optional export filter supplied by the client graph boundary when a local
  * module is imported through a narrower named-export surface.
@@ -54,7 +92,8 @@ type ExplicitlyRequestedExports = Set<string> | '*';
 
 /**
  * Analyzes a module using Oxc AST and extracts a strict reachability graph
- * starting from client roots (`render`, `errorBoundary`, `loadingFallback` of `eco.page`, `eco.layout`, or `eco.component`).
+ * starting from client roots: `render`, `errorBoundary`, and `loadingFallback` of
+ * `eco.page`, `eco.layout`, or `eco.component`, plus a Page's named `preload` export.
  *
  * @param source - Raw source string of the module.
  * @param filename - Absolute or relative path to the module file.
@@ -119,6 +158,8 @@ export function analyzeReachability(
 	}[] = [];
 	const topLevelDeclarations: Map<string, unknown> = new Map();
 	const potentialClientRoots: unknown[] = [];
+	const pagePreloadRoots: unknown[] = [];
+	let hasEcoPageRoot = false;
 
 	for (const statement of resolvedProgram.body) {
 		if (statement.type === 'ImportDeclaration') {
@@ -159,6 +200,9 @@ export function analyzeReachability(
 		} else if (statement.type === 'ExportNamedDeclaration') {
 			if (statement.declaration) {
 				const decl = statement.declaration;
+				if (isPreloadExportStatement(statement)) {
+					pagePreloadRoots.push(statement);
+				}
 				if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
 					if (decl.id && decl.id.type === 'Identifier') {
 						topLevelDeclarations.set(decl.id.name, statement);
@@ -171,6 +215,8 @@ export function analyzeReachability(
 						}
 					}
 				}
+			} else if (isPreloadExportStatement(statement)) {
+				pagePreloadRoots.push(statement);
 			}
 		} else if (statement.type === 'ExportDefaultDeclaration') {
 			checkPotentialClientRoot(statement.declaration);
@@ -209,6 +255,9 @@ export function analyzeReachability(
 					(prop as { name: string }).name === 'component' ||
 					(prop as { name: string }).name === 'layout')
 			) {
+				if ((prop as { name: string }).name === 'page') {
+					hasEcoPageRoot = true;
+				}
 				potentialClientRoots.push((node as { callee: unknown }).callee);
 
 				const arg = (node as { arguments: unknown[] }).arguments[0];
@@ -219,13 +268,9 @@ export function analyzeReachability(
 							(prop as { key: { type: string } }).key.type === 'Identifier'
 						) {
 							if (
-								[
-									'render',
-									'errorBoundary',
-									'loadingFallback',
-									'clientScripts',
-									'dependencies',
-								].includes((prop as { key: { name: string } }).key.name)
+								['render', 'errorBoundary', 'loadingFallback', 'clientScripts'].includes(
+									(prop as { key: { name: string } }).key.name,
+								)
 							) {
 								potentialClientRoots.push((prop as { value: unknown }).value);
 							}
@@ -240,6 +285,10 @@ export function analyzeReachability(
 		) {
 			potentialClientRoots.push(node);
 		}
+	}
+
+	if (hasEcoPageRoot) {
+		potentialClientRoots.push(...pagePreloadRoots);
 	}
 
 	/**

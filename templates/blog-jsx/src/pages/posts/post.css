@@ -1,11 +1,27 @@
-.post-image-container {
-	@apply mb-6 max-w-2xl overflow-hidden rounded-container shadow-sm max-h-[50svh];
+.post-article {
+	@apply mt-6;
 
-	img {
-		@apply mb-0;
+	&::after {
+		content: '';
+		display: block;
+		clear: both;
 	}
 }
 
-.post-image-container img {
-	@apply w-full h-auto block object-cover;
+.post-article h1 {
+	@apply mb-6 font-display text-3xl font-semibold tracking-tight text-on-background;
+}
+
+.post-image-float {
+	@apply mb-6 aspect-[4/3] w-full max-w-xs overflow-hidden rounded-container shadow-sm;
+
+	img {
+		@apply m-0 h-full w-full object-cover;
+	}
+
+	@apply sm:float-right sm:ml-8 sm:mb-4 sm:w-48;
+}
+
+.post-article p {
+	@apply mb-6 leading-relaxed text-on-background/80;
 }

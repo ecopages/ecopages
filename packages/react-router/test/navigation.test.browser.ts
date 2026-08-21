@@ -438,6 +438,46 @@ describe('loadPageModule', () => {
 		expect(result?.moduleUrl).toBe(moduleUrl);
 		expect(typeof result?.Component).toBe('function');
 	});
+
+	it('awaits the Page preload export before returning the loaded module', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/preload-page-module.ts';
+		const { getPreloadFixtureState, resetPreloadFixture } = await import('./fixtures/preload-page-module.ts');
+		resetPreloadFixture();
+
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				`<script id="__ECO_PAGE_DATA__" type="application/json">{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"${moduleUrl}","props":{"slug":"hello-world"}}</script>`,
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const loadPromise = loadPageModuleFromDocument(doc, '/posts/hello-world');
+		const state = getPreloadFixtureState();
+
+		await vi.waitFor(() => {
+			expect(state.started).toBe(true);
+		});
+		expect(state.completed).toBe(false);
+		expect(state.props).toEqual({ slug: 'hello-world' });
+
+		const settledEarly = await Promise.race([
+			loadPromise.then(() => true),
+			new Promise<false>((resolve) => {
+				setTimeout(() => resolve(false), 20);
+			}),
+		]);
+		expect(settledEarly).toBe(false);
+
+		state.release?.();
+		const result = await loadPromise;
+
+		expect(state.completed).toBe(true);
+		expect(typeof result?.preload).toBe('function');
+		expect(typeof result?.Component).toBe('function');
+	});
 });
 
 describe('getLinkNavigationDecision', () => {

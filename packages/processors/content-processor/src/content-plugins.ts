@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
 import {
+	CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN,
 	CONTENT_SERVER_VIRTUAL_MODULE_PATTERN,
 	CONTENT_VIRTUAL_MODULE_PATTERN,
 	parseCollectionSpecifier,
@@ -23,6 +24,7 @@ export function resolveCollectionPath(
 	collectionModules: Record<string, string>,
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules?: Record<string, string>,
+	collectionBrowserModules: Record<string, string> = {},
 ): string | null {
 	const parsed = parseCollectionSpecifier(specifier);
 	if (!parsed) {
@@ -37,6 +39,10 @@ export function resolveCollectionPath(
 		);
 	}
 
+	if (parsed.variant === 'browser') {
+		return collectionBrowserModules[parsed.collectionName] ?? null;
+	}
+
 	return collectionModules[parsed.collectionName] ?? null;
 }
 
@@ -44,6 +50,7 @@ function createContentResolvePlugin(
 	collectionModules: Record<string, string>,
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules: Record<string, string> | undefined,
+	collectionBrowserModules: Record<string, string>,
 	ensureCollectionServerArtifact: EnsureCollectionServerArtifact | undefined,
 	options: { namespace?: string; includeServerModules?: boolean; externalizeCompiledServerModules?: boolean },
 ): EcoBuildPlugin {
@@ -56,6 +63,7 @@ function createContentResolvePlugin(
 					collectionModules,
 					collectionServerModules,
 					collectionServerCompiledModules,
+					collectionBrowserModules,
 				);
 
 			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, (args) => {
@@ -104,34 +112,68 @@ function createContentResolvePlugin(
 					return { path: modulePath };
 				});
 			}
+
+			build.onResolve({ filter: CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN }, (args) => {
+				const modulePath = resolveCollection(args.path);
+				if (!modulePath) {
+					return undefined;
+				}
+
+				if (options.namespace) {
+					return { namespace: options.namespace, path: modulePath };
+				}
+
+				return { path: modulePath };
+			});
 		},
 	};
 }
 
+/**
+ * Creates the server graph resolver for collection virtual modules.
+ *
+ * @remarks
+ * Compiled `/server` modules are externalized so Node can load the collection
+ * artifact directly. The Page Browser Graph uses `createContentPluginBundler`,
+ * where the content boundary rejects `/server` and resolves `/browser` to
+ * browser-safe source.
+ */
 export function createContentPlugin(
 	collectionModules: Record<string, string>,
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules?: Record<string, string>,
+	collectionBrowserModules: Record<string, string> = {},
 	ensureCollectionServerArtifact?: EnsureCollectionServerArtifact,
 ): EcoBuildPlugin {
 	return createContentResolvePlugin(
 		collectionModules,
 		collectionServerModules,
 		collectionServerCompiledModules,
+		collectionBrowserModules,
 		ensureCollectionServerArtifact,
 		{ includeServerModules: true, externalizeCompiledServerModules: true },
 	);
 }
 
+/**
+ * Creates the Page Browser Graph resolver for collection virtual modules.
+ *
+ * @remarks
+ * It resolves entries and `/browser` modules into browser source. `/server`
+ * resolution is deliberately omitted so the content server-boundary plugin can
+ * reject any server artifact that remains browser-reachable.
+ */
 export function createContentPluginBundler(
 	collectionModules: Record<string, string>,
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules?: Record<string, string>,
+	collectionBrowserModules: Record<string, string> = {},
 ): EcoBuildPlugin {
 	const plugin = createContentResolvePlugin(
 		collectionModules,
 		collectionServerModules,
 		collectionServerCompiledModules,
+		collectionBrowserModules,
 		undefined,
 		{
 			namespace: 'ecopages-content',
@@ -158,4 +200,9 @@ export function getCollectionCachePath(cacheDir: string, collectionName: string)
 
 export function getCollectionServerCachePath(cacheDir: string, collectionName: string): string {
 	return path.join(cacheDir, `${collectionName}.server.ts`);
+}
+
+/** Returns the generated browser module path for one collection. */
+export function getCollectionBrowserCachePath(cacheDir: string, collectionName: string): string {
+	return path.join(cacheDir, `${collectionName}.browser.ts`);
 }

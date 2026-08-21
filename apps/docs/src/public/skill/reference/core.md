@@ -79,6 +79,20 @@ export default eco.page({
 });
 ```
 
+### Sitemap (opt in)
+
+Disabled by default. Enable in `eco.config.ts`:
+
+```typescript
+.setSitemap({
+	enabled: true,
+	extraUrls: ['/rss.xml'],
+	exclude: ['/admin/**'],
+})
+```
+
+Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after `afterStaticExport`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.
+
 ## Common patterns
 
 **Dynamic routes:** `src/pages/blog/[slug].tsx` with `staticProps` reading `pathname.params`.

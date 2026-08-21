@@ -7,9 +7,12 @@ export const CONTENT_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]
 /** Matches `ecopages:content/<collection>/server` component resolver specifiers. */
 export const CONTENT_SERVER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/server$/;
 
+/** Matches browser-only `ecopages:content/<collection>/browser` component loader specifiers. */
+export const CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN = /^ecopages:content\/[a-z][a-z0-9-]+\/browser$/;
+
 export type ParsedCollectionSpecifier = {
 	collectionName: string;
-	variant: 'entries' | 'server';
+	variant: 'entries' | 'server' | 'browser';
 };
 
 export function parseCollectionSpecifier(specifier: string): ParsedCollectionSpecifier | null {
@@ -27,6 +30,13 @@ export function parseCollectionSpecifier(specifier: string): ParsedCollectionSpe
 		return {
 			collectionName: normalized.slice(0, -'/server'.length),
 			variant: 'server',
+		};
+	}
+
+	if (normalized.endsWith('/browser')) {
+		return {
+			collectionName: normalized.slice(0, -'/browser'.length),
+			variant: 'browser',
 		};
 	}
 

@@ -21,6 +21,8 @@ import type { AssetProcessingService } from '@ecopages/core/services/asset-proce
 import { createHydrationScript, createIslandHydrationScript } from './hydration-scripts.ts';
 import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
+import { hasPagePreloadExport } from '../client-graph/reachability-analyzer.ts';
+import { fileSystem } from '@ecopages/file-system';
 import type { BundleService } from '../bundling/bundle.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
@@ -45,6 +47,7 @@ type PageDependencyOptions = {
 	hmrEnabled: boolean;
 	useBrowserRuntimeImports: boolean;
 	isMdx: boolean;
+	hasPagePreload?: boolean;
 };
 
 export function getIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
@@ -112,6 +115,7 @@ export class HydrationAssetService {
 			hmrEnabled,
 			useBrowserRuntimeImports,
 			isMdx,
+			hasPagePreload,
 		} = options;
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
 		/**
@@ -144,6 +148,7 @@ export class HydrationAssetService {
 					pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
 					hmrEnabled,
 					isMdx,
+					hasPagePreload,
 					router: this.config.routerAdapter,
 					scriptId: componentName,
 				}),
@@ -281,6 +286,13 @@ export class HydrationAssetService {
 
 		const importPath = await this.resolveAssetImportPath(pagePath, componentName);
 		const pageModuleUrlExpression = hmrEnabled ? JSON.stringify(importPath) : 'import.meta.url';
+		let hasPagePreload = false;
+		try {
+			const source = await fileSystem.readFile(pagePath);
+			hasPagePreload = hasPagePreloadExport(source, pagePath);
+		} catch {
+			hasPagePreload = false;
+		}
 		const bundleOptions = await this.config.bundleService.createBundleOptions(
 			componentName,
 			isMdx,
@@ -296,6 +308,7 @@ export class HydrationAssetService {
 			hmrEnabled,
 			useBrowserRuntimeImports,
 			isMdx,
+			hasPagePreload,
 		});
 
 		return dependencies;

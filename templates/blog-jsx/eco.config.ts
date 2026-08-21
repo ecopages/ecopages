@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { comparePosts, postsFrontmatterSchema } from './src/content/posts';
+import { POSTS_CONTENT_DIR, comparePosts, postsFrontmatterSchema } from './src/content/posts';
 import { blogMdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -13,6 +13,11 @@ const appRoot = import.meta.dirname;
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
 	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setSitemap({
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/404', '/500'],
+	})
 	.setIntegrations([
 		ecopagesJsxPlugin({
 			radiant: true,
@@ -24,7 +29,7 @@ const config = await new ConfigBuilder()
 			options: {
 				collections: {
 					posts: {
-						contentDir: 'content/posts',
+						contentDir: POSTS_CONTENT_DIR,
 						schema: postsFrontmatterSchema,
 						orderBy: comparePosts,
 						entryType: './src/content/posts#PostFrontmatter',

@@ -17,6 +17,7 @@ import {
 import { Logger } from '@ecopages/logger';
 import {
 	renderCollectionComponentsModule,
+	renderCollectionBrowserModule,
 	renderCollectionEntriesModule,
 	renderVirtualModuleTypes,
 } from './codegen.ts';
@@ -26,6 +27,7 @@ import {
 	createContentPlugin,
 	createContentPluginBundler,
 	getCollectionCachePath,
+	getCollectionBrowserCachePath,
 	getCollectionServerCachePath,
 } from './content-plugins.ts';
 import { createContentServerBoundaryPlugin } from './content-server-boundary-plugin.ts';
@@ -67,6 +69,9 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 */
 	public readonly collectionServerModules: Record<string, string> = {};
 
+	/** Absolute paths to generated browser-safe component loader modules. */
+	public readonly collectionBrowserModules: Record<string, string> = {};
+
 	/**
 	 * Absolute paths to pre-built collection server artifacts for route-module externalization.
 	 */
@@ -96,6 +101,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionModules,
 				this.collectionServerModules,
 				this.collectionServerCompiledModules,
+				this.collectionBrowserModules,
 			),
 		];
 	}
@@ -106,6 +112,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionModules,
 				this.collectionServerModules,
 				this.collectionServerCompiledModules,
+				this.collectionBrowserModules,
 				(collectionName) => this.ensureCollectionServerArtifact(collectionName),
 			),
 		];
@@ -173,20 +180,25 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const manifest = entrySources.map(({ entry }) => entry);
 		const outputFile = getCollectionCachePath(this.context.cache, collectionName);
 		const serverOutputFile = getCollectionServerCachePath(this.context.cache, collectionName);
+		const browserOutputFile = getCollectionBrowserCachePath(this.context.cache, collectionName);
 		const outputDir = path.dirname(outputFile);
 		const entriesOutput = renderCollectionEntriesModule(collectionName, manifest);
 		const componentsOutput = renderCollectionComponentsModule(collectionName, outputDir, entrySources);
+		const browserOutput = renderCollectionBrowserModule(collectionName, outputDir, entrySources);
 
 		this.writeGeneratedFile(outputFile, entriesOutput);
 		this.writeGeneratedFile(serverOutputFile, componentsOutput);
+		this.writeGeneratedFile(browserOutputFile, browserOutput);
 		this.collectionModules[collectionName] = outputFile;
 		this.collectionServerModules[collectionName] = serverOutputFile;
+		this.collectionBrowserModules[collectionName] = browserOutputFile;
 		this.invalidateCollectionServerArtifact(collectionName);
 
 		logger.debug('Generated content collection module', {
 			collectionName,
 			outputFile,
 			serverOutputFile,
+			browserOutputFile,
 			entryCount: manifest.length,
 		});
 	}

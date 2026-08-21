@@ -30,6 +30,9 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 								<RuiButton href="/about" variant="ghost" size="md">
 									About
 								</RuiButton>
+								<RuiButton href="/rss.xml" variant="ghost" size="md">
+									RSS
+								</RuiButton>
 								<ThemeToggle />
 							</div>
 						</div>

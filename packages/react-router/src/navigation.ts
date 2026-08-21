@@ -34,6 +34,8 @@ export type PageState = {
 export type LoadedPageModule = {
 	Component: NavigablePageComponent;
 	config?: EcoComponentConfig;
+	/** Completes before the router commits this Page to the existing React root. */
+	preload?: (props: PageProps) => Promise<void>;
 	props: PageProps;
 	doc: Document;
 	finalPath: string;
@@ -160,9 +162,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * present but missing on the export, a thin wrapper carries `config` for layout
  * composition while rendering the original component.
  */
-function adaptPageModule(
-	moduleNamespace: unknown,
-): { Component: NavigablePageComponent; config?: EcoComponentConfig } | null {
+function adaptPageModule(moduleNamespace: unknown): {
+	Component: NavigablePageComponent;
+	config?: EcoComponentConfig;
+	preload?: (props: PageProps) => Promise<void>;
+} | null {
 	const module = asRecord(moduleNamespace);
 	if (!module) {
 		return null;
@@ -177,18 +181,21 @@ function adaptPageModule(
 
 	const Imported = rawComponent as NavigablePageComponent;
 	const config = (module.config ?? defaultRecord?.config ?? Imported.config) as EcoComponentConfig | undefined;
+	const preloadValue = module.preload;
+	const preload =
+		typeof preloadValue === 'function' ? (preloadValue as (props: PageProps) => Promise<void>) : undefined;
 	if (config) {
 		ensurePageConfigLayouts(config);
 	}
 
 	if (!config || Imported.config === config) {
-		return { Component: Imported, config: Imported.config ?? config };
+		return { Component: Imported, config: Imported.config ?? config, preload };
 	}
 
 	const Page = ((props: PageProps) => createElement(Imported, props)) as NavigablePageComponent;
 	Page.config = config;
 	Page.displayName = Imported.displayName ?? Imported.name ?? 'EcoRouterPage';
-	return { Component: Page, config };
+	return { Component: Page, config, preload };
 }
 
 /**
@@ -196,7 +203,8 @@ function adaptPageModule(
  *
  * @remarks
  * Flow: fetch HTML → parse → extract props → extract module URL → import module.
- * Does not update the DOM; the caller applies changes.
+ * The Page's optional preload completes before this returns. This function does
+ * not update the DOM; the caller applies changes.
  */
 export async function loadPageModule(
 	url: string,
@@ -248,7 +256,8 @@ export async function fetchPageDocument(
  * The router extracts the page module URL from the document page-data payload or
  * bootstrap marker. Callers can provide `options.moduleUrlOverride` when the
  * document is stale with respect to the active runtime module identity, such as
- * during HMR-driven current-page reloads.
+ * during HMR-driven current-page reloads. The optional Page preload is awaited
+ * before the module is returned for rendering.
  */
 export async function loadPageModuleFromDocument(
 	doc: Document,
@@ -273,9 +282,12 @@ export async function loadPageModuleFromDocument(
 		return null;
 	}
 
+	await adapted.preload?.(props);
+
 	return {
 		Component: adapted.Component,
 		config: adapted.config,
+		preload: adapted.preload,
 		props,
 		doc,
 		finalPath,

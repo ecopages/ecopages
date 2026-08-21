@@ -1,25 +1,26 @@
 import { eco } from '@ecopages/core';
 import { entries } from 'ecopages:content/posts';
+import { resolvePostImage } from '@/content/post-image';
 import { BaseLayout } from '@/layouts/base-layout';
 import { EcoImage } from '@ecopages/image-processor/component/react';
-import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
 
 export default eco.page({
 	layout: BaseLayout,
 	dependencies: { stylesheets: ['./index.css'] },
-	metadata: () => ({ title: 'Blog | Ecopages', description: 'A content-driven Ecopages React blog.' }),
+	metadata: () => ({
+		title: 'Blog | Ecopages',
+		description: 'Ecopages blog template covering content collections, RSS, and sitemaps.',
+	}),
 	render: () => (
 		<>
 			<h1>Welcome</h1>
-			<p>A content-driven blog powered by the Ecopages content processor.</p>
-			{entries.map((post, index) => (
+			<p>Each post explains part of this template — Ecopages routing, the content processor, and SEO export.</p>
+			{entries.map((post) => (
 				<article className="post-card" key={post.slug}>
 					<a href={`/posts/${post.slug}`} className="post-card-link">
-						{index === 0 ? (
-							<div className="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
-								<EcoImage {...ezi76Gu53NklsuUnsplashJpg} alt={post.title} />
-							</div>
-						) : null}
+						<div className="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
+							<EcoImage {...resolvePostImage(post.image)} alt={post.title} />
+						</div>
 						<div className="post-card-content">
 							<h2>{post.title}</h2>
 							<p>{post.excerpt}</p>

@@ -167,7 +167,8 @@ Add one import to the app `modules.d.ts`:
 import '@ecopages/content-processor/types';
 ```
 
-Run `ecopages dev` or `ecopages build` before expecting IDE types for `ecopages:content/*` imports.
+The import makes `ecopages:content/*`, `/server`, and `/browser` specifiers resolvable immediately.
+Run `ecopages dev` or `ecopages build` to generate precise types for configured collections.
 
 ## Related
 

@@ -87,6 +87,8 @@ The React integration supports Node.js modules and server-only code **only on th
 
 Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.
 
+For a hydratable Page that renders collection MDX, use `createCollectionComponentCache()` with the collection's `/browser` loader. Export `preload` from the Page so hydration, router navigation, and HMR load the current entry before synchronous render. The server may prime the same cache with `/server`'s `getComponent()` inside `staticProps`; `dependencies` remains server-only and is removed from the Page Browser Graph.
+
 ## Client Graph Boundary Architecture
 
 This section explains the internal contract used to keep the browser bundle minimal while preventing server-only code and request-only configuration from leaking into client output.

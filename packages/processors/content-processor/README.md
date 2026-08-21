@@ -127,29 +127,32 @@ Add one import to the app `modules.d.ts`:
 import '@ecopages/content-processor/types';
 ```
 
-That declares `ecopages:content/*`. Collection modules are generated at dev/build time into
+That makes `ecopages:content/*`, `/server`, and `/browser` imports resolvable immediately.
+Collection-specific declarations are generated at dev/build time into
 `node_modules/@types/ecopages-content-processor`, which TypeScript loads automatically.
 
-Run `ecopages dev` or `ecopages build` before expecting IDE types. Restart the TypeScript server if types look stale after changing schema or collection config.
+Run `ecopages dev` or `ecopages build` before expecting precise collection entry types. Restart the TypeScript server if generated types look stale after changing schema or collection config.
 
 ## Virtual module API
 
-Each collection exposes `ecopages:content/<collection>` for metadata and `ecopages:content/<collection>/server` for MDX components:
+Each collection exposes `ecopages:content/<collection>` for metadata, `ecopages:content/<collection>/server` for server-only dependency discovery, and `ecopages:content/<collection>/browser` for a lazy MDX component loader:
 
 ```typescript
 import { entries, getEntry, getEntryBySegments } from 'ecopages:content/docs';
 import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+import { loadComponent } from 'ecopages:content/docs/browser';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Module  | Description                                                                                                                 |
-| :----------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------- |
-| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                      |
-| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                            |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                     |
-| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.              |
-| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership. Throws `HttpError.NotFound` when missing. |
-| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                             |
+| Export                         | Module  | Description                                                                                                                                   |
+| :----------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                                        |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                              |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                       |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.                                |
+| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership. Throws `HttpError.NotFound` when missing.                   |
+| `loadComponent(slug)`          | browser | Page Browser Graph loader for one MDX entry. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component. |
+| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                               |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 
@@ -185,6 +188,36 @@ export default eco.page<{ entry: Entry }>({
 	}),
 	render: async ({ entry }) => {
 		const Content = await getComponent(entry.slug);
+		return <Content />;
+	},
+});
+```
+
+### Hydratable React Pages
+
+When a React Page must keep the MDX component in its hydrated tree, SSR fills the cache in `staticProps` with `getComponent()` and `prime()`. The Page's named `preload` export then fills it with the `/browser` loader before hydration and router navigation. The cache makes `get()` synchronous after either fill; `getEntryDependencies()` remains server-only and is stripped from the Page Browser Graph.
+
+```tsx
+import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
+import { getEntry } from 'ecopages:content/docs';
+import { loadComponent } from 'ecopages:content/docs/browser';
+import { getComponent, getEntryDependencies } from 'ecopages:content/docs/server';
+
+const docs = createCollectionComponentCache(loadComponent);
+
+export async function preload({ entry }) {
+	await docs.preload(entry.slug);
+}
+
+export default eco.page({
+	staticProps: async ({ pathname }) => {
+		const entry = getEntry(pathname.params.slug);
+		await docs.prime(entry.slug, getComponent(entry.slug));
+		return { props: { entry } };
+	},
+	dependencies: ({ props }) => getEntryDependencies(props.entry.slug),
+	render: ({ entry }) => {
+		const Content = docs.get(entry.slug);
 		return <Content />;
 	},
 });

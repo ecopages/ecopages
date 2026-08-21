@@ -22,7 +22,12 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 						<a href="/" className="logo">
 							EcoBlog
 						</a>
-						<ThemeToggle />
+						<div className="header-actions">
+							<a href="/rss.xml" className="nav-link">
+								RSS
+							</a>
+							<ThemeToggle />
+						</div>
 					</div>
 				</header>
 				<main className="main-content">{children}</main>

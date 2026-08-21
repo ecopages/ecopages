@@ -20,6 +20,7 @@ export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 			/>
 			<link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
 			<link rel="manifest" href="/favicon/site.webmanifest" />
+			<link rel="alternate" type="application/rss+xml" title="EcoBlog" href="/rss.xml" />
 			<link rel="robots" href="/robots.txt" />
 			<meta name="description" content={description} />
 			{keywords?.length ? <meta name="keywords" content={keywords.join(',')} /> : null}

@@ -119,3 +119,51 @@ img {
 	background: var(--color-accent-subtle);
 	color: var(--color-accent);
 }
+
+.prose {
+	h2:not(.unstyled, .unstyled *) {
+		@apply mt-8 mb-4 text-2xl font-bold tracking-tight text-text;
+	}
+
+	h3:not(.unstyled, .unstyled *) {
+		@apply mt-6 mb-3 text-xl font-semibold text-text;
+	}
+
+	p:not(.unstyled, .unstyled *) {
+		@apply mb-4 leading-relaxed text-text-muted;
+	}
+
+	ul:not(.unstyled, .unstyled *),
+	ol:not(.unstyled, .unstyled *) {
+		@apply my-4 list-disc pl-6 text-text-muted;
+	}
+
+	li:not(.unstyled, .unstyled *) {
+		@apply my-1;
+	}
+
+	code:not(.unstyled, .unstyled *) {
+		@apply rounded bg-surface-muted px-1.5 py-0.5 font-mono text-sm text-text;
+	}
+
+	pre:not(.unstyled, .unstyled *) {
+		@apply my-6 overflow-x-auto rounded-lg border border-border bg-surface-muted p-4 text-sm text-text;
+
+		code {
+			@apply bg-transparent p-0 text-inherit;
+		}
+	}
+
+	table:not(.unstyled, .unstyled *) {
+		@apply my-6 w-full border-collapse text-sm;
+	}
+
+	th:not(.unstyled, .unstyled *),
+	td:not(.unstyled, .unstyled *) {
+		@apply border border-border px-3 py-2 text-left align-top;
+	}
+
+	th:not(.unstyled, .unstyled *) {
+		@apply bg-surface-muted font-medium text-text;
+	}
+}

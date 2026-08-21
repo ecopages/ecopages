@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { Head } from '@/includes/head';
+import { EcoPropsScript } from '@ecopages/react-router';
 import type { HtmlTemplateProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
@@ -18,10 +19,11 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
 		],
 	},
 
-	render: ({ children, metadata, headContent, language = 'en' }) => {
+	render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => {
 		return (
 			<html lang={language}>
 				<Head metadata={metadata}>{headContent}</Head>
+				<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
 				{children}
 			</html>
 		);

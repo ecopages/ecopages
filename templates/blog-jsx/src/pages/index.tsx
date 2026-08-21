@@ -4,8 +4,8 @@ import { RuiFeed, RuiFeedArticle } from '@ecopages/radiant-ui/feed';
 import { RuiHeading, RuiHeadingDescription, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
 import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { entries } from 'ecopages:content/posts';
+import { resolvePostImage } from '@/content/post-image';
 import { BaseLayout } from '@/layouts/base-layout';
-import { ezi76Gu53NklsuUnsplashJpg } from 'ecopages:images';
 
 export default eco.page<{}, JsxRenderable>({
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
@@ -16,7 +16,7 @@ export default eco.page<{}, JsxRenderable>({
 			<RuiHeading size="xl">
 				<RuiHeadingTitle as="h1">Welcome</RuiHeadingTitle>
 				<RuiHeadingDescription>
-					A content-driven blog powered by the Ecopages content processor.
+					Walkthroughs of Ecopages, the content processor, RSS, and sitemap generation.
 				</RuiHeadingDescription>
 			</RuiHeading>
 
@@ -30,17 +30,15 @@ export default eco.page<{}, JsxRenderable>({
 						tabindex={-1}
 					>
 						<a href={`/posts/${post.slug}`} class="post-card-link">
-							{index === 0 ? (
-								<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
-									<EcoImage
-										{...ezi76Gu53NklsuUnsplashJpg}
-										alt={post.title}
-										width={200}
-										height={140}
-										unstyled
-									/>
-								</div>
-							) : null}
+							<div class="post-card-image" data-view-transition={`hero-image-${post.slug}`}>
+								<EcoImage
+									{...resolvePostImage(post.image)}
+									alt={post.title}
+									width={200}
+									height={140}
+									unstyled
+								/>
+							</div>
 							<div class="post-card-content">
 								<h2>{post.title}</h2>
 								<p>{post.excerpt}</p>

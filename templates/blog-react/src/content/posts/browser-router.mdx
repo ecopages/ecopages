@@ -1,8 +1,79 @@
 ---
-title: Building a Browser Router
-description: How document navigation can stay fast and progressive.
-excerpt: How document navigation can stay fast and progressive.
-order: 2
+title: Content processor collections
+description: Frontmatter schemas, virtual modules, and MDX posts from one content directory.
+excerpt: Scan MDX frontmatter once and reuse it in pages, RSS, and the feed.
+date: 2024-02-01
+image: theodorePoncetQzephogqd7WUnsplashJpg
 ---
 
-An HTML-first browser router can enhance navigation without changing the server’s rendering model.
+The **content processor** turns a folder of MDX files into typed data and lazy components. This template uses it for blog posts, but the same pattern works for docs, changelogs, or any file-backed collection.
+
+## One folder, many consumers
+
+Each file in `src/content/posts/` contributes:
+
+- validated frontmatter for listings and metadata
+- an MDX component rendered on `/posts/[slug]`
+- the same sorted manifest reused by RSS generation
+
+## Content processor pipeline
+
+MDX files in `src/content/posts/` are scanned once. Frontmatter is validated, sorted, and exposed through virtual modules.
+
+### 1. Declare a collection
+
+The processor config points at a content directory, Zod schema, and comparator. Ecopages generates typed modules at build time.
+
+```ts
+// eco.config.ts
+posts: {
+  contentDir: 'content/posts',
+  schema: postsFrontmatterSchema,
+  orderBy: comparePosts,
+}
+```
+
+### 2. Validate frontmatter
+
+Each MDX file keeps metadata in YAML frontmatter. Invalid fields fail the build instead of leaking into HTML or RSS.
+
+```ts
+// posts.ts
+image: z.enum(POST_IMAGE_IMPORTS)
+
+// post-image.ts
+import { heroJpg } from 'ecopages:images'
+```
+
+### 3. Import virtual modules
+
+The post Page imports `ecopages:content/posts` for metadata, `/server` for SSR
+components and dependencies, and `/browser` to preload the MDX component before
+hydration and client navigation.
+
+```ts
+import { entries } from 'ecopages:content/posts';
+import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
+import { loadComponent } from 'ecopages:content/posts/browser';
+```
+
+### 4. Reuse the same manifest
+
+The feed, post route, RSS generator, and sitemap all read the same sorted entries — no duplicated post lists.
+
+## Inspect the manifest
+
+The home page and this article both import `entries` from `ecopages:content/posts`. Open another post from the table below to see how slug, date, and excerpt stay in sync everywhere.
+
+| slug | title | date |
+| --- | --- | --- |
+| ssr-benefits | RSS and sitemap generation | 2024-03-01 |
+| browser-router | Content processor collections | 2024-02-01 |
+| hello-world | How this blog works | 2024-01-15 |
+
+## Try it in your project
+
+1. Add a new MDX file under `src/content/posts/`.
+2. Extend `postsFrontmatterSchema` if you need new fields.
+3. Add an `image` field with the matching `ecopages:images` import name, then register it in `post-image.ts`.
+4. Reload dev to update the route expansion; restart dev or run a build to regenerate RSS.

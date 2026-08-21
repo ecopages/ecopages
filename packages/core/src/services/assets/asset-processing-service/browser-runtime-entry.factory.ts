@@ -3,9 +3,11 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../../../config/constants.ts';
 import {
+	browserRuntimeEntryHasEsmExports,
 	inferBrowserRuntimeDefaultExportPolicy,
-	listBrowserRuntimeModuleExportNames,
+	listBrowserRuntimeCjsExportNames,
 	resolveBrowserRuntimeEntryImport,
+	resolveBrowserRuntimeEntryPath,
 } from './browser-runtime-entry-resolution.ts';
 
 export type BrowserRuntimeEntryModuleConfig = {
@@ -23,6 +25,8 @@ export type BrowserRuntimeEntryModuleConfig = {
  * logic themselves. The generated file lives under the app work directory so
  * repeated runs can reuse the same location without placing sources inside
  * `node_modules`, which can cause bundlers to externalize bare imports.
+ * ESM entries use `export *`. CJS entries emit explicit named re-exports from
+ * that same file so Rolldown can synthesize ESM bindings such as `jsx`.
  */
 export function createBrowserRuntimeEntryModule(options: {
 	modules: BrowserRuntimeEntryModuleConfig[];
@@ -57,6 +61,11 @@ export function createBrowserRuntimeEntryModule(options: {
 			entryDir,
 			rootDir,
 		});
+		const entryPath = resolveBrowserRuntimeEntryPath({
+			specifier: module.specifier,
+			requireFromRoot,
+			rootDir,
+		});
 
 		if (
 			module.defaultExport &&
@@ -67,7 +76,12 @@ export function createBrowserRuntimeEntryModule(options: {
 			statements.push('export default __ecopages_default_export__;');
 		}
 
-		const exportNames = listBrowserRuntimeModuleExportNames(module.specifier, requireFromRoot).filter(
+		if (browserRuntimeEntryHasEsmExports(entryPath)) {
+			statements.push(`export * from '${importSpecifier}';`);
+			continue;
+		}
+
+		const exportNames = listBrowserRuntimeCjsExportNames(entryPath ?? module.specifier, requireFromRoot).filter(
 			(name) => !seenExports.has(name),
 		);
 

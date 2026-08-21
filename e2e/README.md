@@ -69,6 +69,8 @@ Or `pnpm test:e2e:ui` for the Playwright UI.
 - **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
 - **HMR** — `includes-hmr.test.e2e.ts`, own workspace.
 
+Browsers stay headless for `pnpm test:all` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window.
+
 ## Environment variables
 
 | Variable                                   | Effect                                               |

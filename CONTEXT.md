@@ -7,6 +7,7 @@ A file-based web framework for building HTML-first multi-page applications, with
 - [Language](#language)
 - [Relationships](#relationships)
 - [Flagged ambiguities](#flagged-ambiguities)
+- [Further reading](#further-reading)
 
 ## Language
 
@@ -118,6 +119,10 @@ _Avoid_: island wrapper, hydration target
 A development-only in-browser inspector injected during `ecopages dev`. It surfaces navigation, dependency, island, and accessibility diagnostics without shipping to production. Extend it by replacing `devToolbar.package` with a custom client package; integrations do not register dock apps.
 _Avoid_: dev overlay, debug widget
 
+**Sitemap**:
+An optional `sitemap.xml` written during static export when enabled in app config. It lists absolute URLs for successfully exported, indexable pages plus configured `extraUrls`.
+_Avoid_: URL list, crawl map
+
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
@@ -137,6 +142,9 @@ _Avoid_: dev overlay, debug widget
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page
+- When enabled, a **Sitemap** is written after static export hooks complete; it lists eligible **Static Path Expansions** and other exported static routes whose page metadata allows indexing
+- **Page** metadata `robots.index: false` removes a route from the **Sitemap** when metadata resolves during export; metadata resolution failures omit the URL as well (fail-closed)
+- `sitemap.exclude` filters eligible pathnames; `extraUrls` append non-page URLs that bypass `exclude` and page-level robots checks
 
 ## Flagged ambiguities
 
@@ -148,4 +156,5 @@ _Avoid_: dev overlay, debug widget
 
 - [AGENTS.md](./AGENTS.md) — coding standards, documentation routing, and README maintenance
 - [packages/core/README.md](./packages/core/README.md) — subsystem architecture index
+- [Sitemap](./apps/docs/src/content/docs/core/sitemap.mdx) — user guide for automatic `sitemap.xml` generation
 - [docs/adr/](./docs/adr/) — accepted product and release decisions

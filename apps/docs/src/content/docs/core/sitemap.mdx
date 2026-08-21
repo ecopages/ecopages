@@ -1,0 +1,165 @@
+---
+title: "Sitemap"
+description: "Generate sitemap.xml during static export — eligibility rules, exclude patterns, extra URLs, and page-level noindex."
+order: 14
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
+# Sitemap
+
+Ecopages can emit a [sitemaps.org](https://www.sitemaps.org/protocol.html) `urlset` during static export. The file lists absolute `<loc>` URLs for indexable pages plus any non-page URLs you add in config.
+
+Sitemap generation is **opt in** and **disabled by default**. Enable it when you want search engines to discover your statically exported routes without maintaining `sitemap.xml` by hand.
+
+## Enable sitemap generation
+
+Add `setSitemap()` to `eco.config.ts`:
+
+```typescript
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+
+const config = await new ConfigBuilder()
+	.setRootDir(process.cwd())
+	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'https://example.com')
+	.setSitemap({
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/admin/**'],
+	})
+	.build();
+
+export default config;
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `enabled` | `false` | Write a sitemap file during static export |
+| `fileName` | `sitemap.xml` | Output file name inside `dist/` |
+| `exclude` | `[]` | Pathname patterns to omit after eligibility checks |
+| `extraUrls` | `[]` | Additional URLs to append (feeds, manifests, integration artifacts) |
+
+Set `ECOPAGES_BASE_URL` (or `setBaseUrl()`) to your production origin before `ecopages build`. Every page URL in the sitemap is resolved against that base.
+
+See [Configuration](/docs/getting-started/configuration) and [Canonical Base URL](/docs/reference/cli-reference#canonical-base-url) for precedence rules.
+
+## What gets included
+
+During static export, Ecopages builds the sitemap in two passes:
+
+1. **Eligibility** — collect pathnames for pages that exported successfully and pass metadata robots checks.
+2. **Assembly** — apply `exclude`, resolve absolute locations, append `extraUrls`, dedupe.
+
+Pipeline for each page URL:
+
+1. Static export renders the page (or reuses a cached render).
+2. Metadata must resolve; resolution errors omit the URL.
+3. `metadata.robots.index: false` omits the URL.
+4. Matching `exclude` patterns omit the URL.
+5. Remaining pathnames become `<loc>` entries; `extraUrls` append afterward.
+6. `sitemap.xml` is written after `afterStaticExport`.
+
+### Eligible pages
+
+A pathname is eligible when all of the following are true:
+
+- The page is part of the static export run (filesystem routes and `app.static()` views with a static cache strategy).
+- Static HTML for that pathname was written or reused from the incremental static cache.
+- Page metadata resolves during export.
+- `metadata.robots.index` is not `false`.
+
+Ecopages is **fail-closed** on metadata: if metadata resolution throws, the URL is omitted even when HTML was generated.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Dynamic pages are out of scope</RuiAlertTitle>
+	<RuiAlertDescription>
+		Pages with <code>cache: 'dynamic'</code> are skipped during static generation and never appear in the sitemap.
+		Request-time-only routes are not listed either.
+	</RuiAlertDescription>
+</RuiAlert>
+
+### Page-level noindex
+
+Use `metadata.robots.index: false` to keep a page out of the sitemap and emit a noindex robots meta tag:
+
+```tsx
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	metadata: () => ({
+		title: 'Draft',
+		description: 'Not ready for indexing',
+		robots: { index: false },
+	}),
+	render: () => <p>Draft content</p>,
+});
+```
+
+The same rule applies to explicit static views registered with `app.static()` when they expose `metadata`.
+
+### Bulk exclusion with `exclude`
+
+After eligibility, `exclude` removes matching pathnames. Supported patterns:
+
+| Pattern | Matches |
+| --- | --- |
+| `/admin` | Exact pathname `/admin` |
+| `/admin/**` | `/admin` and every descendant (`/admin/users`, …) |
+
+This is not a full glob engine. Patterns outside these forms are treated as exact pathnames.
+
+### Extra URLs with `extraUrls`
+
+`extraUrls` append non-page URLs after page URLs. Typical uses:
+
+- RSS or Atom feeds (`/rss.xml`)
+- Web app manifests
+- Files an integration writes in `afterStaticExport`
+
+Relative paths resolve against `baseUrl`. Absolute `http(s)` URLs pass through unchanged.
+
+<RuiAlert variant="warning" layout="banner" class="unstyled">
+	<RuiAlertTitle>extraUrls bypass exclude and page robots</RuiAlertTitle>
+	<RuiAlertDescription>
+		URLs in <code>extraUrls</code> are always appended (deduped). They are not filtered by <code>exclude</code> or
+		<code>metadata.robots.index</code>. Use this deliberately — for example to list <code>/admin/manifest.json</code>{' '}
+		while excluding <code>/admin/**</code> pages.
+	</RuiAlertDescription>
+</RuiAlert>
+
+## Build timing
+
+Static export runs in this order:
+
+1. `beforeStaticExport`
+2. `robots.txt` generation
+3. Static page rendering
+4. `afterStaticExport` (integration hooks)
+5. **Sitemap write** (when `enabled: true`)
+
+The sitemap is written **after** `afterStaticExport` so integrations can finish generating artifacts before you list them in `extraUrls`.
+
+`StaticExportContext.routes` exposes the full static-generation route list without sitemap filtering. Integrations that emit custom files should add those URLs to `extraUrls` (or maintain a separate sitemap) rather than assuming every route in `routes` appears in `sitemap.xml`.
+
+## Output format
+
+Ecopages writes a sitemap.org 0.9 `urlset` with one `<url><loc>…</loc></url>` entry per location. XML special characters in URLs are escaped.
+
+The generator does **not** emit `lastmod`, `changefreq`, or `priority`, and does not produce sitemap index files. For large sites that need those fields, generate a custom sitemap in an integration hook or check in a static file under `public/`.
+
+## Verify the output
+
+After a production build:
+
+```bash
+ECOPAGES_BASE_URL=https://example.com pnpm run build
+grep -o '<loc>[^<]*</loc>' dist/sitemap.xml
+```
+
+Confirm production `robots.txt` references the sitemap if you want crawlers to discover it automatically — Ecopages does not add a `Sitemap:` directive for you.
+
+## Related configuration
+
+- [Configuration](/docs/getting-started/configuration) — `setSitemap()` and `setRobotsTxt()`
+- [Pages](/docs/core/pages) — page metadata and cache strategies
+- [Deployment](/docs/reference/deployment) — set `ECOPAGES_BASE_URL` before building for production

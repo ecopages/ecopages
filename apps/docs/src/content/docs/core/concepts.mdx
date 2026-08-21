@@ -117,9 +117,11 @@ const MyComponent = eco.component({
 });
 ```
 
-## Robots.txt Generation
+## Robots.txt and sitemap
 
-Ecopages automatically generates a robots.txt file based on your configuration. You can customize this in your `eco.config.ts` file.
+Ecopages writes `robots.txt` on every static export from `setRobotsTxt()` preferences.
+
+Optional `sitemap.xml` generation is separate and disabled by default. Enable it with `setSitemap({ enabled: true })` — see [Sitemap](/docs/core/sitemap) for eligibility, `exclude`, `extraUrls`, and page-level `metadata.robots.index`.
 
 ## Import CSS as String in JS Files
 

@@ -65,3 +65,5 @@ Sitemap eligibility is decided during successful page export (`activeStaticPathn
 `StaticExportContext.routes` is the unfiltered static-generation route list. Sitemap filtering is applied separately.
 
 See `StaticExportContext` in `static-export-context.ts`.
+
+User-facing guide: [Sitemap](https://github.com/ecopages/ecopages/blob/main/apps/docs/src/content/docs/core/sitemap.mdx) in the docs app.

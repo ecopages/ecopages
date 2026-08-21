@@ -106,6 +106,17 @@ No template filename setter is required in `eco.config.ts`. If `500.*` is missin
 	Configuration for the robots.txt file.
 </ApiField>
 
+<ApiField
+	name="sitemap"
+	type="SitemapConfig"
+	defaultValue="{ enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] }"
+	setter="setSitemap"
+>
+	Automatic <code>sitemap.xml</code> generation during static export. Disabled by default. See{' '}
+	<a href="/docs/core/sitemap">Sitemap</a> for eligibility rules, <code>exclude</code> patterns, and{' '}
+	<code>extraUrls</code>.
+</ApiField>
+
 <ApiField name="integrations" type="IntegrationPlugin[]" defaultValue="[]" setter="setIntegrations">
 	An array of integration plugins to enhance Ecopages functionality.
 </ApiField>

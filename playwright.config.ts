@@ -30,6 +30,15 @@ export default defineConfig({
 	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',
 	use: {
+		/**
+		 * `test:all` and `test:e2e` must stay on chrome-headless-shell.
+		 *
+		 * @remarks
+		 * Playwright 1.57+ ships Chrome for Testing as the Chromium binary. A headed
+		 * launch opens that `.app` in the macOS Dock. `pnpm test:e2e:ui` and `--headed`
+		 * still override this for local debugging.
+		 */
+		headless: true,
 		trace: 'on-first-retry',
 	},
 	projects: [

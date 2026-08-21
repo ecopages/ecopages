@@ -32,6 +32,7 @@ All notable changes to `@ecopages/core` are documented here.
 
 ### Bug Fixes
 
+- Browser `runtimeModules` resolve ESM/`module` entries instead of CJS `require()` export keys; CJS vendor files still emit explicit named re-exports so bindings such as React `jsx` exist on the vendor URL.
 - Fixed Node and Bun adapter stability for preview, static generation, HMR, and mixed-integration rendering.
 - Fixed grouped page-browser graph builds, foreign-child delegation, page-module import caching, and page dependency packaging across static, dynamic, and HMR flows.
 - Fixed dev transform vendor prebundles, browser-target Rolldown builds, and development HMR invalidation for layouts, includes, and script entrypoints.

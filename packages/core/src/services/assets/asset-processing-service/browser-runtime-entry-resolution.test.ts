@@ -58,6 +58,73 @@ test('resolveBrowserRuntimeEntryImport prefers ESM entrypoints over require-reso
 	}
 });
 
+test('resolveBrowserRuntimeEntryImport resolves packages that expose only an import condition', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+	fs.mkdirSync(path.join(rootDir, 'node_modules', 'import-only'), { recursive: true });
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'import-only', 'package.json'),
+		JSON.stringify({ name: 'import-only', exports: { '.': { import: './index.js' } } }),
+		'utf8',
+	);
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'import-only', 'index.js'),
+		"export const flavor = 'esm';",
+		'utf8',
+	);
+
+	try {
+		const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+		const importSpecifier = resolveBrowserRuntimeEntryImport({
+			specifier: 'import-only',
+			requireFromRoot,
+			entryDir: path.join(rootDir, '.eco', 'entries'),
+			rootDir,
+		});
+
+		assert.match(importSpecifier, /node_modules\/import-only\/index\.js$/);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolveBrowserRuntimeEntryImport prefers the module field for legacy dual packages', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+	fs.mkdirSync(path.join(rootDir, 'node_modules', 'legacy-dual', 'es'), { recursive: true });
+	fs.mkdirSync(path.join(rootDir, 'node_modules', 'legacy-dual', 'dist'), { recursive: true });
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-dual', 'package.json'),
+		JSON.stringify({ name: 'legacy-dual', main: './dist/index.js', module: './es/index.js' }),
+		'utf8',
+	);
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-dual', 'dist', 'index.js'),
+		"module.exports = 'cjs';",
+		'utf8',
+	);
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-dual', 'es', 'index.js'),
+		"export const flavor = 'esm';",
+		'utf8',
+	);
+
+	try {
+		const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+		const importSpecifier = resolveBrowserRuntimeEntryImport({
+			specifier: 'legacy-dual',
+			requireFromRoot,
+			entryDir: path.join(rootDir, '.eco', 'entries'),
+			rootDir,
+		});
+
+		assert.match(importSpecifier, /node_modules\/legacy-dual\/es\/index\.js$/);
+		assert.doesNotMatch(importSpecifier, /dist\/index\.js$/);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('inferBrowserRuntimeDefaultExportPolicy skips default for ESM named-only packages', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
@@ -90,6 +157,38 @@ test('inferBrowserRuntimeDefaultExportPolicy skips default for ESM named-only pa
 				requireFromRoot,
 				rootDir,
 			}),
+			'skip-default',
+		);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('inferBrowserRuntimeDefaultExportPolicy inspects the module field of a legacy dual package', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+	fs.mkdirSync(path.join(rootDir, 'node_modules', 'legacy-named', 'es'), { recursive: true });
+	fs.mkdirSync(path.join(rootDir, 'node_modules', 'legacy-named', 'dist'), { recursive: true });
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-named', 'package.json'),
+		JSON.stringify({ name: 'legacy-named', main: './dist/index.js', module: './es/index.js' }),
+		'utf8',
+	);
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-named', 'dist', 'index.js'),
+		"module.exports = { alpha: 'cjs' };",
+		'utf8',
+	);
+	fs.writeFileSync(
+		path.join(rootDir, 'node_modules', 'legacy-named', 'es', 'index.js'),
+		"export const alpha = 'esm';",
+		'utf8',
+	);
+
+	try {
+		const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+		assert.equal(
+			inferBrowserRuntimeDefaultExportPolicy({ specifier: 'legacy-named', requireFromRoot, rootDir }),
 			'skip-default',
 		);
 	} finally {

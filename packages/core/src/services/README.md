@@ -28,6 +28,8 @@ The asset-processing service caches emitted file assets by source identity in de
 When a source file changes, its source hash or explicit invalidation removes the cached asset before the next render,
 so shared layout styles do not need to be rebuilt for every navigated page while HMR remains fresh.
 
+Browser runtime module assets resolve bare package roots through their ESM import target. For legacy packages without an `exports` map, they prefer `package.json#module` over CJS `main`; CJS resolution is only a compatibility fallback. Generated entries use `export *` for ESM files and explicit named re-exports for CJS files (so bindings such as React `jsx` exist on the vendor). A default binding is added only when the selected entry exposes one. Runtime vendors are package-root contracts: subpath imports need their own vendor declaration or remain in the consuming bundle.
+
 ## Design Rule
 
 If a concern affects more than one integration or more than one runtime adapter, it usually belongs here instead of in a package-specific implementation.

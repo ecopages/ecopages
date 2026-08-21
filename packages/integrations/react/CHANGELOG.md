@@ -23,6 +23,7 @@ All notable changes to `@ecopages/react` are documented here.
 
 ### Bug Fixes
 
+- Browser `runtimeModules` follow the package ESM/`module` surface and no longer invent named exports from CJS interop; the React vendor still re-exports CJS `jsx` / `jsxs` explicitly.
 - Vendor import rewrite includes configured `runtimeModules`, so library vendors no longer emit bare singleton imports such as `mobx`.
 - Fixed React hydration, Fast Refresh, grouped page HMR, router-managed production bundles, and mixed-renderer foreign-subtree resolution across Bun and Vite hosts.
 - Fixed React MDX page-module loading and loader initialization under Node-style ESM and `tsx` runtimes.

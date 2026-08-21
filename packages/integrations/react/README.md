@@ -338,6 +338,8 @@ reactPlugin({
 
 Manual entries **override** auto-discovered entries for the same specifier. Discovery normalizes package subpaths to package roots; import rewrite matches **exact** specifiers registered in `runtimeModules`.
 
+Each vendor entry is built from the package's browser ESM surface: Ecopages follows an `exports` import target when present and otherwise prefers a package's legacy `module` field over CJS `main`. ESM files are re-exported with `export *`. CJS files (including React's published `index.js` / `jsx-runtime`) emit explicit named exports from that same file so the vendor can provide `jsx`. Keep `runtimeModules` at package roots. A package subpath is a separate module contract and must either be registered explicitly or bundled with the consuming page/library.
+
 `externals` on a library vendor must already be shared vendors (React, the router bundle, or another `runtimeModules` specifier). Unmapped externals throw at plugin setup instead of emitting a bare specifier the browser cannot resolve.
 
 #### Singleton packages (MobX, Redux, Query client, audio engines)
@@ -378,6 +380,9 @@ Registering only the library vendor, or only the singleton, is not enough when t
 | Package not discovered                        | Layout outside `layouts/` / `components/`, or import not reachable from `render`                             | Move layout file or add explicit `runtimeModules` entry                                                                                |
 | `@/` alias not followed                       | Missing or invalid tsconfig paths                                                                            | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                   |
 | Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                                        | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                          |
+| `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                                          | Register the package root only; rebuild vendors. Subpath plugins are a separate module and must be bundled or declared themselves     |
+| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                                          | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                      |
+| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                                     | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                  |
 
 #### Tests
 

@@ -4,6 +4,7 @@
 
 import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/plugins/tsconfig-import-resolver';
 import { toPackageRootSpecifier } from '@ecopages/core/plugins/package-specifier';
+import { isContentServerVirtualModule } from '@ecopages/core/build/contracts/content-virtual-modules';
 import { dirname, resolve } from 'node:path';
 import type { RequestedExportRules } from './boundary-cache.ts';
 
@@ -29,14 +30,16 @@ export function isProjectAliasSpecifier(specifier: string, projectRoot?: string)
 /**
  * Determines whether a specifier should be treated as server-only.
  *
- * This covers Node built-ins as well as local module conventions such as
- * `.server.ts` and extensionless imports that resolve to `.server.*` files.
+ * This covers Node built-ins, content collection `/server` virtual modules,
+ * and local module conventions such as `.server.ts` and extensionless imports
+ * that resolve to `.server.*` files.
  *
  * @param specifier - Raw import specifier from the module source.
  * @returns True when the import must never become client-reachable.
  */
 export function isServerOnlySpecifier(specifier: string): boolean {
 	if (specifier.startsWith('node:')) return true;
+	if (isContentServerVirtualModule(specifier)) return true;
 	return /(?:^|[/])[^/]+\.server(?:$|\.)/.test(specifier);
 }
 

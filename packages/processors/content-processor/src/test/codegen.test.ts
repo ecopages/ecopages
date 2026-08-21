@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
 	renderCollectionComponentsModule,
+	renderCollectionBrowserModule,
 	renderCollectionEntriesModule,
 	renderVirtualModuleTypes,
 } from '../codegen.ts';
@@ -54,6 +55,21 @@ describe('codegen', () => {
 		expect(output).not.toContain('export const entries');
 	});
 
+	test('renderCollectionBrowserModule emits one coalesced dynamic loader per entry', () => {
+		const output = renderCollectionBrowserModule('docs', '/tmp/cache', [
+			{
+				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
+				filePath: '/app/src/content/docs/intro.mdx',
+			},
+		]);
+
+		expect(output).toContain("'intro': () => import('../../app/src/content/docs/intro.mdx'),");
+		expect(output).toContain('export function loadComponent(slug: string)');
+		expect(output).toContain('const componentLoadPromises = new Map');
+		expect(output).toContain('attachMdxExports(module, entrySourceFilesBySlug[slug]!)');
+		expect(output).not.toContain('getEntryDependencies');
+	});
+
 	test('renderVirtualModuleTypes resolves src entry types through the app alias', () => {
 		const output = renderVirtualModuleTypes(
 			{
@@ -76,6 +92,10 @@ describe('codegen', () => {
 		});
 		expect(output).toContain('declare module "ecopages:content/docs"');
 		expect(output).toContain('declare module "ecopages:content/docs/server"');
+		expect(output).toContain('declare module "ecopages:content/docs/browser"');
+		expect(output).toContain(
+			'export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>',
+		);
 		expect(output).toContain('/** @throws HttpError 404 when the slug is not in the collection. */');
 		expect(output).toContain(
 			'export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>',

@@ -31,6 +31,7 @@
 		"./runtime/use-sync-external-store-with-selector": "./src/runtime/use-sync-external-store-with-selector.ts",
 		"./router-adapter": "./src/contracts/router-adapter.ts",
 		"./layout-compose": "./src/render/layout-compose.ts",
+		"./collection-component-cache": "./src/content/collection-component-cache.ts",
 		"./serialize-page-data-script": "./src/hydration/serialize-page-data-script.ts",
 		"./page-data-reader": "./src/hydration/page-data-reader.ts"
 	},

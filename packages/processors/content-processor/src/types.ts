@@ -35,15 +35,27 @@ export type ContentCollectionEntriesModule<TEntry extends Record<string, unknown
 /** Runtime shape of a generated `ecopages:content/<collection>/server` module. */
 export type ContentCollectionComponentsModule = {
 	/**
-	 * Lazy-loads the MDX component for one slug.
+	 * Lazy-loads the server-compiled MDX component for one slug.
 	 * @throws HttpError 404 when the slug is not in the collection.
 	 */
 	getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 	/**
-	 * Browser dependency bag for one slug, with MDX source ownership.
+	 * Resolves the dependency bag for one slug, with MDX source ownership.
 	 * @throws HttpError 404 when the slug is not in the collection.
 	 */
 	getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
+};
+
+/** Runtime shape of a generated `ecopages:content/<collection>/browser` module. */
+export type ContentCollectionBrowserModule = {
+	/**
+	 * Lazy-loads one browser-compiled MDX component for a collection entry.
+	 *
+	 * @remarks
+	 * Use this only from the Page Browser Graph. Server rendering must use
+	 * `ContentCollectionComponentsModule.getComponent()` instead.
+	 */
+	loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 };
 
 /** @deprecated Import entries and server modules separately. */

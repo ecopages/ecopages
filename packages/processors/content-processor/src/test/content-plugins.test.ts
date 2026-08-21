@@ -18,6 +18,10 @@ describe('content-plugins', () => {
 			collectionName: 'docs',
 			variant: 'server',
 		});
+		expect(parseCollectionSpecifier('ecopages:content/docs/browser')).toEqual({
+			collectionName: 'docs',
+			variant: 'browser',
+		});
 	});
 
 	test('resolveCollectionPath returns entries and server cache module paths', () => {
@@ -27,9 +31,15 @@ describe('content-plugins', () => {
 		const serverModules = {
 			docs: '/tmp/.eco/cache/ecopages-content-processor/docs.server.ts',
 		};
+		const browserModules = {
+			docs: '/tmp/.eco/cache/ecopages-content-processor/docs.browser.ts',
+		};
 
 		expect(resolveCollectionPath('ecopages:content/docs', modules, serverModules)).toBe(modules.docs);
 		expect(resolveCollectionPath('ecopages:content/docs/server', modules, serverModules)).toBe(serverModules.docs);
+		expect(
+			resolveCollectionPath('ecopages:content/docs/browser', modules, serverModules, undefined, browserModules),
+		).toBe(browserModules.docs);
 		expect(resolveCollectionPath('content/docs', modules, serverModules)).toBe(modules.docs);
 		expect(resolveCollectionPath('ecopages:content/missing', modules, serverModules)).toBeNull();
 	});

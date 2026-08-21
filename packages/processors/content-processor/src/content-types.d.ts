@@ -1,4 +1,7 @@
+/// <reference path="./content-virtual-modules.d.ts" />
+
 export type {
+	ContentCollectionBrowserModule,
 	ContentCollectionComponentsModule,
 	ContentCollectionEntriesModule,
 	ContentCollectionModule,
@@ -6,6 +9,3 @@ export type {
 	EntryComparator,
 	OrderBy,
 } from './types.ts';
-
-declare module 'ecopages:content/*' {}
-declare module 'ecopages:content/*/server' {}

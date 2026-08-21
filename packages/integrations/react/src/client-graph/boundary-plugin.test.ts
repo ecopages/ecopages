@@ -475,6 +475,62 @@ describe('createClientGraphBoundaryPlugin', () => {
 		}
 	});
 
+	it('keeps a named preload root while stripping server-only Page options', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
+
+		writeFileSync(
+			filePath,
+			[
+				"import { loadComponent } from 'ecopages:content/posts/browser';",
+				"import { getEntryDependencies } from 'ecopages:content/posts/server';",
+				'export async function preload({ entry }) { await loadComponent(entry.slug); }',
+				'export default eco.page({',
+				'\tdependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),',
+				'\trender: ({ entry }) => <article>{entry.slug}</article>,',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			const transformed = await harness.transformFile(filePath);
+
+			expect(transformed).toContain("import { loadComponent } from 'ecopages:content/posts/browser';");
+			expect(transformed).toContain('export async function preload');
+			expect(transformed).not.toContain('ecopages:content/posts/server');
+			expect(transformed).not.toContain('dependencies:');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('rejects a collection server import reachable from render', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const filePath = join(pagesDir, 'entry.tsx');
+
+		writeFileSync(
+			filePath,
+			[
+				"import { getComponent } from 'ecopages:content/posts/server';",
+				'export default eco.page({ render: () => getComponent("hello") });',
+			].join('\n'),
+			'utf-8',
+		);
+
+		try {
+			const harness = createPluginTestHarness();
+			await expect(harness.transformFile(filePath)).rejects.toThrow('Forbidden client import');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('strips metadata that references direct filesystem imports, leaving import cleanup to downstream treeshaking', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const pagesDir = join(tempDir, 'pages');

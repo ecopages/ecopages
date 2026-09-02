@@ -55,9 +55,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
     - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
     - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
-5. **AI-ready docs**: [`skill.txt`](/skill.txt), [`SKILL.md`](/skill/SKILL.md), and [`llms.txt`](/llms.txt) for agents.
-
-6. **Choose Your Templating**:
+5. **Choose Your Templating**:
 
 - **[Ecopages JSX](/docs/integrations/ecopages-jsx)** – Ecopages-owned `.tsx` routes with optional Radiant support
 - **[KitaJS](/docs/integrations/kitajs)** – Fast JSX templates, compiles to string concatenation
@@ -65,9 +63,9 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 - **[Lit](/docs/integrations/lit)** – Web Components with SSR
 - **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
 
-7. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
+6. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
 
-8. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
+7. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
 
 ## What Can You Build?
 
@@ -79,6 +77,18 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 - **Dashboards** – React or Lit components with live API data
 - **APIs** – REST endpoints alongside your static pages
 - **Everything Else** – Ecopages is flexible enough to build whatever you can imagine
+
+## How agents should read this site
+
+This site is documentation for the open-source framework, not a hosted SaaS or authenticated API. Scaffolded Ecopages apps do **not** emit these files unless you add a generator. The [docs-starter template](https://github.com/ecopages/ecopages/tree/main/templates/docs-starter) shows the pattern.
+
+Read in this order:
+
+1. [`/llms.txt`](/llms.txt) — discovery index only (when-to-use, CLI, section links).
+2. [`/docs-llm/<section>/<slug>.md`](/docs-llm/getting-started/introduction.md) — full MDX body for one page. HTML docs pages also advertise that URL as `rel="alternate"`.
+3. [`/skill.txt`](/skill.txt) then [`/skill/SKILL.md`](/skill/SKILL.md) — progressive build guide. Read one reference module for the task.
+
+`llms.txt` lists exported pages. Set `llms: false` in frontmatter to omit a page from the index and from the next generate of `/docs-llm/`.
 
 ## Quick Example
 

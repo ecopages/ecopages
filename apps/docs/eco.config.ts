@@ -7,10 +7,16 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { compareDocsEntries, docsFrontmatterSchema, DOCS_ROOT } from './src/content/docs';
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
+import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
 const config = await new ConfigBuilder()
 	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
+	.setBaseUrl(configuredSiteOrigin())
+	.setSitemap({
+		enabled: true,
+		extraUrls: [...DOCS_SITEMAP_EXTRA_URLS],
+		exclude: ['/404', '/500'],
+	})
 	.setIntegrations([
 		ecopagesJsxPlugin({
 			extensions: ['.tsx', '.kita.tsx'],
@@ -20,7 +26,7 @@ const config = await new ConfigBuilder()
 	.setDefaultMetadata({
 		title: 'Ecopages | Docs',
 		description: 'Ecopages is a static site generator written in TypeScript',
-		image: 'public/assets/images/default-og.png',
+		image: '/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
 	})
 	.setAdditionalWatchPaths(['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'])

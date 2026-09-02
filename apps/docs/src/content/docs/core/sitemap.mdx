@@ -12,6 +12,17 @@ Ecopages can emit a [sitemaps.org](https://www.sitemaps.org/protocol.html) `urls
 
 Sitemap generation is **opt in** and **disabled by default**. Enable it when you want search engines to discover your statically exported routes without maintaining `sitemap.xml` by hand.
 
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Production / static export only</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Ecopages writes <code>sitemap.xml</code> during <code>ecopages build</code> (into <code>dist/</code>).{' '}
+			<code>ecopages dev</code> does not generate or serve it. To inspect the file locally, build and use{' '}
+			<code>ecopages preview</code>, or open <code>dist/sitemap.xml</code>.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
 ## Enable sitemap generation
 
 Add `setSitemap()` to `eco.config.ts`:
@@ -149,7 +160,7 @@ The generator does **not** emit `lastmod`, `changefreq`, or `priority`, and does
 
 ## Verify the output
 
-After a production build:
+After `ecopages build`, inspect `dist/sitemap.xml` or run `ecopages preview`. `ecopages dev` does not generate or serve `/sitemap.xml` (the path 404s).
 
 ```bash
 ECOPAGES_BASE_URL=https://example.com pnpm run build

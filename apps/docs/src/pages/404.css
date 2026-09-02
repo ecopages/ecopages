@@ -19,6 +19,14 @@
 	}
 
 	&__actions {
-		@apply flex justify-center;
+		@apply flex flex-wrap justify-center gap-3;
+	}
+
+	&__hint {
+		@apply mt-8 text-sm text-on-background/60 font-sans;
+
+		a {
+			@apply text-on-background underline underline-offset-2 hover:text-on-background;
+		}
 	}
 }

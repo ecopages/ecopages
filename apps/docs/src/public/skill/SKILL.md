@@ -19,7 +19,7 @@ Read this skill when the task involves:
 - Authoring pages, components, handlers, or custom processors/integrations
 - Styling with Tailwind v4 and PostCSS
 
-For exhaustive generated docs, use [/llms.txt](/llms.txt).
+For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<section>/<slug>.md` for full page bodies. Do not treat `llms.txt` as a dump of every document.
 
 ## Stack choice
 

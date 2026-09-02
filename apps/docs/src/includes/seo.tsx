@@ -1,8 +1,17 @@
 import type { PageMetadataProps } from '@ecopages/core';
+import {
+	absoluteImageUrl,
+	docsPageHeadLinks,
+	homepageSoftwareApplicationJsonLd,
+	ogTypeForPathname,
+} from '@/lib/docs/site-meta';
 
-const withBaseUrl = (path: string) => `${import.meta.env.ECOPAGES_BASE_URL}/${path}`;
+export function Seo({ title, description, url, keywords, image }: PageMetadataProps) {
+	const { canonical, markdownAlternate } = docsPageHeadLinks(url);
+	const ogImage = absoluteImageUrl(image);
+	const ogType = ogTypeForPathname(url);
+	const jsonLd = url === '/' ? homepageSoftwareApplicationJsonLd(description) : null;
 
-export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 	return (
 		<>
 			<title>{title}</title>
@@ -23,11 +32,21 @@ export function Seo({ title, description, url, keywords }: PageMetadataProps) {
 			<link rel="robots" href="/robots.txt" />
 			<meta name="description" content={description} />
 			{keywords?.length ? <meta name="keywords" content={keywords.join(',')} /> : null}
+			{canonical ? <link rel="canonical" href={canonical} /> : null}
+			{markdownAlternate ? <link rel="alternate" type="text/markdown" href={markdownAlternate} /> : null}
 			<meta property="og:title" content={title} />
 			<meta property="og:description" content={description} />
+			<meta property="og:type" content={ogType} />
+			<meta property="og:image" content={ogImage} />
+			<meta name="twitter:card" content="summary_large_image" />
 			<meta name="twitter:title" content={title} />
 			<meta name="twitter:description" content={description} />
-			{url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+			<meta name="twitter:image" content={ogImage} />
+			{jsonLd ? (
+				<script type="application/ld+json" safe>
+					{JSON.stringify(jsonLd)}
+				</script>
+			) : null}
 		</>
 	);
 }

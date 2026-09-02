@@ -25,7 +25,15 @@ export default eco.page<Error404TemplateProps, JsxRenderable>({
 						<RuiButton href="/" variant="outline">
 							Return Home
 						</RuiButton>
+						<RuiButton href="/docs/getting-started/introduction" variant="ghost">
+							Docs
+						</RuiButton>
 					</div>
+					<p class="error404__hint">
+						Next: <a href="/llms.txt">llms.txt</a>
+						{' · '}
+						<a href="/docs/getting-started/introduction">documentation index</a>
+					</p>
 				</div>
 			</div>
 		);

@@ -147,6 +147,7 @@ export default eco.page<{}, JsxRenderable>({
 		title: 'Ecopages',
 		description:
 			'Pick an Integration, author Pages that render HTML, and add a server only when a Page needs more than static HTML.',
+		url: '/',
 	}),
 	render: () => (
 		<div class="home-layout not-prose">

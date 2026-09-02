@@ -25,13 +25,13 @@ For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<
 
 Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`.
 
-| Integration        | Owns                                      | Notes                                                                                                      |
-| ------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Ecopages JSX**   | `.tsx` Pages (default)                    | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`                         |
-| **React**          | React Pages and islands                   | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                                                |
-| **Lit**            | Web components, SSR                       | Foreign-child ownership in the renderer                                                                    |
-| **Standalone MDX** | Third-party JSX runtime                   | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx`                       |
-| **KitaJS**         | `.kita.tsx` Pages                         | `@kitajs/html`                                                                                             |
+| Integration        | Owns                    | Notes                                                                                |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------ |
+| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`   |
+| **React**          | React Pages and islands | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                          |
+| **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                              |
+| **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx` |
+| **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                       |
 
 Do not treat Ecopages as a React-only framework.
 

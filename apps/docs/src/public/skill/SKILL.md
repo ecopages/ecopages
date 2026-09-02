@@ -15,7 +15,7 @@ Ecopages is a TypeScript-first static site generator with Bun and Node adapters.
 Read this skill when the task involves:
 
 - Scaffolding or configuring an Ecopages app (`eco.config.ts`, processors, integrations)
-- Choosing a rendering integration (prefer Ecopages JSX; add React, Lit, MDX, or KitaJS only when needed)
+- Choosing a rendering Integration (default: Ecopages JSX; KitaJS for `.kita.tsx` / `@kitajs/html`)
 - Authoring pages, components, handlers, or custom processors/integrations
 - Styling with Tailwind v4 and PostCSS
 
@@ -23,15 +23,15 @@ For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<
 
 ## Stack choice
 
-Prefer **Ecopages JSX** for new apps. Add another integration only when a route needs that runtime.
+Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`.
 
-| Integration        | Best for                              | Notes                                                                                                      |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Ecopages JSX**   | Preferred default                     | Standard `.tsx` routes, optional Radiant, optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })` |
-| **React**          | Dashboards, React ecosystem           | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                                                |
-| **Lit**            | Web components, SSR                   | Foreign-child ownership in renderer                                                                        |
-| **Standalone MDX** | Third-party JSX runtime               | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx`                       |
-| **KitaJS**         | Existing `.kita.tsx` / `@kitajs/html` | Not the default stack                                                                                      |
+| Integration        | Owns                                      | Notes                                                                                                      |
+| ------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Ecopages JSX**   | `.tsx` Pages (default)                    | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`                         |
+| **React**          | React Pages and islands                   | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                                                |
+| **Lit**            | Web components, SSR                       | Foreign-child ownership in the renderer                                                                    |
+| **Standalone MDX** | Third-party JSX runtime                   | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx`                       |
+| **KitaJS**         | `.kita.tsx` Pages                         | `@kitajs/html`                                                                                             |
 
 Do not treat Ecopages as a React-only framework.
 

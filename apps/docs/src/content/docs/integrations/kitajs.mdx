@@ -9,15 +9,15 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # KitaJS Integration
 
-The `@ecopages/kitajs` package integrates [KitaJS HTML](https://kitajs.org/html/) into Ecopages. Use it when Kita should own `.kita.tsx` page shells and HTML-first routes.
+The `@ecopages/kitajs` package integrates [KitaJS HTML](https://kitajs.org/html/) into Ecopages for `.kita.tsx` routes. It is not the default stack.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
-	<RuiAlertTitle>Looking for Ecopages JSX?</RuiAlertTitle>
+	<RuiAlertTitle>Prefer Ecopages JSX</RuiAlertTitle>
 	<RuiAlertDescription>
 		<p>
-			Use <a href="/docs/integrations/ecopages-jsx">Ecopages JSX Integration</a> when Ecopages should own standard{' '}
-			<code>.tsx</code> routes, runtime bundling, and optional Radiant hydration. KitaJS remains the HTML-first
-			option for <code>.kita.tsx</code> shells.
+			New apps should use the <a href="/docs/integrations/ecopages-jsx">Ecopages JSX integration</a> for standard{' '}
+			<code>.tsx</code> routes, Radiant, and optional MDX. Reach for KitaJS when you already own{' '}
+			<code>.kita.tsx</code> files or <code>@kitajs/html</code>.
 		</p>
 	</RuiAlertDescription>
 </RuiAlert>

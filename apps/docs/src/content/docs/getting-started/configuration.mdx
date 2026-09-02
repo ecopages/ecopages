@@ -143,11 +143,11 @@ No template filename setter is required in `eco.config.ts`. If `500.*` is missin
 
 Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:
 
-- **Ecopages JSX**: For Ecopages-owned `.tsx` routes and optional Radiant hydration
-- **KitaJS**: For JSX templating
+- **Ecopages JSX**: Preferred stack for Ecopages-owned `.tsx` routes and optional Radiant hydration
+- **React**: For React components
 - **Lit**: For web components
 - **MDX**: For standalone Markdown with a non-React JSX runtime
-- **React**: For React components
+- **KitaJS**: Optional, for existing `.kita.tsx` / `@kitajs/html` apps
 
 To use an integration, install it and add it to your configuration. For example:
 

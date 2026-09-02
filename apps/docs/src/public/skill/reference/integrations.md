@@ -10,8 +10,8 @@
 
 | Integration    | Technology                         | Primary use                                             |
 | -------------- | ---------------------------------- | ------------------------------------------------------- |
-| Ecopages JSX   | `@ecopages/jsx` + optional Radiant | Standard `.tsx` routes, optional MDX                    |
-| KitaJS         | `@kitajs/html`                     | HTML-first `.kita.tsx` shells                           |
+| Ecopages JSX   | `@ecopages/jsx` + optional Radiant | Preferred default: `.tsx` routes, optional MDX          |
+| KitaJS         | `@kitajs/html`                     | Existing `.kita.tsx` apps, not the default stack        |
 | React          | React 19                           | Dashboards, rich interactivity                          |
 | Lit            | Web Components                     | Portable UI, micro-frontends                            |
 | Standalone MDX | `@ecopages/mdx`                    | Third-party JSX runtime with explicit `jsxImportSource` |

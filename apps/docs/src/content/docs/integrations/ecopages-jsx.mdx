@@ -4,12 +4,11 @@ description: 'Build JSX-first routes through the Ecopages JSX integration and ru
 order: 2
 ---
 
-import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 import { CodeTabs } from '@/components/code-tabs';
 
 # Ecopages JSX Integration
 
-The `@ecopages/ecopages-jsx` package lets Ecopages own JSX-first `.tsx` routes through the `@ecopages/jsx` runtime. Use it when you want Ecopages-managed JSX pages, optional Radiant web components, or MDX compiled against the Ecopages JSX runtime.
+Ecopages JSX is the preferred rendering integration. `@ecopages/ecopages-jsx` owns standard `.tsx` routes through the `@ecopages/jsx` runtime, with optional Radiant web components and MDX compiled against the same runtime. Start new apps here. Add React, Lit, or KitaJS only when a route needs that renderer.
 
 ## Installation
 
@@ -116,17 +115,6 @@ ecopagesJsxPlugin({
 ```
 
 Set `radiant: false` when the app does not use Radiant web components and should not include that runtime contract.
-
-<RuiAlert variant="info" layout="banner" class="unstyled">
-	<RuiAlertTitle>KitaJS vs Ecopages JSX</RuiAlertTitle>
-	<RuiAlertDescription>
-		<p>
-			Use <a href="/docs/integrations/kitajs">KitaJS</a> when an HTML-first renderer should own{' '}
-			<code>.kita.tsx</code> shells. Use Ecopages JSX when Ecopages should own standard <code>.tsx</code> routes,
-			JSX runtime bundling, and optional Radiant hydration.
-		</p>
-	</RuiAlertDescription>
-</RuiAlert>
 
 ## MDX Support
 

@@ -24,9 +24,13 @@
 
 ## Page metadata
 
-- Every page requires `title` and `description` in frontmatter for SEO metadata.
-- Set `llms: false` in frontmatter to exclude a page from LLM exports.
+- Frontmatter requires `title` and `description`. The catch-all page sets `url` (`/docs/${entry.slug}`) for canonical and Open Graph tags.
+- HTML docs pages emit `rel="alternate" type="text/markdown"` for `/docs-llm/<section>/<slug>.md`. That URL is derived from the pathname; it does not consult `llms`.
+- Set `llms: false` to omit a page from `llms.txt` and to drop its file from the next generate. Direct fetch of an old URL can 404 after generate even if HTML still advertises the alternate.
+- `scripts/generate-llm-docs.ts` runs before `dev` and `build`. It writes `llms.txt` and **replaces** `src/public/docs-llm/`. Absolute index links use `configuredSiteOrigin()`, which `eco.config.ts` also passes to `setBaseUrl()`.
+- Sitemap is opt-in in core; this app enables it (`extraUrls`: `/llms.txt`, `/skill.txt`; `exclude`: `/404`, `/500`). `/sitemap.xml` is not served by `ecopages dev`.
 
 ## Routing
 
-- The catch-all page resolves entries via `getEntryBySegments()`, renders page chrome plus `<Content />`, and forwards entry-specific deps with `getEntryDependencies(props.entry.slug)`.
+- The catch-all page parses slug segments, finds the entry with `entries.find` on the joined slug, then lazy-loads MDX via `getComponent(entry.slug)`.
+- Forward entry-specific deps with `getEntryDependencies(props.entry.slug)`. MDX components are called as `Content({})`.

@@ -15,7 +15,7 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 | :-------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
 | File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                                                                 |
 | Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                                                                 |
-| `ContentScanner` for build scripts (for example `llms.txt`)           | `@ecopages/content-processor`                                                                 |
+| `ContentScanner` for app scripts that emit `llms.txt`                 | `@ecopages/content-processor`                                                                 |
 | Routes (`eco.page`), layouts, metadata, URL shape                     | Your app                                                                                      |
 | Sidebar, breadcrumbs, pagination                                      | Your app — derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
 
@@ -27,7 +27,7 @@ The processor gives you a typed manifest and MDX components at build time. Wire 
 - **Standard Schema validation** — frontmatter schemas stay in your app; the library validates through the Standard Schema interface.
 - **Typed virtual modules** — `ecopages:content/<collection>` with generated `Entry` types.
 - **Multiple collections** — docs, blog, changelog, or any keyed collection you configure.
-- **`ContentScanner`** — reuse the same scan logic in one-off build scripts (for example, `llms.txt` generation).
+- **`ContentScanner`** — reuse the same scan/validate path in one-off build scripts. The scanner does not write `llms.txt`; the app script does.
 
 During development, edits to an entry's MDX body invalidate its compiled server collection bundle even when its frontmatter and generated manifest are unchanged. The next request rebuilds that bundle and renders the new body.
 

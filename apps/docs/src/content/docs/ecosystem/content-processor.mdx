@@ -18,8 +18,10 @@ This docs app uses it for every page under `src/content/docs/`.
 | :-------------------------------------------------------------------- | :----------------------------------------------- |
 | File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                    |
 | Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                    |
-| `ContentScanner` for build scripts (for example `llms.txt`)           | `@ecopages/content-processor`                    |
+| `ContentScanner` for app build scripts (this site uses it for `llms.txt`) | `@ecopages/content-processor`                    |
 | Routes, layouts, sidebar, breadcrumbs, pagination                     | Your app — derive from `entries` and frontmatter |
+
+`ContentScanner` is the same scan/validate path the processor uses at build time. It does not write `llms.txt`. This docs app (and the docs-starter template) call it from `scripts/generate-llm-docs.ts`.
 
 ## Installation
 

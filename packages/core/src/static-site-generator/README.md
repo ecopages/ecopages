@@ -58,7 +58,7 @@ Integrations may implement:
 - `beforeStaticExport(context)` — runs after unified-graph prebuild, before page rendering
 - `afterStaticExport(context)` — runs in a `finally` block after generation completes
 
-When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`.
+When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`. Development (`ecopages dev`) does not emit this file.
 
 Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`, fail-closed on metadata errors). `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
 

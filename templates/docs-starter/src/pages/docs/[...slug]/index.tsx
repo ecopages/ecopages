@@ -14,9 +14,10 @@ type DocsCatchAllProps = {
 	description?: string;
 };
 
-export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { title, description } }) => ({
+export const getMetadata: GetMetadata<DocsCatchAllProps> = ({ props: { section, slug, title, description } }) => ({
 	title: `Docs | ${title}`,
 	description: description ?? '',
+	url: `/docs/${section}/${slug}`,
 });
 
 const staticProps: GetStaticProps<DocsCatchAllProps> = async ({ pathname }) => {
@@ -56,6 +57,6 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	render: async ({ section, slug }) => {
 		const Content = await getComponent(`${section}/${slug}`);
 
-		return await Content();
+		return await Content({});
 	},
 });

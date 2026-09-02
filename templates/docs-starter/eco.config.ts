@@ -6,15 +6,22 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
+import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
 const appRoot = path.resolve(import.meta.dirname);
 
 const config = await new ConfigBuilder()
 	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
+	.setBaseUrl(configuredSiteOrigin())
+	.setSitemap({
+		enabled: true,
+		extraUrls: [...DOCS_SITEMAP_EXTRA_URLS],
+		exclude: ['/404', '/500'],
+	})
 	.setDefaultMetadata({
 		title: 'Docs starter',
 		description: 'An Ecopages docs template with MDX pages, sidebar navigation, and a theme toggle.',
+		image: '/assets/images/default-og.png',
 	})
 	.setIntegrations([
 		ecopagesJsxPlugin({

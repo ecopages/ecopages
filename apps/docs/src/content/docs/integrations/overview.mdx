@@ -1,6 +1,6 @@
 ---
 title: 'Overview'
-description: 'Ecopages JSX is the preferred integration. Mix in React, Lit, MDX, or KitaJS when a route needs that runtime.'
+description: 'Ecopages JSX is the default Integration. Register React, Lit, MDX, or KitaJS when those runtimes should own routes.'
 order: 1
 ---
 
@@ -8,57 +8,62 @@ import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-
 
 # Integrations Overview
 
-[Ecopages JSX](/docs/integrations/ecopages-jsx) is the preferred integration for new apps. You can still mix in React, Lit, MDX, or KitaJS when a route needs that runtime.
+[Ecopages JSX](/docs/integrations/ecopages-jsx) is the default Integration: `.tsx` Pages, optional Radiant, and JSX-backed MDX. Register another Integration when a route should use that runtime.
 
 ## Comparison Table
 
-| Integration                                         | Technology     | Primary Use Case                             | SSR Support |
-| :-------------------------------------------------- | :------------- | :------------------------------------------- | :---------- |
-| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant  | Preferred stack: `.tsx` routes, MDX, Radiant | Full        |
-| **[KitaJS](/docs/integrations/kitajs)**             | `@kitajs/html` | Existing `.kita.tsx` / Kita HTML codebases   | Full        |
-| **[React 19](/docs/integrations/react)**            | React          | Dynamic apps, rich interactivity             | Full        |
-| **[Lit](/docs/integrations/lit)**                   | Web Components | Reusable UI, micro-frontends                 | Full        |
-| **[MDX](/docs/integrations/mdx)**                   | Markdown + JSX | Documentation, blogs, content                | Full        |
+| Integration                                         | Technology     | Primary Use Case                      | SSR Support |
+| :-------------------------------------------------- | :------------- | :------------------------------------ | :---------- |
+| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant  | Default: `.tsx` Pages, MDX, Radiant   | Full        |
+| **[KitaJS](/docs/integrations/kitajs)**             | `@kitajs/html` | `.kita.tsx` Pages                     | Full        |
+| **[React 19](/docs/integrations/react)**            | React          | Dashboards, React ecosystem           | Full        |
+| **[Lit](/docs/integrations/lit)**                   | Web Components | Portable UI, micro-frontends          | Full        |
+| **[MDX](/docs/integrations/mdx)**                   | Markdown + JSX | Long-form content with embedded UI    | Full        |
 
 ---
 
 ## Choosing an Integration
 
-### Start with Ecopages JSX
+### Ecopages JSX (default)
 
-This is the default stack. Use it when:
+Register `ecopagesJsxPlugin()` when:
 
-- You want standard `.tsx` routes owned by Ecopages.
-- You want optional Radiant SSR and hydration for web components.
-- You want one integration to own both JSX routes and JSX-backed MDX routes.
+- Pages are standard `.tsx` files owned by Ecopages.
+- You want optional Radiant SSR and hydration.
+- The same Integration should own JSX-backed MDX.
 
-### Use KitaJS only if...
+### KitaJS
 
-- You already have `.kita.tsx` pages or depend on `@kitajs/html`.
-- You are keeping an existing Kita-owned renderer, not starting a new app.
+Register `kitajsPlugin()` when Pages are `.kita.tsx` and should compile with `@kitajs/html`.
 
-### Use React if...
+### React
 
-- You are building a complex dashboard or interactive app.
-- You want to leverage the massive React ecosystem and libraries.
-- You want React-managed pages or component islands inside a mixed-renderer app.
+Register `reactPlugin()` when:
 
-### Use Lit if...
+- The app is a dashboard or highly interactive UI.
+- You need the React ecosystem.
+- React should own Pages or islands in a mixed-renderer app.
 
-- You want to build standard-compliant Web Components.
-- You want your components to be portable across different projects.
-- You prefer a more "native" browser feel with declarative templates.
+### Lit
 
-### Use MDX if...
+Register the Lit Integration when:
 
-- Your primary focus is content (Markdown).
-- You want to embed interactive components directly into your articles.
+- Components should be standard Web Components.
+- UI must stay portable across hosts.
+- You want declarative templates on native custom elements.
+
+### MDX
+
+Register MDX (on the owning JSX runtime) when:
+
+- The page is primarily Markdown.
+- Articles should embed interactive components.
 
 ---
 
 ## Mixing Integrations
 
-You can combine multiple integrations in your `eco.config.ts`. Keep Ecopages JSX for pages, use MDX for long-form content, and add React or Lit only where a route needs that renderer.
+You can combine Integrations in `eco.config.ts`. Keep Ecopages JSX for `.tsx` Pages, use MDX for long-form content, and add React or Lit on routes that need those runtimes.
 
 Hydratable components across integrations share the [Island Hosts](/docs/core/island-hosts) contract so devtools can discover them without integration-specific selectors.
 

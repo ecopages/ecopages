@@ -13,7 +13,7 @@ const publicRoot = join(appRoot, 'src/public');
 let contentRoot = '';
 
 beforeAll(async () => {
-	contentRoot = await mkdtemp(join(tmpdir(), 'docs-llm-content-'));
+	contentRoot = await mkdtemp(join(tmpdir(), 'docs-starter-llm-content-'));
 	const gettingStartedDir = join(contentRoot, 'getting-started');
 	const llmsFixtureDir = join(contentRoot, 'llms-fixture');
 	await mkdir(gettingStartedDir, { recursive: true });
@@ -23,8 +23,8 @@ beforeAll(async () => {
 		join(gettingStartedDir, 'introduction.mdx'),
 	);
 	await copyFile(
-		join(sourceContentRoot, 'getting-started/installation.mdx'),
-		join(gettingStartedDir, 'installation.mdx'),
+		join(sourceContentRoot, 'getting-started/next-steps.mdx'),
+		join(gettingStartedDir, 'next-steps.mdx'),
 	);
 	await writeFile(
 		join(llmsFixtureDir, 'excluded.mdx'),
@@ -57,7 +57,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 }
 
 test('generateLlmDocs writes llms.txt and markdown exports', async () => {
-	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-llm-output-'));
+	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-starter-llm-output-'));
 
 	try {
 		const { generateLlmDocs } = await import('./generate-llm-docs');
@@ -65,22 +65,18 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 
 		const llmsTxt = await readFile(join(outputRoot, 'llms.txt'), 'utf8');
 		expect(llmsTxt).toContain('Introduction');
-		expect(llmsTxt).toContain('Installation');
+		expect(llmsTxt).toContain('Next steps');
 		expect(llmsTxt).not.toContain('Excluded');
 		expect(llmsTxt).toContain('## When to use this');
-		expect(llmsTxt).toContain('Scaffolding a new HTML-first multi-page app');
+		expect(llmsTxt).toContain('Authoring MDX docs pages under `src/content/docs`');
 		expect(llmsTxt).toContain('## How to read the docs');
 		expect(llmsTxt).toContain('This `llms.txt` file is an index only.');
 		expect(llmsTxt).toContain('/docs-llm/<section>/<slug>.md');
 		expect(llmsTxt).toContain('## CLI');
 		expect(llmsTxt).toContain('npx ecopages');
-		expect(llmsTxt).toContain('/docs/ecosystem/ecopages');
-		expect(llmsTxt).toContain('## Agent Skill');
-		expect(llmsTxt).toContain('/skill/SKILL.md');
-		expect(llmsTxt).toContain('/skill/reference/processors-and-plugins.md');
 
 		const introduction = await readFile(join(outputRoot, 'docs-llm/getting-started/introduction.md'), 'utf8');
-		expect(introduction).toContain('# Welcome to Ecopages');
+		expect(introduction).toContain('# Introduction');
 		expect(await pathExists(join(outputRoot, 'docs-llm/llms-fixture/excluded.md'))).toBe(false);
 	} finally {
 		await rm(outputRoot, { recursive: true, force: true });
@@ -88,7 +84,7 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 });
 
 test('generateLlmDocs leaves no staging directory behind', async () => {
-	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-llm-staging-cleanup-'));
+	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-starter-llm-staging-cleanup-'));
 
 	try {
 		const { generateLlmDocs } = await import('./generate-llm-docs');
@@ -101,7 +97,7 @@ test('generateLlmDocs leaves no staging directory behind', async () => {
 });
 
 test('generateLlmDocs replaces stale generator-owned exports', async () => {
-	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-llm-stale-'));
+	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-starter-llm-stale-'));
 
 	try {
 		await mkdir(join(outputRoot, 'docs-llm/stale-section'), { recursive: true });
@@ -121,7 +117,7 @@ test('generateLlmDocs replaces stale generator-owned exports', async () => {
 });
 
 test('generateLlmDocs index links, HTML alternates, and sitemap extras stay consistent', async () => {
-	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-llm-contract-'));
+	const outputRoot = await mkdtemp(join(tmpdir(), 'docs-starter-llm-contract-'));
 	const origin = 'https://docs.example.com/';
 
 	try {
@@ -154,8 +150,8 @@ test('generateLlmDocs index links, HTML alternates, and sitemap extras stay cons
 		for (const extraUrl of DOCS_SITEMAP_EXTRA_URLS) {
 			const relativePath = extraUrl.replace(/^\//, '');
 			const generatedPath = join(outputRoot, relativePath);
-			const publicPath = join(publicRoot, relativePath);
-			expect((await pathExists(generatedPath)) || (await pathExists(publicPath))).toBe(true);
+			const staticPath = join(publicRoot, relativePath);
+			expect((await pathExists(generatedPath)) || (await pathExists(staticPath))).toBe(true);
 		}
 	} finally {
 		await rm(outputRoot, { recursive: true, force: true });

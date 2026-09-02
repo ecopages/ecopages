@@ -18,6 +18,7 @@ export default eco.page<{}, JsxRenderable>({
 	metadata: () => ({
 		title: 'Docs starter',
 		description: 'An Ecopages docs template with MDX pages, sidebar navigation, prose, and a theme toggle.',
+		url: '/',
 	}),
 	render: () => (
 		<div class="home-layout">

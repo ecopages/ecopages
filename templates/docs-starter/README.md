@@ -4,7 +4,7 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 
 ## Structure
 
-- `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`)
+- `src/content/docs/**` — MDX with YAML frontmatter (`title`, `description`, `order`, optional `llms`)
 - `src/content/docs.ts` — frontmatter schema, section order, icons, and sort helpers
 - `src/content-nav.ts` — sidebar navigation from `ecopages:content/docs`
 - `src/lib/docs/` — MDX plugin options, catch-all slug helpers, and LLM URL generation
@@ -25,12 +25,26 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 - `RuiToc` — `h2` / `h3` on the current page
 - `RuiBreadcrumb` — resolved server-side from `docsNav` and passed into the docs layout
 - Cycle theme toggle — system / light / dark, persisted in `localStorage`
-- `CopyForLlm` — fetches the generated `/docs-llm/<section>/<slug>.md` URL for the current page
+- `CopyForLlm` — fetches `/docs-llm/<section>/<slug>.md` for the current page (path-derived; see LLM exports)
 - Previous / next pagination across the flattened docs set
 
 ## LLM exports
 
-`scripts/generate-llm-docs.ts` uses `ContentScanner` to write `src/public/llms.txt` and `src/public/docs-llm/**/*.md` before `dev` and `build`. Set `llms: false` in frontmatter to exclude a page.
+This template publishes an agent index; it is not a hosted API.
+
+| Surface                         | Role                                               |
+| ------------------------------- | -------------------------------------------------- |
+| `/llms.txt`                     | Index only (when-to-use, CLI, section links)       |
+| `/docs-llm/<section>/<slug>.md` | Raw MDX body for one exported page                 |
+| HTML `rel="alternate"`          | Advertises the markdown URL from the docs pathname |
+
+`pnpm run generate:llms` runs before `dev` and `build`. `ContentScanner` reads `src/content/docs`; the script writes `src/public/llms.txt` and **replaces** `src/public/docs-llm/`. Deleted pages and `llms: false` entries are omitted from the index and removed from that tree.
+
+Absolute links in `llms.txt` use `configuredSiteOrigin()` in `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` passes to `setBaseUrl()`. Set `ECOPAGES_BASE_URL` or change that helper. Do not hardcode a different origin only on `setBaseUrl()`.
+
+HTML alternate tags and Copy for LLM do **not** read `llms`. After generate, an excluded page can still point at a markdown URL that is gone. Treat generator output as the fetch contract.
+
+`setSitemap({ enabled: true, extraUrls: ['/llms.txt'] })` writes `sitemap.xml` during `ecopages build` / `preview` only. `ecopages dev` does not serve it.
 
 ## Commands
 
@@ -39,6 +53,7 @@ pnpm install
 pnpm dev
 pnpm build
 pnpm run generate:llms
+pnpm test
 ```
 
 Open `/` for the homepage and `/docs/getting-started/introduction` for the first docs page.

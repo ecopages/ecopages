@@ -84,10 +84,11 @@ import { defineApiHandler, defineGroupHandler } from '@ecopages/core';
 
 Treat `@ecopages/core/bun` as an advanced escape hatch for Bun-native APIs.
 
-### AI-Ready Documentation
+### Agent-facing documentation
 
-We provide an `llms.txt` file to help AI agents understand and assist with your Ecopages projects.
-[Read llms.txt](https://ecopages.app/llms.txt)
+The public docs site publishes a discovery index at [ecopages.app/llms.txt](https://ecopages.app/llms.txt). That file is an index: follow its links to `/docs-llm/<section>/<slug>.md` for page bodies, or start at [ecopages.app/skill.txt](https://ecopages.app/skill.txt) for a progressive build guide.
+
+New apps do not get this automatically. The `docs-starter` template shows the generate-before-dev/build pattern.
 
 ### Playground
 

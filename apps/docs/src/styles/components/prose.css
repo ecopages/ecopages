@@ -89,7 +89,7 @@
 	}
 
 	table:not(.unstyled, .unstyled *) {
-		@apply w-full text-left border-collapse my-8 text-sm overflow-hidden rounded-xl border border-border/30 block md:table ring-1 ring-border/20;
+		@apply my-8 block w-full max-w-full min-w-0 overflow-x-auto rounded-xl border border-border/30 text-left text-sm ring-1 ring-border/20;
 
 		thead {
 			@apply border-b border-border/50 bg-background-accent/20;

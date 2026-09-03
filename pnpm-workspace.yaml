@@ -13,6 +13,9 @@ packages:
     - templates/*
     - templates/**/*
 
+# core and @ecopages/testing depend on each other; typecheck scripts still run independently.
+ignoreWorkspaceCycles: true
+
 allowBuilds:
     bun: true
     esbuild: true

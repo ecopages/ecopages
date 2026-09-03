@@ -195,5 +195,3 @@ eco.page({
 	],
 	render: () => '',
 });
-
-export {};

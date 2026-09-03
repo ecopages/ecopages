@@ -11,6 +11,7 @@
 - Each MDX document imports the interactive components it renders (`CodeTabs`, `RuiAlert`, `ApiField`, and so on).
 - Docs chrome uses `@ecopages/radiant-ui` (sidebar, toc, breadcrumb, tabs, alerts, buttons, cycle theme toggle).
 - Prose styles must exclude `.unstyled` / `.unstyled *` so alerts, code tabs, and other chrome are not restyled by `.prose`.
+- Prose `<table>` elements scroll horizontally in CSS (`display: block`, `max-width: 100%`, `overflow-x: auto`). Do not wrap them in MDX or rehype markup.
 
 ## Configuration
 

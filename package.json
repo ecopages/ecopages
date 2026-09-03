@@ -63,7 +63,7 @@
 		"test:e2e:pr": "pnpm run clean:e2e-artifacts && pnpm run build:e2e:kitchen-sink && pnpm run test:e2e:static:pr && pnpm run test:e2e:dev && pnpm run test:e2e:kitchen-sink:pr",
 		"test:e2e:ui": "playwright test --ui",
 		"test:gate": "pnpm run test:vitest && pnpm run clean:e2e-tmp && node e2e/scripts/playwright/run-each-project.mjs --grep '@stress' cross-integration-dev-e2e",
-		"typecheck": "pnpm run check:portability && pnpm --filter '*' run typecheck",
+		"typecheck": "pnpm run check:portability && pnpm --filter '*' --filter '!@ecopages/ecopages' run typecheck",
 		"typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json"
 	},
 	"devDependencies": {

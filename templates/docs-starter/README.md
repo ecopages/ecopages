@@ -11,7 +11,7 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 - `src/layouts/docs-layout/` — sidebar, mobile trigger, table of contents, docs bar, pagination
 - `src/pages/index.tsx` — homepage with links into the docs set
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
-- `src/styles/components/prose.css` — markdown typography (skips `.unstyled`)
+- `src/styles/components/prose.css` — markdown typography (skips `.unstyled`; tables scroll with `overflow-x: auto`)
 
 ## Configuration
 

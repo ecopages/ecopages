@@ -28,6 +28,7 @@ export {
 } from './plugins/source-transform.ts';
 export { createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
 export { bindComponentIdentity, getComponentIdentity, type ComponentIdentity } from './eco/component-identity.ts';
+export { mergePageDependencies, mergeLayoutDependencies } from './eco/page-layout-normalization.ts';
 export { SchemaError, validateStandardSchema } from './services/validation/validate-standard-schema.ts';
 export {
 	buildIslandHostAttributes,

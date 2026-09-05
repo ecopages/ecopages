@@ -8,6 +8,8 @@
 
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
+import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
@@ -18,6 +20,7 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
+import { comparePosts, POSTS_CONTENT_DIR, postFrontmatterSchema } from './src/content/posts.ts';
 
 export interface KitchenSinkConfigOptions {
 	rootDir: string;
@@ -50,6 +53,7 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 				extensions: ['.react.tsx'],
 				mdx: {
 					enabled: true,
+					...withContentMdxPlugins(),
 				},
 				runtimeModules: ['zod'],
 			}),
@@ -61,6 +65,18 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 			}),
 		])
 		.setProcessors([
+			contentProcessorPlugin({
+				options: {
+					collections: {
+						posts: {
+							contentDir: POSTS_CONTENT_DIR,
+							schema: postFrontmatterSchema,
+							orderBy: comparePosts,
+							entryType: './src/content/posts#PostFrontmatter',
+						},
+					},
+				},
+			}),
 			imageProcessorPlugin({
 				options: {
 					sourceDir: path.resolve(rootDir, 'src/images'),

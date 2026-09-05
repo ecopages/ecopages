@@ -1,0 +1,32 @@
+---
+title: "Second Post"
+description: "Interactive post with React counter component"
+order: 2
+---
+
+import { ReactCounter } from '@/components/react-counter.react';
+
+export const config = {
+	dependencies: {
+		components: [ReactCounter],
+		stylesheets: ['./post.css'],
+	},
+};
+
+<div className="docs-page__prose" data-testid="post-content-second-post">
+
+# Second Post
+
+This post contains an interactive component:
+
+<div className="my-4">
+	<ReactCounter />
+</div>
+
+<p className="post-highlight" data-testid="post-highlight-text">Styled with post.css stylesheet</p>
+
+<p>
+	<a href="/posts/first-post" data-testid="prev-post-link">← Previous: First Post</a>
+</p>
+
+</div>

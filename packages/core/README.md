@@ -83,7 +83,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, development build coordination, and standalone Node server packaging
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server and on-demand client delivery
+- `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
 - `src/hmr/README.md`: HMR strategy and update-layer ownership
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution

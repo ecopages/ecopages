@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { attributeComponentIdentity } from './eco-component-meta-plugin.ts';
@@ -43,11 +43,13 @@ describe('component import discovery', () => {
 		expect(result).toContain('components: () => [Default, Named, Renamed]');
 		expect(result).not.toContain('components: () => [Default, Named, Renamed, utility]');
 	});
-	it('extracts relative CSS regardless of its position before the core import and is idempotent', () => {
+	it('extracts relative and aliased CSS regardless of position and is idempotent', () => {
 		const { root, transform } = fixture();
-		const result = transform(`import './style.css';`);
+		const stylePath = realpathSync(path.join(root, 'style.css'));
+		const result = transform(`import './style.css';\nimport '@/style.css';`);
 		expect(result).not.toContain(`import './style.css'`);
-		expect(result).toContain('stylesheets: ["./style.css"]');
+		expect(result).not.toContain(`import '@/style.css'`);
+		expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath, stylePath])}`);
 		expect(result).toContain('import { eco, bindComponentIdentity }');
 		expect(attributeComponentIdentity(result, path.join(root, 'page.ts'), 'lit', root)).toBe(result);
 	});
@@ -79,10 +81,13 @@ describe('component import discovery', () => {
 		const plain = transform(`import './style.css';`, `export function Plain() { return ''; }`);
 		expect(plain).toContain(`import './style.css'`);
 	});
-	it('reports missing relative imports with owner and specifier', () => {
+	it('reports missing relative or aliased imports with owner and specifier', () => {
 		const { transform, root } = fixture();
 		expect(() => transform(`import './missing.css';`)).toThrow(
 			`Cannot resolve stylesheet import "./missing.css" from ${root}/page.ts`,
+		);
+		expect(() => transform(`import '@/missing.css';`)).toThrow(
+			`Cannot resolve stylesheet import "@/missing.css" from ${root}/page.ts`,
 		);
 		expect(() => transform(`import { Child } from './missing';`)).toThrow(
 			`Cannot resolve import "./missing" from ${root}/page.ts`,

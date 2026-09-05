@@ -11,15 +11,23 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 	const originalComponent = readFileSync(componentFile, 'utf8');
 	const originalCss = readFileSync(cssFile, 'utf8');
 	const assertBorder = async (width: string) => {
-		await expect.poll(async () => {
-			try {
-				await page.goto('/discovery');
-				return await page.locator('.discovery-counter-host').evaluate((element) => getComputedStyle(element).borderTopWidth);
-			} catch (error) {
-				if (error instanceof Error && /ERR_ABORTED|Execution context was destroyed/.test(error.message)) return 'navigation-in-progress';
-				throw error;
-			}
-		}, { timeout: 30_000 }).toBe(width);
+		await expect
+			.poll(
+				async () => {
+					try {
+						await page.goto('/discovery');
+						return await page
+							.locator('.discovery-counter-host')
+							.evaluate((element) => getComputedStyle(element).borderTopWidth);
+					} catch (error) {
+						if (error instanceof Error && /ERR_ABORTED|Execution context was destroyed/.test(error.message))
+							return 'navigation-in-progress';
+						throw error;
+					}
+				},
+				{ timeout: 30_000 },
+			)
+			.toBe(width);
 	};
 	try {
 		await assertBorder('7px');

@@ -67,11 +67,19 @@ describe('LitSsrLazyPreloader', () => {
 		writeFileSync(script, "customElements.define('registry-counter', class extends HTMLElement {});");
 		const originalRegistry = globalThis.customElements;
 		const Registry = originalRegistry.constructor as new () => CustomElementRegistry;
-		const preloader = new LitSsrLazyPreloader({ resolveDependencyPath: (_dir, src) => src, preferSourceImports: true });
-		const child = eco.component(bindComponentIdentity(
-			{ id: 'registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
-			{ render: () => '', dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:visible': true } }] } },
-		));
+		const preloader = new LitSsrLazyPreloader({
+			resolveDependencyPath: (_dir, src) => src,
+			preferSourceImports: true,
+		});
+		const child = eco.component(
+			bindComponentIdentity(
+				{ id: 'registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:visible': true } }] },
+				},
+			),
+		);
 		try {
 			globalThis.customElements = new Registry();
 			await preloader.preloadSsrLazyScripts([child]);
@@ -85,5 +93,4 @@ describe('LitSsrLazyPreloader', () => {
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});
-
 });

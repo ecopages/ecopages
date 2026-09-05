@@ -51,17 +51,36 @@ export default eco.page({
 });
 ```
 
-## Components
+## Components and dependency discovery
+
+In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, Ecopages automatically discovers:
+
+- **Child Components:** Direct imports of local `eco.component()` exports (both relative and tsconfig path aliases) contribute dependencies transitively.
+- **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules.
+
+**Best practice:** Author **one `eco.component()` per file**. Co-locating multiple declared components in a single file will cause all components in that file to share discovered dependencies.
+
+**What remains explicit:**
+
+- **Browser scripts:** Declare in `dependencies.scripts` (e.g. custom element registration and lazy loading).
+- **Barrel re-exports & packages:** Barrel files (`export * from ...`) and external packages are intentionally not followed to prevent bundling entire component kits. Use explicit `dependencies.components` for these.
 
 ```tsx
 import { eco } from '@ecopages/core';
+import { Counter } from './counter';
+import './my-component.css';
 
 export const MyComponent = eco.component({
 	dependencies: {
-		stylesheets: ['./my-component.css'],
+		// scripts remain explicit; Counter and my-component.css are discovered automatically
 		scripts: [{ src: './my-component.script.ts', lazy: { 'on:visible': true } }],
 	},
-	render: ({ title }) => <h2>{title}</h2>,
+	render: ({ title }) => (
+		<div>
+			<h2>{title}</h2>
+			<Counter />
+		</div>
+	),
 });
 ```
 
@@ -102,7 +121,8 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 ## Best practices
 
 1. Use `eco.page()` for routable pages
-2. Declare dependencies explicitly
-3. Organize by feature
-4. Use CSS variables with Tailwind v4 `@theme`
-5. Match MDX to the owning integration plugin
+2. Author one `eco.component()` per file for clear auto-discovered dependency boundaries
+3. Declare browser scripts, barrel re-exports, and external package dependencies explicitly in `dependencies`
+4. Organize by feature
+5. Use CSS variables with Tailwind v4 `@theme`
+6. Match MDX to the owning integration plugin

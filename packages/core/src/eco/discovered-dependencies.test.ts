@@ -61,6 +61,18 @@ describe('discovered dependency graph', () => {
 		expect(styles[1]).toMatchObject({ filepath: '/app/last.css' });
 		expect(styles[2]).toMatchObject({ filepath: '/app/extra.css' });
 	});
+	it('supports absolute paths in discovered stylesheets', () => {
+		const inferred = eco.component(
+			bindComponentIdentity(
+				identity('inferred.ts'),
+				{ render: () => '' },
+				{ components: () => [], stylesheets: ['/global/styles/theme.css'] },
+			),
+		);
+		const styles = collect([inferred]).dependencies;
+		expect(styles).toHaveLength(1);
+		expect(styles[0]).toMatchObject({ filepath: '/global/styles/theme.css' });
+	});
 	it('deduplicates explicit children and inferred children, ignoring utility values', () => {
 		const child = eco.component(bindComponentIdentity(identity('child.ts'), { render: () => '' }));
 		const owner = eco.page(

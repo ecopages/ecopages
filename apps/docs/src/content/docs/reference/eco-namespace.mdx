@@ -35,9 +35,11 @@ export default eco.page({
 });
 ```
 
-Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases are supported. Relative side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds.
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds.
 
-Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
+Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. **Best practice:** author **one `eco.component()` per file**. Co-locating multiple components in a single file will cause all declared components in that file to share discovered dependencies.
+
+Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
 Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
 
@@ -53,7 +55,7 @@ scripts: [{
 
 For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
 
-Discovery does not follow barrel re-exports, dynamic imports, namespace imports, package Components/CSS, CSS Modules, or custom import attributes. Plain-function modules retain their existing behavior. Keep explicit Dependencies for these cases. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Discovery intentionally does not follow barrel re-exports (`export * from './components'`), dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. This prevents barrel files from pulling in entire design systems into page asset bundles. If you import through a barrel file or external package, declare components explicitly in `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
 ## Component Patterns
 

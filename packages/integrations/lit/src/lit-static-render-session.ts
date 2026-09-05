@@ -131,7 +131,10 @@ export class LitStaticRenderSession {
 			if (!this.workerClient) throw new Error('Lit static render worker is not active');
 			return this.workerClient.renderPage(input);
 		});
-		this.renderChain = render.then(() => undefined, () => undefined);
+		this.renderChain = render.then(
+			() => undefined,
+			() => undefined,
+		);
 		return render;
 	}
 

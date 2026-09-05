@@ -35,11 +35,14 @@ export function attachDiscoveredDependencies(config: EcoComponentConfig): void {
 	let merged: EcoComponentDependencies;
 	const merge = () => {
 		const current = explicit;
-		const normalize = (src: string) => new URL(src, `file://${config.identity!.file}`).href;
-		const stylesheetPaths = new Set((current?.stylesheets ?? []).flatMap((entry) => {
-			const src = typeof entry === 'string' ? entry : entry.src;
-			return src ? [normalize(src)] : [];
-		}));
+		const normalize = (src: string) =>
+			src.startsWith('/') ? `file://${src}` : new URL(src, `file://${config.identity!.file}`).href;
+		const stylesheetPaths = new Set(
+			(current?.stylesheets ?? []).flatMap((entry) => {
+				const src = typeof entry === 'string' ? entry : entry.src;
+				return src ? [normalize(src)] : [];
+			}),
+		);
 		const stylesheets = discovery.stylesheets.filter((src) => {
 			const resolved = normalize(src);
 			if (stylesheetPaths.has(resolved)) return false;

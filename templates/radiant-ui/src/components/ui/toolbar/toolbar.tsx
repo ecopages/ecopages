@@ -16,7 +16,7 @@ export type ToolbarProps = JsxCustomElementAttributes<RuiToolbarElement, RuiTool
 
 export const Toolbar = eco.component<ToolbarProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./toolbar.css'],
+		stylesheets: ['../button/button.css', './toolbar.css'],
 		scripts: [{ src: './toolbar.script.ts', lazy: { 'on:idle': true } }],
 	},
 	render: RuiToolbar,

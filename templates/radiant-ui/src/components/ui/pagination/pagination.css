@@ -5,3 +5,10 @@
  * overrides below the imports — they win by source order.
  */
 @import '@ecopages/radiant-ui/pagination/styles.css';
+
+.rui-pagination__page .rui-button--square {
+	width: auto;
+	min-width: var(--size-control-sm);
+	padding-inline: var(--space-control-x);
+	aspect-ratio: auto;
+}

@@ -5,3 +5,9 @@
  * overrides below the imports — they win by source order.
  */
 @import '@ecopages/radiant-ui/toolbar/styles.css';
+
+.rui-toolbar .rui-button[aria-pressed='true'] {
+	background-color: var(--primary-container);
+	color: var(--on-primary-container);
+	box-shadow: none;
+}

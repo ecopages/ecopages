@@ -5,8 +5,9 @@
  * layout `dependencies.components` ships everything it needs.
  *
  * The host draws the track, the thumbs and the optional value readout, and
- * `values` — a `[min, max]` pair — makes it a range. Its own `label` is the
- * thumbs' accessible name — wrap it in `Field` for a visible one.
+ * `values` — a `[min, max]` pair — makes it a range. `showValue` sits the
+ * readout on the same row as the track. Its own `label` is the thumbs'
+ * accessible name — wrap it in `Field` for a visible one.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';

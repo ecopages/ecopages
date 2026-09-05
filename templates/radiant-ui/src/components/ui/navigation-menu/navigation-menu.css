@@ -4,4 +4,13 @@
  * PostCSS inlines these package specifiers at build time. Add your own
  * overrides below the imports — they win by source order.
  */
+@import '@ecopages/radiant-ui/button/styles.css';
 @import '@ecopages/radiant-ui/navigation-menu/styles.css';
+
+rui-navigation-menu:not(:has([data-navigation-trigger][aria-expanded='true'])) .rui-navigation-menu__bar {
+	border-bottom-width: 0;
+}
+
+rui-navigation-menu:not(:has([data-navigation-trigger][aria-expanded='true'])) .rui-navigation-menu__panels {
+	display: none;
+}

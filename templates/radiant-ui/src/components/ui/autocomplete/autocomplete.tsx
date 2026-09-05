@@ -34,7 +34,7 @@ export type AutocompleteProps = JsxCustomElementAttributes<RuiAutocompleteElemen
 
 export const Autocomplete = eco.component<AutocompleteProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['../primitives.css', './autocomplete.css'],
+		stylesheets: ['../primitives.css', '../listbox/listbox.css', './autocomplete.css'],
 		scripts: [{ src: './autocomplete.script.ts', lazy: { 'on:idle': true } }],
 	},
 	render: ({ placeholder = 'Search…', emptyMessage = 'No results', children, ...props }) => (

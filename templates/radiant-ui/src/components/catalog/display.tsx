@@ -17,7 +17,6 @@ import { Headline } from '@/components/ui/headline';
 import { Meter } from '@/components/ui/meter';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
-import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiCycleToggleItem } from '@ecopages/radiant-ui/cycle-toggle';
 import { CycleToggle } from '@/components/ui/cycle-toggle';
 
@@ -45,13 +44,15 @@ export const DisplayDemos = eco.component<{}, JsxRenderable>({
 				name="Alert"
 				summary="Picks its layout from the props — a title means banner, otherwise inline with a variant glyph."
 			>
-				<Alert variant="info">Your session expires in five minutes.</Alert>
-				<Alert variant="warning" title="Scheduled maintenance">
-					The dashboard is unavailable on Sunday from 02:00 to 04:00 UTC.
-				</Alert>
-				<Alert variant="error" dismissible>
-					Could not reach the server.
-				</Alert>
+				<div class="alert-stack">
+					<Alert variant="info">Your session expires in five minutes.</Alert>
+					<Alert variant="warning" title="Scheduled maintenance">
+						The dashboard is unavailable on Sunday from 02:00 to 04:00 UTC.
+					</Alert>
+					<Alert variant="error" dismissible>
+						Could not reach the server.
+					</Alert>
+				</div>
 			</ComponentDemo>
 
 			<ComponentDemo
@@ -91,9 +92,9 @@ export const DisplayDemos = eco.component<{}, JsxRenderable>({
 				summary="Styles the seams between its buttons; brings Button's chrome with it."
 			>
 				<ButtonGroup>
-					<RuiButton variant="outline">Day</RuiButton>
-					<RuiButton variant="outline">Week</RuiButton>
-					<RuiButton variant="outline">Month</RuiButton>
+					<Button variant="outline">Day</Button>
+					<Button variant="outline">Week</Button>
+					<Button variant="outline">Month</Button>
 				</ButtonGroup>
 			</ComponentDemo>
 

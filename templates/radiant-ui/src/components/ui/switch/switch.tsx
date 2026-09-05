@@ -6,9 +6,8 @@
  *
  * Children are the visible label — `label` is accepted as an alias for callers
  * that pass their fields uniformly. Use a switch for settings that apply
- * immediately, and `Checkbox` for values submitted with a form.
- *
- * A `description`, an `error` or a `name` routes it through `Field`.
+ * immediately, and `Checkbox` for values submitted with a form. Wrap it in
+ * `Field` when it belongs in a `Form`.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';

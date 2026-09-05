@@ -54,10 +54,6 @@ export const Combobox = eco.component<ComboboxProps, JsxRenderable>({
 		],
 		scripts: [{ src: './combobox.script.ts', lazy: { 'on:idle': true } }],
 	},
-	/**
-	 * `name` stays on the `Field`, never on the control: the field host finds the
-	 * `[data-rui-control]` element inside it and registers that.
-	 */
 	render: ({ clearable, emptyMessage = 'No results', options, value, placeholder, ...props }) => {
 		if (!clearable) {
 			return <RuiCombobox {...props} options={options} value={value} placeholder={placeholder} />;

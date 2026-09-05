@@ -20,7 +20,6 @@ import { RadioGroup } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { RuiInput } from '@ecopages/radiant-ui/input';
 import { FRUIT } from './demo-data';
 
 export const InputsDemos = eco.component<{}, JsxRenderable>({
@@ -50,7 +49,7 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 				summary="Label, control, hint and the error slot the host fills in — always in that order."
 			>
 				<Field class="w-72" name="email" label="Email" description="We only mail about releases.">
-					<RuiInput type="email" name="email" placeholder="you@example.com" />
+					<Input type="email" placeholder="you@example.com" />
 				</Field>
 			</ComponentDemo>
 
@@ -61,7 +60,7 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 			>
 				<Form class="w-72" mode="onBlur" defaultValues={{ name: '' }} submitLabel="Save">
 					<Field name="name" label="Name" rules={{ required: 'Name is required' }}>
-						<RuiInput name="name" placeholder="Ada Lovelace" />
+						<Input placeholder="Ada Lovelace" />
 					</Field>
 				</Form>
 			</ComponentDemo>
@@ -83,10 +82,10 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 				summary="String addons get the muted text treatment; anything else renders as-is."
 			>
 				<InputGroup class="w-72" start="https://">
-					<RuiInput placeholder="example.com" />
+					<Input placeholder="example.com" />
 				</InputGroup>
 				<InputGroup class="w-56" start="$" end=".00">
-					<RuiInput placeholder="0" />
+					<Input placeholder="0" />
 				</InputGroup>
 			</ComponentDemo>
 
@@ -106,7 +105,7 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 				summary="Field renders one for you; reach for this only outside a field."
 			>
 				<Label htmlFor="standalone-input">Standalone label</Label>
-				<RuiInput id="standalone-input" placeholder="Associated input" class="w-56" />
+				<Input id="standalone-input" placeholder="Associated input" class="w-56" />
 			</ComponentDemo>
 
 			<ComponentDemo
@@ -135,16 +134,17 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 				name="RadioGroup"
 				summary="One radio per option, with the group's roving-focus keyboard model."
 			>
-				<RadioGroup
-					label="Plan"
-					name="plan"
-					value="pro"
-					options={[
-						{ value: 'free', label: 'Free' },
-						{ value: 'pro', label: 'Pro' },
-						{ value: 'team', label: 'Team' },
-					]}
-				/>
+				<Field name="plan" label="Plan">
+					<RadioGroup
+						name="plan"
+						value="pro"
+						options={[
+							{ value: 'free', label: 'Free' },
+							{ value: 'pro', label: 'Pro' },
+							{ value: 'team', label: 'Team' },
+						]}
+					/>
+				</Field>
 			</ComponentDemo>
 
 			<ComponentDemo

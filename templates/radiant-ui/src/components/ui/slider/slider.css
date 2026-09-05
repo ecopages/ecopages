@@ -3,5 +3,28 @@
  *
  * PostCSS inlines these package specifiers at build time. Add your own
  * overrides below the imports — they win by source order.
+ *
+ * The package paints the readout in `.rui-slider__header` above the track.
+ * Sit it on the same row as the track — Field already owns the visible label.
  */
 @import '@ecopages/radiant-ui/slider/styles.css';
+
+.rui-slider:not(.rui-slider--vertical) {
+	flex-direction: row;
+	align-items: center;
+}
+
+.rui-slider:not(.rui-slider--vertical) .rui-slider__header {
+	order: 1;
+	flex-shrink: 0;
+}
+
+.rui-slider:not(.rui-slider--vertical) .rui-slider__range {
+	flex: 1;
+	min-inline-size: 0;
+}
+
+.rui-slider:not(.rui-slider--vertical) .rui-slider__value {
+	min-inline-size: 8ch;
+	text-align: end;
+}

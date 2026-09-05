@@ -7,7 +7,9 @@
  * This is a `role="grid"` built from divs, so every part is explicit: a header
  * of columns, a body of rows, a cell per column per row, and — when rows are
  * selectable — a selection cell at the head of the header row and of every row.
- * Rendering data by hand means keeping column order and cell order in sync.
+ * `RuiTableHeader` already stamps the header row; do not wrap columns in
+ * another `RuiTableRow`. Rendering data by hand means keeping column order
+ * and cell order in sync.
  *
  * Pass `columns` and `rows` and the cells are laid out from the column ids. The
  * first column becomes the row header unless another sets `isRowHeader`.
@@ -53,7 +55,7 @@ export type TableProps = JsxCustomElementAttributes<RuiTableElement, RuiTablePro
 
 export const Table = eco.component<TableProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./table.css'],
+		stylesheets: ['../checkbox/checkbox.css', './table.css'],
 		scripts: [{ src: './table.script.ts', lazy: { 'on:visible': true } }],
 	},
 	render: ({ columns, rows, emptyMessage = 'No results', children, selectionMode, ...props }) => {
@@ -72,18 +74,16 @@ export const Table = eco.component<TableProps, JsxRenderable>({
 		return (
 			<RuiTable {...props} selectionMode={selectionMode}>
 				<RuiTableHeader>
-					<RuiTableRow id="header">
-						{selectable ? <RuiTableSelectionCell scope="all" /> : null}
-						{columns.map((column) => (
-							<RuiTableColumn
-								id={column.id}
-								allowsSorting={column.allowsSorting}
-								isRowHeader={column.id === rowHeaderId}
-							>
-								{column.label}
-							</RuiTableColumn>
-						))}
-					</RuiTableRow>
+					{selectable ? <RuiTableSelectionCell scope="all" /> : null}
+					{columns.map((column) => (
+						<RuiTableColumn
+							id={column.id}
+							allowsSorting={column.allowsSorting}
+							isRowHeader={column.id === rowHeaderId}
+						>
+							{column.label}
+						</RuiTableColumn>
+					))}
 				</RuiTableHeader>
 				<RuiTableBody>
 					{entries.length === 0 ? (

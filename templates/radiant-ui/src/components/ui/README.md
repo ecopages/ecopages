@@ -32,8 +32,13 @@ registration with an ancestor `Form`:
 </Field>
 ```
 
+A `pattern` rule is encoded to `{ source, flags }` before paint — JSON cannot
+hold a `RegExp` — and `field-revive.script.ts` turns it back into one when the
+host connects.
+
 Checkbox and Switch are the exception: their label is their children, because
-that is what the input is associated with.
+that is what the input is associated with. RadioGroup keeps `name` on the
+control: the radios share it.
 
 ## Borrowed chrome
 
@@ -45,15 +50,19 @@ calendar. Those need the sibling's **stylesheet**, and declare it as a path:
 stylesheets: ['../listbox/listbox.css', './select.css'],
 ```
 
-Not as `dependencies.components`. Two reasons:
+Not as `dependencies.components`. A declared component contributes a lazy
+script group keyed to a trigger attribute that lands on that component's root.
+Nothing renders that root here, so the group would sit in the page's injector
+map with no element to fire it.
 
-1. The package already bundles the embedded element into the borrower's own
-   script, so the sibling's script would be dead weight.
-2. A declared component contributes a lazy script group keyed to a trigger
-   attribute that lands on _that component's root element_. Nothing renders that
-   root here, so the group would sit in the page's injector map with no element
-   to fire it.
+When the package already registers the nested host (Select → listbox), leave
+the sibling script out. `DateField` and `DateRangePicker` stamp `rui-calendar`
+but do not register it — they list `calendar.script.ts` on their own host so
+the month grid exists when the popover opens. Do not list `Calendar` as a
+component: its script waits until the calendar is visible, and the nested one
+starts hidden.
 
-The exception is a sibling the package does **not** bundle — `Select`'s
-`searchable` branch renders an autocomplete. That script joins Select's own
-lazy group instead, so one trigger covers both.
+`SearchableSelect` is the second export from `select/`. It is a separate
+`eco.component` because a search field needs the autocomplete script, and
+`dependencies.scripts` is static — a `searchable` prop on `Select` would ship
+that script on every select.

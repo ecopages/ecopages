@@ -14,7 +14,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { RuiForm, type RuiFormElement, type RuiFormProps } from '@ecopages/radiant-ui/form';
-import { RuiButton } from '@ecopages/radiant-ui/button';
 import { Button } from '../button';
 
 export type FormProps = JsxCustomElementAttributes<RuiFormElement, RuiFormProps> & {
@@ -34,7 +33,7 @@ export const Form = eco.component<FormProps, JsxRenderable>({
 	render: ({ submitLabel, actions, children, ...props }) => (
 		<RuiForm {...props}>
 			{children}
-			{actions ?? (submitLabel ? <RuiButton type="submit">{submitLabel}</RuiButton> : null)}
+			{actions ?? (submitLabel ? <Button type="submit">{submitLabel}</Button> : null)}
 		</RuiForm>
 	),
 });

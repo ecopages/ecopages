@@ -4,9 +4,10 @@
  * `MenuButton` owns this component's stylesheet and lazy script, so listing it
  * in a page or layout `dependencies.components` ships everything it needs.
  *
- * Already composed: pass `trigger` and `items` and the button, the floating
- * menu and its entries — including separators and submenus — are stamped for
- * you.
+ * Already composed: pass a `trigger` *label* (a string or other non-button
+ * content) and `items`, and the trigger button, the floating menu and its
+ * entries — including separators and submenus — are stamped for you. Do not
+ * wrap another `Button` in `trigger`; that nests two buttons.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
@@ -16,8 +17,6 @@ import {
 	type RuiMenuButtonProps,
 	type RuiMenuEntry,
 } from '@ecopages/radiant-ui/menu-button';
-import { Button } from '../button';
-import { Separator } from '../separator';
 
 export type MenuButtonProps = JsxCustomElementAttributes<
 	RuiMenuButtonElement,
@@ -28,7 +27,6 @@ export const MenuButton = eco.component<MenuButtonProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['../primitives.css', './menu-button.css'],
 		scripts: [{ src: './menu-button.script.ts', lazy: { 'on:idle': true } }],
-		components: [Button, Separator],
 	},
 	render: RuiMenuButton,
 });

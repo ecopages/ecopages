@@ -17,7 +17,6 @@ import { Menubar } from '@/components/ui/menubar';
 import { Popover } from '@/components/ui/popover';
 import { Toolbar } from '@/components/ui/toolbar';
 import { Tooltip } from '@/components/ui/tooltip';
-import { RuiButton } from '@ecopages/radiant-ui/button';
 
 export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 	dependencies: {
@@ -47,9 +46,9 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 					title="Edit profile"
 					trigger={<Button variant="outline">Open dialog</Button>}
 					actions={
-						<RuiButton type="button" data-dialog-close>
+						<Button type="button" data-dialog-close>
 							Save
-						</RuiButton>
+						</Button>
 					}
 				>
 					<p>Update your display name and email address.</p>
@@ -61,7 +60,7 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 				name="Popover"
 				summary="Nests the trigger, the host and the content in the one order that opens."
 			>
-				<Popover trigger={<RuiButton variant="outline">Extras</RuiButton>} contentClass="popover-body">
+				<Popover trigger={<Button variant="outline">Extras</Button>} contentClass="popover-body">
 					<Checkbox checked>Pepperoni</Checkbox>
 					<Checkbox>Mushroom</Checkbox>
 				</Popover>
@@ -72,7 +71,7 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 				name="HoverCard"
 				summary="Trigger prop plus card body; opens on hover or focus."
 			>
-				<HoverCard trigger={<RuiButton variant="link">Jane Cooper</RuiButton>}>
+				<HoverCard trigger={<Button variant="link">Jane Cooper</Button>}>
 					<div class="hovercard">
 						<Avatar fallback="JC" alt="Jane Cooper" size="sm" />
 						<span>Product designer on the Radiant team.</span>
@@ -86,7 +85,7 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 				summary="Tip text in content, focusable trigger in children, aria-describedby between them."
 			>
 				<Tooltip content="Saves without leaving the page">
-					<RuiButton variant="outline">Save</RuiButton>
+					<Button variant="outline">Save</Button>
 				</Tooltip>
 			</ComponentDemo>
 
@@ -96,7 +95,7 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 				summary="Trigger and items build the button, the floating menu and its entries."
 			>
 				<MenuButton
-					trigger={<RuiButton variant="outline">Actions</RuiButton>}
+					trigger="Actions"
 					items={[
 						{ value: 'edit', label: 'Edit' },
 						{ value: 'duplicate', label: 'Duplicate' },
@@ -140,15 +139,15 @@ export const OverlaysDemos = eco.component<{}, JsxRenderable>({
 				summary="Takes over arrow-key navigation between the controls inside it."
 			>
 				<Toolbar label="Text formatting">
-					<RuiButton size="sm" variant="ghost" toggle>
+					<Button size="sm" variant="ghost" toggle defaultPressed>
 						Bold
-					</RuiButton>
-					<RuiButton size="sm" variant="ghost" toggle>
+					</Button>
+					<Button size="sm" variant="ghost" toggle>
 						Italic
-					</RuiButton>
-					<RuiButton size="sm" variant="ghost" toggle>
+					</Button>
+					<Button size="sm" variant="ghost" toggle>
 						Underline
-					</RuiButton>
+					</Button>
 				</Toolbar>
 			</ComponentDemo>
 		</>

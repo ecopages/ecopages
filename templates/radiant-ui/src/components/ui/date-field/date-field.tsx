@@ -5,8 +5,9 @@
  * layout `dependencies.components` ships everything it needs.
  *
  * With no children the host stamps the segmented input, the calendar toggle and
- * the popover. It renders no visible label — the package says to pair it with a
- * `Label` or a `Field` — so wrap it in `Field`.
+ * the popover. The nested calendar is registered from `calendar.script.ts` on
+ * this host — the package stamps `rui-calendar` but does not define it. It
+ * renders no visible label — wrap it in `Field`.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
@@ -18,7 +19,10 @@ export const DateField = eco.component<DateFieldProps, JsxRenderable>({
 	dependencies: {
 		/** Borrowed chrome — see `src/components/ui/README.md`. */
 		stylesheets: ['../primitives.css', '../calendar/calendar.css', './date-field.css'],
-		scripts: [{ src: './date-field.script.ts', lazy: { 'on:idle': true } }],
+		scripts: [
+			{ src: './date-field.script.ts', lazy: { 'on:idle': true } },
+			{ src: '../calendar/calendar.script.ts', lazy: { 'on:idle': true } },
+		],
 	},
 	render: RuiDateField,
 });

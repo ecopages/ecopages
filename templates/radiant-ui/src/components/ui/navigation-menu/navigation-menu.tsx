@@ -67,7 +67,9 @@ export const NavigationMenu = eco.component<NavigationMenuProps, JsxRenderable>(
 				{withPanels.length > 0 ? (
 					<RuiNavigationMenuPanels>
 						{withPanels.map((item) => (
-							<RuiNavigationMenuPanel value={item.value as string}>{item.panel}</RuiNavigationMenuPanel>
+							<RuiNavigationMenuPanel hidden="true" value={item.value as string}>
+								{item.panel}
+							</RuiNavigationMenuPanel>
 						))}
 					</RuiNavigationMenuPanels>
 				) : null}

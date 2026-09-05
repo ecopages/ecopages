@@ -5,10 +5,8 @@
  * a page or layout `dependencies.components` ships everything it needs.
  *
  * Children are the visible label, already associated with the input — `label`
- * is accepted as an alias for callers that pass their fields uniformly.
- *
- * A `description`, an `error` or a `name` routes it through `Field`, which is
- * what registers it with an ancestor `Form`.
+ * is accepted as an alias for callers that pass their fields uniformly. Wrap
+ * it in `Field` when it belongs in a `Form`.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';

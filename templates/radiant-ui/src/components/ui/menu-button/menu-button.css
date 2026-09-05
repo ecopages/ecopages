@@ -4,4 +4,6 @@
  * PostCSS inlines these package specifiers at build time. Add your own
  * overrides below the imports — they win by source order.
  */
+@import '@ecopages/radiant-ui/button/styles.css';
+@import '@ecopages/radiant-ui/separator/styles.css';
 @import '@ecopages/radiant-ui/menu-button/styles.css';

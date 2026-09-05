@@ -106,4 +106,29 @@ describe('codegen', () => {
 		expect(output).toContain("import type { BlogFrontmatter } from './src/content/blog-schema'");
 		expect(output).toContain('export type Entry = ContentEntry<BlogFrontmatter>');
 	});
+
+	test('fallback content-virtual-modules.d.ts separates server and browser wildcards and omits them from catch-all', async () => {
+		const { readFileSync } = await import('node:fs');
+		const { resolve } = await import('node:path');
+		const dtsContent = readFileSync(resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
+
+		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
+		const browserIndex = dtsContent.indexOf("declare module 'ecopages:content/*/browser'");
+		const catchAllIndex = dtsContent.indexOf("declare module 'ecopages:content/*'");
+
+		expect(serverIndex).toBeGreaterThan(-1);
+		expect(browserIndex).toBeGreaterThan(-1);
+		expect(catchAllIndex).toBeGreaterThan(-1);
+
+		// Variant patterns must precede the catch-all wildcard for TypeScript pattern precedence
+		expect(serverIndex).toBeLessThan(catchAllIndex);
+		expect(browserIndex).toBeLessThan(catchAllIndex);
+
+		const catchAllBlock = dtsContent.slice(catchAllIndex);
+		expect(catchAllBlock).toContain('export const entries: readonly Entry[];');
+		expect(catchAllBlock).toContain('export function getEntry(slug: string): Entry;');
+		expect(catchAllBlock).not.toContain('getComponent');
+		expect(catchAllBlock).not.toContain('loadComponent');
+		expect(catchAllBlock).not.toContain('getEntryDependencies');
+	});
 });

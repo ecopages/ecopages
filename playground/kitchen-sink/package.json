@@ -23,6 +23,7 @@
 	"devDependencies": {
 		"@playwright/test": "^1.60.0",
 		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/content-processor": "workspace:*",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
 		"@ecopages/file-system": "workspace:*",

@@ -36,12 +36,14 @@ function slugFromRelativePath(relativePath: string, extensions: string[]): strin
  * Used by the content processor at build time; it does not belong in page bundles.
  */
 export class ContentScanner<T extends Record<string, unknown> = Record<string, unknown>> {
+	private readonly contentRoot: string;
 	private readonly extensions: string[];
 	private readonly orderBy: EntryComparator<T>;
 	private readonly schema: StandardSchema<unknown, T>;
 	private cachePromise?: Promise<ContentCache<T>>;
 
-	constructor(private readonly config: ContentScannerConfig<T>) {
+	constructor(config: ContentScannerConfig<T>) {
+		this.contentRoot = config.contentRoot;
 		this.extensions = config.extensions ?? ['.mdx'];
 		this.orderBy = config.orderBy ?? compareEntriesBySlug;
 		this.schema = config.schema;
@@ -59,11 +61,11 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 
 	private async loadCache(): Promise<ContentCache<T>> {
 		const patterns = this.extensions.map((ext) => `**/*${ext}`);
-		const relativePaths = await fileSystem.glob(patterns, { cwd: this.config.contentRoot });
+		const relativePaths = await fileSystem.glob(patterns, { cwd: this.contentRoot });
 
 		const files = await Promise.all(
 			relativePaths.map(async (relativePath) => {
-				const filePath = join(this.config.contentRoot, relativePath);
+				const filePath = join(this.contentRoot, relativePath);
 				const slug = slugFromRelativePath(relativePath, this.extensions);
 				const raw = await fileSystem.readFile(filePath);
 				const entry: ContentEntry<T> = {
@@ -134,7 +136,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 			return this.removeEntryAtPath(cache, resolvedPath);
 		}
 
-		const relativePath = relative(this.config.contentRoot, resolvedPath);
+		const relativePath = relative(this.contentRoot, resolvedPath);
 		const nextSlug = slugFromRelativePath(relativePath, this.extensions);
 		const previousSlug = this.findSlugForFilePath(cache, resolvedPath);
 

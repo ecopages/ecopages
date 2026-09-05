@@ -45,7 +45,7 @@ export default eco.page<{}, JsxRenderable>({
 	}),
 	render: () => (
 		<>
-			<Section spacing="lg">
+			<Section spacing="lg" inset="compact">
 				<Heading
 					size="lg"
 					eyebrow="Catalog"
@@ -55,7 +55,7 @@ export default eco.page<{}, JsxRenderable>({
 				/>
 			</Section>
 
-			<Section spacing="lg" class="catalog">
+			<Section spacing="lg" inset="compact" class="catalog">
 				<InputsDemos />
 				<SelectionDemos />
 				<DatesDemos />

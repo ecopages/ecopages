@@ -87,6 +87,18 @@ const CARDS = [
 		description: 'Filterable listings built on combobox, tag group and pagination.',
 		footer: <Badge>Commerce</Badge>,
 	},
+	{
+		id: 'blog',
+		title: 'Editorial',
+		description: 'A long-form layout with a table of contents, MDX, and the same heading scale as this page.',
+		footer: <Badge variant="outline">Content</Badge>,
+	},
+	{
+		id: 'auth',
+		title: 'Account flows',
+		description: 'Sign-in and settings built from Field, Form and the same validation store as /forms.',
+		footer: <Badge variant="muted">Forms</Badge>,
+	},
 ];
 
 const FAQ = [
@@ -100,7 +112,7 @@ const FAQ = [
 	},
 	{
 		question: 'Where does the styling come from?',
-		answer: 'Radiant UI ships compiled CSS driven by custom properties. src/styles/tailwind.css imports one theme; swap it for glacier, aurora or a token pack of your own.',
+		answer: 'Radiant UI ships compiled CSS driven by custom properties. src/styles/tailwind.css imports Aurora and the soft radius pack; swap either for glacier, sharp, or a token pack of your own.',
 	},
 	{
 		question: 'How do I make this my site?',
@@ -148,10 +160,10 @@ export default eco.page<{}, JsxRenderable>({
 			<LogoCloud
 				title="Built on"
 				logos={[
-					{ name: 'Ecopages', logo: <span class="text-lg font-semibold">Ecopages</span> },
-					{ name: 'Radiant', logo: <span class="text-lg font-semibold">Radiant</span> },
-					{ name: 'Radiant UI', logo: <span class="text-lg font-semibold">Radiant UI</span> },
-					{ name: 'Tailwind CSS', logo: <span class="text-lg font-semibold">Tailwind</span> },
+					{ name: 'Ecopages', logo: <span>Ecopages</span> },
+					{ name: 'Radiant', logo: <span>Radiant</span> },
+					{ name: 'Radiant UI', logo: <span>Radiant UI</span> },
+					{ name: 'Tailwind CSS', logo: <span>Tailwind</span> },
 				]}
 			/>
 
@@ -173,14 +185,13 @@ export default eco.page<{}, JsxRenderable>({
 					</Button>
 				}
 				media={
-					<div class="flex items-center justify-center rounded-lg border border-border bg-background-accent p-10">
+					<div class="text-media__stage">
 						<RadiantCounter count={0} />
 					</div>
 				}
 			/>
 
 			<Stats
-				tinted
 				title="What ships"
 				stats={[
 					{ value: '56', label: 'Components', description: 'Each with its own stylesheet' },
@@ -192,7 +203,7 @@ export default eco.page<{}, JsxRenderable>({
 
 			<CardCarousel
 				eyebrow="Starting points"
-				title="Four ways to use this"
+				title="Six ways to use this"
 				description="The same components and blocks, pointed at different problems."
 				label="Starting points"
 				cards={CARDS}

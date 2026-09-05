@@ -9,7 +9,7 @@ import { Form } from '@/components/ui/form';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
@@ -58,7 +58,7 @@ export default eco.page<{}, JsxRenderable>({
 			Field,
 			Input,
 			Textarea,
-			Select,
+			SearchableSelect,
 			Combobox,
 			Checkbox,
 			Switch,
@@ -76,17 +76,17 @@ export default eco.page<{}, JsxRenderable>({
 	}),
 	render: () => (
 		<>
-			<Section spacing="lg">
+			<Section spacing="lg" inset="compact">
 				<Heading
 					size="lg"
 					eyebrow="Patterns"
 					title="Forms"
 					titleAs="h1"
-					description="Every control accepts label, name and rules. Submit with fields empty to see validation run — the form host registers each field and paints its error back in place."
+					description="Field wraps every control: label, hint, rules and the error slot live there. Submit with fields empty to see validation run — the form host registers each field and paints its error back in place."
 				/>
 			</Section>
 
-			<Section width="narrow" spacing="lg">
+			<Section width="narrow" spacing="lg" inset="compact">
 				<Alert variant="info" title="Client-side only">
 					This form validates in the browser and posts nowhere. Point its <code>action</code> at your endpoint
 					and the same markup works without JavaScript.
@@ -100,7 +100,7 @@ export default eco.page<{}, JsxRenderable>({
 				>
 					<div class="signup__row">
 						<Field name="name" label="Full name" rules={{ required: 'Enter your name' }}>
-							<Input name="name" placeholder="Ada Lovelace" />
+							<Input placeholder="Ada Lovelace" />
 						</Field>
 						<Field
 							name="email"
@@ -114,13 +114,13 @@ export default eco.page<{}, JsxRenderable>({
 								},
 							}}
 						>
-							<Input name="email" type="email" placeholder="ada@example.com" />
+							<Input type="email" placeholder="ada@example.com" />
 						</Field>
 					</div>
 
 					<div class="signup__row">
 						<Field name="country" label="Country" rules={{ required: 'Pick a country' }}>
-							<Select options={COUNTRIES} placeholder="Select a country" clearable searchable />
+							<SearchableSelect options={COUNTRIES} placeholder="Select a country" clearable />
 						</Field>
 						<Field name="language" label="Primary language">
 							<Combobox options={COUNTRIES} placeholder="Search languages" clearable />

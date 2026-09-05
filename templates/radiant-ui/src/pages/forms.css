@@ -1,15 +1,27 @@
 @import 'tailwindcss';
 
 .signup {
-	@apply mt-8 flex flex-col gap-6;
+	margin-block-start: var(--space-8);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
 }
 
-/* Two columns once the fields have room; one while they do not. */
 .signup__row {
-	@apply grid gap-6 sm:grid-cols-2;
+	display: grid;
+	gap: var(--space-6);
 }
 
 .signup code {
-	@apply rounded px-1 py-0.5 font-mono text-[0.8125rem];
-	background: var(--color-background);
+	border-radius: var(--radius-control);
+	padding: var(--space-1) var(--space-2);
+	font-family: var(--font-mono);
+	font-size: var(--text-sm);
+	background: var(--background);
+}
+
+@media (min-width: 640px) {
+	.signup__row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 }

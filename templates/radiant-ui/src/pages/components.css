@@ -1,46 +1,88 @@
 @import 'tailwindcss';
 
 .catalog .block-section__inner {
-	@apply grid gap-12;
+	display: grid;
+	gap: var(--space-12);
 }
 
 .swatch {
-	@apply flex h-40 items-center justify-center rounded-lg text-sm font-medium text-white;
+	display: flex;
+	height: 10rem;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-xl);
+	font-size: var(--text-sm);
+	font-weight: var(--weight-medium);
 }
 
 .swatch--1 {
-	background: oklch(0.55 0.16 250);
+	background: var(--primary);
+	color: var(--on-primary);
 }
 
 .swatch--2 {
-	background: oklch(0.55 0.16 150);
+	background: var(--success);
+	color: var(--on-success);
 }
 
 .swatch--3 {
-	background: oklch(0.55 0.16 30);
+	background: var(--warning);
+	color: var(--on-warning);
+}
+
+.alert-stack {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	gap: var(--space-3);
 }
 
 .hovercard {
-	@apply flex max-w-64 items-center gap-3 text-sm;
+	display: flex;
+	max-width: 16rem;
+	align-items: center;
+	gap: var(--space-3);
+	font-size: var(--text-sm);
 }
 
 .popover-body {
-	@apply flex flex-col gap-3 p-2;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-2);
 }
 
 .navpanel {
-	@apply flex flex-col gap-2 p-3 text-sm;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-3);
+	font-size: var(--text-sm);
+}
+
+.navpanel a {
+	color: var(--link);
+	text-decoration: none;
 }
 
 .sep-demo {
-	@apply flex h-8 items-center gap-4 text-sm;
+	display: flex;
+	height: 2rem;
+	align-items: center;
+	gap: var(--space-4);
+	font-size: var(--text-sm);
 }
 
 .splitter {
-	@apply h-48;
+	height: 12rem;
 }
 
 .pane {
-	@apply flex h-full items-center justify-center p-4 text-sm;
-	color: var(--color-muted);
+	display: flex;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-4);
+	font-size: var(--text-sm);
+	color: var(--muted);
 }

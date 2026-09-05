@@ -570,11 +570,19 @@ export type EcoFunctionComponent<P, R> = {
 /**
  * A function component type that is framework-agnostic.
  * Uses a broader signature to support both direct calls and HOC wrappers.
+ *
+ * @remarks
+ * The function-signature check is wrapped in a tuple so the conditional does
+ * not distribute. A component whose props are a discriminated union — a button
+ * that is either `{ href: string }` or `{ href?: never; type?: ... }` — would
+ * otherwise become a union of component types, and JSX intersects the
+ * parameters of a callable union, collapsing every discriminated field to
+ * `never`.
  */
 export type EcoComponent<P = any, R = any> =
 	IsAny<P> extends true
 		? EcoFunctionComponent<any, any> | EcoComponentBase
-		: P extends (props: infer Props, ...args: any[]) => infer Return
+		: [P] extends [(props: infer Props, ...args: any[]) => infer Return]
 			? EcoFunctionComponent<Props, Return>
 			: EcoFunctionComponent<P, R>;
 

@@ -9,6 +9,12 @@ type TemplateContentShape = {
 	[key: string]: unknown;
 };
 
+/** Attribute the browser injector runtime looks for to load a lazy script group. */
+const TRIGGER_ATTRIBUTE = 'data-eco-trigger';
+
+/** Every shape `addTriggerAttribute` can hand back. */
+type TriggerableContent = string | TemplateContentShape | MarkupNodeLikeShape | unknown[];
+
 type MarkupNodeLikeShape = {
 	nodeType: number;
 	outerHTML?: string;
@@ -16,6 +22,10 @@ type MarkupNodeLikeShape = {
 	textContent?: string;
 	[key: string]: unknown;
 };
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 function cloneTemplateStrings(strings: readonly string[], firstString: string): string[] {
 	const nextStrings = [...strings];
@@ -34,20 +44,38 @@ function cloneTemplateStrings(strings: readonly string[], firstString: string): 
 	return nextStrings;
 }
 
-function cloneTemplateContentWithUpdatedFirstString<T extends TemplateContentShape>(
-	content: T,
-	firstString: string,
-): T {
+/**
+ * Clones a template with the trigger attribute written onto every
+ * representation of its root element.
+ *
+ * A template carries its root twice: as the opening tag inside `strings`, and —
+ * when that root is a registered custom element — as `ssrIntrinsicProps`, which
+ * is what the JSX server renderer hands to the element's SSR hook. That path
+ * never reads `strings`, so an attribute written only there is dropped. Writing
+ * both keeps the trigger on the element either way; the plain-element path
+ * ignores `ssrIntrinsicProps`, so nothing is duplicated.
+ */
+function cloneTemplateWithTrigger<T extends TemplateContentShape>(content: T, triggerId: string): T {
 	const descriptors = Object.getOwnPropertyDescriptors(content);
 	const clonedContent = Object.create(Object.getPrototypeOf(content)) as T;
-	const stringsDescriptor = descriptors.strings;
 
 	Object.defineProperties(clonedContent, {
 		...descriptors,
 		strings: {
-			...stringsDescriptor,
-			value: cloneTemplateStrings(content.strings, firstString),
+			...descriptors.strings,
+			value: cloneTemplateStrings(
+				content.strings,
+				injectTriggerAttributeIntoString(content.strings[0] ?? '', triggerId),
+			),
 		},
+		...(isPlainRecord(content.ssrIntrinsicProps)
+			? {
+					ssrIntrinsicProps: {
+						...descriptors.ssrIntrinsicProps,
+						value: { ...content.ssrIntrinsicProps, [TRIGGER_ATTRIBUTE]: triggerId },
+					},
+				}
+			: {}),
 	});
 
 	return clonedContent;
@@ -228,7 +256,7 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 				nameEnd = tagSlice.length;
 			}
 			const insertAt = i + 1 + nameEnd;
-			return `${str.slice(0, insertAt)} data-eco-trigger="${triggerId}"${str.slice(insertAt)}`;
+			return `${str.slice(0, insertAt)} ${TRIGGER_ATTRIBUTE}="${triggerId}"${str.slice(insertAt)}`;
 		}
 
 		break;
@@ -266,23 +294,27 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 export function addTriggerAttribute(content: string, triggerId: string): string;
 export function addTriggerAttribute<T extends TemplateContentShape>(content: T, triggerId: string): T;
 export function addTriggerAttribute<T extends MarkupNodeLikeShape>(content: T, triggerId: string): T;
-export function addTriggerAttribute(
-	content: unknown,
-	triggerId: string,
-): string | TemplateContentShape | MarkupNodeLikeShape;
-export function addTriggerAttribute(
-	content: unknown,
-	triggerId: string,
-): string | TemplateContentShape | MarkupNodeLikeShape {
+export function addTriggerAttribute<T extends readonly unknown[]>(content: T, triggerId: string): unknown[];
+export function addTriggerAttribute(content: unknown, triggerId: string): TriggerableContent;
+export function addTriggerAttribute(content: unknown, triggerId: string): TriggerableContent {
 	if (isTemplateContentShape(content)) {
 		if (content.strings.length === 0) {
 			return String(content);
 		}
 
-		return cloneTemplateContentWithUpdatedFirstString(
-			content,
-			injectTriggerAttributeIntoString(content.strings[0] ?? '', triggerId),
-		);
+		return cloneTemplateWithTrigger(content, triggerId);
+	}
+
+	/**
+	 * A component whose render returns a fragment arrives here as an array of
+	 * children. Only one element needs to carry the trigger — the injector
+	 * runtime queries for the attribute — so it goes on the first entry and the
+	 * rest pass through. Without this the array falls to `String(content)` below
+	 * and serializes as `[object Object]`.
+	 */
+	if (Array.isArray(content)) {
+		const [first, ...rest] = content;
+		return first === undefined ? content : [addTriggerAttribute(first, triggerId), ...rest];
 	}
 
 	if (isMarkupNodeLikeShape(content) && typeof content.outerHTML === 'string') {

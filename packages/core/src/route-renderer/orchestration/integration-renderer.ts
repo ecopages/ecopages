@@ -154,6 +154,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			integrationName: this.name,
 			runtimeOrigin: this.runtimeOrigin,
 		});
+		const integration = this.appConfig.integrations?.find((entry) => entry.name === this.name);
+		if (integration?.getResolvedIntegrationDependencies) {
+			this.resolvedIntegrationDependencies = integration.getResolvedIntegrationDependencies();
+		}
 	}
 
 	/**

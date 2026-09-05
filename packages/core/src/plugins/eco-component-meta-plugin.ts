@@ -5,6 +5,7 @@ import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTran
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
+import { discoverComponentImports } from './component-import-discovery.ts';
 
 type IntegrationOwnership = { name: string; jsxImportSource?: string };
 
@@ -99,7 +100,12 @@ function addIdentityBindingImport(contents: string, program: AstNode): string {
 }
 
 /** Attributes real `eco.*()` factory calls with canonical component identity. */
-export function attributeComponentIdentity(contents: string, filePath: string, integration: string): string {
+export function attributeComponentIdentity(
+	contents: string,
+	filePath: string,
+	integration: string,
+	projectRoot?: string,
+): string {
 	if (!contents.includes('eco.')) return contents;
 
 	let program: AstNode;
@@ -111,6 +117,15 @@ export function attributeComponentIdentity(contents: string, filePath: string, i
 
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const edits: SourceEdit[] = [];
+	let hasFactory = false;
+	walkAst(program, (node) => {
+		if (isEcoFactoryCall(node)) hasFactory = true;
+	});
+	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
+	const discoveryArgument =
+		discovered && (discovered.components.length || discovered.stylesheets.length)
+			? `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)} }`
+			: '';
 	walkAst(program, (node) => {
 		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
@@ -119,16 +134,20 @@ export function attributeComponentIdentity(contents: string, filePath: string, i
 		edits.push({
 			start: firstArgument.start,
 			end: firstArgument.end,
-			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)})`,
+			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)}${discoveryArgument})`,
 		});
 	});
 	if (edits.length === 0) return contents;
+	edits.push(...(discovered?.removals ?? []));
 
 	let transformed = contents;
 	for (const edit of edits.sort((left, right) => right.start - left.start)) {
 		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
 	}
-	return addIdentityBindingImport(transformed, program);
+	return addIdentityBindingImport(
+		transformed,
+		cachedParseSync(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
+	);
 }
 
 export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
@@ -149,7 +168,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 			}
 			return {
 				code: prependJsxImportSourceIfMissing(
-					attributeComponentIdentity(code, id, integration.name),
+					attributeComponentIdentity(code, id, integration.name, options.config.rootDir),
 					integration.jsxImportSource,
 				),
 			};

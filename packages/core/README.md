@@ -19,7 +19,8 @@ The important ownership rules are:
 
 - `ConfigBuilder.build()` finalizes app-owned build and runtime services.
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
-- browser bundling and server module loading are explicit, separate paths.
+- Direct local Eco Component imports and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - runtime hosts stay thin and delegate framework work into core services.
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
 

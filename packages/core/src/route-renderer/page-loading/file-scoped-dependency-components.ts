@@ -74,6 +74,7 @@ export function collectFileScopedDependencyComponents(options: {
 export type CollectComponentConfigFilePathsOptions = {
 	additionalPaths?: ReadonlyArray<string>;
 	includeLayouts?: boolean;
+	includeStylesheets?: boolean;
 };
 
 /**
@@ -84,7 +85,7 @@ export function collectComponentConfigFilePaths(
 	options?: CollectComponentConfigFilePathsOptions,
 ): Set<string> {
 	const files = new Set<string>();
-	const visited = new Set<string>();
+	const visited = new Set<EcoComponentConfig>();
 
 	for (const additionalPath of options?.additionalPaths ?? []) {
 		files.add(path.resolve(additionalPath));
@@ -100,11 +101,15 @@ export function collectComponentConfigFilePaths(
 		}
 
 		const resolved = path.resolve(file);
-		if (visited.has(resolved)) {
+		if (visited.has(config)) {
 			return;
 		}
-		visited.add(resolved);
+		visited.add(config);
 		files.add(resolved);
+		for (const style of options?.includeStylesheets ? (config.dependencies?.stylesheets ?? []) : []) {
+			const src = typeof style === 'string' ? style : style.src;
+			if (src) files.add(path.resolve(path.dirname(resolved), src));
+		}
 
 		for (const dependency of config.dependencies?.components ?? []) {
 			visit(dependency?.config);
@@ -131,7 +136,9 @@ export function collectDependencyWatchPaths(
 	ownerFile: string,
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 ): string[] {
-	return Array.from(collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile] }));
+	return Array.from(
+		collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile], includeStylesheets: true }),
+	);
 }
 
 /**

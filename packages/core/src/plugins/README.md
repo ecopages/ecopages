@@ -21,7 +21,7 @@ These contracts are responsible for:
 - `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
 - `component-import-discovery.ts`: resolves direct local factory exports, relative CSS imports, and aliased CSS imports with the cached parser and project resolver; excludes barrels, type imports, package imports, and ordinary helpers.
-- `eco-component-meta-plugin.ts`: component-identity attribution transform that uses a lexical `eco.` gate, then an Oxc `CallExpression` rewrite
+- `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules
 
 ## Ownership Rules
 
@@ -29,6 +29,7 @@ These contracts are responsible for:
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
+- MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors and stylesheets to `config.dependencies`, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 
 ## Lifecycle Summary
 

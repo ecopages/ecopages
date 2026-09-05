@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { attributeComponentIdentity } from './eco-component-meta-plugin.ts';
+import { attributeComponentIdentity, attributeMdxComponentIdentity } from './eco-component-meta-plugin.ts';
 
 const roots: string[] = [];
 function fixture() {
@@ -98,5 +98,131 @@ describe('component import discovery', () => {
 		expect(transform(`import { Child } from './child';`)).toContain('components: () => [Child]');
 		writeFileSync(path.join(root, 'child.ts'), `export const Child = () => '';`);
 		expect(transform(`import { Child } from './child';`)).not.toContain('components: ()');
+	});
+
+	describe('MDX component import discovery and attribution', () => {
+		it('discovers component and stylesheet imports in MDX and strips bare CSS', () => {
+			const { root } = fixture();
+			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const mdxJs = [
+				"import { jsx as _jsx, jsxs as _jsxs } from 'react/jsx-runtime';",
+				"import { Child } from './child';",
+				"import './style.css';",
+				'function _createMdxContent(props) { return _jsx("h1", { children: "Hi" }); }',
+				'export default function MDXContent(props = {}) { return _createMdxContent(props); }',
+			].join('\n');
+
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			expect(result).not.toContain("import './style.css';");
+			expect(result).toContain("import { Child } from './child';");
+			expect(result).toContain(
+				"import { bindComponentIdentity, attachDiscoveredDependencies } from '@ecopages/core';",
+			);
+			expect(result).toContain(`components: () => [Child], stylesheets: ${JSON.stringify([stylePath])}`);
+			expect(result).toContain('export const config = bindComponentIdentity(');
+			expect(result).toContain('attachDiscoveredDependencies(config);');
+			expect(result).toContain("if (typeof MDXContent === 'function') MDXContent.config = config;");
+		});
+
+		it('preserves existing export const config and merges discovered dependencies', () => {
+			const { root } = fixture();
+			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const mdxJs = [
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				"import { Child } from './child';",
+				"import '@/style.css';",
+				'export const config = { layout: "custom-layout" };',
+				'export default function MDXContent() { return _jsx("div", {}); }',
+			].join('\n');
+
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			expect(result).not.toContain("import '@/style.css';");
+			expect(result).toContain('layout: "custom-layout"');
+			expect(result).toContain(`components: () => [Child], stylesheets: ${JSON.stringify([stylePath])}`);
+			expect(result).toContain('export const config = bindComponentIdentity(');
+			expect(result).toContain('attachDiscoveredDependencies(config);');
+		});
+
+		it('distinguishes top-level imports from imports and functions inside code blocks', () => {
+			const { root } = fixture();
+			const stylePath = realpathSync(path.join(root, 'style.css'));
+			const mdxJs = [
+				"import { jsx as _jsx, jsxs as _jsxs } from 'react/jsx-runtime';",
+				"import { Child } from './child';",
+				"import './style.css';",
+				'function helper() {',
+				'  const dynamic = import("./fake.css");',
+				'}',
+				'function _createMdxContent(props) {',
+				'  return _jsxs("div", {',
+				'    children: [',
+				'      _jsx("pre", {',
+				'        children: _jsx("code", {',
+				"          children: \"import './fake.css';\\nimport { Fake } from './fake';\"",
+				'        })',
+				'      })',
+				'    ]',
+				'  });',
+				'}',
+				'export default function MDXContent() { return _createMdxContent(); }',
+			].join('\n');
+
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			// Real top-level bare CSS import was stripped
+			expect(result).not.toContain("import './style.css';");
+			// Fake CSS import inside the code block is completely preserved
+			expect(result).toContain("children: \"import './fake.css';\\nimport { Fake } from './fake';\"");
+			// Fake CSS and dynamic imports are NOT added to discovered dependencies
+			expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath])}`);
+			expect(result).toContain('components: () => [Child]');
+			expect(result).not.toContain('components: () => [Child, Fake]');
+		});
+
+		it('is idempotent when run multiple times on the same MDX output', () => {
+			const { root } = fixture();
+			const mdxJs = [
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				"import { Child } from './child';",
+				"import './style.css';",
+				'export default function MDXContent() { return _jsx("h1", {}); }',
+			].join('\n');
+
+			const first = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const second = attributeMdxComponentIdentity(first, path.join(root, 'post.mdx'), 'mdx', root);
+			expect(second).toBe(first);
+		});
+
+		it('throws an error if projectRoot is missing', () => {
+			const mdxJs = 'export default function MDXContent() { return null; }';
+			expect(() => attributeMdxComponentIdentity(mdxJs, '/path/post.mdx', 'mdx', '')).toThrow(
+				/projectRoot is required/,
+			);
+		});
+
+		it('always attributes identity even when MDX has no discovered dependencies', () => {
+			const { root } = fixture();
+			const mdxJs = [
+				"import { jsx as _jsx } from 'react/jsx-runtime';",
+				'export default function MDXContent() { return _jsx("h1", {}); }',
+			].join('\n');
+
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			expect(result).toContain('export const config = bindComponentIdentity(');
+			expect(result).toContain('attachDiscoveredDependencies(config);');
+			expect(result).toContain("if (typeof MDXContent === 'function') MDXContent.config = config;");
+		});
+
+		it('does not re-wrap export const config that is already a bindComponentIdentity call', () => {
+			const { root } = fixture();
+			const mdxJs = [
+				"import { bindComponentIdentity, attachDiscoveredDependencies } from '@ecopages/core';",
+				"export const config = bindComponentIdentity({ id: 'abc', file: '/post.mdx', integration: 'mdx' }, { layout: 'base' });",
+				'attachDiscoveredDependencies(config);',
+				'export default function MDXContent() { return null; }',
+			].join('\n');
+
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			expect(result).toBe(mdxJs);
+		});
 	});
 });

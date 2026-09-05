@@ -14,7 +14,8 @@
  *
  * Within the pane, the navigation itself is six primitives per group, so
  * `Sidebar` takes `groups` and `currentPath` and stamps them, marking the
- * active link so it is both styled and announced as the current page.
+ * active link so it is both styled and announced as the current page. Pass
+ * `icon` on a link for the collapsed-icon pattern from the app-shell example.
  */
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
@@ -41,6 +42,8 @@ import { Button } from '../button';
 export type SidebarLink = {
 	label: JsxRenderable;
 	href: string;
+	/** Leading icon; pair with a string `label` so collapsed mode can use `tooltip`. */
+	icon?: JsxRenderable;
 };
 
 export type SidebarGroup = {
@@ -94,8 +97,10 @@ export const Sidebar = eco.component<SidebarProps, JsxRenderable>({
 													as="a"
 													href={link.href}
 													isActive={currentPath === link.href}
+													tooltip={typeof link.label === 'string' ? link.label : undefined}
 												>
-													{link.label}
+													{link.icon}
+													{typeof link.label === 'string' ? <span>{link.label}</span> : link.label}
 												</RuiSidebarMenuButton>
 											</RuiSidebarMenuItem>
 										))}

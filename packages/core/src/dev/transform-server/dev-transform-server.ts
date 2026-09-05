@@ -42,6 +42,7 @@ export class DevTransformServer {
 	private readonly cache = new Map<string, CacheEntry>();
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
 	private cacheGeneration = 0;
+	private readonly sourceGenerations = new Map<string, number>();
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
@@ -108,15 +109,21 @@ export class DevTransformServer {
 		return this.urlToSource;
 	}
 
+	/**
+	 * @remarks
+	 * Marks pending work stale while preserving one in-flight compile per source.
+	 * Requests awaiting that work retry against the current source when it completes.
+	 */
 	invalidateSource(sourcePath: string): void {
 		const normalized = path.resolve(sourcePath);
 		this.cache.delete(normalized);
+		this.sourceGenerations.set(normalized, (this.sourceGenerations.get(normalized) ?? 0) + 1);
 	}
 
 	invalidateAll(): void {
 		this.cacheGeneration += 1;
 		this.cache.clear();
-		this.inFlight.clear();
+		this.sourceGenerations.clear();
 		this.vendorRegistry.invalidateAll();
 	}
 
@@ -213,24 +220,30 @@ export class DevTransformServer {
 		}
 
 		const generation = this.cacheGeneration;
+		const sourceGeneration = this.sourceGenerations.get(normalized) ?? 0;
 		const promise = this.bundler
 			.transpileModule(normalized)
 			.then((result) => {
-				if (generation !== this.cacheGeneration) {
-					throw new Error(`[dev-transform] Stale transpile result for ${normalized}`);
+				if (
+					generation !== this.cacheGeneration ||
+					sourceGeneration !== (this.sourceGenerations.get(normalized) ?? 0) ||
+					fileSystem.hash(normalized) !== sourceHash
+				) {
+					return undefined;
 				}
 
 				if (result.dependencies) {
 					this.onModuleDependencies?.(normalized, result.dependencies);
 				}
 
-				const entry: CacheEntry = { code: result.code, sourceHash: fileSystem.hash(normalized) };
+				const entry: CacheEntry = { code: result.code, sourceHash };
 				this.cache.set(normalized, entry);
 				return entry;
 			})
 			.finally(() => {
 				this.inFlight.delete(normalized);
-			});
+			})
+			.then((entry) => entry ?? this.materialize(normalized));
 
 		this.inFlight.set(normalized, promise);
 		return promise;

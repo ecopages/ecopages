@@ -23,7 +23,7 @@ The `eco` namespace provides a consistent, type-safe interface for:
 
 ## Dependency discovery
 
-Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`.
+Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -35,7 +35,7 @@ export default eco.page({
 });
 ```
 
-Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds.
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
 
 Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. **Best practice:** author **one `eco.component()` per file**. Co-locating multiple components in a single file will cause all declared components in that file to share discovered dependencies.
 

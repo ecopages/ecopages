@@ -3,7 +3,8 @@ import type { CompileOptions } from '@mdx-js/mdx';
 
 export type MdxTransformCacheEntry = {
 	contents: string;
-	loader: 'js' | 'jsx';
+	loader?: 'js' | 'jsx';
+	map?: unknown;
 };
 
 const transformCache = new Map<string, MdxTransformCacheEntry>();

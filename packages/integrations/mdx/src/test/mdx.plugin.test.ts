@@ -64,4 +64,14 @@ describe('MDXPlugin', () => {
 			format: 'mdx',
 		});
 	});
+
+	it('throws when preparing the loader without appConfig.rootDir', async () => {
+		const plugin = mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		});
+
+		await expect(plugin.prepareBuildContributions()).rejects.toThrow(/appConfig\.rootDir is required/);
+	});
 });

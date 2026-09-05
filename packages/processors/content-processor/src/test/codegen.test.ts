@@ -43,9 +43,11 @@ describe('codegen', () => {
 		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
 		expect(output).toContain('const componentCache = new Map');
 		expect(output).toContain('const componentLoadPromises = new Map');
-		expect(output).toContain(
-			"import { bindComponentIdentity, getComponentIdentity, type EcoComponent, type PageDependenciesResult } from '@ecopages/core';",
-		);
+		expect(output).toContain("import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';");
+		expect(output).toContain('component.config = module.config');
+		expect(output).not.toContain('bindComponentIdentity');
+		expect(output).not.toContain('attachDiscoveredDependencies');
+		expect(output).not.toContain('getComponentIdentity');
 		expect(output).toContain("import { HttpError } from '@ecopages/core/errors'");
 		expect(output).toContain('throw HttpError.NotFound(`Unknown content entry: ${slug}`)');
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
@@ -67,6 +69,8 @@ describe('codegen', () => {
 		expect(output).toContain('export function loadComponent(slug: string)');
 		expect(output).toContain('const componentLoadPromises = new Map');
 		expect(output).toContain('attachMdxExports(module, entrySourceFilesBySlug[slug]!)');
+		expect(output).toContain("import type { EcoComponent } from '@ecopages/core'");
+		expect(output).not.toContain('bindComponentIdentity');
 		expect(output).not.toContain('getEntryDependencies');
 	});
 
@@ -130,5 +134,20 @@ describe('codegen', () => {
 		expect(catchAllBlock).not.toContain('getComponent');
 		expect(catchAllBlock).not.toContain('loadComponent');
 		expect(catchAllBlock).not.toContain('getEntryDependencies');
+	});
+
+	test('attachMdxExports assigns loader-attributed config by reference and does not re-bind', () => {
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+			{
+				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
+				filePath: '/app/src/content/docs/intro.mdx',
+			},
+		]);
+
+		expect(output).toContain('if (!module.config.identity)');
+		expect(output).toContain('component.config = module.config');
+		expect(output).not.toContain('bindComponentIdentity(');
+		expect(output).not.toContain('attachDiscoveredDependencies(');
+		expect(output).not.toContain('{ ...component.config');
 	});
 });

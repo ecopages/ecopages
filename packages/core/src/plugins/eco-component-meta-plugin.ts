@@ -34,6 +34,14 @@ function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
 }
 
+function node(value: unknown): AstNode | undefined {
+	return typeof value === 'object' && value !== null ? (value as AstNode) : undefined;
+}
+
+function nodes(value: unknown): AstNode[] {
+	return Array.isArray(value) ? value.map(node).filter((value): value is AstNode => value !== undefined) : [];
+}
+
 function isEcoFactoryCall(node: AstNode): boolean {
 	if (node.type !== 'CallExpression' || !isAstNode(node.callee)) return false;
 	const callee = node.callee;
@@ -58,45 +66,56 @@ function walkAst(node: unknown, visit: (node: AstNode) => void): void {
 	for (const value of Object.values(node)) walkAst(value, visit);
 }
 
-function addIdentityBindingImport(contents: string, program: AstNode): string {
+function addNamedImport(
+	contents: string,
+	program: AstNode,
+	sourceModule: string,
+	importedName: string | readonly string[],
+): string {
+	const importedNames = typeof importedName === 'string' ? [importedName] : [...importedName];
 	const imports = (program.body as unknown[]).filter(
 		(node): node is AstNode =>
 			isAstNode(node) &&
 			node.type === 'ImportDeclaration' &&
 			isAstNode(node.source) &&
-			node.source.value === '@ecopages/core',
+			node.source.value === sourceModule,
 	);
 	const valueImport = imports.find((node) => node.importKind !== 'type');
-	if (!valueImport) return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
+	if (!valueImport) return `import { ${importedNames.join(', ')} } from '${sourceModule}';\n${contents}`;
 
 	const specifiers = Array.isArray(valueImport.specifiers) ? valueImport.specifiers.filter(isAstNode) : [];
-	if (
-		specifiers.some(
-			(specifier) =>
-				specifier.type === 'ImportSpecifier' &&
-				isAstNode(specifier.imported) &&
-				specifier.imported.name === 'bindComponentIdentity',
-		)
-	) {
+	const existingNames = new Set(
+		specifiers.flatMap((specifier) => {
+			if (specifier.type !== 'ImportSpecifier' || !isAstNode(specifier.imported)) return [];
+			const name = specifier.imported.name ?? specifier.imported.value;
+			return typeof name === 'string' ? [name] : [];
+		}),
+	);
+	const missing = importedNames.filter((name) => !existingNames.has(name));
+	if (missing.length === 0) {
 		return contents;
 	}
 
 	const namedSpecifiers = specifiers.filter((specifier) => specifier.type === 'ImportSpecifier');
 	if (namedSpecifiers.length > 0) {
 		const lastSpecifier = namedSpecifiers[namedSpecifiers.length - 1]!;
-		return `${contents.slice(0, lastSpecifier.end)}, bindComponentIdentity${contents.slice(lastSpecifier.end)}`;
+		return `${contents.slice(0, lastSpecifier.end)}, ${missing.join(', ')}${contents.slice(lastSpecifier.end)}`;
 	}
 
 	if (specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')) {
-		return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
+		return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
 	}
 
 	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
 	if (defaultSpecifier) {
-		return `${contents.slice(0, defaultSpecifier.end)}, { bindComponentIdentity }${contents.slice(defaultSpecifier.end)}`;
+		return `${contents.slice(0, defaultSpecifier.end)}, { ${missing.join(', ')} }${contents.slice(defaultSpecifier.end)}`;
 	}
 
-	return `import { bindComponentIdentity } from '@ecopages/core';\n${contents}`;
+	return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
+}
+
+function addIdentityBindingImport(contents: string, program: AstNode): string {
+	return addNamedImport(contents, program, '@ecopages/core', 'bindComponentIdentity');
 }
 
 /** Attributes real `eco.*()` factory calls with canonical component identity. */
@@ -150,6 +169,83 @@ export function attributeComponentIdentity(
 	);
 }
 
+/** Attributes compiled MDX module with canonical component identity and discovered dependencies. */
+export function attributeMdxComponentIdentity(
+	contents: string,
+	filePath: string,
+	integration: string,
+	projectRoot: string,
+): string {
+	if (!projectRoot) {
+		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
+	}
+
+	let program: AstNode;
+	try {
+		program = cachedParseSync(filePath, contents, { lang: 'jsx', sourceType: 'module' })
+			.program as unknown as AstNode;
+	} catch {
+		return contents;
+	}
+
+	let configDeclarator: AstNode | undefined;
+	for (const statement of nodes(program?.body)) {
+		if (statement.type === 'ExportNamedDeclaration' && statement.declaration) {
+			const decl = node(statement.declaration);
+			if (decl?.type === 'VariableDeclaration') {
+				for (const declarator of nodes(decl.declarations)) {
+					if (node(declarator.id)?.name === 'config') {
+						configDeclarator = declarator;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	if (configDeclarator && isIdentityBinding(configDeclarator.init)) {
+		return contents;
+	}
+
+	const discovered = discoverComponentImports(program, filePath, projectRoot);
+	const hasDiscovered = discovered.components.length > 0 || discovered.stylesheets.length > 0;
+	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const discoveryArgument = hasDiscovered
+		? `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)} }`
+		: '';
+
+	const edits: SourceEdit[] = [...discovered.removals];
+	if (configDeclarator && isAstNode(configDeclarator.init)) {
+		const init = configDeclarator.init;
+		if (typeof init.start === 'number' && typeof init.end === 'number') {
+			edits.push({
+				start: init.start,
+				end: init.end,
+				replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(init.start, init.end)}${discoveryArgument})`,
+			});
+		}
+	}
+
+	let appended = '';
+	if (!configDeclarator) {
+		appended += `\nexport const config = bindComponentIdentity(${identityLiteral}, {}${discoveryArgument});\n`;
+	}
+	appended += `attachDiscoveredDependencies(config);\nif (typeof MDXContent === 'function') MDXContent.config = config;\n`;
+
+	let transformed = contents;
+	for (const edit of edits.sort((left, right) => right.start - left.start)) {
+		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
+	}
+	transformed = `${transformed}\n${appended}`;
+
+	return addNamedImport(
+		transformed,
+		cachedParseSync(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
+		'@ecopages/core',
+		['bindComponentIdentity', 'attachDiscoveredDependencies'],
+	);
+}
+
 export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
 	const extensions = options.config.integrations
 		.flatMap((integration) => integration.extensions)
@@ -161,7 +257,6 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		enforce: 'pre',
 		filter,
 		transform(code, id) {
-			if (id.endsWith('.mdx')) return { code };
 			const integration = integrationForFile(id, options.config);
 			if (!integration) {
 				return { code };

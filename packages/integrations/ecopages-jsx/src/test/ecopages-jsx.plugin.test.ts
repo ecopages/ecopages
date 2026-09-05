@@ -70,6 +70,7 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 		},
 	});
 
+	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
 	await plugin.prepareBuildContributions();
 
 	const mdxLoaderPlugin = plugin.plugins[0];
@@ -166,4 +167,15 @@ test('configured MDX compiler accepts remark-gfm on fenced code content', async 
 	);
 
 	assert.match(String(compiled.value), /@ecopages\/jsx\/jsx-runtime/);
+});
+
+test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', async () => {
+	const plugin = ecopagesJsxPlugin({
+		radiant: false,
+		mdx: {
+			enabled: true,
+		},
+	});
+
+	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
 });

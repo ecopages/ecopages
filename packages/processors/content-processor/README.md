@@ -225,23 +225,18 @@ export default eco.page({
 
 Unknown slugs throw `HttpError.NotFound`, so a catch-all that matches `/docs/[...slug]` still serves the app 404 page instead of a 500.
 
-Content MDX entries may declare interactive demo dependencies without polluting the catch-all page shell:
+Content MDX entries may import interactive demos and styles without a handwritten `config.dependencies` bag. The MDX loader discovers them:
 
 ```mdx
 import { WeatherApp } from '@/components/weather-app/weather-app';
-
-export const config = {
-	dependencies: {
-		components: [WeatherApp],
-	},
-};
+import './weather-app.css';
 
 # Weather app
 
 <WeatherApp />
 ```
 
-`getComponent()` lazy-loads one MDX module per slug and returns the default component with exported `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
+`getComponent()` lazy-loads one MDX module per slug and returns the default component with loader-attributed `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
 
 ## Navigation (app-side)
 

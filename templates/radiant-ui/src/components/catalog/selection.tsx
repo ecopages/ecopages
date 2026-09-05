@@ -13,13 +13,24 @@ import { ChipList } from '@/components/ui/chip-list';
 import { Combobox } from '@/components/ui/combobox';
 import { Field } from '@/components/ui/field';
 import { Listbox } from '@/components/ui/listbox';
-import { Select } from '@/components/ui/select';
+import { SearchableSelect, Select } from '@/components/ui/select';
 import { TagGroup } from '@/components/ui/tag-group';
 import { FRUIT } from './demo-data';
 
 export const SelectionDemos = eco.component<{}, JsxRenderable>({
 	dependencies: {
-		components: [ComponentDemo, Autocomplete, Chip, ChipList, Combobox, Field, Listbox, Select, TagGroup],
+		components: [
+			ComponentDemo,
+			Autocomplete,
+			Chip,
+			ChipList,
+			Combobox,
+			Field,
+			Listbox,
+			SearchableSelect,
+			Select,
+			TagGroup,
+		],
 	},
 	render: () => (
 		<>
@@ -29,7 +40,17 @@ export const SelectionDemos = eco.component<{}, JsxRenderable>({
 				summary="Trigger, value display and embedded listbox — tag chips when multiple."
 			>
 				<Field class="w-56" name="pick" label="Fruit">
-					<Select options={FRUIT} value="cherry" placeholder="Pick one" clearable searchable />
+					<Select options={FRUIT} value="cherry" placeholder="Pick one" clearable />
+				</Field>
+			</ComponentDemo>
+
+			<ComponentDemo
+				id="searchable-select"
+				name="SearchableSelect"
+				summary="The same select tree with a search field; ships the autocomplete Select does not."
+			>
+				<Field class="w-56" name="search-fruit" label="Fruit">
+					<SearchableSelect options={FRUIT} value="cherry" placeholder="Pick one" clearable />
 				</Field>
 			</ComponentDemo>
 

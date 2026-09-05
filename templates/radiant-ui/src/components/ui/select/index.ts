@@ -1,2 +1,2 @@
-export { Select } from './select';
-export type { SelectProps } from './select';
+export { Select, SearchableSelect } from './select';
+export type { SelectProps, SearchableSelectProps } from './select';

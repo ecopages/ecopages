@@ -1,11 +1,11 @@
 .logo-cloud__title {
-	margin: 0 0 1.5rem;
+	margin: 0 0 var(--space-6);
 	text-align: center;
-	font-size: 0.8125rem;
-	font-weight: 500;
+	font-size: var(--text-sm);
+	font-weight: var(--weight-medium);
 	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	color: var(--color-muted);
+	letter-spacing: var(--tracking-wide);
+	color: var(--muted);
 }
 
 .logo-cloud__list {
@@ -13,20 +13,20 @@
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: center;
-	gap: 2rem 3rem;
+	gap: var(--space-8) var(--space-12);
 	list-style: none;
 	margin: 0;
 	padding: 0;
 }
 
-/*
- * Logos come in every aspect ratio there is, so each is boxed to one height and
- * allowed to size itself within it.
- */
 .logo-cloud__item {
 	display: flex;
 	align-items: center;
-	height: 2rem;
+	height: var(--size-control-md);
+	font-size: var(--text-lg);
+	font-weight: var(--weight-semibold);
+	letter-spacing: -0.02em;
+	color: var(--neutral);
 }
 
 .logo-cloud__item :is(img, svg) {
@@ -35,15 +35,26 @@
 }
 
 .logo-cloud--muted .logo-cloud__item {
-	opacity: 0.6;
+	opacity: var(--opacity-muted);
 	filter: grayscale(1);
-	transition:
-		opacity 0.2s ease-out,
-		filter 0.2s ease-out;
 }
 
-.logo-cloud--muted .logo-cloud__item:hover,
-.logo-cloud--muted .logo-cloud__item:focus-within {
-	opacity: 1;
-	filter: none;
+@media (hover: hover) {
+	.logo-cloud--muted .logo-cloud__item {
+		transition:
+			opacity 0.2s ease-out,
+			filter 0.2s ease-out;
+	}
+
+	.logo-cloud--muted .logo-cloud__item:hover,
+	.logo-cloud--muted .logo-cloud__item:focus-within {
+		opacity: 1;
+		filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.logo-cloud--muted .logo-cloud__item {
+		transition: none;
+	}
 }

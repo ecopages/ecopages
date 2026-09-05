@@ -2,15 +2,17 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 1.75rem;
+	gap: var(--space-6);
 	text-align: center;
 }
 
 .cta__surface--panel {
-	padding: 3rem 1.5rem;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-lg, 0.75rem);
-	background: var(--color-background-accent);
+	padding: var(--space-12) var(--space-6);
+	border-radius: var(--radius-xl);
+	background: var(--surface-container-low);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-control);
 }
 
 .cta__copy {
@@ -21,7 +23,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: center;
-	gap: 0.75rem;
+	gap: var(--space-3);
 }
 
 @media (min-width: 768px) {
@@ -30,7 +32,7 @@
 		align-items: center;
 		justify-content: space-between;
 		text-align: start;
-		gap: 2rem;
+		gap: var(--space-8);
 	}
 
 	.cta__surface--inline .cta__actions {

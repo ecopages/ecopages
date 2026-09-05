@@ -1,20 +1,20 @@
 .site-header {
-	border-block-end: 1px solid var(--color-border);
-	background: color-mix(in oklab, var(--color-background) 85%, transparent);
+	border-block-end: var(--border-width-hairline) solid var(--border);
+	background: color-mix(in oklab, var(--background) 85%, transparent);
 	backdrop-filter: blur(8px);
 }
 
 .site-header--sticky {
 	position: sticky;
 	top: 0;
-	z-index: 40;
+	z-index: var(--z-overlay);
 }
 
 .site-header__bar {
 	display: flex;
 	align-items: center;
-	gap: 1rem;
-	min-height: 3.75rem;
+	gap: var(--space-4);
+	min-height: var(--size-control-lg);
 }
 
 .site-header__brand {
@@ -26,7 +26,7 @@
 .site-header__list {
 	display: flex;
 	align-items: center;
-	gap: 0.25rem;
+	gap: var(--space-1);
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -34,38 +34,42 @@
 
 .site-header__link {
 	display: block;
-	padding: 0.5rem 0.75rem;
-	border-radius: var(--radius-md, 0.5rem);
-	font-size: 0.875rem;
-	color: var(--color-muted);
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-control);
+	font-size: var(--text-sm);
+	color: var(--muted);
 	text-decoration: none;
-	transition:
-		color 0.15s ease-out,
-		background-color 0.15s ease-out;
 }
 
-.site-header__link:hover,
 .site-header__link:focus-visible {
-	color: var(--color-on-background);
-	background: var(--color-background-accent);
+	color: var(--on-background);
+	background: var(--surface-container-low);
+}
+
+@media (hover: hover) {
+	.site-header__link {
+		transition:
+			color 0.15s ease-out,
+			background-color 0.15s ease-out;
+	}
+
+	.site-header__link:hover {
+		color: var(--on-background);
+		background: var(--surface-container-low);
+	}
 }
 
 .site-header__link[aria-current='page'] {
-	color: var(--color-on-background);
-	font-weight: 500;
+	color: var(--on-background);
+	font-weight: var(--weight-medium);
 }
 
 .site-header__actions {
 	display: flex;
 	align-items: center;
-	gap: 0.5rem;
+	gap: var(--space-2);
 }
 
-/*
- * The compact panel is a `<details>` so the menu opens with no script at all.
- * Below the breakpoint the inline nav is hidden and this takes over; above it,
- * the reverse.
- */
 .site-header__disclosure {
 	position: relative;
 }
@@ -74,9 +78,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 2.25rem;
-	height: 2.25rem;
-	border-radius: var(--radius-md, 0.5rem);
+	width: var(--size-control-md);
+	height: var(--size-control-md);
+	border-radius: var(--radius-control);
 	cursor: pointer;
 	list-style: none;
 }
@@ -85,8 +89,10 @@
 	display: none;
 }
 
-.site-header__toggle:hover {
-	background: var(--color-background-accent);
+@media (hover: hover) {
+	.site-header__toggle:hover {
+		background: var(--surface-container-low);
+	}
 }
 
 .site-header__toggle-bars,
@@ -121,19 +127,20 @@
 .site-header__panel {
 	position: absolute;
 	inset-inline-end: 0;
-	top: calc(100% + 0.5rem);
+	top: calc(100% + var(--space-2));
 	min-width: 12rem;
-	padding: 0.5rem;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-lg, 0.75rem);
-	background: var(--color-background);
-	box-shadow: var(--shadow-popover, 0 10px 30px rgb(0 0 0 / 0.15));
+	padding: var(--space-2);
+	border-radius: var(--radius-xl);
+	background: var(--background);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-overlay);
 }
 
 .site-header__list--panel {
 	flex-direction: column;
 	align-items: stretch;
-	gap: 0.125rem;
+	gap: var(--space-1);
 }
 
 @media (max-width: 767px) {
@@ -148,6 +155,12 @@
 	}
 
 	.site-header__nav {
-		margin-inline-end: 0.5rem;
+		margin-inline-end: var(--space-2);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.site-header__link {
+		transition: none;
 	}
 }

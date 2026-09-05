@@ -7,6 +7,9 @@
  *
  * `action` and `method` pass through to the underlying `<form>`, so this posts
  * to your endpoint with or without JavaScript.
+ *
+ * Copy sits beside the capture on a wide screen so the title and the submit
+ * control share a baseline rather than stacking as a centred column.
  */
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
@@ -16,9 +19,10 @@ import { Heading } from '@/components/ui/heading';
 import { Form } from '@/components/ui/form';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Section, type SectionProps } from '../section';
 
-export type NewsletterProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type NewsletterProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title: JsxRenderable;
 	description?: JsxRenderable;
@@ -37,7 +41,7 @@ export type NewsletterProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' 
 export const Newsletter = eco.component<NewsletterProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./newsletter.css'],
-		components: [Section, Heading, Form, Field, Input],
+		components: [Section, Heading, Form, Field, Input, Button],
 	},
 	render: ({
 		eyebrow,
@@ -53,34 +57,41 @@ export const Newsletter = eco.component<NewsletterProps, JsxRenderable>({
 		class: className,
 		...section
 	}) => (
-		<Section {...section} width="narrow" class={cx('newsletter', className)}>
-			<Heading
-				class="newsletter__copy"
-				align="center"
-				eyebrow={eyebrow}
-				title={title}
-				description={description}
-			/>
-			<Form
-				class="newsletter__form"
-				action={action}
-				method={method}
-				mode="onBlur"
-				defaultValues={{ [name]: '' }}
-				submitLabel={submitLabel}
-			>
-				<Field
-					class="newsletter__field"
-					name={name}
-					rules={{
-						required: 'Enter your email address',
-						pattern: { value: /^[^@\s]+@[^@\s.]+\.[^@\s]+$/, message: 'Enter a valid email address' },
-					}}
-				>
-					<RuiInput type="email" name={name} placeholder={placeholder} aria-label={label} />
-				</Field>
-			</Form>
-			{note ? <p class="newsletter__note">{note}</p> : null}
+		<Section {...section} width="default" class={cx('newsletter', className)}>
+			<div class="newsletter__layout">
+				<Heading
+					class="newsletter__copy"
+					align="start"
+					eyebrow={eyebrow}
+					title={title}
+					description={description}
+				/>
+				<div class="newsletter__capture">
+					<Form
+						class="newsletter__form"
+						action={action}
+						method={method}
+						mode="onBlur"
+						defaultValues={{ [name]: '' }}
+						actions={<Button type="submit">{submitLabel}</Button>}
+					>
+						<Field
+							class="newsletter__field"
+							name={name}
+							rules={{
+								required: 'Enter your email address',
+								pattern: {
+									value: /^[^@\s]+@[^@\s.]+\.[^@\s]+$/,
+									message: 'Enter a valid email address',
+								},
+							}}
+						>
+							<RuiInput type="email" name={name} placeholder={placeholder} aria-label={label} />
+						</Field>
+					</Form>
+					{note ? <p class="newsletter__note">{note}</p> : null}
+				</div>
+			</div>
 		</Section>
 	),
 });

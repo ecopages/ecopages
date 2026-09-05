@@ -16,7 +16,7 @@ import { cx } from '@/lib/cx';
 import { Heading } from '@/components/ui/heading';
 import { Section, type SectionProps } from '../section';
 
-export type HeroProps = Pick<SectionProps, 'width' | 'tinted' | 'class'> & {
+export type HeroProps = Pick<SectionProps, 'width' | 'tinted' | 'inset' | 'class'> & {
 	/** Small label above the title. */
 	eyebrow?: JsxRenderable;
 	title: JsxRenderable;

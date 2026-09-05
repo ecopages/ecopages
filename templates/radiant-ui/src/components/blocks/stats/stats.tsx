@@ -18,7 +18,7 @@ export type Stat = {
 	description?: JsxRenderable;
 };
 
-export type StatsProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type StatsProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title?: JsxRenderable;
 	description?: JsxRenderable;

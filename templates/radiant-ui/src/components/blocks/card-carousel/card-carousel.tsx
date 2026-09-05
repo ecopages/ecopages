@@ -27,7 +27,7 @@ export type CarouselCard = {
 	content?: JsxRenderable;
 };
 
-export type CardCarouselProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type CardCarouselProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title?: JsxRenderable;
 	description?: JsxRenderable;

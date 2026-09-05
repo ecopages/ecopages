@@ -14,7 +14,7 @@ import { cx } from '@/lib/cx';
 import { Heading } from '@/components/ui/heading';
 import { Section, type SectionProps } from '../section';
 
-export type TextMediaProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type TextMediaProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title: JsxRenderable;
 	description?: JsxRenderable;

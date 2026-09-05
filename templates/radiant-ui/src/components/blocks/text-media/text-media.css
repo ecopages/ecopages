@@ -1,39 +1,50 @@
 .text-media__layout {
 	display: grid;
-	gap: 2rem;
+	gap: var(--space-8);
 }
 
 .text-media__copy {
 	display: flex;
 	flex-direction: column;
-	gap: 1.25rem;
+	gap: var(--space-5);
 	min-width: 0;
 }
 
 .text-media__actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.75rem;
-	margin-block-start: 0.25rem;
+	gap: var(--space-3);
+	margin-block-start: var(--space-1);
 }
 
 .text-media__media {
 	min-width: 0;
-	/* Media first while stacked — an image orients the reader faster than copy. */
 	order: -1;
 }
 
 .text-media__media :is(img, svg, video) {
 	width: 100%;
 	height: auto;
-	border-radius: var(--radius-lg, 0.75rem);
+	border-radius: var(--radius-xl);
+}
+
+.text-media__stage {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-10);
+	border-radius: var(--radius-xl);
+	background: var(--surface-container-low);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-control);
 }
 
 @media (min-width: 900px) {
 	.text-media__layout {
 		grid-template-columns: 1fr 1fr;
 		align-items: center;
-		gap: 4rem;
+		gap: var(--space-12);
 	}
 
 	.text-media__media {

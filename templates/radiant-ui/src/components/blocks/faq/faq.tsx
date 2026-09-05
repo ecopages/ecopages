@@ -19,7 +19,7 @@ export type FaqEntry = {
 	open?: boolean;
 };
 
-export type FaqProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type FaqProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title?: JsxRenderable;
 	description?: JsxRenderable;

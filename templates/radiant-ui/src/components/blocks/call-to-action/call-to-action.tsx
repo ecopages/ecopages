@@ -11,7 +11,7 @@ import { cx } from '@/lib/cx';
 import { Heading } from '@/components/ui/heading';
 import { Section, type SectionProps } from '../section';
 
-export type CallToActionProps = Pick<SectionProps, 'width' | 'spacing' | 'class'> & {
+export type CallToActionProps = Pick<SectionProps, 'width' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title: JsxRenderable;
 	description?: JsxRenderable;

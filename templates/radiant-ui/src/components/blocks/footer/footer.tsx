@@ -22,7 +22,7 @@ export type FooterColumn = {
 	links: FooterLink[];
 };
 
-export type FooterProps = Pick<SectionProps, 'width' | 'tinted' | 'class'> & {
+export type FooterProps = Pick<SectionProps, 'width' | 'tinted' | 'inset' | 'class'> & {
 	/** Logo and a line about the product. */
 	brand?: JsxRenderable;
 	description?: JsxRenderable;

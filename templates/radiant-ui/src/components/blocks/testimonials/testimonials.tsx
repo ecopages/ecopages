@@ -20,7 +20,7 @@ export type Testimonial = {
 	avatarSrc?: string;
 };
 
-export type TestimonialsProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type TestimonialsProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title?: JsxRenderable;
 	description?: JsxRenderable;

@@ -1,15 +1,11 @@
 .card-carousel__heading {
-	margin-block-end: 3rem;
+	margin-block-end: var(--space-8);
 }
 
-/*
- * One card per row while narrow. The per-view grid only kicks in once there is
- * room for the cards to stay readable.
- */
 .card-carousel__group {
 	display: grid;
-	gap: 1.25rem;
-	padding-inline: 0.25rem;
+	gap: var(--space-5);
+	padding-inline: var(--space-1);
 }
 
 .card-carousel__card {
@@ -17,9 +13,11 @@
 	flex-direction: column;
 	height: 100%;
 	overflow: hidden;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-lg, 0.75rem);
-	background: var(--color-background-accent);
+	border-radius: var(--radius-xl);
+	background: var(--surface-container-low);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-control);
 }
 
 .card-carousel__media :is(img, svg, video) {
@@ -33,26 +31,26 @@
 .card-carousel__body {
 	display: flex;
 	flex-direction: column;
-	gap: 0.5rem;
-	padding: 1.25rem;
+	gap: var(--space-2);
+	padding: var(--space-5);
 	flex: 1;
 }
 
 .card-carousel__title {
-	font-size: 1rem;
-	font-weight: 600;
-	line-height: 1.4;
+	font-size: var(--text-body);
+	font-weight: var(--weight-semibold);
+	line-height: var(--leading-compact);
 }
 
 .card-carousel__text {
 	margin: 0;
-	font-size: 0.875rem;
-	line-height: 1.6;
-	color: var(--color-muted);
+	font-size: var(--text-sm);
+	line-height: var(--leading-relaxed);
+	color: var(--muted);
 }
 
 .card-carousel__footer {
-	padding: 0 1.25rem 1.25rem;
+	padding: 0 var(--space-5) var(--space-5);
 }
 
 @media (min-width: 768px) {

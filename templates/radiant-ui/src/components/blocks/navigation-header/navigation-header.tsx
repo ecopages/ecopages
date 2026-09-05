@@ -22,7 +22,7 @@ export type NavigationLink = {
 	current?: boolean;
 };
 
-export type NavigationHeaderProps = Pick<SectionProps, 'width' | 'class'> & {
+export type NavigationHeaderProps = Pick<SectionProps, 'width' | 'inset' | 'class'> & {
 	/** Logo or wordmark, usually wrapped in a link to `/`. */
 	brand?: JsxRenderable;
 	/** Primary navigation. Ignored when `nav` is given. */

@@ -1,12 +1,12 @@
 .hero__layout {
 	display: grid;
-	gap: 2.5rem;
+	gap: var(--space-10);
 }
 
 .hero__copy {
 	display: flex;
 	flex-direction: column;
-	gap: 1.75rem;
+	gap: var(--space-6);
 	min-width: 0;
 }
 
@@ -19,7 +19,7 @@
 .hero__actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.75rem;
+	gap: var(--space-3);
 }
 
 .hero__copy--center .hero__actions {
@@ -33,14 +33,14 @@
 .hero__media :is(img, svg, video) {
 	width: 100%;
 	height: auto;
-	border-radius: var(--radius-lg, 0.75rem);
+	border-radius: var(--radius-xl);
 }
 
 @media (min-width: 900px) {
 	.hero__layout--split {
 		grid-template-columns: 1fr 1fr;
 		align-items: center;
-		gap: 4rem;
+		gap: var(--space-12);
 	}
 
 	.hero__layout--reversed .hero__copy {

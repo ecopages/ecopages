@@ -25,7 +25,7 @@ export type Feature = {
 	linkLabel?: string;
 };
 
-export type FeatureGridProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type FeatureGridProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	eyebrow?: JsxRenderable;
 	title?: JsxRenderable;
 	description?: JsxRenderable;

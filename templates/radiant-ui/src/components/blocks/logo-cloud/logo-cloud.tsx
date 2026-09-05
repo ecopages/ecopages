@@ -19,7 +19,7 @@ export type LogoCloudItem = {
 	href?: string;
 };
 
-export type LogoCloudProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'class'> & {
+export type LogoCloudProps = Pick<SectionProps, 'width' | 'tinted' | 'spacing' | 'inset' | 'class'> & {
 	/** Line above the row. */
 	title?: JsxRenderable;
 	logos: LogoCloudItem[];

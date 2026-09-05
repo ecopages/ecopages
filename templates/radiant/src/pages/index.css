@@ -84,3 +84,23 @@
 		transition: none;
 	}
 }
+
+.welcome {
+	@apply flex w-full flex-col gap-1 rounded-sm border-l-2 p-4;
+	border-color: var(--color-accent);
+	background: var(--color-background-accent);
+}
+
+.welcome__title {
+	@apply text-sm font-semibold;
+}
+
+.welcome__body {
+	@apply text-sm;
+	color: var(--color-muted);
+}
+
+.card-link {
+	@apply text-sm underline underline-offset-2;
+	color: var(--color-accent);
+}

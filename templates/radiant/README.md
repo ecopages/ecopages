@@ -1,65 +1,55 @@
-# Radiant UI template
+# Radiant template
 
-An Ecopages JSX integration template built entirely around Radiant UI
-components, including the cycle-based theme control used by the Ecopages docs.
+A minimal Ecopages application built with [Radiant](https://radiant.ecopages.app)
+— the reactive custom-element model behind Ecopages islands. No component
+library: just the framework, so you can see exactly what a Radiant element is
+made of.
 
-## Getting Started
+For a starter with components already built, use the **Radiant UI** template
+instead.
 
-First, install the dependencies:
-
-```bash
-bun install
-```
-
-Then, run the development server:
+## Getting started
 
 ```bash
-bun dev
+pnpm install
+pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Structure
 
-- `src/pages/index.tsx` — Radiant UI integration showcase using Radiant alert and button primitives
-- `src/pages/about.mdx` — the imported Markdown content example
-- `src/pages/image.mdx` and `src/pages/image-detail.mdx` — shared-element transition examples
-- `src/images/kita-kamakura.png` — source image used by the optimized-image card and transition pages
-- `src/components/logo/logo.tsx` — the Ecopages brand mark used by the document shell
-- `src/components/radiant-counter.tsx` — lazy-loaded custom-element counter using Radiant buttons
-- `src/components/showcase.mdx` — imported Markdown content rendered with prose styles
-- `src/lib` — small shared utilities such as `cx`
-- `src/components/theme-toggle.tsx` — the docs theme preference control
-- `src/layouts/base-layout` — shared document shell
+- `src/pages/index.tsx` — the showcase, using the two custom elements below
+- `src/components/radiant-counter.*` — a plain custom element whose script loads
+  on first hover or focus
+- `src/components/theme-toggle.*` — a `RadiantElement` using `@query` and
+  `@onEvent`, persisting the theme and mirroring `prefers-color-scheme`
+- `src/pages/about.mdx` — Markdown imported as a component
+- `src/pages/image.mdx`, `src/pages/image-detail.mdx` — a shared-element view
+  transition between two pages
+- `src/layouts/base-layout/` — the document shell
+- `src/styles/tailwind.css` — theme tokens and prose styles
 
-No external services are required. Start customization in `src/pages/index.tsx`
-and `eco.config.ts`.
+## The two element styles
 
-The Radiant dependencies follow the same release line as the Ecopages docs so
-the theme preference control and its `prop` API stay compatible.
+`radiant-counter` is a plain `HTMLElement`: no decorators, no base class. It
+shows what the lazy-script trigger buys you — the script only loads when someone
+hovers or focuses the counter.
 
-The image showcase keeps the shared-element transition between `/image` and `/image-detail`; returning from `/image` to `/` uses a full-page navigation.
+`theme-toggle` extends `RadiantElement` and uses the decorators Radiant provides:
+`@query` for the light-DOM targets it drives, `@onEvent` for clicks, a media
+query, and a window event. The element never renders markup — the JSX in
+`theme-toggle.tsx` does — which is the light-DOM host model Radiant is built on.
 
-The template also enables the image processor so the showcase demonstrates the
-same responsive image output as the JSX integration.
+## Scripts
+
+```bash
+pnpm dev      # development server
+pnpm build    # production build
+pnpm preview  # serve the build
+```
 
 ## Documentation
 
-To learn more about Ecopages, take a look at the following resources:
-
-- [Ecopages Documentation](https://ecopages.app) - learn about Ecopages features and API.
-- [Ecopages GitHub Repository](https://github.com/ecopages/ecopages) - contribute or file issues.
-
-## Build
-
-To build the application for production, run:
-
-```bash
-bun run build
-```
-
-## Preview
-
-```bash
-bun preview
-```
+- [Ecopages](https://ecopages.app) — the framework
+- [Radiant](https://radiant.ecopages.app) — the reactive host model

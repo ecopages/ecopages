@@ -1,50 +1,27 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import {
-	RuiCycleToggleButton,
-	RuiCycleToggleItem,
-	ThemeItemLabel,
-	ThemePreferenceIcon,
-} from '@ecopages/radiant-ui/cycle-toggle';
-import type { ThemePreference } from '@ecopages/radiant-ui/cycle-toggle';
-import type { ThemeToggleProps } from './theme-toggle.script';
-import './theme-toggle.script';
+import type { ThemePreference, ThemeToggleProps } from './theme-toggle.script';
 
-export type ThemeToggleViewProps = ThemeToggleProps & {
-	label?: string;
-};
+export type ThemeToggleViewProps = ThemeToggleProps;
 
-function ThemeToggleItemContent({ preference }: { preference: ThemePreference }): JsxRenderable {
-	return (
-		<span class="theme-toggle__item-content">
-			<ThemePreferenceIcon preference={preference} />
-			<ThemeItemLabel preference={preference} />
-		</span>
-	);
-}
-
+/**
+ * The light-DOM contract `<theme-toggle>` drives: a button it listens to, and a
+ * label it writes the current preference into. The element only queries these
+ * refs — it never renders markup — which is the Radiant host model in one file.
+ */
 export const ThemeToggle = eco.component<ThemeToggleViewProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
-	render: ({ label = 'Theme', value = 'system', variant = 'ghost', size = 'sm', disabled, ...props }) => {
-		const preference = value ?? 'system';
-
-		return (
-			<theme-toggle {...props} value={value} label={label} variant={variant} size={size} disabled={disabled}>
-				<RuiCycleToggleButton variant={variant} size={size} disabled={disabled}>
-					<RuiCycleToggleItem id="system" selected={preference === 'system'}>
-						<ThemeToggleItemContent preference="system" />
-					</RuiCycleToggleItem>
-					<RuiCycleToggleItem id="light" selected={preference === 'light'}>
-						<ThemeToggleItemContent preference="light" />
-					</RuiCycleToggleItem>
-					<RuiCycleToggleItem id="dark" selected={preference === 'dark'}>
-						<ThemeToggleItemContent preference="dark" />
-					</RuiCycleToggleItem>
-				</RuiCycleToggleButton>
-			</theme-toggle>
-		);
-	},
+	render: ({ value = 'system' }: { value?: ThemePreference }) => (
+		<theme-toggle value={value}>
+			<button type="button" data-ref="button" class="theme-toggle__button" aria-label="Change theme">
+				<span class="theme-toggle__dot" aria-hidden="true"></span>
+				<span data-ref="label" class="theme-toggle__label">
+					{value}
+				</span>
+			</button>
+		</theme-toggle>
+	),
 });

@@ -8,3 +8,13 @@ radiant-counter [data-ref='count'] {
 	@apply flex h-8 min-w-10 items-center justify-center px-2 font-mono text-sm font-medium;
 	color: var(--color-on-background);
 }
+
+radiant-counter .counter__step {
+	@apply flex h-8 w-8 items-center justify-center rounded text-base leading-none;
+	color: var(--color-on-background);
+	cursor: pointer;
+}
+
+radiant-counter .counter__step:hover {
+	background: var(--color-background-accent);
+}

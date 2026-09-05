@@ -2,8 +2,6 @@ import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { logoOnGhDarkPng } from 'ecopages:images';
-import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
-import { RuiButton } from '@ecopages/radiant-ui/button';
 import { BaseLayout } from '@/layouts/base-layout';
 import { RadiantCounter } from '@/components/radiant-counter';
 import ShowcaseMdx from '@/components/showcase.mdx';
@@ -41,12 +39,12 @@ export default eco.page<{}, JsxRenderable>({
 	metadata: () => ({ title: 'Radiant UI', description: 'Build an Ecopages application with Radiant UI.' }),
 	render: () => (
 		<div class="showcase">
-			<RuiAlert variant="info" layout="banner" class="welcome-alert">
-				<RuiAlertTitle>Welcome to Ecopages</RuiAlertTitle>
-				<RuiAlertDescription>
+			<div class="welcome" role="note">
+				<p class="welcome__title">Welcome to Ecopages</p>
+				<p class="welcome__body">
 					A static-first foundation for expressive pages and islands of interactivity.
-				</RuiAlertDescription>
-			</RuiAlert>
+				</p>
+			</div>
 			<div class="showcase-grid" role="feed" aria-label="Ecopages features">
 				{CARDS.map((card, index) => (
 					<article
@@ -79,9 +77,9 @@ export default eco.page<{}, JsxRenderable>({
 							) : null}
 						</div>
 						<div class="card-actions">
-							<RuiButton href={card.cta.href} variant="link" size="none" class="card-link">
+							<a href={card.cta.href} class="card-link">
 								{card.cta.label}
-							</RuiButton>
+							</a>
 						</div>
 					</article>
 				))}

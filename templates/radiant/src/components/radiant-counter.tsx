@@ -1,6 +1,5 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { RuiButton } from '@ecopages/radiant-ui/button';
 import type { RadiantCounterProps } from './radiant-counter.script';
 
 export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
@@ -10,13 +9,13 @@ export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>(
 	},
 	render: ({ count = 0 }) => (
 		<radiant-counter count={count}>
-			<RuiButton type="button" variant="ghost" size="sm" data-ref="decrement" aria-label="Decrement">
+			<button type="button" class="counter__step" data-ref="decrement" aria-label="Decrement">
 				-
-			</RuiButton>
+			</button>
 			<span data-ref="count">{count}</span>
-			<RuiButton type="button" variant="ghost" size="sm" data-ref="increment" aria-label="Increment">
+			<button type="button" class="counter__step" data-ref="increment" aria-label="Increment">
 				+
-			</RuiButton>
+			</button>
 		</radiant-counter>
 	),
 });

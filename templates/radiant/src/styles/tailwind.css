@@ -1,8 +1,4 @@
 @import 'tailwindcss';
-@import '@ecopages/radiant-ui/themes/default';
-@import '@ecopages/radiant-ui/alert/styles.css';
-@import '@ecopages/radiant-ui/button/styles.css';
-@import '@ecopages/radiant-ui/cycle-toggle/styles.css';
 @import 'ecopages/css/view-transitions.css';
 
 @theme {

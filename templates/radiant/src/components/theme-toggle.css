@@ -5,14 +5,28 @@ theme-toggle {
 	vertical-align: middle;
 }
 
-.theme-toggle__item-content {
-	display: inline-flex;
-	flex-direction: row;
-	align-items: center;
-	gap: var(--spacing-inline, var(--space-inline));
-	white-space: nowrap;
+.theme-toggle__button {
+	@apply inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs capitalize;
+	border-color: var(--color-border);
+	color: var(--color-on-background);
+	cursor: pointer;
 }
 
-.theme-toggle__item-content > svg {
-	flex: 0 0 auto;
+.theme-toggle__button:hover {
+	background: var(--color-background-accent);
+}
+
+/* The dot mirrors the resolved theme, so `system` still shows which one is live. */
+.theme-toggle__dot {
+	@apply h-2.5 w-2.5 rounded-full border;
+	border-color: var(--color-border);
+	background: var(--color-background);
+}
+
+[data-theme='dark'] .theme-toggle__dot {
+	background: var(--color-on-background);
+}
+
+.theme-toggle__label {
+	font-variant-numeric: tabular-nums;
 }

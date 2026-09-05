@@ -1,0 +1,73 @@
+.feature-grid__heading {
+	margin-block-end: 3rem;
+}
+
+.feature-grid__list {
+	display: grid;
+	gap: 1.5rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.feature-grid__item {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.625rem;
+	padding: 1.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg, 0.75rem);
+	background: var(--color-background-accent);
+}
+
+.feature-grid__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: var(--radius-md, 0.5rem);
+	background: var(--color-background);
+	color: var(--color-accent);
+}
+
+.feature-grid__title {
+	font-weight: 600;
+	font-size: 1rem;
+	line-height: 1.4;
+}
+
+.feature-grid__body {
+	color: var(--color-muted);
+	font-size: 0.875rem;
+	line-height: 1.6;
+	margin: 0;
+}
+
+/*
+ * `auto-fit` plus a min track means the column count falls from the cap to one
+ * on its own — no per-step breakpoints, and the cards never get narrower than
+ * their content wants.
+ */
+@media (min-width: 640px) {
+	.feature-grid__list--2,
+	.feature-grid__list--3,
+	.feature-grid__list--4 {
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+	}
+}
+
+@media (min-width: 1024px) {
+	.feature-grid__list--2 {
+		grid-template-columns: repeat(2, 1fr);
+	}
+
+	.feature-grid__list--3 {
+		grid-template-columns: repeat(3, 1fr);
+	}
+
+	.feature-grid__list--4 {
+		grid-template-columns: repeat(4, 1fr);
+	}
+}

@@ -1,0 +1,42 @@
+.stats__heading {
+	margin-block-end: 3rem;
+}
+
+.stats__list {
+	display: grid;
+	gap: 2rem;
+	margin: 0;
+	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+/*
+ * `<dl>` requires the term before its description, but the number is the loud
+ * part and belongs on top — so the item is a flex column in reverse-ish order
+ * set explicitly per child.
+ */
+.stats__item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+	text-align: center;
+}
+
+.stats__value {
+	order: -1;
+	margin: 0;
+	font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+	font-weight: 700;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.stats__label {
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.stats__description {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--color-muted);
+}

@@ -1,0 +1,153 @@
+.site-header {
+	border-block-end: 1px solid var(--color-border);
+	background: color-mix(in oklab, var(--color-background) 85%, transparent);
+	backdrop-filter: blur(8px);
+}
+
+.site-header--sticky {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+}
+
+.site-header__bar {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	min-height: 3.75rem;
+}
+
+.site-header__brand {
+	display: flex;
+	align-items: center;
+	margin-inline-end: auto;
+}
+
+.site-header__list {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.site-header__link {
+	display: block;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-md, 0.5rem);
+	font-size: 0.875rem;
+	color: var(--color-muted);
+	text-decoration: none;
+	transition:
+		color 0.15s ease-out,
+		background-color 0.15s ease-out;
+}
+
+.site-header__link:hover,
+.site-header__link:focus-visible {
+	color: var(--color-on-background);
+	background: var(--color-background-accent);
+}
+
+.site-header__link[aria-current='page'] {
+	color: var(--color-on-background);
+	font-weight: 500;
+}
+
+.site-header__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/*
+ * The compact panel is a `<details>` so the menu opens with no script at all.
+ * Below the breakpoint the inline nav is hidden and this takes over; above it,
+ * the reverse.
+ */
+.site-header__disclosure {
+	position: relative;
+}
+
+.site-header__toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: var(--radius-md, 0.5rem);
+	cursor: pointer;
+	list-style: none;
+}
+
+.site-header__toggle::-webkit-details-marker {
+	display: none;
+}
+
+.site-header__toggle:hover {
+	background: var(--color-background-accent);
+}
+
+.site-header__toggle-bars,
+.site-header__toggle-bars::before,
+.site-header__toggle-bars::after {
+	display: block;
+	width: 1.125rem;
+	height: 1.5px;
+	background: currentColor;
+	border-radius: 1px;
+}
+
+.site-header__toggle-bars {
+	position: relative;
+}
+
+.site-header__toggle-bars::before,
+.site-header__toggle-bars::after {
+	content: '';
+	position: absolute;
+	inset-inline-start: 0;
+}
+
+.site-header__toggle-bars::before {
+	top: -5px;
+}
+
+.site-header__toggle-bars::after {
+	top: 5px;
+}
+
+.site-header__panel {
+	position: absolute;
+	inset-inline-end: 0;
+	top: calc(100% + 0.5rem);
+	min-width: 12rem;
+	padding: 0.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg, 0.75rem);
+	background: var(--color-background);
+	box-shadow: var(--shadow-popover, 0 10px 30px rgb(0 0 0 / 0.15));
+}
+
+.site-header__list--panel {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.125rem;
+}
+
+@media (max-width: 767px) {
+	.site-header__list--bar {
+		display: none;
+	}
+}
+
+@media (min-width: 768px) {
+	.site-header__disclosure {
+		display: none;
+	}
+
+	.site-header__nav {
+		margin-inline-end: 0.5rem;
+	}
+}

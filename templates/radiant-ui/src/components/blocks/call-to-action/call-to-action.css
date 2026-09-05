@@ -1,0 +1,39 @@
+.cta__surface {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1.75rem;
+	text-align: center;
+}
+
+.cta__surface--panel {
+	padding: 3rem 1.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg, 0.75rem);
+	background: var(--color-background-accent);
+}
+
+.cta__copy {
+	max-width: 40rem;
+}
+
+.cta__actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+	.cta__surface--inline {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		text-align: start;
+		gap: 2rem;
+	}
+
+	.cta__surface--inline .cta__actions {
+		flex-shrink: 0;
+	}
+}

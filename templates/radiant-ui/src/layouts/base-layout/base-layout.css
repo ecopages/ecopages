@@ -1,0 +1,25 @@
+@layer components {
+	.site-logo {
+		@apply inline-flex items-center gap-2 text-base font-semibold no-underline;
+		font-family: var(--font-display);
+		letter-spacing: -0.01em;
+		color: var(--color-on-background);
+	}
+
+	.site-logo:hover {
+		color: var(--color-muted);
+	}
+
+	/*
+	 * Pages built from blocks span the viewport — each block draws its own band
+	 * and constrains its own content. `contained` opts a plain content page into
+	 * the centred column instead.
+	 */
+	.layout-main {
+		@apply w-full flex-1;
+	}
+
+	.layout-main--contained {
+		@apply mx-auto max-w-5xl px-4 py-8;
+	}
+}

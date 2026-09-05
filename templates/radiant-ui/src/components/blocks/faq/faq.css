@@ -1,0 +1,8 @@
+.faq__heading {
+	margin-block-end: 2.5rem;
+}
+
+.faq__list {
+	display: block;
+	border-block-start: 1px solid var(--color-border);
+}

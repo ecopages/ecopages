@@ -1,0 +1,65 @@
+/**
+ * Band and measure for every block.
+ *
+ * Widths and spacing are custom properties on the root so a page can retune the
+ * whole rhythm — `.block-section { --block-space-md: 3rem }` — without touching
+ * a single block.
+ */
+:root {
+	--block-width-narrow: 48rem;
+	--block-width-default: 72rem;
+	--block-width-wide: 88rem;
+
+	--block-space-sm: 2rem;
+	--block-space-md: 4rem;
+	--block-space-lg: 6rem;
+}
+
+.block-section {
+	width: 100%;
+}
+
+.block-section--sm {
+	padding-block: var(--block-space-sm);
+}
+
+.block-section--md {
+	padding-block: var(--block-space-md);
+}
+
+.block-section--lg {
+	padding-block: var(--block-space-lg);
+}
+
+.block-section--tinted {
+	background: var(--color-background-accent);
+}
+
+.block-section__inner {
+	margin-inline: auto;
+	padding-inline: 1.25rem;
+	width: 100%;
+}
+
+@media (min-width: 640px) {
+	.block-section__inner {
+		padding-inline: 2rem;
+	}
+}
+
+.block-section__inner--narrow {
+	max-width: var(--block-width-narrow);
+}
+
+.block-section__inner--default {
+	max-width: var(--block-width-default);
+}
+
+.block-section__inner--wide {
+	max-width: var(--block-width-wide);
+}
+
+.block-section__inner--full {
+	max-width: none;
+	padding-inline: 0;
+}

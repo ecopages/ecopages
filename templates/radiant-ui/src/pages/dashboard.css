@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+
+.dashboard__brand {
+	@apply px-2 py-1 text-sm font-semibold;
+}
+
+.dashboard__plan {
+	@apply px-2 py-1 text-xs;
+	color: var(--color-muted);
+}
+
+.dashboard__bar {
+	@apply flex items-center gap-3 border-b px-4 py-3 sm:px-6;
+	border-color: var(--color-border);
+}
+
+.dashboard__title {
+	@apply mr-auto;
+}
+
+.dashboard__meters {
+	@apply grid gap-4 p-4 sm:grid-cols-3 sm:p-6;
+}
+
+.dashboard__meter {
+	@apply flex flex-col gap-2 rounded-lg border p-4;
+	border-color: var(--color-border);
+	background: var(--color-background-accent);
+}
+
+.dashboard__hint {
+	@apply text-xs;
+	color: var(--color-muted);
+}
+
+.dashboard__panel {
+	@apply px-4 pb-8 sm:px-6;
+}
+
+.dashboard__settings {
+	@apply flex flex-col items-start gap-4 p-4 text-sm;
+}

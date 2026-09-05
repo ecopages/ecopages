@@ -33,13 +33,23 @@
 		},
 		{
 			"id": "radiant",
-			"displayName": "Radiant UI",
-			"description": "An Ecopages JSX application built with Radiant UI components.",
+			"displayName": "Radiant",
+			"description": "A minimal Ecopages application built with Radiant custom elements.",
 			"category": "integration",
 			"order": 35,
 			"source": "radiant",
 			"packageDirectory": ".",
-			"integrations": ["ecopages-jsx", "radiant-ui"]
+			"integrations": ["ecopages-jsx", "radiant"]
+		},
+		{
+			"id": "radiant-ui",
+			"displayName": "Radiant UI",
+			"description": "A component starter: every Radiant UI component composed, plus page blocks.",
+			"category": "application",
+			"order": 37,
+			"source": "radiant-ui",
+			"packageDirectory": ".",
+			"integrations": ["ecopages-jsx", "mdx", "radiant-ui"]
 		},
 		{
 			"id": "blog-jsx",

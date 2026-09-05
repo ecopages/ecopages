@@ -1,0 +1,72 @@
+.card-carousel__heading {
+	margin-block-end: 3rem;
+}
+
+/*
+ * One card per row while narrow. The per-view grid only kicks in once there is
+ * room for the cards to stay readable.
+ */
+.card-carousel__group {
+	display: grid;
+	gap: 1.25rem;
+	padding-inline: 0.25rem;
+}
+
+.card-carousel__card {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg, 0.75rem);
+	background: var(--color-background-accent);
+}
+
+.card-carousel__media :is(img, svg, video) {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 16 / 10;
+	object-fit: cover;
+}
+
+.card-carousel__body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 1.25rem;
+	flex: 1;
+}
+
+.card-carousel__title {
+	font-size: 1rem;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.card-carousel__text {
+	margin: 0;
+	font-size: 0.875rem;
+	line-height: 1.6;
+	color: var(--color-muted);
+}
+
+.card-carousel__footer {
+	padding: 0 1.25rem 1.25rem;
+}
+
+@media (min-width: 768px) {
+	.card-carousel--2 .card-carousel__group {
+		grid-template-columns: repeat(2, 1fr);
+	}
+
+	.card-carousel--3 .card-carousel__group {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (min-width: 1024px) {
+	.card-carousel--3 .card-carousel__group {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}

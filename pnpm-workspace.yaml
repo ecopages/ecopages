@@ -1,29 +1,29 @@
 packages:
-    - npm/*
-    - packages/*
-    - packages/__internals/*
-    - packages/core/__fixtures__/app
-    - packages/integrations/*
-    - packages/loaders/*
-    - packages/plugins/*
-    - packages/processors/*
-    - playground/*
-    - e2e/fixtures/*
-    - apps/*
-    - templates/*
-    - templates/**/*
+  - npm/*
+  - packages/*
+  - packages/__internals/*
+  - packages/core/__fixtures__/app
+  - packages/integrations/*
+  - packages/loaders/*
+  - packages/plugins/*
+  - packages/processors/*
+  - playground/*
+  - e2e/fixtures/*
+  - apps/*
+  - templates/*
+  - templates/**/*
 
 # core and @ecopages/testing depend on each other; typecheck scripts still run independently.
 ignoreWorkspaceCycles: true
 
 allowBuilds:
-    bun: true
-    esbuild: true
-    sharp: true
+  bun: true
+  esbuild: true
+  sharp: true
 
 minimumReleaseAgeExclude:
-    - '@ecopages/jsx@0.3.0-rc.2'
-    - '@ecopages/radiant@0.3.0-rc.2'
-    - '@ecopages/signals@0.3.0-rc.2'
-    - postcss-nested@8.0.1
-    - '@ecopages/radiant-ui@0.1.0-rc.2'
+  - '@ecopages/jsx@0.3.0-rc.2'
+  - '@ecopages/radiant@0.3.0-rc.2'
+  - '@ecopages/signals@0.3.0-rc.2'
+  - postcss-nested@8.0.1
+  - '@ecopages/radiant-ui@0.1.0-rc.2 || 0.1.0-rc.11'

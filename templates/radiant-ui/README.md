@@ -21,8 +21,10 @@ Open [http://localhost:3000](http://localhost:3000).
 | -------------------------- | -------------------------------------------------------------- |
 | `src/site.config.ts`       | Name, navigation, footer. The first file to edit.              |
 | `src/components/ui/`       | 56 composed components, one directory each.                    |
+| `src/components/dashboard/` | Working inventory data table used on `/dashboard`.            |
 | `src/components/blocks/`   | 14 page sections built from those components.                  |
-| `src/layouts/base-layout/` | The document shell: header, main, footer.                      |
+| `src/layouts/base-layout/` | Marketing shell: header, main, footer.                     |
+| `src/layouts/app-layout/`  | Viewport shell for `/dashboard` — no marketing chrome.     |
 | `src/pages/`               | Landing page, component catalog, form patterns, dashboard.     |
 | `src/styles/tailwind.css`  | The theme import and app-wide styles.                          |
 | `.agents/skills/`          | Mirrored Radiant and Radiant UI skill packs for coding agents. |
@@ -69,8 +71,8 @@ Two rules follow from that:
   `alert.tsx` and rewrite the render.
 
 Components that pull in another component's chrome — `Select` borrows the
-listbox and tag-group stylesheets — declare it themselves, so listing `Select`
-is enough.
+listbox and tag-group stylesheets, `DateField` the calendar — declare it
+themselves, so listing `Select` or `DateField` is enough.
 
 ### Composed, not proxied
 
@@ -78,8 +80,9 @@ The modules are not pass-throughs. Radiant UI ships primitives that assemble
 several different ways, and picking the wrong assembly usually fails silently:
 
 - `Alert` picks banner or inline layout from whether you passed a `title`.
-- `Select` and `Combobox` take `clearable` and `searchable`, each of which
-  otherwise means hand-building a seven-part tree.
+- `Select` takes `clearable`. `SearchableSelect` is the same tree with a search
+  field; it is a second export from `select/` because that assembly needs the
+  autocomplete script. `Combobox` takes `clearable`.
 - `Field` owns the label, the hint, the error slot and form registration for
   whatever control sits inside it. The primitives render no visible label of
   their own by design, so a labelled control is always a `Field` wrapping one.
@@ -96,7 +99,15 @@ component in the page's `dependencies.components` so the chrome still ships.
 ## Blocks
 
 Page sections, each one a band with its own measure and rhythm. `Section` is the
-shell they share; retune `--block-space-md` on it and every block follows.
+shell they share. Three knobs, all independent:
+
+- `width` — inner measure (`narrow` / `default` / `wide` / `full`)
+- `spacing` — padding-block (`none` / `sm` / `md` / `lg`), from `--block-space-*`
+- `inset` — inline gutter (`compact` / `default` / `bleed`), from `--block-inset-*`
+
+`width="full"` no longer zeros the gutter. Pair it with `inset="bleed"` when the
+content should reach the viewport edge. Retune the custom properties on
+`.block-section` and every block follows.
 
 `NavigationHeader`, `Hero`, `TextMedia`, `FeatureGrid`, `CardCarousel`, `Stats`,
 `Testimonials`, `Faq`, `CallToAction`, `LogoCloud`, `Newsletter`, `Footer`, plus
@@ -114,14 +125,28 @@ They take content as props, so a page reads as content:
 />
 ```
 
+`/dashboard` uses `AppLayout` instead of this marketing shell: sidebar is the
+chrome, and the rest of the site is a sidebar link. The pane follows the
+Radiant UI app-shell example (brand mark, header trigger, icon links, account
+footer). The inventory panel is a working data table — search, filters, sort,
+pagination, and add/edit/delete against an in-memory store, matching the
+Radiant UI data-table story.
+
 ## Theming
 
-`src/styles/tailwind.css` imports one theme. Radiant UI's chrome is compiled CSS
-driven by custom properties, so swapping that line restyles everything:
+`src/styles/tailwind.css` imports one Radiant UI theme. Blocks and composed
+components both read the same semantic roles (`--background`, `--on-background`,
+`--surface-container-low`, `--primary`, `--border`, `--space-*`, `--text-*`,
+`src/styles/tailwind.css` imports Aurora and the soft radius pack. The colour
+profile is selected with `data-rui-colors="aurora"` on the document element
+(`src/includes/html.tsx`). Swap the theme import, the radius pack, or that
+attribute to restyle the chrome *and* the page bands.
 
 ```css
-@import '@ecopages/radiant-ui/themes/default';
-/* or: themes/glacier, themes/aurora, themes/default-compact-soft */
+@import '@ecopages/radiant-ui/themes/aurora';
+@import '@ecopages/radiant-ui/tokens/radius/soft';
+/* colour: themes/default, themes/glacier, themes/aurora */
+/* radius: tokens/radius/soft, tokens/radius/sharp */
 ```
 
 Finer control comes from the token packs — `tokens/colors/*`, `tokens/spacing/*`,
@@ -142,7 +167,8 @@ pnpm skills:sync  # refresh the agent skill packs
 Nothing generates these modules — they are yours. To wire up a component this
 template does not cover yet, copy the closest existing directory, rename the
 four files, and point them at the package export. `button/` is the smallest
-example; `select/` is the one with borrowed chrome and a branching assembly.
+example; `select/` is the one with borrowed chrome, a branching assembly, and
+a second export (`SearchableSelect`) that pays for autocomplete.
 
 ### `skills:sync`
 

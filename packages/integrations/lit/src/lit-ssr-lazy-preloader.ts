@@ -1,8 +1,18 @@
+import { ensureLitDomShim } from './dom-shim.ts';
 import { getComponentIdentity, type EcoComponent, type EcoComponentConfig } from '@ecopages/core';
 import { AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
+
+const registryKeys = new WeakMap<CustomElementRegistry, string>();
+
+function getRegistryKey(registry: CustomElementRegistry): string {
+	let key = registryKeys.get(registry);
+	if (!key) { key = randomUUID(); registryKeys.set(registry, key); }
+	return key;
+}
 
 type ProcessDependencies = (
 	dependencies: AssetDefinition[],
@@ -13,6 +23,7 @@ export interface LitSsrLazyPreloaderOptions {
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	processDependencies?: ProcessDependencies;
 	preferSourceImports?: boolean;
+	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
 }
 
 /**
@@ -26,11 +37,14 @@ export class LitSsrLazyPreloader {
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly processDependencies?: ProcessDependencies;
 	private readonly preferSourceImports: boolean;
+	private readonly importServerModule?: LitSsrLazyPreloaderOptions['importServerModule'];
+	private activeRegistry: CustomElementRegistry | undefined;
 	private readonly ssrPreloadedScripts = new Set<string>();
 	private readonly ssrPreloadFailedScripts = new Set<string>();
 	private readonly ssrPreloadEntrypointCache = new Map<string, string>();
 
-	constructor({ resolveDependencyPath, processDependencies, preferSourceImports }: LitSsrLazyPreloaderOptions) {
+	constructor({ resolveDependencyPath, processDependencies, preferSourceImports, importServerModule }: LitSsrLazyPreloaderOptions) {
+		this.importServerModule = importServerModule;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.processDependencies = processDependencies;
 		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
@@ -121,6 +135,13 @@ export class LitSsrLazyPreloader {
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
 	async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+		ensureLitDomShim();
+		const registry = globalThis.customElements;
+		if (this.activeRegistry !== registry) {
+			this.ssrPreloadedScripts.clear();
+			this.ssrPreloadFailedScripts.clear();
+			this.activeRegistry = registry;
+		}
 		const scripts = this.collectSsrPreloadScripts(components);
 		if (scripts.length === 0) {
 			return;
@@ -138,14 +159,17 @@ export class LitSsrLazyPreloader {
 					return true;
 				})
 				.map(async (scriptPath) => {
-					const preloadEntrypoint = await this.resolveSsrPreloadEntrypoint(scriptPath);
-					if (!preloadEntrypoint) {
-						this.ssrPreloadFailedScripts.add(scriptPath);
-						return;
-					}
-
 					try {
-						await import(/* @vite-ignore */ pathToFileURL(preloadEntrypoint).href);
+						const registryKey = registry ? getRegistryKey(registry) : 'default';
+						if (this.importServerModule) {
+							await this.importServerModule(scriptPath, registryKey);
+						} else {
+							const preloadEntrypoint = await this.resolveSsrPreloadEntrypoint(scriptPath);
+							if (!preloadEntrypoint) throw new Error(`Cannot resolve SSR entry ${scriptPath}`);
+							const importUrl = pathToFileURL(preloadEntrypoint);
+							if (registry && typeof Bun === 'undefined') importUrl.searchParams.set('eco-ssr-registry', registryKey);
+							await import(/* @vite-ignore */ importUrl.href);
+						}
 						this.ssrPreloadedScripts.add(scriptPath);
 					} catch (error) {
 						this.ssrPreloadFailedScripts.add(scriptPath);
@@ -189,6 +213,7 @@ export class LitSsrLazyPreloader {
 				[
 					AssetFactory.createInlineFileScript({
 						filepath: scriptPath,
+						excludeFromHtml: true,
 						position: 'head',
 						bundle: true,
 						attributes: {

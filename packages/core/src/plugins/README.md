@@ -20,6 +20,7 @@ These contracts are responsible for:
 - `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
 - `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
+- `component-import-discovery.ts`: resolves direct local factory exports and relative CSS imports with the cached parser and project resolver; excludes barrels, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform that uses a lexical `eco.` gate, then an Oxc `CallExpression` rewrite
 
 ## Ownership Rules
@@ -35,3 +36,7 @@ These contracts are responsible for:
 2. Core seals the app-owned build manifest.
 3. Runtime startup calls runtime-only setup hooks.
 4. Request-time rendering and development invalidation reuse those finalized contracts.
+
+## Discovered dependency metadata
+
+The identity transform passes a deferred Component accessor and relative stylesheet paths to `bindComponentIdentity`. Factories merge this metadata into `config.dependencies`; import bindings are read during graph traversal, after module initialization. Supported CSS imports are removed from all transformed outputs so the asset pipeline owns CSS delivery. Explicit styles override discovery. The transform uses the same discovery rules in Bun and Vite/Rolldown. Imported source changes are reparsed through the content-keyed parser cache.

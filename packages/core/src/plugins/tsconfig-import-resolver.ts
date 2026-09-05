@@ -279,7 +279,12 @@ export function resolveRelativeModulePath(fromFile: string, specifier: string): 
 /**
  * Resolves a relative or tsconfig path alias import (via oxc-resolver).
  */
-export function resolveProjectModulePath(projectRoot: string, fromFile: string, specifier: string): string | undefined {
+export function resolveProjectModulePath(
+	projectRoot: string,
+	fromFile: string,
+	specifier: string,
+	options?: { preserveBarrel?: boolean },
+): string | undefined {
 	const prefixes = loadTsconfigPathPrefixes(projectRoot);
 	const isRelative = specifier.startsWith('.');
 	const isPathAlias = matchesTsconfigPathPrefix(specifier, prefixes);
@@ -292,7 +297,9 @@ export function resolveProjectModulePath(projectRoot: string, fromFile: string, 
 	if (resolver) {
 		const result = resolver.sync(path.dirname(fromFile), specifier);
 		if (result.path) {
-			return resolveAliasedBarrelTarget(realpathSync(result.path));
+			return options?.preserveBarrel
+				? realpathSync(result.path)
+				: resolveAliasedBarrelTarget(realpathSync(result.path));
 		}
 	}
 

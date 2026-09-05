@@ -20,6 +20,42 @@ Layouts are assigned explicitly on each `eco.page({ layout })` call — either o
 
 EcoPages does **not** infer layouts from `src/layouts/` file paths or route segment directories. A file under `src/layouts/` is only used when a page imports it and passes it to `layout`.
 
+## Dependency discovery
+
+Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`.
+
+```tsx
+import { eco } from '@ecopages/core';
+import { Counter } from './counter';
+import './page.css';
+
+export default eco.page({
+	render: () => <Counter />,
+});
+```
+
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases are supported. Relative side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds.
+
+Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
+
+Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+
+Browser scripts remain explicit:
+
+```ts
+scripts: [
+	{
+		src: './counter.script.ts',
+		ssr: true,
+		lazy: { 'on:visible': true },
+	},
+];
+```
+
+For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
+
+Discovery does not follow barrel re-exports, dynamic imports, namespace imports, package Components/CSS, CSS Modules, or custom import attributes. Plain-function modules retain their existing behavior. Keep explicit Dependencies for these cases. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+
 ## Component Patterns
 
 EcoPages supports two approaches for creating components, each suited for different use cases:

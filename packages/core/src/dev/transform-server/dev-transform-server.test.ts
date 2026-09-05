@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { ConfigBuilder } from '../../config/config-builder.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
+import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
 
 const tempRoots: string[] = [];
@@ -16,12 +17,103 @@ function createTempRoot(prefix: string): string {
 }
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	for (const root of tempRoots.splice(0)) {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
 });
 
 describe('DevTransformServer', () => {
+	it.each([true, false])(
+		'retries an edited source during compilation (watcher notified: %s)',
+		async (notifyWatcher) => {
+			const rootDir = createTempRoot('dev-transform-source-race');
+			const sourcePath = path.join(rootDir, 'src', 'index.ts');
+			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export const value = "before";');
+			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const server = new DevTransformServer({ appConfig: config });
+			const outputUrl = server.registerModule(sourcePath);
+			const started = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const transpile = vi
+				.spyOn(DevTransformBundler.prototype, 'transpileModule')
+				.mockImplementation(async () => {
+					const code = fs.readFileSync(sourcePath, 'utf8');
+					started.resolve();
+					await release.promise;
+					return { code };
+				});
+
+			const response = server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			await started.promise;
+			fs.writeFileSync(sourcePath, 'export const value = "after";');
+			if (notifyWatcher) {
+				server.invalidateSource(sourcePath);
+			}
+			release.resolve();
+
+			expect(await (await response)?.text()).toContain('"after"');
+			const subsequent = await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			expect(await subsequent?.text()).toContain('"after"');
+			expect(transpile).toHaveBeenCalledTimes(2);
+		},
+	);
+
+	it.each(['source', 'all'] as const)(
+		'serializes concurrent requests across %s invalidation with unchanged bytes',
+		async (scope) => {
+			const rootDir = createTempRoot('dev-transform-concurrent-invalidation');
+			const sourcePath = path.join(rootDir, 'src', 'index.ts');
+			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export const value = true;');
+			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const server = new DevTransformServer({ appConfig: config });
+			const outputUrl = server.registerModule(sourcePath);
+			const started = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			let attempts = 0;
+			let active = 0;
+			let maxActive = 0;
+			const transpile = vi
+				.spyOn(DevTransformBundler.prototype, 'transpileModule')
+				.mockImplementation(async () => {
+					const attempt = ++attempts;
+					maxActive = Math.max(maxActive, ++active);
+					try {
+						started.resolve();
+						await release.promise;
+						return { code: `export const attempt = ${attempt};` };
+					} finally {
+						active--;
+					}
+				});
+
+			const first = server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			await started.promise;
+			if (scope === 'source') {
+				server.invalidateSource(sourcePath);
+			} else {
+				server.invalidateAll();
+			}
+			const second = server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			const callsBeforeRelease = transpile.mock.calls.length;
+			release.resolve();
+			const responses = await Promise.all([first, second]);
+
+			expect(callsBeforeRelease).toBe(1);
+			expect(maxActive).toBe(1);
+			expect(transpile).toHaveBeenCalledTimes(2);
+			for (const response of responses) {
+				expect(response?.status).toBe(200);
+				expect(await response?.text()).toContain('attempt = 2');
+			}
+			const cached = await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			expect(await cached?.text()).toContain('attempt = 2');
+			expect(transpile).toHaveBeenCalledTimes(2);
+		},
+	);
+
 	it('registerModule returns a stable dev-transform URL', async () => {
 		const rootDir = createTempRoot('dev-transform-server-register');
 		const config = await new ConfigBuilder().setRootDir(rootDir).build();

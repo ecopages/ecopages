@@ -8,8 +8,25 @@ figure[data-rehype-pretty-code-figure] {
 }
 
 figure[data-rehype-pretty-code-figure] pre {
-	@apply m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
+	@apply relative m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
 	background-color: var(--shiki-light-bg);
+}
+
+figure[data-rehype-pretty-code-figure] pre:has([data-rehype-pretty-copy]) {
+	@apply pr-16;
+}
+
+figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy] {
+	@apply absolute top-2 right-2 z-1 cursor-pointer rounded-sm border border-border bg-background/80 px-2 py-0.5 font-sans text-xs font-medium text-on-background opacity-0 backdrop-blur-sm transition-opacity;
+}
+
+figure[data-rehype-pretty-code-figure]:hover [data-rehype-pretty-copy],
+figure[data-rehype-pretty-code-figure]:focus-within [data-rehype-pretty-copy] {
+	@apply opacity-100;
+}
+
+figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy][data-copy-error='true'] {
+	@apply border-secondary/60 text-secondary;
 }
 
 figure[data-rehype-pretty-code-figure] pre > code {

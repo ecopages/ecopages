@@ -226,5 +226,4 @@ describe('LitStaticRenderSession', () => {
 		expect(renderPage).toHaveBeenCalledTimes(3);
 		await session.dispose();
 	});
-
 });

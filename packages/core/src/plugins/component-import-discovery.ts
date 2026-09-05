@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import {
 	loadTsconfigPathPrefixes,
@@ -68,40 +68,45 @@ export type DiscoveredImports = {
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
 
+function isCssImport(source: string): boolean {
+	return source.endsWith('.css') && !source.endsWith('.module.css');
+}
+
 /** Uses the host resolver without evaluating imported modules or following barrel exports. */
 export function discoverComponentImports(program: unknown, ownerFile: string, projectRoot: string): DiscoveredImports {
 	const result: DiscoveredImports = { components: [], stylesheets: [], removals: [] };
+	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
 	for (const statement of nodes(node(program)?.body)) {
 		if (statement.type !== 'ImportDeclaration' || statement.importKind === 'type') continue;
 		if (nodes(statement.attributes).length || nodes(statement.assertions).length) continue;
 		const source = node(statement.source)?.value;
 		if (typeof source !== 'string') continue;
 		const specifiers = nodes(statement.specifiers);
-		if (
-			source.startsWith('.') &&
-			source.endsWith('.css') &&
-			!source.endsWith('.module.css') &&
-			!specifiers.length
-		) {
-			if (!existsSync(path.resolve(path.dirname(ownerFile), source))) {
-				throw new Error(
-					`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`,
-				);
+		if (isCssImport(source) && !specifiers.length) {
+			const isRelative = source.startsWith('.');
+			const isAlias = matchesTsconfigPathPrefix(source, pathPrefixes);
+			if (isRelative || isAlias) {
+				const resolved = isRelative
+					? existsSync(path.resolve(path.dirname(ownerFile), source))
+						? realpathSync(path.resolve(path.dirname(ownerFile), source))
+						: undefined
+					: resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
+				if (!resolved || !existsSync(resolved)) {
+					throw new Error(
+						`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`,
+					);
+				}
+				result.stylesheets.push(resolved);
+				result.removals.push({ start: statement.start!, end: statement.end!, replacement: '' });
+				continue;
 			}
-			result.stylesheets.push(source);
-			result.removals.push({ start: statement.start!, end: statement.end!, replacement: '' });
-			continue;
 		}
 		const values = specifiers.filter(
 			(entry) =>
 				entry.importKind !== 'type' &&
 				(entry.type === 'ImportSpecifier' || entry.type === 'ImportDefaultSpecifier'),
 		);
-		if (
-			!values.length ||
-			(!source.startsWith('.') && !matchesTsconfigPathPrefix(source, loadTsconfigPathPrefixes(projectRoot)))
-		)
-			continue;
+		if (!values.length || (!source.startsWith('.') && !matchesTsconfigPathPrefix(source, pathPrefixes))) continue;
 		if (/\.server(?:\.[cm]?[jt]sx?)?$/.test(source)) continue;
 		const resolved = resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
 		if (!resolved) throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(source)} from ${ownerFile}`);

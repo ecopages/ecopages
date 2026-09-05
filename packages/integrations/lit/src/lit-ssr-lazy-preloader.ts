@@ -10,7 +10,10 @@ const registryKeys = new WeakMap<CustomElementRegistry, string>();
 
 function getRegistryKey(registry: CustomElementRegistry): string {
 	let key = registryKeys.get(registry);
-	if (!key) { key = randomUUID(); registryKeys.set(registry, key); }
+	if (!key) {
+		key = randomUUID();
+		registryKeys.set(registry, key);
+	}
 	return key;
 }
 
@@ -43,7 +46,12 @@ export class LitSsrLazyPreloader {
 	private readonly ssrPreloadFailedScripts = new Set<string>();
 	private readonly ssrPreloadEntrypointCache = new Map<string, string>();
 
-	constructor({ resolveDependencyPath, processDependencies, preferSourceImports, importServerModule }: LitSsrLazyPreloaderOptions) {
+	constructor({
+		resolveDependencyPath,
+		processDependencies,
+		preferSourceImports,
+		importServerModule,
+	}: LitSsrLazyPreloaderOptions) {
 		this.importServerModule = importServerModule;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.processDependencies = processDependencies;
@@ -167,7 +175,8 @@ export class LitSsrLazyPreloader {
 							const preloadEntrypoint = await this.resolveSsrPreloadEntrypoint(scriptPath);
 							if (!preloadEntrypoint) throw new Error(`Cannot resolve SSR entry ${scriptPath}`);
 							const importUrl = pathToFileURL(preloadEntrypoint);
-							if (registry && typeof Bun === 'undefined') importUrl.searchParams.set('eco-ssr-registry', registryKey);
+							if (registry && typeof Bun === 'undefined')
+								importUrl.searchParams.set('eco-ssr-registry', registryKey);
 							await import(/* @vite-ignore */ importUrl.href);
 						}
 						this.ssrPreloadedScripts.add(scriptPath);

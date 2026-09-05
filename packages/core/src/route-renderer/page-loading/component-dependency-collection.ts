@@ -44,7 +44,7 @@ function pushUniqueDependency(
 }
 
 function resolveDependencyPath(componentDir: string, pathUrl: string): string {
-	return path.join(componentDir, pathUrl);
+	return path.isAbsolute(pathUrl) ? pathUrl : path.join(componentDir, pathUrl);
 }
 
 /**

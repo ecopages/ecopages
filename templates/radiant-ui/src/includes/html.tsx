@@ -20,7 +20,7 @@ const HtmlTemplate = eco.component<HtmlTemplateProps, JsxRenderable>({
 
 	render: ({ children, metadata, headContent, language = 'en' }) => {
 		return (
-			<html lang={language}>
+			<html lang={language} data-rui-colors="aurora">
 				<Head metadata={metadata}>{headContent}</Head>
 				{children as 'safe'}
 			</html>

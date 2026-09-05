@@ -1,10 +1,11 @@
 radiant-counter {
-	@apply inline-flex max-w-fit items-center gap-2 rounded-md border p-2;
-	border-color: var(--showcase-border);
-	background: var(--color-background);
+	@apply inline-flex max-w-fit items-center gap-2 rounded-md p-2;
+	box-shadow: 0 0 0 var(--border-width-hairline) var(--border);
+	background: var(--background);
 }
 
 radiant-counter [data-ref='count'] {
 	@apply flex h-8 min-w-10 items-center justify-center px-2 font-mono text-sm font-medium;
-	color: var(--color-on-background);
+	color: var(--on-background);
+	font-variant-numeric: tabular-nums;
 }

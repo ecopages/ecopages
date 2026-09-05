@@ -4,113 +4,119 @@
  * The theme is global: it defines the custom properties every Radiant UI
  * component reads. Component chrome is not — each wrapper under
  * `src/components/ui/` carries its own stylesheet, so a page ships only the
- * components it actually renders. Swap this line for `themes/glacier`,
- * `themes/aurora` or `themes/default-compact-soft` to restyle the whole app.
+ * components it actually renders. This template uses Aurora with the soft
+ * radius pack. Swap the colour theme or layer a different `tokens/radius/*`
+ * pack to restyle the whole app, including page blocks that consume the same
+ * semantic roles.
  */
-@import '@ecopages/radiant-ui/themes/default';
+@import '@ecopages/radiant-ui/themes/aurora';
+@import '@ecopages/radiant-ui/tokens/radius/soft';
 @import 'ecopages/css/view-transitions.css';
 
 @theme {
-	--color-surface-50: oklch(0.98 0 0);
-	--color-surface-100: oklch(0.95 0 0);
-	--color-surface-200: oklch(0.9 0 0);
-	--color-surface-300: oklch(0.8 0 0);
-	--color-surface-400: oklch(0.6 0 0);
-	--color-surface-500: oklch(0.5 0 0);
-	--color-surface-600: oklch(0.4 0 0);
-	--color-surface-700: oklch(0.3 0 0);
-	--color-surface-800: oklch(0.2 0 0);
-	--color-surface-900: oklch(0.12 0 0);
-	--color-surface-950: oklch(0.08 0 0);
-
-	--color-accent: oklch(0.7 0.15 220);
-
-	--color-white: oklch(1 0 0);
-	--color-black: oklch(0 0 0);
-
-	--color-background: var(--color-surface-950);
-	--color-on-background: var(--color-surface-100);
-	--color-muted: var(--color-surface-400);
-
-	--color-background-accent: var(--color-surface-900);
-	--color-on-background-accent: var(--color-surface-100);
-	--color-border: var(--color-surface-700);
-
-	--font-display: 'Inter', system-ui, sans-serif;
-	--font-body: 'Inter', system-ui, sans-serif;
-	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+	--font-display: 'Inter', var(--font-sans);
+	--font-body: 'Inter', var(--font-sans);
 }
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
-body {
-	@apply bg-background min-h-dvh flex flex-col antialiased transition-colors duration-200;
-}
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root {
-	color-scheme: light;
-	--color-background: var(--color-white);
-	--color-on-background: var(--color-surface-900);
-	--color-muted: var(--color-surface-500);
-
-	--color-background-accent: var(--color-surface-50);
-	--color-on-background-accent: var(--color-surface-900);
+	--muted: color-mix(in oklab, var(--on-background) var(--opacity-muted), transparent);
 }
 
-[data-theme='dark'] {
-	color-scheme: dark;
-	--color-background: var(--color-surface-950);
-	--color-on-background: var(--color-surface-100);
+body {
+	@apply bg-background min-h-dvh flex flex-col antialiased;
+	color: var(--on-background);
+	font-family: var(--font-body);
+}
 
-	--color-background-accent: var(--color-surface-900);
-	--color-on-background-accent: var(--color-surface-100);
-	--color-muted: var(--color-surface-400);
+/**
+ * Radiant UI stamps this class on selection-checkbox labels. It is not in the
+ * scanned template source, so the Tailwind utility never ships unless we keep
+ * the rule here.
+ */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border-width: 0;
 }
 
 .prose {
-	@apply leading-relaxed text-zinc-900 dark:text-zinc-100;
+	line-height: var(--leading-relaxed);
+	color: var(--on-background);
 
 	h1:not(.unstyled, .unstyled *),
 	h2:not(.unstyled, .unstyled *),
 	h3:not(.unstyled, .unstyled *) {
-		@apply font-semibold font-display tracking-tight;
+		font-family: var(--font-display);
+		font-weight: var(--weight-semibold);
+		letter-spacing: -0.02em;
+		text-wrap: balance;
 	}
+
 	h1:not(.unstyled, .unstyled *) {
-		@apply text-3xl;
+		font-size: var(--text-3xl);
 	}
+
 	h2:not(.unstyled, .unstyled *) {
-		@apply text-2xl;
+		font-size: var(--text-2xl);
 	}
+
 	h3:not(.unstyled, .unstyled *) {
-		@apply text-xl text-zinc-500 dark:text-zinc-400;
+		font-size: var(--text-xl);
+		color: var(--muted);
 	}
 
 	p:not(.unstyled, .unstyled *) {
-		@apply text-sm my-4;
+		font-size: var(--text-sm);
+		margin-block: var(--space-4);
 	}
 
 	a:not(.unstyled, .unstyled *) {
-		@apply underline underline-offset-2 text-blue-600 dark:text-blue-400;
+		color: var(--link);
+		text-underline-offset: 2px;
+		text-decoration: underline;
 	}
 
 	ul:not(.unstyled, .unstyled *),
 	ol:not(.unstyled, .unstyled *) {
-		@apply text-sm  my-4 pl-6 list-disc;
+		font-size: var(--text-sm);
+		margin-block: var(--space-4);
+		padding-inline-start: var(--space-6);
+		list-style: disc;
 	}
 
 	li:not(.unstyled, .unstyled *) {
-		@apply my-1;
+		margin-block: var(--space-1);
 	}
 
 	code:not(.unstyled, .unstyled *) {
-		@apply text-sm py-0.5 px-1.5 rounded bg-background-accent font-mono;
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-control);
+		background: var(--background-code);
+		color: var(--on-background-code);
 	}
 
 	pre:not(.unstyled, .unstyled *) {
-		@apply p-4 rounded-lg overflow-x-auto my-6 bg-background-accent text-on-background-accent;
+		padding: var(--space-4);
+		margin-block: var(--space-6);
+		border-radius: var(--radius-xl);
+		overflow-x: auto;
+		background: var(--background-code);
+		color: var(--on-background-code);
 
 		code {
-			@apply bg-transparent p-0 text-inherit;
+			background: transparent;
+			padding: 0;
+			color: inherit;
 		}
 	}
 }

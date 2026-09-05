@@ -1,8 +1,8 @@
 /**
  * Browser entry for the `field` custom element(s).
  *
- * Importing the module runs Radiant's `@customElement` registration. The
- * component loads this file through a lazy trigger, so it is
- * never part of the initial page bundle.
+ * `Field` lists `field-revive.script.ts` — this file re-exports that module
+ * so a direct import of the conventional script path still registers the host
+ * and revives `pattern` rules.
  */
-import '@ecopages/radiant-ui/field';
+import './field-revive.script';

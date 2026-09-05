@@ -12,6 +12,9 @@
  * Pass `label` and `description`, put the control in `children`, and the error
  * slot is always there. Validation `rules` only fire inside a `Form`;
  * standalone, drive the message yourself with `error` and `invalid`.
+ *
+ * `pattern` is encoded before paint so the RegExp survives SSR. The listed
+ * script revives it when the host connects.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
@@ -22,8 +25,8 @@ import {
 	type RuiFieldElement,
 	type RuiFieldProps,
 } from '@ecopages/radiant-ui/field';
-import { RuiLabel } from '@ecopages/radiant-ui/label';
 import { Label } from '../label';
+import { encodeFieldRules } from './field-rules';
 
 export type FieldProps = JsxCustomElementAttributes<RuiFieldElement, RuiFieldProps> & {
 	/** Field label. The host associates it with the control. */
@@ -36,12 +39,12 @@ export type FieldProps = JsxCustomElementAttributes<RuiFieldElement, RuiFieldPro
 export const Field = eco.component<FieldProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./field.css'],
-		scripts: [{ src: './field.script.ts', lazy: { 'on:idle': true } }],
+		scripts: [{ src: './field-revive.script.ts', lazy: { 'on:idle': true } }],
 		components: [Label],
 	},
-	render: ({ label, description, children, ...props }) => (
-		<RuiField {...props}>
-			{label ? <RuiLabel>{label}</RuiLabel> : null}
+	render: ({ label, description, children, rules, ...props }) => (
+		<RuiField {...props} rules={encodeFieldRules(rules)}>
+			{label ? <Label>{label}</Label> : null}
 			{children}
 			{description ? <RuiFieldDescription>{description}</RuiFieldDescription> : null}
 			<RuiFieldError />

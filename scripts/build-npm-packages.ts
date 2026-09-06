@@ -33,10 +33,6 @@ type PackageManifest = WorkspaceDependencyManifest & {
 	[key: string]: unknown;
 };
 
-type BuildContext = {
-	builtPackages: Set<string>;
-};
-
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const packagesRoot = path.join(repoRoot, 'packages');
 const sharedNpmTsconfigPath = path.join(repoRoot, 'tsconfig.npm.json');
@@ -785,16 +781,12 @@ function matchesRequestedPackage(packageDir: string, manifest: PackageManifest, 
  * untouched assets, then validate and write the final manifest. Keeping those steps
  * separate makes packaging failures easier to diagnose without changing publish output.
  */
-async function buildPackage(packageDir: string, context: BuildContext): Promise<void> {
+async function buildPackage(packageDir: string): Promise<void> {
 	const packageJsonPath = path.join(packageDir, 'package.json');
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
 
 	if (!manifest.version) {
 		throw new Error(`Missing version in ${packageJsonPath}`);
-	}
-
-	if (context.builtPackages.has(manifest.name)) {
-		return;
 	}
 
 	const roots = collectPackageRoots(packageDir, manifest);
@@ -823,7 +815,6 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 
-	context.builtPackages.add(manifest.name);
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
 }
 
@@ -850,12 +841,8 @@ async function main(): Promise<void> {
 		throw new Error('No publishable packages matched the requested filters.');
 	}
 
-	const context: BuildContext = {
-		builtPackages: new Set<string>(),
-	};
-
 	for (const packageDir of packageDirs) {
-		await buildPackage(packageDir, context);
+		await buildPackage(packageDir);
 	}
 }
 

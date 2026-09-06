@@ -5,8 +5,8 @@ Versioning, changelogs, and npm publishing for public Ecopages packages. [Change
 ## What to do after a change
 
 1. Run `pnpm changeset` and describe the **final** user-facing behavior. Commit the markdown file this folder creates.
-2. Merge into a branch listed in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml). The Publish workflow opens a Version Packages pull request: it bumps versions and writes each package `CHANGELOG.md`.
-3. Merge that pull request. The same workflow builds `dist` and runs `changeset publish`.
+2. Merge into a branch listed in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml). The Publish workflow runs `test:all`, then opens a Version Packages pull request: it bumps versions and writes each package `CHANGELOG.md`.
+3. Merge that pull request. The same workflow runs `test:all` again, then builds `dist` and runs `changeset publish`.
 
 Do not edit package versions or `CHANGELOG.md` for release notes. Changesets owns those files.
 
@@ -30,4 +30,4 @@ Keep `baseBranch` and the Publish branch list pointed at the line you are actual
 
 ## What gets published
 
-The npm tarball is the compiled `dist` directory of each public package (`publishConfig.directory`), not the TypeScript source used in the workspace. `pnpm run build:npm` produces that `dist`. Already-published versions are skipped. A brand-new package name still needs a one-time npm trusted-publishing setup.
+The npm tarball is the compiled `dist` directory of each public package (`publishConfig.directory`), not the TypeScript source used in the workspace. `pnpm run build:npm` produces that `dist` only when the workflow actually publishes, not when it opens a Version Packages pull request. Already-published versions are skipped. A brand-new package name still needs a one-time npm trusted-publishing setup.

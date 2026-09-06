@@ -78,8 +78,12 @@ type CollectComponentDependenciesOptions = {
  * Walks component dependency trees and collects declared assets, module declarations,
  * and lazy-script group metadata in one pass.
  *
- * The returned structures intentionally preserve both the flat asset list used by
- * asset processing and the grouped lazy-trigger data used later during render output.
+ * @remarks
+ * Explicit stylesheet declarations are collected first across the graph. Inferred
+ * stylesheets are read from component identity afterward and skipped when the same
+ * resolved path already has an explicit entry. The returned structures preserve both
+ * the flat asset list used by asset processing and the grouped lazy-trigger data used
+ * later during render output.
  */
 export function collectComponentDependencies(
 	options: CollectComponentDependenciesOptions,
@@ -120,16 +124,12 @@ export function collectComponentDependencies(
 			if (!file) return;
 			const dir = path.dirname(file);
 			const dependenciesConfig = config.dependencies;
-			const discoveredStyles = getInferredStylesheets(dependenciesConfig);
-			const explicitStyles = (dependenciesConfig?.stylesheets ?? []).slice(
-				0,
-				(dependenciesConfig?.stylesheets?.length ?? 0) - discoveredStyles.length,
-			);
+			const explicitStyles = dependenciesConfig?.stylesheets ?? [];
 			for (const style of explicitStyles) {
 				const src = typeof style === 'string' ? style : style.src;
 				if (src) explicitStylePaths.add(resolveDependencyPath(dir, src));
 			}
-			for (const src of discoveredStyles) inferredStyles.push({ dir, src });
+			for (const src of getInferredStylesheets(config)) inferredStyles.push({ dir, src });
 
 			const registerLazyScript = ({
 				lazy,

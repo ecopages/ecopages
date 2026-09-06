@@ -23,7 +23,7 @@ export function getComponentIdentity(
 	return config?.identity;
 }
 
-/** Merges attribution into factory options. */
+/** Merges attribution into factory options. Optional discovered stylesheets stay keyed by identity. */
 export function bindComponentIdentity<T extends object>(
 	identity: ComponentIdentity,
 	options: T,

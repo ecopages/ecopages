@@ -5,7 +5,6 @@ import {
 	applyPageLayoutConfig,
 	ensurePageConfigLayouts,
 	mergeLayoutDependencies,
-	mergePageDependencies,
 	normalizePageLayouts,
 } from './page-layout-normalization.ts';
 
@@ -80,51 +79,5 @@ describe('page-layout-normalization', () => {
 		ensurePageConfigLayouts(config);
 
 		expect(config.layouts).toEqual([InnerLayout]);
-	});
-
-	describe('mergePageDependencies', () => {
-		it('returns undefined when both inputs are undefined', () => {
-			expect(mergePageDependencies(undefined, undefined)).toBeUndefined();
-		});
-
-		it('returns additional when base is undefined', () => {
-			const entryDeps = { stylesheets: ['./post.css'], ownerFile: '/content/post.mdx' };
-			expect(mergePageDependencies(undefined, entryDeps)).toEqual(entryDeps);
-		});
-
-		it('returns base when additional is undefined', () => {
-			const baseDeps = { stylesheets: ['./page.css'] };
-			expect(mergePageDependencies(baseDeps, undefined)).toEqual(baseDeps);
-		});
-
-		it('merges stylesheets, scripts, and components without duplicates and preserves ownerFile', () => {
-			const Button = eco.component({
-				identity: { id: 'btn', file: '/app/btn.kita.tsx', integration: 'kitajs' },
-				render: () => '',
-			});
-			const Counter = eco.component({
-				identity: { id: 'cnt', file: '/app/cnt.kita.tsx', integration: 'kitajs' },
-				render: () => '',
-			});
-
-			const base = {
-				stylesheets: ['./page.css', './shared.css'],
-				scripts: ['./page.js'],
-				components: [Button],
-			};
-			const additional = {
-				stylesheets: ['./shared.css', './entry.css'],
-				scripts: ['./entry.js'],
-				components: [Button, Counter],
-				ownerFile: '/app/content/post.mdx',
-			};
-
-			expect(mergePageDependencies(base, additional)).toEqual({
-				stylesheets: ['./page.css', './shared.css', './entry.css'],
-				scripts: ['./page.js', './entry.js'],
-				components: [Button, Counter],
-				ownerFile: '/app/content/post.mdx',
-			});
-		});
 	});
 });

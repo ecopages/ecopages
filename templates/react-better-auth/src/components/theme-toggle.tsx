@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { Monitor, Moon, Sun } from './icons';
+import './theme-toggle.css';
 
 /**
  * Cycles `system` → `light` → `dark`.
@@ -11,7 +12,6 @@ import { Monitor, Moon, Sun } from './icons';
  */
 export const ThemeToggle = eco.component<Record<string, never>, ReactNode>({
 	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
 	render: () => (

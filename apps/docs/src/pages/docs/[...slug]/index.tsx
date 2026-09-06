@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco, mergePageDependencies } from '@ecopages/core';
 import type { GetMetadata, GetStaticProps } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
@@ -97,14 +97,8 @@ export default eco.page<DocsCatchAllProps, JsxRenderable>({
 	}),
 	staticProps,
 	metadata: getMetadata,
-	dependencies: async ({ props }) => {
-		const entryDependencies = await getEntryDependencies(props.entry.slug);
-
-		return {
-			...entryDependencies,
-			components: [...(entryDependencies?.components ?? []), CopyForLlm],
-		};
-	},
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ components: [CopyForLlm] }, await getEntryDependencies(props.entry.slug)),
 	render: async ({ entry }) => {
 		const Content = await getComponent(entry.slug);
 		const section = entry.segments[0];

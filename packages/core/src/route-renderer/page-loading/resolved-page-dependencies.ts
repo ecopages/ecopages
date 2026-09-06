@@ -4,10 +4,8 @@ import type {
 	PageBrowserGraphContributionContext,
 } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../types/public-types.ts';
-import {
-	collectFileScopedDependencyComponents,
-	splitPageDependenciesResult,
-} from './file-scoped-dependency-components.ts';
+import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
+import { collectPageDependencyComponents } from './file-scoped-dependency-components.ts';
 
 export type ResolvedPageDependencies = {
 	ownerFile: string;
@@ -16,9 +14,8 @@ export type ResolvedPageDependencies = {
 };
 
 export type ResolvePageDependenciesContribution = (
-	dependencies: Parameters<typeof collectFileScopedDependencyComponents>[0]['dependencies'],
-	ownerFile: string,
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+	ownerFile: string,
 ) => Promise<PageBrowserGraphContribution | undefined>;
 
 /**
@@ -45,12 +42,12 @@ export async function resolvePageDependenciesFromContext(
 		return undefined;
 	}
 
-	const { dependencies, ownerFile } = splitPageDependenciesResult(dependenciesResult);
-	const resolvedOwnerFile = ownerFile ?? context.file;
-	const components = collectFileScopedDependencyComponents({
-		ownerFile: resolvedOwnerFile,
+	const contributions = listFileOwnedDependencyContributions(dependenciesResult);
+	const resolvedOwnerFile = contributions.length === 1 ? (contributions[0]?.ownerFile ?? context.file) : context.file;
+	const components = collectPageDependencyComponents({
+		result: dependenciesResult,
+		fallbackOwnerFile: context.file,
 		integrationName,
-		dependencies,
 	});
 
 	if (components.length === 0) {
@@ -60,7 +57,7 @@ export async function resolvePageDependenciesFromContext(
 		};
 	}
 
-	const contribution = await materializeContribution(dependencies, resolvedOwnerFile, components);
+	const contribution = await materializeContribution(components, resolvedOwnerFile);
 
 	return {
 		ownerFile: resolvedOwnerFile,

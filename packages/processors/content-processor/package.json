@@ -11,6 +11,9 @@
 	"license": "MIT",
 	"main": "./src/index.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src",
 		"README.md",

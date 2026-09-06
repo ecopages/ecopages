@@ -14,6 +14,7 @@ import type { DevTransformBundleContributor } from '../dev/transform-server/type
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type {
 	EcoPageComponent,
+	FileOwnedDependencyContribution,
 	GetPageDependencies,
 	GetPageDependenciesContext,
 	PageDependenciesResult,

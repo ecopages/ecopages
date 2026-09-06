@@ -14,6 +14,9 @@
 		"./config": "./src/config.ts",
 		"./api": "./src/api/types.ts"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],

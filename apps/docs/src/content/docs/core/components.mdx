@@ -15,12 +15,12 @@ Declare the styles, browser scripts, and child Components a Component needs. Eco
 ```tsx
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import './radiant-counter.css';
 
 type RadiantCounterProps = { count: number };
 
 export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./radiant-counter.css'],
 		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => (
@@ -37,7 +37,7 @@ Radiant support is enabled by default when you configure `ecopagesJsxPlugin()`. 
 
 ## Use a component in a Page
 
-Pass route wrappers through `layout`; list nested or interactive components under `dependencies.components`.
+Pass route wrappers through `layout`. Import nested components directly — Ecopages discovers local `eco.component()` imports automatically.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -50,9 +50,6 @@ export default eco.page({
 		title: 'Home page',
 		description: 'This is the homepage of the website',
 	}),
-	dependencies: {
-		components: [RadiantCounter],
-	},
 	render: () => (
 		<>
 			<h1>Ecopages</h1>

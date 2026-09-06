@@ -19,6 +19,7 @@ All notable changes to `@ecopages/mdx` are documented here.
 ### Bug Fixes
 
 - Fixed loader registration, Node `source-map` interop, and renderer-owned mixed foreign-subtree rendering for standalone MDX routes.
+- Discovered MDX stylesheets stay on Component identity until collection; they are not copied into `config.dependencies.stylesheets`.
 
 ---
 

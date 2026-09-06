@@ -2,6 +2,7 @@ import { eco, type EcoPagesElement } from '@ecopages/core';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle.kita';
 import { Logo } from '@/components/logo/logo.kita';
 import { cx } from '@/lib/cx';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: EcoPagesElement;
@@ -11,9 +12,7 @@ export type BaseLayoutProps = {
 
 export const BaseLayout = eco.component<BaseLayoutProps>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Logo, ThemeToggle],
 	},
 	render: ({ children, class: className, prose = false }) => {
 		return (

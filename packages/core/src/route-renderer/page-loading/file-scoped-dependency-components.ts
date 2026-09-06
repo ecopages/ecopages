@@ -3,6 +3,8 @@ import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
 import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
+import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
+import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
 
 /**
  * Attaches canonical file-backed identity to one component config.
@@ -71,20 +73,45 @@ export function collectFileScopedDependencyComponents(options: {
 	return components;
 }
 
+/**
+ * Expands a page dependency result into collector roots, retaining each contribution's owner.
+ */
+export function collectPageDependencyComponents(options: {
+	result: PageDependenciesResult;
+	fallbackOwnerFile: string;
+	integrationName: string;
+}): Array<EcoComponent | Partial<EcoComponent>> {
+	const components: Array<EcoComponent | Partial<EcoComponent>> = [];
+
+	for (const contribution of listFileOwnedDependencyContributions(options.result)) {
+		const { ownerFile, ...dependencies } = contribution;
+		components.push(
+			...collectFileScopedDependencyComponents({
+				ownerFile: ownerFile ?? options.fallbackOwnerFile,
+				integrationName: options.integrationName,
+				dependencies,
+			}),
+		);
+	}
+
+	return components;
+}
+
 export type CollectComponentConfigFilePathsOptions = {
 	additionalPaths?: ReadonlyArray<string>;
 	includeLayouts?: boolean;
+	includeStylesheets?: boolean;
 };
 
 /**
- * Walks component configs and collects every resolved identity file path.
+ * Walks component configs and collects identity files, stylesheets, and discovered barrel hops.
  */
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
 	options?: CollectComponentConfigFilePathsOptions,
 ): Set<string> {
 	const files = new Set<string>();
-	const visited = new Set<string>();
+	const visited = new Set<EcoComponentConfig>();
 
 	for (const additionalPath of options?.additionalPaths ?? []) {
 		files.add(path.resolve(additionalPath));
@@ -100,11 +127,23 @@ export function collectComponentConfigFilePaths(
 		}
 
 		const resolved = path.resolve(file);
-		if (visited.has(resolved)) {
+		if (visited.has(config)) {
 			return;
 		}
-		visited.add(resolved);
+		visited.add(config);
 		files.add(resolved);
+		for (const style of options?.includeStylesheets ? (config.dependencies?.stylesheets ?? []) : []) {
+			const src = typeof style === 'string' ? style : style.src;
+			if (src) files.add(path.resolve(path.dirname(resolved), src));
+		}
+		if (options?.includeStylesheets) {
+			for (const src of getInferredStylesheets(config)) {
+				files.add(path.resolve(path.dirname(resolved), src));
+			}
+		}
+		for (const watchFile of getDiscoveredWatchFiles(config)) {
+			files.add(path.resolve(watchFile));
+		}
 
 		for (const dependency of config.dependencies?.components ?? []) {
 			visit(dependency?.config);
@@ -131,7 +170,9 @@ export function collectDependencyWatchPaths(
 	ownerFile: string,
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 ): string[] {
-	return Array.from(collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile] }));
+	return Array.from(
+		collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile], includeStylesheets: true }),
+	);
 }
 
 /**
@@ -140,7 +181,12 @@ export function collectDependencyWatchPaths(
 export function splitPageDependenciesResult(result: PageDependenciesResult): {
 	dependencies: EcoComponentDependencies;
 	ownerFile?: string;
+	contributions?: PageDependenciesResult['contributions'];
 } {
-	const { ownerFile, ...dependencies } = result;
-	return { dependencies, ownerFile };
+	const { ownerFile, contributions, ...dependencies } = result;
+	return {
+		dependencies,
+		ownerFile,
+		...(contributions ? { contributions } : {}),
+	};
 }

@@ -14,6 +14,7 @@ import {
 	RuiSidebarSeparator,
 	RuiSidebarTrigger,
 } from '@ecopages/radiant-ui/sidebar';
+import './docs-layout.css';
 import { RuiToc } from '@ecopages/radiant-ui/toc';
 import { Logo } from '@/components/logo/logo';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
@@ -69,9 +70,7 @@ function breadcrumbForPage(
 
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
-		components: [BaseLayout, DocsBar, DocsPagination, Logo, SearchBox, ThemeToggle],
 	},
 	render: ({ children, section, slug, nav = wikiNav, rootLabel = 'Wiki', sources = [] }: DocsLayoutRenderProps) => {
 		const crumbs = breadcrumbForPage(nav, rootLabel, section, slug);

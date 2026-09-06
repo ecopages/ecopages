@@ -149,7 +149,14 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 			return;
 		}
 
-		this.mdxLoaderPlugin = createMdxLoaderPlugin(this.compilerOptions);
+		if (!this.appConfig?.rootDir) {
+			throw new Error('[MDXPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+		}
+
+		this.mdxLoaderPlugin = createMdxLoaderPlugin({
+			compilerOptions: this.compilerOptions,
+			projectRoot: this.appConfig.rootDir,
+		});
 	}
 
 	/**

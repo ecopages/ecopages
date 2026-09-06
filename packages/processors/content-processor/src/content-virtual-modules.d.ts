@@ -5,16 +5,36 @@
  * @remarks This must remain a script (without imports or exports). In an
  * external module, these declarations become module augmentations and cannot
  * introduce unresolved `ecopages:content/*` specifiers.
+ *
+ * Variant patterns (`/server`, `/browser`) must be declared before the catch-all
+ * `ecopages:content/*` pattern so TypeScript pattern matching selects them first.
  */
+
+declare module 'ecopages:content/*/server' {
+	import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
+
+	export function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+	/**
+	 * Returns `{ components: [entry] }` so collection walks MDX identity.
+	 *
+	 * @remarks Does not copy `config.dependencies` or set `ownerFile`.
+	 * Combine Page-local relative assets with `mergePageDependencies()`.
+	 * @throws HttpError 404 when the slug is not in the collection.
+	 */
+	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
+}
+
+declare module 'ecopages:content/*/browser' {
+	import type { EcoComponent } from '@ecopages/core';
+
+	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
+}
+
 declare module 'ecopages:content/*' {
 	import type { ContentEntry } from '@ecopages/content-processor/types';
-	import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 
 	export type Entry = ContentEntry<Record<string, unknown>>;
 	export const entries: readonly Entry[];
 	export function getEntry(slug: string): Entry;
 	export function getEntryBySegments(segments: string[]): Entry;
-	export function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
-	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
-	export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 }

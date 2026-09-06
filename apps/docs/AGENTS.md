@@ -17,6 +17,7 @@
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
 - Docs layout chrome lives under `src/layouts/docs-layout/`; navigation helpers in `src/lib/content-nav.ts`; MDX config in `src/lib/docs/`.
+- Fenced MDX code blocks use `rehype-pretty-code` with `transformerCopyButton`. A follow-up rehype pass stores source on `data-rehype-pretty-copy` because the MDX JSX renderer does not preserve the transformer's `data` / `class` / `onclick` attributes. Clipboard handling lives in `src/layouts/base-layout/base-layout.script.ts`.
 
 ## Navigation
 
@@ -34,4 +35,4 @@
 ## Routing
 
 - The catch-all page parses slug segments, finds the entry with `entries.find` on the joined slug, then lazy-loads MDX via `getComponent(entry.slug)`.
-- Forward entry-specific deps with `getEntryDependencies(props.entry.slug)`. MDX components are called as `Content({})`.
+- Forward entry-specific deps with `mergePageDependencies({ components: [CopyForLlm] }, await getEntryDependencies(props.entry.slug))`. MDX components are called as `Content({})`.

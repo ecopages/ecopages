@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import { ReactNode } from 'react';
+import './dashboard-content.css';
 
 type User = {
 	id: string;
@@ -12,9 +13,6 @@ type DashboardContentProps = {
 };
 
 export const DashboardContent = eco.component<DashboardContentProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./dashboard-content.css'],
-	},
 	render: ({ user }) => {
 		return (
 			<div className="dashboard-content">

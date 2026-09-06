@@ -11,6 +11,9 @@
 	"main": "./src/plugin/react.plugin.ts",
 	"types": "./src/plugin/react.plugin.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],

@@ -13,13 +13,16 @@ Ecopages is an extensible static site generator (SSG) built around a Bun-first c
 
 ## Current Architecture
 
+Projects load shared ambient types through `@ecopages/core/declarations`. This entry references `src/css-imports.d.ts`, which keeps the wildcard CSS declaration in a standalone ambient file so side-effect CSS imports typecheck without per-project declarations.
+
 The current core package is organized around app-owned runtime state and explicit service boundaries.
 
 The important ownership rules are:
 
 - `ConfigBuilder.build()` finalizes app-owned build and runtime services.
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
-- browser bundling and server module loading are explicit, separate paths.
+- Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - runtime hosts stay thin and delegate framework work into core services.
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
 
@@ -83,7 +86,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, development build coordination, and standalone Node server packaging
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server and on-demand client delivery
+- `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
 - `src/hmr/README.md`: HMR strategy and update-layer ownership
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution

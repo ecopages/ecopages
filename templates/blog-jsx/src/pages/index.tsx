@@ -6,10 +6,10 @@ import { EcoImage } from '@ecopages/image-processor/component/jsx';
 import { entries } from 'ecopages:content/posts';
 import { resolvePostImage } from '@/content/post-image';
 import { BaseLayout } from '@/layouts/base-layout';
+import './index.css';
 
 export default eco.page<{}, JsxRenderable>({
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
-	dependencies: { stylesheets: ['./index.css'] },
 	metadata: () => ({ title: 'Blog | Ecopages', description: 'A content-driven Ecopages JSX blog.' }),
 	render: () => (
 		<>

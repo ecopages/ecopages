@@ -7,6 +7,7 @@ import { resolvePostImage } from '@/content/post-image';
 import { entries, getEntry } from 'ecopages:content/posts';
 import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
 import { BaseLayout } from '@/layouts/base-layout';
+import './post.css';
 
 export default eco.page<
 	{ title: string; description: string; slug: string; image: PostFrontmatter['image'] },
@@ -20,7 +21,7 @@ export default eco.page<
 		return { props: { title: entry.title, description: entry.description, slug, image: entry.image } };
 	},
 	metadata: ({ props }) => ({ title: `${props.title} | Blog`, description: props.description }),
-	dependencies: async ({ props }) => ({ stylesheets: ['./post.css'], ...(await getEntryDependencies(props.slug)) }),
+	dependencies: async ({ props }) => await getEntryDependencies(props.slug),
 	render: async ({ slug, title, image }) => {
 		const Content = await getComponent(slug);
 		return (

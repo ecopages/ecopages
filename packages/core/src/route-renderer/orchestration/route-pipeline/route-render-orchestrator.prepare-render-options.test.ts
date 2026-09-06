@@ -1060,7 +1060,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
 	});
 
-	it('eagerly emits lazy SSR component scripts for shared non-owning routes', async () => {
+	it('does not eagerly emit lazy SSR component scripts for non-owning routes', async () => {
 		const eagerSsrLazyAsset = {
 			kind: 'script',
 			srcUrl: '/assets/components/lit-counter.script.js',
@@ -1118,21 +1118,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(processDependencies).toHaveBeenCalledOnce();
-		expect(processDependencies).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					kind: 'script',
-					source: 'file',
-					filepath: '/app/components/lit-counter.script.ts',
-					packageRole: 'dynamic-chunk',
-				}),
-			],
-			'string:ssr-lazy',
-		);
+		expect(processDependencies).not.toHaveBeenCalled();
 	});
 
-	it('exposes eager lazy SSR assets through the returned page package', async () => {
+	it('does not add eager SSR script assets to the returned page package', async () => {
 		const eagerSsrLazyAsset = {
 			kind: 'script',
 			srcUrl: '/assets/components/lit-counter.script.js',
@@ -1191,7 +1180,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({
-				dynamicChunks: [eagerSsrLazyAsset],
+				dynamicChunks: [],
 			}),
 		);
 	});

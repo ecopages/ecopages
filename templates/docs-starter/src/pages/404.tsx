@@ -3,12 +3,10 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import type { Error404TemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { DocsLayout } from '@/layouts/docs-layout';
+import './404.css';
 
 export default eco.page<Error404TemplateProps, JsxRenderable>({
 	layout: DocsLayout,
-	dependencies: {
-		stylesheets: ['./404.css'],
-	},
 
 	render: () => {
 		return (

@@ -210,7 +210,15 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return;
 		}
 
-		this.mdxLoaderPlugin = createMdxLoaderPlugin(this.mdxCompilerOptions, this.mdxExtensions);
+		if (!this.appConfig?.rootDir) {
+			throw new Error('[EcopagesJsxPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+		}
+
+		this.mdxLoaderPlugin = createMdxLoaderPlugin({
+			compilerOptions: this.mdxCompilerOptions,
+			extensions: this.mdxExtensions,
+			projectRoot: this.appConfig.rootDir,
+		});
 	}
 
 	/**
@@ -224,7 +232,15 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return;
 		}
 
-		await registerBunMdxPlugin(this.mdxCompilerOptions, this.mdxExtensions);
+		if (!this.appConfig) {
+			throw new Error('[EcopagesJsxPlugin] Cannot register Bun MDX plugin: appConfig is not set');
+		}
+
+		await registerBunMdxPlugin({
+			compilerOptions: this.mdxCompilerOptions,
+			extensions: this.mdxExtensions,
+			projectRoot: this.appConfig.rootDir,
+		});
 	}
 }
 

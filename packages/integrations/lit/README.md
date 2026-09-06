@@ -55,6 +55,12 @@ When a non-Lit render pass reaches a Lit-owned foreign child, Ecopages hands tha
 
 Important:
 
-- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children and named `export { X } from` barrels. Use `dependencies.components` for `export *` barrels and package imports.
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+
+## Discovered assets and lazy custom elements
+
+A Lit Component can import a relative stylesheet with `import './counter.css'`; core extracts it into the shared asset pipeline. Direct local imports of that Component make its Dependencies available to the Lit SSR preloader, including through Foreign Child rendering.
+
+Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. The module executes before server rendering and loads in the browser on visibility. `ssr: true` no longer emits an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element.

@@ -568,9 +568,11 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		return;
 	}
 
+	const { types: _sharedTypes, ...sharedOptions } = sharedConfig.options;
+
 	const compilerOptions: ts.CompilerOptions = {
 		...packageConfig.options,
-		...sharedConfig.options,
+		...sharedOptions,
 		rootDir: packageDir,
 		outDir: distDir,
 		declarationDir: undefined,
@@ -581,7 +583,18 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		sourceMap: false,
 		incremental: false,
 		tsBuildInfoFile: undefined,
+		typeRoots: [
+			path.join(packageDir, 'node_modules/@types'),
+			path.join(repoRoot, 'node_modules/@types'),
+		],
 	};
+
+	/**
+	 * Shared npm tsconfig extends the repo-root config, which sets `types: ["node"]`.
+	 * `createProgram` also resolves `@types` from `cwd` (the repo root), so Bun types
+	 * installed on a package would be ignored without `typeRoots` above.
+	 */
+	delete compilerOptions.types;
 
 	const program = ts.createProgram({
 		rootNames: declarationRootNames,
@@ -819,12 +832,39 @@ async function buildPackage(packageDir: string): Promise<void> {
 }
 
 /**
+ * Adds `publishConfig.directory` to a source package so `changeset publish` ships `dist`.
+ *
+ * @remarks
+ * Committed manifests omit `directory` so pnpm workspace installs keep linking to
+ * TypeScript sources. The Publish workflow passes `--stamp-publish-directory` after
+ * compilation so npm still publishes the compiled folder.
+ */
+function stampPublishDirectory(packageDir: string): void {
+	const manifestPath = path.join(packageDir, 'package.json');
+	const manifest = readJsonFile<PackageManifest>(manifestPath);
+	const existingPublishConfig = isRecord(manifest.publishConfig) ? manifest.publishConfig : {};
+
+	manifest.publishConfig = {
+		...existingPublishConfig,
+		access: typeof existingPublishConfig.access === 'string' ? existingPublishConfig.access : 'public',
+		directory: 'dist',
+	};
+	writeTextFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+/**
  * Builds every publishable package, or a filtered subset when positional arguments are
  * provided as package names or package directory names.
  */
 async function main(): Promise<void> {
-	const { positionals } = parseArgs({
+	const { positionals, values } = parseArgs({
 		allowPositionals: true,
+		options: {
+			'stamp-publish-directory': {
+				type: 'boolean',
+				default: false,
+			},
+		},
 	});
 	const filters = new Set(positionals);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
@@ -843,6 +883,12 @@ async function main(): Promise<void> {
 
 	for (const packageDir of packageDirs) {
 		await buildPackage(packageDir);
+	}
+
+	if (values['stamp-publish-directory']) {
+		for (const packageDir of packageDirs) {
+			stampPublishDirectory(packageDir);
+		}
 	}
 }
 

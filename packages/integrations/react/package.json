@@ -12,8 +12,7 @@
 	"types": "./src/plugin/react.plugin.ts",
 	"type": "module",
 	"publishConfig": {
-		"access": "public",
-		"directory": "dist"
+		"access": "public"
 	},
 	"files": [
 		"src"

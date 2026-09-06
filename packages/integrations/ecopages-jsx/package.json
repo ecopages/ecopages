@@ -12,8 +12,7 @@
 	"types": "./src/ecopages-jsx.plugin.ts",
 	"type": "module",
 	"publishConfig": {
-		"access": "public",
-		"directory": "dist"
+		"access": "public"
 	},
 	"files": [
 		"src"
@@ -40,6 +39,7 @@
 		"@kitajs/html": "^4.2.13",
 		"@ecopages/core": "workspace:*",
 		"@ecopages/testing": "workspace:*",
+		"@types/bun": "latest",
 		"lit": "^3.3.3",
 		"react": "^19.2.6",
 		"remark-gfm": "^4.0.1"

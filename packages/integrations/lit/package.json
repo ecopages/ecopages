@@ -12,8 +12,7 @@
 	"types": "./src/lit.plugin.ts",
 	"type": "module",
 	"publishConfig": {
-		"access": "public",
-		"directory": "dist"
+		"access": "public"
 	},
 	"files": [
 		"src"
@@ -42,7 +41,8 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/testing": "workspace:*"
+		"@ecopages/testing": "workspace:*",
+		"@types/bun": "latest"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

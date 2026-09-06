@@ -48,9 +48,6 @@ jobs:
             - name: Install Dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Build npm packages
-              run: pnpm run build:npm
-
             - name: Get Playwright version
               id: playwright-version
               run: echo "VERSION=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
@@ -109,9 +106,6 @@ jobs:
 
             - name: Install Dependencies
               run: pnpm install --frozen-lockfile
-
-            - name: Build npm packages
-              run: pnpm run build:npm
 
             - name: Get Playwright version
               id: playwright-version

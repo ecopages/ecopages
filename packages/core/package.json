@@ -11,8 +11,7 @@
 	"main": "./src/index.ts",
 	"type": "module",
 	"publishConfig": {
-		"access": "public",
-		"directory": "dist"
+		"access": "public"
 	},
 	"files": [
 		"src"

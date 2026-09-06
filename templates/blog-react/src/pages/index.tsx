@@ -3,10 +3,10 @@ import { entries } from 'ecopages:content/posts';
 import { resolvePostImage } from '@/content/post-image';
 import { BaseLayout } from '@/layouts/base-layout';
 import { EcoImage } from '@ecopages/image-processor/component/react';
+import './index.css';
 
 export default eco.page({
 	layout: BaseLayout,
-	dependencies: { stylesheets: ['./index.css'] },
 	metadata: () => ({
 		title: 'Blog | Ecopages',
 		description: 'Ecopages blog template covering content collections, RSS, and sitemaps.',

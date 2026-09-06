@@ -1,15 +1,12 @@
 import { eco } from '@ecopages/core';
 import { useState, type ReactNode } from 'react';
+import './counter.css';
 
 type CounterProps = {
 	defaultValue: number;
 };
 
 export const Counter = eco.component<CounterProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./counter.css'],
-	},
-
 	render: ({ defaultValue = 5 }) => {
 		const [count, setCount] = useState<number>(defaultValue);
 		const handleIncrement = () => setCount(count + 1);

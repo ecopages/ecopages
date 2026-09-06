@@ -6,9 +6,6 @@ import { authMiddleware } from '@/handlers/auth.server';
 export default eco.page({
 	layout: BaseLayout,
 	cache: 'dynamic',
-	dependencies: {
-		components: [DashboardContent],
-	},
 	middleware: [authMiddleware],
 	requires: ['session'] as const,
 	metadata: () => ({

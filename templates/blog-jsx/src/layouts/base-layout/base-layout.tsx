@@ -3,6 +3,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { cx } from '@/lib/cx';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: JsxRenderable;
@@ -12,11 +13,8 @@ export type BaseLayoutProps = {
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [ThemeToggle],
 	},
-
 	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>

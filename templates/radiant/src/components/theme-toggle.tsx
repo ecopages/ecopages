@@ -6,6 +6,7 @@ import {
 	ThemeItemLabel,
 	ThemePreferenceIcon,
 } from '@ecopages/radiant-ui/cycle-toggle';
+import './theme-toggle.css';
 import type { ThemePreference } from '@ecopages/radiant-ui/cycle-toggle';
 import type { ThemeToggleProps } from './theme-toggle.script';
 import './theme-toggle.script';
@@ -25,7 +26,6 @@ function ThemeToggleItemContent({ preference }: { preference: ThemePreference })
 
 export const ThemeToggle = eco.component<ThemeToggleViewProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
 	render: ({ label = 'Theme', value = 'system', variant = 'ghost', size = 'sm', disabled, ...props }) => {

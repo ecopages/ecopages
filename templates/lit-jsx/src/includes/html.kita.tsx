@@ -6,7 +6,6 @@ const themeScript = `(function(){const s=localStorage.getItem('theme');const p=s
 
 const HtmlTemplate = eco.component<HtmlTemplateProps>({
 	dependencies: {
-		components: [Head],
 		scripts: [{ content: themeScript, attributes: { defer: '' } }],
 	},
 

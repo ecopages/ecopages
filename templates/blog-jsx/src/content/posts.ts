@@ -15,7 +15,6 @@ export const postsFrontmatterSchema = z.object({
 export type PostFrontmatter = z.infer<typeof postsFrontmatterSchema>;
 export type PostEntry = ContentEntry<PostFrontmatter>;
 
-/** Newest-first ordering by ISO `date`, falling back to slug. */
 export function comparePosts(a: PostEntry, b: PostEntry): number {
 	return b.date.localeCompare(a.date) || a.slug.localeCompare(b.slug);
 }

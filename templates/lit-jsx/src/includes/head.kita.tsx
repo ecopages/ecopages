@@ -1,12 +1,9 @@
 import { eco } from '@ecopages/core';
 import type { PageHeadProps } from '@ecopages/core';
 import { Seo } from '@/includes/seo.kita';
+import '../styles/tailwind.css';
 
 export const Head = eco.component<PageHeadProps>({
-	dependencies: {
-		stylesheets: ['../styles/tailwind.css'],
-	},
-
 	render: ({ metadata, children }) => {
 		return (
 			<head>

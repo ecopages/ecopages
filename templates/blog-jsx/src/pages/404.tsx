@@ -2,12 +2,10 @@ import { eco } from '@ecopages/core';
 import type { Error404TemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
+import './404.css';
 
 export default eco.page<Error404TemplateProps, JsxRenderable>({
 	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./404.css'],
-	},
 
 	render: () => {
 		return (

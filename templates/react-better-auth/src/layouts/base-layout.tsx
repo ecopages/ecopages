@@ -3,14 +3,11 @@ import { AuthNav } from '@/components/auth-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnnouncementBar } from '@/components/announcement-bar';
 import { eco, type WithLocals } from '@ecopages/core';
+import './base-layout.css';
 
 type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./base-layout.css'],
-		components: [AuthNav, ThemeToggle, AnnouncementBar],
-	},
 	render: ({ children, locals }) => {
 		return (
 			<div className="layout">

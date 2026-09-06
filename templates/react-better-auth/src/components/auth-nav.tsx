@@ -4,15 +4,13 @@ import { authClient } from '@/lib/auth-client';
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import type { Session } from '@/handlers/auth.server';
+import './auth-nav.css';
 
 type AuthNavProps = {
 	initialSession?: Session | null;
 };
 
 export const AuthNav = eco.component<AuthNavProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./auth-nav.css'],
-	},
 	render: ({ initialSession }) => {
 		const { data: clientSession, isPending } = authClient.useSession();
 

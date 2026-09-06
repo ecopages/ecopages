@@ -1,4 +1,4 @@
-import { eco, mergePageDependencies } from '@ecopages/core';
+import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { EcoImage } from '@ecopages/image-processor/component/react';
 import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
@@ -8,6 +8,7 @@ import { getComponent, getEntryDependencies } from 'ecopages:content/posts/serve
 import { resolvePostImage } from '@/content/post-image';
 import type { PostEntry } from '@/content/posts';
 import { BaseLayout } from '@/layouts/base-layout';
+import './post.css';
 
 type PostPageProps = {
 	entry: PostEntry;
@@ -27,8 +28,7 @@ export default eco.page<PostPageProps, ReactNode>({
 		await posts.prime(entry.slug, getComponent(entry.slug));
 		return { props: { entry } };
 	},
-	dependencies: async ({ props }) =>
-		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.entry.slug)),
+	dependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
 		title: `${entry.title} | Blog`,
 		description: entry.description,

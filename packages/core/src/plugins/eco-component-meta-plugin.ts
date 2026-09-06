@@ -5,7 +5,7 @@ import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTran
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { cachedParseSync } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
-import { discoverComponentImports } from './component-import-discovery.ts';
+import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
 
 type IntegrationOwnership = { name: string; jsxImportSource?: string };
 
@@ -118,6 +118,14 @@ function addIdentityBindingImport(contents: string, program: AstNode): string {
 	return addNamedImport(contents, program, '@ecopages/core', 'bindComponentIdentity');
 }
 
+function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): string {
+	if (!discovered || (discovered.components.length === 0 && discovered.stylesheets.length === 0)) {
+		return '';
+	}
+	const watchFiles = discovered.watchFiles.length > 0 ? `, watchFiles: ${JSON.stringify(discovered.watchFiles)}` : '';
+	return `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${watchFiles} }`;
+}
+
 /** Attributes real `eco.*()` factory calls with canonical component identity. */
 export function attributeComponentIdentity(
 	contents: string,
@@ -141,10 +149,7 @@ export function attributeComponentIdentity(
 		if (isEcoFactoryCall(node)) hasFactory = true;
 	});
 	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
-	const discoveryArgument =
-		discovered && (discovered.components.length || discovered.stylesheets.length)
-			? `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)} }`
-			: '';
+	const discoveryArgument = serializeDiscoveryArgument(discovered);
 	walkAst(program, (node) => {
 		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
@@ -208,11 +213,8 @@ export function attributeMdxComponentIdentity(
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const hasDiscovered = discovered.components.length > 0 || discovered.stylesheets.length > 0;
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
-	const discoveryArgument = hasDiscovered
-		? `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)} }`
-		: '';
+	const discoveryArgument = serializeDiscoveryArgument(discovered);
 
 	const edits: SourceEdit[] = [...discovered.removals];
 	if (configDeclarator && isAstNode(configDeclarator.init)) {

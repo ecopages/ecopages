@@ -55,7 +55,7 @@ export default eco.page({
 
 In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`, Ecopages automatically discovers:
 
-- **Child Components:** Direct imports of local `eco.component()` exports (both relative and tsconfig path aliases) contribute dependencies transitively.
+- **Child Components:** Direct imports of local `eco.component()` exports (relative, tsconfig aliases, and named `export { X } from` barrels) contribute dependencies transitively.
 - **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules. They are not copied into `config.dependencies.stylesheets`; explicit entries override the same resolved file.
 - **MDX Support:** In MDX files, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored. Combine a catch-all Page's relative assets with `mergePageDependencies(pageAssets, await getEntryDependencies(slug))`.
 
@@ -64,7 +64,7 @@ In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page
 **What remains explicit:**
 
 - **Browser scripts:** Declare in `dependencies.scripts` (e.g. custom element registration and lazy loading).
-- **Barrel re-exports & packages:** Barrel files (`export * from ...`) and external packages are intentionally not followed to prevent bundling entire component kits. Use explicit `dependencies.components` for these.
+- **`export *` barrels & packages:** `export * from ...` and external packages are not followed. Use explicit `dependencies.components` for these. Named `export { Counter } from './counter'` barrels are discovered.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -123,7 +123,7 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 1. Use `eco.page()` for routable pages
 2. Author one `eco.component()` per file for clear auto-discovered dependency boundaries
-3. Declare browser scripts, barrel re-exports, and external package dependencies explicitly in `dependencies`
+3. Declare browser scripts, `export *` barrels, and external package dependencies explicitly in `dependencies`
 4. Organize by feature
 5. Use CSS variables with Tailwind v4 `@theme`
 6. Match MDX to the owning integration plugin

@@ -108,6 +108,42 @@ describe('discovered dependency graph', () => {
 		expect(result.dependencies).toHaveLength(1);
 		expect(result.dependencies[0]).toMatchObject({ excludeFromHtml: true });
 	});
+	it('updates collected assets when a live barrel binding is retargeted', () => {
+		let button: EcoDeclaredComponent = eco.component(
+			bindComponentIdentity(
+				identity('button-a.ts'),
+				{ render: () => '' },
+				{ components: () => [], stylesheets: ['./a.css'] },
+			),
+		);
+		const page = eco.page(
+			bindComponentIdentity(
+				identity('page.ts'),
+				{ render: () => '' },
+				{ components: () => [button], stylesheets: [] },
+			),
+		);
+		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/a.css' })]);
+		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toEqual([
+			'/app/page.ts',
+			'/app/button-a.ts',
+			'/app/a.css',
+		]);
+
+		button = eco.component(
+			bindComponentIdentity(
+				identity('button-b.ts'),
+				{ render: () => '' },
+				{ components: () => [], stylesheets: ['./b.css'] },
+			),
+		);
+		expect(collect([page]).dependencies).toEqual([expect.objectContaining({ filepath: '/app/b.css' })]);
+		expect(collectDependencyWatchPaths('/app/page.ts', [page])).toEqual([
+			'/app/page.ts',
+			'/app/button-b.ts',
+			'/app/b.css',
+		]);
+	});
 	it('allows dependency replacement while preserving live discovered references', () => {
 		let child: EcoDeclaredComponent = eco.component(
 			bindComponentIdentity(identity('old.ts'), { render: () => '' }),

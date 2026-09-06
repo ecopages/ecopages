@@ -3,7 +3,7 @@ import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
 import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
-import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
+import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
 import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
 
 /**
@@ -104,7 +104,7 @@ export type CollectComponentConfigFilePathsOptions = {
 };
 
 /**
- * Walks component configs and collects every resolved identity file path.
+ * Walks component configs and collects identity files, stylesheets, and discovered barrel hops.
  */
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
@@ -140,6 +140,9 @@ export function collectComponentConfigFilePaths(
 			for (const src of getInferredStylesheets(config)) {
 				files.add(path.resolve(path.dirname(resolved), src));
 			}
+		}
+		for (const watchFile of getDiscoveredWatchFiles(config)) {
+			files.add(path.resolve(watchFile));
 		}
 
 		for (const dependency of config.dependencies?.components ?? []) {

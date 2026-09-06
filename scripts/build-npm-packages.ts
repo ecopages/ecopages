@@ -583,10 +583,7 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		sourceMap: false,
 		incremental: false,
 		tsBuildInfoFile: undefined,
-		typeRoots: [
-			path.join(packageDir, 'node_modules/@types'),
-			path.join(repoRoot, 'node_modules/@types'),
-		],
+		typeRoots: [path.join(packageDir, 'node_modules/@types'), path.join(repoRoot, 'node_modules/@types')],
 	};
 
 	/**

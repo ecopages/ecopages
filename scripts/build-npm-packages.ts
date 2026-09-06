@@ -11,7 +11,13 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import ts from 'typescript';
-import { readJsonFile, rewriteWorkspaceRanges, toPosix, type WorkspaceDependencyManifest } from './package-utils.ts';
+import {
+	findPublishablePackageDirs,
+	readJsonFile,
+	rewriteWorkspaceRanges,
+	toPosix,
+	type WorkspaceDependencyManifest,
+} from './package-utils.ts';
 
 type PackageManifest = WorkspaceDependencyManifest & {
 	private?: boolean;
@@ -23,17 +29,12 @@ type PackageManifest = WorkspaceDependencyManifest & {
 	scripts?: Record<string, string>;
 	peerDependenciesMeta?: Record<string, unknown>;
 	overrides?: Record<string, string>;
+	publishConfig?: Record<string, unknown>;
 	[key: string]: unknown;
-};
-
-type BuildContext = {
-	version: string;
-	builtPackages: Set<string>;
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const packagesRoot = path.join(repoRoot, 'packages');
-const rootPackageJsonPath = path.join(repoRoot, 'package.json');
 const sharedNpmTsconfigPath = path.join(repoRoot, 'tsconfig.npm.json');
 
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts']);
@@ -52,41 +53,6 @@ function isExportSubpathKey(key: string): boolean {
 function isConditionalExportObject(value: Record<string, unknown>): boolean {
 	const keys = Object.keys(value);
 	return keys.length > 0 && keys.every((key) => !isExportSubpathKey(key));
-}
-
-function isPublishablePackageManifest(packageJsonPath: string): boolean {
-	if (packageJsonPath.includes(`${path.sep}__fixtures__${path.sep}`)) {
-		return false;
-	}
-
-	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
-	return !manifest.private;
-}
-
-function findPublishablePackageDirs(dir: string): string[] {
-	const results: string[] = [];
-
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '__fixtures__') {
-			continue;
-		}
-
-		const fullPath = path.join(dir, entry.name);
-		if (entry.isDirectory()) {
-			results.push(...findPublishablePackageDirs(fullPath));
-			continue;
-		}
-
-		if (entry.name !== 'package.json') {
-			continue;
-		}
-
-		if (isPublishablePackageManifest(fullPath)) {
-			results.push(path.dirname(fullPath));
-		}
-	}
-
-	return results;
 }
 
 function collectManifestPaths(value: unknown, output: Set<string>): void {
@@ -602,9 +568,11 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		return;
 	}
 
+	const { types: _sharedTypes, ...sharedOptions } = sharedConfig.options;
+
 	const compilerOptions: ts.CompilerOptions = {
 		...packageConfig.options,
-		...sharedConfig.options,
+		...sharedOptions,
 		rootDir: packageDir,
 		outDir: distDir,
 		declarationDir: undefined,
@@ -615,7 +583,15 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		sourceMap: false,
 		incremental: false,
 		tsBuildInfoFile: undefined,
+		typeRoots: [path.join(packageDir, 'node_modules/@types'), path.join(repoRoot, 'node_modules/@types')],
 	};
+
+	/**
+	 * Shared npm tsconfig extends the repo-root config, which sets `types: ["node"]`.
+	 * `createProgram` also resolves `@types` from `cwd` (the repo root), so Bun types
+	 * installed on a package would be ignored without `typeRoots` above.
+	 */
+	delete compilerOptions.types;
 
 	const program = ts.createProgram({
 		rootNames: declarationRootNames,
@@ -716,6 +692,11 @@ function transpileJavaScriptSource(sourceFile: string, source: string, compilerO
 /**
  * Produces the publishable manifest for `dist` by rewriting source paths, normalizing
  * export metadata, and removing development-only fields.
+ *
+ * @remarks
+ * `workspace:*` ranges are rewritten to `version`. Public packages share one version
+ * through the changesets `fixed` group, so the consuming package version is the
+ * dependency version.
  */
 export function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
 	const rewrittenExports = normalizeExportTarget(rewriteExportMap(manifest.exports));
@@ -757,7 +738,30 @@ export function createDistManifest(manifest: PackageManifest, version: string): 
 	delete distManifest.devDependencies;
 	delete distManifest.files;
 
+	const publishConfig = toPublishablePublishConfig(distManifest.publishConfig);
+	if (publishConfig) {
+		distManifest.publishConfig = publishConfig;
+	} else {
+		delete distManifest.publishConfig;
+	}
+
 	return distManifest;
+}
+
+/**
+ * Drops `publishConfig.directory` from the dist manifest.
+ *
+ * @remarks
+ * Source packages point Changesets/pnpm at `dist`. Once we are already writing
+ * `dist/package.json`, keeping `directory: "dist"` would publish `dist/dist`.
+ */
+function toPublishablePublishConfig(publishConfig: unknown): Record<string, unknown> | undefined {
+	if (!isRecord(publishConfig)) {
+		return undefined;
+	}
+
+	const { directory: _directory, ...rest } = publishConfig;
+	return Object.keys(rest).length > 0 ? rest : undefined;
 }
 
 function copyMetadataFiles(packageDir: string, distDir: string): void {
@@ -787,12 +791,12 @@ function matchesRequestedPackage(packageDir: string, manifest: PackageManifest, 
  * untouched assets, then validate and write the final manifest. Keeping those steps
  * separate makes packaging failures easier to diagnose without changing publish output.
  */
-async function buildPackage(packageDir: string, context: BuildContext): Promise<void> {
+async function buildPackage(packageDir: string): Promise<void> {
 	const packageJsonPath = path.join(packageDir, 'package.json');
 	const manifest = readJsonFile<PackageManifest>(packageJsonPath);
 
-	if (context.builtPackages.has(manifest.name)) {
-		return;
+	if (!manifest.version) {
+		throw new Error(`Missing version in ${packageJsonPath}`);
 	}
 
 	const roots = collectPackageRoots(packageDir, manifest);
@@ -817,12 +821,32 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
 
 	copyMetadataFiles(packageDir, distDir);
 
-	const distManifest = createDistManifest(manifest, context.version);
+	const distManifest = createDistManifest(manifest, manifest.version);
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 
-	context.builtPackages.add(manifest.name);
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
+}
+
+/**
+ * Adds `publishConfig.directory` to a source package so `changeset publish` ships `dist`.
+ *
+ * @remarks
+ * Committed manifests omit `directory` so pnpm workspace installs keep linking to
+ * TypeScript sources. The Publish workflow passes `--stamp-publish-directory` after
+ * compilation so npm still publishes the compiled folder.
+ */
+function stampPublishDirectory(packageDir: string): void {
+	const manifestPath = path.join(packageDir, 'package.json');
+	const manifest = readJsonFile<PackageManifest>(manifestPath);
+	const existingPublishConfig = isRecord(manifest.publishConfig) ? manifest.publishConfig : {};
+
+	manifest.publishConfig = {
+		...existingPublishConfig,
+		access: typeof existingPublishConfig.access === 'string' ? existingPublishConfig.access : 'public',
+		directory: 'dist',
+	};
+	writeTextFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 /**
@@ -830,11 +854,16 @@ async function buildPackage(packageDir: string, context: BuildContext): Promise<
  * provided as package names or package directory names.
  */
 async function main(): Promise<void> {
-	const { positionals } = parseArgs({
+	const { positionals, values } = parseArgs({
 		allowPositionals: true,
+		options: {
+			'stamp-publish-directory': {
+				type: 'boolean',
+				default: false,
+			},
+		},
 	});
 	const filters = new Set(positionals);
-	const rootPackage = readJsonFile<{ version: string }>(rootPackageJsonPath);
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
 		.filter((packageDir) =>
 			matchesRequestedPackage(
@@ -849,13 +878,14 @@ async function main(): Promise<void> {
 		throw new Error('No publishable packages matched the requested filters.');
 	}
 
-	const context: BuildContext = {
-		version: rootPackage.version,
-		builtPackages: new Set<string>(),
-	};
-
 	for (const packageDir of packageDirs) {
-		await buildPackage(packageDir, context);
+		await buildPackage(packageDir);
+	}
+
+	if (values['stamp-publish-directory']) {
+		for (const packageDir of packageDirs) {
+			stampPublishDirectory(packageDir);
+		}
 	}
 }
 

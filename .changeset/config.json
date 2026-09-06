@@ -1,0 +1,29 @@
+{
+	"$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+	"changelog": ["@changesets/changelog-github", { "repo": "ecopages/ecopages" }],
+	"commit": false,
+	"fixed": [
+		[
+			"ecopages",
+			"@ecopages/browser-router",
+			"@ecopages/content-processor",
+			"@ecopages/core",
+			"@ecopages/dev-toolbar",
+			"@ecopages/ecopages-jsx",
+			"@ecopages/file-system",
+			"@ecopages/image-processor",
+			"@ecopages/kitajs",
+			"@ecopages/lit",
+			"@ecopages/mdx",
+			"@ecopages/postcss-processor",
+			"@ecopages/react",
+			"@ecopages/react-router"
+		]
+	],
+	"linked": [],
+	"access": "public",
+	"baseBranch": "release/v0.2.0",
+	"updateInternalDependencies": "patch",
+	"ignore": [],
+	"privatePackages": false
+}

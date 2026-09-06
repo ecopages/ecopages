@@ -16,6 +16,9 @@
 		".": "./src/index.ts",
 		"./client": "./src/client/index.ts"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],

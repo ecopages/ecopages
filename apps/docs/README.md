@@ -1,6 +1,6 @@
 # Ecopages Docs
 
-Public documentation app for the framework (ecopages.app). Pages are MDX under `src/content/docs`, rendered by a catch-all route, with Radiant UI chrome for sidebar, TOC, breadcrumb, alerts, and the theme toggle.
+Public documentation app for the framework (ecopages.app). Pages are MDX under `src/content/docs`, rendered by a catch-all route, with Radiant UI chrome for sidebar, TOC, breadcrumb, alerts, and the theme toggle. Fenced code blocks are highlighted with `rehype-pretty-code` and get a Copy control via `transformerCopyButton` plus the base layout clipboard script.
 
 The sidebar is uncontrolled (`mobileDefaultOpen={false}`): crossing into the mobile breakpoint closes the drawer without a page-level `rui-sidebar-mobile-change` listener. TOC listeners register only in the browser so server renders do not keep document listeners between pages. Each MDX file imports the interactive components it renders, so client assets stay scoped to pages that use them.
 

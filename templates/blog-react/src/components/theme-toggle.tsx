@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from './icons';
+import './theme-toggle.css';
 
 const PREFERENCES = ['system', 'light', 'dark'] as const;
 type ThemePreference = (typeof PREFERENCES)[number];
@@ -42,10 +43,6 @@ function PreferenceIcon({ preference }: { preference: ThemePreference }): ReactN
  * While `system` is selected, `prefers-color-scheme` updates the effective theme.
  */
 export const ThemeToggle = eco.component<{}, ReactNode>({
-	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
-	},
-
 	render: () => {
 		const [mounted, setMounted] = useState(false);
 		const [preference, setPreference] = useState<ThemePreference>('system');

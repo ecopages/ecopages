@@ -117,11 +117,9 @@ Compose your page using components. Import local components directly — Ecopage
 // src/pages/index.tsx
 import { eco } from '@ecopages/core';
 import { Greeting } from '../components/Greeting';
+import '../styles.css';
 
 export default eco.page({
-  dependencies: {
-    stylesheets: ['../styles.css'],
-  },
   metadata: () => ({
     title: 'Welcome to Ecopages',
   }),

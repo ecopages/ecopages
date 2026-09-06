@@ -1,3 +1,5 @@
+/// <reference path="./css-imports.d.ts" />
+
 import type { EcoPagesAppConfig } from './types/internal-types';
 import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
 
@@ -24,9 +26,4 @@ declare global {
 		/** Shared Ecopages browser runtime state */
 		__ECO_PAGES__?: EcoPagesWindowRuntime;
 	}
-}
-
-declare module '*.css' {
-	const styles: string;
-	export default styles;
 }

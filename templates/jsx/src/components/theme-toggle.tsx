@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { Monitor, Moon, Sun } from './icons';
+import './theme-toggle.css';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -29,10 +30,8 @@ function ThemeLabel({ preference }: { preference: ThemePreference }): string {
 
 export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
-
 	render: ({ value = 'system' }) => (
 		<theme-toggle data-value={value}>
 			<button type="button" class="theme-toggle-button" aria-label="Cycle theme">

@@ -40,7 +40,20 @@ Discovery is conservative and module-scoped: every Eco declaration in a file sha
 
 Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
-Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+
+When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
+
+```ts
+import { eco, mergePageDependencies } from '@ecopages/core';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
+
+export default eco.page({
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
+	render: () => <article />,
+});
+```
 
 Browser scripts remain explicit:
 
@@ -616,8 +629,24 @@ type DependencyEntry = {
 interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
-	components?: EcoComponent[];
+	modules?: string[];
+	/** Declared eco components only — see `EcoDeclaredComponent`. */
+	components?: EcoDeclaredComponent[];
 }
+
+type FileOwnedDependencyContribution = EcoComponentDependencies & {
+	ownerFile?: string;
+};
+
+type PageDependenciesResult = FileOwnedDependencyContribution & {
+	contributions?: FileOwnedDependencyContribution[];
+};
+
+type GetPageDependencies<T> = (context: {
+	props: PagePropsFor<T>;
+	params?: Record<string, string>;
+	query?: Record<string, string>;
+}) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 // Shared base option shape used by component(), html(), and layout()
 interface ComponentOptions<P, E = EcoPagesElement> {
@@ -633,7 +662,7 @@ type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
-	dependencies?: EcoComponentDependencies;
+	dependencies?: EcoComponentDependencies | GetPageDependencies<T>;
 	layout?: EcoComponent<{ children: E }>;
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;

@@ -41,7 +41,20 @@ Discovery is conservative and module-scoped: every Eco declaration in a file sha
 
 Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
-Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+
+When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
+
+```ts
+import { eco, mergePageDependencies } from '@ecopages/core';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
+
+export default eco.page({
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
+	render: () => <article />,
+});
+```
 
 Browser scripts remain explicit:
 
@@ -126,7 +139,7 @@ Powered by [`@ecopages/react`](https://github.com/ecopages/react).
 
 > **Warning:** These components **cannot** declare external dependencies (scripts/stylesheets) or use EcoPages' lazy loading strategies directly. For those features, wrap them in `eco.component()`.
 >
-> **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with injected `config.__eco` metadata. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
+> **Important:** Plain React functions are **not** valid as `eco.page({ layout })` values or as `dependencies.components` entries. The renderer validates that dependency graph nodes are **declared** components (`eco.component()`, `eco.layout()`, or `eco.html()`) with bound `config.identity`. Use `eco.layout()` for route wrappers instead of ad-hoc functions.
 
 ```tsx
 import { useState } from 'react';
@@ -602,9 +615,24 @@ type DependencyEntry = {
 interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
+	modules?: string[];
 	/** Declared eco components only — see `EcoDeclaredComponent`. */
 	components?: EcoDeclaredComponent[];
 }
+
+type FileOwnedDependencyContribution = EcoComponentDependencies & {
+	ownerFile?: string;
+};
+
+type PageDependenciesResult = FileOwnedDependencyContribution & {
+	contributions?: FileOwnedDependencyContribution[];
+};
+
+type GetPageDependencies<T> = (context: {
+	props: PagePropsFor<T>;
+	params?: Record<string, string>;
+	query?: Record<string, string>;
+}) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 // Shared base option shape used by component(), html(), and layout()
 interface ComponentOptions<P, E = EcoPagesElement> {
@@ -627,7 +655,7 @@ type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutS
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
-	dependencies?: EcoComponentDependencies;
+	dependencies?: EcoComponentDependencies | GetPageDependencies<T>;
 	layout?: EcoPageLayouts<E>;
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;

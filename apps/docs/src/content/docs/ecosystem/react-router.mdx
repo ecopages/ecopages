@@ -93,7 +93,7 @@ export default eco.page({
 });
 ```
 
-When navigating between pages that share the same layout key (`config.__eco.file` or `id`), `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. Only page content updates.
+When navigating between pages that share the same layout key (`config.identity.file` or `id`), `persistLayouts` (enabled by default with `ecoRouter()`) keeps the layout mounted. Only page content updates.
 
 **Shared npm vendors:** persisted layouts also require shared browser copies of provider libraries (TanStack Query, MobX, Redux, audio engines). Set `runtimeProvider: true` on provider root layouts and configure `runtimeModules` when page code imports those packages outside the layout graph. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors).
 

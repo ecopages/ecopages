@@ -29,7 +29,7 @@ These contracts are responsible for:
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
-- MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors and stylesheets to `config.dependencies`, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
+- MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 
 ## Lifecycle Summary
 
@@ -40,4 +40,4 @@ These contracts are responsible for:
 
 ## Discovered dependency metadata
 
-The identity transform passes a deferred Component accessor and resolved stylesheet paths to `bindComponentIdentity`. Factories merge this metadata into `config.dependencies`; import bindings are read during graph traversal, after module initialization. Supported relative and aliased CSS imports are removed from all transformed outputs so the asset pipeline owns CSS delivery. Explicit styles override discovery. The transform uses the same discovery rules in Bun and Vite/Rolldown. Imported source changes are reparsed through the content-keyed parser cache.
+The identity transform passes a deferred Component accessor and resolved stylesheet paths to `bindComponentIdentity`. Factories attach the deferred Component accessor to `config.dependencies`; inferred stylesheets stay keyed by identity for the collector. Import bindings are read during graph traversal, after module initialization. Supported relative and aliased CSS imports are removed from all transformed outputs so the asset pipeline owns CSS delivery. Explicit styles override discovery. Discovery does not follow barrel re-exports, dynamic imports, namespace imports, package Components/CSS, CSS Modules, or custom import attributes. The transform uses the same discovery rules in Bun and Vite/Rolldown. Imported source changes are reparsed through the content-keyed parser cache.

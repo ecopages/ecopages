@@ -583,9 +583,6 @@ import { Counter } from '@/components/counter';
 
 export default eco.page({
 	layout: BaseLayout,
-	dependencies: {
-		components: [Counter],
-	},
 	metadata: () => ({
 		title: 'Home',
 		description: 'Welcome to EcoPages',
@@ -598,6 +595,8 @@ export default eco.page({
 	),
 });
 ```
+
+The static `Counter` import is discovered automatically. You do not list it again in `dependencies.components`. Lazy scripts stay on the Component.
 
 ## Type Definitions
 

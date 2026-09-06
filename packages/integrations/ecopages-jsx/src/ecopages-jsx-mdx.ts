@@ -1,8 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { EcoComponent, EcoComponentConfig, EcoFunctionComponent, EcoPageFile, GetMetadata } from '@ecopages/core';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
-import { rapidhash } from '@ecopages/core/hash';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
 	appendMdxExtensions,
@@ -11,7 +9,6 @@ import {
 	resolveMdxCompilerOptions as resolveMdxCompilerOptionsCore,
 } from '@ecopages/mdx/core';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { VFile } from 'vfile';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import type { EcopagesJsxMdxCompileOptions, EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
 
@@ -37,38 +34,34 @@ export const resolveMdxCompilerOptions = (mdxOptions: EcopagesJsxMdxOptions): Re
 		},
 	}) as ResolvedMdxCompileOptions;
 
-export const createMdxLoaderPlugin = (
-	compilerOptions: ResolvedMdxCompileOptions,
-	extensions: string[],
-): EcoBuildPlugin =>
+export interface CreateEcopagesJsxMdxLoaderPluginOptions {
+	compilerOptions: ResolvedMdxCompileOptions;
+	extensions: string[];
+	projectRoot: string;
+}
+
+export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginOptions): EcoBuildPlugin =>
 	createMdxLoaderPluginCore({
 		name: 'ecopages-jsx-mdx-loader',
-		compilerOptions,
-		extensions,
+		integrationName: ECOPAGES_JSX_PLUGIN_NAME,
+		compilerOptions: options.compilerOptions,
+		extensions: options.extensions,
 		includeSourceMap: false,
 		loader: 'js',
+		projectRoot: options.projectRoot,
 	});
 
-export const registerBunMdxPlugin = async (
-	compilerOptions: ResolvedMdxCompileOptions,
-	extensions: string[],
-): Promise<void> => {
+export const registerBunMdxPlugin = async (options: CreateEcopagesJsxMdxLoaderPluginOptions): Promise<void> => {
 	if (typeof Bun === 'undefined') {
 		return;
 	}
 
-	const filter = createMdxExtensionFilter(extensions);
+	const plugin = createMdxLoaderPlugin(options);
 
 	Bun.plugin({
-		name: 'ecopages-jsx-mdx',
+		name: plugin.name,
 		setup(build) {
-			build.onLoad({ filter }, async (args) => {
-				const { compile } = await import('@mdx-js/mdx');
-				const source = await readFile(args.path, 'utf-8');
-				const compiled = await compile(new VFile({ value: source, path: args.path }), compilerOptions);
-
-				return { contents: String(compiled.value), loader: 'js' as const };
-			});
+			return plugin.setup(build as any);
 		},
 	});
 };
@@ -83,25 +76,22 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	}
 
 	const Page = module.default;
-	const normalizedConfig: EcoComponentConfig = {
-		...(module.config ?? Page.config ?? {}),
-		identity: module.config?.identity ??
-			Page.config?.identity ?? {
-				id: String(rapidhash(file)),
-				file,
-				integration: ECOPAGES_JSX_PLUGIN_NAME,
-			},
-	};
-
-	if (module.layout && !(normalizedConfig.layouts && normalizedConfig.layouts.length > 0)) {
-		(normalizedConfig as EcoComponentConfig & { layout?: EcoComponent }).layout = module.layout;
+	const attributedConfig = module.config ?? Page.config;
+	if (!attributedConfig?.identity) {
+		throw new Error(
+			`[ecopages] MDX page "${file}" is missing component identity; the MDX loader must attribute it.`,
+		);
 	}
 
-	ensurePageConfigLayouts(normalizedConfig);
+	if (module.layout && !(attributedConfig.layouts && attributedConfig.layouts.length > 0)) {
+		(attributedConfig as EcoComponentConfig & { layout?: EcoComponent }).layout = module.layout;
+	}
+
+	ensurePageConfigLayouts(attributedConfig);
 	const wrappedPage: AsyncEcoComponent<Record<string, unknown>> = async (props: Record<string, unknown>) =>
 		await Page(props);
 
-	wrappedPage.config = normalizedConfig;
+	wrappedPage.config = attributedConfig;
 
 	if (module.getMetadata ?? Page.metadata) {
 		wrappedPage.metadata = module.getMetadata ?? Page.metadata;
@@ -110,6 +100,6 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	return {
 		...module,
 		default: wrappedPage,
-		config: normalizedConfig,
+		config: attributedConfig,
 	};
 };

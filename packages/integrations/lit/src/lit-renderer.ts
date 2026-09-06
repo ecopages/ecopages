@@ -1,3 +1,4 @@
+import { createLitServerModuleImporter } from './lit-server-module-loader.ts';
 /**
  * This module contains the Lit renderer
  * @module
@@ -224,6 +225,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	}
 
 	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({
+		importServerModule: createLitServerModuleImporter(this.appConfig),
 		resolveDependencyPath: this.resolveDependencyPath.bind(this),
 		processDependencies: this.assetProcessingService?.processDependencies?.bind(this.assetProcessingService),
 	});

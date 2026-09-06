@@ -38,6 +38,8 @@ interface PageModuleImportBaseOptions {
 export interface PageModuleBuildImportOptions extends PageModuleImportBaseOptions {
 	rootDir: string;
 	outdir: string;
+	/** Use the server build pipeline even when a development host can load source modules. */
+	forceBuild?: boolean;
 	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
@@ -146,6 +148,7 @@ export class PageModuleImportService {
 
 		const fileHash = this.dependencies.hashFile(filePath);
 		const hostModuleLoader =
+			!options.forceBuild &&
 			typeof Bun === 'undefined' &&
 			process.env.NODE_ENV === 'development' &&
 			this.dependencies.canLoadSourceModuleFromHost(filePath)

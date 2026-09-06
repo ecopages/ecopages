@@ -111,7 +111,7 @@ export const Greeting = eco.component<{ name: string }>({
 
 ### 2. Create a Page
 
-Compose your page using components. Dependencies are automatically managed.
+Compose your page using components. Import local components directly — Ecopages discovers them automatically.
 
 ```typescript
 // src/pages/index.tsx
@@ -121,7 +121,6 @@ import { Greeting } from '../components/Greeting';
 export default eco.page({
   dependencies: {
     stylesheets: ['../styles.css'],
-    components: [Greeting],
   },
   metadata: () => ({
     title: 'Welcome to Ecopages',

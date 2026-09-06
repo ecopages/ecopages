@@ -20,6 +20,57 @@ Layouts are assigned explicitly on each `eco.page({ layout })` call — either o
 
 EcoPages does **not** infer layouts from `src/layouts/` file paths or route segment directories. A file under `src/layouts/` is only used when a page imports it and passes it to `layout`.
 
+## Dependency discovery
+
+Discovery is enabled by default for modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`.
+
+```tsx
+import { eco } from '@ecopages/core';
+import { Counter } from './counter';
+import './page.css';
+
+export default eco.page({
+	render: () => <Counter />,
+});
+```
+
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
+
+Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. **Best practice:** author **one `eco.component()` per file**. Co-locating multiple components in a single file will cause all declared components in that file to share discovered dependencies.
+
+Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
+
+Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
+
+When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
+
+```ts
+import { eco, mergePageDependencies } from '@ecopages/core';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
+
+export default eco.page({
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
+	render: () => <article />,
+});
+```
+
+Browser scripts remain explicit:
+
+```ts
+scripts: [
+	{
+		src: './counter.script.ts',
+		ssr: true,
+		lazy: { 'on:visible': true },
+	},
+];
+```
+
+For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
+
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Successful named re-export hops are watch paths, so retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+
 ## Component Patterns
 
 EcoPages supports two approaches for creating components, each suited for different use cases:
@@ -546,9 +597,6 @@ import { Counter } from '@/components/counter';
 
 export default eco.page({
 	layout: BaseLayout,
-	dependencies: {
-		components: [Counter],
-	},
 	metadata: () => ({
 		title: 'Home',
 		description: 'Welcome to EcoPages',
@@ -561,6 +609,8 @@ export default eco.page({
 	),
 });
 ```
+
+The static `Counter` import is discovered automatically. You do not list it again in `dependencies.components`. Lazy scripts stay on the Component.
 
 ## Type Definitions
 
@@ -578,8 +628,24 @@ type DependencyEntry = {
 interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
-	components?: EcoComponent[];
+	modules?: string[];
+	/** Declared eco components only — see `EcoDeclaredComponent`. */
+	components?: EcoDeclaredComponent[];
 }
+
+type FileOwnedDependencyContribution = EcoComponentDependencies & {
+	ownerFile?: string;
+};
+
+type PageDependenciesResult = FileOwnedDependencyContribution & {
+	contributions?: FileOwnedDependencyContribution[];
+};
+
+type GetPageDependencies<T> = (context: {
+	props: PagePropsFor<T>;
+	params?: Record<string, string>;
+	query?: Record<string, string>;
+}) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 // Shared base option shape used by component(), html(), and layout()
 interface ComponentOptions<P, E = EcoPagesElement> {
@@ -595,7 +661,7 @@ type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
-	dependencies?: EcoComponentDependencies;
+	dependencies?: EcoComponentDependencies | GetPageDependencies<T>;
 	layout?: EcoComponent<{ children: E }>;
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;

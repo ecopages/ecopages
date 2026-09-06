@@ -137,3 +137,9 @@ Not every integration needs queue-based handoff.
 
 - Different integrations still own different foreign-child runtime strategies, which is intentional where child transport or hydration behavior differs.
 - `integration-renderer.ts` remains the largest integration hook surface even after document-shell extraction.
+
+## Discovered Dependencies and loading policy
+
+Dependency collection reads declared `config.dependencies` plus identity-keyed inferred stylesheets, including deferred direct-import Component references. Traversal visits each config once; multiple Components in one file remain distinct. It collects explicit styles before inferred styles across the graph, suppressing inferred duplicates by resolved path. Page dependency results may include multiple file-owned contributions so relative assets keep the file that declared them. Source watch paths include discovered Components, their stylesheet files, and named barrel hops recorded during discovery.
+
+Lit preloads scripts marked `ssr: true` before server rendering, while the existing lazy-trigger manifest controls browser loading. The route pipeline does not emit a second eager script for these entries. Integration renderers refresh their resolved global assets after runtime activation so late setup cannot omit hydration support.

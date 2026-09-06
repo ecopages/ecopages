@@ -43,15 +43,19 @@ describe('codegen', () => {
 		expect(output).toContain('function attachMdxExports(module: ContentMdxModule, sourceFile: string)');
 		expect(output).toContain('const componentCache = new Map');
 		expect(output).toContain('const componentLoadPromises = new Map');
-		expect(output).toContain(
-			"import { bindComponentIdentity, getComponentIdentity, type EcoComponent, type PageDependenciesResult } from '@ecopages/core';",
-		);
+		expect(output).toContain("import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';");
+		expect(output).toContain('component.config = module.config');
+		expect(output).not.toContain('bindComponentIdentity');
+		expect(output).not.toContain('attachDiscoveredDependencies');
+		expect(output).not.toContain('getComponentIdentity');
 		expect(output).toContain("import { HttpError } from '@ecopages/core/errors'");
 		expect(output).toContain('throw HttpError.NotFound(`Unknown content entry: ${slug}`)');
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
-		expect(output).toContain('ownerFile: entrySourceFilesBySlug[slug]');
+		expect(output).toContain('components: [component]');
+		expect(output).not.toContain('...dependencies');
+		expect(output).not.toContain('ownerFile: entrySourceFilesBySlug[slug]');
 		expect(output).not.toContain('export const entries');
 	});
 
@@ -67,6 +71,8 @@ describe('codegen', () => {
 		expect(output).toContain('export function loadComponent(slug: string)');
 		expect(output).toContain('const componentLoadPromises = new Map');
 		expect(output).toContain('attachMdxExports(module, entrySourceFilesBySlug[slug]!)');
+		expect(output).toContain("import type { EcoComponent } from '@ecopages/core'");
+		expect(output).not.toContain('bindComponentIdentity');
 		expect(output).not.toContain('getEntryDependencies');
 	});
 
@@ -97,13 +103,51 @@ describe('codegen', () => {
 			'export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>',
 		);
 		expect(output).toContain('/** @throws HttpError 404 when the slug is not in the collection. */');
-		expect(output).toContain(
-			'export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>',
-		);
+		expect(output).toContain('export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>');
 		expect(output).toContain('declare module "ecopages:content/blog"');
 		expect(output).toContain('declare module "ecopages:content/blog/server"');
 		expect(output).toContain("import type { ContentEntry } from '@ecopages/content-processor/types'");
 		expect(output).toContain("import type { BlogFrontmatter } from './src/content/blog-schema'");
 		expect(output).toContain('export type Entry = ContentEntry<BlogFrontmatter>');
+	});
+
+	test('fallback content-virtual-modules.d.ts separates server and browser wildcards and omits them from catch-all', async () => {
+		const { readFileSync } = await import('node:fs');
+		const { resolve } = await import('node:path');
+		const dtsContent = readFileSync(resolve(import.meta.dirname, '../content-virtual-modules.d.ts'), 'utf-8');
+
+		const serverIndex = dtsContent.indexOf("declare module 'ecopages:content/*/server'");
+		const browserIndex = dtsContent.indexOf("declare module 'ecopages:content/*/browser'");
+		const catchAllIndex = dtsContent.indexOf("declare module 'ecopages:content/*'");
+
+		expect(serverIndex).toBeGreaterThan(-1);
+		expect(browserIndex).toBeGreaterThan(-1);
+		expect(catchAllIndex).toBeGreaterThan(-1);
+
+		// Variant patterns must precede the catch-all wildcard for TypeScript pattern precedence
+		expect(serverIndex).toBeLessThan(catchAllIndex);
+		expect(browserIndex).toBeLessThan(catchAllIndex);
+
+		const catchAllBlock = dtsContent.slice(catchAllIndex);
+		expect(catchAllBlock).toContain('export const entries: readonly Entry[];');
+		expect(catchAllBlock).toContain('export function getEntry(slug: string): Entry;');
+		expect(catchAllBlock).not.toContain('getComponent');
+		expect(catchAllBlock).not.toContain('loadComponent');
+		expect(catchAllBlock).not.toContain('getEntryDependencies');
+	});
+
+	test('attachMdxExports assigns loader-attributed config by reference and does not re-bind', () => {
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+			{
+				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
+				filePath: '/app/src/content/docs/intro.mdx',
+			},
+		]);
+
+		expect(output).toContain('if (!module.config.identity)');
+		expect(output).toContain('component.config = module.config');
+		expect(output).not.toContain('bindComponentIdentity(');
+		expect(output).not.toContain('attachDiscoveredDependencies(');
+		expect(output).not.toContain('{ ...component.config');
 	});
 });

@@ -43,7 +43,7 @@ flowchart TD
   D --> E[resolvePageData]
   E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
   F --> G[resolveDependencies + buildPageBrowserGraph]
-  G --> H[collect injector and eager SSR lazy assets]
+  G --> H[collect lazy injector assets]
   H --> I[build pagePackage and prepared render options]
   I --> J[IntegrationRenderer.render via document shell]
   J --> K[capture rendered body as html]

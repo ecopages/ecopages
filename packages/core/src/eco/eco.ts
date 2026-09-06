@@ -37,6 +37,7 @@ import {
 import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 import { getComponentIdentity } from './component-identity.ts';
+import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 
 /**
  * Creates a component factory with lazy-trigger support and foreign-child-runtime
@@ -101,6 +102,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 		integration: options.integration,
 		dependencies: options.dependencies,
 	};
+	attachDiscoveredDependencies(comp.config);
 
 	return comp;
 }

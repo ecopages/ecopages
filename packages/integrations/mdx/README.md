@@ -61,3 +61,12 @@ reactPlugin({
 	mdx: { enabled: true },
 });
 ```
+
+## Dependency discovery in MDX
+
+The core MDX loader plugin automatically discovers top-level component and stylesheet imports in MDX files across all integrations. `projectRoot` is required and comes from the app config (`rootDir`); the loader throws if it is missing.
+
+- **Local components**: Top-level imports of local `eco.component()` declarations are added to `config.dependencies.components`.
+- **Stylesheets**: Relative and TSConfig-aliased bare CSS imports (e.g. `import './post.css';` or `import '@/styles/post.css';`) are stripped from the compiled JavaScript. Discovered paths stay on Component identity until collection; they are not copied into `config.dependencies.stylesheets`. Explicit `dependencies.stylesheets` entries remain authoritative for attributes such as `media`.
+- **Code blocks and functions**: Markdown code blocks containing import statements and dynamic imports inside functions are distinguished from top-level ESM declarations and remain untouched.
+- **Config synthesis**: Every compiled MDX module is attributed with `bindComponentIdentity` and `attachDiscoveredDependencies`. If `export const config = { ... }` is already present, discovered Components merge with explicit ones.

@@ -18,6 +18,7 @@ type ImportedReactPageModule = {
 export type ReactHmrDevTransformPluginOptions = {
 	pageMetadataCache: HmrPageMetadataCache;
 	mdxCompilerOptions?: CompileOptions;
+	projectRoot: string;
 	getBuildPlugins: (declaredModules?: readonly string[]) => EcoBuildPlugin[];
 	importNodePageModule: (entrypointPath: string) => Promise<ImportedReactPageModule>;
 };
@@ -46,7 +47,12 @@ export function buildReactDevTransformPlugins(
 	const plugins = options.getBuildPlugins(declaredModules);
 
 	if (shouldEnableMdx && options.mdxCompilerOptions) {
-		plugins.unshift(createReactMdxLoaderPlugin(options.mdxCompilerOptions));
+		plugins.unshift(
+			createReactMdxLoaderPlugin({
+				compilerOptions: options.mdxCompilerOptions,
+				projectRoot: options.projectRoot,
+			}),
+		);
 	}
 
 	return plugins;

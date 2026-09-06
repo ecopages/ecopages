@@ -59,24 +59,24 @@ By default, the plugin owns `.tsx` route files and compiles them against `@ecopa
 
 ## Creating Pages
 
-Pages use the usual `eco.page()` contract. Declare layout or nested component dependencies when Ecopages needs to resolve mixed-renderer ownership.
+Pages use the usual `eco.page()` contract. Assign route wrappers with `layout`; import nested components directly — Ecopages discovers local `eco.component()` imports automatically.
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-	render: () => {
-		return (
-			<BaseLayout>
-				<h1>Welcome to Ecopages JSX</h1>
-				<p>TSX routes render through the Ecopages JSX runtime.</p>
-			</BaseLayout>
-		);
-	},
+	layout: BaseLayout,
+	metadata: () => ({
+		title: 'Home',
+		description: 'Welcome to Ecopages JSX',
+	}),
+	render: () => (
+		<>
+			<h1>Welcome to Ecopages JSX</h1>
+			<p>TSX routes render through the Ecopages JSX runtime.</p>
+		</>
+	),
 });
 ```
 
@@ -150,7 +150,8 @@ Ecopages JSX can own the full route or only a nested foreign subtree. When anoth
 
 Important:
 
-- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Foreign children must appear in the owning component's dependency graph. Direct local imports are discovered automatically.
+- Declare `dependencies.components` explicitly for `export *` barrels, package components, or other imports discovery cannot follow.
 - Mixed-renderer ownership is validated from declared dependencies during render preparation.
 - Raw markup preservation and asset collection stay inside the JSX renderer.
 - Nested foreign-subtree assets bubble back through the owning JSX render pass, so the foreign subtree keeps both its HTML and its browser requirements together.

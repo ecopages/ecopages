@@ -68,16 +68,12 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout],
-	},
-	render: () => {
-		return (
-			<BaseLayout>
-				<h1>Welcome to Ecopages</h1>
-			</BaseLayout>
-		);
-	},
+	layout: BaseLayout,
+	render: () => (
+		<>
+			<h1>Welcome to Ecopages</h1>
+		</>
+	),
 });
 ```
 
@@ -94,7 +90,7 @@ Interactive Kita components with client scripts stamp [island host attributes](/
 
 1. **Layouts**: Create layout components (like `BaseLayout` in the example) to maintain consistent page structures.
 2. **Route naming**: Use `.kita.tsx` for Kita-owned route files.
-3. **Dependency declarations**: Declare foreign child components in `config.dependencies.components` when mixing integrations.
+3. **Dependency declarations**: In mixed-integration apps, foreign children must appear in the dependency graph. Direct local imports are discovered automatically; use explicit `dependencies.components` for `export *` barrels, packages, or other imports discovery cannot follow.
 
 ## Integration with Other Plugins
 

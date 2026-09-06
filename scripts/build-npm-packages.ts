@@ -863,7 +863,7 @@ async function main(): Promise<void> {
 			},
 		},
 	});
-	const filters = new Set(positionals);
+	const filters = new Set(positionals.filter((value) => !value.startsWith('-')));
 	const packageDirs = findPublishablePackageDirs(packagesRoot)
 		.filter((packageDir) =>
 			matchesRequestedPackage(

@@ -55,6 +55,6 @@ jobs:
             - name: Create Release Pull Request or Publish
               uses: changesets/action@v2
               with:
-                  publish-script: pnpm run build:npm -- --stamp-publish-directory && pnpm changeset publish
+                  publish-script: pnpm run release
               env:
                   NPM_CONFIG_PROVENANCE: true

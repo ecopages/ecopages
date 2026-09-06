@@ -55,7 +55,7 @@ When a non-Lit render pass reaches a Lit-owned foreign child, Ecopages hands tha
 
 Important:
 
-- Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children. Use `dependencies.components` for unsupported discovery patterns such as barrel re-exports and package imports.
+- Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children and named `export { X } from` barrels. Use `dependencies.components` for `export *` barrels and package imports.
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
 

@@ -68,7 +68,7 @@ scripts: [{
 
 For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
 
-Discovery intentionally does not follow barrel re-exports (`export * from './components'`), dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. This prevents barrel files from pulling in entire design systems into page asset bundles. If you import through a barrel file or external package, declare components explicitly in `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
 ## Component Patterns
 

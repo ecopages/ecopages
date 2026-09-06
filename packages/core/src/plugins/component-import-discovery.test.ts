@@ -68,10 +68,55 @@ describe('component import discovery', () => {
 		);
 		expect(result).not.toContain('components: ()');
 	});
-	it('does not discover a component re-exported through a barrel', () => {
+	it('does not discover a component re-exported through export *', () => {
 		const { root, transform } = fixture();
 		writeFileSync(path.join(root, 'index.ts'), `export * from './child';`);
 		expect(transform(`import { Child } from './index';`)).not.toContain('components: ()');
+	});
+	it('discovers named barrel re-exports of the imported binding only', () => {
+		const { root, transform } = fixture();
+		writeFileSync(path.join(root, 'index.ts'), `export { Child, Renamed as Alias } from './child';`);
+		expect(transform(`import { Child, Alias } from './index';`)).toContain('components: () => [Child, Alias]');
+		expect(transform(`import { Child } from './index';`)).toContain('components: () => [Child]');
+		expect(transform(`import { Child } from './index';`)).not.toContain('Alias');
+	});
+	it('follows nested named barrel re-exports', () => {
+		const { root, transform } = fixture();
+		writeFileSync(path.join(root, 'ui.ts'), `export { Child as Button } from './child';`);
+		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './ui';`);
+		expect(transform(`import { Button } from './index';`)).toContain('components: () => [Button]');
+	});
+	it('discovers two named aliases that converge on the same component', () => {
+		const { root, transform } = fixture();
+		writeFileSync(path.join(root, 'index.ts'), `export { Child as First, Child as Second } from './child';`);
+		expect(transform(`import { First, Second } from './index';`)).toContain('components: () => [First, Second]');
+	});
+	it('does not hang or discover a circular named re-export chain', () => {
+		const { root, transform } = fixture();
+		writeFileSync(path.join(root, 'a.ts'), `export { Button } from './b';`);
+		writeFileSync(path.join(root, 'b.ts'), `export { Button } from './a';`);
+		expect(transform(`import { Button } from './a';`)).not.toContain('components: ()');
+	});
+	it('discovers default-to-named barrel re-exports', () => {
+		const { root, transform } = fixture();
+		writeFileSync(path.join(root, 'index.ts'), `export { default as Button } from './child';`);
+		expect(transform(`import { Button } from './index';`)).toContain('components: () => [Button]');
+	});
+	it('re-reads a barrel retarget without editing the importing page', () => {
+		const { root, transform } = fixture();
+		writeFileSync(
+			path.join(root, 'button-a.ts'),
+			`import { eco } from '@ecopages/core';
+export const Button = eco.component({ render: () => '' });`,
+		);
+		writeFileSync(path.join(root, 'button-b.ts'), `export const Button = () => '';`);
+		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './button-a';`);
+		const imports = `import { Button } from './index';`;
+		expect(transform(imports)).toContain('components: () => [Button]');
+		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './button-b';`);
+		expect(transform(imports)).not.toContain('components: ()');
+		writeFileSync(path.join(root, 'index.ts'), `export { Button } from './button-a';`);
+		expect(transform(imports)).toContain('components: () => [Button]');
 	});
 	it('leaves CSS Modules, attributed imports and CSS in plain-function modules alone', () => {
 		const { transform } = fixture();

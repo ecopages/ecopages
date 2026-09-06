@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { eco } from './eco.ts';
 import { bindComponentIdentity } from './component-identity.ts';
 import { collectComponentDependencies } from '../route-renderer/page-loading/component-dependency-collection.ts';
-import { collectDependencyWatchPaths } from '../route-renderer/page-loading/file-scoped-dependency-components.ts';
+import {
+	collectDependencyWatchPaths,
+	collectFileScopedDependencyComponents,
+	collectPageDependencyComponents,
+} from '../route-renderer/page-loading/file-scoped-dependency-components.ts';
 import type { EcoComponent, EcoDeclaredComponent } from '../types/public-types.ts';
+import { mergePageDependencies } from './page-dependency-contributions.ts';
 
 function collect(components: EcoComponent[]) {
 	return collectComponentDependencies({
@@ -118,5 +123,103 @@ describe('discovered dependency graph', () => {
 		owner.config!.dependencies = { scripts: ['./explicit.ts'] };
 		expect(owner.config?.dependencies?.components).toEqual([child]);
 		expect(owner.config?.dependencies?.scripts).toEqual(['./explicit.ts']);
+		expect(owner.config?.dependencies?.stylesheets).toBeUndefined();
+		expect(collect([owner]).dependencies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ filepath: '/app/owner.css' }),
+				expect.objectContaining({ filepath: '/app/explicit.ts' }),
+			]),
+		);
+	});
+	it('keeps inferred styles off the public bag so copies cannot emit a second unconditional stylesheet', () => {
+		const owner = eco.component(
+			bindComponentIdentity(
+				identity('owner.ts'),
+				{
+					render: () => '',
+					dependencies: { stylesheets: [{ src: './same.css', attributes: { media: 'print' } }] },
+				},
+				{ components: () => [], stylesheets: ['./same.css'] },
+			),
+		);
+		expect(owner.config?.dependencies?.stylesheets).toEqual([
+			{ src: './same.css', attributes: { media: 'print' } },
+		]);
+		const copied = collectFileScopedDependencyComponents({
+			ownerFile: '/app/owner.ts',
+			integrationName: 'lit',
+			dependencies: { ...owner.config!.dependencies },
+		});
+		const fromCopy = collect(copied).dependencies;
+		const fromOwner = collect([owner]).dependencies;
+		expect(fromCopy).toHaveLength(1);
+		expect(fromCopy[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+		expect(fromOwner).toHaveLength(1);
+		expect(fromOwner[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+	});
+	it('treats stylesheets appended after discovery as explicit', () => {
+		const owner = eco.component(
+			bindComponentIdentity(
+				identity('owner.ts'),
+				{
+					render: () => '',
+					dependencies: { stylesheets: [{ src: './same.css', attributes: { media: 'print' } }] },
+				},
+				{ components: () => [], stylesheets: ['./same.css'] },
+			),
+		);
+		owner.config!.dependencies = {
+			stylesheets: [...(owner.config!.dependencies?.stylesheets ?? []), './appended.css'],
+		};
+		const styles = collect([owner]).dependencies;
+		expect(styles).toHaveLength(2);
+		expect(styles[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+		expect(styles[1]).toMatchObject({ filepath: '/app/appended.css' });
+	});
+	it('resolves merged page and content stylesheets against each owner file', () => {
+		const merged = mergePageDependencies(
+			{ stylesheets: ['./page.css'] },
+			{ stylesheets: ['./post.css'], ownerFile: '/app/content/post.mdx' },
+		);
+		const components = collectPageDependencyComponents({
+			result: merged!,
+			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			integrationName: 'lit',
+		});
+		const styles = collect(components).dependencies;
+		expect(styles).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ filepath: '/app/pages/posts/page.css' }),
+				expect.objectContaining({ filepath: '/app/content/post.css' }),
+			]),
+		);
+		expect(styles).toHaveLength(2);
+	});
+	it('keeps inferred-only entry styles through getEntryDependencies when a child overrides the same file', () => {
+		const child = eco.component(
+			bindComponentIdentity(identity('child.ts'), {
+				render: () => '',
+				dependencies: { stylesheets: [{ src: './same.css', attributes: { media: 'print' } }] },
+			}),
+		);
+		const entry = eco.component(
+			bindComponentIdentity(
+				identity('post.mdx'),
+				{ render: () => '' },
+				{ components: () => [child], stylesheets: ['./same.css', './extra.css'] },
+			),
+		);
+		expect(entry.config?.dependencies?.stylesheets).toBeUndefined();
+
+		const getEntryDependencies = (component: EcoComponent) => ({ components: [component] });
+		const components = collectPageDependencyComponents({
+			result: getEntryDependencies(entry),
+			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			integrationName: 'lit',
+		});
+		const styles = collect(components).dependencies;
+		expect(styles).toHaveLength(2);
+		expect(styles[0]).toMatchObject({ filepath: '/app/same.css', attributes: { media: 'print' } });
+		expect(styles[1]).toMatchObject({ filepath: '/app/extra.css' });
 	});
 });

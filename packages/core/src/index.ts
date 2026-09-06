@@ -38,7 +38,8 @@ export {
 	getInferredStylesheets,
 	type DiscoveredDependencies,
 } from './eco/discovered-dependencies.ts';
-export { mergePageDependencies, mergeLayoutDependencies } from './eco/page-layout-normalization.ts';
+export { listFileOwnedDependencyContributions, mergePageDependencies } from './eco/page-dependency-contributions.ts';
+export { mergeLayoutDependencies } from './eco/page-layout-normalization.ts';
 export { SchemaError, validateStandardSchema } from './services/validation/validate-standard-schema.ts';
 export {
 	buildIslandHostAttributes,

@@ -5,7 +5,6 @@ import type {
 	EcoPageLayoutEntry,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
-	PageDependenciesResult,
 } from '../types/public-types.ts';
 
 function isLayoutSpecObject<E>(spec: EcoPageLayoutSpec<E>): spec is EcoPageLayoutEntry<E> {
@@ -95,33 +94,4 @@ export function ensurePageConfigLayouts(config: EcoComponentConfig | undefined):
 
 	applyPageLayoutConfig(config, normalizePageLayouts(legacyLayout));
 	return config;
-}
-
-/**
- * Merges base page dependencies with additional dependencies (such as those returned by a content entry).
- *
- * @remarks
- * Combines `stylesheets`, `scripts`, and `components` arrays without duplicate entries.
- * When `additional` includes an `ownerFile` (e.g. from `getEntryDependencies(slug)`),
- * that ownership metadata is preserved on the merged result.
- */
-export function mergePageDependencies(
-	base: EcoComponentDependencies | undefined,
-	additional: PageDependenciesResult | EcoComponentDependencies | undefined,
-): PageDependenciesResult | undefined {
-	if (!base) return additional as PageDependenciesResult | undefined;
-	if (!additional) return base as PageDependenciesResult;
-
-	const { ownerFile, ...entryDeps } = additional as PageDependenciesResult;
-
-	const components = [...new Set([...(base.components ?? []), ...(entryDeps.components ?? [])])];
-	const stylesheets = [...new Set([...(base.stylesheets ?? []), ...(entryDeps.stylesheets ?? [])])];
-	const scripts = [...new Set([...(base.scripts ?? []), ...(entryDeps.scripts ?? [])])];
-
-	return {
-		...(components.length ? { components } : {}),
-		...(stylesheets.length ? { stylesheets } : {}),
-		...(scripts.length ? { scripts } : {}),
-		...(ownerFile ? { ownerFile } : {}),
-	};
 }

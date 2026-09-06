@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
+import './theme-toggle.css';
 
 function SystemIcon(): ReactNode {
 	return (
@@ -24,7 +25,6 @@ function SystemIcon(): ReactNode {
 
 export const ThemeToggle = eco.component<Record<string, never>, ReactNode>({
 	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
 	render: () => (

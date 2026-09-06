@@ -13,6 +13,8 @@ Ecopages is an extensible static site generator (SSG) built around a Bun-first c
 
 ## Current Architecture
 
+Projects load shared ambient types through `@ecopages/core/declarations`. This entry references `src/css-imports.d.ts`, which keeps the wildcard CSS declaration in a standalone ambient file so side-effect CSS imports typecheck without per-project declarations.
+
 The current core package is organized around app-owned runtime state and explicit service boundaries.
 
 The important ownership rules are:

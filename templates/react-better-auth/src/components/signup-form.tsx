@@ -5,6 +5,8 @@ import { authClient } from '@/lib/auth-client';
 import { eco } from '@ecopages/core';
 import { SocialSignIn } from './social-sign-in';
 import { clearOAuthErrorParams, messageForOAuthError } from '@/lib/oauth-error';
+import './signup-form.css';
+import './social-sign-in.css';
 
 type SignupFormProps = {
 	githubEnabled: boolean;
@@ -12,9 +14,6 @@ type SignupFormProps = {
 };
 
 export const SignupForm = eco.component<SignupFormProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./signup-form.css', './social-sign-in.css'],
-	},
 	render: ({ githubEnabled = false, oauthError = null }) => {
 		const [name, setName] = useState('');
 		const [email, setEmail] = useState('');

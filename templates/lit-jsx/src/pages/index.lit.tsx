@@ -3,6 +3,7 @@ import * as images from 'ecopages:images';
 import { LitCounter } from '@/components/lit-counter';
 import { BaseLayout } from '@/layouts/base-layout';
 import ShowcaseMdx from '@/components/showcase.mdx';
+import './index.css';
 
 const CARDS = [
 	[
@@ -36,7 +37,6 @@ const CARDS = [
 ] as const;
 
 export default eco.page({
-	dependencies: { stylesheets: ['./index.css'], components: [BaseLayout, LitCounter] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({
 		title: 'Ecopages Lit JSX',

@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
+import './docs-bar.css';
 
 export type BreadcrumbItem = {
 	label: string;
@@ -40,9 +41,6 @@ const DocsBreadcrumb = ({ crumbs }: { crumbs: BreadcrumbItem[] }) => (
 );
 
 export const DocsBar = eco.component<DocsBarProps, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['./docs-bar.css'],
-	},
 	render: ({ crumbs = [] }) => {
 		return <div class="docs-bar">{crumbs.length > 0 ? <DocsBreadcrumb crumbs={crumbs} /> : null}</div>;
 	},

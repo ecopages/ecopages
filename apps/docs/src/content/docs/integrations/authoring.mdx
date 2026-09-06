@@ -59,6 +59,6 @@ export default eco.page({
 });
 ```
 
-The same Integration must own the Page, Layout, and Html files it composes. When an application uses multiple Integrations, declare nested Components in `dependencies.components` so Ecopages can resolve Foreign Children through their owning renderer.
+The same Integration must own the Page, Layout, and Html files it composes. In mixed-integration apps, foreign children must appear in the dependency graph. Direct local imports are discovered automatically; declare `dependencies.components` explicitly for `export *` barrels, packages, or other imports discovery cannot follow.
 
 For a production JSX integration with automatic escaping and optional Radiant hydration, use [Ecopages JSX](/docs/integrations/ecopages-jsx).

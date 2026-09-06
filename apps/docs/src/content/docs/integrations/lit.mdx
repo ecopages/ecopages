@@ -107,7 +107,7 @@ This wrapper ensures that the script is loaded when needed and provides a typed 
 
 ## Using Lit Components in Pages
 
-To use Lit components in your pages, import the wrapper and include it in your page using `eco.page`.
+Import the wrapper and assign the layout on `eco.page()`. Ecopages discovers the Lit wrapper import automatically.
 
 ```tsx
 import { LitCounter } from '@/components/lit-counter';
@@ -115,18 +115,16 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
+	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Home page',
 		description: 'This is the homepage of the website',
 	}),
-	dependencies: {
-		components: [BaseLayout, LitCounter],
-	},
 	render: () => (
-		<BaseLayout class="main-content">
+		<>
 			<h1>Home</h1>
 			<LitCounter count={8} />
-		</BaseLayout>
+		</>
 	),
 });
 ```

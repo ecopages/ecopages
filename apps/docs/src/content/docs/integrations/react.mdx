@@ -96,7 +96,7 @@ export function SimpleCounter() {
 
 ### Using in Pages
 
-Import the component and include it in the page. Register it in the page's `dependencies`.
+Import the component and assign the layout on `eco.page()`. Ecopages discovers local component imports automatically.
 
 ```tsx
 import { Counter } from '@/components/counter';
@@ -104,17 +104,13 @@ import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
 
 export default eco.page({
-	dependencies: {
-		components: [BaseLayout, Counter],
-	},
-	render: () => {
-		return (
-			<BaseLayout>
-				<h1>Welcome to React on Ecopages</h1>
-				<Counter />
-			</BaseLayout>
-		);
-	},
+	layout: BaseLayout,
+	render: () => (
+		<>
+			<h1>Welcome to React on Ecopages</h1>
+			<Counter />
+		</>
+	),
 });
 ```
 

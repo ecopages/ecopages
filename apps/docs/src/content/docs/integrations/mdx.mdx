@@ -121,7 +121,7 @@ Page content goes here...
 
 ### Using Components
 
-Import components directly in MDX. Export a `config` object when component dependencies need resolution:
+Import components directly in MDX. Top-level component imports are discovered automatically. Export a `config` object when you need a layout or explicit page scripts:
 
 ```markdown
 import { Card } from '@/components/card';
@@ -129,9 +129,6 @@ import { BaseLayout } from '@/layouts/base-layout';
 
 export const config = {
 layout: BaseLayout,
-dependencies: {
-components: [Card, BaseLayout],
-},
 };
 
 # Dashboard

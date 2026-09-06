@@ -145,14 +145,16 @@ Provider layouts that mount shared client state (query clients, MobX stores, aud
 
 ## Layout dependencies
 
-Declare stylesheets, scripts, and child components on the layout factory:
+Declare stylesheets, scripts, and child components on the layout factory. Direct local component imports are discovered automatically:
 
 ```tsx
+import { SiteHeader } from '@/components/site-header';
+import { eco } from '@ecopages/core';
+
 export const BaseLayout = eco.layout({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [SiteHeader],
 	},
 	render: ({ children }) => (
 		<>
@@ -163,7 +165,7 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Every entry in `dependencies.components` must be a declared eco component, same as on pages.
+Every entry in `dependencies.components` must be a declared eco component, same as on pages. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## How layouts are assigned
 

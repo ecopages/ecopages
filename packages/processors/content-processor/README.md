@@ -144,15 +144,15 @@ import { loadComponent } from 'ecopages:content/docs/browser';
 import type { Entry } from 'ecopages:content/docs';
 ```
 
-| Export                         | Module  | Description                                                                                                                                   |
-| :----------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                                        |
-| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                              |
-| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                       |
-| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.                                |
-| `getEntryDependencies(slug)`   | server  | `Promise` of the browser dependency bag for the entry, with MDX source ownership. Throws `HttpError.NotFound` when missing.                   |
-| `loadComponent(slug)`          | browser | Page Browser Graph loader for one MDX entry. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component. |
-| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                               |
+| Export                         | Module  | Description                                                                                                                                     |
+| :----------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entries`                      | entries | Readonly manifest of all entries, sorted by `orderBy`.                                                                                          |
+| `getEntry(slug)`               | entries | Lookup by joined slug, e.g. `'getting-started/intro'`. Throws `HttpError.NotFound` when missing.                                                |
+| `getEntryBySegments(segments)` | entries | Lookup by segment array, e.g. `['getting-started', 'intro']`. Throws `HttpError.NotFound` when missing.                                         |
+| `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.                                  |
+| `getEntryDependencies(slug)`   | server  | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing. |
+| `loadComponent(slug)`          | browser | Page Browser Graph loader for one MDX entry. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component.   |
+| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                 |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 
@@ -192,6 +192,8 @@ export default eco.page<{ entry: Entry }>({
 	},
 });
 ```
+
+Return `getEntryDependencies` alone when the Page has no relative assets of its own. Combine Page-local `scripts`, `stylesheets`, or `modules` with `mergePageDependencies()` so each file keeps ownership.
 
 ### Hydratable React Pages
 
@@ -236,7 +238,25 @@ import './weather-app.css';
 <WeatherApp />
 ```
 
-`getComponent()` lazy-loads one MDX module per slug and returns the default component with loader-attributed `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph. The helper includes `ownerFile` so relative `scripts`, `stylesheets`, and `modules` declared in MDX resolve against the entry file, not the catch-all route.
+`getComponent()` lazy-loads one MDX module per slug and returns the default component with loader-attributed `config` attached. Pair that with `getEntryDependencies()` on the catch-all page so only the active entry contributes to the Page Browser Graph.
+
+`getEntryDependencies(slug)` returns `{ components: [entry] }`. It does not copy `config.dependencies` and does not set `ownerFile`. Relative `scripts`, `stylesheets`, and `modules` declared on the MDX module resolve from that Component's identity rather than the catch-all route.
+
+Combine Page-local relative assets with `mergePageDependencies()`. Object-spread of the two bags copies `ownerFile` onto the other side's relative paths:
+
+```typescript
+import { eco, mergePageDependencies } from '@ecopages/core';
+import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
+
+export default eco.page({
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
+	render: async ({ slug }) => {
+		const Content = await getComponent(slug);
+		return <Content />;
+	},
+});
+```
 
 ## Navigation (app-side)
 

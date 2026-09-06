@@ -14,7 +14,14 @@ declare module 'ecopages:content/*/server' {
 	import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 
 	export function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
-	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
+	/**
+	 * Returns `{ components: [entry] }` so collection walks MDX identity.
+	 *
+	 * @remarks Does not copy `config.dependencies` or set `ownerFile`.
+	 * Combine Page-local relative assets with `mergePageDependencies()`.
+	 * @throws HttpError 404 when the slug is not in the collection.
+	 */
+	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 }
 
 declare module 'ecopages:content/*/browser' {

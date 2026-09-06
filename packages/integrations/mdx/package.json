@@ -28,6 +28,9 @@
 			"types": "./src/core/index.ts"
 		}
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],

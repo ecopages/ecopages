@@ -2,7 +2,7 @@
 
 Coding standards for agents. Domain vocabulary: [CONTEXT.md](./CONTEXT.md). Architecture: README beside the code you edit; index at [packages/core/README.md](./packages/core/README.md).
 
-When behavior changes, update that folder's README and any parent index that lists it. Use CONTEXT.md terms consistently.
+When behavior changes, update that folder's README and any parent index that lists it. Use CONTEXT.md terms consistently. User-facing public package changes also need a changeset (`pnpm changeset`); do not hand-edit package versions or `CHANGELOG.md` for release notes.
 
 ## Comments
 

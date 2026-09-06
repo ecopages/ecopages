@@ -34,4 +34,4 @@
 ## Routing
 
 - The catch-all page parses slug segments, finds the entry with `entries.find` on the joined slug, then lazy-loads MDX via `getComponent(entry.slug)`.
-- Forward entry-specific deps with `getEntryDependencies(props.entry.slug)`. MDX components are called as `Content({})`.
+- Forward entry-specific deps with `mergePageDependencies({ components: [CopyForLlm] }, await getEntryDependencies(props.entry.slug))`. MDX components are called as `Content({})`.

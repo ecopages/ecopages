@@ -51,7 +51,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 
 ## Critical rules
 
-1. Component dependencies and CSS imports are auto-discovered in `eco.*` modules (relative and aliased); browser scripts remain explicit in `dependencies.scripts`. Author one `eco.component()` per file, and declare `dependencies.components` explicitly for barrel re-exports (`export *`) or external packages.
+1. Component dependencies and CSS imports are auto-discovered in `eco.*` modules (relative and aliased); browser scripts remain explicit in `dependencies.scripts`. Author one `eco.component()` per file, and declare `dependencies.components` explicitly for barrel re-exports (`export *`) or external packages. Combine Page-local relative assets with content entries using `mergePageDependencies()`.
 2. Use `eco.page()` for routable pages; use `src/views/` for handler-rendered views.
 3. Match MDX to the owning integration: React MDX via `reactPlugin`, Ecopages JSX MDX via `ecopagesJsxPlugin`, standalone via `mdxPlugin` with explicit `jsxImportSource`.
 4. Register processors with factory functions: `postcssProcessorPlugin()`, `imageProcessorPlugin({ options })`.

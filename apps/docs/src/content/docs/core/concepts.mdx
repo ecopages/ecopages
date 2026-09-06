@@ -57,28 +57,25 @@ const config = await new ConfigBuilder()
 
 ## Script and CSS Loading
 
-Ecopages handles script and CSS loading efficiently by analyzing component dependencies.
+Ecopages injects scripts and CSS by walking declared Component Dependencies.
 
-### Explicit Dependencies
+### Discovered and explicit Dependencies
 
-To ensure that your components have the necessary scripts and styles, you must explicitly declare them in the component's `config.dependencies` property. This allows Ecopages to:
+In modules that declare `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, and in MDX compiled through `@ecopages/mdx/core`:
 
-1.  **Deduplicate**: If multiple components share the same script, Ecopages only ships it once.
-2.  **Order**: Dependencies are loaded in the correct order based on the component tree.
-3.  **Optimize**: Only the code used on a specific page is sent to the browser.
+- Direct local Eco Component imports and relative or aliased side-effect CSS imports are discovered automatically.
+- Browser scripts stay explicit in `dependencies.scripts`. Ecopages does **not** detect script files by name pattern.
+- Explicit `dependencies.stylesheets` entries override discovered references to the same resolved file (for example `media="print"`). Discovered CSS is not copied into that array.
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
 import { eco } from '@ecopages/core';
+import './home-page.css';
 
-const HomePage = eco.component({
+const HomePage = eco.page({
+	layout: BaseLayout,
 	dependencies: {
-		// Scripts must be explicitly declared
 		scripts: ['./home-page.script.ts'],
-		// Stylesheets must be explicitly declared
-		stylesheets: ['./home-page.css'],
-		// Child components to crawl for their own dependencies
-		components: [BaseLayout],
 	},
 	render: () => (
 		<div class="main-content">
@@ -89,11 +86,11 @@ const HomePage = eco.component({
 ```
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
-	<RuiAlertTitle>Explicit Dependencies</RuiAlertTitle>
+	<RuiAlertTitle>Browser scripts stay explicit</RuiAlertTitle>
 	<RuiAlertDescription>
 		<p>
-			Ecopages does **not** automatically detect script files by name pattern. You must always include them in the
-			`dependencies.scripts` array if you want them to be processed and included in the build.
+			Always list browser scripts in the <code>dependencies.scripts</code> array if you want them processed and
+			included in the build. CSS side-effect imports and local Eco Component imports do not need that listing.
 		</p>
 	</RuiAlertDescription>
 </RuiAlert>

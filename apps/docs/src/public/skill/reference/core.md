@@ -56,8 +56,8 @@ export default eco.page({
 In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, as well as MDX documents compiled through `@ecopages/mdx/core`, Ecopages automatically discovers:
 
 - **Child Components:** Direct imports of local `eco.component()` exports (both relative and tsconfig path aliases) contribute dependencies transitively.
-- **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules.
-- **MDX Support:** In MDX files, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
+- **CSS Stylesheets:** Direct side-effect CSS imports (`import './counter.css'` or `import '@/styles/main.css'`) are extracted into the asset pipeline and stripped from server/browser modules. They are not copied into `config.dependencies.stylesheets`; explicit entries override the same resolved file.
+- **MDX Support:** In MDX files, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored. Combine a catch-all Page's relative assets with `mergePageDependencies(pageAssets, await getEntryDependencies(slug))`.
 
 **Best practice:** Author **one `eco.component()` per file**. Co-locating multiple declared components in a single file will cause all components in that file to share discovered dependencies.
 

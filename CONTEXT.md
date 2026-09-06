@@ -92,7 +92,7 @@ Request-scoped data injected by middleware or the request pipeline (e.g., authen
 _Avoid_: Request context, server context
 
 **Dependencies**:
-Metadata declarations of what a component needs to render correctly: stylesheets, scripts, and nested components. Dependencies are not JavaScript imports — they tell the framework what to inject into the page.
+Metadata describing what a Component needs to render correctly: stylesheets, scripts, and nested Components. Explicit declarations and supported static imports both supply this metadata; the dependency pipeline decides which assets to inject. JavaScript imports retain their module execution semantics.
 _Avoid_: Requirements, imports
 
 **Foreign Child**:
@@ -138,7 +138,7 @@ _Avoid_: URL list, crawl map
 - Each **Page** receives context: **Params** (from dynamic routes), **Query** (from URL), and optionally **Locals** (from middleware)
 - An **Integration** owns rendering for a specific file extension; multiple Integrations coexist as peers
 - A **Processor** owns transformation of non-page assets (e.g., stylesheets); Integrations and Processors are distinct
-- **Dependencies** on a Component are separate from JavaScript imports; both may be needed
+- **Dependencies** combine explicit declarations with discovery of direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports. Explicit asset settings take precedence; inferred stylesheet provenance stays on Component identity until collection. Scripts retain explicit server and browser loading policy. Merging Page and content Dependencies keeps each file's contribution so relative assets resolve against the file that declared them.
 - When an **Integration** encounters a **Foreign Child**, it must hand off the corresponding **Foreign Subtree** to the owning **Integration** before final HTML is returned
 - Each **Page** may produce one **Page Browser Graph**, including any lazy browser entries that belong to that Page
 - An **Integration** may apply an **SSR Policy** per Page or Component without forcing one global browser runtime bundle for every Page

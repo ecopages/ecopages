@@ -40,18 +40,25 @@ postcssProcessorPlugin(
 
 ## CSS imports
 
-With `postcssProcessorPlugin` registered:
+In modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, side-effect CSS imports are auto-discovered:
+
+```typescript
+import './component.css';
+import '@/styles/shared.css';
+```
+
+Ecopages automatically extracts these into the asset pipeline, removes the bare import statements from server and client modules, and serves them via `<link rel="stylesheet">`.
+
+For imported stylesheet strings with `postcssProcessorPlugin`:
 
 ```typescript
 import styles from './styles.css';
 ```
 
-Ecopages build plugins handle CSS as processed strings in JS/TS modules.
-
 ## Layouts and includes
 
 - `src/includes/html.*` — document shell (`HtmlTemplateProps` with `children`, `metadata`, `pageProps`)
 - `src/includes/head.*` — head assets and metadata wiring
-- `src/layouts/` — page wrappers via `eco.page({ dependencies: { components: [BaseLayout] } })`
+- `src/layouts/` — page wrappers via `eco.page({ layout: BaseLayout })`
 
-Declare stylesheets in component `dependencies.stylesheets`, not by filename convention alone.
+Relative and aliased CSS imports inside layout and component files are auto-discovered. Use explicit `dependencies.stylesheets` when custom attributes (such as `media="print"`) or manual ordering overrides are required. Combine Page-local CSS with a content entry through `mergePageDependencies()`, not object spread.

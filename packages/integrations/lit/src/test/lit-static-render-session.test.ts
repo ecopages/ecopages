@@ -204,4 +204,26 @@ describe('LitStaticRenderSession', () => {
 
 		expect(preloadSpy).toHaveBeenCalledWith([litComponent]);
 	});
+	it('restarts once after source invalidation and serializes concurrent renders', async () => {
+		let version = 0;
+		const dispose = vi.fn(async () => {});
+		const renderPage = vi.fn(async () => ({ html: '<main />' }));
+		const createClient = vi.fn(() => ({ start: async () => {}, dispose, renderPage }));
+		const session = new LitStaticRenderSession({
+			resolveDependencyPath: (_dir, src) => src,
+			createWorkerClient: createClient,
+			getInvalidationVersion: () => version,
+		});
+		await session.ensureWorker({ configModulePath: '/app/eco.config.ts', runtimeOrigin: 'http://localhost' });
+		await session.renderPageInWorker({ filePath: '/app/page.lit.tsx', params: {} });
+		version += 1;
+		await Promise.all([
+			session.renderPageInWorker({ filePath: '/app/page.lit.tsx', params: {} }),
+			session.renderPageInWorker({ filePath: '/app/other.lit.tsx', params: {} }),
+		]);
+		expect(dispose).toHaveBeenCalledTimes(1);
+		expect(createClient).toHaveBeenCalledTimes(2);
+		expect(renderPage).toHaveBeenCalledTimes(3);
+		await session.dispose();
+	});
 });

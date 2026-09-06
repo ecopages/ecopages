@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { EcoComponent, EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
-import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
+import { LitSsrLazyPreloader, type LitSsrLazyPreloaderOptions } from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
@@ -21,6 +21,8 @@ type LitStaticRenderSessionOptions = {
 		integrationName: string,
 	) => Promise<Array<{ filepath?: string }>>;
 	preferSourceImports?: boolean;
+	importServerModule?: LitSsrLazyPreloaderOptions['importServerModule'];
+	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: {
 		configModulePath: string;
 		runtimeOrigin: string;
@@ -44,12 +46,17 @@ export class LitStaticRenderSession {
 	private readonly createWorkerClient: NonNullable<LitStaticRenderSessionOptions['createWorkerClient']>;
 	private workerClient: LitStaticRenderWorkerClientContract | null = null;
 	private workerIdentity: LitStaticRenderWorkerIdentity | null = null;
+	private readonly getInvalidationVersion: () => number;
+	private workerInvalidationVersion = 0;
+	private renderChain: Promise<void> = Promise.resolve();
 
 	constructor(options: LitStaticRenderSessionOptions) {
+		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
 		this.preloader = new LitSsrLazyPreloader({
 			resolveDependencyPath: options.resolveDependencyPath,
 			processDependencies: options.processDependencies,
 			preferSourceImports: options.preferSourceImports,
+			importServerModule: options.importServerModule,
 		});
 		this.createWorkerClient =
 			options.createWorkerClient ??
@@ -90,6 +97,7 @@ export class LitStaticRenderSession {
 			runtimeOrigin: input.runtimeOrigin,
 		});
 		await this.workerClient.start();
+		this.workerInvalidationVersion = this.getInvalidationVersion();
 	}
 
 	async preloadStaticRoutes(context: StaticExportContext): Promise<void> {
@@ -113,7 +121,21 @@ export class LitStaticRenderSession {
 			throw new Error('Lit static render worker is not active');
 		}
 
-		return this.workerClient.renderPage(input);
+		const render = this.renderChain.then(async () => {
+			const version = this.getInvalidationVersion();
+			if (version !== this.workerInvalidationVersion && this.workerIdentity) {
+				const identity = this.workerIdentity;
+				await this.dispose();
+				await this.ensureWorker(identity);
+			}
+			if (!this.workerClient) throw new Error('Lit static render worker is not active');
+			return this.workerClient.renderPage(input);
+		});
+		this.renderChain = render.then(
+			() => undefined,
+			() => undefined,
+		);
+		return render;
 	}
 
 	isExpectedSsrPreloadError(error: unknown): boolean {

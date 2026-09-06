@@ -246,7 +246,14 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			return;
 		}
 
-		this.mdxLoaderPlugin = createReactMdxLoaderPlugin(this.mdxCompilerOptions);
+		if (!this.appConfig?.rootDir) {
+			throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+		}
+
+		this.mdxLoaderPlugin = createReactMdxLoaderPlugin({
+			compilerOptions: this.mdxCompilerOptions,
+			projectRoot: this.appConfig.rootDir,
+		});
 	}
 
 	/**
@@ -298,6 +305,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		if (!this.hmrStrategy) {
 			this.hmrStrategy = new ReactHmrStrategy({
 				context: this.hmrManager.getDefaultContext(),
+				projectRoot: this.appConfig.rootDir,
 				pageMetadataCache: this.hmrPageMetadataCache,
 				runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
 				mdxCompilerOptions: this.mdxCompilerOptions,

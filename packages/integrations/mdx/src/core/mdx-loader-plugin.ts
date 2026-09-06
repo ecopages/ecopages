@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { recordMdxTransform } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import sourceMap from 'source-map';
@@ -15,6 +16,8 @@ import {
 
 export interface CreateMdxLoaderPluginOptions {
 	name: string;
+	projectRoot: string;
+	integrationName?: string;
 	compilerOptions?: CompileOptions;
 	extensions?: string[];
 	defaultMdExtensions?: string[];
@@ -25,6 +28,8 @@ export interface CreateMdxLoaderPluginOptions {
 export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): EcoBuildPlugin {
 	const {
 		name,
+		projectRoot,
+		integrationName = 'MDX',
 		compilerOptions,
 		extensions = resolveLoaderExtensions(compilerOptions, {
 			defaultMdExtensions: options.defaultMdExtensions,
@@ -32,6 +37,10 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 		includeSourceMap = true,
 		loader = compilerOptions?.jsx ? 'jsx' : 'js',
 	} = options;
+
+	if (!projectRoot) {
+		throw new Error(`[ecopages] Cannot create MDX loader plugin "${name}": projectRoot is required.`);
+	}
 
 	const filter = createMdxExtensionFilter(extensions, { allowQueryString: true });
 
@@ -47,35 +56,39 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					SourceMapGenerator: sourceMap.SourceMapGenerator,
 				};
 				const cacheKey = createMdxTransformCacheKey(filePath, source, compileOptions);
-				const cached = readMdxTransformCache(cacheKey);
+				let cached = readMdxTransformCache(cacheKey);
 				if (cached) {
 					recordMdxTransform();
-					return {
-						...cached,
-						resolveDir: path.dirname(args.path),
+				} else {
+					const file = new VFile({ path: filePath, value: source });
+					recordMdxCompileInvocation();
+					const compiled = await compile(file, compileOptions);
+					recordMdxTransform();
+					cached = {
+						contents: String(compiled.value),
+						loader,
+						map: compiled.map,
 					};
+					writeMdxTransformCache(cacheKey, cached);
 				}
 
-				const file = new VFile({ path: filePath, value: source });
-				recordMdxCompileInvocation();
-				const compiled = await compile(file, compileOptions);
-				recordMdxTransform();
+				const transformed = attributeMdxComponentIdentity(
+					cached.contents,
+					filePath,
+					integrationName,
+					projectRoot,
+				);
 
 				const inlineSourceMap =
-					includeSourceMap && compiled.map
-						? `\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(JSON.stringify(compiled.map)).toString('base64')}\n`
+					includeSourceMap && cached.map
+						? `\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(JSON.stringify(cached.map)).toString('base64')}\n`
 						: '';
 
-				const result = {
-					contents: `${String(compiled.value)}${inlineSourceMap}`,
-					loader,
+				return {
+					contents: `${transformed}${inlineSourceMap}`,
+					loader: cached.loader ?? loader,
 					resolveDir: path.dirname(args.path),
 				};
-				writeMdxTransformCache(cacheKey, {
-					contents: result.contents,
-					loader: result.loader,
-				});
-				return result;
 			});
 		},
 	};

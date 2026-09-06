@@ -26,6 +26,8 @@ All notable changes to `@ecopages/core` are documented here.
 - Added nested `layout` arrays on `eco.page()` with normalization to `config.layouts` / `config.layoutEntries`.
 - Added `composeChildren` hook on `composeDocumentShell` for integration-owned unified layout+page composition.
 - Added `EcoDeclaredComponent` validation for `dependencies.components` entries.
+- Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default. Explicit stylesheet declarations override inferred references to the same resolved file. Inferred styles stay on Component identity until collection, including when server modules bundle a copy of `eco`. Named barrel hops are watch paths so a live retarget invalidates cached page assets.
+- `mergePageDependencies()` keeps file-owned contributions (including `modules`) so combining a Page with a content entry cannot re-home relative paths.
 - Page HTML cache in watch mode uses Cache Strategy admission on a bounded memory store. Set `cache.enabled: false` to disable watch-mode HTML caching entirely.
 - Watch mode SSR-prewarms processor-declared content paths (`routePrefix` + `devPrewarm`). Optional `devPrewarmReadiness: 'beforeReady'` blocks the framework ready signal until prewarm completes. Concurrent prewarm uses `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM` (default `3`).
 - Dev client modules are transpiled per source file on demand with in-memory caching and lazy `/assets/vendors` prebundles.

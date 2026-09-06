@@ -9,7 +9,6 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
-	EcoComponentDependencies,
 	EcoFunctionComponent,
 	EcoPageFile,
 	EcoPagesElement,
@@ -45,10 +44,7 @@ import {
 import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
 import { createPageDependencyInstanceKey } from './page-browser-graph/route-instance-key.ts';
 import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
-import {
-	collectDependencyWatchPaths,
-	collectFileScopedDependencyComponents,
-} from '../page-loading/file-scoped-dependency-components.ts';
+import { collectDependencyWatchPaths } from '../page-loading/file-scoped-dependency-components.ts';
 import {
 	resolvePageDependenciesFromContext,
 	type ResolvedPageDependencies,
@@ -154,6 +150,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			integrationName: this.name,
 			runtimeOrigin: this.runtimeOrigin,
 		});
+		const integration = this.appConfig.integrations?.find((entry) => entry.name === this.name);
+		if (integration?.getResolvedIntegrationDependencies) {
+			this.resolvedIntegrationDependencies = integration.getResolvedIntegrationDependencies();
+		}
 	}
 
 	/**
@@ -844,27 +844,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async resolvePageDependencies(
 		context: PageBrowserGraphContributionContext,
 	): Promise<ResolvedPageDependencies | undefined> {
-		return resolvePageDependenciesFromContext(context, this.name, (dependencies, ownerFile) =>
-			this.resolvePageBrowserGraphContributionFromDependencies(dependencies, ownerFile),
+		return resolvePageDependenciesFromContext(context, this.name, (components, ownerFile) =>
+			this.resolvePageBrowserGraphContributionFromComponents(components, ownerFile),
 		);
 	}
 
-	protected async resolvePageBrowserGraphContributionFromDependencies(
-		dependencies: EcoComponentDependencies,
+	protected async resolvePageBrowserGraphContributionFromComponents(
+		components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 		ownerFile: string,
 	): Promise<PageBrowserGraphContribution | undefined> {
-		const components = collectFileScopedDependencyComponents({
-			ownerFile,
-			integrationName: this.name,
-			dependencies,
-		});
-
 		if (components.length === 0) {
 			return undefined;
 		}
 
 		return {
-			assets: await this.processComponentDependencies(components),
+			assets: await this.processComponentDependencies([...components]),
 			watchPaths: collectDependencyWatchPaths(ownerFile, components),
 		};
 	}

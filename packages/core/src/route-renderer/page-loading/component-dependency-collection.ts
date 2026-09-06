@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { DependencyLazyTrigger, EcoComponent } from '../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
@@ -43,7 +44,7 @@ function pushUniqueDependency(
 }
 
 function resolveDependencyPath(componentDir: string, pathUrl: string): string {
-	return path.join(componentDir, pathUrl);
+	return path.isAbsolute(pathUrl) ? pathUrl : path.join(componentDir, pathUrl);
 }
 
 /**
@@ -77,8 +78,12 @@ type CollectComponentDependenciesOptions = {
  * Walks component dependency trees and collects declared assets, module declarations,
  * and lazy-script group metadata in one pass.
  *
- * The returned structures intentionally preserve both the flat asset list used by
- * asset processing and the grouped lazy-trigger data used later during render output.
+ * @remarks
+ * Explicit stylesheet declarations are collected first across the graph. Inferred
+ * stylesheets are read from component identity afterward and skipped when the same
+ * resolved path already has an explicit entry. The returned structures preserve both
+ * the flat asset list used by asset processing and the grouped lazy-trigger data used
+ * later during render output.
  */
 export function collectComponentDependencies(
 	options: CollectComponentDependenciesOptions,
@@ -94,6 +99,9 @@ export function collectComponentDependencies(
 	const dependencies: AssetDefinition[] = [];
 	const lazyScriptsByConfig = new Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 	const lazyDependencyKeys = new Set<string>();
+	const visited = new Set<NonNullable<EcoComponent['config']>>();
+	const inferredStyles: Array<{ dir: string; src: string }> = [];
+	const explicitStylePaths = new Set<string>();
 
 	for (const component of components) {
 		if (!component) continue;
@@ -109,12 +117,19 @@ export function collectComponentDependencies(
 		 * Recursively visits one component config and its declared child dependencies.
 		 */
 		const collect = (config: EcoComponent['config']) => {
-			if (!config) return;
+			if (!config || visited.has(config)) return;
+			visited.add(config);
 
 			const file = getComponentIdentity(config)?.file;
 			if (!file) return;
 			const dir = path.dirname(file);
 			const dependenciesConfig = config.dependencies;
+			const explicitStyles = dependenciesConfig?.stylesheets ?? [];
+			for (const style of explicitStyles) {
+				const src = typeof style === 'string' ? style : style.src;
+				if (src) explicitStylePaths.add(resolveDependencyPath(dir, src));
+			}
+			for (const src of getInferredStylesheets(config)) inferredStyles.push({ dir, src });
 
 			const registerLazyScript = ({
 				lazy,
@@ -138,7 +153,7 @@ export function collectComponentDependencies(
 			};
 
 			collectDeclaredAssetEntries({
-				stylesheetEntries: dependenciesConfig?.stylesheets ?? [],
+				stylesheetEntries: explicitStyles,
 				scriptEntries: dependenciesConfig?.scripts ?? [],
 				componentDir: dir,
 				dependencies,
@@ -200,6 +215,14 @@ export function collectComponentDependencies(
 		);
 	}
 
+	for (const { dir, src } of inferredStyles) {
+		const filepath = resolveDependencyPath(dir, src);
+		if (explicitStylePaths.has(filepath)) continue;
+		explicitStylePaths.add(filepath);
+		dependencies.push(
+			AssetFactory.createFileStylesheet({ filepath, position: 'head', attributes: { rel: 'stylesheet' } }),
+		);
+	}
 	return {
 		dependencies,
 		lazyScriptsByConfig,

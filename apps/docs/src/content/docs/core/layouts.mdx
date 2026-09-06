@@ -57,7 +57,7 @@ Includes are applied automatically. Pages and route layouts render **inside** th
 
 Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values.
 
-**Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with `config.__eco` metadata (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
+**Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with bound `config.identity` (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -137,7 +137,7 @@ layout: [
 
 ### Shared outer layouts and SPA navigation
 
-On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. Each layout tier is cached by `config.__eco.file` (or `id`). Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
+On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), `persistLayouts` is enabled by default. Each layout tier is cached by `config.identity.file` (or `id`). Two routes such as `[AppShell, Docs]` and `[AppShell, Settings]` share one mounted **AppShell** during client navigation; only the inner tier swaps. React state in the outer layout survives SPA transitions.
 
 Provider layouts that mount shared client state (query clients, MobX stores, audio engines) should also set `runtimeProvider: true` on `eco.layout()` so Ecopages vendors one shared copy of those npm packages across page chunks. See [Shared runtime vendors](/docs/integrations/react#shared-runtime-vendors) in the React integration guide.
 
@@ -145,14 +145,16 @@ Provider layouts that mount shared client state (query clients, MobX stores, aud
 
 ## Layout dependencies
 
-Declare stylesheets, scripts, and child components on the layout factory:
+Declare stylesheets, scripts, and child components on the layout factory. Direct local component imports are discovered automatically:
 
 ```tsx
+import { SiteHeader } from '@/components/site-header';
+import { eco } from '@ecopages/core';
+
 export const BaseLayout = eco.layout({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [SiteHeader],
 	},
 	render: ({ children }) => (
 		<>
@@ -163,7 +165,7 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Every entry in `dependencies.components` must be a declared eco component, same as on pages.
+Every entry in `dependencies.components` must be a declared eco component, same as on pages. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## How layouts are assigned
 

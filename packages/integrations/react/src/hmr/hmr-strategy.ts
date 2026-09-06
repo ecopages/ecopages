@@ -34,6 +34,7 @@ const appLogger = new Logger('[ReactHmrStrategy]');
 
 export interface ReactHmrStrategyOptions {
 	context: DefaultHmrContext;
+	projectRoot?: string;
 	pageMetadataCache: HmrPageMetadataCache;
 	runtimeManifest: BrowserRuntimeManifest;
 	mdxCompilerOptions?: CompileOptions;
@@ -59,6 +60,7 @@ type ImportedReactPageModule = {
 export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
 	private mdxCompilerOptions?: CompileOptions;
+	private readonly projectRoot: string;
 	private readonly ownedTemplateExtensions: Set<string>;
 	private readonly allTemplateExtensions: string[];
 	private readonly context: DefaultHmrContext;
@@ -74,6 +76,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		return {
 			pageMetadataCache: this.pageMetadataCache,
 			mdxCompilerOptions: this.mdxCompilerOptions,
+			projectRoot: this.projectRoot,
 			getBuildPlugins: (declaredModules?: readonly string[]) => this.getBuildPlugins(declaredModules),
 			importNodePageModule: (entrypointPath: string) => this.importNodePageModule(entrypointPath),
 		};
@@ -82,6 +85,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	constructor(options: ReactHmrStrategyOptions) {
 		super();
 		this.context = options.context;
+		this.projectRoot = options.projectRoot ?? path.dirname(this.context.getSrcDir());
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
 		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
@@ -103,8 +107,8 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 		return [
 			createClientGraphBoundaryPlugin({
-				projectRoot: path.dirname(this.context.getSrcDir()),
-				absWorkingDir: path.dirname(this.context.getSrcDir()),
+				projectRoot: this.projectRoot,
+				absWorkingDir: this.projectRoot,
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
 				cache: this.clientGraphBoundaryCache,

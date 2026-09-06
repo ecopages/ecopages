@@ -1,4 +1,5 @@
 import type { EcoComponent, EcoComponentConfig } from '../types/public-types.ts';
+import { registerDiscoveredDependencies, type DiscoveredDependencies } from './discovered-dependencies.ts';
 
 /** Stable attribution for a Component created by an Integration-owned module. */
 export type ComponentIdentity = {
@@ -22,10 +23,12 @@ export function getComponentIdentity(
 	return config?.identity;
 }
 
-/** Merges attribution into factory options. */
+/** Merges attribution into factory options. Optional discovered stylesheets stay keyed by identity. */
 export function bindComponentIdentity<T extends object>(
 	identity: ComponentIdentity,
 	options: T,
+	discovered?: DiscoveredDependencies,
 ): T & { identity: ComponentIdentity } {
+	if (discovered) registerDiscoveredDependencies(identity, discovered);
 	return { ...options, identity };
 }

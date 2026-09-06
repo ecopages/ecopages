@@ -36,14 +36,14 @@ Key elements:
 1. **`eco.page`**: Factory for a file-based route page.
 2. **`layout`**: Declared layout component (`eco.layout()` or `eco.component()`). EcoPages wraps `render` output automatically.
 3. **`metadata`**: Page title, description, and social metadata.
-4. **`dependencies`**: Additional components, scripts, and stylesheets the page needs beyond its layout stack.
+4. **`dependencies`**: Page-level scripts, stylesheets, and components discovery cannot follow (`export *` barrels, packages). Local component and CSS imports are discovered automatically.
 5. **`render`**: Returns JSX for the page body (inside the layout and document shell).
 
 See [Creating Layouts](/docs/core/layouts) for single and nested layout stacks.
 
 ## Using Components in Pages
 
-Import declared components and list them in `dependencies.components`. Every entry must be created with `eco.component()`, `eco.layout()`, or `eco.html()` — plain functions are rejected at render time.
+Import declared components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically. Every discovered entry must be a declared component — plain functions are rejected at render time.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -52,9 +52,6 @@ import { eco } from '@ecopages/core';
 
 export default eco.page({
 	layout: BaseLayout,
-	dependencies: {
-		components: [RadiantCounter],
-	},
 	render: () => (
 		<>
 			<h1>Ecopages</h1>
@@ -64,7 +61,7 @@ export default eco.page({
 });
 ```
 
-**Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you.
+**Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## Working with Data
 

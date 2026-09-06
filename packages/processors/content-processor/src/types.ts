@@ -40,10 +40,14 @@ export type ContentCollectionComponentsModule = {
 	 */
 	getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
 	/**
-	 * Resolves the dependency bag for one slug, with MDX source ownership.
+	 * Returns `{ components: [entry] }` so collection walks the MDX component identity.
+	 *
+	 * @remarks
+	 * Does not copy `config.dependencies` or set `ownerFile`. Combine Page-local
+	 * relative assets with `mergePageDependencies()`.
 	 * @throws HttpError 404 when the slug is not in the collection.
 	 */
-	getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
+	getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 };
 
 /** Runtime shape of a generated `ecopages:content/<collection>/browser` module. */

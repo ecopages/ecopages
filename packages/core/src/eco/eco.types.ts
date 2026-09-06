@@ -100,10 +100,27 @@ export type GetPageDependenciesContext<T = Record<string, unknown>> = {
 };
 
 /**
- * Page dependency bag optionally scoped to a declaring file.
+ * Explicit dependency declarations owned by one file.
+ *
+ * @remarks
+ * Relative `scripts`, `stylesheets`, and `modules` resolve against `ownerFile`
+ * when present. Component entries keep their own identity files. Inferred
+ * stylesheets are not stored here; the collector reads them from identity.
  */
-export type PageDependenciesResult = EcoComponentDependencies & {
+export type FileOwnedDependencyContribution = EcoComponentDependencies & {
 	ownerFile?: string;
+};
+
+/**
+ * Page dependency bag made of one or more file-owned contributions.
+ *
+ * @remarks
+ * A single bag with `ownerFile` is one contribution. `contributions` keeps
+ * assets from different files separate until collection, so merging a Page and
+ * a content entry cannot re-home relative paths.
+ */
+export type PageDependenciesResult = FileOwnedDependencyContribution & {
+	contributions?: FileOwnedDependencyContribution[];
 };
 
 /**

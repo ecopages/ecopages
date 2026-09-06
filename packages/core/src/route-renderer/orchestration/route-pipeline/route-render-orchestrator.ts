@@ -27,7 +27,6 @@ import {
 	throwIfOwnershipInvalid,
 } from '../ownership-graph/ownership-validation.service.ts';
 import {
-	buildEagerSsrLazyAssetsFromGraph,
 	collectResolvedLazyTriggersFromGraph,
 	collectUsedIntegrationDependenciesFromGraph,
 } from '../ownership-graph/component-graph-collectors.ts';
@@ -238,13 +237,11 @@ export class RouteRenderOrchestrator {
 		];
 
 		const triggers = collectResolvedLazyTriggersFromGraph(componentsToResolve, adapter.name);
-		const [globalAssets, eagerSsrLazyAssets] = await Promise.all([
+		const globalAssets =
 			triggers.length > 0
-				? buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)
-				: Promise.resolve([]),
-			buildEagerSsrLazyAssetsFromGraph(this.assetProcessingService, componentsToResolve, adapter.name),
-		]);
-		allDependencies.push(...globalAssets, ...eagerSsrLazyAssets);
+				? await buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)
+				: [];
+		allDependencies.push(...globalAssets);
 
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
 			routeFile: routeOptions.file,

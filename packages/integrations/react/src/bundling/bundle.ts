@@ -171,7 +171,10 @@ export class BundleService {
 			: [runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
 		if (isMdx && this.config.mdxCompilerOptions) {
-			const mdxPlugin = createReactMdxLoaderPlugin(this.config.mdxCompilerOptions);
+			const mdxPlugin = createReactMdxLoaderPlugin({
+				compilerOptions: this.config.mdxCompilerOptions,
+				projectRoot: this.config.rootDir,
+			});
 			options.plugins = [
 				...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
 				graphBoundaryPlugin,

@@ -5,6 +5,7 @@ import {
 	collectComponentConfigFilePaths,
 	collectDependencyWatchPaths,
 	collectFileScopedDependencyComponents,
+	collectPageDependencyComponents,
 	createFileScopedDependencyComponent,
 	splitPageDependenciesResult,
 } from './file-scoped-dependency-components.ts';
@@ -59,6 +60,26 @@ describe('collectFileScopedDependencyComponents', () => {
 		expect(components[0]).toBe(child);
 		expect(components[1]?.config?.identity?.file).toBe('/app/pages/demo.tsx');
 		expect(components[1]?.config?.dependencies?.modules).toEqual(['react-aria-components{Table}']);
+	});
+});
+
+describe('collectPageDependencyComponents', () => {
+	test('resolves each contribution against its owner or the fallback page file', () => {
+		const components = collectPageDependencyComponents({
+			result: {
+				contributions: [
+					{ stylesheets: ['./page.css'] },
+					{ stylesheets: ['./post.css'], ownerFile: '/app/content/post.mdx' },
+				],
+			},
+			fallbackOwnerFile: '/app/pages/posts/[slug].tsx',
+			integrationName: 'react',
+		});
+
+		expect(components.map((component) => component.config?.identity?.file)).toEqual([
+			'/app/pages/posts/[slug].tsx',
+			'/app/content/post.mdx',
+		]);
 	});
 });
 

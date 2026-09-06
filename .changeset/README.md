@@ -30,4 +30,4 @@ Keep `baseBranch` and the Publish branch list pointed at the line you are actual
 
 ## What gets published
 
-The npm tarball is the compiled `dist` directory of each public package (`publishConfig.directory`), not the TypeScript source used in the workspace. `pnpm run build:npm` produces that `dist` only when the workflow actually publishes, not when it opens a Version Packages pull request. Already-published versions are skipped. A brand-new package name still needs a one-time npm trusted-publishing setup.
+The npm tarball is the compiled `dist` directory of each public package, not the TypeScript source used in the workspace. Committed manifests omit `publishConfig.directory` so workspace installs keep linking to source. The Publish workflow compiles `dist` and stamps `directory` only at publish time. Already-published versions are skipped. A brand-new package name still needs a one-time npm trusted-publishing setup.

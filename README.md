@@ -168,7 +168,7 @@ pnpm changeset
 
 Commit the generated file under `.changeset/`. Do not bump `package.json` versions or edit `CHANGELOG.md` by hand.
 
-Public packages are a **fixed** group: they always share one version. The Publish workflow tests the same commit, then versions and publishes through Changesets. Compilation to `dist` runs only when publishing (`publishConfig.directory`). The install entrypoint is the `ecopages` CLI.
+Public packages are a **fixed** group: they always share one version. The Publish workflow tests the same commit, then versions and publishes through Changesets. Compilation to `dist` runs only when publishing. The install entrypoint is the `ecopages` CLI.
 
 How versioning, prereleases, and branch selection work: [`.changeset/README.md`](.changeset/README.md).
 

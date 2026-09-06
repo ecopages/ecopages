@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { cx } from '@/lib/cx';
+import './logo.css';
 
 export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'title'>> & {
 	children?: JsxRenderable;
@@ -8,9 +9,6 @@ export type LogoProps = Partial<Pick<HTMLAnchorElement, 'href' | 'target' | 'tit
 };
 
 export const Logo = eco.component<LogoProps, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['./logo.css'],
-	},
 	render: ({ children = 'LLM Wiki', href = '/', target = '_self', title = 'LLM Wiki', class: className }) => {
 		return (
 			<a

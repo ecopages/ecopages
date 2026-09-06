@@ -1,6 +1,8 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { Logo } from '@/components/logo/logo';
+import '../../styles/tailwind.css';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: JsxRenderable;
@@ -10,9 +12,6 @@ export type BaseLayoutProps = {
 };
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['../../styles/tailwind.css', './base-layout.css'],
-	},
 	render: ({ children, class: className, showHeader = true }) => {
 		if (!showHeader) {
 			return children;

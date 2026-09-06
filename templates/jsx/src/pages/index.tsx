@@ -5,6 +5,7 @@ import { logoOnGhDarkPng } from 'ecopages:images';
 import { BaseLayout } from '@/layouts/base-layout';
 import { Counter } from '@/components/counter';
 import ShowcaseMdx from '@/components/showcase.mdx';
+import './index.css';
 
 const CARDS = [
 	{
@@ -34,7 +35,6 @@ const CARDS = [
 ] as const;
 
 export default eco.page<{}, JsxRenderable>({
-	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({ title: 'Ecopages JSX', description: 'Build an HTML-first application with Ecopages JSX.' }),
 	render: () => (

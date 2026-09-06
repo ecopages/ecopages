@@ -7,6 +7,7 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import { BaseLayout } from '@/layouts/base-layout';
 import { RadiantCounter } from '@/components/radiant-counter';
 import ShowcaseMdx from '@/components/showcase.mdx';
+import './index.css';
 
 const CARDS = [
 	{
@@ -36,7 +37,6 @@ const CARDS = [
 ] as const;
 
 export default eco.page<{}, JsxRenderable>({
-	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({ title: 'Radiant UI', description: 'Build an Ecopages application with Radiant UI.' }),
 	render: () => (

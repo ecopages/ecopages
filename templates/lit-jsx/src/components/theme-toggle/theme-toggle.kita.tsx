@@ -1,8 +1,8 @@
 import { eco, type EcoPagesElement } from '@ecopages/core';
+import './theme-toggle.css';
 
 export const ThemeToggle = eco.component<{}, EcoPagesElement>({
 	dependencies: {
-		stylesheets: ['./theme-toggle.css'],
 		scripts: ['./theme-toggle.script.ts'],
 	},
 	render: () => (

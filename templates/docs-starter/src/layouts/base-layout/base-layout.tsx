@@ -3,6 +3,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
 import { docsNav } from '@/content-nav';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: JsxRenderable;
@@ -15,7 +16,6 @@ const docsIndexHref = docsNav.sections[0]?.items[0]?.href ?? '/docs/getting-star
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children, class: className, showHeader = true }) => {

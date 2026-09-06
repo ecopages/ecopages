@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { useState, type ReactNode } from 'react';
 import { X } from './icons';
+import './announcement-bar.css';
 
 export type AnnouncementBarProps = {
 	children?: ReactNode;
@@ -10,9 +11,6 @@ export type AnnouncementBarProps = {
 const STORAGE_KEY = 'announcement-bar-dismissed';
 
 export const AnnouncementBar = eco.component<AnnouncementBarProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./announcement-bar.css'],
-	},
 	render: ({ slideDown = false }) => {
 		const [isVisible, setIsVisible] = useState(true);
 

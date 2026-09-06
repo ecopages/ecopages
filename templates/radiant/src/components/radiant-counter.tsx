@@ -2,10 +2,10 @@ import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import type { RadiantCounterProps } from './radiant-counter.script';
+import './radiant-counter.css';
 
 export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./radiant-counter.css'],
 		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count = 0 }) => (

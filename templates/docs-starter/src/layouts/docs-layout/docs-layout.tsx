@@ -136,7 +136,6 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
-		components: [BaseLayout, DocsBar, DocsPagination, ThemeToggle],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {
 		const llmUrl = section && slug ? getDocsLlmUrl(section, slug) : undefined;

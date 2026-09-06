@@ -199,9 +199,6 @@ import { MyComponent } from "@/components/my-component";
 
 export const config = {
   layout: BaseLayout,
-  dependencies: {
-    components: [BaseLayout, MyComponent],
-  },
 };
 
 export const getMetadata = () => ({
@@ -454,7 +451,6 @@ type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ["./base-layout.css"],
-		components: [AuthNav, ThemeToggle, AnnouncementBar],
 	},
 	render: ({ children, locals }) => {
 		return (
@@ -499,7 +495,6 @@ const themeScript = `(function(){const t=localStorage.getItem('theme')||(window.
 
 const HtmlTemplate = eco.html<ReactNode>({
   dependencies: {
-    components: [Head],
     scripts: [{ content: themeScript }],
   },
 

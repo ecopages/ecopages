@@ -9,7 +9,6 @@ export type CardProps = {
 export const Card = eco.component<CardProps>({
 	dependencies: {
 		stylesheets: ['./card.css'],
-		components: [LitCounter],
 	},
 
 	render: ({ copy, title }) => {

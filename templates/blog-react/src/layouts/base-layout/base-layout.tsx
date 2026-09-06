@@ -11,7 +11,6 @@ export type BaseLayoutProps = {
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
-		components: [ThemeToggle],
 	},
 
 	render: ({ children }) => {

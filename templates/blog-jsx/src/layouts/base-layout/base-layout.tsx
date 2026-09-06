@@ -14,7 +14,6 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [ThemeToggle],
 	},
 
 	render: ({ children, class: className, prose = false }) => {

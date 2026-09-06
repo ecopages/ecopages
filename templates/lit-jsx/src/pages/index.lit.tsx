@@ -36,7 +36,7 @@ const CARDS = [
 ] as const;
 
 export default eco.page({
-	dependencies: { stylesheets: ['./index.css'], components: [BaseLayout, LitCounter] },
+	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({
 		title: 'Ecopages Lit JSX',

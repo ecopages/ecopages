@@ -34,7 +34,7 @@ const CARDS = [
 ] as const;
 
 export default eco.page<{}, JsxRenderable>({
-	dependencies: { stylesheets: ['./index.css'], components: [Counter] },
+	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({ title: 'Ecopages JSX', description: 'Build an HTML-first application with Ecopages JSX.' }),
 	render: () => (

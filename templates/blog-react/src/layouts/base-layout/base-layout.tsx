@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: ReactNode;
@@ -9,10 +10,6 @@ export type BaseLayoutProps = {
 };
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./base-layout.css'],
-	},
-
 	render: ({ children }) => {
 		return (
 			<div className="layout-container">

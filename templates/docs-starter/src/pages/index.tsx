@@ -4,6 +4,7 @@ import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiHeading, RuiHeadingDescription, RuiHeadingEyebrow, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
 import { docsNav } from '@/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
+import './index.css';
 
 const docsIndexHref = docsNav.sections[0]?.items[0]?.href ?? '/docs/getting-started/introduction';
 const writingHref =
@@ -12,9 +13,6 @@ const writingHref =
 
 export default eco.page<{}, JsxRenderable>({
 	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./index.css'],
-	},
 	metadata: () => ({
 		title: 'Docs starter',
 		description: 'An Ecopages docs template with MDX pages, sidebar navigation, prose, and a theme toggle.',

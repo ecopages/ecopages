@@ -3,6 +3,7 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo/logo';
 import { cx } from '@/lib/cx';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: JsxRenderable;
@@ -12,10 +13,8 @@ export type BaseLayoutProps = {
 
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-
 	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>

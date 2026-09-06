@@ -72,10 +72,20 @@ project/
 
 Ecopages uses the `eco` namespace to define all architectural blocks. This is **mandatory** for proper build-time optimization and dependency injection.
 
-- **`eco.component()`**: Factory for reusable components. **REQUIRED** if the component has dependencies (CSS, scripts).
+- **`eco.component()`**: Factory for reusable components. Use it when a component needs browser scripts, lazy loading, or mixed-integration ownership.
 - **`eco.page()`**: Factory for page routes. Handles metadata, layouts, and static props.
 
-> **Note:** When using **KitaJS**, components are often just simple functions returning JSX strings. `eco.component` is primarily needed when you need to inject specific assets (CSS/JS) only when that component is used.
+In modules that declare `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, Ecopages discovers:
+
+- **Local components** from direct static imports
+- **Stylesheets** from side-effect CSS imports such as `import './page.css'`
+
+**What stays explicit:**
+
+- **Browser scripts** in `dependencies.scripts`
+- **`export *` barrels, package components, and other imports discovery cannot follow** in `dependencies.components`
+
+> **Note:** When using **KitaJS**, components are often plain functions returning JSX strings. Reach for `eco.component()` when the component brings browser scripts or must participate in the dependency graph.
 
 ## Getting Started
 
@@ -217,11 +227,11 @@ You can use **markdown** syntax and JSX components together.
 
 **Key Points:**
 - Import components and layouts at the top
-- Export `config` with `layout` and `dependencies`
-- Export `getMetadata` function for page metadata
+- Export `config` with `layout` when the page needs a wrapper
+- Export `getMetadata` for page metadata
 - Write markdown content below the exports
 - Use JSX components inline with markdown syntax
-- Components must be listed in `dependencies.components`
+- Top-level component imports are discovered automatically
 
 **MDX Best Practices:**
 - Use MDX for content-heavy pages (documentation, blog posts, guides)
@@ -302,13 +312,30 @@ export const dashboardGroup = defineGroupHandler({
 
 The `eco.component()` factory works similarly across integrations but is most critical in **React** (for dependency injection) and **Lit** (for SSR registration).
 
-**React Integration Example:**
+Import co-located CSS directly. Ecopages discovers the stylesheet and strips the import during build:
+
 ```tsx
 import { eco } from "@ecopages/core";
+import "./my-component.css";
+
+export const MyComponent = eco.component({
+  render: ({ title }) => (
+    <div className="my-component">
+      <h2>{title}</h2>
+    </div>
+  ),
+});
+```
+
+When the component also needs browser behavior, keep scripts explicit in `dependencies.scripts`:
+
+```tsx
+import { eco } from "@ecopages/core";
+import "./my-component.css";
 
 export const MyComponent = eco.component({
   dependencies: {
-    stylesheets: ["./my-component.css"], // Automatically injected when component is used
+    scripts: [{ src: "./my-component.script.ts", lazy: { "on:interaction": "mouseenter,focusin" } }],
   },
   render: ({ title }) => (
     <div className="my-component">
@@ -445,39 +472,37 @@ import { AuthNav } from "@/components/auth-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { eco, type WithLocals } from "@ecopages/core";
+import "./base-layout.css";
 
 type BaseLayoutProps = WithLocals<{ children: ReactNode }>;
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
-	dependencies: {
-		stylesheets: ["./base-layout.css"],
-	},
-	render: ({ children, locals }) => {
-		return (
-			<div className="layout">
-				<AnnouncementBar slideDown />
-				<header className="layout__header">
-					<nav className="layout__nav" aria-label="Main">
-						<a href="/" className="layout__logo">
-							Ecopages
-						</a>
-						<div className="layout__nav-items">
-							<AuthNav initialSession={locals?.session} />
-							<ThemeToggle />
-						</div>
-					</nav>
-				</header>
-				<main className="layout__main" id="main-content">
-					<div className="layout__content">{children}</div>
-				</main>
-				<footer className="layout__footer">
-					<div className="layout__footer-content">
-						<p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
-					</div>
-				</footer>
-			</div>
-		);
-	},
+  render: ({ children, locals }) => {
+    return (
+      <div className="layout">
+        <AnnouncementBar slideDown />
+        <header className="layout__header">
+          <nav className="layout__nav" aria-label="Main">
+            <a href="/" className="layout__logo">
+              Ecopages
+            </a>
+            <div className="layout__nav-items">
+              <AuthNav initialSession={locals?.session} />
+              <ThemeToggle />
+            </div>
+          </nav>
+        </header>
+        <main className="layout__main" id="main-content">
+          <div className="layout__content">{children}</div>
+        </main>
+        <footer className="layout__footer">
+          <div className="layout__footer-content">
+            <p>&copy; {new Date().getFullYear()} Ecopages + Better Auth.</p>
+          </div>
+        </footer>
+      </div>
+    );
+  },
 });
 ```
 
@@ -497,7 +522,6 @@ const HtmlTemplate = eco.html<ReactNode>({
   dependencies: {
     scripts: [{ content: themeScript }],
   },
-
   render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => {
     return (
       <html lang={language}>
@@ -512,9 +536,6 @@ const HtmlTemplate = eco.html<ReactNode>({
 });
 
 export default HtmlTemplate;
-
-
-export default HtmlTemplate;
 ```
 
 **`src/includes/head.tsx`** - Head component:
@@ -524,11 +545,10 @@ import { eco } from "@ecopages/core";
 import type { PageHeadProps } from "@ecopages/core";
 import type { ReactNode } from "react";
 import { Seo } from "@/includes/seo";
+import "../styles/router.css";
+import "../styles/app.css";
 
 export const Head = eco.component<PageHeadProps, ReactNode>({
-  dependencies: {
-    stylesheets: ["../styles/router.css", "../styles/app.css"],
-  },
   render: ({ metadata, children }) => (
     <head>
       <meta charSet="UTF-8" />
@@ -737,12 +757,14 @@ const baseUrl = process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
 ## Best Practices
 
 1. **Use `eco.page()` for pages** - Provides type safety and metadata support across all integrations.
-2. **Use `eco.component()` sparingly in KitaJS** - Only when you need specific dependency injection.
-3. **Prioritize Native Web Standards** - Use standard anchor tags (`<a>`), forms, and semantic HTML.
-4. **Leverage TypeScript** - Full type inference throughout.
-5. **Organize by feature** - Group related components, handlers, and pages together.
-6. **Use CSS variables for theming** - Works seamlessly with Tailwind v4.
-7. **Avoid SSR-only hooks** - In React, use client-side checks for browser APIs.
+2. **Import local CSS directly** - Side-effect CSS imports are discovered automatically.
+3. **Keep browser scripts explicit** - Declare them in `dependencies.scripts`.
+4. **Use `eco.component()` when scripts matter** - Not for every presentational wrapper.
+5. **Prioritize native web standards** - Use standard anchor tags (`<a>`), forms, and semantic HTML.
+6. **Leverage TypeScript** - Full type inference throughout.
+7. **Organize by feature** - Group related components, handlers, and pages together.
+8. **Use CSS variables for theming** - Works seamlessly with Tailwind v4.
+9. **Avoid SSR-only hooks** - In React, use client-side checks for browser APIs.
 
 ## Troubleshooting
 
@@ -754,7 +776,7 @@ const baseUrl = process.env.ECOPAGES_BASE_URL ?? "http://localhost:3000";
 
 ### Styles not loading
 
-- Ensure CSS file is imported in `head.tsx` dependencies
+- Import CSS with `import './file.css'` in the owning page, layout, or component
 - Check Tailwind v4 preset configuration
 - Verify `referencePath` points to your main CSS file
 
@@ -954,15 +976,13 @@ import { authClient } from "@/lib/auth-client";
 import { eco } from "@ecopages/core";
 import type { ReactNode } from "react";
 import type { Session } from "@/handlers/auth.server";
+import "./auth-nav.css";
 
 type AuthNavProps = {
   initialSession?: Session | null;
 };
 
 export const AuthNav = eco.component<AuthNavProps, ReactNode>({
-  dependencies: {
-    stylesheets: ["./auth-nav.css"],
-  },
   render: ({ initialSession }) => {
     const { data: clientSession, isPending } = authClient.useSession();
 

@@ -1,12 +1,10 @@
 import { eco } from '@ecopages/core';
 import type { Error500TemplateProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
+import './500.css';
 
 export default eco.page<Error500TemplateProps>({
 	layout: BaseLayout,
-	dependencies: {
-		stylesheets: ['./500.css'],
-	},
 
 	render: ({ message, stack }) => {
 		return (

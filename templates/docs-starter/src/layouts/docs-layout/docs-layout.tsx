@@ -15,6 +15,7 @@ import {
 	RuiSidebarSeparator,
 	RuiSidebarTrigger,
 } from '@ecopages/radiant-ui/sidebar';
+import './docs-layout.css';
 import { RuiToc } from '@ecopages/radiant-ui/toc';
 import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
@@ -134,7 +135,6 @@ const DocsSiteHeader = () => (
 
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./docs-layout.css'],
 		scripts: ['./docs-layout.script.ts'],
 	},
 	render: ({ children, section, slug }: DocsLayoutRenderProps) => {

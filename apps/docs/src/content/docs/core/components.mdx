@@ -15,12 +15,12 @@ Declare the styles, browser scripts, and child Components a Component needs. Eco
 ```tsx
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import './radiant-counter.css';
 
 type RadiantCounterProps = { count: number };
 
 export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./radiant-counter.css'],
 		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => (

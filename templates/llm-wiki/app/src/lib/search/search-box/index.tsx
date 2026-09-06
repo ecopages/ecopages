@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { SearchTrigger } from './search-box.script';
+import './search-box.css';
 
 export type SearchBoxProps = {
 	/** URL of a JSON array of search documents. Default: `/search-index.json`. */
@@ -12,7 +13,6 @@ export type SearchBoxProps = {
 
 export const SearchBox = eco.component<SearchBoxProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./search-box.css'],
 		scripts: ['./search-box.script.tsx'],
 	},
 	render: ({ indexUrl = '/search-index.json', placeholder = 'Search…', label = 'Search' }) => {

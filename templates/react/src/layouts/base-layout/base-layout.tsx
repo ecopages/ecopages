@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo';
 import { cx } from '@/lib/cx';
+import './base-layout.css';
 
 export type BaseLayoutProps = {
 	children: ReactNode;
@@ -13,10 +14,8 @@ export type BaseLayoutProps = {
 
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
-
 	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>

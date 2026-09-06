@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import './counter.css';
 
 export type CounterProps = {
 	count?: number;
@@ -7,10 +8,8 @@ export type CounterProps = {
 
 export const Counter = eco.component<CounterProps, JsxRenderable>({
 	dependencies: {
-		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
-
 	render: ({ count = 0 }) => (
 		<demo-counter count={count}>
 			<button type="button" data-ref="decrement" aria-label="Decrement">

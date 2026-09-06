@@ -9,6 +9,10 @@
 	"license": "MIT",
 	"main": "./src/image-processor.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist"
+	},
 	"files": [
 		"src"
 	],

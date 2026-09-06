@@ -4,140 +4,51 @@ on:
     push:
         branches:
             - main
+            # Add the current RC line here, e.g. release/v0.3.0
+            - release/v0.2.0
     workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-    prepare:
-        runs-on: ubuntu-latest
+    publish:
+        name: Publish
         permissions:
-            contents: read
+            contents: write
+            id-token: write
+            pull-requests: write
+
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
               uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
-
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
 
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
-                  node-version: 24
+                  node-version: '24'
+                  cache: 'pnpm'
 
             - name: Install Dependencies
-              run: pnpm install
-
-            - name: Install Playwright Browsers
-              run: pnpm exec playwright install --with-deps
-
-            - name: Test
-              run: pnpm run test:all
-              env:
-                  ECOPAGES_BASE_URL: http://localhost:3000
-                  ECOPAGES_LOGGER_DEBUG: false
-
-            - name: Validate synced versions
-              run: pnpm run release:check:versions
+              run: pnpm install --frozen-lockfile
 
             - name: Build npm packages
               run: pnpm run build:npm
 
-            - name: Upload npm build artifacts
-              # Stores the built dist folders in GitHub Actions artifact storage.
-              # They are not kept in this runner's filesystem for the next job.
-              uses: actions/upload-artifact@v6
+            - name: Configure npm for OIDC trusted publishing
+              run: npm config delete //registry.npmjs.org/:_authToken --location=user || true
+
+            - name: Create Release Pull Request or Publish
+              id: changesets
+              uses: changesets/action@v2
               with:
-                  name: npm-build-artifacts
-                  path: |
-                      packages/browser-router/dist
-                      packages/core/dist
-                      packages/dev-toolbar/dist
-                      packages/ecopages/dist
-                      packages/file-system/dist
-                      packages/integrations/kitajs/dist
-                      packages/integrations/lit/dist
-                      packages/integrations/mdx/dist
-                      packages/integrations/ecopages-jsx/dist
-                      packages/integrations/react/dist
-                      packages/processors/image-processor/dist
-                      packages/processors/content-processor/dist
-                      packages/processors/postcss-processor/dist
-                      packages/react-router/dist
-
-    publish-npm:
-        needs: prepare
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            id-token: write # Required for OIDC authentication
-        steps:
-            - name: Checkout Repo
-              uses: actions/checkout@v6
-
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v6
-
-            - name: Setup Node.js for NPM Publish
-              uses: actions/setup-node@v6
-              with:
-                  node-version: '24'
-                  registry-url: 'https://registry.npmjs.org'
-
-            - name: Install Dependencies
-              run: pnpm install
-
-            - name: Download npm build artifacts
-              # Restores the uploaded artifact into this job's workspace at '.'.
-              # After download, the dist folders exist again under their original paths.
-              uses: actions/download-artifact@v6
-              with:
-                  name: npm-build-artifacts
-                  path: .
-
-            - name: Publish npm package @ecopages/file-system
-              run: pnpm run release:npm -- packages/file-system/dist
-
-            - name: Publish npm package @ecopages/core
-              run: pnpm run release:npm -- packages/core/dist
-
-            - name: Publish npm package @ecopages/dev-toolbar
-              run: pnpm run release:npm -- packages/dev-toolbar/dist
-
-            - name: Publish npm package @ecopages/postcss-processor
-              run: pnpm run release:npm -- packages/processors/postcss-processor/dist
-
-            - name: Publish npm package @ecopages/image-processor
-              run: pnpm run release:npm -- packages/processors/image-processor/dist
-
-            - name: Publish npm package @ecopages/content-processor
-              run: pnpm run release:npm -- packages/processors/content-processor/dist
-
-            - name: Publish npm package @ecopages/kitajs
-              run: pnpm run release:npm -- packages/integrations/kitajs/dist
-
-            - name: Publish npm package @ecopages/lit
-              run: pnpm run release:npm -- packages/integrations/lit/dist
-
-            - name: Publish npm package @ecopages/mdx
-              run: pnpm run release:npm -- packages/integrations/mdx/dist
-
-            # @ecopages/react and @ecopages/ecopages-jsx list @ecopages/mdx in dependencies. Publish mdx first.
-
-            - name: Publish npm package @ecopages/ecopages-jsx
-              run: pnpm run release:npm -- packages/integrations/ecopages-jsx/dist
-
-            - name: Publish npm package @ecopages/react
-              run: pnpm run release:npm -- packages/integrations/react/dist
-
-            - name: Publish npm package @ecopages/browser-router
-              run: pnpm run release:npm -- packages/browser-router/dist
-
-            - name: Publish npm package @ecopages/react-router
-              run: pnpm run release:npm -- packages/react-router/dist
-
-            - name: Publish npm package ecopages
-              run: pnpm run release:npm -- packages/ecopages/dist
+                  github-token: ${{ github.token }}
+                  version-script: pnpm changeset version
+                  publish-script: pnpm changeset publish
+              env:
+                  NPM_CONFIG_PROVENANCE: true

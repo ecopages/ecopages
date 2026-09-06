@@ -156,73 +156,21 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-The release workflow runs this same command in CI, so Playwright browser dependencies must be installed there before publishing.
+CI runs the fast gate on pull requests and the e2e gate on `main`.
 
 ### Releases
 
-Release versioning is managed from the workspace root.
-
-Stable bumps:
+Record a user-facing change with Changesets, then let the Publish workflow version and publish:
 
 ```bash
-pnpm run bump:patch
-pnpm run bump:minor
-pnpm run bump:major
+pnpm changeset
 ```
 
-Promote a prerelease to stable (drops `-alpha`/`-beta`/`-rc` suffix without incrementing):
+Commit the generated file under `.changeset/`. Do not bump `package.json` versions or edit `CHANGELOG.md` by hand.
 
-```bash
-pnpm run bump:stable
-# e.g. 0.2.0-beta.13 → 0.2.0, then pnpm run sync-version (included in bump:stable)
-```
+Public packages are a **fixed** group: they always share one version. The Publish workflow builds each package `dist` and publishes that folder to npm (`publishConfig.directory`). The install entrypoint is the `ecopages` CLI.
 
-Prerelease bumps:
-
-```bash
-pnpm run bump:alpha
-pnpm run bump:alpha:minor
-pnpm run bump:alpha:major
-pnpm run bump:beta
-pnpm run bump:beta:minor
-pnpm run bump:beta:major
-pnpm run bump:rc
-```
-
-`:minor` / `:major` on alpha and beta start that channel on the next version line (from stable `0.2.0`, `bump:beta:minor` → `0.3.0-beta.0`). RC has no such variants: it freezes the current `MAJOR.MINOR.PATCH` (`0.2.0-beta.43` → `0.2.0-rc.0`, then `0.2.0-rc.1`, then `bump:stable` → `0.2.0`). To RC a different line, bump the base first.
-
-Examples:
-
-- `0.2.0-beta.13 -> 0.2.0`: `pnpm run bump:stable` (at publish time; then run `node scripts/stamp-changelogs.ts`)
-- `0.2.0 -> 0.2.1`: `pnpm run bump:patch`
-- `0.2.0 -> 0.3.0`: `pnpm run bump:minor`
-- `0.2.0-beta.12 -> 0.2.0-beta.13`: `pnpm run bump:beta`
-- `0.2.0-beta.43 -> 0.2.0-rc.0`: `pnpm run bump:rc`
-
-The bump script also supports direct usage for previews:
-
-```bash
-node --experimental-strip-types scripts/bump-version.ts promote --dry-run
-node --experimental-strip-types scripts/bump-version.ts prerelease alpha minor --dry-run
-node --experimental-strip-types scripts/bump-version.ts --help
-```
-
-After bumping, sync the package versions if your chosen root script did not already do it:
-
-```bash
-pnpm run sync-version
-```
-
-Changelogs: tracking begins at `0.2.0`. Keep release notes under `## [UNRELEASED] — TBD` until publish; run `node scripts/stamp-changelogs.ts` after a stable bump to create the first published entry.
-
-Release pipeline notes:
-
-- npm is the only release channel. The `ecopages` CLI is the install entrypoint (`npx ecopages`, `pnpm exec ecopages`).
-- npm publishing runs package by package.
-- npm publishing uses provenance-enabled `npm publish --provenance`.
-- npm publish steps skip a package if that exact version is already published.
-- brand new npm packages usually require an initial manual npm-side setup before trusted publishing can work.
-- Before publishing, compare each unreleased changelog line against the final implementation state and remove wording that only describes intermediate refactors instead of the shipped behavior.
+How versioning, prereleases, and branch selection work: [`.changeset/README.md`](.changeset/README.md).
 
 ## Embracing Simplicity with a Side of Verbosity
 

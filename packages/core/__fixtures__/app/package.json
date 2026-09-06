@@ -1,6 +1,7 @@
 {
 	"name": "@ecopages/fixture",
 	"version": "0.0.1",
+	"private": true,
 	"scripts": {
 		"start": "bun run app.ts",
 		"dev": "bun run app.ts --dev",

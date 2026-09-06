@@ -2,6 +2,10 @@
 
 Repo-root utilities for packaging, release, and **debugging consumer apps** against local Ecopages builds.
 
+## Releases
+
+Public packages are versioned with Changesets. `pnpm changeset` records a change; [`.changeset/README.md`](../.changeset/README.md) is the pipeline contract. `build-npm-packages.ts` compiles public packages into `dist` and rewrites `workspace:*` to the package version so `publishConfig.directory` can point Changesets at that folder.
+
 ## External app debug / bottleneck bench
 
 Use [`debug-app.bench.mjs`](./debug-app.bench.mjs) to measure an app that lives **outside** this repository (for example a product monorepo). Do not commit app-specific harnesses here — pass the app path and routes as CLI args.

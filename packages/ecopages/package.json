@@ -28,6 +28,10 @@
 		"lit",
 		"mdx"
 	],
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist"
+	},
 	"bin": {
 		"ecopages": "bin/cli.js"
 	},

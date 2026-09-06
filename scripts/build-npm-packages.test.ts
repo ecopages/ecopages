@@ -26,6 +26,24 @@ test('createDistManifest strips development-only manifest fields', () => {
 	assert.equal(distManifest.main, './src/index.js');
 });
 
+test('createDistManifest keeps publish access and drops directory', () => {
+	const distManifest = createDistManifest(
+		{
+			name: '@ecopages/example',
+			main: './src/index.ts',
+			publishConfig: {
+				access: 'public',
+				directory: 'dist',
+			},
+		},
+		'1.2.3',
+	);
+
+	assert.deepEqual(distManifest.publishConfig, {
+		access: 'public',
+	});
+});
+
 test('createDistManifest rewrites workspace ranges but preserves publish metadata', () => {
 	const distManifest = createDistManifest(
 		{

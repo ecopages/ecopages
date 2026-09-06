@@ -11,6 +11,10 @@
 	"main": "./src/ecopages-jsx.plugin.ts",
 	"types": "./src/ecopages-jsx.plugin.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist"
+	},
 	"files": [
 		"src"
 	],

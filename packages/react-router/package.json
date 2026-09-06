@@ -16,6 +16,10 @@
 		".": "./src/index.ts",
 		"./browser": "./browser.ts"
 	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist"
+	},
 	"files": [
 		"src",
 		"browser.ts"

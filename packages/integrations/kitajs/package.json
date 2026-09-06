@@ -11,6 +11,10 @@
 	"main": "./src/kitajs.plugin.ts",
 	"types": "./src/kitajs.plugin.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist"
+	},
 	"files": [
 		"src"
 	],

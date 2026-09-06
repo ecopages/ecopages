@@ -70,28 +70,28 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/content-processor
+        version: link:../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.5
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.5
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -115,7 +115,7 @@ importers:
         version: 4.0.4
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -167,16 +167,16 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../../packages/browser-router
+        version: link:../../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../packages/core/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../../packages/integrations/kitajs
+        version: link:../../../packages/integrations/kitajs/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/mdx
+        version: link:../../../packages/integrations/mdx/dist
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -195,10 +195,10 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../packages/core/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/mdx
+        version: link:../../../packages/integrations/mdx/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../../packages/__internals/testing
@@ -217,13 +217,13 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../packages/core/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/mdx
+        version: link:../../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../../packages/processors/postcss-processor
+        version: link:../../../packages/processors/postcss-processor/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../../packages/__internals/testing
@@ -242,16 +242,16 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../packages/core/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/mdx
+        version: link:../../../packages/integrations/mdx/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../../packages/integrations/react
+        version: link:../../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../../packages/react-router
+        version: link:../../../packages/react-router/dist
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -263,7 +263,7 @@ importers:
     dependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
@@ -285,10 +285,11 @@ importers:
     dependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../core/dist
       morphdom:
         specifier: ^2.7.8
         version: 2.7.8
+    publishDirectory: dist
 
   packages/codemod:
     dependencies:
@@ -310,7 +311,7 @@ importers:
     dependencies:
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../file-system
+        version: link:../file-system/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -347,7 +348,7 @@ importers:
     devDependencies:
       '@ecopages/dev-toolbar':
         specifier: workspace:*
-        version: link:../dev-toolbar
+        version: link:../dev-toolbar/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../__internals/testing
@@ -372,6 +373,7 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.5.4
+    publishDirectory: dist
 
   packages/core/__fixtures__/app:
     dependencies:
@@ -381,10 +383,10 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../..
+        version: link:../../dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../integrations/mdx
+        version: link:../../../integrations/mdx/dist
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -409,7 +411,8 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../core/dist
+    publishDirectory: dist
 
   packages/ecopages:
     dependencies:
@@ -418,7 +421,7 @@ importers:
         version: 1.7.0
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../core/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -434,6 +437,7 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+    publishDirectory: dist
 
   packages/file-system:
     devDependencies:
@@ -446,6 +450,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: dist
 
   packages/integrations/ecopages-jsx:
     dependencies:
@@ -454,7 +459,7 @@ importers:
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../mdx
+        version: link:../mdx/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -467,7 +472,7 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
@@ -483,6 +488,7 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+    publishDirectory: dist
 
   packages/integrations/kitajs:
     dependencies:
@@ -495,10 +501,11 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
+    publishDirectory: dist
 
   packages/integrations/lit:
     dependencies:
@@ -514,10 +521,11 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
+    publishDirectory: dist
 
   packages/integrations/mdx:
     dependencies:
@@ -536,22 +544,23 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
+    publishDirectory: dist
 
   packages/integrations/react:
     dependencies:
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../../file-system
+        version: link:../../file-system/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../mdx
+        version: link:../mdx/dist
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
@@ -582,16 +591,17 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../../__internals/testing
+    publishDirectory: dist
 
   packages/processors/content-processor:
     dependencies:
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../../file-system
+        version: link:../../file-system/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -610,7 +620,7 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@types/bun':
         specifier: latest
         version: 1.4.1
@@ -620,12 +630,13 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.5.4
+    publishDirectory: dist
 
   packages/processors/image-processor:
     dependencies:
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../../file-system
+        version: link:../../file-system/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -641,7 +652,7 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
@@ -651,12 +662,13 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.5(@types/react@19.2.18)
+    publishDirectory: dist
 
   packages/processors/postcss-processor:
     dependencies:
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../../file-system
+        version: link:../../file-system/dist
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -681,7 +693,7 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../../core/dist
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.3
@@ -697,15 +709,16 @@ importers:
       tailwindcss:
         specifier: ^3.4.19
         version: 3.4.19(tsx@4.23.13)(yaml@2.9.0)
+    publishDirectory: dist
 
   packages/react-router:
     dependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../core/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../integrations/react
+        version: link:../integrations/react/dist
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -722,12 +735,13 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.5(@types/react@19.2.18)
+    publishDirectory: dist
 
   packages/vite-plugin:
     dependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../core/dist
       vite:
         specifier: '>=8.0.0'
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0)
@@ -736,22 +750,22 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -763,7 +777,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3
@@ -800,19 +814,19 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -830,7 +844,7 @@ importers:
         version: 1.0.0-rc.5-ab785fc
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: latest
         version: 4.3.3
@@ -843,16 +857,16 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@kitajs/html':
         specifier: ^4.2.13
         version: 4.2.13
@@ -861,7 +875,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3
@@ -874,31 +888,31 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/lit':
         specifier: workspace:*
-        version: link:../../packages/integrations/lit
+        version: link:../../packages/integrations/lit/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
@@ -922,7 +936,7 @@ importers:
         version: 3.17.1
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -943,53 +957,53 @@ importers:
     dependencies:
       '@ecopages/dev-toolbar':
         specifier: workspace:*
-        version: link:../../packages/dev-toolbar
+        version: link:../../packages/dev-toolbar/dist
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/content-processor
+        version: link:../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/file-system':
         specifier: workspace:*
-        version: link:../../packages/file-system
+        version: link:../../packages/file-system/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/lit':
         specifier: workspace:*
-        version: link:../../packages/integrations/lit
+        version: link:../../packages/integrations/lit/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
@@ -1022,7 +1036,7 @@ importers:
         version: 19.2.5(@types/react@19.2.18)
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -1052,19 +1066,19 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/lit':
         specifier: workspace:*
-        version: link:../../packages/integrations/lit
+        version: link:../../packages/integrations/lit/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -1085,7 +1099,7 @@ importers:
         version: 3.17.1
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -1110,22 +1124,22 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.18
@@ -1134,7 +1148,7 @@ importers:
         version: 19.2.5(@types/react@19.2.18)
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^3.4.19
         version: 3.4.19(tsx@4.23.13)(yaml@2.9.0)
@@ -1159,25 +1173,25 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.3
@@ -1192,7 +1206,7 @@ importers:
         version: 1.0.0-rc.5-ab785fc
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       rehype-pretty-code:
         specifier: ^0.14.3
         version: 0.14.5(shiki@3.23.0)
@@ -1210,22 +1224,22 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.3
@@ -1237,7 +1251,7 @@ importers:
         version: 19.2.5(@types/react@19.2.18)
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -1252,19 +1266,19 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -1279,28 +1293,28 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/content-processor
+        version: link:../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -1315,7 +1329,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1337,25 +1351,25 @@ importers:
     devDependencies:
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/content-processor
+        version: link:../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@tailwindcss/postcss':
         specifier: ^4.1.18
         version: 4.3.3
@@ -1367,7 +1381,7 @@ importers:
         version: 19.2.5(@types/react@19.2.18)
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1382,25 +1396,25 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/content-processor
+        version: link:../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -1418,7 +1432,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       rehype-pretty-code:
         specifier: ^0.14.3
         version: 0.14.5(shiki@3.23.0)
@@ -1451,31 +1465,31 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.3
@@ -1484,25 +1498,25 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/kitajs':
         specifier: workspace:*
-        version: link:../../packages/integrations/kitajs
+        version: link:../../packages/integrations/kitajs/dist
       '@ecopages/lit':
         specifier: workspace:*
-        version: link:../../packages/integrations/lit
+        version: link:../../packages/integrations/lit/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
@@ -1514,7 +1528,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       lit:
         specifier: ^3.3.2
         version: 3.3.3
@@ -1526,16 +1540,16 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../../packages/browser-router
+        version: link:../../../packages/browser-router/dist
       '@ecopages/content-processor':
         specifier: workspace:*
-        version: link:../../../packages/processors/content-processor
+        version: link:../../../packages/processors/content-processor/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/ecopages-jsx
+        version: link:../../../packages/integrations/ecopages-jsx/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
@@ -1544,10 +1558,10 @@ importers:
         version: 0.2.3(typescript@5.9.3)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../../packages/integrations/mdx
+        version: link:../../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../../packages/processors/postcss-processor
+        version: link:../../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -1568,7 +1582,7 @@ importers:
         version: 16.6.1
       ecopages:
         specifier: workspace:*
-        version: link:../../../packages/ecopages
+        version: link:../../../packages/ecopages/dist
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1589,25 +1603,25 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/ecopages-jsx':
         specifier: workspace:*
-        version: link:../../packages/integrations/ecopages-jsx
+        version: link:../../packages/integrations/ecopages-jsx/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/jsx':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5)
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/radiant':
         specifier: ^0.3.0-rc.2
         version: 0.3.0-rc.5(@ecopages/jsx@0.3.0-rc.5(@ecopages/signals@0.3.0-rc.5))
@@ -1622,7 +1636,7 @@ importers:
         version: 4.3.3
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.3
@@ -1644,19 +1658,19 @@ importers:
     devDependencies:
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
@@ -1668,7 +1682,7 @@ importers:
         version: 19.2.5(@types/react@19.2.18)
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.3
@@ -1693,25 +1707,25 @@ importers:
     devDependencies:
       '@ecopages/browser-router':
         specifier: workspace:*
-        version: link:../../packages/browser-router
+        version: link:../../packages/browser-router/dist
       '@ecopages/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/core/dist
       '@ecopages/image-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/image-processor
+        version: link:../../packages/processors/image-processor/dist
       '@ecopages/mdx':
         specifier: workspace:*
-        version: link:../../packages/integrations/mdx
+        version: link:../../packages/integrations/mdx/dist
       '@ecopages/postcss-processor':
         specifier: workspace:*
-        version: link:../../packages/processors/postcss-processor
+        version: link:../../packages/processors/postcss-processor/dist
       '@ecopages/react':
         specifier: workspace:*
-        version: link:../../packages/integrations/react
+        version: link:../../packages/integrations/react/dist
       '@ecopages/react-router':
         specifier: workspace:*
-        version: link:../../packages/react-router
+        version: link:../../packages/react-router/dist
       '@tailwindcss/postcss':
         specifier: ^4.1.18
         version: 4.3.3
@@ -1726,7 +1740,7 @@ importers:
         version: 1.0.0-rc.5-ab785fc
       ecopages:
         specifier: workspace:*
-        version: link:../../packages/ecopages
+        version: link:../../packages/ecopages/dist
       rehype-pretty-code:
         specifier: ^0.14.1
         version: 0.14.5(shiki@3.23.0)

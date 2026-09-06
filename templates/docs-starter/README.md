@@ -1,6 +1,6 @@
 # Docs starter template
 
-An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs route. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts).
+An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs route. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button.
 
 ## Structure
 
@@ -12,10 +12,12 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 - `src/pages/index.tsx` — homepage with links into the docs set
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 - `src/styles/components/prose.css` — markdown typography (skips `.unstyled`; tables scroll with `overflow-x: auto`)
+- `src/styles/vendor/shiki.css` — pretty-code figure chrome and copy-button layout
 
 ## Configuration
 
 - Register `contentProcessorPlugin()` from `@ecopages/content-processor/plugin` in `eco.config.ts`.
+- Fenced code highlighting and copy buttons are configured in `src/lib/docs/mdx-plugin-options.ts`.
 - Add pages as `<section>/<slug>.mdx` with frontmatter; reorder with `order` and `DOCS_SECTION_ORDER`.
 - Import each JSX component directly in the MDX document that uses it. Use `class="unstyled"` on alerts and other chrome so prose styles do not restyle them.
 
@@ -60,4 +62,4 @@ Open `/` for the homepage and `/docs/getting-started/introduction` for the first
 
 ## Full docs app
 
-See `apps/docs` for the production docs app: more sections, code tabs, and syntax highlighting.
+See `apps/docs` for the production docs app: more sections and code tabs.

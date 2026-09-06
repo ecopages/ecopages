@@ -1404,21 +1404,33 @@ importers:
       '@mdx-js/mdx':
         specifier: ^3.1.1
         version: 3.1.1
+      '@rehype-pretty/transformers':
+        specifier: ^0.13.2
+        version: 0.13.2
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
       ecopages:
         specifier: workspace:*
         version: link:../../packages/ecopages
+      rehype-pretty-code:
+        specifier: ^0.14.3
+        version: 0.14.5(shiki@3.23.0)
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      shiki:
+        specifier: ^3.23.0
+        version: 3.23.0
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.3
       tsx:
         specifier: ^4.22.3
         version: 4.23.13
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
       vfile:
         specifier: ^6.0.3
         version: 6.0.3

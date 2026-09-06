@@ -125,8 +125,9 @@ ${entrySourceFilesBySlugLines.join('\n')}
  *
  * @remarks
  * The emitted module caches completed components and coalesces concurrent
- * loads for the same slug. Keeping MDX imports here leaves the metadata
- * virtual module cheap to load during route preparation.
+ * loads for the same slug. `getEntryDependencies` returns the entry Component
+ * so collection can resolve assets from identity. Keeping MDX imports here
+ * leaves the metadata virtual module cheap to load during route preparation.
  */
 export function renderCollectionComponentsModule(
 	_collectionName: string,
@@ -174,16 +175,10 @@ export async function getComponent(slug: string): Promise<EcoComponent<Record<st
 	return loadPromise;
 }
 
-export async function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined> {
+export async function getEntryDependencies(slug: string): Promise<PageDependenciesResult> {
 	const component = await getComponent(slug);
-	const dependencies = component.config?.dependencies;
-	if (!dependencies) {
-		return undefined;
-	}
-
 	return {
-		...dependencies,
-		ownerFile: entrySourceFilesBySlug[slug],
+		components: [component],
 	};
 }
 `;
@@ -294,8 +289,14 @@ function renderCollectionComponentsTypesModule(collectionName: string): string {
 
 	/** @throws HttpError 404 when the slug is not in the collection. */
 	export function getComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>;
-	/** @throws HttpError 404 when the slug is not in the collection. */
-	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>;
+	/**
+	 * Returns { components: [entry] } so collection walks MDX identity.
+	 *
+	 * @remarks Does not copy config.dependencies or set ownerFile.
+	 * Combine Page-local relative assets with mergePageDependencies().
+	 * @throws HttpError 404 when the slug is not in the collection.
+	 */
+	export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>;
 }`;
 }
 

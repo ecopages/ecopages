@@ -53,7 +53,9 @@ describe('codegen', () => {
 		expect(output).toContain("'intro': '/app/src/content/docs/intro.mdx',");
 		expect(output).toContain('export async function getComponent(slug: string)');
 		expect(output).toContain('export async function getEntryDependencies(slug: string)');
-		expect(output).toContain('ownerFile: entrySourceFilesBySlug[slug]');
+		expect(output).toContain('components: [component]');
+		expect(output).not.toContain('...dependencies');
+		expect(output).not.toContain('ownerFile: entrySourceFilesBySlug[slug]');
 		expect(output).not.toContain('export const entries');
 	});
 
@@ -101,9 +103,7 @@ describe('codegen', () => {
 			'export function loadComponent(slug: string): Promise<EcoComponent<Record<string, unknown>>>',
 		);
 		expect(output).toContain('/** @throws HttpError 404 when the slug is not in the collection. */');
-		expect(output).toContain(
-			'export function getEntryDependencies(slug: string): Promise<PageDependenciesResult | undefined>',
-		);
+		expect(output).toContain('export function getEntryDependencies(slug: string): Promise<PageDependenciesResult>');
 		expect(output).toContain('declare module "ecopages:content/blog"');
 		expect(output).toContain('declare module "ecopages:content/blog/server"');
 		expect(output).toContain("import type { ContentEntry } from '@ecopages/content-processor/types'");

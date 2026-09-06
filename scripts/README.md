@@ -4,7 +4,7 @@ Repo-root utilities for packaging, release, and **debugging consumer apps** agai
 
 ## Releases
 
-Public packages are versioned with Changesets. `pnpm changeset` records a change; [`.changeset/README.md`](../.changeset/README.md) is the pipeline contract. `build-npm-packages.ts` compiles public packages into `dist` and rewrites `workspace:*` to the package version so `publishConfig.directory` can point Changesets at that folder.
+Public packages are versioned with Changesets. `pnpm changeset` records a change; [`.changeset/README.md`](../.changeset/README.md) is the pipeline contract. `build-npm-packages.ts` compiles public packages into `dist` at publish time and rewrites `workspace:*` to the package version so `publishConfig.directory` can point Changesets at that folder.
 
 ## External app debug / bottleneck bench
 

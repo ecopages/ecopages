@@ -28,6 +28,9 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
@@ -37,18 +40,21 @@ jobs:
             - name: Install Dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Build npm packages
-              run: pnpm run build:npm
+            - name: Install Playwright Browsers
+              run: pnpm exec playwright install --with-deps
+
+            - name: Test
+              run: pnpm run test:all
+              env:
+                  ECOPAGES_BASE_URL: http://localhost:3000
+                  ECOPAGES_LOGGER_DEBUG: false
 
             - name: Configure npm for OIDC trusted publishing
               run: npm config delete //registry.npmjs.org/:_authToken --location=user || true
 
             - name: Create Release Pull Request or Publish
-              id: changesets
               uses: changesets/action@v2
               with:
-                  github-token: ${{ github.token }}
-                  version-script: pnpm changeset version
-                  publish-script: pnpm changeset publish
+                  publish-script: pnpm run build:npm && pnpm changeset publish
               env:
                   NPM_CONFIG_PROVENANCE: true

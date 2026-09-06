@@ -55,8 +55,12 @@ const selectChrome = {
 };
 
 /** What the closed trigger shows: the selected labels, or the placeholder. */
-function displayText(options: RuiSelectOptionData[], value: string | string[] | undefined, placeholder?: string) {
-	const selected = (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean);
+function displayText(
+	options: RuiSelectOptionData[],
+	value: string | readonly string[] | undefined,
+	placeholder?: string,
+) {
+	const selected = (Array.isArray(value) ? [...value] : value ? [value] : []).filter(Boolean);
 	if (selected.length === 0) return placeholder ?? '';
 
 	return options
@@ -88,7 +92,7 @@ function SelectAssembly({
 	}
 
 	const entries = options ?? [];
-	const selected = (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean);
+	const selected = (Array.isArray(value) ? [...value] : value ? [value] : []).filter(Boolean);
 	const listbox = <RuiListbox embedded options={entries} selectionMode={props.selectionMode} value={value} />;
 
 	return (

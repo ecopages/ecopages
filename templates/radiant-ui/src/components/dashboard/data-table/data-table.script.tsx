@@ -257,7 +257,7 @@ function DataTableFooter({ filters, refreshing, total }: DataTableFooterProps) {
 				data-page-size
 				class="data-table__page-size"
 				label="Cheeses per page"
-				value={String(filters.pageSize)}
+				value={[String(filters.pageSize)]}
 				options={pageSizeOptions}
 			/>
 		</div>
@@ -278,7 +278,15 @@ function DataTableEditorDialog({ defaults, mode, onSubmit, saving }: DataTableEd
 			<RuiDialogClose />
 			<RuiDialogTitle>{editing ? 'Edit cheese' : 'Add cheese'}</RuiDialogTitle>
 			<RuiDialogBody>
-				<RuiForm defaultValues={defaults} onSubmit={onSubmit}>
+				<RuiForm
+					defaultValues={{
+						name: defaults.name,
+						milk: [defaults.milk],
+						texture: [defaults.texture],
+						origin: [defaults.origin],
+					}}
+					onSubmit={onSubmit}
+				>
 					<RuiField name="name" rules={{ required: 'Name is required' }}>
 						<RuiLabel>Name</RuiLabel>
 						<RuiInput placeholder="Cheese name" />
@@ -286,15 +294,15 @@ function DataTableEditorDialog({ defaults, mode, onSubmit, saving }: DataTableEd
 					</RuiField>
 					<RuiField name="milk">
 						<RuiLabel>Milk</RuiLabel>
-						<RuiSelect value={defaults.milk} options={milkOptions} />
+						<RuiSelect value={[defaults.milk]} options={milkOptions} />
 					</RuiField>
 					<RuiField name="texture">
 						<RuiLabel>Texture</RuiLabel>
-						<RuiSelect value={defaults.texture} options={textureOptions} />
+						<RuiSelect value={[defaults.texture]} options={textureOptions} />
 					</RuiField>
 					<RuiField name="origin">
 						<RuiLabel>Origin</RuiLabel>
-						<RuiSelect value={defaults.origin} options={originOptions} />
+						<RuiSelect value={[defaults.origin]} options={originOptions} />
 					</RuiField>
 					<div class="rui-dialog__actions">
 						<RuiButton type="button" variant="ghost" data-dialog-dismiss disabled={saving}>
@@ -578,8 +586,8 @@ export class DashboardDataTable extends RadiantElement {
 	}
 
 	@onEvent({ selector: 'rui-select[data-page-size]', type: 'rui-change' })
-	onPageSizeChange(event: CustomEvent<{ value: string }>): void {
-		const pageSize = Number(event.detail.value);
+	onPageSizeChange(event: CustomEvent<{ value: string[] }>): void {
+		const pageSize = Number(event.detail.value[0]);
 		if (pageSize === 5 || pageSize === 10 || pageSize === 20) {
 			this.updateFilters({ pageSize }, true);
 		}

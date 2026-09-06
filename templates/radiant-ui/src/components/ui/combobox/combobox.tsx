@@ -31,9 +31,8 @@ import { RuiAutocomplete, RuiAutocompleteCollection, RuiAutocompleteEmpty } from
 
 export type ComboboxProps = JsxCustomElementAttributes<
 	RuiComboboxElement,
-	Omit<RuiComboboxProps, 'value'> & {
+	RuiComboboxProps & {
 		options?: RuiComboboxOptionData[];
-		value?: string | string[];
 	}
 > & {
 	/** Adds a control that clears the selection and the query. */

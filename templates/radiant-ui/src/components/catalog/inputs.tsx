@@ -159,13 +159,13 @@ export const InputsDemos = eco.component<{}, JsxRenderable>({
 			<ComponentDemo
 				id="slider"
 				name="Slider"
-				summary="Track, thumbs and the value readout; values makes it a range."
+				summary="Track, thumbs and the value readout; a pair makes it a range."
 			>
 				<Field class="w-64" name="volume" label="Volume">
-					<Slider value={40} showValue />
+					<Slider value={[40]} showValue />
 				</Field>
 				<Field class="w-64" name="price" label="Price">
-					<Slider values={[20, 70]} showValue />
+					<Slider value={[20, 70]} showValue />
 				</Field>
 			</ComponentDemo>
 

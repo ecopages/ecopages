@@ -95,7 +95,16 @@ export default eco.page<{}, JsxRenderable>({
 				<Form
 					class="signup"
 					mode="onBlur"
-					defaultValues={{ name: '', email: '', country: '', plan: 'pro', seats: 3 }}
+					defaultValues={{
+						name: '',
+						email: '',
+						country: [],
+						language: [],
+						plan: 'pro',
+						seats: 3,
+						budget: [40],
+						topics: ['releases'],
+					}}
 					submitLabel="Create account"
 				>
 					<div class="signup__row">
@@ -141,7 +150,7 @@ export default eco.page<{}, JsxRenderable>({
 					</div>
 
 					<Field name="budget" label="Monthly budget" description="Drag or use the arrow keys.">
-						<Slider value={40} showValue />
+						<Slider value={[40]} showValue />
 					</Field>
 
 					<Field name="topics" label="Send me" description="Change this any time from your account.">

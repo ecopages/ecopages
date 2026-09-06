@@ -6,12 +6,9 @@
  * `Checkbox` chrome included.
  *
  * The primitive is already data-driven: `options` renders each checkbox and the
- * group's selection wiring. What it gets wrong is the type — its view intersects
- * the host's `value?: string` with the view's `value?: string | string[]`, which
- * collapses to a type nothing satisfies. This redeclares it and serializes an
- * array to the comma-separated protocol the host reads.
- *
- * Wrap it in `Field` for a visible group label.
+ * group's selection wiring. The JS property and `rui-change` detail are
+ * `string[]`; JSX may still pass a string. Wrap it in `Field` for a visible
+ * group label.
  */
 import { eco } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
@@ -24,10 +21,8 @@ import {
 
 export type CheckboxGroupProps = JsxCustomElementAttributes<
 	RuiCheckboxGroupElement,
-	Omit<RuiCheckboxGroupProps, 'value'> & {
+	RuiCheckboxGroupProps & {
 		options?: RuiCheckboxOption[];
-		/** Checked values. A single string is accepted for a one-item group. */
-		value?: string | string[];
 	}
 >;
 
@@ -37,12 +32,5 @@ export const CheckboxGroup = eco.component<CheckboxGroupProps, JsxRenderable>({
 		stylesheets: ['../checkbox/checkbox.css', './checkbox-group.css'],
 		scripts: [{ src: './checkbox-group.script.ts', lazy: { 'on:idle': true } }],
 	},
-	/**
-	 * The host reads `value` as the comma-separated protocol it exposes on the
-	 * element, so an array is joined here rather than handed over as an array the
-	 * view's own type will not accept.
-	 */
-	render: ({ value, ...props }) => (
-		<RuiCheckboxGroup {...props} value={Array.isArray(value) ? value.join(',') : value} />
-	),
+	render: RuiCheckboxGroup,
 });

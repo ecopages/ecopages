@@ -34,9 +34,9 @@ export const DataDemos = eco.component<{}, JsxRenderable>({
 						{ id: 'size', label: 'Size' },
 					]}
 					rows={[
-						{ id: 'ui', cells: { name: 'radiant-ui', version: '0.1.0-rc.11', size: '84 kB' } },
-						{ id: 'radiant', cells: { name: 'radiant', version: '0.3.0-rc.5', size: '21 kB' } },
-						{ id: 'jsx', cells: { name: 'jsx', version: '0.3.0-rc.5', size: '9 kB' } },
+						{ id: 'ui', cells: { name: 'radiant-ui', version: '0.1.0-rc.13', size: '84 kB' } },
+						{ id: 'radiant', cells: { name: 'radiant', version: '0.3.0-rc.7', size: '21 kB' } },
+						{ id: 'jsx', cells: { name: 'jsx', version: '0.3.0-rc.7', size: '9 kB' } },
 					]}
 				/>
 			</ComponentDemo>
@@ -109,7 +109,7 @@ export const DataDemos = eco.component<{}, JsxRenderable>({
 					class="w-full"
 					articles={[
 						{
-							header: <strong>Radiant UI rc.11</strong>,
+							header: <strong>Radiant UI rc.13</strong>,
 							content: <p>Fifty-six components, all with compiled CSS.</p>,
 						},
 						{

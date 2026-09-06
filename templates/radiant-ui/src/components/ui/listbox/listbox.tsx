@@ -20,9 +20,8 @@ import {
 
 export type ListboxProps = JsxCustomElementAttributes<
 	RuiListboxElement,
-	Omit<RuiListboxProps, 'value'> & {
+	RuiListboxProps & {
 		options?: RuiListboxOptionData[];
-		value?: string | string[];
 	}
 >;
 

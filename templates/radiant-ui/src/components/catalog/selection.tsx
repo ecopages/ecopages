@@ -40,7 +40,7 @@ export const SelectionDemos = eco.component<{}, JsxRenderable>({
 				summary="Trigger, value display and embedded listbox — tag chips when multiple."
 			>
 				<Field class="w-56" name="pick" label="Fruit">
-					<Select options={FRUIT} value="cherry" placeholder="Pick one" clearable />
+					<Select options={FRUIT} value={['cherry']} placeholder="Pick one" clearable />
 				</Field>
 			</ComponentDemo>
 
@@ -50,7 +50,7 @@ export const SelectionDemos = eco.component<{}, JsxRenderable>({
 				summary="The same select tree with a search field; ships the autocomplete Select does not."
 			>
 				<Field class="w-56" name="search-fruit" label="Fruit">
-					<SearchableSelect options={FRUIT} value="cherry" placeholder="Pick one" clearable />
+					<SearchableSelect options={FRUIT} value={['cherry']} placeholder="Pick one" clearable />
 				</Field>
 			</ComponentDemo>
 
@@ -70,7 +70,7 @@ export const SelectionDemos = eco.component<{}, JsxRenderable>({
 				summary="Options get their roles, selection indicators and keyboard wiring."
 			>
 				<Field class="w-56" name="listbox-fruit" label="Fruit">
-					<Listbox options={FRUIT} value="banana" bordered />
+					<Listbox options={FRUIT} value={['banana']} bordered />
 				</Field>
 			</ComponentDemo>
 

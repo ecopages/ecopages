@@ -14,7 +14,7 @@
 		"@ecopages/core": "workspace:*",
 		"@ecopages/ecopages-jsx": "workspace:*",
 		"@ecopages/image-processor": "workspace:*",
-		"@ecopages/jsx": "^0.3.0-rc.5",
+		"@ecopages/jsx": "^0.3.0-rc.7",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
 		"@tailwindcss/postcss": "^4.0.0",

@@ -137,20 +137,37 @@ export function normalizeDraft(value: unknown): ItemDraft | null {
 		return null;
 	}
 	const name = typeof value.name === 'string' ? value.name.trim() : '';
+	const milk = firstSelectToken(value.milk);
+	const texture = firstSelectToken(value.texture);
+	const origin = firstSelectToken(value.origin);
 	if (
 		!name ||
-		!validMilkOptions.has(value.milk as ItemDraft['milk']) ||
-		!validTextureOptions.has(value.texture as ItemDraft['texture']) ||
-		!validOriginOptions.has(value.origin as ItemDraft['origin'])
+		!validMilkOptions.has(milk as ItemDraft['milk']) ||
+		!validTextureOptions.has(texture as ItemDraft['texture']) ||
+		!validOriginOptions.has(origin as ItemDraft['origin'])
 	) {
 		return null;
 	}
 	return {
 		name,
-		milk: value.milk as ItemDraft['milk'],
-		texture: value.texture as ItemDraft['texture'],
-		origin: value.origin as ItemDraft['origin'],
+		milk: milk as ItemDraft['milk'],
+		texture: texture as ItemDraft['texture'],
+		origin: origin as ItemDraft['origin'],
 	};
+}
+
+/**
+ * Reads a select field from form `onSubmit`. Live hosts emit `string[]`;
+ * leftover string defaults still write because the host coerces them.
+ */
+function firstSelectToken(value: unknown): string | undefined {
+	if (typeof value === 'string') {
+		return value;
+	}
+	if (Array.isArray(value) && typeof value[0] === 'string') {
+		return value[0];
+	}
+	return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

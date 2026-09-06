@@ -13,7 +13,6 @@ export const BaseLayout = eco.component<BaseLayoutProps>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
-		components: [Logo, ThemeToggle],
 	},
 	render: ({ children, class: className, prose = false }) => {
 		return (

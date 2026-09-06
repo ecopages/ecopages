@@ -36,7 +36,7 @@ const CARDS = [
 ] as const;
 
 export default eco.page<{}, JsxRenderable>({
-	dependencies: { stylesheets: ['./index.css'], components: [RadiantCounter] },
+	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({ title: 'Radiant UI', description: 'Build an Ecopages application with Radiant UI.' }),
 	render: () => (

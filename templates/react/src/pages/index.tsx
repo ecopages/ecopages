@@ -34,7 +34,7 @@ const CARDS = [
 ] as const;
 
 export default eco.page<{}, ReactNode>({
-	dependencies: { stylesheets: ['./index.css'], components: [Counter, BaseLayout] },
+	dependencies: { stylesheets: ['./index.css'] },
 	layout: { component: BaseLayout, props: () => ({ prose: false }) },
 	metadata: () => ({ title: 'Ecopages React', description: 'Build an HTML-first application with Ecopages React.' }),
 	render: () => (

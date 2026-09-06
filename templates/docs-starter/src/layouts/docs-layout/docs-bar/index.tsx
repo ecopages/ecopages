@@ -40,7 +40,6 @@ const DocsBreadcrumb = ({ crumbs }: { crumbs: BreadcrumbItem[] }) => (
 
 export const DocsBar = eco.component<DocsBarProps, JsxRenderable>({
 	dependencies: {
-		components: [CopyForLlm],
 		stylesheets: ['./docs-bar.css'],
 	},
 	render: ({ crumbs = [], llmUrl, label }) => {

@@ -14,7 +14,6 @@ export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
 		scripts: [{ src: './base-layout.script.ts', attributes: { 'data-eco-rerun': '' } }],
-		components: [Logo, ThemeToggle],
 	},
 
 	render: ({ children, class: className, prose = false }) => {

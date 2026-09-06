@@ -12,7 +12,6 @@ export type BaseLayoutProps = {
 export const BaseLayout = eco.component<BaseLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['../../styles/tailwind.css', './base-layout.css'],
-		components: [Logo],
 	},
 	render: ({ children, class: className, showHeader = true }) => {
 		if (!showHeader) {

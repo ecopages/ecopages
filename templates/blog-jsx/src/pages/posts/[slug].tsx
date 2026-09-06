@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco, mergePageDependencies } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { EcoImage } from '@ecopages/image-processor/component/jsx';
@@ -20,7 +20,8 @@ export default eco.page<
 		return { props: { title: entry.title, description: entry.description, slug, image: entry.image } };
 	},
 	metadata: ({ props }) => ({ title: `${props.title} | Blog`, description: props.description }),
-	dependencies: async ({ props }) => ({ stylesheets: ['./post.css'], ...(await getEntryDependencies(props.slug)) }),
+	dependencies: async ({ props }) =>
+		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
 	render: async ({ slug, title, image }) => {
 		const Content = await getComponent(slug);
 		return (

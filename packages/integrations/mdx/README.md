@@ -62,6 +62,8 @@ reactPlugin({
 });
 ```
 
+The React MDX loader derives its file filter from `mdx.extensions`, which replace `compilerOptions.mdxExtensions` rather than merging with them. Declaring a custom extension such as `['.react.mdx']` means only those files compile with React — plain `.mdx` files in the same build stay with whichever integration owns them. MDX entries compiled by React are React components and must be rendered through React-owned routes; see `@ecopages/content-processor` for the content-entry ownership contract.
+
 ## Dependency discovery in MDX
 
 The core MDX loader plugin automatically discovers top-level component and stylesheet imports in MDX files across all integrations. `projectRoot` is required and comes from the app config (`rootDir`); the loader throws if it is missing.

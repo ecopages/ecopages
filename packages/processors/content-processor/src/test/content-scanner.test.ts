@@ -38,3 +38,32 @@ describe('ContentScanner updateEntryForPath', () => {
 		expect(result).not.toBe('structure');
 	});
 });
+
+describe('ContentScanner slugFromRelativePath ordering', () => {
+	const schema = {
+		'~standard': {
+			version: 1 as const,
+			vendor: 'test',
+			validate: (value: unknown) => ({ value: value as { title: string } }),
+		},
+	};
+
+	it('strips multi-dot extensions cleanly even when declared before plain .mdx', async () => {
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue([
+			'tests/shared-demo.radiant.mdx',
+			'tests/shared-demo-react.react.mdx',
+			'intro.mdx',
+		]);
+		vi.spyOn(fileSystem, 'readFile').mockResolvedValue('---\ntitle: Intro\n---\n# Intro');
+
+		const scanner = new ContentScanner({
+			contentRoot,
+			extensions: ['.mdx', '.radiant.mdx', '.react.mdx'],
+			schema,
+		});
+
+		const manifest = await scanner.getManifest();
+
+		expect(manifest.map((entry) => entry.slug)).toEqual(['intro', 'tests/shared-demo', 'tests/shared-demo-react']);
+	});
+});

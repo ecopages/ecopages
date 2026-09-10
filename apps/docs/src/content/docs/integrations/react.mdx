@@ -147,7 +147,31 @@ import { ClientOnly } from '@ecopages/react/utils/client-only';
 - **React 19**: Server rendering and hydration for standard React 19 components and hooks.
 - **Fast Refresh**: Built-in Hot Module Replacement (HMR) for instant feedback.
 - **MDX**: Built-in React MDX support through `reactPlugin({ mdx: { enabled: true } })`.
-- **Mixed Rendering**: React can own routes directly or resolve nested React boundaries inside non-React shells.
+- **Mixed Rendering**: React can own routes directly or resolve nested React boundaries inside non-React shells. Use [`EcoEmbed`](/docs/reference/eco-namespace#ecoembed) from `@ecopages/react/eco-embed` when a React page composes foreign-integration shells or passes children across integration boundaries.
+
+## Mixed rendering and EcoEmbed
+
+When a React route nests shells owned by another integration, import `EcoEmbed` from `@ecopages/react/eco-embed`. It wraps `eco.embed()` so the active foreign-child runtime can hand the subtree to the owning renderer.
+
+```tsx
+/** @jsxImportSource react */
+import { eco } from '@ecopages/core';
+import { EcoEmbed } from '@ecopages/react/eco-embed';
+import { KitaShell } from '@/components/kita-shell';
+
+export default eco.page({
+	dependencies: {
+		components: [KitaShell],
+	},
+	render: () => (
+		<EcoEmbed component={KitaShell} props={{ id: 'kita-shell' }}>
+			React-owned leaf
+		</EcoEmbed>
+	),
+});
+```
+
+Plain opaque objects fail fast at core foreign-subtree queue boundaries; they are not coerced with `String(object)`. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#cross-integration-children) for accepted child shapes and the queue contract.
 
 ## MDX Support
 

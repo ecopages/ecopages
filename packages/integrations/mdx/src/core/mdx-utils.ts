@@ -69,6 +69,13 @@ export function resolveCompileFormat(filePath: string, compilerOptions?: Compile
 	return path.extname(filePath).toLowerCase() === '.md' ? 'mdx' : configuredFormat;
 }
 
+/**
+ * Resolves MDX compiler options for one integration-owned loader.
+ *
+ * @remarks
+ * When `mdxOptions.extensions` is set, it replaces `compilerOptions.mdxExtensions`
+ * on the resolved options instead of merging with it.
+ */
 export function resolveMdxCompilerOptions(
 	mdxOptions: MdxCompilerOptionsInput,
 	options: {

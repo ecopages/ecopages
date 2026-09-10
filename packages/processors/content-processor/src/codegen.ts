@@ -56,23 +56,27 @@ export function getEntryBySegments(segments: string[]) {
 `;
 }
 
+type AttachMdxExportsHelperOptions = {
+	/**
+	 * Emits a server-only ownership guard that calls `assertContentEntryOwnerLane`
+	 * before invoking the entry component.
+	 *
+	 * @remarks
+	 * Browser bundles omit this path because the helper reads the Node render-context
+	 * runtime and hydration already renders through the owning integration.
+	 */
+	ownershipCheck?: boolean;
+};
+
 /**
  * Generates the adapter that retains an MDX module's Ecopages component contract.
- *
- * @param options
- * `ownershipCheck` adds the cross-integration render guard. Only the server
- * variant enables it: browser bundles must not import the ownership helper
- * (it reads the Node render-context runtime), and hydration renders through
- * the owning integration where no guard is needed.
  *
  * @remarks
  * The loader already attributes identity and live dependency getters. This
  * adapter copies that config by reference onto the callable returned to the
- * route renderer. It does not re-bind or snapshot `config`. The server guard
- * runs before the entry is invoked so async and non-React output still fail
- * with the ownership diagnostic.
+ * route renderer. It does not re-bind or snapshot `config`.
  */
-function renderAttachMdxExportsHelper(options?: { ownershipCheck?: boolean }): string {
+function renderAttachMdxExportsHelper(options?: AttachMdxExportsHelperOptions): string {
 	const ownershipGuard = options?.ownershipCheck
 		? `
 import { assertContentEntryOwnerLane } from '@ecopages/content-processor/ownership';

@@ -453,10 +453,7 @@ export class ForeignSubtreeExecutionService {
 	 *
 	 * @remarks
 	 * Component renders always execute under a context that names the rendering
-	 * integration, even when no foreign-child runtime is installed. This lets
-	 * cross-integration ownership guards (for example, MDX content entries
-	 * compiled by another integration) detect a foreign render lane instead of
-	 * silently producing unserializable output.
+	 * integration, even when no foreign-child runtime is installed.
 	 */
 	async executeComponentRender(options: ForeignSubtreeExecutionRenderOptions): Promise<ComponentRenderResult> {
 		const rendererCache =

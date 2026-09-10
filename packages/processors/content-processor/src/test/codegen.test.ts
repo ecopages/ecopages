@@ -127,8 +127,6 @@ describe('codegen', () => {
 		expect(serverIndex).toBeGreaterThan(-1);
 		expect(browserIndex).toBeGreaterThan(-1);
 		expect(catchAllIndex).toBeGreaterThan(-1);
-
-		// Variant patterns must precede the catch-all wildcard for TypeScript pattern precedence
 		expect(serverIndex).toBeLessThan(catchAllIndex);
 		expect(browserIndex).toBeLessThan(catchAllIndex);
 

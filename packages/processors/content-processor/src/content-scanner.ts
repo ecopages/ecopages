@@ -33,8 +33,8 @@ export type ContentEntryPathUpdateResult = 'no-op' | 'manifest' | 'structure';
  * Strips the longest matching declared extension from a relative path.
  *
  * @remarks
- * Callers must order `extensions` longest-first so multi-dot extensions such as
- * `.radiant.mdx` strip before a plain `.mdx` suffix matches.
+ * `extensions` must be longest-first. `ContentScanner` sorts its configured
+ * extensions that way before calling this helper.
  */
 function slugFromRelativePath(relativePath: string, extensions: string[]): string {
 	for (const ext of extensions) {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import type { EcoComponent } from '@ecopages/core';
 import {
 	renderCollectionComponentsModule,
 	renderCollectionBrowserModule,
@@ -74,6 +75,9 @@ describe('codegen', () => {
 		expect(output).toContain("import type { EcoComponent } from '@ecopages/core'");
 		expect(output).not.toContain('bindComponentIdentity');
 		expect(output).not.toContain('getEntryDependencies');
+		expect(output).not.toContain('getComponentRenderContext');
+		expect(output).not.toContain('assertContentEntryOwnerLane');
+		expect(output).not.toContain('$$typeof');
 	});
 
 	test('renderVirtualModuleTypes resolves src entry types through the app alias', () => {
@@ -149,5 +153,123 @@ describe('codegen', () => {
 		expect(output).not.toContain('bindComponentIdentity(');
 		expect(output).not.toContain('attachDiscoveredDependencies(');
 		expect(output).not.toContain('{ ...component.config');
+	});
+
+	test('server module guards owned MDX entries against foreign render lanes before invocation', () => {
+		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
+			{
+				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
+				filePath: '/app/src/content/docs/intro.mdx',
+			},
+		]);
+
+		expect(output).toContain("import { assertContentEntryOwnerLane } from '@ecopages/content-processor/ownership'");
+		expect(output).toContain('assertContentEntryOwnerLane(sourceFile, module.config?.identity?.integration)');
+		expect(output).not.toContain('$$typeof');
+		expect(output).not.toContain('getComponentRenderContext');
+	});
+});
+
+describe('attachMdxExports ownership guard', () => {
+	test('throws for mismatched lanes, skips async invocation in a foreign lane, and passes in the owning lane', async () => {
+		const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+		const { join } = await import('node:path');
+		const { runWithComponentRenderContext } =
+			await import('@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context');
+
+		const tempDir = mkdtempSync(join(import.meta.dirname, '.codegen-'));
+		const cacheDir = join(tempDir, 'cache');
+		mkdirSync(cacheDir, { recursive: true });
+		mkdirSync(join(tempDir, 'src'), { recursive: true });
+
+		const reactEntryPath = join(tempDir, 'src', 'intro.react.mjs');
+		const hostEntryPath = join(tempDir, 'src', 'intro.host.mjs');
+		const asyncEntryPath = join(tempDir, 'src', 'intro.async.mjs');
+		writeFileSync(
+			reactEntryPath,
+			[
+				'export default () => "react-entry";',
+				"export const config = { identity: { id: 'intro-react', file: '/app/src/content/docs/intro.react.mdx', integration: 'react' } };",
+				'',
+			].join('\n'),
+		);
+		writeFileSync(
+			hostEntryPath,
+			[
+				'export default () => "host-entry";',
+				"export const config = { identity: { id: 'intro-host', file: '/app/src/content/docs/intro.mdx', integration: 'ecopages-jsx' } };",
+				'',
+			].join('\n'),
+		);
+		writeFileSync(
+			asyncEntryPath,
+			[
+				'export default async () => {',
+				"\tthrow new Error('async-component-ran');",
+				'};',
+				"export const config = { identity: { id: 'intro-async', file: '/app/src/content/docs/intro.async.mdx', integration: 'react' } };",
+				'',
+			].join('\n'),
+		);
+
+		const serverModule = renderCollectionComponentsModule('docs', cacheDir, [
+			{
+				entry: { title: 'Intro React', description: 'Welcome', slug: 'intro-react', segments: ['intro-react'] },
+				filePath: reactEntryPath,
+			},
+			{
+				entry: { title: 'Intro Host', description: 'Welcome', slug: 'intro-host', segments: ['intro-host'] },
+				filePath: hostEntryPath,
+			},
+			{
+				entry: { title: 'Intro Async', description: 'Welcome', slug: 'intro-async', segments: ['intro-async'] },
+				filePath: asyncEntryPath,
+			},
+		]);
+		const serverModulePath = join(cacheDir, 'docs.server.mts');
+		writeFileSync(serverModulePath, serverModule);
+
+		try {
+			const loaded = (await import(serverModulePath)) as {
+				getComponent: (slug: string) => Promise<EcoComponent<Record<string, unknown>>>;
+			};
+			const reactComponent = await loaded.getComponent('intro-react');
+			const hostComponent = await loaded.getComponent('intro-host');
+			const asyncComponent = await loaded.getComponent('intro-async');
+			const render = (component: EcoComponent<Record<string, unknown>>) =>
+				(component as unknown as (props: Record<string, unknown>) => Promise<unknown> | unknown)({});
+
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () =>
+					render(reactComponent),
+				),
+			).rejects.toThrow(/owned by the "react" integration/);
+
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'react' }, async () => render(hostComponent)),
+			).rejects.toThrow(/owned by the "ecopages-jsx" integration/);
+
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () =>
+					render(asyncComponent),
+				),
+			).rejects.toThrow(/owned by the "react" integration/);
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'react' }, async () => render(asyncComponent)),
+			).rejects.toThrow(/async-component-ran/);
+
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'react' }, async () => render(reactComponent)),
+			).resolves.toEqual({ value: 'react-entry' });
+			await expect(
+				runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () =>
+					render(hostComponent),
+				),
+			).resolves.toEqual({ value: 'host-entry' });
+
+			await expect(render(reactComponent)).toBeDefined();
+		} finally {
+			rmSync(tempDir, { force: true, recursive: true });
+		}
 	});
 });

@@ -59,13 +59,44 @@ export function getEntryBySegments(segments: string[]) {
 /**
  * Generates the adapter that retains an MDX module's Ecopages component contract.
  *
+ * @param options
+ * `ownershipCheck` adds the cross-integration render guard. Only the server
+ * variant enables it: browser bundles must not import the ownership helper
+ * (it reads the Node render-context runtime), and hydration renders through
+ * the owning integration where no guard is needed.
+ *
  * @remarks
  * The loader already attributes identity and live dependency getters. This
  * adapter copies that config by reference onto the callable returned to the
- * route renderer. It does not re-bind or snapshot `config`.
+ * route renderer. It does not re-bind or snapshot `config`. The server guard
+ * runs before the entry is invoked so async and non-React output still fail
+ * with the ownership diagnostic.
  */
-function renderAttachMdxExportsHelper(): string {
-	return `type ContentMdxModule = {
+function renderAttachMdxExportsHelper(options?: { ownershipCheck?: boolean }): string {
+	const ownershipGuard = options?.ownershipCheck
+		? `
+import { assertContentEntryOwnerLane } from '@ecopages/content-processor/ownership';
+`
+		: '';
+
+	const guardBody = options?.ownershipCheck
+		? `
+	const component = Object.assign(
+		(props: Record<string, unknown>) => {
+			assertContentEntryOwnerLane(sourceFile, module.config?.identity?.integration);
+			return Page(props);
+		},
+		Page,
+	) as EcoComponent<Record<string, unknown>>;
+`
+		: `
+	const component = Object.assign(
+		(props: Record<string, unknown>) => Page(props),
+		Page,
+	) as EcoComponent<Record<string, unknown>>;
+`;
+
+	return `${ownershipGuard}type ContentMdxModule = {
 	default: EcoComponent<Record<string, unknown>>;
 	config?: EcoComponent<Record<string, unknown>>['config'];
 	getMetadata?: EcoComponent<Record<string, unknown>>['metadata'];
@@ -73,11 +104,7 @@ function renderAttachMdxExportsHelper(): string {
 
 function attachMdxExports(module: ContentMdxModule, sourceFile: string): EcoComponent<Record<string, unknown>> {
 	const Page = module.default;
-	const component = Object.assign(
-		(props: Record<string, unknown>) => Page(props),
-		Page,
-	) as EcoComponent<Record<string, unknown>>;
-
+${guardBody}
 	if (module.config) {
 		if (!module.config.identity) {
 			throw new Error(\`[ecopages] MDX config for "\${sourceFile}" is missing identity; the MDX loader must attribute it.\`);
@@ -139,7 +166,7 @@ export function renderCollectionComponentsModule(
 import type { EcoComponent, PageDependenciesResult } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 
-${renderAttachMdxExportsHelper()}
+${renderAttachMdxExportsHelper({ ownershipCheck: true })}
 
 ${renderMdxLoaderMaps(outputDir, entrySources)}
 

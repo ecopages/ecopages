@@ -20,4 +20,37 @@ describe('ReactPlugin', () => {
 		expect(plugin.extensions).toEqual(['.react.tsx', '.docs.mdx']);
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
 	});
+
+	it('derives the MDX loader filter from declared MDX extensions only', () => {
+		const plugin = new ReactPlugin({
+			extensions: ['.react.tsx'],
+			mdx: {
+				enabled: true,
+				extensions: ['.react.mdx'],
+			},
+		});
+
+		const mdxCompilerOptions = (plugin as unknown as { mdxCompilerOptions?: { mdxExtensions?: string[] } })
+			.mdxCompilerOptions;
+
+		expect(mdxCompilerOptions?.mdxExtensions).toEqual(['.react.mdx']);
+	});
+
+	it('does not merge leftover compilerOptions.mdxExtensions into the loader filter', () => {
+		const plugin = new ReactPlugin({
+			extensions: ['.react.tsx'],
+			mdx: {
+				enabled: true,
+				extensions: ['.react.mdx'],
+				compilerOptions: {
+					mdxExtensions: ['.mdx'],
+				},
+			},
+		});
+
+		const mdxCompilerOptions = (plugin as unknown as { mdxCompilerOptions?: { mdxExtensions?: string[] } })
+			.mdxCompilerOptions;
+
+		expect(mdxCompilerOptions?.mdxExtensions).toEqual(['.react.mdx']);
+	});
 });

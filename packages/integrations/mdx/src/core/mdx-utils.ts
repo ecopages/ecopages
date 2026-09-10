@@ -9,6 +9,16 @@ export interface MdxCompilerOptionsInput {
 	remarkPlugins?: CompileOptions['remarkPlugins'];
 	rehypePlugins?: CompileOptions['rehypePlugins'];
 	recmaPlugins?: CompileOptions['recmaPlugins'];
+	/**
+	 * Extensions owned by the calling integration's MDX pipeline.
+	 *
+	 * @remarks
+	 * When set, these replace `compilerOptions.mdxExtensions` on the resolved
+	 * options so MDX loader filters cover exactly the declared files. They are
+	 * not merged: `extensions: ['.react.mdx']` must not also claim plain `.mdx`
+	 * just because `compilerOptions.mdxExtensions` still lists it.
+	 */
+	extensions?: string[];
 }
 
 export const mergePluginLists = <T>(...lists: Array<readonly T[] | null | undefined>): T[] | undefined => {
@@ -83,6 +93,7 @@ export function resolveMdxCompilerOptions(
 	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
 	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
 	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
+	if (mdxOptions.extensions) resolved.mdxExtensions = mdxOptions.extensions;
 
 	return resolved;
 }

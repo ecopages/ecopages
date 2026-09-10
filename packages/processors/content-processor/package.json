@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/content-processor",
-	"version": "0.2.0-rc.4",
+	"version": "0.2.0-rc.5",
 	"description": "Scan MDX collections at build time and expose typed ecopages:content/* virtual modules for pages and scripts",
 	"keywords": [
 		"content",

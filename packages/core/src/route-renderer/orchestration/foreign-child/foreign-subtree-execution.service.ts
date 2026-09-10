@@ -447,6 +447,17 @@ export class ForeignSubtreeExecutionService {
 		};
 	}
 
+	/**
+	 * Runs one component render under the current integration's render context and
+	 * resolves any queued foreign subtrees captured during that render.
+	 *
+	 * @remarks
+	 * Component renders always execute under a context that names the rendering
+	 * integration, even when no foreign-child runtime is installed. This lets
+	 * cross-integration ownership guards (for example, MDX content entries
+	 * compiled by another integration) detect a foreign render lane instead of
+	 * silently producing unserializable output.
+	 */
 	async executeComponentRender(options: ForeignSubtreeExecutionRenderOptions): Promise<ComponentRenderResult> {
 		const rendererCache =
 			this.getRendererCache(options.input.integrationContext) ??
@@ -468,7 +479,7 @@ export class ForeignSubtreeExecutionService {
 		const activeRenderContext = getComponentRenderContext();
 
 		if (!hasForeignChildren) {
-			if (!activeRenderContext || activeRenderContext.currentIntegration === options.currentIntegrationName) {
+			if (activeRenderContext && activeRenderContext.currentIntegration === options.currentIntegrationName) {
 				return options.normalizeComponentRenderOutput(await options.renderComponent(options.input));
 			}
 

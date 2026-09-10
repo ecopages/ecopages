@@ -8,6 +8,7 @@ import type {
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/plugins/integration-plugin';
 import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
+import { resolveMdxCompilerOptions } from '../core/mdx-utils.ts';
 
 function createBuilderHarness() {
 	let onLoadCallback:
@@ -111,6 +112,46 @@ describe('createMdxLoaderPlugin', () => {
 
 		expect(filter.test('/tmp/docs.md')).toBe(true);
 		expect(filter.test('/tmp/react-content.mdx')).toBe(false);
+	});
+
+	it('claims only integration-declared extensions when compiler options are resolved from mdx.extensions', () => {
+		const { builder, getOnLoadFilter } = createBuilderHarness();
+		const plugin = createMdxLoaderPlugin({
+			projectRoot: '/tmp',
+			compilerOptions: resolveMdxCompilerOptions({ extensions: ['.react.mdx'] }, { jsxImportSource: 'react' }),
+		});
+
+		plugin.setup(builder);
+
+		const filter = getOnLoadFilter();
+
+		expect(filter.test('/tmp/shared-demo-react.react.mdx')).toBe(true);
+		expect(filter.test('/tmp/shared-demo.mdx')).toBe(false);
+	});
+
+	it('lets declared mdx.extensions replace compilerOptions.mdxExtensions instead of merging them', () => {
+		const compilerOptions = resolveMdxCompilerOptions(
+			{
+				extensions: ['.react.mdx'],
+				compilerOptions: { mdxExtensions: ['.mdx'] },
+			},
+			{ jsxImportSource: 'react' },
+		);
+
+		expect(compilerOptions.mdxExtensions).toEqual(['.react.mdx']);
+
+		const { builder, getOnLoadFilter } = createBuilderHarness();
+		const plugin = createMdxLoaderPlugin({
+			projectRoot: '/tmp',
+			compilerOptions,
+		});
+
+		plugin.setup(builder);
+
+		const filter = getOnLoadFilter();
+
+		expect(filter.test('/tmp/shared-demo-react.react.mdx')).toBe(true);
+		expect(filter.test('/tmp/shared-demo.mdx')).toBe(false);
 	});
 
 	it('reuses compiled output for unchanged MDX source', async () => {

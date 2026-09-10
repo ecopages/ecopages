@@ -7,6 +7,7 @@ import type {
 	ComponentRenderInput,
 	EcoComponent,
 } from '../../../types/public-types.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 import {
 	ForeignSubtreeExecutionService,
 	type QueuedForeignSubtreeResolutionContext,
@@ -461,5 +462,70 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 
 		expect(result.html).toBe('<article><section><strong>child</strong></section></article>');
 		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('ForeignSubtreeExecutionService executeComponentRender context', () => {
+	it('names the current integration for a top-level component with no foreign children and restores context after render', async () => {
+		const service = new ForeignSubtreeExecutionService();
+		const page = createComponent('page', 'react');
+		let seenIntegration: string | undefined;
+
+		expect(getComponentRenderContext()).toBeUndefined();
+
+		const result = await service.executeComponentRender({
+			currentIntegrationName: 'react',
+			input: { component: page, props: {} },
+			renderComponent: async () => {
+				seenIntegration = getComponentRenderContext()?.currentIntegration;
+				return {
+					html: '<div data-component="page"></div>',
+					canAttachAttributes: true,
+					integrationName: 'react',
+				};
+			},
+			normalizeComponentRenderOutput: (output) => output,
+			hasForeignChildDescendants: () => false,
+			createForeignChildRuntime: () => {
+				throw new Error('foreign-child runtime should not be created');
+			},
+			getOwningRenderer: async () => {
+				throw new Error('owning renderer should not be resolved');
+			},
+		});
+
+		expect(seenIntegration).toBe('react');
+		expect(getComponentRenderContext()).toBeUndefined();
+		expect(result.html).toBe('<div data-component="page"></div>');
+
+		await runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () => {
+			let nestedIntegration: string | undefined;
+
+			await service.executeComponentRender({
+				currentIntegrationName: 'react',
+				input: { component: page, props: {} },
+				renderComponent: async () => {
+					nestedIntegration = getComponentRenderContext()?.currentIntegration;
+					return {
+						html: '<div data-component="page"></div>',
+						canAttachAttributes: true,
+						integrationName: 'react',
+					};
+				},
+				normalizeComponentRenderOutput: (output) => output,
+				hasForeignChildDescendants: () => false,
+				createForeignChildRuntime: () => {
+					throw new Error('foreign-child runtime should not be created');
+				},
+				getOwningRenderer: async () => {
+					throw new Error('owning renderer should not be resolved');
+				},
+			});
+
+			expect(nestedIntegration).toBe('react');
+			expect(getComponentRenderContext()?.currentIntegration).toBe('ecopages-jsx');
+		});
+
+		expect(getComponentRenderContext()).toBeUndefined();
 	});
 });

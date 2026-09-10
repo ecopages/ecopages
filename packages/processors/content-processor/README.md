@@ -83,7 +83,7 @@ export default await new ConfigBuilder()
 | `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
 | `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
 | `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
-| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`.                                                                                                                                                  |
+| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`. Multi-dot extensions (`.radiant.mdx`, `.react.mdx`) are matched longest-first; declaration order does not matter.                                |
 | `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
 | `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
 | `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                      |
@@ -358,3 +358,9 @@ import { remarkFrontmatter } from '@ecopages/content-processor/mdx';
 ```
 
 App-specific presentation plugins (syntax highlighting, GFM, table wrappers) stay in your app — for example `src/mdx/plugins.ts`.
+
+## Content-entry ownership
+
+The integration that compiles an MDX entry also owns its rendering: an entry compiled with `mdx.extensions: ['.react.mdx']` on the React integration is a React component and must be rendered through a React-owned route (for example a `[...slug].react.tsx` catch-all). Calling it from a JSX (Radiant) or Kita render tree cannot serialize its output.
+
+The generated `getComponent()` enforces this at render time: invoking an entry inside a render lane that is not its owning integration throws with the entry path, the owning integration, and the active one. When both integrations compile MDX for the same collection, declare disjoint `mdx.extensions` per integration — since the React MDX loader derives its filter from the declared extensions, only `.react.mdx` files compile with React. `mdx.extensions` replaces `compilerOptions.mdxExtensions` rather than merging with it.

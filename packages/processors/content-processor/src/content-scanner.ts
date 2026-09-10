@@ -9,10 +9,17 @@ import type { ContentEntry } from './types.ts';
 export type ContentScannerConfig<T extends Record<string, unknown> = Record<string, unknown>> = {
 	/** Absolute directory scanned for content files. */
 	contentRoot: string;
-	/** Standard Schema validator for frontmatter. */
-	schema: StandardSchema<unknown, T>;
-	orderBy?: EntryComparator<T>;
+	/**
+	 * Extensions scanned for content entries, including multi-dot ones.
+	 *
+	 * @remarks
+	 * Declaration order does not matter: extensions are matched longest-first so
+	 * `.radiant.mdx` and `.react.mdx` strip cleanly even when a plain `.mdx`
+	 * entry is also declared in the same collection.
+	 */
 	extensions?: string[];
+	orderBy?: EntryComparator<T>;
+	schema: StandardSchema<unknown, T>;
 };
 
 type ContentCache<T extends Record<string, unknown>> = {
@@ -22,6 +29,13 @@ type ContentCache<T extends Record<string, unknown>> = {
 
 export type ContentEntryPathUpdateResult = 'no-op' | 'manifest' | 'structure';
 
+/**
+ * Strips the longest matching declared extension from a relative path.
+ *
+ * @remarks
+ * Callers must order `extensions` longest-first so multi-dot extensions such as
+ * `.radiant.mdx` strip before a plain `.mdx` suffix matches.
+ */
 function slugFromRelativePath(relativePath: string, extensions: string[]): string {
 	for (const ext of extensions) {
 		if (relativePath.endsWith(ext)) {
@@ -44,7 +58,7 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 
 	constructor(config: ContentScannerConfig<T>) {
 		this.contentRoot = config.contentRoot;
-		this.extensions = config.extensions ?? ['.mdx'];
+		this.extensions = [...(config.extensions ?? ['.mdx'])].sort((left, right) => right.length - left.length);
 		this.orderBy = config.orderBy ?? compareEntriesBySlug;
 		this.schema = config.schema;
 	}

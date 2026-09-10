@@ -91,6 +91,7 @@ Interactive Kita components with client scripts stamp [island host attributes](/
 1. **Layouts**: Create layout components (like `BaseLayout` in the example) to maintain consistent page structures.
 2. **Route naming**: Use `.kita.tsx` for Kita-owned route files.
 3. **Dependency declarations**: In mixed-integration apps, foreign children must appear in the dependency graph. Direct local imports are discovered automatically; use explicit `dependencies.components` for `export *` barrels, packages, or other imports discovery cannot follow.
+4. **Cross-integration shells**: Use [`EcoEmbed`](/docs/reference/eco-namespace#ecoembed) from `@ecopages/kitajs/eco-embed` when a Kita page nests foreign-integration shells or passes children across integration boundaries. Plain opaque objects fail fast at core foreign-subtree queue boundaries — use `EcoEmbed` or already-serialized HTML instead. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#cross-integration-children).
 
 ## Integration with Other Plugins
 

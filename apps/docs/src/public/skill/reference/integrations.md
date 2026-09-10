@@ -42,6 +42,10 @@ ecopagesJsxPlugin({
 
 Foreign-child ownership: Ecopages JSX uses renderer-owned foreign children for mixed rendering and Radiant hydration — not blanket client hydration for every component.
 
+Cross-integration shell stacks: use integration-owned `EcoEmbed` (`@ecopages/ecopages-jsx/eco-embed`, `@ecopages/react/eco-embed`, `@ecopages/kitajs/eco-embed`). It wraps `eco.embed()` so the active foreign-child runtime can queue subtrees in the owning renderer.
+
+Queue boundary: plain opaque objects (values that would stringify to `[object Object]`) throw at the foreign-subtree queue. Pass already-serialized HTML strings, or use `EcoEmbed`. Template results, markup nodes, arrays, and framework element markers (`$$typeof`) are accepted.
+
 ## React
 
 ```typescript
@@ -58,4 +62,14 @@ Multiple integrations can coexist in one `eco.config.ts`. Route ownership is det
 
 ## Cross-integration rendering
 
-Foreign-child ownership is a three-step renderer contract: **queue** with `createForeignChildRuntime()` / `foreignSubtreeExecutionService.createQueuedRuntime(...)`, **resolve** with `foreignSubtreeExecutionService.resolveQueuedHtml(...)` after local HTML is produced, and **own** via `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.
+Authoring rule: use integration-owned `EcoEmbed` when nesting shells across integrations or passing children across integration boundaries. Each integration exports `@ecopages/<name>/eco-embed`.
+
+Runtime contract (for custom integrations):
+
+1. **Queue** foreign subtrees with `createForeignChildRuntime()` / `foreignSubtreeExecutionService.createQueuedRuntime(...)`.
+2. **Resolve** queued tokens with `foreignSubtreeExecutionService.resolveQueuedHtml(...)` after local HTML is produced.
+3. **Own** subtrees through `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`.
+
+String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.
+
+Before queueing, core calls `assertForeignChildrenNotOpaque()` — plain objects throw instead of becoming `[object Object]` in HTML. Acceptable children include HTML strings, template results, markup nodes, arrays, and framework element markers.

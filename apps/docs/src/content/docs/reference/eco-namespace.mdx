@@ -16,9 +16,10 @@ The `eco` namespace provides a consistent, type-safe interface for:
 2. **`eco.html()`** - Semantic alias for the document shell component (owns `<html>`, `<head>`, `<body>`)
 3. **`eco.layout()`** - Semantic alias for route layout components (page-level wrappers)
 4. **`eco.page()`** - Factory for defining page components with optional inline `staticPaths`, `staticProps`, and `metadata`
-5. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
-6. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
-7. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
+5. **`eco.embed()`** - Explicit render helper for foreign or same-integration components during mixed rendering
+6. **`eco.metadata()`** - Type-safe wrapper for page metadata (legacy pattern)
+7. **`eco.staticPaths()`** - Type-safe wrapper for dynamic route generation (legacy pattern)
+8. **`eco.staticProps()`** - Type-safe wrapper for static data fetching (legacy pattern)
 
 
 ## Dependency discovery
@@ -406,6 +407,45 @@ scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }] // or 
 Each entry can define its own trigger, so mixed strategies in one component are supported.
 
 These map directly to [`scripts-injector`](https://github.com/ecopages/scripts-injector) attributes.
+
+### `eco.embed()`
+
+Renders a declared eco component explicitly and optionally injects `children` into the props bag before invocation. During mixed rendering, `eco.embed()` routes through the active foreign-child runtime so the owning integration can queue and resolve cross-integration subtrees.
+
+Integration-owned JSX wrappers expose the same contract:
+
+| Integration   | Import                          |
+| :------------ | :------------------------------ |
+| Ecopages JSX  | `@ecopages/ecopages-jsx/eco-embed` |
+| React         | `@ecopages/react/eco-embed`     |
+| KitaJS        | `@ecopages/kitajs/eco-embed`      |
+
+```tsx
+import { eco } from '@ecopages/core';
+import { KitaShell } from '@/components/kita-shell';
+
+// Imperative handoff
+const html = eco.embed(KitaShell, { id: 'shell' }, '<span>Leaf</span>');
+```
+
+```tsx
+/** @jsxImportSource @ecopages/jsx */
+import { EcoEmbed } from '@ecopages/ecopages-jsx/eco-embed';
+import { KitaShell } from '@/components/kita-shell';
+
+// JSX wrapper (preferred in .tsx / .kita.tsx / React files)
+<EcoEmbed component={KitaShell} props={{ id: 'shell' }}>
+	<span>Leaf</span>
+</EcoEmbed>;
+```
+
+**Children at foreign-subtree queue boundaries**
+
+Core rejects plain opaque objects before they enter the foreign-subtree queue. Values that would stringify to `[object Object]` throw a `TypeError` with guidance to use `EcoEmbed` or pass already-serialized HTML.
+
+Accepted without throwing: HTML strings, template results (`strings` / `values`), markup nodes with `outerHTML`, arrays, and framework element markers (`$$typeof`).
+
+Use `EcoEmbed` (or pre-serialized HTML) for cross-integration shell stacks. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#mixed-rendering) for the full boundary contract.
 
 ### `eco.page()`
 

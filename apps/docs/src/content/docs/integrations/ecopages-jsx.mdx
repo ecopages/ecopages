@@ -155,3 +155,49 @@ Important:
 - Mixed-renderer ownership is validated from declared dependencies during render preparation.
 - Raw markup preservation and asset collection stay inside the JSX renderer.
 - Nested foreign-subtree assets bubble back through the owning JSX render pass, so the foreign subtree keeps both its HTML and its browser requirements together.
+
+### Cross-integration children
+
+Use `EcoEmbed` from `@ecopages/ecopages-jsx/eco-embed` when a JSX page composes foreign-integration shells or passes children across integration boundaries. `EcoEmbed` wraps [`eco.embed()`](/docs/reference/eco-namespace#ecoembed) so the active foreign-child runtime can queue the subtree in the owning renderer and resolve it before the outer renderer resumes.
+
+```tsx
+/** @jsxImportSource @ecopages/jsx */
+import { eco } from '@ecopages/core';
+import { EcoEmbed } from '@ecopages/ecopages-jsx/eco-embed';
+import { KitaShell } from '@/components/kita-shell';
+import { LitShell } from '@/components/lit-shell';
+
+export default eco.page({
+	dependencies: {
+		components: [KitaShell, LitShell],
+	},
+	render: () => (
+		<EcoEmbed component={KitaShell} props={{ id: 'kita-shell' }}>
+			<EcoEmbed component={LitShell} props={{ id: 'lit-shell' }}>
+				Leaf content
+			</EcoEmbed>
+		</EcoEmbed>
+	),
+});
+```
+
+Each integration ships its own adapter (`@ecopages/react/eco-embed`, `@ecopages/kitajs/eco-embed`, and so on). Import the adapter that matches the file you are authoring.
+
+#### Opaque children fail fast at queue boundaries
+
+During mixed rendering, core validates children before foreign subtrees enter the queue. Plain opaque objects — values that string serializers would coerce to `[object Object]` — throw a `TypeError` instead of leaking object text into HTML.
+
+Accepted at the boundary without throwing:
+
+- Already-serialized HTML strings
+- Template results with `strings` / `values` (Kita, Lit)
+- Markup nodes with `outerHTML`
+- Framework element markers (`$$typeof`, including Ecopages JSX trees the renderer can stringify first)
+
+Rejected at the boundary:
+
+- Plain objects such as `{ slot: 'content' }` or `Object.create(null)`
+
+The Ecopages JSX renderer stringifies JSX-shaped children before queueing. When it cannot serialize a value, core rejects opaque payloads at the `foreign-subtree queue` boundary with guidance to use `EcoEmbed` or pass already-serialized HTML.
+
+Note: Some same-integration or inline paths can still produce `[object Object]` if a plain object reaches string concatenation without going through the queue. Mixed-integration shell stacks should use `EcoEmbed` (or pre-serialized HTML) so handoff stays explicit and queue-safe.

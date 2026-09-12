@@ -35,6 +35,8 @@ Call site (route scan, renderer, SSG, API)
 
 Development import URLs use `sourceHash` plus a per-service import generation counter. Node uses that value in its `?update=` query. Bun also receives a generation-specific compiled output filename because it retains a previously imported file when only its query changes. Both paths advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
+Compiled collection server modules also include the app-owned server invalidation version in their output filename (`<collection>-<buildIdentity>-<invalidationVersion>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change.
+
 ## Files
 
 | File                                      | Role                                                      |

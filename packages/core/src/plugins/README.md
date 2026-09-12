@@ -37,6 +37,7 @@ These contracts are responsible for:
 2. Core seals the app-owned build manifest.
 3. Runtime startup calls runtime-only setup hooks.
 4. Request-time rendering and development invalidation reuse those finalized contracts.
+5. `DevelopmentInvalidationService.invalidateServerModules()` calls `Processor.invalidateServerArtifacts()` so processors can discard compiled server artifacts that are not part of the route-module graph.
 
 ## Discovered dependency metadata
 

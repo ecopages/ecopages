@@ -8,6 +8,7 @@ import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metric
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 
 export type CollectionServerBuildArtifact = {
 	collectionName: string;
@@ -15,6 +16,7 @@ export type CollectionServerBuildArtifact = {
 	outputUrl: string;
 	sourcePaths: string[];
 	buildIdentity: string;
+	invalidationVersion: number;
 };
 
 const artifactsByCollection = new WeakMap<EcoPagesAppConfig, Map<string, CollectionServerBuildArtifact>>();
@@ -81,6 +83,7 @@ export async function buildCollectionServerModule(input: {
 		splitting: false,
 		externalPackages: true,
 	});
+	const invalidationVersion = getAppServerInvalidationState(appConfig).getServerInvalidationVersion();
 	const buildIdentity = createCollectionBuildIdentity(
 		createBuildRequestIdentity(buildRequest),
 		sourceFilePath,
@@ -88,11 +91,11 @@ export async function buildCollectionServerModule(input: {
 	);
 	const artifacts = getArtifactMap(appConfig);
 	const existing = artifacts.get(collectionName);
-	if (existing?.buildIdentity === buildIdentity) {
+	if (existing?.buildIdentity === buildIdentity && existing?.invalidationVersion === invalidationVersion) {
 		return existing;
 	}
 
-	const outputFileName = `${collectionName}-${buildIdentity}.mjs`;
+	const outputFileName = `${collectionName}-${buildIdentity}-${invalidationVersion}.mjs`;
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
 	recordCollectionBuild();
@@ -117,6 +120,7 @@ export async function buildCollectionServerModule(input: {
 		outputUrl: pathToFileURL(compiledOutput).href,
 		sourcePaths: [...ownedSourcePaths, sourceFilePath],
 		buildIdentity,
+		invalidationVersion,
 	};
 	artifacts.set(collectionName, artifact);
 	return artifact;

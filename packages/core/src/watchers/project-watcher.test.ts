@@ -541,11 +541,13 @@ describe('ProjectWatcher - Priority Rules', () => {
 	});
 
 	test('should prioritize additionalWatchPaths over processors', async () => {
+		const onChange = vi.fn(async () => {});
 		Config.additionalWatchPaths = ['**/*.config.ts'];
 		const Processor = {
 			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project'],
 				extensions: ['.ts'],
+				onChange,
 			})),
 		};
 		Config.processors.set('ts', Processor as any);
@@ -554,6 +556,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		await (watcher as any).handleFileChange(configFilePath);
 
+		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(configFilePath), bridge: Bridge });
 		expect(Bridge.reload).toHaveBeenCalled();
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
@@ -665,6 +668,13 @@ describe('ProjectWatcher - Helper Methods', () => {
 			Config.additionalWatchPaths = [];
 			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
 			expect(result).toBe(false);
+		});
+
+		test('should match files inside a watched directory', () => {
+			Config.additionalWatchPaths = ['src/registry'];
+			const nestedFile = path.join(Config.absolutePaths.srcDir, 'registry', 'widget.ts');
+			const result = (watcher as any).matchesAdditionalWatchPaths(nestedFile);
+			expect(result).toBe(true);
 		});
 	});
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-rc.6
+
+### Patch Changes
+
+- [`e1ba6d9`](https://github.com/ecopages/ecopages/commit/e1ba6d9f00323a618c61dbc6e1ca46da24cdf134) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix development invalidation for `additionalWatchPaths` and co-located content helpers.
+
+    - `@ecopages/core`: directory and root-relative `additionalWatchPaths` now match contained files, invalidate server modules, notify processors before reload, and bust compiled collection server artifacts via invalidation-versioned output filenames.
+    - `@ecopages/content-processor`: watches co-located non-entry files in collection directories and invalidates compiled server collections without attempting frontmatter parsing.
+
+- Updated dependencies [[`e1ba6d9`](https://github.com/ecopages/ecopages/commit/e1ba6d9f00323a618c61dbc6e1ca46da24cdf134)]:
+    - @ecopages/core@0.2.0-rc.6
+    - @ecopages/file-system@0.2.0-rc.6
+
 ## 0.2.0-rc.5
 
 ### Patch Changes

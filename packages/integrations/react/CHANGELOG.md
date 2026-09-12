@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0-rc.6
+
+### Patch Changes
+
+- Updated dependencies [[`e1ba6d9`](https://github.com/ecopages/ecopages/commit/e1ba6d9f00323a618c61dbc6e1ca46da24cdf134)]:
+    - @ecopages/core@0.2.0-rc.6
+    - @ecopages/mdx@0.2.0-rc.6
+    - @ecopages/file-system@0.2.0-rc.6
+
 ## 0.2.0-rc.5
 
 ### Patch Changes

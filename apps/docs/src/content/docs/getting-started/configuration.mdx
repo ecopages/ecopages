@@ -93,8 +93,9 @@ No template filename setter is required in `eco.config.ts`. If `500.*` is missin
 </ApiField>
 
 <ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]" setter="setAdditionalWatchPaths">
-	Add additional files to monitor for changes. This is useful for tracking files that are not included in the Ecopages
-	build process.
+	Add additional files or directories to monitor during development. Paths are resolved from the project root, so
+	`src/registry` watches every file inside that folder. Glob patterns such as `**/*.config.ts` are also supported. A
+	matching change invalidates server modules, notifies processors, and reloads the browser.
 </ApiField>
 
 <ApiField

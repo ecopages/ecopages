@@ -231,6 +231,11 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;
 
 	/**
+	 * Discards cached server build artifacts when server modules are invalidated.
+	 */
+	invalidateServerArtifacts(): void {}
+
+	/**
 	 * Releases runtime resources owned by the processor.
 	 *
 	 * @remarks

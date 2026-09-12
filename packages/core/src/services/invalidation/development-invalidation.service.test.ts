@@ -89,8 +89,26 @@ describe('DevelopmentInvalidationService', () => {
 		expect(service.planFileChange('/test/project/tailwind.config.ts')).toMatchObject({
 			category: 'additional-watch',
 			reloadBrowser: true,
-			invalidateServerModules: false,
+			invalidateServerModules: true,
 		});
+	});
+
+	it('matches directory and root-relative additionalWatchPaths', async () => {
+		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		appConfig.additionalWatchPaths = ['src/registry'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/registry/widget.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/registry')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/index.tsx')).toBe(false);
+	});
+
+	it('matches universal additionalWatchPaths globs', async () => {
+		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		appConfig.additionalWatchPaths = ['**/*'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/elsewhere/widget.ts')).toBe(true);
 	});
 
 	it('delegates server invalidation versioning to the app-owned dev graph service', async () => {

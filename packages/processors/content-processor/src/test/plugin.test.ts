@@ -92,6 +92,68 @@ order: 1
 		expect(plugin.collectionServerModules.docs).toBe(serverCacheFile);
 	});
 
+	test('co-located helper edits invalidate the compiled collection without rewriting entry modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-colocated-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		const helperPath = path.join(contentDir, 'survey-form.config.ts');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			introPath,
+			`---
+title: Intro
+description: Welcome
+order: 1
+---
+# Intro
+`,
+		);
+		fileSystem.write(helperPath, 'export const surveyId = "demo";\n');
+
+		const plugin = createContentProcessorPlugin({
+			docs: { contentDir: 'content/docs' },
+		});
+
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setBaseUrl('http://localhost:3000')
+			.setProcessors([plugin])
+			.build();
+
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const serverCacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.server.ts',
+		);
+		const typesFile = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name, 'virtual-module.d.ts');
+		const entriesBefore = fileSystem.readFileSync(cacheFile);
+		const serverBefore = fileSystem.readFileSync(serverCacheFile);
+		const typesBefore = fileSystem.readFileSync(typesFile);
+		plugin.collectionServerCompiledModules.docs = '/tmp/stale-docs-server-collection.mjs';
+
+		fileSystem.write(helperPath, 'export const surveyId = "updated";\n');
+
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChange) {
+			throw new Error('Expected content processor watch onChange handler');
+		}
+		await watchConfig.onChange({ path: helperPath } as never);
+
+		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
+		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
+		expect(fileSystem.readFileSync(typesFile)).toBe(typesBefore);
+		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
+	});
+
 	test('body-only MDX edits do not rewrite generated collection modules', async () => {
 		const rootDir = createTempRoot('ecopages-content-processor-body-');
 		tempRoots.push(rootDir);

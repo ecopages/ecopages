@@ -53,7 +53,10 @@ flowchart TD
 	B --> C[DevelopmentInvalidationService]
 	C --> D{Change kind}
 	D -->|Route or server source| E[Invalidate server modules]
-	D -->|Public or include| F[Reload browser]
+	D -->|Additional watch| E
+	E --> N[Notify processors]
+	N --> F[Reload browser]
+	D -->|Public asset| F
 	D -->|Processor-owned asset| G[Notify processor only]
 	D -->|HMR-eligible source| H[Core HMR manager]
 	H --> I[Strategy selection]

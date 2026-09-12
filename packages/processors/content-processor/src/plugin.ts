@@ -80,7 +80,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
-			extensions: ['mdx'],
+			extensions: ['.mdx', '.md', '.ts', '.tsx', '.js', '.jsx', '.json'],
 			onCreate: async (ctx) => this.handleContentFileEvent(ctx.path, 'create'),
 			onChange: async (ctx) => this.handleContentFileEvent(ctx.path, 'change'),
 			onDelete: async (ctx) => this.handleContentFileEvent(ctx.path, 'delete'),
@@ -116,6 +116,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				(collectionName) => this.ensureCollectionServerArtifact(collectionName),
 			),
 		];
+	}
+
+	override invalidateServerArtifacts(): void {
+		for (const collectionName of Object.keys(this.getCollectionsConfig())) {
+			this.invalidateCollectionServerArtifact(collectionName);
+		}
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -243,6 +249,17 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		await this.regenerateCollections(Object.keys(this.getCollectionsConfig()));
 	}
 
+	private isCollectionEntryPath(
+		normalizedPath: string,
+		configuredExtensions: readonly string[] | undefined,
+	): boolean {
+		const extensions = configuredExtensions ?? ['.mdx'];
+		return extensions.some((ext) => {
+			const dotted = ext.startsWith('.') ? ext : `.${ext}`;
+			return normalizedPath.endsWith(dotted);
+		});
+	}
+
 	private async handleContentFileEvent(filePath: string, event: 'change' | 'create' | 'delete'): Promise<void> {
 		if (!this.context) {
 			return;
@@ -261,6 +278,14 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		let shouldRegenerateTypes = false;
 
 		for (const collectionName of affectedCollections) {
+			const definition = this.getCollectionsConfig()[collectionName];
+			const isEntry = this.isCollectionEntryPath(normalizedPath, definition.extensions);
+
+			if (!isEntry) {
+				this.invalidateCollectionServerArtifact(collectionName);
+				continue;
+			}
+
 			if (event === 'create' || event === 'delete') {
 				await this.regenerateCollectionModule(collectionName);
 				shouldRegenerateTypes = true;

@@ -244,6 +244,7 @@ export class ProjectWatcher {
 			}
 
 			if (plan.reloadBrowser) {
+				await this.notifyProcessors(filePath, event);
 				this.requestBrowserReload();
 				return;
 			}
@@ -460,7 +461,11 @@ export class ProjectWatcher {
 		}
 
 		for (const watchPath of this.appConfig.additionalWatchPaths) {
-			processorPaths.add(watchPath);
+			const resolvedWatchPath =
+				path.isAbsolute(watchPath) || watchPath.includes('*')
+					? watchPath
+					: path.resolve(this.appConfig.rootDir, watchPath);
+			processorPaths.add(resolvedWatchPath);
 		}
 
 		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);

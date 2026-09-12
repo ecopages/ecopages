@@ -3,6 +3,7 @@ import type { EcoPagesAppConfig, RegisteredScriptEntrypointChangeHandler } from 
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
+import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
 
 export type { RegisteredScriptEntrypointChangeHandler };
 
@@ -65,6 +66,11 @@ export class DevelopmentInvalidationService {
 		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
 		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
 		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
+		clearCollectionServerBuildArtifacts(this.appConfig);
+
+		for (const processor of this.appConfig.processors.values()) {
+			processor.invalidateServerArtifacts?.();
+		}
 	}
 
 	/**
@@ -121,7 +127,7 @@ export class DevelopmentInvalidationService {
 		if (this.matchesAdditionalWatchPaths(filePath)) {
 			return {
 				category: 'additional-watch',
-				invalidateServerModules: false,
+				invalidateServerModules: true,
 				refreshRoutes: false,
 				reloadBrowser: true,
 				delegateToHmr: false,
@@ -211,9 +217,14 @@ export class DevelopmentInvalidationService {
 
 		for (const pattern of patterns) {
 			if (pattern.includes('*')) {
-				const ext = pattern.replace(/\*\*?\/\*/, '');
+				const ext = pattern.replace(/\*\*?\/\*|\*+/g, '');
 				if (normalizedPath.endsWith(ext)) return true;
-			} else if (normalizedPath.endsWith(pattern) || normalizedPath === path.resolve(pattern)) {
+				continue;
+			}
+
+			const resolvedPattern = path.isAbsolute(pattern) ? pattern : path.resolve(this.appConfig.rootDir, pattern);
+
+			if (normalizedPath === resolvedPattern || normalizedPath.startsWith(`${resolvedPattern}${path.sep}`)) {
 				return true;
 			}
 		}

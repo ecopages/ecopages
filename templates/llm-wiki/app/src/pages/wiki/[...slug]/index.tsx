@@ -4,7 +4,7 @@ import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/wiki';
 import { getComponent, getEntryDependencies } from 'ecopages:content/wiki/server';
-import { getCategoryForEntry } from '@/content/wiki';
+import { getCategoryForEntry, type WikiContentEntry } from '@/content/wiki';
 import { wikiNav } from '@/content-nav';
 import { parseWikiCatchAllSegments } from '@/lib/wiki/catch-all';
 import { DocsLayout } from '@/layouts/docs-layout';
@@ -27,13 +27,15 @@ function wikiPageFromCatchAll(slugParam: PageParams[string] | undefined): WikiCa
 		throw HttpError.NotFound(`Unknown wiki entry: ${slug}`);
 	}
 
+	const wikiEntry = entry as WikiContentEntry;
+
 	return {
-		section: getCategoryForEntry(entry),
-		slug: entry.slug,
-		title: entry.title,
+		section: getCategoryForEntry(wikiEntry),
+		slug: wikiEntry.slug,
+		title: wikiEntry.title,
 		nav: wikiNav,
 		rootLabel: 'Wiki',
-		sources: entry.sources ?? [],
+		sources: wikiEntry.sources ?? [],
 	};
 }
 

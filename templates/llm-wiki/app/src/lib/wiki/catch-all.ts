@@ -7,7 +7,7 @@ type CatchAllSlugParam = PageParams[string];
  * Normalizes catch-all `slug` params and enforces the wiki URL shape.
  * @throws {HttpError} 404 when the slug is missing or has too many segments.
  */
-export function parseWikiCatchAllSegments(slug: CatchAllSlugParam): string[] {
+export function parseWikiCatchAllSegments(slug: CatchAllSlugParam | undefined): string[] {
 	const segments = Array.isArray(slug) ? slug : slug ? slug.split('/').filter(Boolean) : [];
 
 	if (segments.length === 0 || segments.length > 2) {

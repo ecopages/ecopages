@@ -4,11 +4,15 @@ import {
 	formatCategoryTitle,
 	getCategoryForEntry,
 	getCategoryOrder,
+	type WikiContentEntry,
 	WIKI_ROOT,
 } from '@/content/wiki';
 
+const CATALOG_HREF = '/';
+
 export type WikiNavItem = {
 	title: string;
+	summary: string;
 	href: string;
 	section: string;
 	slug: string;
@@ -28,20 +32,22 @@ export type WikiNav = {
 const wikiItemsBySection = new Map<string, WikiNavItem[]>();
 
 for (const entry of [...wikiEntries].sort(compareWikiEntries)) {
-	const sectionId = getCategoryForEntry(entry);
+	const wikiEntry = entry as WikiContentEntry;
+	const sectionId = getCategoryForEntry(wikiEntry);
 	const items = wikiItemsBySection.get(sectionId) ?? [];
 
 	items.push({
-		title: entry.title,
-		href: `${WIKI_ROOT}/${entry.slug}`,
+		title: wikiEntry.title,
+		summary: wikiEntry.summary,
+		href: `${WIKI_ROOT}/${wikiEntry.slug}`,
 		section: sectionId,
-		slug: entry.slug,
+		slug: wikiEntry.slug,
 	});
 	wikiItemsBySection.set(sectionId, items);
 }
 
 export const wikiNav: WikiNav = {
-	rootDir: WIKI_ROOT,
+	rootDir: CATALOG_HREF,
 	sections: (() => {
 		const orderFromSpec = getCategoryOrder();
 		if (orderFromSpec.length > 0) {

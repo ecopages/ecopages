@@ -1,7 +1,8 @@
 ---
 title: LLM Wiki Demo
+summary: example page for the bundled docs app
 sources: [source-demo]
-updated: 1970-01-01
+updated: 2026-09-13
 ---
 
 # This is a demo page

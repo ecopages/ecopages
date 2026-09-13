@@ -2,7 +2,7 @@ import { Processor } from '@ecopages/core/plugins/processor';
 import type { EcoBuildPlugin, ProcessorWatchConfig, ProcessorWatchContext } from '@ecopages/core/plugins/processor';
 import { join } from 'node:path';
 import { writeWikiSearchIndex } from '@/lib/search/wiki';
-import { ingestVault, resolveSourcesDir, resolveVaultDir } from './ingest';
+import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/ingest';
 
 /**
  * Mirrors `wiki/*.md` into `src/content/wiki` so it can be exposed as an
@@ -10,8 +10,10 @@ import { ingestVault, resolveSourcesDir, resolveVaultDir } from './ingest';
  *
  * @remarks
  * Watches the wiki and sources directories (configured via `WIKI_DIR` and
- * `SOURCES_DIR` env vars). The content processor watches the generated
- * content directory; this processor only synchronizes it and reloads browsers.
+ * `SOURCES_DIR` env vars). After ingest, writes the browser search index into
+ * `publicDir` / `distDir` from one document pass. The content processor watches
+ * the generated content directory; this processor only synchronizes it and
+ * reloads browsers.
  */
 export class ObsidianIngestProcessor extends Processor {
 	plugins: EcoBuildPlugin[] = [];
@@ -76,10 +78,8 @@ export class ObsidianIngestProcessor extends Processor {
 			return;
 		}
 		const contentRoot = join(paths.srcDir, 'content/wiki');
-		await writeWikiSearchIndex(paths.publicDir, { contentRoot });
-		if (paths.distDir) {
-			await writeWikiSearchIndex(paths.distDir, { contentRoot });
-		}
+		const directories = paths.distDir ? [paths.publicDir, paths.distDir] : [paths.publicDir];
+		await writeWikiSearchIndex(directories, { contentRoot });
 	}
 
 	private async handleVaultEvent(ctx: ProcessorWatchContext): Promise<void> {

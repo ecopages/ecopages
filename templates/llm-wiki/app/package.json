@@ -11,7 +11,8 @@
 		"preview": "ecopages preview --port 3333 --base-url http://localhost:3333",
 		"sync:obsidian": "node --experimental-strip-types src/lib/obsidian/mirror.ts",
 		"lint:wiki": "tsx src/lib/wiki/lint-cli.ts",
-		"test": "vitest run"
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",
@@ -26,6 +27,7 @@
 		"@ecopages/radiant-ui": "^0.1.0-rc.15",
 		"@mdx-js/mdx": "^3.1.1",
 		"@tailwindcss/postcss": "^4.0.0",
+		"@types/bun": "^1.4.2",
 		"@types/node": "22.19.9",
 		"dotenv": "^16.4.7",
 		"ecopages": "workspace:*",
@@ -33,6 +35,7 @@
 		"remark-gfm": "^4.0.1",
 		"tailwindcss": "^4.0.0",
 		"tsx": "^4.22.3",
+		"typescript": "^5.9.3",
 		"unist-util-visit": "^5.1.0",
 		"vfile": "^6.0.3",
 		"vfile-matter": "^5.0.1",

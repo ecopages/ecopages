@@ -33,7 +33,8 @@ function resetButton(button: HTMLButtonElement): void {
  * The `.md` URL works under static `preview` as well as `dev` / `start`.
  */
 function onCopyForLlmClick(event: Event): void {
-	const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-copy-for-llm]') : null;
+	const button =
+		event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-copy-for-llm]') : null;
 	if (!button) {
 		return;
 	}

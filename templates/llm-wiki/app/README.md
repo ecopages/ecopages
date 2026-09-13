@@ -32,6 +32,7 @@ pnpm preview
 pnpm sync:obsidian
 pnpm lint:wiki
 pnpm test
+pnpm typecheck
 ```
 
 ## Agent markdown
@@ -51,3 +52,5 @@ HTML pages advertise `<link rel="alternate" type="text/markdown">`. `/api/search
 The wiki Page uses the existing `layout.props` factory to resolve DocsLayout data from route params. Its static props and layout factory share the same entry lookup. Core and integrations retain their existing explicit layout-props contract.
 
 Catalog generation preserves pages with duplicate titles. Wiki graph lint resolves inline and reference links while ignoring code examples and images. The Obsidian mirror uses explicit TypeScript import extensions so Node can run it directly.
+
+Run `pnpm build` or `pnpm dev` before `pnpm typecheck` to generate the collection declarations. The template declares TypeScript and Bun typings explicitly for checking workspace framework sources; `allowImportingTsExtensions` supports Node’s explicit `.ts` imports without emitting JavaScript.

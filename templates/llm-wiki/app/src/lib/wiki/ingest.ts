@@ -5,12 +5,7 @@ import { logger } from '@/lib/logger';
 import { renderCatalogMarkdown, writeCatalogIndex } from './catalog';
 import { isEnoent } from './is-enoent';
 import { rewriteWikiMarkdownLinks } from './links';
-import {
-	loadVaultPages,
-	resolveVaultSortOrder,
-	resolveWikiIndexPath,
-	type VaultPage,
-} from './vault';
+import { loadVaultPages, resolveVaultSortOrder, resolveWikiIndexPath, type VaultPage } from './vault';
 
 export type IngestVaultOptions = {
 	appRoot?: string;
@@ -95,7 +90,11 @@ export async function ingestVault(options: IngestVaultOptions = {}): Promise<voi
 	await Promise.all(pages.map((page) => writeGeneratedPage(page, outputDir, publicWikiDir)));
 
 	const sortOrder = await resolveVaultSortOrder({ layout, sourceDir, pages });
-	await writeFile(join(outputDir, '..', 'wiki-sort-order.json'), `${JSON.stringify(sortOrder, null, '\t')}\n`, 'utf8');
+	await writeFile(
+		join(outputDir, '..', 'wiki-sort-order.json'),
+		`${JSON.stringify(sortOrder, null, '\t')}\n`,
+		'utf8',
+	);
 
 	const catalogMarkdown = renderCatalogMarkdown({
 		categories: sortOrder.categories,

@@ -26,6 +26,7 @@ These concepts intentionally live in different places:
 - `component-render-context.ts` intercepts foreign children during active component render
 - `foreign-subtree-execution.service.ts` owns mixed-integration execution policy and queued token resolution
 - `document-shell-render.service.ts` composes page, layout, and html template shells with one execution-scoped renderer cache
+- `layout-shell-props.service.ts` forwards page `staticProps` onto layouts (not the document `pageProps` envelope) and evaluates optional layout prop factories
 - `integration-renderer.ts` owns renderer-to-renderer delegation and integration-specific render hooks
 - `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement
 

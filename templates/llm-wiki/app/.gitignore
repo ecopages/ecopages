@@ -5,4 +5,5 @@ dist
 
 # generated from wiki/ on every dev/build
 src/content/wiki
+src/public/wiki
 src/public/search-index.json

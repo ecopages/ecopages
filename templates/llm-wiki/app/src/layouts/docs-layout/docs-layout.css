@@ -9,6 +9,14 @@
 		@apply min-w-0 flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-10 lg:px-12;
 	}
 
+	.docs-bar {
+		@apply mb-4 flex min-h-8 items-center justify-between gap-4;
+	}
+
+	.docs-breadcrumb {
+		@apply min-w-0 flex-1;
+	}
+
 	.docs-layout__toc {
 		@apply hidden w-62 shrink-0 overflow-y-auto border-l border-border/60 px-6 py-8 xl:block;
 	}

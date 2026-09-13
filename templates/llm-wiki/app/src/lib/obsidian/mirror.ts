@@ -8,6 +8,7 @@
  * Self-contained so Node can execute it with type stripping and no bundler.
  * Reads `OBSIDIAN_VAULT_PATH` from the environment or `.env`.
  */
+import { isEnoent } from '../wiki/is-enoent';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +36,7 @@ async function applyEnvFile(filePath: string): Promise<void> {
 	try {
 		raw = await readFile(filePath, 'utf8');
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+		if (isEnoent(error)) {
 			return;
 		}
 		throw error;
@@ -66,7 +67,7 @@ async function copyIfExists(from: string, to: string): Promise<boolean> {
 		await cp(from, to, { recursive: true });
 		return true;
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+		if (isEnoent(error)) {
 			return false;
 		}
 		throw error;

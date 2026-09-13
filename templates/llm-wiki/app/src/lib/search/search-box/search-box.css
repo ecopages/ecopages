@@ -1,5 +1,5 @@
 .search-box__trigger {
-	.search-box__icon {
+	.search-icon {
 		@apply size-4 shrink-0;
 	}
 
@@ -20,7 +20,7 @@
 	.search-box__input-row {
 		@apply relative flex items-center gap-3 border-b border-border/40 py-3 pr-12 pl-4;
 
-		.search-box__icon {
+		.search-icon {
 			@apply text-on-background/50 size-5 shrink-0;
 		}
 

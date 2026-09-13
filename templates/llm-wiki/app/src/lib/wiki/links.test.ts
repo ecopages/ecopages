@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest';
-import { rewriteWikiLinkUrl, rewriteWikiMarkdownLinks, resolveWikiLinkTarget } from './links';
+import {
+	rewriteWikiLinkUrl,
+	rewriteWikiMarkdownLinks,
+	resolveWikiLinkTarget,
+	extractWikiMarkdownLinkHrefs,
+} from './links';
 
 test('rewrites absolute wiki paths including a leading slash', () => {
 	expect(rewriteWikiLinkUrl('/wiki/app/demo.md')).toBe('/wiki/app/demo');
@@ -22,4 +27,28 @@ test('extracts a wiki slug from a rewritten href', () => {
 
 test('rewrites markdown link hrefs in a body', () => {
 	expect(rewriteWikiMarkdownLinks('See [x](./sibling.md).', 'app')).toBe('See [x](/wiki/app/sibling).');
+});
+
+test('graph links exclude code examples, images, and unused definitions', () => {
+	const body = [
+		'```md',
+		'[example](./missing.md)',
+		'```',
+		'`[inline](./missing.md)`',
+		'![image](./image.md)',
+		'[unused]: ./unused.md',
+		'',
+		'[real](./sibling.md)',
+	].join('\n');
+	expect(extractWikiMarkdownLinkHrefs(body)).toEqual(['./sibling.md']);
+});
+
+test('graph links resolve references and include extensionless wiki URLs', () => {
+	const body = '[Full][target] [target][] [target] [absolute](/wiki/app/demo)\n\n[target]: ./sibling.md';
+	expect(extractWikiMarkdownLinkHrefs(body)).toEqual([
+		'./sibling.md',
+		'./sibling.md',
+		'./sibling.md',
+		'/wiki/app/demo',
+	]);
 });

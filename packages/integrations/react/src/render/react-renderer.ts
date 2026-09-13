@@ -477,7 +477,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					params,
 					query,
 					locals,
-					pageProps: props ?? {},
 				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,

@@ -12,16 +12,9 @@ export type DocumentShellLayoutResolutionInput = LayoutShellPropsContext & {
 
 /**
  * Resolves the default shell props passed to a layout tier during route render.
- *
- * @remarks
- * Callers must pass page `staticProps` here, not the document `pageProps` envelope
- * (`params` / `query` / serialized `locals`). Factories overlay these fields.
  */
 export function resolveLayoutShellProps(context: LayoutShellPropsContext): Record<string, unknown> {
-	return {
-		...(context.pageProps ?? {}),
-		...(context.locals ? { locals: context.locals } : {}),
-	};
+	return context.locals ? { locals: context.locals } : {};
 }
 
 /**
@@ -40,7 +33,6 @@ export function resolveLayoutEntryProps(
 		params: context.params,
 		query: context.query,
 		locals: context.locals,
-		pageProps: context.pageProps,
 	};
 
 	return {

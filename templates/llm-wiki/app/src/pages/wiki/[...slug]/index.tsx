@@ -48,7 +48,10 @@ const staticProps: GetStaticProps<WikiCatchAllProps> = async ({ pathname }) => (
 });
 
 export default eco.page<WikiCatchAllProps, JsxRenderable>({
-	layout: DocsLayout,
+	layout: {
+		component: DocsLayout,
+		props: ({ params }) => wikiPageFromCatchAll(params?.slug),
+	},
 	staticPaths: async () => ({
 		paths: entries.map((entry) => ({
 			params: {

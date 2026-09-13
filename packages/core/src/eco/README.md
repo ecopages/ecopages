@@ -347,8 +347,6 @@ export default eco.page({
 
 A single layout remains equivalent to a one-element array. Normalization stores the stack on `config.layouts` and `config.layoutEntries` at factory time.
 
-Resolved page `staticProps` are forwarded onto each layout tier. Optional `layout: { component, props }` factories overlay those fields and also receive `pageProps` on `LayoutPropsContext`. Route `params` / `query` stay on the factory context; they are not spread onto the layout from the document `pageProps` envelope.
-
 ### `eco.component()`
 
 Define a reusable component with dependencies.

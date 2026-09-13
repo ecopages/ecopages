@@ -26,21 +26,6 @@ describe('layout-shell-props.service', () => {
 		});
 	});
 
-	it('should forward page static props onto the layout shell', () => {
-		expect(
-			resolveLayoutShellProps({
-				params: { slug: 'app' },
-				pageProps: {
-					section: 'app',
-					slug: 'app/demo',
-				},
-			}),
-		).toEqual({
-			section: 'app',
-			slug: 'app/demo',
-		});
-	});
-
 	it('should merge layout entry prop factories over shell props', () => {
 		const entry = {
 			component: Layout,
@@ -54,10 +39,8 @@ describe('layout-shell-props.service', () => {
 				params: { slug: 'admin' },
 				query: {},
 				locals: { user: 'Ada' },
-				pageProps: { title: 'Ignored unless factory keeps it' },
 			}),
 		).toEqual({
-			title: 'Ignored unless factory keeps it',
 			locals: { user: 'Ada' },
 			section: 'admin',
 		});
@@ -99,13 +82,7 @@ describe('layout-shell-props.service', () => {
 			resolveDocumentShellLayouts({
 				layout: Layout,
 				locals: { user: 'Ada' },
-				pageProps: { section: 'wiki' },
 			}),
-		).toEqual([
-			{
-				component: Layout,
-				props: { section: 'wiki', locals: { user: 'Ada' } },
-			},
-		]);
+		).toEqual([{ component: Layout, props: { locals: { user: 'Ada' } } }]);
 	});
 });

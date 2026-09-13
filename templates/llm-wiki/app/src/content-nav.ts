@@ -4,6 +4,7 @@ import {
 	formatCategoryTitle,
 	getCategoryForEntry,
 	getCategoryOrder,
+	type WikiContentEntry,
 	WIKI_ROOT,
 } from '@/content/wiki';
 
@@ -31,15 +32,16 @@ export type WikiNav = {
 const wikiItemsBySection = new Map<string, WikiNavItem[]>();
 
 for (const entry of [...wikiEntries].sort(compareWikiEntries)) {
-	const sectionId = getCategoryForEntry(entry);
+	const wikiEntry = entry as WikiContentEntry;
+	const sectionId = getCategoryForEntry(wikiEntry);
 	const items = wikiItemsBySection.get(sectionId) ?? [];
 
 	items.push({
-		title: entry.title,
-		summary: entry.summary,
-		href: `${WIKI_ROOT}/${entry.slug}`,
+		title: wikiEntry.title,
+		summary: wikiEntry.summary,
+		href: `${WIKI_ROOT}/${wikiEntry.slug}`,
 		section: sectionId,
-		slug: entry.slug,
+		slug: wikiEntry.slug,
 	});
 	wikiItemsBySection.set(sectionId, items);
 }

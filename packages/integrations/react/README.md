@@ -225,7 +225,7 @@ Pages may declare `layout` as a single component or an **outer → inner** array
 
 During SSR, `ReactRenderer` passes the app-resolved React runtime into `composeLayoutPageTree` via `options.react` so layout trees are built with the same module instance as `renderToString`. App code should import hooks and context from `react` normally; keep a single React version in the app dependency graph (avoid duplicate `react` copies in monorepos).
 
-Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`). Route-scoped `locals` are passed to layout tiers via document-shell props during SSR; serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
+Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`, `pageProps`). Route-scoped `locals` are passed to layout tiers via document-shell props during SSR. Layout shells spread page `staticProps` (`props`), not the serialized hydration payload. Serialized `pageProps.locals` follow `Page.requires` and are intended for the page component.
 
 - [src/render/layout-compose.ts](src/render/layout-compose.ts): shared client/SSR tree builder.
 - [src/test/react-ssr-hydration-parity.test.tsx](src/test/react-ssr-hydration-parity.test.tsx): nested tier order parity between SSR and `composeLayoutPageTree`.

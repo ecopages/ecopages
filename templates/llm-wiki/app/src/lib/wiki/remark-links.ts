@@ -1,4 +1,4 @@
-import { rewriteWikiLinkUrl } from '@/lib/obsidian/links';
+import { rewriteWikiLinkUrl } from './links';
 
 function visitNodes(
 	node: { type?: string; children?: unknown[]; url?: string },
@@ -20,7 +20,11 @@ function visitNodes(
 }
 
 /**
- * Remark plugin that rewrites wiki `.md` cross-links to `/wiki/<slug>` at MDX compile time.
+ * Canonicalizes leftover `/wiki/*.md` URLs in generated MDX.
+ *
+ * @remarks
+ * Relative vault links are rewritten at ingest via `rewriteWikiMarkdownLinks`.
+ * This visitor does not receive the page category, so it cannot resolve `./sibling.md`.
  */
 export function remarkWikiLinks() {
 	return (tree: { type?: string; children?: unknown[]; url?: string }) => {

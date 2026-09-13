@@ -7,8 +7,11 @@ import {
 	WIKI_ROOT,
 } from '@/content/wiki';
 
+const CATALOG_HREF = '/';
+
 export type WikiNavItem = {
 	title: string;
+	summary: string;
 	href: string;
 	section: string;
 	slug: string;
@@ -33,6 +36,7 @@ for (const entry of [...wikiEntries].sort(compareWikiEntries)) {
 
 	items.push({
 		title: entry.title,
+		summary: entry.summary,
 		href: `${WIKI_ROOT}/${entry.slug}`,
 		section: sectionId,
 		slug: entry.slug,
@@ -41,7 +45,7 @@ for (const entry of [...wikiEntries].sort(compareWikiEntries)) {
 }
 
 export const wikiNav: WikiNav = {
-	rootDir: WIKI_ROOT,
+	rootDir: CATALOG_HREF,
 	sections: (() => {
 		const orderFromSpec = getCategoryOrder();
 		if (orderFromSpec.length > 0) {

@@ -7,9 +7,11 @@ export const WIKI_ROOT = '/wiki';
 
 export const wikiFrontmatterSchema = z.object({
 	title: z.string(),
+	summary: z.string().trim().min(1),
 	category: z.string(),
 	order: z.number().optional(),
 	sources: z.array(z.string()).optional(),
+	paths: z.array(z.string()).optional(),
 	updated: z.string(),
 });
 

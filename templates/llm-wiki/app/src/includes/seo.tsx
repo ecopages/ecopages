@@ -1,5 +1,5 @@
 import type { PageMetadataProps } from '@ecopages/core';
-import { wikiMarkdownAlternatePath } from '@/lib/wiki/markdown';
+import { matchWikiMarkdownPath, wikiMarkdownAlternatePath } from '@/lib/wiki/markdown';
 import { LLM_WIKI_ORIGIN } from '@/lib/site-origin';
 
 const withBaseUrl = (path: string) => {
@@ -9,11 +9,11 @@ const withBaseUrl = (path: string) => {
 
 function wikiSlugFromMetadataUrl(url: string): string | null {
 	const pathname = url.startsWith('http') ? new URL(url).pathname : url.startsWith('/') ? url : `/${url}`;
-	const match = pathname.match(/^\/wiki\/([^/]+)$/);
-	if (!match || match[1].endsWith('.md')) {
+	const target = matchWikiMarkdownPath(pathname);
+	if (!target || target.forceMarkdown) {
 		return null;
 	}
-	return match[1];
+	return target.slug;
 }
 
 export function Seo({ title, description, url, keywords }: PageMetadataProps) {

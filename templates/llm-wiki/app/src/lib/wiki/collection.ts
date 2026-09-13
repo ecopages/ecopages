@@ -49,18 +49,23 @@ export async function getWikiRawContent(slug: string, contentRoot?: string): Pro
 	}
 }
 
-/** Resolves the configured home entry, or the first canonically ordered entry. */
+/**
+ * Resolves the site home path.
+ *
+ * @remarks
+ * Default is the catalog at `/`. `WIKI_HOME_SLUG` opts back into a wiki page.
+ */
 export async function getWikiHomePath(): Promise<string> {
-	const entries = await getWikiScanner().getManifest();
 	const configuredSlug = env.WIKI_HOME_SLUG;
-	const entry = configuredSlug ? entries.find((candidate) => candidate.slug === configuredSlug) : entries[0];
+	if (!configuredSlug) {
+		return '/';
+	}
+
+	const entries = await getWikiScanner().getManifest();
+	const entry = entries.find((candidate) => candidate.slug === configuredSlug);
 
 	if (!entry) {
-		throw new Error(
-			configuredSlug
-				? `WIKI_HOME_SLUG does not match an ingested wiki page: ${configuredSlug}`
-				: 'No wiki pages were ingested; cannot determine the wiki home page',
-		);
+		throw new Error(`WIKI_HOME_SLUG does not match an ingested wiki page: ${configuredSlug}`);
 	}
 
 	return `${WIKI_ROOT}/${entry.slug}`;

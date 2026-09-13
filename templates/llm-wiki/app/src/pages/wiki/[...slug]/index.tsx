@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import type { GetMetadata, GetStaticProps } from '@ecopages/core';
+import type { GetMetadata, GetStaticProps, PageParams } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { entries } from 'ecopages:content/wiki';
@@ -18,14 +18,8 @@ type WikiCatchAllProps = {
 	sources: string[];
 };
 
-export const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } }) => ({
-	title: `Wiki | ${title}`,
-	description: `Wiki page for ${title}`,
-	url: `wiki/${slug}`,
-});
-
-const staticProps: GetStaticProps<WikiCatchAllProps> = async ({ pathname }) => {
-	const segments = parseWikiCatchAllSegments(pathname.params.slug);
+function wikiPageFromCatchAll(slugParam: PageParams[string] | undefined): WikiCatchAllProps {
+	const segments = parseWikiCatchAllSegments(slugParam);
 	const slug = segments.join('/');
 	const entry = entries.find((candidate) => candidate.slug === slug);
 
@@ -34,16 +28,24 @@ const staticProps: GetStaticProps<WikiCatchAllProps> = async ({ pathname }) => {
 	}
 
 	return {
-		props: {
-			section: getCategoryForEntry(entry),
-			slug: entry.slug,
-			title: entry.title,
-			nav: wikiNav,
-			rootLabel: 'Wiki',
-			sources: entry.sources ?? [],
-		},
+		section: getCategoryForEntry(entry),
+		slug: entry.slug,
+		title: entry.title,
+		nav: wikiNav,
+		rootLabel: 'Wiki',
+		sources: entry.sources ?? [],
 	};
-};
+}
+
+export const getMetadata: GetMetadata<WikiCatchAllProps> = ({ props: { title, slug } }) => ({
+	title: `Wiki | ${title}`,
+	description: `Wiki page for ${title}`,
+	url: `wiki/${slug}`,
+});
+
+const staticProps: GetStaticProps<WikiCatchAllProps> = async ({ pathname }) => ({
+	props: wikiPageFromCatchAll(pathname.params.slug),
+});
 
 export default eco.page<WikiCatchAllProps, JsxRenderable>({
 	layout: DocsLayout,

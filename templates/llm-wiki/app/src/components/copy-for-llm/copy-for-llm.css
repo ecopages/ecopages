@@ -1,0 +1,29 @@
+.docs-copy-for-llm {
+	&[data-copied='true'] {
+		@apply text-primary;
+
+		.docs-copy-for-llm__icon--sparkle {
+			@apply hidden;
+		}
+
+		.docs-copy-for-llm__icon--check {
+			@apply inline-flex;
+		}
+	}
+
+	&[data-copy-error='true'] {
+		@apply border-secondary/60 text-secondary;
+	}
+}
+
+.docs-copy-for-llm__icon {
+	@apply pointer-events-none inline-flex h-4 w-4 shrink-0 items-center justify-center text-current;
+}
+
+.docs-copy-for-llm__icon--check {
+	@apply hidden;
+}
+
+.docs-copy-for-llm__label {
+	@apply pointer-events-none whitespace-nowrap text-current;
+}

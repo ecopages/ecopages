@@ -692,11 +692,17 @@ export interface HtmlTemplateProps<T = EcoPagesElement> extends PageHeadProps<T>
 
 /**
  * Request-scoped context available to layout prop factories on `eco.page`.
+ *
+ * @remarks
+ * `pageProps` is the resolved page `staticProps` object. Route `params`, `query`,
+ * and `locals` are separate fields. Layouts receive those static fields even when
+ * a prop factory is omitted.
  */
 export type LayoutPropsContext = {
 	params?: PageParams;
 	query?: PageQuery;
 	locals?: RequestLocals;
+	pageProps?: Record<string, unknown>;
 };
 
 /**

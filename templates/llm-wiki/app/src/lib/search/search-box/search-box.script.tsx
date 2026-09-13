@@ -6,6 +6,8 @@ import { RuiInput } from '@ecopages/radiant-ui/input';
 import { RuiListbox, RuiListboxOption } from '@ecopages/radiant-ui/listbox';
 import { cx } from '@/lib/cx';
 import { createSearchIndex, tokenize, type SearchDocument, type SearchResult } from '../engine';
+import { OPEN_WIKI_SEARCH_EVENT } from '../open-search';
+import { SearchIcon } from '../search-icon';
 
 const DEBOUNCE_MS = 250;
 const PAGE_SIZE = 10;
@@ -132,21 +134,6 @@ function highlight(text: string, tokens: string[]): JsxRenderable {
 	return <>{parts.map((part, index) => (index % 2 === 1 ? <mark>{part}</mark> : part))}</>;
 }
 
-export function SearchIcon() {
-	return (
-		<svg class="search-box__icon" aria-hidden="true" viewBox="0 0 24 24" width="1em" height="1em">
-			<path
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				d="m21 21-4.34-4.34M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-			/>
-		</svg>
-	);
-}
-
 /** Header trigger; also SSR'd from `SearchBox` so the control is visible before hydration. */
 export function SearchTrigger({ label }: { label: string }) {
 	return (
@@ -253,6 +240,11 @@ export class RadiantSearchBox extends RadiantElement<SearchBoxBindings> {
 			event.preventDefault();
 			this.openDialog();
 		}
+	}
+
+	@onEvent({ window: true, type: OPEN_WIKI_SEARCH_EVENT })
+	onOpenSearchEvent(): void {
+		this.openDialog();
 	}
 
 	@onEvent({ selector: 'rui-dialog', type: 'rui-close' })

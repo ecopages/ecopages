@@ -231,6 +231,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 								params: options.params,
 								query: options.query,
 								locals: options.locals,
+								pageProps: options.props ?? {},
 							}),
 							htmlTemplate: options.HtmlTemplate,
 							metadata: options.metadata,

@@ -1,8 +1,21 @@
 {
-	"categories": ["concept", "recipe", "app"],
+	"categories": [
+		"concept",
+		"recipe",
+		"app"
+	],
 	"pages": {
-		"concept": ["Wiki structure", "Agent markdown access"],
-		"recipe": ["Maintain wiki"],
-		"app": ["LLM Wiki Site", "LLM Wiki Demo", "Another Entry"]
+		"concept": [
+			"Wiki structure",
+			"Agent markdown access"
+		],
+		"recipe": [
+			"Maintain wiki"
+		],
+		"app": [
+			"LLM Wiki Site",
+			"LLM Wiki Demo",
+			"Another Entry"
+		]
 	}
 }

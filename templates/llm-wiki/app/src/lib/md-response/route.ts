@@ -4,7 +4,7 @@ import { markdownResponse } from './respond';
 import type { GetMarkdown } from './try-response';
 
 export type MarkdownRouteOptions = {
-	/** Path pattern with a `:slug` param, e.g. `/api/wiki/:slug`. */
+	/** Path pattern with a slug param, e.g. `/api/wiki/[...slug]`. */
 	path: string;
 	getMarkdown: GetMarkdown;
 };
@@ -18,7 +18,7 @@ export type MarkdownRouteOptions = {
  *
  * @example
  * ```ts
- * app.add(createMarkdownRoute({ path: "/api/wiki/:slug", getMarkdown }))
+ * app.add(createMarkdownRoute({ path: "/api/wiki/[...slug]", getMarkdown }))
  * ```
  */
 export function createMarkdownRoute(options: MarkdownRouteOptions) {

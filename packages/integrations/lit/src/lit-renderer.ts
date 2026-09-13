@@ -304,7 +304,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 					params,
 					query,
 					locals,
-					pageProps: props || {},
 				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,

@@ -14,13 +14,13 @@ Self-contained Ecopages app that renders the parent [`../wiki`](../wiki) vault a
 
 ## Systems (`src/lib`)
 
-| System          | Role                                                                               |
-| --------------- | ---------------------------------------------------------------------------------- |
-| **obsidian**    | Build-plugin watch/rebuild and optional `pnpm sync:obsidian` mirror |
+| System          | Role                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| **obsidian**    | Build-plugin watch/rebuild and optional `pnpm sync:obsidian` mirror                                         |
 | **wiki**        | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md)) |
-| **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                            |
-| **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser              |
-| **cx**          | `cx(...classes)` — join class names, skip falsy values                             |
+| **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                        |
+| **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser                          |
+| **cx**          | `cx(...classes)` — join class names, skip falsy values                                                      |
 
 ## Commands
 
@@ -45,3 +45,9 @@ curl -s 'http://localhost:3333/api/search?q=demo'
 ```
 
 HTML pages advertise `<link rel="alternate" type="text/markdown">`. `/api/search`, `/api/wiki/...`, and Accept negotiation require `dev` or `start`; static `preview` serves the generated `.md` files and `search-index.json` only.
+
+## Layout data
+
+The wiki Page uses the existing `layout.props` factory to resolve DocsLayout data from route params. Its static props and layout factory share the same entry lookup. Core and integrations retain their existing explicit layout-props contract.
+
+Catalog generation preserves pages with duplicate titles. Wiki graph lint resolves inline and reference links while ignoring code examples and images. The Obsidian mirror uses explicit TypeScript import extensions so Node can run it directly.

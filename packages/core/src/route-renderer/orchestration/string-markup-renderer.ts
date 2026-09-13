@@ -48,7 +48,6 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 		pageProps,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			const resolvedPageProps = pageProps ?? props ?? {};
 			return await this.renderPageWithDocumentShell({
 				page: {
 					component: Page,
@@ -60,11 +59,10 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 					params,
 					query,
 					locals,
-					pageProps: props ?? {},
 				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,
-				pageProps: resolvedPageProps,
+				pageProps: pageProps ?? props ?? {},
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);

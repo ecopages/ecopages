@@ -8,7 +8,7 @@
  * Self-contained so Node can execute it with type stripping and no bundler.
  * Reads `OBSIDIAN_VAULT_PATH` from the environment or `.env`.
  */
-import { isEnoent } from '../wiki/is-enoent';
+import { isEnoent } from '../wiki/is-enoent.ts';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

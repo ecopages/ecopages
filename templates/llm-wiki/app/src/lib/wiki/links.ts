@@ -1,3 +1,5 @@
+import { fromMarkdown } from 'mdast-util-from-markdown';
+import { visit } from 'unist-util-visit';
 import { WIKI_ROOT } from '../../content/wiki';
 
 const WIKI_MARKDOWN_LINK_PATTERN = /\]\(((?:\.\/|\.\.\/)*[^)\s#]+?\.md(?:[?#][^)]*)?)\)/g;
@@ -59,15 +61,29 @@ export function resolveWikiLinkTarget(url: string, currentCategory?: string): st
 	return slug || null;
 }
 
-/** Href targets of markdown links that point at `.md` files. */
+/**
+ * Collects actual Markdown links, resolving reference definitions.
+ * @remarks Code examples, images, and unused definitions do not form graph edges.
+ */
 export function extractWikiMarkdownLinkHrefs(body: string): string[] {
-	const hrefs: string[] = [];
-	const pattern = new RegExp(WIKI_MARKDOWN_LINK_PATTERN.source, 'g');
-	for (const match of body.matchAll(pattern)) {
-		if (match[1]) {
-			hrefs.push(match[1]);
+	const tree = fromMarkdown(body);
+	const definitions = new Map<string, string>();
+	visit(tree, 'definition', (node) => {
+		if (!definitions.has(node.identifier)) {
+			definitions.set(node.identifier, node.url);
 		}
-	}
+	});
+	const hrefs: string[] = [];
+	visit(tree, (node) => {
+		if (node.type === 'link') {
+			hrefs.push(node.url);
+		} else if (node.type === 'linkReference') {
+			const url = definitions.get(node.identifier);
+			if (url !== undefined) {
+				hrefs.push(url);
+			}
+		}
+	});
 	return hrefs;
 }
 

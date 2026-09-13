@@ -24,18 +24,13 @@ function pageName(slug: string): string {
 }
 
 function orderByTitles(pages: CatalogPage[], explicitTitles: string[]): CatalogPage[] {
-	const remaining = new Map(pages.map((page) => [page.title, page]));
-	const ordered: CatalogPage[] = [];
-	for (const title of explicitTitles) {
-		const page = remaining.get(title);
-		if (!page) {
-			continue;
-		}
-		ordered.push(page);
-		remaining.delete(title);
-	}
-	ordered.push(...[...remaining.values()].sort((a, b) => a.title.localeCompare(b.title)));
-	return ordered;
+	const ranks = new Map(explicitTitles.map((title, index) => [title, index]));
+	return [...pages].sort(
+		(a, b) =>
+			(ranks.get(a.title) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.title) ?? Number.MAX_SAFE_INTEGER) ||
+			a.title.localeCompare(b.title) ||
+			a.slug.localeCompare(b.slug),
+	);
 }
 
 /**

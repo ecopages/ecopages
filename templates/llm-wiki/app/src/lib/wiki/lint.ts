@@ -2,21 +2,10 @@ import { access, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { isEnoent } from './is-enoent';
 import { extractWikiMarkdownLinkHrefs, resolveWikiLinkTarget } from './links';
-import {
-	loadVaultPages,
-	readSortspec,
-	SORTSPEC_FILENAME,
-	type CategoryMode,
-	type VaultPage,
-} from './vault';
+import { loadVaultPages, readSortspec, SORTSPEC_FILENAME, type CategoryMode, type VaultPage } from './vault';
 
 export type WikiLintCode =
-	| 'broken-link'
-	| 'missing-source'
-	| 'recipe-path'
-	| 'orphan'
-	| 'uncited-source'
-	| 'sortspec-ghost';
+	'broken-link' | 'missing-source' | 'recipe-path' | 'orphan' | 'uncited-source' | 'sortspec-ghost';
 
 export type WikiLintFinding = {
 	code: WikiLintCode;

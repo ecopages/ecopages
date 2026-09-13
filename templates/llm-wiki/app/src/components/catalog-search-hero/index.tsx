@@ -17,12 +17,7 @@ export const CatalogSearchHero = eco.component<CatalogSearchHeroProps, JsxRender
 	render: ({ placeholder = 'Search the wiki…', label = 'Search the wiki' }) => {
 		return (
 			<catalog-search-hero class="catalog-search-hero">
-				<button
-					type="button"
-					class="catalog-search-hero__button"
-					aria-haspopup="dialog"
-					aria-label={label}
-				>
+				<button type="button" class="catalog-search-hero__button" aria-haspopup="dialog" aria-label={label}>
 					<SearchIcon />
 					<span class="catalog-search-hero__placeholder">{placeholder}</span>
 					<kbd class="catalog-search-hero__shortcut">⌘K</kbd>

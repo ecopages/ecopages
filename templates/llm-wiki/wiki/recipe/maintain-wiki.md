@@ -3,11 +3,11 @@ title: Maintain wiki
 summary: add or update a page without breaking ingest, navigation, or provenance
 sources: []
 paths:
-  - app/src/lib/wiki/ingest.ts
-  - app/src/lib/wiki/links.ts
-  - app/src/lib/wiki/vault.ts
-  - app/src/lib/wiki/catalog.ts
-  - app/src/lib/wiki/lint.ts
+    - app/src/lib/wiki/ingest.ts
+    - app/src/lib/wiki/links.ts
+    - app/src/lib/wiki/vault.ts
+    - app/src/lib/wiki/catalog.ts
+    - app/src/lib/wiki/lint.ts
 updated: 2026-09-13
 ---
 

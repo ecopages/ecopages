@@ -73,15 +73,27 @@ export function invalidateWikiSearchCache(): void {
  * @remarks
  * `pnpm preview` serves static files only — `/api/search` is unavailable there.
  * The SearchBox loads this file and runs {@link createSearchIndex} in the browser.
+ * Pass every output directory in one call so the wiki is tokenized once.
  */
-export async function writeWikiSearchIndex(directory: string, options: WikiSearchOptions = {}): Promise<string> {
+export async function writeWikiSearchIndex(
+	directory: string | readonly string[],
+	options: WikiSearchOptions = {},
+): Promise<string[]> {
+	const directories = (Array.isArray(directory) ? directory : [directory]).filter(
+		(value): value is string => typeof value === 'string' && value.length > 0,
+	);
 	const contentRoot = resolveWikiContentRoot(options.contentRoot);
 	invalidateWikiSearchCache();
 	const documents = await getWikiDocuments(contentRoot);
-	await mkdir(directory, { recursive: true });
-	const filePath = path.join(directory, WIKI_SEARCH_INDEX_FILENAME);
-	await writeFile(filePath, `${JSON.stringify(documents)}\n`, 'utf8');
-	return filePath;
+	const payload = `${JSON.stringify(documents)}\n`;
+	return Promise.all(
+		directories.map(async (dir) => {
+			await mkdir(dir, { recursive: true });
+			const filePath = path.join(dir, WIKI_SEARCH_INDEX_FILENAME);
+			await writeFile(filePath, payload, 'utf8');
+			return filePath;
+		}),
+	);
 }
 
 export function searchWiki(query: string, options?: SearchOptions & WikiSearchOptions) {

@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { LayoutProps } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
+import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import {
 	RuiSidebar,
 	RuiSidebarContent,
@@ -21,8 +21,9 @@ import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
 import { wikiNav, type WikiNav } from '@/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
 import { SearchBox } from '@/lib/search/search-box';
+import { wikiMarkdownAlternatePath } from '@/lib/wiki/markdown';
+import { CopyForLlm } from '@/components/copy-for-llm';
 import { DocsPagination } from './components/docs-pagination';
-import { DocsBar, type BreadcrumbItem } from './docs-bar';
 
 type DocsLayoutPageProps = {
 	section?: string;
@@ -39,6 +40,11 @@ type DocsLayoutRenderProps = LayoutProps<JsxRenderable> & DocsLayoutPageProps;
 
 const DOCS_SIDEBAR_ID = 'wiki-sidebar';
 const ECO_NAVIGATION_EVENTS = 'eco:page-load,eco:after-swap';
+
+type BreadcrumbItem = {
+	label: string;
+	href?: string;
+};
 
 function breadcrumbForPage(
 	nav: WikiNav,
@@ -57,23 +63,52 @@ function breadcrumbForPage(
 		return [];
 	}
 
-	const firstSection = nav.sections[0];
-	const firstPage = firstSection?.items[0];
 	const firstSectionPage = contentSection.items[0];
 
 	return [
-		{ label: rootLabel, href: firstPage?.href ?? nav.rootDir },
+		{ label: rootLabel, href: nav.rootDir },
 		{ label: contentSection.title, href: firstSectionPage?.href },
 		{ label: page.title },
 	];
 }
 
+const DocsBreadcrumb = ({ crumbs }: { crumbs: BreadcrumbItem[] }) => (
+	<rui-breadcrumb class="docs-breadcrumb" label="Page location">
+		<ol class="rui-breadcrumb__list">
+			{crumbs.map((crumb, index) => {
+				const isLast = index === crumbs.length - 1;
+
+				return (
+					<>
+						{index > 0 ? (
+							<li class="rui-breadcrumb__separator" role="presentation" aria-hidden="true" />
+						) : null}
+						<li class="rui-breadcrumb__item">
+							{crumb.href && !isLast ? (
+								<a class="rui-breadcrumb__link" href={crumb.href}>
+									{crumb.label}
+								</a>
+							) : (
+								<span class="rui-breadcrumb__page" aria-current="page">
+									{crumb.label}
+								</span>
+							)}
+						</li>
+					</>
+				);
+			})}
+		</ol>
+	</rui-breadcrumb>
+);
+
 export const DocsLayout = eco.layout<JsxRenderable>({
 	dependencies: {
 		scripts: ['./docs-layout.script.ts'],
+		components: [CopyForLlm],
 	},
 	render: ({ children, section, slug, nav = wikiNav, rootLabel = 'Wiki', sources = [] }: DocsLayoutRenderProps) => {
 		const crumbs = breadcrumbForPage(nav, rootLabel, section, slug);
+		const llmUrl = slug ? wikiMarkdownAlternatePath(slug) : undefined;
 		const paginationData = JSON.stringify({
 			pages: nav.sections.flatMap((navSection) => navSection.items).map(({ href, title }) => ({ href, title })),
 		});
@@ -152,7 +187,12 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 				>
 					<RuiSidebarInset>
 						<div class="docs-layout__content">
-							<DocsBar crumbs={crumbs} />
+							{crumbs.length > 0 && llmUrl ? (
+								<div class="docs-bar">
+									<DocsBreadcrumb crumbs={crumbs} />
+									<CopyForLlm path={llmUrl} />
+								</div>
+							) : null}
 							<div class="prose">{children}</div>
 							{sources.length > 0 ? (
 								<div class="docs-layout__sources">
@@ -186,3 +226,9 @@ export const DocsLayout = eco.layout<JsxRenderable>({
 });
 
 export default DocsLayout;
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'rui-breadcrumb': JsxCustomElementAttributes<HTMLElement, { label?: string }>;
+	}
+}

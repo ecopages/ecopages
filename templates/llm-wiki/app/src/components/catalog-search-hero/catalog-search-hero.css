@@ -1,0 +1,29 @@
+.catalog-search-hero {
+	@apply mt-8 block max-w-xl;
+}
+
+.catalog-search-hero__button {
+	@apply flex w-full items-center gap-3 rounded-lg border border-border bg-background px-4 py-3.5 text-left text-base shadow-sm transition-colors duration-200;
+}
+
+@media (hover: hover) {
+	.catalog-search-hero__button:hover {
+		@apply border-border/80 bg-secondary-container/30;
+	}
+}
+
+.catalog-search-hero__button:focus-visible {
+	@apply outline-2 outline-offset-2 outline-primary;
+}
+
+.catalog-search-hero .search-icon {
+	@apply text-on-background/50 size-5 shrink-0;
+}
+
+.catalog-search-hero__placeholder {
+	@apply text-on-background/50 min-w-0 flex-1;
+}
+
+.catalog-search-hero__shortcut {
+	@apply text-on-background/50 rounded border border-border/60 px-1.5 py-px font-mono text-[0.7rem];
+}

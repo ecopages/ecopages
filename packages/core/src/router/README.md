@@ -56,7 +56,11 @@ Match priority:
 
 1. `exact` — the pathname must equal the route pathname exactly.
 2. `dynamic` — the clean (bracket-stripped) prefix must appear in the pathname, and the segment counts must match.
-3. `catch-all` — the clean prefix must appear in the pathname.
+3. `catch-all` — the prefix segments must match the pathname. When multiple
+   catch-all routes match, shared prefix segments are compared from left to right
+   so an earlier static segment wins over a dynamic one; when those patterns tie,
+   the route with the longer prefix wins, then pathname order provides a
+   deterministic tie-breaker.
 
 ## `client/`
 

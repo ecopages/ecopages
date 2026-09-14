@@ -115,57 +115,67 @@ export class RouteRegistry {
 		const query = this.getSearchParams(url);
 
 		for (const route of this.templateRouteList) {
-			if (route.kind !== 'exact') {
+			if (route.kind === 'exact') {
+				if (requestedPathname === route.pathname || requestedPathname === `${route.pathname}/`) {
+					return {
+						requestedPathname,
+						templateRoute: route,
+						params: {},
+						query,
+					};
+				}
 				continue;
 			}
 
-			if (requestedPathname === route.pathname || requestedPathname === `${route.pathname}/`) {
+			const params = this.tryExtractParams(route, requestedPathname);
+			if (params) {
 				return {
 					requestedPathname,
 					templateRoute: route,
-					params: {},
+					params,
 					query,
 				};
 			}
 		}
 
-		for (const route of this.templateRouteList) {
-			if (route.kind !== 'dynamic') {
-				continue;
-			}
-
-			const params = this.tryExtractParams(route, requestedPathname);
-			if (!params) {
-				continue;
-			}
-
-			return {
-				requestedPathname,
-				templateRoute: route,
-				params,
-				query,
-			};
-		}
-
-		for (const route of this.templateRouteList) {
-			if (route.kind !== 'catch-all') {
-				continue;
-			}
-
-			const params = this.tryExtractParams(route, requestedPathname);
-			if (!params) {
-				continue;
-			}
-
-			return {
-				requestedPathname,
-				templateRoute: route,
-				params,
-				query,
-			};
-		}
-
 		return null;
+	}
+
+	/**
+	 * Orders overlapping catch-all routes by the specificity of their prefix.
+	 *
+	 * @remarks
+	 * Prefix segments are compared from left to right because an earlier static
+	 * segment constrains a request more strongly than a later one. A longer
+	 * prefix wins only after the shared segment pattern ties. The pathname tie
+	 * breaker keeps equal patterns deterministic without depending on discovery
+	 * order.
+	 */
+	private compareCatchAllSpecificity(left: TemplateRoute, right: TemplateRoute): number {
+		const leftPrefix = this.getCatchAllPrefix(left.pathname);
+		const rightPrefix = this.getCatchAllPrefix(right.pathname);
+		const sharedLength = Math.min(leftPrefix.length, rightPrefix.length);
+
+		for (let index = 0; index < sharedLength; index += 1) {
+			const leftIsDynamic = this.isDynamicRouteSegment(leftPrefix[index]);
+			const rightIsDynamic = this.isDynamicRouteSegment(rightPrefix[index]);
+			if (leftIsDynamic !== rightIsDynamic) {
+				return leftIsDynamic ? 1 : -1;
+			}
+		}
+
+		const prefixLengthDifference = rightPrefix.length - leftPrefix.length;
+		return prefixLengthDifference !== 0 ? prefixLengthDifference : left.pathname.localeCompare(right.pathname);
+	}
+
+	private getCatchAllPrefix(pathname: string): string[] {
+		const segments = pathname.split('/').filter(Boolean);
+		const catchAllIndex = segments.findIndex((segment) => segment.startsWith('[...') && segment.endsWith(']'));
+		return catchAllIndex === -1 ? segments : segments.slice(0, catchAllIndex);
+	}
+
+	private isDynamicRouteSegment(segment: string): boolean {
+		return segment.startsWith('[') && segment.endsWith(']');
 	}
 
 	async listStaticPathExpansions(input: { runtimeOrigin: string }): Promise<readonly StaticPathExpansion[]> {
@@ -264,6 +274,10 @@ export class RouteRegistry {
 			const priorityDifference = ROUTE_PRIORITY[left.kind] - ROUTE_PRIORITY[right.kind];
 			if (priorityDifference !== 0) {
 				return priorityDifference;
+			}
+
+			if (left.kind === 'catch-all' && right.kind === 'catch-all') {
+				return this.compareCatchAllSpecificity(left, right);
 			}
 
 			if (left.pathname === '/') {

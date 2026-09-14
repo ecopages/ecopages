@@ -18,6 +18,105 @@ test('resolvePackageEsmEntryPath resolves installed react to index.js', () => {
 	assert.match(esmEntry!, /node_modules\/react\/index\.js$/);
 });
 
+test('resolvePackageEsmEntryPath resolves export-only packages from an app root outside the caller', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	try {
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+		fs.mkdirSync(path.join(rootDir, 'node_modules', 'import-only-runtime'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', 'import-only-runtime', 'package.json'),
+			JSON.stringify({
+				name: 'import-only-runtime',
+				exports: {
+					'.': {
+						types: './index.d.ts',
+						import: './index.js',
+					},
+				},
+			}),
+			'utf8',
+		);
+		fs.writeFileSync(path.join(rootDir, 'node_modules', 'import-only-runtime', 'index.js'), 'export const v = 1;');
+
+		assert.match(
+			resolvePackageEsmEntryPath('import-only-runtime', rootDir) ?? '',
+			/node_modules\/import-only-runtime\/index\.js$/,
+		);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolveBrowserRuntimeEntryImport selects the import condition from the app root', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	try {
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+		fs.mkdirSync(path.join(rootDir, 'node_modules', 'dual-runtime-distinct'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', 'dual-runtime-distinct', 'package.json'),
+			JSON.stringify({
+				name: 'dual-runtime-distinct',
+				exports: { '.': { import: './import-entry.js', require: './require-entry.cjs' } },
+			}),
+			'utf8',
+		);
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', 'dual-runtime-distinct', 'import-entry.js'),
+			"export const flavor = 'esm';",
+			'utf8',
+		);
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', 'dual-runtime-distinct', 'require-entry.cjs'),
+			"module.exports = 'cjs';",
+			'utf8',
+		);
+
+		const importSpecifier = resolveBrowserRuntimeEntryImport({
+			specifier: 'dual-runtime-distinct',
+			requireFromRoot: createRequire(path.join(rootDir, 'package.json')),
+			entryDir: path.join(rootDir, '.eco', 'entries'),
+			rootDir,
+		});
+
+		assert.match(importSpecifier, /node_modules\/dual-runtime-distinct\/import-entry\.js$/);
+		assert.doesNotMatch(importSpecifier, /require-entry\.cjs/);
+	} finally {
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
+test('resolvePackageEsmEntryPath stays rooted at the application when the caller has a same-named package', () => {
+	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
+	const packageName = 'app-root-runtime-wins';
+	const callerPackageDir = path.join(import.meta.dirname, 'node_modules', packageName);
+	try {
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+		fs.mkdirSync(path.join(rootDir, 'node_modules', packageName), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', packageName, 'package.json'),
+			JSON.stringify({ name: packageName, exports: { '.': { import: './app-entry.js' } } }),
+			'utf8',
+		);
+		fs.writeFileSync(path.join(rootDir, 'node_modules', packageName, 'app-entry.js'), '', 'utf8');
+
+		fs.mkdirSync(callerPackageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(callerPackageDir, 'package.json'),
+			JSON.stringify({ name: packageName, exports: { '.': { import: './caller-entry.js' } } }),
+			'utf8',
+		);
+		fs.writeFileSync(path.join(callerPackageDir, 'caller-entry.js'), '', 'utf8');
+
+		assert.match(
+			resolvePackageEsmEntryPath(packageName, rootDir) ?? '',
+			/node_modules\/app-root-runtime-wins\/app-entry\.js$/,
+		);
+	} finally {
+		fs.rmSync(callerPackageDir, { recursive: true, force: true });
+		fs.rmSync(rootDir, { recursive: true, force: true });
+	}
+});
+
 test('resolveBrowserRuntimeEntryImport prefers ESM entrypoints over require-resolved CJS files', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
 	fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');

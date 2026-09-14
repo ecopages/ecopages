@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest';
+import type { EcoComponent } from '@ecopages/core';
 import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
-import { assertContentEntryOwnerLane } from '../ownership.ts';
+import { assertContentEntryOwnerLane, invokeContentEntry } from '../ownership.ts';
+
+type TestContentEntryComponent = EcoComponent & ((props: Record<string, unknown>) => unknown);
 
 describe('assertContentEntryOwnerLane', () => {
 	test('throws when a react-owned entry is invoked in a foreign lane', async () => {
@@ -28,5 +31,58 @@ describe('assertContentEntryOwnerLane', () => {
 
 		expect(() => assertContentEntryOwnerLane('/app/src/content/docs/intro.mdx', 'react')).not.toThrow();
 		expect(() => assertContentEntryOwnerLane('/app/src/content/docs/intro.mdx', undefined)).not.toThrow();
+	});
+
+	test('uses the core interception contract for asynchronous foreign handoff', async () => {
+		const component = (() => 'content') as unknown as TestContentEntryComponent;
+		const page = () => 'inline';
+		const result = await runWithComponentRenderContext(
+			{
+				currentIntegration: 'ecopages-jsx',
+				foreignChildRuntime: {
+					interceptForeignChild: async () => ({ kind: 'resolved', value: 'foreign-html' }),
+				},
+			},
+			async () => invokeContentEntry('/app/content/entry.mdx', 'react', component, page, {}),
+		);
+
+		expect(result.value).toBe('foreign-html');
+	});
+
+	test('uses the sync interception fallback when no async method is provided', async () => {
+		const component = (() => 'content') as unknown as TestContentEntryComponent;
+		const page = () => 'inline';
+		const result = await runWithComponentRenderContext(
+			{
+				currentIntegration: 'ecopages-jsx',
+				foreignChildRuntime: {
+					interceptForeignChildSync: () => ({ kind: 'resolved', value: 'foreign-html' }),
+				},
+			},
+			async () => invokeContentEntry('/app/content/entry.mdx', 'react', component, page, {}),
+		);
+
+		expect(result.value).toBe('foreign-html');
+	});
+
+	test('defaults props when invoked without a props argument', async () => {
+		const component = (() => 'content') as unknown as TestContentEntryComponent;
+		const page = (props: Record<string, unknown>) => props;
+		const interceptedProps: Record<string, unknown>[] = [];
+		const result = await runWithComponentRenderContext(
+			{
+				currentIntegration: 'ecopages-jsx',
+				foreignChildRuntime: {
+					interceptForeignChild: async ({ props }) => {
+						interceptedProps.push(props);
+						return { kind: 'resolved', value: 'foreign-html' };
+					},
+				},
+			},
+			async () => invokeContentEntry('/app/content/entry.mdx', 'react', component, page),
+		);
+
+		expect(result.value).toBe('foreign-html');
+		expect(interceptedProps).toEqual([{}]);
 	});
 });

@@ -153,7 +153,7 @@ describe('codegen', () => {
 		expect(output).not.toContain('{ ...component.config');
 	});
 
-	test('server module guards owned MDX entries against foreign render lanes before invocation', () => {
+	test('server module hands owned MDX entries to their owning renderer through the foreign-child queue', () => {
 		const output = renderCollectionComponentsModule('docs', '/tmp/cache', [
 			{
 				entry: { title: 'Intro', description: 'Welcome', slug: 'intro', segments: ['intro'] },
@@ -161,8 +161,10 @@ describe('codegen', () => {
 			},
 		]);
 
-		expect(output).toContain("import { assertContentEntryOwnerLane } from '@ecopages/content-processor/ownership'");
-		expect(output).toContain('assertContentEntryOwnerLane(sourceFile, module.config?.identity?.integration)');
+		expect(output).toContain("import { invokeContentEntry } from '@ecopages/content-processor/ownership'");
+		expect(output).toContain(
+			'invokeContentEntry(\n\t\t\t\tsourceFile,\n\t\t\t\tmodule.config?.identity?.integration,\n\t\t\t\tcomponent,\n\t\t\t\tPage,\n\t\t\t\tprops,\n\t\t\t)',
+		);
 		expect(output).not.toContain('$$typeof');
 		expect(output).not.toContain('getComponentRenderContext');
 	});

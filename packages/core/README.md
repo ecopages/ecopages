@@ -77,6 +77,8 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `ConfigBuilder` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
+- `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
+- Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
 - `createApp()` stays the universal runtime entrypoint, while Vite and Nitro hosts own their advanced dev and build workflows.
 - One bundled adapter is the default bundler. Vite-based apps route through the `ViteHostBuildAdapter` boundary marker instead.
 

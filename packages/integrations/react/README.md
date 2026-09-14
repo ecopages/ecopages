@@ -75,6 +75,7 @@ Important:
 
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not infer every foreign subtree from rendered HTML alone.
+- Route-level dependency resolvers can supply Components at request time; React includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - React still keeps its own child transport and hydration rules for React-owned subtrees.
 
 ## Server and Client Graph Contract

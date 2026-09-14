@@ -82,14 +82,8 @@ export function resolveComposeChildren(options: {
 		context: DocumentShellComposeChildrenContext,
 	) => Promise<DocumentShellComposeChildrenResult>;
 }): ((context: DocumentShellComposeChildrenContext) => Promise<DocumentShellComposeChildrenResult>) | undefined {
-	const {
-		page,
-		shellLayouts,
-		foreignChildRoots,
-		reactIntegrationName,
-		hasForeignChildDescendants,
-		composeChildren,
-	} = options;
+	const { page, shellLayouts, foreignChildRoots, reactIntegrationName, hasForeignChildDescendants, composeChildren } =
+		options;
 
 	if (
 		!shouldUseUnifiedReactLayoutComposition({

@@ -237,6 +237,67 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
+	it('includes integration dependencies from route-resolved page roots', async () => {
+		const integrationDependency = {
+			kind: 'script',
+			srcUrl: '/assets/lit-runtime.js',
+			position: 'head',
+		} as ProcessedAsset;
+		const pageDependency = {
+			kind: 'stylesheet',
+			srcUrl: '/assets/entry.css',
+			position: 'head',
+		} as ProcessedAsset;
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService;
+		const appConfig = {
+			cache: { defaultStrategy: 'static' },
+			integrations: [
+				{
+					name: 'lit',
+					initializeRenderer: vi.fn(),
+					getResolvedIntegrationDependencies: () => [integrationDependency],
+				},
+			],
+		} as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		const resolvedContent = (() => '<article>Content</article>') as EcoComponent;
+		resolvedContent.config = {
+			identity: { id: 'content', file: '/app/content/intro.mdx', integration: 'lit' },
+		};
+
+		const result = await flow.prepareRenderOptions(
+			{
+				file: '/app/pages/docs/[...slug].tsx',
+				params: { slug: ['intro'] },
+				query: {},
+			} as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => HtmlTemplate,
+				resolvePageData: async () => ({
+					props: { entry: { slug: 'intro' } },
+					metadata: { title: 'Content', description: 'Content description' },
+				}),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
+				resolvePageDependencies: async () => ({
+					ownerFile: '/app/content/intro.mdx',
+					components: [resolvedContent],
+					contribution: { assets: [pageDependency] },
+				}),
+			}),
+		);
+
+		expect(result.resolvedPageDependencyComponents).toEqual([resolvedContent]);
+		expect(result.pagePackage).toEqual(
+			expect.objectContaining({ assets: expect.arrayContaining([integrationDependency, pageDependency]) }),
+		);
+	});
+
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
 		const processDependencies = vi.fn<AssetProcessingService['processDependencies']>().mockImplementation(
 			async (dependencies) =>

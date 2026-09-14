@@ -409,12 +409,15 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		pageProps: Record<string, unknown>;
 		documentProps?: Record<string, unknown>;
 		transformDocumentHtml?: (html: string) => string;
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	}): Promise<string> {
 		const shellLayouts = input.layouts ?? (input.layout ? [input.layout] : []);
 		const composeChildren = resolveComposeChildren({
 			page: input.page,
 			shellLayouts,
+			foreignChildRoots: input.foreignChildRoots,
 			reactIntegrationName: this.name,
+			hasForeignChildDescendants: (component, roots) => this.hasForeignChildDescendants(component, roots),
 			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
 		});
 
@@ -453,6 +456,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		HtmlTemplate,
 		pageProps,
 		pagePackage,
+		resolvedPageDependencyComponents,
 	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
 		try {
 			const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(pagePackage, {
@@ -482,6 +486,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				metadata,
 				pageProps: allPageProps,
 				documentProps: pageModuleUrl ? { pageModuleUrl } : undefined,
+				foreignChildRoots: resolvedPageDependencyComponents,
 			});
 		} catch (error) {
 			throw this.createRenderError('Failed to render component', error);
@@ -561,6 +566,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			page: { component: input.view, props: normalizedProps },
 			shellLayouts,
 			reactIntegrationName: this.name,
+			hasForeignChildDescendants: (component, roots) => this.hasForeignChildDescendants(component, roots),
 			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
 		});
 

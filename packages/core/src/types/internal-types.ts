@@ -5,7 +5,12 @@ import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
-import type { PageMetadataProps, SitemapConfig } from './public-types.ts';
+import type { ComponentRenderInput, EcoComponent, PageMetadataProps, SitemapConfig } from './public-types.ts';
+
+/** Internal render input carrying route-resolved dependency roots. */
+export type InternalComponentRenderInput = ComponentRenderInput & {
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+};
 import type { RouteRegistry } from '../router/server/route-registry.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';

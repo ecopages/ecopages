@@ -95,12 +95,12 @@ Important:
 
 - route-level fallback resolution is gone; unresolved artifacts are now a hard failure
 - ownership is declared from canonical component identity, not inferred from final HTML
-- declared page dependencies are resolved from final render inputs and carried to the owning integration; integrations may use them for renderer-specific lifecycle work such as HMR ownership
+- declared page dependencies are resolved from final render inputs and carried as dependency roots to the owning integration; those roots participate in asset, integration, ownership, and renderer-specific lifecycle collection
 - same-integration children stay renderer-local and do not need to pass through a universal transport
 
 ## Declared Foreign Child Contract
 
-Mixed-integration component configs must declare every possible foreign child in `config.dependencies.components`.
+Static mixed-integration component configs must declare every possible foreign child in `config.dependencies.components`. Page dependency resolvers can additionally provide request-time component roots when a route loads a component dynamically.
 
 `OwnershipValidationService` surfaces missing metadata or unknown integrations during `prepareRenderOptions()` and throws before render execution starts.
 

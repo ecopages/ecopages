@@ -1,10 +1,10 @@
 import type {
 	BaseIntegrationContext,
-	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
 	PageMetadataProps,
 } from '../../../types/public-types.ts';
+import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import {
 	HtmlTransformerService,
@@ -52,6 +52,8 @@ export type DocumentShellComposeChildrenHook = (
 export type DocumentShellComposeInput = {
 	primaryComponent: EcoComponent;
 	primaryProps: Record<string, unknown>;
+	/** Components whose ownership graphs must join the foreign-child decision. */
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	layout?: DocumentShellLayoutInput;
 	layouts?: DocumentShellLayoutInput[];
 	composeChildren?: DocumentShellComposeChildrenHook;
@@ -64,6 +66,8 @@ export type DocumentShellPageRenderInput = {
 		component: EcoComponent;
 		props: Record<string, unknown>;
 	};
+	/** Components whose ownership graphs must join the foreign-child decision. */
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	layout?: DocumentShellLayoutInput;
 	layouts?: DocumentShellLayoutInput[];
 	composeChildren?: DocumentShellComposeChildrenHook;
@@ -75,7 +79,7 @@ export type DocumentShellPageRenderInput = {
 };
 
 export type DocumentShellRenderDependencies = {
-	renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult>;
+	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
 	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
 };
 
@@ -168,6 +172,7 @@ export async function composeDocumentShell(
 		primaryRender = await dependencies.renderComponentWithForeignChildren({
 			component: input.primaryComponent,
 			props: input.primaryProps,
+			foreignChildRoots: input.foreignChildRoots,
 			integrationContext: { rendererCache },
 		});
 		const composed = await composeChildren({
@@ -235,6 +240,7 @@ export async function renderPageDocumentShell(
 	const { documentHtml: composedDocumentHtml } = await composeDocumentShell(dependencies, {
 		primaryComponent: input.page.component,
 		primaryProps: input.page.props,
+		foreignChildRoots: input.foreignChildRoots,
 		layout: input.layout,
 		layouts: input.layouts,
 		composeChildren: input.composeChildren,

@@ -103,4 +103,5 @@ Important:
 - Cross-integration shell stacks should use `EcoEmbed` from `@ecopages/ecopages-jsx/eco-embed` (or the matching integration adapter). Plain opaque objects fail fast at core foreign-subtree queue boundaries; they are not coerced with `String(object)`. Pass already-serialized HTML when `EcoEmbed` is not needed.
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not treat rendered HTML alone as the source of truth.
+- Route-level dependency resolvers can supply Components at request time; Ecopages JSX includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - Ecopages JSX keeps raw-markup preservation and asset collection inside the JSX renderer.

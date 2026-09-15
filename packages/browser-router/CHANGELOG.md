@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-rc.7
+
+### Patch Changes
+
+- Updated dependencies [[`2fa58cb`](https://github.com/ecopages/ecopages/commit/2fa58cb2e12115aa26e2a4bf3d8ea9132f029657), [`f167916`](https://github.com/ecopages/ecopages/commit/f167916f5159e4ecf421db3d8b199089d6bf6171)]:
+    - @ecopages/core@0.2.0-rc.7
+
 ## 0.2.0-rc.6
 
 ### Patch Changes

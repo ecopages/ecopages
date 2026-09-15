@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0-rc.7
+
+No changes in this release.
+
 ## 0.2.0-rc.6
 
 No changes in this release.

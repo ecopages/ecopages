@@ -30,6 +30,8 @@ so shared layout styles do not need to be rebuilt for every navigated page while
 
 Browser runtime module assets resolve bare package roots through their ESM import target. For legacy packages without an `exports` map, they prefer `package.json#module` over CJS `main`; CJS resolution is only a compatibility fallback. Generated entries use `export *` for ESM files and explicit named re-exports for CJS files (so bindings such as React `jsx` exist on the vendor). A default binding is added only when the selected entry exposes one. Runtime vendors are package-root contracts: subpath imports need their own vendor declaration or remain in the consuming bundle.
 
+Package entry lookup is rooted at the application directory, so a framework-local dependency with the same name cannot shadow the application's installed package. ESM export conditions are evaluated in the same order as the generated vendor import (`node`, `import`, then `default`).
+
 ## Design Rule
 
 If a concern affects more than one integration or more than one runtime adapter, it usually belongs here instead of in a package-specific implementation.

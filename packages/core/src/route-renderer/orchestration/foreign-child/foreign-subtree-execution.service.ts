@@ -6,6 +6,7 @@ import type {
 	EcoComponent,
 	ForeignSubtreeRenderPayload,
 } from '../../../types/public-types.ts';
+import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import {
 	getComponentRenderContext,
 	runWithComponentRenderContext,
@@ -57,10 +58,13 @@ export interface ForeignSubtreeExecutionDecisionInput {
 
 export interface ForeignSubtreeExecutionRenderOptions {
 	currentIntegrationName: string;
-	input: ComponentRenderInput;
+	input: InternalComponentRenderInput;
 	renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult>;
 	normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult;
-	hasForeignChildDescendants(component: EcoComponent): boolean;
+	hasForeignChildDescendants(
+		component: EcoComponent,
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+	): boolean;
 	createForeignChildRuntime(options: {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>;
@@ -471,7 +475,7 @@ export class ForeignSubtreeExecutionService {
 		}
 
 		const hasForeignChildren =
-			options.hasForeignChildDescendants(options.input.component) ||
+			options.hasForeignChildDescendants(options.input.component, options.input.foreignChildRoots) ||
 			this.requiresForeignChildRuntime(options.input);
 		const activeRenderContext = getComponentRenderContext();
 

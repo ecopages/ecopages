@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../types/internal-types.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -542,6 +542,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		pageProps: Record<string, unknown>;
 		documentProps?: Record<string, unknown>;
 		transformDocumentHtml?: (html: string) => string;
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	}): Promise<string> {
 		return renderPageDocumentShell(
 			{
@@ -971,13 +972,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * render them with no active foreign-child runtime, which bypasses the owning
 	 * renderer's nested foreign-child handoff.
 	 */
-	async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+	async renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult> {
 		return await this.foreignSubtreeExecutionService.executeComponentRender({
 			currentIntegrationName: this.name,
 			input,
 			renderComponent: (renderInput) => this.renderComponent(renderInput),
 			normalizeComponentRenderOutput: (result) => this.normalizeComponentRenderOutput(result),
-			hasForeignChildDescendants: (component) => this.hasForeignChildDescendants(component),
+			hasForeignChildDescendants: (component, foreignChildRoots) =>
+				this.hasForeignChildDescendants(component, foreignChildRoots),
 			createForeignChildRuntime: ({ renderInput, rendererCache }) =>
 				this.createForeignChildRuntime({
 					renderInput,
@@ -1024,8 +1026,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * This keeps foreign-child runtime setup narrow: same-integration trees can render
 	 * directly without paying the queue orchestration cost.
 	 */
-	protected hasForeignChildDescendants(component: EcoComponent): boolean {
-		return hasForeignChildDescendantsInGraph(component, this.name);
+	protected hasForeignChildDescendants(
+		component: EcoComponent,
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+	): boolean {
+		return hasForeignChildDescendantsInGraph(component, this.name, foreignChildRoots);
 	}
 
 	/**

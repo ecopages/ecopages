@@ -62,6 +62,13 @@ test('hasForeignChildDescendantsInGraph detects foreign integration descendants'
 	assert.equal(hasForeignChildDescendantsInGraph(foreignChild, 'react'), true);
 });
 
+test('hasForeignChildDescendantsInGraph includes resolved page dependency roots', () => {
+	const page = createComponent({ integration: 'react' });
+	const resolvedContent = createComponent({ integration: 'lit' });
+
+	assert.equal(hasForeignChildDescendantsInGraph(page, 'react', [resolvedContent]), true);
+});
+
 test('mapComponentGraph preserves declared ownership mapping semantics', () => {
 	const root = createComponent({
 		integration: 'react',

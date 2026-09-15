@@ -230,13 +230,14 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
+		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
 
 		const allDependencies = [
 			...resolvedDependencies,
-			...collectUsedIntegrationDependenciesFromGraph(this.appConfig, componentsToResolve, adapter.name),
+			...collectUsedIntegrationDependenciesFromGraph(this.appConfig, dependencyRoots, adapter.name),
 		];
 
-		const triggers = collectResolvedLazyTriggersFromGraph(componentsToResolve, adapter.name);
+		const triggers = collectResolvedLazyTriggersFromGraph(dependencyRoots, adapter.name);
 		const globalAssets =
 			triggers.length > 0
 				? await buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)

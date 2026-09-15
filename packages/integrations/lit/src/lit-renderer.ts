@@ -29,7 +29,7 @@ import {
 	resolveOwningIntegrationRenderer,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
 import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { LitSsrLazyPreloader } from './lit-ssr-lazy-preloader.ts';
+import { LitSsrLazyPreloader, type LitSsrPreloadComponent } from './lit-ssr-lazy-preloader.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
@@ -247,14 +247,14 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * File-backed entries are required (`src` must be present);
 	 * inline content lazy entries are intentionally skipped.
 	 */
-	protected collectSsrPreloadScripts(components: Array<EcoComponent | undefined>): string[] {
+	protected collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
 		return this.ssrLazyPreloader.collectSsrPreloadScripts(components);
 	}
 
 	/**
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
-	protected async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+	protected async preloadSsrLazyScripts(components: Array<LitSsrPreloadComponent | undefined>): Promise<void> {
 		const renderSession = this.getRenderSession?.();
 		if (renderSession) {
 			await renderSession.preloadSsrLazyScripts(components);
@@ -284,9 +284,10 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		Layout,
 		layoutEntries,
 		HtmlTemplate,
+		resolvedPageDependencyComponents,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			await this.preloadSsrLazyScripts([Page, Layout]);
+			await this.preloadSsrLazyScripts([Page, Layout, ...(resolvedPageDependencyComponents ?? [])]);
 
 			return await this.renderPageWithDocumentShell({
 				page: {
@@ -308,6 +309,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: props || {},
+				foreignChildRoots: resolvedPageDependencyComponents,
 				transformDocumentHtml: normalizeLitHtml,
 			});
 		} catch (error) {

@@ -40,4 +40,5 @@ Important:
 
 - Components that may render foreign children must declare those children in `config.dependencies.components`.
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation instead of inferring every foreign child from rendered HTML.
+- Route-level dependency resolvers can supply Components at request time; Kita includes those resolved roots through the shared string renderer when deciding whether a Foreign Subtree needs handoff.
 - Kita remains an HTML-first outer shell. Same-integration Kita children do not go through a separate universal child serialization contract.

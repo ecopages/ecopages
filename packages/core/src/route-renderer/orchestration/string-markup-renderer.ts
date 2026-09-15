@@ -46,6 +46,7 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 		layoutEntries,
 		HtmlTemplate,
 		pageProps,
+		resolvedPageDependencyComponents,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
 			return await this.renderPageWithDocumentShell({
@@ -63,6 +64,7 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 				htmlTemplate: HtmlTemplate,
 				metadata,
 				pageProps: pageProps ?? props ?? {},
+				foreignChildRoots: resolvedPageDependencyComponents,
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);

@@ -557,6 +557,54 @@ describe('LitRenderer', () => {
 			expect(text).toContain('<div>Hello World</div>');
 		});
 
+		it('passes route-resolved dependency roots into the document shell', async () => {
+			const testRenderer = createRenderer();
+			const resolvedContent = (() => '<article>Resolved content</article>') as unknown as EcoComponent;
+			const resolvedDependencyMetadata: Partial<EcoComponent> = {
+				config: {
+					identity: {
+						id: 'resolved-dependency-metadata',
+						file: '/project/src/content/entry.mdx',
+						integration: 'lit',
+					},
+					dependencies: {
+						scripts: [{ src: './entry.ts', lazy: { 'on:idle': true }, ssr: true }],
+					},
+				},
+			};
+			const renderPageShell = vi
+				.spyOn(
+					testRenderer as unknown as {
+						renderPageWithDocumentShell(input: unknown): Promise<string>;
+					},
+					'renderPageWithDocumentShell',
+				)
+				.mockResolvedValue('<html><body></body></html>');
+
+			await testRenderer.render({
+				params: {},
+				query: {},
+				props: {},
+				file: 'file',
+				resolvedDependencies: [],
+				resolvedPageDependencyComponents: [resolvedContent, resolvedDependencyMetadata],
+				metadata: {
+					title: 'Hello World',
+					description: 'Hello World',
+				},
+				Page: async () => '<div>Hello World</div>',
+				HtmlTemplate,
+			});
+
+			expect(renderPageShell).toHaveBeenCalledWith(
+				expect.objectContaining({
+					foreignChildRoots: [resolvedContent, resolvedDependencyMetadata],
+				}),
+			);
+			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedContent);
+			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedDependencyMetadata);
+		});
+
 		it('should render the page with layout', async () => {
 			const Layout: EcoComponent<{ children: string }> = ({ children }) =>
 				`<main class="layout">${children}</main>`;

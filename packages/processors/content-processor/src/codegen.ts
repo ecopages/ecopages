@@ -58,8 +58,8 @@ export function getEntryBySegments(segments: string[]) {
 
 type AttachMdxExportsHelperOptions = {
 	/**
-	 * Emits a server-only ownership guard that calls `assertContentEntryOwnerLane`
-	 * before invoking the entry component.
+	 * Emits a server-only ownership adapter that hands foreign entries to the
+	 * active renderer and fails clearly when no handoff is available.
 	 *
 	 * @remarks
 	 * Browser bundles omit this path because the helper reads the Node render-context
@@ -77,30 +77,34 @@ type AttachMdxExportsHelperOptions = {
  * route renderer. It does not re-bind or snapshot `config`.
  */
 function renderAttachMdxExportsHelper(options?: AttachMdxExportsHelperOptions): string {
-	const ownershipGuard = options?.ownershipCheck
+	const ownershipImport = options?.ownershipCheck
 		? `
-import { assertContentEntryOwnerLane } from '@ecopages/content-processor/ownership';
+import { invokeContentEntry } from '@ecopages/content-processor/ownership';
 `
 		: '';
 
 	const guardBody = options?.ownershipCheck
 		? `
 	const component = Object.assign(
-		(props: Record<string, unknown>) => {
-			assertContentEntryOwnerLane(sourceFile, module.config?.identity?.integration);
-			return Page(props);
-		},
+		(props: Record<string, unknown> = {}) =>
+			invokeContentEntry(
+				sourceFile,
+				module.config?.identity?.integration,
+				component,
+				Page,
+				props,
+			),
 		Page,
 	) as EcoComponent<Record<string, unknown>>;
 `
 		: `
 	const component = Object.assign(
-		(props: Record<string, unknown>) => Page(props),
+		(props: Record<string, unknown> = {}) => Page(props),
 		Page,
 	) as EcoComponent<Record<string, unknown>>;
 `;
 
-	return `${ownershipGuard}type ContentMdxModule = {
+	return `${ownershipImport}type ContentMdxModule = {
 	default: EcoComponent<Record<string, unknown>>;
 	config?: EcoComponent<Record<string, unknown>>['config'];
 	getMetadata?: EcoComponent<Record<string, unknown>>['metadata'];

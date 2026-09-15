@@ -71,13 +71,19 @@ export function shouldUseUnifiedReactLayoutComposition(options: {
 export function resolveComposeChildren(options: {
 	page: { component: EcoComponent; props: Record<string, unknown> };
 	shellLayouts: DocumentShellLayoutInput[];
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	reactIntegrationName: string;
+	hasForeignChildDescendants: (
+		component: EcoComponent,
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+	) => boolean;
 	composeChildren: (
 		page: { component: EcoComponent; props: Record<string, unknown> },
 		context: DocumentShellComposeChildrenContext,
 	) => Promise<DocumentShellComposeChildrenResult>;
 }): ((context: DocumentShellComposeChildrenContext) => Promise<DocumentShellComposeChildrenResult>) | undefined {
-	const { page, shellLayouts, reactIntegrationName, composeChildren } = options;
+	const { page, shellLayouts, foreignChildRoots, reactIntegrationName, hasForeignChildDescendants, composeChildren } =
+		options;
 
 	if (
 		!shouldUseUnifiedReactLayoutComposition({
@@ -85,6 +91,13 @@ export function resolveComposeChildren(options: {
 			shellLayouts,
 			reactIntegrationName,
 		})
+	) {
+		return undefined;
+	}
+
+	if (
+		hasForeignChildDescendants(page.component, foreignChildRoots) ||
+		shellLayouts.some((layout) => hasForeignChildDescendants(layout.component))
 	) {
 		return undefined;
 	}

@@ -48,11 +48,15 @@ export function collectResolvedLazyTriggersFromGraph(
 	return triggers;
 }
 
-export function hasForeignChildDescendantsInGraph(component: EcoComponent, currentIntegrationName: string): boolean {
+export function hasForeignChildDescendantsInGraph(
+	component: EcoComponent,
+	currentIntegrationName: string,
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+): boolean {
 	let foundForeign = false;
 
 	walkComponentGraph({
-		roots: [{ component }],
+		roots: toGraphRoots([component, ...(foreignChildRoots ?? [])]),
 		currentIntegrationName,
 		onComponent: ({ component: currentComponent }) => {
 			if (foundForeign) {

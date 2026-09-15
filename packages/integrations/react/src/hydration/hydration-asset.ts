@@ -18,7 +18,7 @@ import {
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { createHydrationScript, createIslandHydrationScript } from './hydration-scripts.ts';
+import { IslandHydrationScriptCompiler, PageHydrationScriptCompiler } from './hydration-script-compiler.ts';
 import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
 import { hasPagePreloadExport } from '../client-graph/reachability-analyzer.ts';
@@ -50,6 +50,18 @@ type PageDependencyOptions = {
 	hasPagePreload?: boolean;
 };
 
+/**
+ * Derives the stable component key used by asset grouping and host selectors.
+ *
+ * @remarks
+ * The key identifies the component entry. Individual SSR instances receive a
+ * separate component ID, so repeated uses share browser assets without sharing
+ * a React root.
+ *
+ * @param componentFile - Absolute source path of the React component.
+ * @param config - Optional component identity used to distinguish entries.
+ * @returns Stable key used in selectors and asset names.
+ */
 export function getIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
 	return rapidhash(`${componentFile}:${config?.identity?.id ?? ''}`).toString();
 }
@@ -59,6 +71,8 @@ export function getIslandComponentKey(componentFile: string, config?: EcoCompone
  */
 export class HydrationAssetService {
 	private readonly config: HydrationAssetServiceConfig;
+	private readonly islandScriptCompiler = new IslandHydrationScriptCompiler();
+	private readonly pageScriptCompiler = new PageHydrationScriptCompiler();
 	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = 'ecopages-react-router-pages';
 
 	constructor(config: HydrationAssetServiceConfig) {
@@ -104,8 +118,13 @@ export class HydrationAssetService {
 
 	/**
 	 * Creates the page-owned route entry asset for hydration and client navigation.
+	 *
+	 * @remarks
+	 * The entry is compiled asynchronously from the editable browser lifecycle.
+	 * Production router pages may be grouped into the Page Browser Graph, while
+	 * HMR entries remain separate ESM scripts with browser-resolvable imports.
 	 */
-	createPageDependencies(options: PageDependencyOptions): AssetDefinition[] {
+	async createPageDependencies(options: PageDependencyOptions): Promise<AssetDefinition[]> {
 		const {
 			pagePath,
 			componentName,
@@ -118,11 +137,6 @@ export class HydrationAssetService {
 			hasPagePreload,
 		} = options;
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		/**
-		 * @remarks
-		 * Production router pages share a grouped bundle. Development HMR keeps each
-		 * page bootstrap independent and unbundled; shared helpers resolve via vendor URLs.
-		 */
 		const groupedBundle =
 			!hmrEnabled && this.config.routerAdapter
 				? {
@@ -135,23 +149,26 @@ export class HydrationAssetService {
 			runtimeImports,
 			routerAdapterImportPath: this.config.routerAdapter?.bundle.importPath,
 		});
+		const pageHydrationScript = await this.pageScriptCompiler.compile({
+			importPath: hmrEnabled ? importPath : pagePath,
+			pageModuleUrlExpression,
+			scriptId: componentName,
+			reactImportPath: bootstrapImports.reactImportPath,
+			reactDomClientImportPath: bootstrapImports.reactDomClientImportPath,
+			routerImportPath: bootstrapImports.routerImportPath,
+			layoutComposeImportPath: bootstrapImports.layoutComposeImportPath,
+			pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
+			routerComponents: this.config.routerAdapter?.components,
+			routerPropsExpression: this.config.routerAdapter?.getRouterProps('Page', 'props'),
+			hmrEnabled,
+			isMdx,
+			hasPagePreload: hasPagePreload === true,
+			minify: !hmrEnabled && isReactProductionRuntime(),
+		});
 		return [
 			AssetFactory.createContentScript({
 				position: 'head',
-				content: createHydrationScript({
-					importPath: hmrEnabled ? importPath : pagePath,
-					pageModuleUrlExpression,
-					reactImportPath: bootstrapImports.reactImportPath,
-					reactDomClientImportPath: bootstrapImports.reactDomClientImportPath,
-					routerImportPath: bootstrapImports.routerImportPath,
-					layoutComposeImportPath: bootstrapImports.layoutComposeImportPath,
-					pageLayoutNormalizationImportPath: bootstrapImports.pageLayoutNormalizationImportPath,
-					hmrEnabled,
-					isMdx,
-					hasPagePreload,
-					router: this.config.routerAdapter,
-					scriptId: componentName,
-				}),
+				content: pageHydrationScript,
 				name: componentName,
 				packageRole: 'page-script',
 				/**
@@ -195,7 +212,7 @@ export class HydrationAssetService {
 		}
 		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const islandHydrationScript = createIslandHydrationScript({
+		const islandHydrationOptions = {
 			importPath,
 			scriptId: hydrationName,
 			reactImportPath: runtimeImports.react,
@@ -205,7 +222,8 @@ export class HydrationAssetService {
 			componentFile,
 			minify: !hmrEnabled,
 			hmrEnabled,
-		});
+		};
+		const islandHydrationScript = await this.islandScriptCompiler.compile(islandHydrationOptions);
 
 		const hydrationScript = AssetFactory.createContentScript({
 			position: 'head',
@@ -299,7 +317,7 @@ export class HydrationAssetService {
 			declaredModules,
 			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
 		);
-		const dependencies = this.createPageDependencies({
+		const dependencies = await this.createPageDependencies({
 			pagePath,
 			componentName,
 			importPath,

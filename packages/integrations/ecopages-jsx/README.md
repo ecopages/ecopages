@@ -53,6 +53,12 @@ Radiant support is enabled by default. When `radiant: true`, the plugin keeps th
 
 That means server-rendered `RadiantElement` hosts hydrate in place only when both the SSR markers and the explicit client hydrator are present. Without the client hydrator, Radiant intentionally falls back to a fresh client render on first connect.
 
+### Hydration Semantics: RadiantElement vs. RadiantController
+
+- **`RadiantElement` (DOM Preservation)**: Custom elements extending `RadiantElement` support true in-place hydration. When `@ecopages/radiant/client/install-hydrator` executes before elements connect, existing light-DOM SSR nodes are preserved, retaining DOM node identity, form input state, active focus, and media playback.
+- **`RadiantController` (Activation / Template Re-mount)**: Controllers attached via `[data-controller]` activate when `startControllers(document)` is called. Activation executes the controller's `render()` method and mounts its template fresh into the host container, replacing server-rendered child nodes. Reactive properties and signal bindings remain fully interactive, but individual child DOM nodes are reconstructed.
+- **Guidance**: Use `RadiantElement` when in-place preservation of SSR nodes (e.g., focused inputs, media elements, or CSS transitions) is required. Use `RadiantController` for Stimulus-style progressive enhancement on arbitrary markup where child DOM reconstruction is acceptable.
+
 ```ts
 ecopagesJsxPlugin({
 	radiant: true,

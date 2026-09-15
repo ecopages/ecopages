@@ -259,7 +259,7 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.canAttachAttributes).toBe(true);
-			expect(result.html).toBe('<h3>Island</h3>');
+			expect(result.html).toBe('<eco-island style="display:contents"><h3>Island</h3></eco-island>');
 			expect(result.html).not.toContain('<div');
 			expect(result.rootAttributes?.['data-eco-island']).toBe('');
 			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('react');
@@ -469,9 +469,9 @@ describe('ReactRenderer', () => {
 			);
 
 			expect(result).toEqual<ForeignSubtreeRenderPayload>({
-				html: '<h3>Island</h3>',
+				html: '<eco-island style="display:contents"><h3>Island</h3></eco-island>',
 				assets: [],
-				rootTag: 'h3',
+				rootTag: 'eco-island',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
 					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),

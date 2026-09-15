@@ -31,7 +31,7 @@ For component-level islands, Ecopages React uses this contract:
 
 - SSR output preserves the authored DOM structure (no unnecessary wrapper elements).
 - A stable island host contract is stamped on the component SSR root via core (`data-eco-island`, `data-eco-island-integration`, `data-eco-component-id`, optional `data-eco-component-key` / `data-eco-props`).
-- The island runtime replaces the SSR host with a dedicated client-owned container and mounts it with `createRoot()`. Full-page hydration paths use `hydrateRoot()`.
+- The island runtime keeps the SSR host and its children in place and hydrates that host with `hydrateRoot()`. The host uses `display: contents` so it does not introduce an extra layout box. Full-page hydration paths also use `hydrateRoot()`.
 
 > [!TIP]
 > **Full React SPA Routing:**
@@ -204,7 +204,7 @@ Hydration must rebuild the same tree the server rendered.
 
 That applies to both:
 
-- non-router hydration scripts in [src/hydration/hydration-scripts.ts](src/hydration/hydration-scripts.ts)
+- page hydration lifecycle in [src/hydration/browser/page-hydration.ts](src/hydration/browser/page-hydration.ts)
 - router-backed hydration in [../../react-router/src/router.ts](../../react-router/src/router.ts)
 
 If the page render receives `locals` on the server and the layout also depends on those values, the client must pass the same serialized `locals` into the layout during hydration. Otherwise React will detect a mismatch.
@@ -215,7 +215,7 @@ The main regression coverage lives in:
 
 - [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
 - [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
-- [src/hydration/hydration-scripts.test.ts](src/hydration/hydration-scripts.test.ts): verifies non-router hydration passes serialized `locals` into layouts.
+- [src/hydration/hydration-script-compiler.test.ts](src/hydration/hydration-script-compiler.test.ts): verifies editable browser sources compile to readable and minified entries.
 - [../../react-router/test/hmr-reload.test.browser.ts](../../react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 
 If you change the AST transform or hydration flow, update the corresponding tests in the same change.
@@ -244,7 +244,23 @@ The fix is **shared browser runtime vendors**: selected npm packages are built o
 
 In `ecopages dev`, page modules are served from `/assets/__eco_dev__/` and should import `/assets/vendors/*` for shared packages instead of inlining `node_modules`. Kitchen-sink routes `/vendor-share/a` and `/vendor-share/b` (with `runtimeModules: ['zod']`) are the reference fixture; see `playground/kitchen-sink/e2e/shared-vendors.test.e2e.ts`.
 
-The Ecopages dev toolbar **Islands** app inspects `data-eco-island`, `data-eco-component-id`, `data-eco-props`, and `window.__ECO_PAGES__.islandRoots` during development.
+The Ecopages dev toolbar **Islands** app inspects `data-eco-island`, `data-eco-component-id`, `data-eco-props`, and `window.__ECO_PAGES__.islandRoots` during development. React component islands are emitted as `<eco-island style="display:contents">` hosts during SSR and hydrated in place; the client adds `data-eco-hydrated` after the initial commit. `display: contents` keeps the host from introducing a layout box while preserving it as the hydration and diagnostics boundary.
+
+The browser lifecycle is maintained as typed code in `src/hydration/browser/`.
+Production island bootstraps are generated from that source by the server-side
+Rolldown compiler in `src/hydration/hydration-script-compiler.ts`, which keeps
+React, ReactDOM, and the component entry as external browser imports. This keeps
+the generated script compact without requiring a second handwritten minified
+implementation.
+
+Page HMR registers before initial preload, but publishes a replacement component
+only after its preload succeeds. Each handler belongs to the page generation in
+which it was registered. Navigation cleanup invalidates both pending updates and
+later calls to retained handlers, preventing updates to a replacement page root.
+
+Hydration preserves the SSR DOM when the server and client trees match. A
+component that renders different markup in the browser can still produce a
+normal React hydration mismatch or layout shift.
 
 Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
 

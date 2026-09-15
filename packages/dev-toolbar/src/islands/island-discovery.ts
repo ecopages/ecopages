@@ -30,31 +30,6 @@ function islandPriority(element: HTMLElement): number {
 	return 10;
 }
 
-function getDedupeKey(element: HTMLElement, doc: Document): string {
-	const componentKey = element.getAttribute('data-eco-component-key');
-	if (componentKey) {
-		return `key:${componentKey}`;
-	}
-
-	const componentId = element.getAttribute('data-eco-component-id');
-	if (componentId) {
-		return `id:${componentId}`;
-	}
-
-	if (element.id) {
-		return `dom-id:${element.id}`;
-	}
-
-	const tag = element.tagName.toLowerCase();
-	if (tag.includes('-')) {
-		const index = [...(element.parentElement?.children ?? [])].indexOf(element);
-		return `custom:${tag}:${index}`;
-	}
-
-	const index = [...doc.querySelectorAll<HTMLElement>(tag)].indexOf(element);
-	return `tag:${tag}:${index}`;
-}
-
 function addCandidate(candidates: Set<HTMLElement>, element: HTMLElement): void {
 	if (!isToolbarElement(element)) {
 		candidates.add(element);
@@ -63,47 +38,56 @@ function addCandidate(candidates: Set<HTMLElement>, element: HTMLElement): void 
 
 /**
  * Collects unique island host elements from the live document.
+ *
+ * @remarks
+ * Discovery merges framework markers, custom-element hosts, and the React
+ * registry because navigation can temporarily leave only one of those signals
+ * in the document. Repeated instances sharing a component ID are deduplicated
+ * in favor of dedicated island containers, while standalone hosts retain their
+ * element identity. Results are ordered by document position for stable toolbar
+ * presentation.
+ *
+ * @param doc - Document to inspect.
+ * @returns Unique connected island host elements in document order.
  */
 export function discoverIslandElements(doc: Document): HTMLElement[] {
 	const candidates = new Set<HTMLElement>();
 
-	for (const element of doc.querySelectorAll<HTMLElement>('[data-eco-island]')) {
-		addCandidate(candidates, element);
-	}
-
-	for (const element of doc.querySelectorAll<HTMLElement>('[data-eco-component-key]')) {
-		addCandidate(candidates, element);
-	}
-
-	for (const element of doc.querySelectorAll<HTMLElement>('eco-island')) {
+	for (const element of doc.querySelectorAll<HTMLElement>(
+		'[data-eco-island], [data-eco-component-key], eco-island',
+	)) {
 		addCandidate(candidates, element);
 	}
 
 	const islandRoots = (window as EcoPagesIslandRuntime).__ECO_PAGES__?.islandRoots ?? {};
-	for (const componentKey of Object.keys(islandRoots)) {
-		const escapedKey = CSS.escape(componentKey);
-		for (const element of doc.querySelectorAll<HTMLElement>(`[data-eco-component-key="${escapedKey}"]`)) {
-			addCandidate(candidates, element);
-		}
-		for (const element of doc.querySelectorAll<HTMLElement>(`eco-island[data-eco-component-key="${escapedKey}"]`)) {
+	for (const componentId of Object.keys(islandRoots)) {
+		const escapedId = CSS.escape(componentId);
+		for (const element of doc.querySelectorAll<HTMLElement>(`[data-eco-component-id="${escapedId}"]`)) {
 			addCandidate(candidates, element);
 		}
 	}
 
-	const deduped = new Map<string, HTMLElement>();
+	const dedupedByInstance = new Map<string, HTMLElement>();
+	const standaloneElements = new Set<HTMLElement>();
+
 	for (const element of candidates) {
 		if (!element.isConnected) {
 			continue;
 		}
 
-		const key = getDedupeKey(element, doc);
-		const existing = deduped.get(key);
-		if (!existing || islandPriority(element) > islandPriority(existing)) {
-			deduped.set(key, element);
+		const componentId = element.getAttribute('data-eco-component-id');
+		if (componentId) {
+			const existing = dedupedByInstance.get(componentId);
+			if (!existing || islandPriority(element) > islandPriority(existing)) {
+				dedupedByInstance.set(componentId, element);
+			}
+		} else {
+			standaloneElements.add(element);
 		}
 	}
 
-	return [...deduped.values()].sort((left, right) => {
+	const elements = [...dedupedByInstance.values(), ...standaloneElements];
+	return elements.sort((left, right) => {
 		if (left === right) {
 			return 0;
 		}
@@ -120,6 +104,11 @@ export function discoverIslandElements(doc: Document): HTMLElement[] {
 	});
 }
 
+/**
+ * Reads the live React island-root index used to enrich toolbar records.
+ *
+ * @returns Instance-keyed roots currently registered by the browser runtime.
+ */
 export function readIslandRoots(): Record<string, unknown> {
 	return (window as EcoPagesIslandRuntime).__ECO_PAGES__?.islandRoots ?? {};
 }

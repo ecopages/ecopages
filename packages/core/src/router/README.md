@@ -114,6 +114,8 @@ import {
 
 This is separate from coordinator `subscribe()` events, which track runtime ownership rather than page lifecycle.
 
+Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
+
 ### Link Intent (`link-intent.ts`)
 
 Shared helpers for locating anchors and recovering stale navigation intent.

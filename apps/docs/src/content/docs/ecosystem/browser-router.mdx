@@ -328,6 +328,8 @@ document.addEventListener('eco:after-swap', () => {
 });
 ```
 
+> **Client-Only Scripts:** Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
+
 ### Example: Navigation-Aware Components
 
 For components that need to react to URL changes (like updating active states), listen for `eco:page-load`:

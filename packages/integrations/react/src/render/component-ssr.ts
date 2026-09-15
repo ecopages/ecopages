@@ -260,6 +260,19 @@ export async function renderForeignComponentWithSerializedHtml(options: {
 	};
 }
 
+/**
+ * Renders a React Component and, when eligible, emits its server Island Host.
+ *
+ * @remarks
+ * A host is emitted only for a single-root component with an instance identity,
+ * resolved assets, and no already-resolved child HTML. The host carries the
+ * framework attributes while its existing children remain available for
+ * `hydrateRoot`; fragment, text-only, and empty output stay outside this
+ * eligibility policy.
+ *
+ * @param options - Rendering inputs, foreign-subtree state, and hydration asset services.
+ * @returns SSR HTML, root metadata, and deduplicated browser assets.
+ */
 export async function renderReactManagedComponent(options: {
 	input: ComponentRenderInput;
 	runtimeContext: ReactForeignSubtreeResolutionContext | undefined;
@@ -324,6 +337,7 @@ export async function renderReactManagedComponent(options: {
 			componentKey: getIslandComponentKey(componentFile, componentConfig),
 			props: buildHydrationProps(input.props),
 		});
+		html = `<eco-island style="display:contents">${html}</eco-island>`;
 	}
 
 	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);
@@ -331,13 +345,17 @@ export async function renderReactManagedComponent(options: {
 	return {
 		html,
 		canAttachAttributes,
-		rootTag,
+		rootTag: rootAttributes ? 'eco-island' : rootTag,
 		integrationName,
 		rootAttributes,
 		assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 	};
 }
 
+/**
+ * Creates the per-render state used to resolve foreign child subtrees without
+ * leaking renderer caches or instance identity into another render.
+ */
 export function createForeignSubtreeRuntimeContext(options: {
 	rendererCache: Map<string, IntegrationRenderer<any>>;
 	componentInstanceScope?: string;

@@ -46,20 +46,18 @@ export class LitPlugin extends IntegrationPlugin {
 		this.integrationDependencies.unshift(...this.getDependencies());
 	}
 
+	/**
+	 * Returns the global integration dependencies required in the browser.
+	 *
+	 * @remarks
+	 * Injects Lit's hydration support script into the document head before any
+	 * custom element connects. While `@lit-labs/ssr-client/lit-element-hydrate-support.js`
+	 * can be resolved directly in modern Bun and Node environments, an inline self-contained
+	 * script is currently emitted to ensure synchronous availability before custom-element
+	 * registration without requiring an import map for `@lit-labs/ssr-client` subpath imports.
+	 */
 	getDependencies(): AssetDefinition[] {
 		return [
-			/**
-			 * BUG ALERT
-			 * Due to an issue appeared in Bun 1.2.2, we need to use a workaround to import the hydrate script.
-			 * This is a temporary solution until the issue is resolved.
-			 * The litElementHydrateScript is the same file built on Bun 1.1.45.
-			 * https://github.com/oven-sh/bun/issues/17180
-			 *
-			 * AssetFactory.createNodeModuleScript({
-			 *    position: 'head',
-			 *    importPath: '@lit-labs/ssr-client/lit-element-hydrate-support.js'
-			 * })
-			 */
 			AssetFactory.createInlineContentScript({
 				position: 'head',
 				content: `(() => {${litElementHydrateScript}})();`,

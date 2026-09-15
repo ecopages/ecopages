@@ -1,3 +1,5 @@
+export type IslandStatus = 'hydrated' | 'registered' | 'ssr-only';
+
 export type IslandRecord = {
 	id: string;
 	label: string;
@@ -5,6 +7,7 @@ export type IslandRecord = {
 	componentId?: string;
 	hostTag: string;
 	kind: 'react-island' | 'integration' | 'custom-element';
+	status: IslandStatus;
 	integration?: string;
 	propsPreview: string;
 	hydrated: boolean;
@@ -27,20 +30,53 @@ function parsePropsPreview(encoded: string | null): string {
 	}
 }
 
-function isHydratedIsland(
+/**
+ * Resolves the integration-specific lifecycle status for one host element.
+ *
+ * @remarks
+ * Explicit hydration markers (`data-eco-hydrated`) indicate completed hydration
+ * across all integrations. React hosts require this post-commit marker. Lit
+ * elements require custom-element registration, clearance of `defer-hydration`,
+ * and verified initial update completion via `hasUpdated`. Custom elements
+ * registered in the browser but lacking an update completion signal are reported
+ * as 'registered' rather than 'hydrated'. Unregistered hosts are 'ssr-only'.
+ */
+function resolveIslandStatus(
 	element: HTMLElement,
-	componentKey: string | undefined,
+	componentId: string | undefined,
 	islandRoots: Record<string, unknown>,
-): boolean {
-	if (componentKey && islandRoots[componentKey]) {
-		return true;
+): IslandStatus {
+	if (element.hasAttribute('data-eco-hydrated')) {
+		return 'hydrated';
 	}
 
-	if (element.tagName.toLowerCase() === 'eco-island') {
-		return element.childElementCount > 0;
+	const integration = element.getAttribute('data-eco-island-integration');
+	if (integration === 'react' || (!integration && element.tagName.toLowerCase() === 'eco-island')) {
+		return 'ssr-only';
 	}
 
-	return false;
+	const tag = element.tagName.toLowerCase();
+	const isCustomElement = tag.includes('-');
+
+	if (isCustomElement && typeof customElements !== 'undefined') {
+		const isDefined = Boolean(customElements.get(tag));
+		if (isDefined) {
+			const isDeferred = element.hasAttribute('defer-hydration');
+			const hasUpdated = (element as { hasUpdated?: unknown }).hasUpdated === true;
+
+			if (!isDeferred && hasUpdated) {
+				return 'hydrated';
+			}
+
+			return 'registered';
+		}
+	}
+
+	if (componentId && islandRoots[componentId]) {
+		return 'hydrated';
+	}
+
+	return 'ssr-only';
 }
 
 function buildLabel(
@@ -74,7 +110,7 @@ function getIslandKind(
 	componentKey: string | undefined,
 	integration: string | undefined,
 ): IslandRecord['kind'] {
-	if (integration === 'react' || componentKey || element.tagName.toLowerCase() === 'eco-island') {
+	if (integration === 'react' || (!integration && (element.tagName.toLowerCase() === 'eco-island' || componentKey))) {
 		return 'react-island';
 	}
 
@@ -85,16 +121,27 @@ function getIslandKind(
 	return 'custom-element';
 }
 
+/**
+ * Builds the selector used to resolve a record after navigation or rerender.
+ *
+ * @remarks
+ * Instance IDs take precedence over component keys so repeated instances never
+ * resolve to a sibling that happens to use the same component entry.
+ *
+ * @param element - Current host element.
+ * @param record - Identity fields from the discovered record.
+ * @returns A selector that targets the same host instance when possible.
+ */
 export function buildIslandTargetSelector(
 	element: HTMLElement,
 	record: Pick<IslandRecord, 'componentKey' | 'componentId'>,
 ): string {
-	if (record.componentKey) {
-		return `[data-eco-component-key="${CSS.escape(record.componentKey)}"]`;
-	}
-
 	if (record.componentId) {
 		return `[data-eco-component-id="${CSS.escape(record.componentId)}"]`;
+	}
+
+	if (record.componentKey) {
+		return `[data-eco-component-key="${CSS.escape(record.componentKey)}"]`;
 	}
 
 	if (element.id) {
@@ -122,6 +169,12 @@ export function buildIslandTargetSelector(
 	return segments.join(' > ');
 }
 
+/**
+ * Converts an internal record into the serializable toolbar-facing view.
+ *
+ * @param record - Record containing the live element reference.
+ * @returns Record view with a selector instead of the DOM node.
+ */
 export function toIslandRecordView(record: IslandRecord): IslandRecordView {
 	const { element, ...view } = record;
 	return {
@@ -132,6 +185,12 @@ export function toIslandRecordView(record: IslandRecord): IslandRecordView {
 
 /**
  * Builds one island record from a discovered host element.
+ * The explicit React hydration marker is preserved as the toolbar's completion
+ * signal while SSR-only hosts remain visibly unhydrated.
+ *
+ * @param element - Discovered island host.
+ * @param islandRoots - Instance-keyed runtime registry.
+ * @returns Toolbar record containing identity, status, and live element.
  */
 export function buildIslandRecord(element: HTMLElement, islandRoots: Record<string, unknown>): IslandRecord {
 	const componentKey = element.getAttribute('data-eco-component-key') ?? undefined;
@@ -139,6 +198,7 @@ export function buildIslandRecord(element: HTMLElement, islandRoots: Record<stri
 	const integration = element.getAttribute('data-eco-island-integration') ?? undefined;
 	const label = buildLabel(element, componentKey, componentId, integration);
 	const id = componentId ?? componentKey ?? label;
+	const status = resolveIslandStatus(element, componentId, islandRoots);
 
 	return {
 		id,
@@ -149,7 +209,8 @@ export function buildIslandRecord(element: HTMLElement, islandRoots: Record<stri
 		hostTag: element.tagName.toLowerCase(),
 		kind: getIslandKind(element, componentKey, integration),
 		propsPreview: parsePropsPreview(element.getAttribute('data-eco-props')),
-		hydrated: isHydratedIsland(element, componentKey, islandRoots),
+		status,
+		hydrated: status === 'hydrated',
 		element,
 	};
 }

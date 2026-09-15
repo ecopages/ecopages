@@ -47,7 +47,15 @@ This setup lets Kita own the page shell while Lit owns the nested Lit component 
 
 - `.lit.tsx` route files.
 - Nested Lit component boundaries rendered inside pages owned by other integrations.
-- The Lit hydration support script required for SSR custom elements and declarative shadow DOM.
+- The Lit hydration support script required for SSR custom elements and declarative shadow DOM. Injected synchronously into `document.head` so `globalThis.litElementHydrateSupport` is available before any custom element connects.
+
+## Hydration Architecture
+
+Lit component SSR reuses existing declarative shadow roots rather than replacing host nodes. When hydrated:
+
+1. The server renders declarative shadow roots (`<template shadowrootmode="open">`) and stamps `defer-hydration` on nodes needing client hydration.
+2. The global `lit-hydrate-support` script initializes `globalThis.litElementHydrateSupport` before custom element definitions execute.
+3. Custom elements register via their client scripts, remove `defer-hydration`, and perform in-place hydration against the preserved SSR shadow roots.
 
 ## Mixed Rendering
 

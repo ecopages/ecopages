@@ -31,7 +31,7 @@ const browserRuntimeImports = {
 };
 
 describe('HydrationAssetService', () => {
-	it('creates one page-owned route entry asset', () => {
+	it('creates one page-owned route entry asset', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			assetProcessingService: {
@@ -42,7 +42,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		const dependencies = service.createPageDependencies({
+		const dependencies = await service.createPageDependencies({
 			pagePath: '/app/src/pages/index.tsx',
 			componentName: 'ecopages-react-index',
 			importPath: '/assets/pages/index.js',
@@ -70,7 +70,7 @@ describe('HydrationAssetService', () => {
 		});
 	});
 
-	it('groups router-managed page entries under a stable shared bundle id', () => {
+	it('groups router-managed page entries under a stable shared bundle id', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -94,7 +94,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		const dependencies = service.createPageDependencies({
+		const dependencies = await service.createPageDependencies({
 			pagePath: '/app/src/pages/dashboard/[project].tsx',
 			componentName: 'ecopages-react-dashboard',
 			importPath: '/assets/pages/dashboard.js',
@@ -117,7 +117,7 @@ describe('HydrationAssetService', () => {
 		});
 	});
 
-	it('keeps router-managed page bootstraps unbundled in development with vendor helper imports', () => {
+	it('keeps router-managed page bootstraps unbundled in development with vendor helper imports', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -141,7 +141,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		const dependencies = service.createPageDependencies({
+		const dependencies = await service.createPageDependencies({
 			pagePath: '/app/src/pages/docs/index.tsx',
 			componentName: 'ecopages-react-docs',
 			importPath: devTransformPageUrl('pages/docs/index.js'),
@@ -169,7 +169,7 @@ describe('HydrationAssetService', () => {
 		assertNoBareEcopagesImports(content);
 	});
 
-	it('emits vendor URLs for MDX layout normalization in unbundled HMR bootstraps', () => {
+	it('emits vendor URLs for MDX layout normalization in unbundled HMR bootstraps', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
 			routerAdapter: {
@@ -193,7 +193,7 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		const dependencies = service.createPageDependencies({
+		const dependencies = await service.createPageDependencies({
 			pagePath: '/app/src/pages/react-content.mdx',
 			componentName: 'ecopages-react-mdx',
 			importPath: devTransformPageUrl('pages/react-content.js'),
@@ -329,7 +329,7 @@ describe('HydrationAssetService', () => {
 				bundle: true,
 				content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
 			});
-			expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmrHandlers');
+			expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmr: {');
 			expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
 				'from "/assets/vendors/layout-compose.js"',
 			);
@@ -422,7 +422,7 @@ describe('HydrationAssetService', () => {
 			[
 				expect.objectContaining({
 					kind: 'script',
-					content: expect.stringContaining('hmrHandlers["/assets/__eco_dev__/components/counter.js"]'),
+					content: expect.stringContaining('registerIslandHmr'),
 				}),
 			],
 			expect.any(String),
@@ -486,8 +486,8 @@ describe('HydrationAssetService', () => {
 		expect(firstHydration.attributes?.['data-eco-script-id']).toBe(firstHydration.name);
 		expect(secondHydration.attributes?.['data-eco-script-id']).toBe(secondHydration.name);
 		expect(firstHydration.content).toContain('ecopages-react-island-');
-		expect(firstHydration.content).toContain(`[data-eco-component-key=\\"${componentKey}\\"]`);
-		expect(secondHydration.content).toContain(`[data-eco-component-key=\\"${componentKey}\\"]`);
+		expect(firstHydration.content).toContain(componentKey);
+		expect(secondHydration.content).toContain(componentKey);
 		expect(firstHydration.content).toContain('querySelectorAll');
 		expect(firstHydration.content).toContain(firstBundle.name);
 		expect(secondHydration.content).toContain(secondBundle.name);

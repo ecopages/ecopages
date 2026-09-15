@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
@@ -58,6 +58,33 @@ describe('StringMarkupRenderer', () => {
 		expect(body).toContain('<body>Hello World</body>');
 		expect(body).toContain('<title>Ecopages</title>');
 		expect(body).toContain('<meta name="description" content="Ecopages" />');
+	});
+
+	it('passes route-resolved dependency roots into the document shell', async () => {
+		const renderer = createRenderer();
+		const resolvedContent = (async () => '<article>Resolved content</article>') as EcoComponent;
+		const renderPageShell = vi
+			.spyOn(
+				renderer as unknown as {
+					renderPageWithDocumentShell(input: unknown): Promise<string>;
+				},
+				'renderPageWithDocumentShell',
+			)
+			.mockResolvedValue('<html><body></body></html>');
+
+		await renderer.render({
+			params: {},
+			query: {},
+			props: {},
+			file: 'file',
+			metadata,
+			Page: async () => pageBody,
+			resolvedDependencies: [],
+			resolvedPageDependencyComponents: [resolvedContent],
+			HtmlTemplate,
+		});
+
+		expect(renderPageShell).toHaveBeenCalledWith(expect.objectContaining({ foreignChildRoots: [resolvedContent] }));
 	});
 
 	it('should throw an error if the page fails to render', async () => {

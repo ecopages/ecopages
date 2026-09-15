@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { createRequire } from 'node:module';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { ResolverFactory } from 'oxc-resolver';
 import { isBarePackageImportSpecifier } from '../../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../../plugins/package-specifier.ts';
 
@@ -9,12 +10,33 @@ export type BrowserRuntimeDefaultExportPolicy = 'emit-default' | 'skip-default';
 
 type RequireFromRoot = ReturnType<typeof createRequire>;
 
+const esmEntryResolvers = new Map<string, ResolverFactory>();
+
+function getEsmEntryResolver(rootDir: string): ResolverFactory {
+	const normalizedRoot = path.resolve(rootDir);
+	const cached = esmEntryResolvers.get(normalizedRoot);
+	if (cached) {
+		return cached;
+	}
+
+	const resolver = new ResolverFactory({ conditionNames: ['node', 'import', 'default'] });
+	esmEntryResolvers.set(normalizedRoot, resolver);
+	return resolver;
+}
+
 /**
  * Resolves a package specifier through Node's ESM import conditions from the app root.
+ *
+ * @remarks
+ * The resolver is rooted at the application directory so package lookup cannot
+ * accidentally use a dependency with the same name from the framework's own
+ * installation. The condition order matches the generated vendor import: Node
+ * compatibility first, then ESM import, then the package default.
  */
 export function resolvePackageEsmEntryPath(specifier: string, rootDir: string): string | undefined {
 	try {
-		return fileURLToPath(import.meta.resolve(specifier, pathToFileURL(path.join(rootDir, 'package.json')).href));
+		const result = getEsmEntryResolver(rootDir).sync(path.resolve(rootDir), specifier);
+		return result.path;
 	} catch {
 		return undefined;
 	}
@@ -81,13 +103,14 @@ export function resolveBrowserRuntimeEntryPath(options: {
 		return requireFromRoot.resolve(specifier);
 	}
 
-	const esmResolvedPath = isBarePackageImportSpecifier(specifier, rootDir)
-		? resolvePackageEsmEntryPath(specifier, rootDir)
-		: undefined;
 	const legacyModulePath = resolveLegacyPackageModuleEntry({ specifier, requireFromRoot, rootDir });
 	if (legacyModulePath) {
 		return legacyModulePath;
 	}
+
+	const esmResolvedPath = isBarePackageImportSpecifier(specifier, rootDir)
+		? resolvePackageEsmEntryPath(specifier, rootDir)
+		: undefined;
 	if (esmResolvedPath) {
 		return esmResolvedPath;
 	}

@@ -225,6 +225,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 									locals: options.pageLocals,
 								},
 							},
+							/**
+							 * @remarks Content components supplied by the Page dependency
+							 * resolver (for example the active MDX entry) carry foreign
+							 * ownership the static Page config cannot declare.
+							 */
+							foreignChildRoots: options.resolvedPageDependencyComponents,
 							layouts: resolveDocumentShellLayouts({
 								layout: options.Layout,
 								layoutEntries: options.layoutEntries,

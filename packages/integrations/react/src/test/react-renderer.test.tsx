@@ -19,6 +19,7 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
+import { resolveComposeChildren } from '../render/unified-layout-composition.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
@@ -570,6 +571,92 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
+	});
+
+	it('passes route-resolved dependency roots into the document shell', async () => {
+		const testRenderer = createRenderer();
+		const resolvedContent = (() => <article>Resolved content</article>) as unknown as EcoComponent;
+		const renderPageShell = vi
+			.spyOn(
+				testRenderer as unknown as {
+					renderPageWithDocumentShell(input: unknown): Promise<string>;
+				},
+				'renderPageWithDocumentShell',
+			)
+			.mockResolvedValue('<html><body></body></html>');
+
+		await testRenderer.render({
+			params: {},
+			query: {},
+			props: {},
+			resolvedDependencies: [],
+			resolvedPageDependencyComponents: [resolvedContent],
+			file: pageFilePath,
+			metadata: { title: 'Test Page', description: 'Test Description' },
+			Page,
+			HtmlTemplate,
+		});
+
+		expect(renderPageShell).toHaveBeenCalledWith(expect.objectContaining({ foreignChildRoots: [resolvedContent] }));
+	});
+
+	it('uses sequential shell rendering when a route dependency root is foreign', () => {
+		const testRenderer = createRenderer();
+		const ReactPage = Object.assign(() => <main />, {
+			config: { integration: 'react' },
+		}) as unknown as EcoComponent;
+		const ReactLayout = Object.assign(() => <section />, {
+			config: { integration: 'react' },
+		}) as unknown as EcoComponent;
+		const ForeignRoot = Object.assign(() => '<article />', {
+			config: { integration: 'ecopages-jsx' },
+		}) as unknown as EcoComponent;
+
+		const composeChildren = resolveComposeChildren({
+			page: { component: ReactPage, props: {} },
+			shellLayouts: [{ component: ReactLayout }],
+			foreignChildRoots: [ForeignRoot],
+			reactIntegrationName: 'react',
+			hasForeignChildDescendants: (component, roots) =>
+				(testRenderer as any).hasForeignChildDescendants(component, roots),
+			composeChildren: async () => ({ children: null, layoutRenders: [] }),
+		});
+
+		expect(composeChildren).toBeUndefined();
+
+		const NestedForeignPage = Object.assign(() => <main />, {
+			config: {
+				integration: 'react',
+				dependencies: { components: [ForeignRoot] },
+			},
+		}) as unknown as EcoComponent;
+		const nestedComposeChildren = resolveComposeChildren({
+			page: { component: NestedForeignPage, props: {} },
+			shellLayouts: [{ component: ReactLayout }],
+			reactIntegrationName: 'react',
+			hasForeignChildDescendants: (component, roots) =>
+				(testRenderer as any).hasForeignChildDescendants(component, roots),
+			composeChildren: async () => ({ children: null, layoutRenders: [] }),
+		});
+
+		expect(nestedComposeChildren).toBeUndefined();
+
+		const NestedForeignLayout = Object.assign(() => <section />, {
+			config: {
+				integration: 'react',
+				dependencies: { components: [ForeignRoot] },
+			},
+		}) as unknown as EcoComponent;
+		const layoutForeignComposeChildren = resolveComposeChildren({
+			page: { component: ReactPage, props: {} },
+			shellLayouts: [{ component: NestedForeignLayout }],
+			reactIntegrationName: 'react',
+			hasForeignChildDescendants: (component, roots) =>
+				(testRenderer as any).hasForeignChildDescendants(component, roots),
+			composeChildren: async () => ({ children: null, layoutRenders: [] }),
+		});
+
+		expect(layoutForeignComposeChildren).toBeUndefined();
 	});
 
 	it('should keep emitting route hydration assets in development', async () => {

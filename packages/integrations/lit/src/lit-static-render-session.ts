@@ -2,7 +2,11 @@ import path from 'node:path';
 import type { EcoComponent, EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
-import { LitSsrLazyPreloader, type LitSsrLazyPreloaderOptions } from './lit-ssr-lazy-preloader.ts';
+import {
+	LitSsrLazyPreloader,
+	type LitSsrLazyPreloaderOptions,
+	type LitSsrPreloadComponent,
+} from './lit-ssr-lazy-preloader.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
@@ -104,11 +108,11 @@ export class LitStaticRenderSession {
 		await this.preloadLitRoutes(context);
 	}
 
-	async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+	async preloadSsrLazyScripts(components: Array<LitSsrPreloadComponent | undefined>): Promise<void> {
 		await this.preloader.preloadSsrLazyScripts(components);
 	}
 
-	collectSsrPreloadScripts(components: Array<EcoComponent | undefined>): string[] {
+	collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
 		return this.preloader.collectSsrPreloadScripts(components);
 	}
 

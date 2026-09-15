@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 
 const registryKeys = new WeakMap<CustomElementRegistry, string>();
 
+export type LitSsrPreloadComponent = EcoComponent | Partial<EcoComponent>;
+
 function getRegistryKey(registry: CustomElementRegistry): string {
 	let key = registryKeys.get(registry);
 	if (!key) {
@@ -89,11 +91,11 @@ export class LitSsrLazyPreloader {
 	/**
 	 * Collects lazy script file paths eligible for SSR preloading.
 	 */
-	collectSsrPreloadScripts(components: Array<EcoComponent | undefined>): string[] {
+	collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
 		const scriptPaths = new Set<string>();
 		const visitedConfigs = new Set<EcoComponentConfig>();
 
-		const collect = (component?: EcoComponent) => {
+		const collect = (component?: LitSsrPreloadComponent) => {
 			const config = component?.config;
 			if (!config || visitedConfigs.has(config)) {
 				return;
@@ -102,7 +104,7 @@ export class LitSsrLazyPreloader {
 			visitedConfigs.add(config);
 
 			const scriptEntries = config.dependencies?.scripts ?? [];
-			const componentFile = getComponentIdentity(component)?.file;
+			const componentFile = getComponentIdentity(component?.config)?.file;
 
 			if (componentFile) {
 				const componentDir = path.dirname(componentFile);
@@ -142,7 +144,7 @@ export class LitSsrLazyPreloader {
 	/**
 	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
 	 */
-	async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+	async preloadSsrLazyScripts(components: Array<LitSsrPreloadComponent | undefined>): Promise<void> {
 		ensureLitDomShim();
 		const registry = globalThis.customElements;
 		if (this.activeRegistry !== registry) {

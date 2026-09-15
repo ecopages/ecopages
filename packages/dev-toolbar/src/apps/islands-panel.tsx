@@ -13,7 +13,7 @@ import { highlightElement } from '../runtime/highlight-element.ts';
 import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 function islandsSignature(islands: IslandRecordView[]): string {
-	return islands.map((island) => `${island.id}|${island.hostTag}|${island.hydrated}|${island.kind}`).join('\n');
+	return islands.map((island) => `${island.id}|${island.hostTag}|${island.status}|${island.kind}`).join('\n');
 }
 
 @customElement('eco-dev-toolbar-islands')
@@ -160,8 +160,8 @@ export class EcoDevToolbarIslands extends RadiantElement {
 									<strong>{island.label}</strong>
 									<span class="eco-dev-toolbar__muted">
 										{island.hostTag}
-										{island.integration ? ` · ${island.integration}` : ''} ·{' '}
-										{island.hydrated ? 'hydrated' : 'ssr-only'} · {island.kind}
+										{island.integration ? ` · ${island.integration}` : ''} · {island.status} ·{' '}
+										{island.kind}
 									</span>
 									{island.componentKey ? (
 										<span class="eco-dev-toolbar__mono">key={island.componentKey}</span>

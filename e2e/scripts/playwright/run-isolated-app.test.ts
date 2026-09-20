@@ -2,9 +2,58 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildCommand, buildEnv, prepareWorkspace, shouldExcludeFromWorkspaceCopy } from './run-isolated-app.mjs';
+import {
+	buildCommand,
+	buildEnv,
+	parseArgs,
+	prepareWorkspace,
+	shouldExcludeFromWorkspaceCopy,
+} from './run-isolated-app.mjs';
 
 describe('run-isolated-app launcher', () => {
+	it('parses required launcher flags and defaults artifactScope to workspace', () => {
+		expect(
+			parseArgs(['--sourceDir', 'playground/kitchen-sink', '--workspace', 'kitchen-sink-bun', '--port', '4010']),
+		).toEqual({
+			artifactScope: 'kitchen-sink-bun',
+			host: 'ecopages',
+			mode: 'dev',
+			port: 4010,
+			runtime: 'bun',
+			sourceDir: 'playground/kitchen-sink',
+			workspace: 'kitchen-sink-bun',
+		});
+	});
+
+	it('rejects missing required launcher arguments', () => {
+		expect(() => parseArgs(['--workspace', 'only-workspace'])).toThrow(
+			'Missing required isolated Playwright app launcher arguments.',
+		);
+	});
+
+	it('rejects vite preview combinations', () => {
+		expect(() =>
+			parseArgs([
+				'--sourceDir',
+				'playground/kitchen-sink',
+				'--workspace',
+				'vite-preview',
+				'--port',
+				'4011',
+				'--host',
+				'vite',
+				'--mode',
+				'preview',
+			]),
+		).toThrow('Vite isolated Playwright servers only support dev mode.');
+	});
+
+	it('rejects invalid ports', () => {
+		expect(() =>
+			parseArgs(['--sourceDir', 'playground/kitchen-sink', '--workspace', 'kitchen-sink', '--port', '0']),
+		).toThrow('Invalid isolated app port: 0');
+	});
+
 	it('excludes scoped artifact directories from workspace copies', () => {
 		expect(shouldExcludeFromWorkspaceCopy('dist')).toBe(true);
 		expect(shouldExcludeFromWorkspaceCopy('dist-bun-dev')).toBe(true);

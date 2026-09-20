@@ -1,3 +1,4 @@
+import './e2e/playwright/strip-inherited-pwdebug.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineProject } from 'vitest/config';

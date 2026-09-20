@@ -19,6 +19,53 @@ function getSuppressedSourceFilepaths(assets: ProcessedAsset[]): Set<string> {
 	return suppressed;
 }
 
+type PagePackageBuckets = {
+	inlineAssets: ProcessedAsset[];
+	separateAssets: ProcessedAsset[];
+	dynamicChunks: ProcessedAsset[];
+	pageScript?: ProcessedAsset;
+	pageStylesheet?: ProcessedAsset;
+};
+
+function classifyProcessedAsset(asset: ProcessedAsset, buckets: PagePackageBuckets): void {
+	if (asset.inline) {
+		buckets.inlineAssets.push(asset);
+		return;
+	}
+
+	if (asset.packageRole === 'dynamic-chunk') {
+		buckets.dynamicChunks.push(asset);
+		return;
+	}
+
+	if (!buckets.pageScript && asset.packageRole === 'page-script') {
+		buckets.pageScript = asset;
+		return;
+	}
+
+	if (!buckets.pageStylesheet && asset.packageRole === 'page-style') {
+		buckets.pageStylesheet = asset;
+		return;
+	}
+
+	if (asset.packageRole === 'keep-separate' || asset.packageRole === 'runtime') {
+		buckets.separateAssets.push(asset);
+		return;
+	}
+
+	if (!buckets.pageScript && asset.kind === 'script' && !asset.excludeFromHtml) {
+		buckets.pageScript = asset;
+		return;
+	}
+
+	if (!buckets.pageStylesheet && asset.kind === 'stylesheet') {
+		buckets.pageStylesheet = asset;
+		return;
+	}
+
+	buckets.separateAssets.push(asset);
+}
+
 export function createPagePackage(
 	assets: ProcessedAsset[],
 	options: { pageBrowserGraph?: PageBrowserGraphResult } = {},
@@ -28,61 +75,26 @@ export function createPagePackage(
 		...(options.pageBrowserGraph?.entryAssets ?? []),
 		...(options.pageBrowserGraph?.chunkAssets ?? []),
 	];
-	const inlineAssets: ProcessedAsset[] = [];
-	const separateAssets: ProcessedAsset[] = [];
-	const dynamicChunks: ProcessedAsset[] = [];
-	let pageScript: ProcessedAsset | undefined;
-	let pageStylesheet: ProcessedAsset | undefined;
+	const buckets: PagePackageBuckets = {
+		inlineAssets: [],
+		separateAssets: [],
+		dynamicChunks: [],
+	};
 	const suppressedSourceFilepaths = getSuppressedSourceFilepaths(allAssets);
 
 	for (const asset of allAssets) {
-		if (asset.inline) {
-			inlineAssets.push(asset);
-			continue;
-		}
-
-		if (asset.packageRole === 'dynamic-chunk') {
-			dynamicChunks.push(asset);
-			continue;
-		}
-
-		if (!pageScript && asset.packageRole === 'page-script') {
-			pageScript = asset;
-			continue;
-		}
-
-		if (!pageStylesheet && asset.packageRole === 'page-style') {
-			pageStylesheet = asset;
-			continue;
-		}
-
-		if (asset.packageRole === 'keep-separate' || asset.packageRole === 'runtime') {
-			separateAssets.push(asset);
-			continue;
-		}
-
-		if (!pageScript && asset.kind === 'script' && !asset.excludeFromHtml) {
-			pageScript = asset;
-			continue;
-		}
-
-		if (!pageStylesheet && asset.kind === 'stylesheet') {
-			pageStylesheet = asset;
-			continue;
-		}
-
-		separateAssets.push(asset);
+		classifyProcessedAsset(asset, buckets);
 	}
 
 	return {
 		assets: allAssets,
 		pageBrowserGraph: options.pageBrowserGraph,
 		htmlAssets: allAssets.filter((asset) => shouldIncludeInHtml(asset, suppressedSourceFilepaths)),
-		pageScript,
-		pageStylesheet,
-		inlineAssets,
-		separateAssets,
-		dynamicChunks,
+		pageScript: buckets.pageScript,
+		pageStylesheet: buckets.pageStylesheet,
+		inlineAssets: buckets.inlineAssets,
+		separateAssets: buckets.separateAssets,
+		dynamicChunks: buckets.dynamicChunks,
 	};
 }
 

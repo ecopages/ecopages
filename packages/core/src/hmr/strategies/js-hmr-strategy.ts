@@ -87,18 +87,12 @@ export class JsHmrStrategy extends HmrStrategy {
 		return true;
 	}
 
-	async process(filePath: string): Promise<HmrAction> {
-		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
-		const watchedFiles = this.context.getWatchedFiles();
-		const resolvedChanged = path.resolve(filePath);
-		const registeredEntrypoints = this.context.getRegisteredEntrypoints();
-		const isRegisteredEntrypointEdit = isRegisteredDevTransformEntrypoint(registeredEntrypoints, resolvedChanged);
-
-		if (watchedFiles.size === 0) {
-			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
-			return { type: 'none' };
-		}
-
+	private resolveImpactedEntrypoints(
+		filePath: string,
+		watchedFiles: Map<string, string>,
+		resolvedChanged: string,
+		isRegisteredEntrypointEdit: boolean,
+	): { buildableEntrypoints: string[]; hasDependencyHit: boolean } {
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
 		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = isRegisteredEntrypointEdit
@@ -110,14 +104,14 @@ export class JsHmrStrategy extends HmrStrategy {
 			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
 		);
 
-		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
-			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
-		}
+		return { buildableEntrypoints, hasDependencyHit };
+	}
 
-		if (buildableEntrypoints.length === 0) {
-			return { type: 'none' };
-		}
-
+	private collectDevTransformHmrOutcome(
+		buildableEntrypoints: string[],
+		watchedFiles: Map<string, string>,
+		registeredEntrypoints: ReturnType<JsHmrContext['getRegisteredEntrypoints']>,
+	): { devTransformUpdates: string[]; devTransformReloadRequired: boolean } {
 		const devTransformUpdates: string[] = [];
 		let devTransformReloadRequired = false;
 
@@ -143,6 +137,42 @@ export class JsHmrStrategy extends HmrStrategy {
 				devTransformUpdates.push(outputUrl);
 			}
 		}
+
+		return { devTransformUpdates, devTransformReloadRequired };
+	}
+
+	async process(filePath: string): Promise<HmrAction> {
+		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
+		const watchedFiles = this.context.getWatchedFiles();
+		const resolvedChanged = path.resolve(filePath);
+		const registeredEntrypoints = this.context.getRegisteredEntrypoints();
+		const isRegisteredEntrypointEdit = isRegisteredDevTransformEntrypoint(registeredEntrypoints, resolvedChanged);
+
+		if (watchedFiles.size === 0) {
+			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
+			return { type: 'none' };
+		}
+
+		const { buildableEntrypoints, hasDependencyHit } = this.resolveImpactedEntrypoints(
+			filePath,
+			watchedFiles,
+			resolvedChanged,
+			isRegisteredEntrypointEdit,
+		);
+
+		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
+			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
+		}
+
+		if (buildableEntrypoints.length === 0) {
+			return { type: 'none' };
+		}
+
+		const { devTransformUpdates, devTransformReloadRequired } = this.collectDevTransformHmrOutcome(
+			buildableEntrypoints,
+			watchedFiles,
+			registeredEntrypoints,
+		);
 
 		if (devTransformReloadRequired) {
 			appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);

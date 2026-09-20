@@ -116,6 +116,24 @@ export class SchemaValidationService {
 	 * }
 	 * ```
 	 */
+	private async validateRequestPart<T>(
+		schema: StandardSchema | undefined,
+		value: unknown,
+		assign: (data: T) => void,
+		allErrors: Array<{ message: string; path?: Array<string | number> }>,
+		shouldValidate: boolean,
+	): Promise<void> {
+		if (!schema || !shouldValidate) {
+			return;
+		}
+		const result = await this.validateWithSchema(schema, value);
+		if (!result.success) {
+			allErrors.push(...(result.errors || []));
+			return;
+		}
+		assign(result.data as T);
+	}
+
 	async validateRequest(
 		source: ValidationSource,
 		schemas: ValidationSchemas,
@@ -123,41 +141,42 @@ export class SchemaValidationService {
 		const validated: ValidatedData = {};
 		const allErrors: Array<{ message: string; path?: Array<string | number> }> = [];
 
-		if (schemas.body && source.body !== undefined) {
-			const result = await this.validateWithSchema(schemas.body, source.body);
-			if (!result.success) {
-				allErrors.push(...(result.errors || []));
-			} else {
-				validated.body = result.data;
-			}
-		}
-
-		if (schemas.query && source.query) {
-			const result = await this.validateWithSchema(schemas.query, source.query);
-			if (!result.success) {
-				allErrors.push(...(result.errors || []));
-			} else {
-				validated.query = result.data;
-			}
-		}
-
-		if (schemas.headers && source.headers) {
-			const result = await this.validateWithSchema(schemas.headers, source.headers);
-			if (!result.success) {
-				allErrors.push(...(result.errors || []));
-			} else {
-				validated.headers = result.data;
-			}
-		}
-
-		if (schemas.params && source.params) {
-			const result = await this.validateWithSchema(schemas.params, source.params);
-			if (!result.success) {
-				allErrors.push(...(result.errors || []));
-			} else {
-				validated.params = result.data;
-			}
-		}
+		await this.validateRequestPart(
+			schemas.body,
+			source.body,
+			(data) => {
+				validated.body = data;
+			},
+			allErrors,
+			schemas.body !== undefined && source.body !== undefined,
+		);
+		await this.validateRequestPart(
+			schemas.query,
+			source.query,
+			(data) => {
+				validated.query = data;
+			},
+			allErrors,
+			!!schemas.query && !!source.query,
+		);
+		await this.validateRequestPart(
+			schemas.headers,
+			source.headers,
+			(data) => {
+				validated.headers = data;
+			},
+			allErrors,
+			!!schemas.headers && !!source.headers,
+		);
+		await this.validateRequestPart(
+			schemas.params,
+			source.params,
+			(data) => {
+				validated.params = data;
+			},
+			allErrors,
+			!!schemas.params && !!source.params,
+		);
 
 		if (allErrors.length > 0) {
 			return { success: false, errors: allErrors };

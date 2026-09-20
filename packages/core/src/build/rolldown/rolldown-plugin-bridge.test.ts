@@ -188,6 +188,23 @@ test('createRolldownPluginBridge load returns undefined for empty callbacks', as
 	assert.equal(result, undefined);
 });
 
+test('createRolldownPluginBridge load ignores object prototype loader names', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'proto-loader',
+			setup(build) {
+				build.onLoad({ filter: /.*/ }, () => ({ contents: 'export default 1', loader: 'toString' as never }));
+			},
+		},
+	];
+
+	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const plugin = bridge[0]!;
+	await callBuildStart(plugin);
+	const result = (await callLoad(plugin, '/app/proto.ts')) as { code: string; moduleType: string } | undefined;
+	assert.equal(result?.moduleType, 'ts');
+});
+
 test('createRolldownPluginBridge load normalizes local-css and global-css to css', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{

@@ -106,6 +106,65 @@ export type CollectComponentConfigFilePathsOptions = {
 /**
  * Walks component configs and collects identity files, stylesheets, and discovered barrel hops.
  */
+function collectStylesheetPathsForConfig(
+	config: EcoComponentConfig,
+	resolvedOwnerFile: string,
+	files: Set<string>,
+): void {
+	for (const style of config.dependencies?.stylesheets ?? []) {
+		const src = typeof style === 'string' ? style : style.src;
+		if (src) files.add(path.resolve(path.dirname(resolvedOwnerFile), src));
+	}
+
+	for (const src of getInferredStylesheets(config)) {
+		files.add(path.resolve(path.dirname(resolvedOwnerFile), src));
+	}
+}
+
+function visitNestedComponentConfigFilePaths(
+	config: EcoComponentConfig,
+	options: CollectComponentConfigFilePathsOptions | undefined,
+	visit: (config: EcoComponentConfig | undefined) => void,
+): void {
+	for (const dependency of config.dependencies?.components ?? []) {
+		visit(dependency?.config);
+	}
+
+	if (!options?.includeLayouts) {
+		return;
+	}
+
+	for (const layout of config.layouts ?? []) {
+		visit(layout?.config);
+	}
+}
+
+function visitComponentConfigFilePaths(
+	config: EcoComponentConfig | undefined,
+	options: CollectComponentConfigFilePathsOptions | undefined,
+	files: Set<string>,
+	visited: Set<EcoComponentConfig>,
+	visit: (config: EcoComponentConfig | undefined) => void,
+): void {
+	const file = getComponentIdentity(config)?.file;
+	if (!file || !config || visited.has(config)) {
+		return;
+	}
+
+	visited.add(config);
+	files.add(path.resolve(file));
+
+	if (options?.includeStylesheets) {
+		collectStylesheetPathsForConfig(config, path.resolve(file), files);
+	}
+
+	for (const watchFile of getDiscoveredWatchFiles(config)) {
+		files.add(path.resolve(watchFile));
+	}
+
+	visitNestedComponentConfigFilePaths(config, options, visit);
+}
+
 export function collectComponentConfigFilePaths(
 	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
 	options?: CollectComponentConfigFilePathsOptions,
@@ -118,42 +177,7 @@ export function collectComponentConfigFilePaths(
 	}
 
 	const visit = (config: EcoComponentConfig | undefined) => {
-		const file = getComponentIdentity(config)?.file;
-		if (!file) {
-			return;
-		}
-		if (!config) {
-			return;
-		}
-
-		const resolved = path.resolve(file);
-		if (visited.has(config)) {
-			return;
-		}
-		visited.add(config);
-		files.add(resolved);
-		for (const style of options?.includeStylesheets ? (config.dependencies?.stylesheets ?? []) : []) {
-			const src = typeof style === 'string' ? style : style.src;
-			if (src) files.add(path.resolve(path.dirname(resolved), src));
-		}
-		if (options?.includeStylesheets) {
-			for (const src of getInferredStylesheets(config)) {
-				files.add(path.resolve(path.dirname(resolved), src));
-			}
-		}
-		for (const watchFile of getDiscoveredWatchFiles(config)) {
-			files.add(path.resolve(watchFile));
-		}
-
-		for (const dependency of config.dependencies?.components ?? []) {
-			visit(dependency?.config);
-		}
-
-		if (options?.includeLayouts) {
-			for (const layout of config.layouts ?? []) {
-				visit(layout?.config);
-			}
-		}
+		visitComponentConfigFilePaths(config, options, files, visited, visit);
 	};
 
 	for (const component of components) {

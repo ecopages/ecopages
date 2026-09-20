@@ -1,5 +1,4 @@
 import { eco } from '@ecopages/core';
-import type { PageProps } from '@ecopages/core';
 
 type BlogProps = { slug: string };
 

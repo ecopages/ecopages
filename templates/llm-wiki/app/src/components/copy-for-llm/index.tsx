@@ -8,7 +8,7 @@ export type { CopyForLlmProps };
 
 export const CopyForLlm = eco.component<CopyForLlmProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./copy-for-llm.script.tsx'],
+		scripts: [{ src: './copy-for-llm.script.tsx', ssr: true }],
 		stylesheets: ['./copy-for-llm.css'],
 	},
 	render: ({ path, label = 'Copy for LLM' }: CopyForLlmProps) => {

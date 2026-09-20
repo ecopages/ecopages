@@ -5,7 +5,7 @@ import type { RadiantSliderProps as SliderProps } from './slider.script';
 export const RadiantSlider = eco.component({
 	dependencies: {
 		stylesheets: ['../radiant-field/field.css', './slider.css'],
-		scripts: ['./slider.script.tsx'],
+		scripts: [{ src: './slider.script.tsx', ssr: true }],
 	},
 	render(props: JsxCustomElementAttributes<HTMLElement, SliderProps>) {
 		return (

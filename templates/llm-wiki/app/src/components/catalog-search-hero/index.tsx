@@ -2,8 +2,6 @@ import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { SearchIcon } from '@/lib/search/search-icon';
 import './catalog-search-hero.css';
-import './catalog-search-hero.script';
-
 export type CatalogSearchHeroProps = {
 	placeholder?: string;
 	label?: string;
@@ -11,7 +9,7 @@ export type CatalogSearchHeroProps = {
 
 export const CatalogSearchHero = eco.component<CatalogSearchHeroProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./catalog-search-hero.script.ts'],
+		scripts: [{ src: './catalog-search-hero.script.ts', ssr: true }],
 		stylesheets: ['./catalog-search-hero.css'],
 	},
 	render: ({ placeholder = 'Search the wiki…', label = 'Search the wiki' }) => {

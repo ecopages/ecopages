@@ -1,4 +1,4 @@
-import type { EcoComponent, GetMetadata, GetStaticPaths, GetStaticProps, PageProps } from '@ecopages/core';
+import type { EcoComponent, GetMetadata, GetStaticProps, PageProps } from '@ecopages/core';
 
 type IndexProps = { title: string };
 

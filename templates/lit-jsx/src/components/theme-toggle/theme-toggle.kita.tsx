@@ -3,7 +3,7 @@ import './theme-toggle.css';
 
 export const ThemeToggle = eco.component<{}, EcoPagesElement>({
 	dependencies: {
-		scripts: ['./theme-toggle.script.ts'],
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
 	render: () => (
 		<theme-toggle data-value="system">

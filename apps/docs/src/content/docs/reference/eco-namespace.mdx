@@ -67,7 +67,7 @@ scripts: [{
 }]
 ```
 
-For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
+For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. Only those integrations run SSR preload today; other renderers ignore `ssr: true` until they adopt the same preloader. `lazy` controls browser delivery only; it does not suppress server import. Lazy entries with `ssr: true` do not emit a duplicate eager browser script—browser delivery follows `lazy`, or loads eagerly when `lazy` is omitted. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
 
 Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
@@ -93,7 +93,7 @@ import { eco } from '@ecopages/core';
 export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'],
-		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
 });
@@ -382,7 +382,7 @@ export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'], // loaded immediately
 		scripts: [
-			{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }, // loaded on trigger
+			{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } },
 		],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
@@ -394,14 +394,18 @@ export const Counter = eco.component({
 Lazy loading is configured per dependency entry in `dependencies.scripts`:
 
 ```tsx
-// Load on idle
-scripts: [{ src: './component.script.ts', lazy: { 'on:idle': true } }]
+// Custom element (Lit or Radiant): server registration + lazy browser load
+scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }]
 
-// Load on interaction
-scripts: [{ src: './component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }]
+// Browser-only: no server import (string form or object without ssr: true)
+scripts: ['./analytics.ts']
+scripts: [{ src: './analytics.ts', lazy: { 'on:idle': true } }]
+```
 
-// Load on visibility
-scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }] // or viewport margin like '100px'
+Custom-element entries can mix triggers; each object entry can define its own `lazy` rule:
+
+```tsx
+scripts: [{ src: './component.script.ts', ssr: true, lazy: { 'on:visible': true } }]
 ```
 
 Each entry can define its own trigger, so mixed strategies in one component are supported.
@@ -589,7 +593,7 @@ import { eco } from '@ecopages/core';
 export const Counter = eco.component({
 	dependencies: {
 		stylesheets: ['./counter.css'],
-		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { Github, X } from './icons';
 
@@ -20,11 +20,9 @@ type SocialSignInProps = {
  * only offer email/password login.
  */
 function GithubAuthWarning() {
-	const [visible, setVisible] = useState(false);
-
-	useEffect(() => {
-		setVisible(localStorage.getItem(WARNING_STORAGE_KEY) !== 'true');
-	}, []);
+	const [visible, setVisible] = useState(
+		() => typeof localStorage !== 'undefined' && localStorage.getItem(WARNING_STORAGE_KEY) !== 'true',
+	);
 
 	if (!visible) {
 		return null;

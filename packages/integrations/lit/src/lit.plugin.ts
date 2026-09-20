@@ -1,4 +1,9 @@
-import { createLitServerModuleImporter } from './lit-server-module-loader.ts';
+import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	invalidateCustomElementScriptPreload,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import type { IHmrManager } from '@ecopages/core';
 /**
  * This module contains the Lit plugin
  * @module
@@ -79,7 +84,7 @@ export class LitPlugin extends IntegrationPlugin {
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
 			getInvalidationVersion: () =>
 				this.appConfig?.runtime?.serverInvalidationState?.getServerInvalidationVersion() ?? 0,
-			importServerModule: createLitServerModuleImporter(this.appConfig),
+			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
 			preferSourceImports: typeof Bun !== 'undefined',
 		});
 	}
@@ -90,6 +95,21 @@ export class LitPlugin extends IntegrationPlugin {
 			getRenderSession: () => this.renderSession ?? undefined,
 		});
 		return this.attachRendererRuntimeServices(renderer);
+	}
+
+	override setHmrManager(hmrManager: IHmrManager): void {
+		super.setHmrManager(hmrManager);
+
+		if (!this.appConfig) {
+			return;
+		}
+
+		const runtime = this.appConfig.runtime ?? {};
+		this.appConfig.runtime = runtime;
+		runtime.registeredScriptEntrypointChangeHandlers ??= [];
+		runtime.registeredScriptEntrypointChangeHandlers.push((scriptPath) => {
+			invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit);
+		});
 	}
 
 	override async setup(): Promise<void> {

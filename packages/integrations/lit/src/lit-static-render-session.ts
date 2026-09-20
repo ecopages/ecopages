@@ -1,15 +1,18 @@
 import path from 'node:path';
 import type { EcoComponent, EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import { ensureLitDomShim } from './dom-shim.ts';
 import {
-	LitSsrLazyPreloader,
-	type LitSsrLazyPreloaderOptions,
-	type LitSsrPreloadComponent,
-} from './lit-ssr-lazy-preloader.ts';
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	CustomElementScriptPreloader,
+	type CustomElementScriptPreloaderOptions,
+	type CustomElementSsrPreloadComponent,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
+import { createLitSsrPreloadEntrypointResolver } from './lit-ssr-preload-entrypoint.ts';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
+import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
 
@@ -20,12 +23,9 @@ type LitStaticRenderWorkerIdentity = {
 
 type LitStaticRenderSessionOptions = {
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	processDependencies?: (
-		dependencies: AssetDefinition[],
-		integrationName: string,
-	) => Promise<Array<{ filepath?: string }>>;
 	preferSourceImports?: boolean;
-	importServerModule?: LitSsrLazyPreloaderOptions['importServerModule'];
+	processDependencies?: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
+	importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
 	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: {
 		configModulePath: string;
@@ -46,7 +46,7 @@ type LitStaticRenderSessionOptions = {
  * recreates the worker so stale config/origin is never silently reused.
  */
 export class LitStaticRenderSession {
-	private readonly preloader: LitSsrLazyPreloader;
+	private readonly preloader: CustomElementScriptPreloader;
 	private readonly createWorkerClient: NonNullable<LitStaticRenderSessionOptions['createWorkerClient']>;
 	private workerClient: LitStaticRenderWorkerClientContract | null = null;
 	private workerIdentity: LitStaticRenderWorkerIdentity | null = null;
@@ -56,10 +56,17 @@ export class LitStaticRenderSession {
 
 	constructor(options: LitStaticRenderSessionOptions) {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
-		this.preloader = new LitSsrLazyPreloader({
+		const preferSourceImports = options.preferSourceImports ?? typeof Bun !== 'undefined';
+		this.preloader = new CustomElementScriptPreloader({
+			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			logLabel: 'lit',
+			requireLazyScriptEntry: true,
 			resolveDependencyPath: options.resolveDependencyPath,
-			processDependencies: options.processDependencies,
-			preferSourceImports: options.preferSourceImports,
+			preferSourceImports,
+			resolvePreloadEntrypoint: createLitSsrPreloadEntrypointResolver({
+				preferSourceImports,
+				processDependencies: options.processDependencies,
+			}),
 			importServerModule: options.importServerModule,
 		});
 		this.createWorkerClient =
@@ -108,11 +115,12 @@ export class LitStaticRenderSession {
 		await this.preloadLitRoutes(context);
 	}
 
-	async preloadSsrLazyScripts(components: Array<LitSsrPreloadComponent | undefined>): Promise<void> {
-		await this.preloader.preloadSsrLazyScripts(components);
+	async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
+		ensureLitDomShim();
+		await this.preloader.preloadSsrScripts(components);
 	}
 
-	collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
+	collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
 		return this.preloader.collectSsrPreloadScripts(components);
 	}
 
@@ -180,7 +188,7 @@ export class LitStaticRenderSession {
 			}
 		}
 
-		await this.preloadSsrLazyScripts(components);
+		await this.preloadSsrScripts(components);
 	}
 
 	private isLitRoute(filePath: string, appConfig: EcoPagesAppConfig): boolean {

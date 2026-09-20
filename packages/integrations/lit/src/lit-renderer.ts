@@ -1,4 +1,3 @@
-import { createLitServerModuleImporter } from './lit-server-module-loader.ts';
 /**
  * This module contains the Lit renderer
  * @module
@@ -17,7 +16,6 @@ import type {
 	RouteRendererOptions,
 } from '@ecopages/core';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import './dom-shim.ts';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
@@ -29,8 +27,15 @@ import {
 	resolveOwningIntegrationRenderer,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
 import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { LitSsrLazyPreloader, type LitSsrPreloadComponent } from './lit-ssr-lazy-preloader.ts';
+import { ensureLitDomShim } from './dom-shim.ts';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	CustomElementScriptPreloader,
+	type CustomElementSsrPreloadComponent,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
+import { createLitSsrPreloadEntrypointResolver } from './lit-ssr-preload-entrypoint.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
 	injectLitRenderedChildren,
@@ -57,11 +62,29 @@ export type LitRendererOptions = ConstructorParameters<typeof IntegrationRendere
 export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	override name = LIT_PLUGIN_NAME;
 	private readonly getRenderSession?: () => LitStaticRenderSession | undefined;
+	private readonly ssrScriptPreloader: CustomElementScriptPreloader;
 
 	constructor(options: LitRendererOptions) {
 		const { getRenderSession, ...rendererOptions } = options;
 		super(rendererOptions);
 		this.getRenderSession = getRenderSession;
+		const preferSourceImports = typeof Bun !== 'undefined';
+		this.ssrScriptPreloader = new CustomElementScriptPreloader({
+			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			logLabel: 'lit',
+			requireLazyScriptEntry: true,
+			resolveDependencyPath: this.resolveDependencyPath.bind(this),
+			preferSourceImports,
+			resolvePreloadEntrypoint: createLitSsrPreloadEntrypointResolver({
+				preferSourceImports,
+				processDependencies: this.assetProcessingService?.processDependencies?.bind(
+					this.assetProcessingService,
+				),
+			}),
+			importServerModule: this.appConfig.runtime?.appModuleLoader
+				? createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr')
+				: undefined,
+		});
 	}
 
 	/**
@@ -150,14 +173,14 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	/**
 	 * Renders a Lit component for component-level orchestration.
 	 *
-	 * SSR-eligible lazy scripts are preloaded first so custom elements registered
+	 * SSR-eligible scripts are preloaded first so custom elements registered
 	 * by the component can render their server markup even when the Lit renderer is
 	 * entered through cross-integration foreign-child handoff.
 	 *
 	 * Includes component-scoped dependency assets when declared.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		await this.preloadSsrLazyScripts([input.component]);
+		await this.preloadSsrScripts([input.component]);
 
 		if (!this.isFunctionComponent(input.component)) {
 			throw new TypeError('Lit renderer expected a callable component.');
@@ -224,12 +247,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		});
 	}
 
-	private readonly ssrLazyPreloader = new LitSsrLazyPreloader({
-		importServerModule: createLitServerModuleImporter(this.appConfig),
-		resolveDependencyPath: this.resolveDependencyPath.bind(this),
-		processDependencies: this.assetProcessingService?.processDependencies?.bind(this.assetProcessingService),
-	});
-
 	/**
 	 * Detects preload failures that are expected for browser-only modules.
 	 *
@@ -237,41 +254,32 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * lazy client scripts intentionally depend on browser globals.
 	 */
 	protected isExpectedSsrPreloadError(error: unknown): boolean {
-		return this.ssrLazyPreloader.isExpectedSsrPreloadError(error);
+		return this.ssrScriptPreloader.isExpectedSsrPreloadError(error);
 	}
 
 	/**
-	 * Collects lazy script file paths eligible for SSR preloading.
+	 * Collects script file paths eligible for SSR preloading.
 	 *
-	 * Only per-entry lazy script dependencies with `ssr: true` are collected.
+	 * Per-entry script dependencies with `ssr: true` are collected (eager or lazy).
 	 * File-backed entries are required (`src` must be present);
 	 * inline content lazy entries are intentionally skipped.
 	 */
-	protected collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
-		return this.ssrLazyPreloader.collectSsrPreloadScripts(components);
+	protected collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
+		return this.ssrScriptPreloader.collectSsrPreloadScripts(components);
 	}
 
 	/**
-	 * Preloads SSR-eligible lazy scripts to register custom elements before render.
+	 * Preloads SSR-eligible scripts to register custom elements before render.
 	 */
-	protected async preloadSsrLazyScripts(components: Array<LitSsrPreloadComponent | undefined>): Promise<void> {
+	protected async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
+		ensureLitDomShim();
 		const renderSession = this.getRenderSession?.();
 		if (renderSession) {
-			await renderSession.preloadSsrLazyScripts(components);
+			await renderSession.preloadSsrScripts(components);
 			return;
 		}
 
-		await this.ssrLazyPreloader.preloadSsrLazyScripts(components);
-	}
-
-	/**
-	 * Resolves the concrete JS entrypoint used for SSR preloading.
-	 *
-	 * Scripts are passed through the asset pipeline so preload imports can use
-	 * the same processed output shape as runtime dependencies.
-	 */
-	protected async resolveSsrPreloadEntrypoint(scriptPath: string): Promise<string | null> {
-		return this.ssrLazyPreloader.resolveSsrPreloadEntrypoint(scriptPath);
+		await this.ssrScriptPreloader.preloadSsrScripts(components);
 	}
 
 	async render({
@@ -287,7 +295,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		resolvedPageDependencyComponents,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
-			await this.preloadSsrLazyScripts([Page, Layout, ...(resolvedPageDependencyComponents ?? [])]);
+			await this.preloadSsrScripts([Page, Layout, ...(resolvedPageDependencyComponents ?? [])]);
 
 			return await this.renderPageWithDocumentShell({
 				page: {
@@ -325,7 +333,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		try {
 			const layouts = view.config?.layouts;
 			const Layout = layouts?.[layouts.length - 1];
-			await this.preloadSsrLazyScripts([view, Layout]);
+			await this.preloadSsrScripts([view, Layout]);
 
 			return await this.renderViewWithDocumentShell({
 				view,

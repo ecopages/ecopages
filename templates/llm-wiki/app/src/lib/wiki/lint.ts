@@ -1,8 +1,15 @@
 import { access, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { isEnoent } from './is-enoent';
-import { extractWikiMarkdownLinkHrefs, resolveWikiLinkTarget } from './links';
-import { loadVaultPages, readSortspec, SORTSPEC_FILENAME, type CategoryMode, type VaultPage } from './vault';
+import {
+	lintOrphanPages,
+	lintPageRecipePaths,
+	lintPageSources,
+	lintPageWikiLinks,
+	lintSortspecGhosts,
+	lintUncitedSources,
+} from './lint-page';
+import { loadVaultPages, readSortspec, SORTSPEC_FILENAME, type CategoryMode } from './vault';
 
 export type WikiLintCode =
 	'broken-link' | 'missing-source' | 'recipe-path' | 'orphan' | 'uncited-source' | 'sortspec-ghost';
@@ -26,10 +33,6 @@ export type WikiLintOptions = {
 export type WikiLintResult = {
 	findings: WikiLintFinding[];
 };
-
-function vaultPagePath(page: VaultPage): string {
-	return `wiki/${page.sourceName}`;
-}
 
 async function listSourceNames(sourcesDir: string): Promise<string[]> {
 	try {
@@ -69,122 +72,17 @@ export async function lintWiki(options: WikiLintOptions): Promise<WikiLintResult
 	const findings: WikiLintFinding[] = [];
 
 	for (const page of pages) {
-		for (const source of page.sources) {
+		for (const source of lintPageSources(page, sourceSet, findings)) {
 			citedSources.add(source);
-			if (!sourceSet.has(source)) {
-				findings.push({
-					code: 'missing-source',
-					severity: 'error',
-					page: vaultPagePath(page),
-					message: `frontmatter sources lists missing file sources/${source}.md`,
-					target: source,
-				});
-			}
 		}
 
-		if (page.category === 'recipe' && page.paths.length === 0) {
-			findings.push({
-				code: 'recipe-path',
-				severity: 'error',
-				page: vaultPagePath(page),
-				message: 'recipe page has no paths',
-			});
-		}
-
-		for (const relativePath of page.paths) {
-			if (await missingRelativePath(options.wikiRoot, relativePath)) {
-				findings.push({
-					code: 'recipe-path',
-					severity: 'error',
-					page: vaultPagePath(page),
-					message: `path does not exist: ${relativePath}`,
-					target: relativePath,
-				});
-			}
-		}
-
-		for (const href of extractWikiMarkdownLinkHrefs(page.body)) {
-			const target = resolveWikiLinkTarget(href, page.category);
-			if (!target) {
-				continue;
-			}
-			if (!slugs.has(target)) {
-				findings.push({
-					code: 'broken-link',
-					severity: 'error',
-					page: vaultPagePath(page),
-					message: `broken wiki link ${href}`,
-					target,
-				});
-				continue;
-			}
-			inbound.set(target, (inbound.get(target) ?? 0) + 1);
-		}
+		await lintPageRecipePaths(page, options.wikiRoot, missingRelativePath, findings);
+		lintPageWikiLinks(page, slugs, inbound, findings);
 	}
 
-	for (const page of pages) {
-		if ((inbound.get(page.slug) ?? 0) > 0) {
-			continue;
-		}
-		if (options.homeSlug && page.slug === options.homeSlug) {
-			continue;
-		}
-		findings.push({
-			code: 'orphan',
-			severity: 'error',
-			page: vaultPagePath(page),
-			message: 'no inbound wiki links',
-		});
-	}
-
-	for (const source of sourceNames) {
-		if (!citedSources.has(source)) {
-			findings.push({
-				code: 'uncited-source',
-				severity: 'warning',
-				page: `sources/${source}.md`,
-				message: 'source file is not listed on any page',
-				target: source,
-			});
-		}
-	}
-
-	const discoveredCategories = new Set(pages.map((page) => page.category));
-	const rootOrder = await readSortspec(join(options.wikiDir, SORTSPEC_FILENAME));
-	for (const category of rootOrder) {
-		if (!discoveredCategories.has(category)) {
-			findings.push({
-				code: 'sortspec-ghost',
-				severity: 'warning',
-				page: `wiki/${SORTSPEC_FILENAME}`,
-				message: `sortspec lists unknown category ${category}`,
-				target: category,
-			});
-		}
-	}
-
-	if (layout === 'directory') {
-		const categorySortspecs = await Promise.all(
-			[...discoveredCategories].map(async (category) => {
-				const titles = new Set(pages.filter((page) => page.category === category).map((page) => page.title));
-				const explicit = await readSortspec(join(options.wikiDir, category, SORTSPEC_FILENAME));
-				return { category, titles, explicit };
-			}),
-		);
-		for (const { category, titles, explicit } of categorySortspecs) {
-			for (const title of explicit) {
-				if (!titles.has(title)) {
-					findings.push({
-						code: 'sortspec-ghost',
-						severity: 'warning',
-						page: `wiki/${category}/${SORTSPEC_FILENAME}`,
-						message: `sortspec lists unknown title ${title}`,
-						target: title,
-					});
-				}
-			}
-		}
-	}
+	lintOrphanPages(pages, inbound, options.homeSlug, findings);
+	lintUncitedSources(sourceNames, citedSources, findings);
+	await lintSortspecGhosts(options.wikiDir, layout, pages, readSortspec, SORTSPEC_FILENAME, findings);
 
 	return { findings };
 }

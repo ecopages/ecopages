@@ -4,6 +4,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createPlaywrightSubprocessEnv } from '../../playwright/playwright-color-env.mjs';
+import { parseArgs } from './run-isolated-app-args.mjs';
+
+export { parseArgs } from './run-isolated-app-args.mjs';
 
 const REMOVE_DIRECTORY_OPTIONS = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 };
 const WORKSPACE_PREPARE_TIMEOUT_MS = 120_000;
@@ -49,96 +52,6 @@ export function shouldExcludeFromWorkspaceCopy(relativePath) {
 	}
 
 	return topLevelEntry.startsWith('dist-') || topLevelEntry.startsWith('.eco-');
-}
-
-function parseArgs(argv) {
-	const options = {
-		artifactScope: '',
-		host: 'ecopages',
-		mode: 'dev',
-		port: '',
-		runtime: 'bun',
-		sourceDir: '',
-		workspace: '',
-	};
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const arg = argv[index];
-		const nextValue = argv[index + 1];
-
-		if (arg === '--artifactScope' && nextValue) {
-			options.artifactScope = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--workspace' && nextValue) {
-			options.workspace = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--sourceDir' && nextValue) {
-			options.sourceDir = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--host' && nextValue) {
-			options.host = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--runtime' && nextValue) {
-			options.runtime = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--mode' && nextValue) {
-			options.mode = nextValue;
-			index += 1;
-			continue;
-		}
-
-		if (arg === '--port' && nextValue) {
-			options.port = nextValue;
-			index += 1;
-			continue;
-		}
-	}
-
-	if (!options.sourceDir || !options.workspace || !options.port) {
-		throw new Error('Missing required isolated Playwright app launcher arguments.');
-	}
-
-	if (!['ecopages', 'vite'].includes(options.host)) {
-		throw new Error(`Unsupported isolated app host: ${options.host}`);
-	}
-
-	if (!['dev', 'preview'].includes(options.mode)) {
-		throw new Error(`Unsupported isolated app mode: ${options.mode}`);
-	}
-
-	if (!['bun', 'node'].includes(options.runtime)) {
-		throw new Error(`Unsupported isolated app runtime: ${options.runtime}`);
-	}
-
-	if (options.host === 'vite' && options.mode !== 'dev') {
-		throw new Error('Vite isolated Playwright servers only support dev mode.');
-	}
-
-	const port = Number(options.port);
-	if (!Number.isInteger(port) || port <= 0) {
-		throw new Error(`Invalid isolated app port: ${options.port}`);
-	}
-
-	return {
-		...options,
-		artifactScope: options.artifactScope || options.workspace,
-		port,
-	};
 }
 
 function getAbsoluteSourceDir(sourceDir) {

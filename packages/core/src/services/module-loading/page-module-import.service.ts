@@ -210,24 +210,11 @@ export class PageModuleImportService {
 		});
 	}
 
-	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
-		const { filePath, fileHash, importCacheKey } = options;
-
-		const {
-			rootDir,
-			outdir,
-			splitting,
-			externalPackages,
-			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
-			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
-		} = options;
-
-		const outputFileName = createRuntimeBuildOutputFileName(
-			resolvePageModuleOutputFileName({ filePath, fileHash }),
-			this.developmentImportGeneration,
-		);
-		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
-		const preferredOutputPath = path.join(outdir, outputFileName);
+	private createRouteModuleBuildOptions(
+		options: LoadModuleOptions,
+		outputNamingTemplate: string,
+	): { buildOptions: BuildOptions; rootDir: string; outdir: string } {
+		const { filePath, rootDir, outdir, splitting, externalPackages } = options;
 		const buildOptions: BuildOptions = this.appConfig
 			? createServerBuildRequest(this.appConfig, {
 					profile: 'route-module',
@@ -253,10 +240,24 @@ export class PageModuleImportService {
 					root: rootDir,
 					entrypoints: [filePath],
 				};
-		const cacheBuildOptions = {
-			...options,
+		return {
+			buildOptions,
 			rootDir: buildOptions.root ?? rootDir,
 			outdir: buildOptions.outdir ?? outdir,
+		};
+	}
+
+	private createRouteModuleCacheBuildOptions(
+		options: LoadModuleOptions,
+		buildOptions: BuildOptions,
+		resolvedRootDir: string,
+		resolvedOutdir: string,
+		fileHash: string,
+	) {
+		return {
+			...options,
+			rootDir: resolvedRootDir,
+			outdir: resolvedOutdir,
 			splitting: buildOptions.splitting,
 			externalPackages: buildOptions.externalPackages,
 			jsx: buildOptions.jsx,
@@ -264,40 +265,58 @@ export class PageModuleImportService {
 			sourceTransforms: buildOptions.sourceTransforms,
 			fileHash,
 		};
-		const routeModuleBuildCache = this.getRouteModuleBuildCache(outdir);
-		const cachedBuild = routeModuleBuildCache.lookup(cacheBuildOptions);
+	}
 
-		if (cachedBuild) {
-			const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
-			recordPageModuleLoad('disk-cache-hit');
-			return loadedModule;
+	private async tryLoadCachedRouteModuleBuild<T>(
+		cacheBuildOptions: ReturnType<PageModuleImportService['createRouteModuleCacheBuildOptions']>,
+		outdir: string,
+	): Promise<T | undefined> {
+		const cachedBuild = this.getRouteModuleBuildCache(outdir).lookup(cacheBuildOptions);
+		if (!cachedBuild) {
+			return undefined;
 		}
+		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
+		recordPageModuleLoad('disk-cache-hit');
+		return loadedModule;
+	}
 
-		if (shouldBuildPagesUnifiedGraph() && this.appConfig && isPagesUnifiedGraphPage(filePath, this.appConfig)) {
-			const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
-			if (graphModule !== undefined) {
-				recordPageModuleLoad('unified-graph');
-				return graphModule;
-			}
+	private async tryLoadPagesUnifiedGraphModule<T>(filePath: string): Promise<T | undefined> {
+		if (!shouldBuildPagesUnifiedGraph() || !this.appConfig || !isPagesUnifiedGraphPage(filePath, this.appConfig)) {
+			return undefined;
 		}
-
-		recordPageModuleBuildInvocation();
-		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
-		recordPageModuleLoad('cold-build', buildResult.outputs.length);
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
-			throw new Error(transpileErrorMessage(details));
+		const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
+		if (graphModule === undefined) {
+			return undefined;
 		}
+		recordPageModuleLoad('unified-graph');
+		return graphModule;
+	}
 
+	private resolveCompiledRouteModuleOutput(
+		buildResult: BuildResult,
+		preferredOutputPath: string,
+		filePath: string,
+		noOutputMessage: (targetFilePath: string) => string,
+	): string {
 		const compiledOutput =
 			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
 			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
-
 		if (!compiledOutput) {
 			throw new Error(noOutputMessage(filePath));
 		}
+		return compiledOutput;
+	}
 
+	private async importCompiledRouteModule<T>(
+		compiledOutput: string,
+		filePath: string,
+		fileHash: string,
+		rootDir: string,
+		buildResult: BuildResult,
+		importCacheKey: string | undefined,
+		cacheBuildOptions: ReturnType<PageModuleImportService['createRouteModuleCacheBuildOptions']>,
+		outdir: string,
+	): Promise<T> {
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[path.normalize(filePath)] = fileHash;
@@ -309,19 +328,81 @@ export class PageModuleImportService {
 			}
 		}
 
-		routeModuleBuildCache.recordBuild({
+		this.getRouteModuleBuildCache(outdir).recordBuild({
 			...cacheBuildOptions,
 			outputPath: compiledOutput,
 			dependencyModulePaths,
 		});
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
-
 		if (shouldAddRuntimeUpdateQuery()) {
 			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.developmentImportGeneration}`);
 		}
-
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
+	}
+
+	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
+		const { filePath, fileHash, importCacheKey } = options;
+		const {
+			outdir,
+			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
+			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
+		} = options;
+
+		const outputFileName = createRuntimeBuildOutputFileName(
+			resolvePageModuleOutputFileName({ filePath, fileHash }),
+			this.developmentImportGeneration,
+		);
+		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
+		const preferredOutputPath = path.join(outdir, outputFileName);
+		const {
+			buildOptions,
+			rootDir: resolvedRootDir,
+			outdir: resolvedOutdir,
+		} = this.createRouteModuleBuildOptions(options, outputNamingTemplate);
+		const cacheBuildOptions = this.createRouteModuleCacheBuildOptions(
+			options,
+			buildOptions,
+			resolvedRootDir,
+			resolvedOutdir,
+			fileHash,
+		);
+
+		const cachedModule = await this.tryLoadCachedRouteModuleBuild<T>(cacheBuildOptions, resolvedOutdir);
+		if (cachedModule !== undefined) {
+			return cachedModule;
+		}
+
+		const unifiedGraphModule = await this.tryLoadPagesUnifiedGraphModule<T>(filePath);
+		if (unifiedGraphModule !== undefined) {
+			return unifiedGraphModule;
+		}
+
+		recordPageModuleBuildInvocation();
+		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
+		recordPageModuleLoad('cold-build', buildResult.outputs.length);
+
+		if (!buildResult.success) {
+			const details = buildResult.logs.map((log) => log.message).join(' | ');
+			throw new Error(transpileErrorMessage(details));
+		}
+
+		const compiledOutput = this.resolveCompiledRouteModuleOutput(
+			buildResult,
+			preferredOutputPath,
+			filePath,
+			noOutputMessage,
+		);
+		return await this.importCompiledRouteModule(
+			compiledOutput,
+			filePath,
+			fileHash,
+			resolvedRootDir,
+			buildResult,
+			importCacheKey,
+			cacheBuildOptions,
+			resolvedOutdir,
+		);
 	}
 
 	private getRouteModuleBuildCache(outdir: string) {

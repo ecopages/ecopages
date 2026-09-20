@@ -4,6 +4,7 @@ import { parseCliArgs } from './parse-cli-args.ts';
 const originalArgv = [...process.argv];
 const originalNodeEnv = process.env.NODE_ENV;
 const originalEmbeddedRuntime = process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+const originalPreviewServeOnly = process.env.ECOPAGES_PREVIEW_SERVE_ONLY;
 
 describe('parseCliArgs', () => {
 	afterEach(() => {
@@ -19,6 +20,12 @@ describe('parseCliArgs', () => {
 			delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
 		} else {
 			process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME = originalEmbeddedRuntime;
+		}
+
+		if (originalPreviewServeOnly === undefined) {
+			delete process.env.ECOPAGES_PREVIEW_SERVE_ONLY;
+		} else {
+			process.env.ECOPAGES_PREVIEW_SERVE_ONLY = originalPreviewServeOnly;
 		}
 	});
 
@@ -143,5 +150,41 @@ describe('parseCliArgs', () => {
 			dev: false,
 		});
 		expect(process.env.NODE_ENV).toBe('production');
+	});
+
+	it('defaults to start when the bin is present without a subcommand', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		delete process.env.NODE_ENV;
+		process.argv = ['node', '/usr/local/bin/ecopages.js'];
+
+		expect(parseCliArgs()).toMatchObject({
+			start: true,
+			dev: false,
+			build: false,
+			preview: false,
+		});
+		expect(process.env.NODE_ENV).toBe('production');
+	});
+
+	it('parses port, hostname, and react-fast-refresh flags', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		delete process.env.NODE_ENV;
+		process.argv = [
+			'node',
+			'/usr/local/bin/ecopages.js',
+			'dev',
+			'--port',
+			'4321',
+			'--hostname',
+			'127.0.0.1',
+			'--react-fast-refresh',
+		];
+
+		expect(parseCliArgs()).toMatchObject({
+			dev: true,
+			port: 4321,
+			hostname: '127.0.0.1',
+			reactFastRefresh: true,
+		});
 	});
 });

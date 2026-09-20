@@ -76,6 +76,128 @@ function attachDomTarget(
 	return { targetSelector, domPath, matchIndex };
 }
 
+function isOutsideDevToolbar(element: Element): boolean {
+	return !element.closest('eco-dev-toolbar');
+}
+
+function checkMissingImageAlts(doc: Document): A11yIssue[] {
+	const issues: A11yIssue[] = [];
+
+	for (const image of doc.querySelectorAll('img')) {
+		if (!isOutsideDevToolbar(image)) {
+			continue;
+		}
+
+		if (!image.getAttribute('alt')?.trim()) {
+			const targetSelector = buildCssSelector(image, doc);
+			issues.push({
+				id: 'img-alt',
+				message: 'Image is missing alt text',
+				severity: 'error',
+				element: image,
+				source: 'builtin',
+				...attachDomTarget(doc, image, targetSelector),
+			});
+		}
+	}
+
+	return issues;
+}
+
+function checkUnlabeledFormControls(doc: Document): A11yIssue[] {
+	const issues: A11yIssue[] = [];
+
+	for (const input of doc.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+		'input, textarea, select',
+	)) {
+		if (!isOutsideDevToolbar(input)) {
+			continue;
+		}
+
+		const type = input instanceof HTMLInputElement ? input.type : 'text';
+		if (type === 'hidden') {
+			continue;
+		}
+
+		const hasLabel = Boolean(
+			input.labels?.length || input.getAttribute('aria-label') || input.getAttribute('aria-labelledby'),
+		);
+		if (!hasLabel) {
+			const targetSelector = buildCssSelector(input, doc);
+			issues.push({
+				id: 'form-label',
+				message: 'Form control is missing an accessible label',
+				severity: 'error',
+				element: input,
+				source: 'builtin',
+				...attachDomTarget(doc, input, targetSelector),
+			});
+		}
+	}
+
+	return issues;
+}
+
+function checkHeadingOrder(doc: Document): A11yIssue[] {
+	const issues: A11yIssue[] = [];
+	let previousHeading = 0;
+
+	for (const heading of doc.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+		if (!isOutsideDevToolbar(heading)) {
+			continue;
+		}
+
+		const level = Number.parseInt(heading.tagName.slice(1), 10);
+		if (previousHeading > 0 && level - previousHeading > 1) {
+			const targetSelector = buildCssSelector(heading, doc);
+			issues.push({
+				id: 'heading-order',
+				message: `Heading level skips from h${previousHeading} to h${level}`,
+				severity: 'warning',
+				element: heading,
+				source: 'builtin',
+				...attachDomTarget(doc, heading, targetSelector),
+			});
+		}
+		previousHeading = level;
+	}
+
+	return issues;
+}
+
+function checkDuplicateIds(doc: Document): A11yIssue[] {
+	const issues: A11yIssue[] = [];
+	const ids = new Map<string, Element>();
+
+	for (const element of doc.querySelectorAll('[id]')) {
+		if (!isOutsideDevToolbar(element)) {
+			continue;
+		}
+
+		const id = element.id;
+		if (!id) {
+			continue;
+		}
+
+		const existing = ids.get(id);
+		if (existing) {
+			const targetSelector = buildCssSelector(element, doc);
+			issues.push({
+				id: 'duplicate-id',
+				message: `Duplicate id "${id}"`,
+				severity: 'error',
+				element: element,
+				source: 'builtin',
+				...attachDomTarget(doc, element, targetSelector),
+			});
+		} else {
+			ids.set(id, element);
+		}
+	}
+
+	return issues;
+}
+
 export function toA11yIssueView(issue: A11yIssue): A11yIssueView {
 	const { element: _element, ...view } = issue;
 	return view;
@@ -124,101 +246,12 @@ export function resolveA11yIssueElement(
 }
 
 export function runBuiltinChecks(doc: Document): A11yIssue[] {
-	const issues: A11yIssue[] = [];
-	const ids = new Map<string, Element>();
-
-	for (const image of doc.querySelectorAll('img')) {
-		if (image.closest('eco-dev-toolbar')) {
-			continue;
-		}
-
-		if (!image.getAttribute('alt')?.trim()) {
-			const targetSelector = buildCssSelector(image, doc);
-			issues.push({
-				id: 'img-alt',
-				message: 'Image is missing alt text',
-				severity: 'error',
-				element: image,
-				source: 'builtin',
-				...attachDomTarget(doc, image, targetSelector),
-			});
-		}
-	}
-
-	for (const input of doc.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-		'input, textarea, select',
-	)) {
-		if (input.closest('eco-dev-toolbar')) {
-			continue;
-		}
-
-		const type = input instanceof HTMLInputElement ? input.type : 'text';
-		if (type === 'hidden') {
-			continue;
-		}
-		const hasLabel = Boolean(
-			input.labels?.length || input.getAttribute('aria-label') || input.getAttribute('aria-labelledby'),
-		);
-		if (!hasLabel) {
-			const targetSelector = buildCssSelector(input, doc);
-			issues.push({
-				id: 'form-label',
-				message: 'Form control is missing an accessible label',
-				severity: 'error',
-				element: input,
-				source: 'builtin',
-				...attachDomTarget(doc, input, targetSelector),
-			});
-		}
-	}
-
-	let previousHeading = 0;
-	for (const heading of doc.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
-		if (heading.closest('eco-dev-toolbar')) {
-			continue;
-		}
-
-		const level = Number.parseInt(heading.tagName.slice(1), 10);
-		if (previousHeading > 0 && level - previousHeading > 1) {
-			const targetSelector = buildCssSelector(heading, doc);
-			issues.push({
-				id: 'heading-order',
-				message: `Heading level skips from h${previousHeading} to h${level}`,
-				severity: 'warning',
-				element: heading,
-				source: 'builtin',
-				...attachDomTarget(doc, heading, targetSelector),
-			});
-		}
-		previousHeading = level;
-	}
-
-	for (const element of doc.querySelectorAll('[id]')) {
-		if (element.closest('eco-dev-toolbar')) {
-			continue;
-		}
-
-		const id = element.id;
-		if (!id) {
-			continue;
-		}
-		const existing = ids.get(id);
-		if (existing) {
-			const targetSelector = buildCssSelector(element, doc);
-			issues.push({
-				id: 'duplicate-id',
-				message: `Duplicate id "${id}"`,
-				severity: 'error',
-				element: element,
-				source: 'builtin',
-				...attachDomTarget(doc, element, targetSelector),
-			});
-		} else {
-			ids.set(id, element);
-		}
-	}
-
-	return issues;
+	return [
+		...checkMissingImageAlts(doc),
+		...checkUnlabeledFormControls(doc),
+		...checkHeadingOrder(doc),
+		...checkDuplicateIds(doc),
+	];
 }
 
 function mapAxeImpact(impact: string | null | undefined): A11yIssue['severity'] {

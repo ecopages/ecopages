@@ -17,7 +17,11 @@ import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
 import { ViewTransitionManager } from './services/view-transition-manager.ts';
 import { NavigationCommit } from './navigation-commit.ts';
-import { fetchNavigationPage } from './navigation-fetch.ts';
+import {
+	replayQueuedBrowserRouterNavigation,
+	runPerformNavigationAttempt,
+	shouldIgnorePerformNavigationError,
+} from './eco-router-perform-navigation.ts';
 
 /**
  * Intercepts same-origin link clicks and performs client-side navigation
@@ -342,31 +346,20 @@ export class EcoRouter {
 		let committed = false;
 
 		try {
-			const html = await fetchNavigationPage(url, signal, {
-				bypassCache: options.bypassPrefetchCache,
-				getCachedHtml: this.prefetchManager ? (href) => this.prefetchManager!.getCachedHtml(href) : undefined,
-			});
-			if (isStaleNavigation()) {
-				return false;
-			}
-
-			const newDocument = this.domSwapper.parseHTML(html, url);
-			if (isStaleNavigation()) {
-				return false;
-			}
-
-			committed = await this.navigationCommit.commit(url, direction, newDocument, {
-				html,
-				isStaleNavigation,
+			committed = await runPerformNavigationAttempt({
+				url,
+				direction,
+				bypassPrefetchCache: options.bypassPrefetchCache,
 				allowFullDocumentFallback,
+				domSwapper: this.domSwapper,
+				navigationCommit: this.navigationCommit,
+				prefetchManager: this.prefetchManager,
+				isStaleNavigation,
+				signal,
 			});
 			return committed;
 		} catch (error) {
-			if (isStaleNavigation()) {
-				return false;
-			}
-
-			if (error instanceof Error && error.name === 'AbortError') {
+			if (shouldIgnorePerformNavigationError(error, isStaleNavigation)) {
 				return false;
 			}
 
@@ -385,23 +378,9 @@ export class EcoRouter {
 				this.queuedNavigationHref = null;
 			}
 
-			if (queuedNavigationHref && queuedNavigationHref !== window.location.pathname + window.location.search) {
-				const ownerState = navigationRuntime.getOwnerState();
-
-				if (
-					ownerState.owner !== 'none' &&
-					ownerState.owner !== 'browser-router' &&
-					ownerState.canHandleSpaNavigation
-				) {
-					void navigationRuntime.requestNavigation({
-						href: queuedNavigationHref,
-						direction: 'forward',
-						source: 'browser-router',
-					});
-				} else {
-					void this.performNavigation(new URL(queuedNavigationHref, window.location.origin), 'forward');
-				}
-			}
+			replayQueuedBrowserRouterNavigation(queuedNavigationHref, (replayUrl, replayDirection) =>
+				this.performNavigation(replayUrl, replayDirection),
+			);
 		}
 	}
 }

@@ -207,6 +207,77 @@ export class ProjectWatcher {
 		return Promise.resolve();
 	}
 
+	private async invalidatePageCachesForChange(
+		plan: DevelopmentInvalidationPlan,
+		resolvedFilePath: string,
+	): Promise<void> {
+		if (shouldClearAllPageHtmlCache(plan.category)) {
+			await clearAppPageCache(this.appConfig);
+			return;
+		}
+		await invalidateAppPageCacheBySourcePaths(this.appConfig, [resolvedFilePath]);
+	}
+
+	private async applyRouteAndServerInvalidation(
+		plan: DevelopmentInvalidationPlan,
+		filePath: string,
+		resolvedFilePath: string,
+		event: 'change' | 'add' | 'unlink',
+		isRegisteredDevTransformEdit: boolean,
+	): Promise<void> {
+		if (plan.refreshRoutes && (event === 'unlink' || event === 'add')) {
+			getAppPageBrowserGraphSession(this.appConfig).invalidateByRouteFile(resolvedFilePath);
+		}
+		if (plan.invalidateServerModules && !isRegisteredDevTransformEdit) {
+			this.invalidationService.invalidateServerModules([filePath]);
+		}
+		if (plan.refreshRoutes) {
+			await this.refreshRouterRoutesCallback();
+		}
+	}
+
+	private shouldDeferProcessorNotifications(
+		plan: DevelopmentInvalidationPlan,
+		isRegisteredDevTransformEdit: boolean,
+	): boolean {
+		return (
+			plan.category === 'include-source' ||
+			plan.category === 'explicit-server-view' ||
+			isRegisteredDevTransformEdit
+		);
+	}
+
+	private async handleDeferredHmrFileChange(
+		filePath: string,
+		resolvedFilePath: string,
+		event: 'change' | 'add' | 'unlink',
+		plan: DevelopmentInvalidationPlan,
+		graphPreparation: ReturnType<typeof prepareHmrFileChange> | undefined,
+	): Promise<void> {
+		await this.prewarmBeforeHmr(resolvedFilePath, plan);
+		await this.hmrManager.handleFileChange(filePath, {
+			graphIdentities: graphPreparation?.affectedGraphIdentities,
+		});
+		await this.notifyProcessors(filePath, event);
+	}
+
+	private async handleStandardHmrFileChange(
+		filePath: string,
+		event: 'change' | 'add' | 'unlink',
+		plan: DevelopmentInvalidationPlan,
+		graphPreparation: ReturnType<typeof prepareHmrFileChange> | undefined,
+	): Promise<void> {
+		await this.notifyProcessors(filePath, event);
+		if (plan.processorHandledAsset) {
+			return;
+		}
+		if (plan.delegateToHmr) {
+			await this.hmrManager.handleFileChange(filePath, {
+				graphIdentities: graphPreparation?.affectedGraphIdentities,
+			});
+		}
+	}
+
 	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		try {
 			const plan = this.invalidationService.planFileChange(filePath);
@@ -218,30 +289,22 @@ export class ProjectWatcher {
 
 			this.uncacheModules();
 			const resolvedFilePath = path.resolve(filePath);
-			if (shouldClearAllPageHtmlCache(plan.category)) {
-				await clearAppPageCache(this.appConfig);
-			} else {
-				await invalidateAppPageCacheBySourcePaths(this.appConfig, [resolvedFilePath]);
-			}
+			await this.invalidatePageCachesForChange(plan, resolvedFilePath);
 			const graphPreparation = this.hmrManager.isEnabled()
 				? prepareHmrFileChange(this.appConfig, resolvedFilePath)
 				: undefined;
-
-			if (plan.refreshRoutes && (event === 'unlink' || event === 'add')) {
-				getAppPageBrowserGraphSession(this.appConfig).invalidateByRouteFile(resolvedFilePath);
-			}
 			const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
 				this.hmrManager.getRegisteredEntrypoints(),
 				resolvedFilePath,
 			);
 
-			if (plan.invalidateServerModules && !isRegisteredDevTransformEdit) {
-				this.invalidationService.invalidateServerModules([filePath]);
-			}
-
-			if (plan.refreshRoutes) {
-				await this.refreshRouterRoutesCallback();
-			}
+			await this.applyRouteAndServerInvalidation(
+				plan,
+				filePath,
+				resolvedFilePath,
+				event,
+				isRegisteredDevTransformEdit,
+			);
 
 			if (plan.reloadBrowser) {
 				await this.notifyProcessors(filePath, event);
@@ -249,31 +312,16 @@ export class ProjectWatcher {
 				return;
 			}
 
-			const deferProcessorNotifications =
-				plan.category === 'include-source' ||
-				plan.category === 'explicit-server-view' ||
-				isRegisteredDevTransformEdit;
-
+			const deferProcessorNotifications = this.shouldDeferProcessorNotifications(
+				plan,
+				isRegisteredDevTransformEdit,
+			);
 			if (deferProcessorNotifications && plan.delegateToHmr) {
-				await this.prewarmBeforeHmr(resolvedFilePath, plan);
-				await this.hmrManager.handleFileChange(filePath, {
-					graphIdentities: graphPreparation?.affectedGraphIdentities,
-				});
-				await this.notifyProcessors(filePath, event);
+				await this.handleDeferredHmrFileChange(filePath, resolvedFilePath, event, plan, graphPreparation);
 				return;
 			}
 
-			await this.notifyProcessors(filePath, event);
-
-			if (plan.processorHandledAsset) {
-				return;
-			}
-
-			if (plan.delegateToHmr) {
-				await this.hmrManager.handleFileChange(filePath, {
-					graphIdentities: graphPreparation?.affectedGraphIdentities,
-				});
-			}
+			await this.handleStandardHmrFileChange(filePath, event, plan, graphPreparation);
 		} catch (error) {
 			if (error instanceof Error) {
 				this.bridge.error(error.message);

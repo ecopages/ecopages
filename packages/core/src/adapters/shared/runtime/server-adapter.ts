@@ -263,35 +263,12 @@ export abstract class SharedServerAdapter<
 		};
 	}
 
-	private getOrCreateSharedPageCacheService(): PageCacheService | null {
-		if (this.sharedPageCacheService !== undefined) {
-			return this.sharedPageCacheService;
-		}
-
+	private createSharedPageCacheServiceFromConfig(): PageCacheService | null {
 		const cacheConfig = this.appConfig.cache;
 		const watch = Boolean(this.options?.watch);
+		const isCacheEnabled = watch ? cacheConfig?.enabled !== false : (cacheConfig?.enabled ?? true);
 
-		if (watch) {
-			if (cacheConfig?.enabled === false) {
-				this.sharedPageCacheService = null;
-				registerAppPageCacheService(this.appConfig, null);
-				return null;
-			}
-
-			const store =
-				cacheConfig?.store === 'memory' || !cacheConfig?.store
-					? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
-					: cacheConfig.store;
-			const service = new PageCacheService({ store, enabled: true });
-			this.sharedPageCacheService = service;
-			registerAppPageCacheService(this.appConfig, service);
-			return service;
-		}
-
-		const isCacheEnabled = cacheConfig?.enabled ?? true;
 		if (!isCacheEnabled) {
-			this.sharedPageCacheService = null;
-			registerAppPageCacheService(this.appConfig, null);
 			return null;
 		}
 
@@ -299,7 +276,16 @@ export abstract class SharedServerAdapter<
 			cacheConfig?.store === 'memory' || !cacheConfig?.store
 				? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
 				: cacheConfig.store;
-		const service = new PageCacheService({ store, enabled: true });
+
+		return new PageCacheService({ store, enabled: true });
+	}
+
+	private getOrCreateSharedPageCacheService(): PageCacheService | null {
+		if (this.sharedPageCacheService !== undefined) {
+			return this.sharedPageCacheService;
+		}
+
+		const service = this.createSharedPageCacheServiceFromConfig();
 		this.sharedPageCacheService = service;
 		registerAppPageCacheService(this.appConfig, service);
 		return service;

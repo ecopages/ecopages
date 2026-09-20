@@ -14,194 +14,183 @@
  *   });
  */
 
-import type { API, FileInfo, Options, ASTPath } from 'jscodeshift';
+import type { API, FileInfo, Options, ASTPath, JSCodeshift, Collection } from 'jscodeshift';
 
 export const parser = 'tsx';
 
 interface ExtractedComponentInfo {
 	componentName: string;
 	propsType: string | null;
-	renderBody: any;
-	dependencies: any | null;
+	renderBody: unknown;
+	dependencies: unknown | null;
 	exportType: 'named' | 'default';
-	declarationPath: ASTPath<any>;
+	declarationPath: ASTPath<unknown>;
 }
 
-export default function transformer(file: FileInfo, api: API, _options: Options): string | null {
-	const j = api.jscodeshift;
-	const root = j(file.source);
-	let hasChanges = false;
+type TsTypeReferenceNode = {
+	type?: string;
+	typeName?: { type?: string; name?: string };
+	typeParameters?: { params?: unknown[] };
+};
 
-	// Skip if already using eco.component()
-	const existingEcoComponent = root.find(j.CallExpression, {
-		callee: {
-			type: 'MemberExpression',
-			object: { name: 'eco' },
-			property: { name: 'component' },
-		},
-	});
-
-	// Track components to transform
-	const componentsToTransform: ExtractedComponentInfo[] = [];
-
-	// Find Component.config = { ... } assignments
-	root.find(j.ExpressionStatement).forEach((path) => {
-		const expr = path.node.expression;
-		if (
-			expr.type === 'AssignmentExpression' &&
-			expr.left.type === 'MemberExpression' &&
-			expr.left.object.type === 'Identifier' &&
-			expr.left.property.type === 'Identifier' &&
-			expr.left.property.name === 'config' &&
-			expr.right.type === 'ObjectExpression'
-		) {
-			const componentName = expr.left.object.name;
-
-			// Skip if this component already uses eco.component
-			let alreadyMigrated = false;
-			existingEcoComponent.forEach((ecoPath) => {
-				// Check if the eco.component call is for this component
-				const parent = ecoPath.parent;
-				if (parent?.node?.type === 'VariableDeclarator' && parent.node.id?.name === componentName) {
-					alreadyMigrated = true;
-				}
-			});
-
-			if (alreadyMigrated) {
-				return;
-			}
-
-			// Extract dependencies from config
-			let dependencies: any = null;
-			expr.right.properties.forEach((prop) => {
-				if (
-					prop.type === 'ObjectProperty' &&
-					prop.key.type === 'Identifier' &&
-					prop.key.name === 'dependencies'
-				) {
-					dependencies = prop.value;
-				}
-			});
-
-			// Find the component function declaration
-			let componentFound = false;
-
-			// Check variable declarations
-			root.find(j.VariableDeclaration).forEach((varPath) => {
-				const declarator = varPath.node.declarations[0];
-				if (
-					declarator?.type === 'VariableDeclarator' &&
-					declarator.id.type === 'Identifier' &&
-					declarator.id.name === componentName
-				) {
-					// Check if it's a function
-					if (
-						declarator.init?.type === 'ArrowFunctionExpression' ||
-						declarator.init?.type === 'FunctionExpression'
-					) {
-						// Extract props type from EcoComponent<PropsType> or EcoComponent<PageProps<PropsType>>
-						let propsType: string | null = null;
-						if (declarator.id.typeAnnotation?.typeAnnotation?.type === 'TSTypeReference') {
-							const typeRef = declarator.id.typeAnnotation.typeAnnotation;
-							if (typeRef.typeParameters?.params?.length) {
-								const firstParam = typeRef.typeParameters.params[0];
-								if (
-									firstParam.type === 'TSTypeReference' &&
-									firstParam.typeName?.type === 'Identifier'
-								) {
-									// Could be direct type ref like EcoComponent<MyProps>
-									// or nested like EcoComponent<PageProps<MyProps>>
-									if (firstParam.typeParameters?.params?.length) {
-										// Nested: extract inner type
-										const innerParam = firstParam.typeParameters.params[0];
-										if (
-											innerParam.type === 'TSTypeReference' &&
-											innerParam.typeName?.type === 'Identifier'
-										) {
-											propsType = innerParam.typeName.name;
-										}
-									} else {
-										// Direct: use firstParam directly
-										propsType = firstParam.typeName.name;
-									}
-								}
-							}
-						}
-
-						// Determine export type
-						const isExported = varPath.parent?.node?.type === 'ExportNamedDeclaration';
-
-						componentsToTransform.push({
-							componentName,
-							propsType,
-							renderBody: declarator.init,
-							dependencies,
-							exportType: isExported ? 'named' : 'default',
-							declarationPath: isExported ? varPath.parent : varPath,
-						});
-						componentFound = true;
-					}
-				}
-			});
-
-			if (componentFound) {
-				// Remove the config assignment
-				j(path).remove();
-				hasChanges = true;
-			}
-		}
-	});
-
-	// Transform each component
-	for (const comp of componentsToTransform) {
-		// Build eco.component({ dependencies, render }) call
-		const componentProperties: any[] = [];
-
-		if (comp.dependencies) {
-			componentProperties.push(j.objectProperty(j.identifier('dependencies'), comp.dependencies));
-		}
-
-		componentProperties.push(j.objectProperty(j.identifier('render'), comp.renderBody));
-
-		const ecoComponentCall = j.callExpression(j.memberExpression(j.identifier('eco'), j.identifier('component')), [
-			j.objectExpression(componentProperties),
-		]);
-
-		// Add type parameter if we have props type
-		if (comp.propsType) {
-			(ecoComponentCall as any).typeParameters = j.tsTypeParameterInstantiation([
-				j.tsTypeReference(j.identifier(comp.propsType)),
-			]);
-		}
-
-		// Create the new variable declaration
-		const newDeclarator = j.variableDeclarator(j.identifier(comp.componentName), ecoComponentCall);
-
-		const newDeclaration = j.variableDeclaration('const', [newDeclarator]);
-
-		// Replace the old declaration
-		if (comp.exportType === 'named') {
-			j(comp.declarationPath).replaceWith(j.exportNamedDeclaration(newDeclaration));
-		} else {
-			j(comp.declarationPath).replaceWith(newDeclaration);
-		}
-
-		hasChanges = true;
+function identifierFromTypeReference(node: TsTypeReferenceNode): string | null {
+	if (node.type !== 'TSTypeReference' || node.typeName?.type !== 'Identifier') {
+		return null;
 	}
+	return node.typeName.name ?? null;
+}
 
-	if (!hasChanges) {
+function extractEcoComponentPropsType(declarator: {
+	typeAnnotation?: { typeAnnotation?: { type?: string; typeParameters?: { params?: unknown[] } } };
+}): string | null {
+	if (declarator.typeAnnotation?.typeAnnotation?.type !== 'TSTypeReference') {
 		return null;
 	}
 
-	// Update imports: add eco, remove unused types
+	const typeRef = declarator.typeAnnotation.typeAnnotation;
+	const firstParam = typeRef.typeParameters?.params?.[0] as TsTypeReferenceNode | undefined;
+	if (!firstParam) {
+		return null;
+	}
+
+	const nestedParam = firstParam.typeParameters?.params?.[0] as TsTypeReferenceNode | undefined;
+	if (nestedParam) {
+		return identifierFromTypeReference(nestedParam);
+	}
+
+	return identifierFromTypeReference(firstParam);
+}
+
+function tryExtractComponentFromVariableDeclaration(
+	j: JSCodeshift,
+	varPath: ASTPath<unknown>,
+	componentName: string,
+	dependencies: unknown | null,
+): ExtractedComponentInfo | null {
+	const node = varPath.node as {
+		declarations?: Array<{
+			type?: string;
+			id?: { type?: string; name?: string; typeAnnotation?: unknown };
+			init?: { type?: string };
+		}>;
+	};
+	const declarator = node.declarations?.[0];
+	if (
+		declarator?.type !== 'VariableDeclarator' ||
+		declarator.id?.type !== 'Identifier' ||
+		declarator.id.name !== componentName
+	) {
+		return null;
+	}
+
+	if (declarator.init?.type !== 'ArrowFunctionExpression' && declarator.init?.type !== 'FunctionExpression') {
+		return null;
+	}
+
+	const propsType = extractEcoComponentPropsType(declarator.id);
+	const parentNode = varPath.parent?.node as { type?: string } | undefined;
+	const isExported = parentNode?.type === 'ExportNamedDeclaration';
+
+	return {
+		componentName,
+		propsType,
+		renderBody: declarator.init,
+		dependencies,
+		exportType: isExported ? 'named' : 'default',
+		declarationPath: isExported ? (varPath.parent as ASTPath<unknown>) : varPath,
+	};
+}
+
+function extractDependenciesFromConfig(configObject: { properties?: unknown[] }): unknown | null {
+	for (const prop of configObject.properties ?? []) {
+		const objectProp = prop as { type?: string; key?: { type?: string; name?: string }; value?: unknown };
+		if (
+			objectProp.type === 'ObjectProperty' &&
+			objectProp.key?.type === 'Identifier' &&
+			objectProp.key.name === 'dependencies'
+		) {
+			return objectProp.value;
+		}
+	}
+	return null;
+}
+
+function isComponentConfigAssignment(expr: { type?: string; left?: unknown; right?: { type?: string } }): {
+	componentName: string;
+	configObject: { properties?: unknown[] };
+} | null {
+	if (expr.type !== 'AssignmentExpression') {
+		return null;
+	}
+
+	const left = expr.left as {
+		type?: string;
+		object?: { type?: string; name?: string };
+		property?: { type?: string; name?: string };
+	};
+	if (
+		left.type !== 'MemberExpression' ||
+		left.object?.type !== 'Identifier' ||
+		left.property?.type !== 'Identifier' ||
+		left.property.name !== 'config' ||
+		expr.right?.type !== 'ObjectExpression'
+	) {
+		return null;
+	}
+
+	return {
+		componentName: left.object.name ?? '',
+		configObject: expr.right as { properties?: unknown[] },
+	};
+}
+
+function componentAlreadyUsesEco(existingEcoComponent: Collection<unknown>, componentName: string): boolean {
+	let alreadyMigrated = false;
+	existingEcoComponent.forEach((ecoPath) => {
+		const parent = ecoPath.parent?.node as { type?: string; id?: { name?: string } } | undefined;
+		if (parent?.type === 'VariableDeclarator' && parent.id?.name === componentName) {
+			alreadyMigrated = true;
+		}
+	});
+	return alreadyMigrated;
+}
+
+function replaceComponentDeclaration(j: JSCodeshift, root: Collection<unknown>, comp: ExtractedComponentInfo): void {
+	const componentProperties: unknown[] = [];
+
+	if (comp.dependencies) {
+		componentProperties.push(j.objectProperty(j.identifier('dependencies'), comp.dependencies as never));
+	}
+
+	componentProperties.push(j.objectProperty(j.identifier('render'), comp.renderBody as never));
+
+	const ecoComponentCall = j.callExpression(j.memberExpression(j.identifier('eco'), j.identifier('component')), [
+		j.objectExpression(componentProperties as never),
+	]);
+
+	if (comp.propsType) {
+		(ecoComponentCall as { typeParameters?: unknown }).typeParameters = j.tsTypeParameterInstantiation([
+			j.tsTypeReference(j.identifier(comp.propsType)),
+		]);
+	}
+
+	const newDeclarator = j.variableDeclarator(j.identifier(comp.componentName), ecoComponentCall);
+	const newDeclaration = j.variableDeclaration('const', [newDeclarator]);
+
+	if (comp.exportType === 'named') {
+		j(comp.declarationPath).replaceWith(j.exportNamedDeclaration(newDeclaration));
+	} else {
+		j(comp.declarationPath).replaceWith(newDeclaration);
+	}
+}
+
+function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },
 	});
 
-	// Check if 'eco' is already imported as a value (not type)
 	let hasEcoImport = false;
 	ecoImports.forEach((path) => {
-		// Skip type-only imports
 		if (path.node.importKind === 'type') {
 			return;
 		}
@@ -216,37 +205,103 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 		});
 	});
 
-	if (!hasEcoImport) {
-		// Add new value import for eco
-		const newImport = j.importDeclaration([j.importSpecifier(j.identifier('eco'))], j.literal('@ecopages/core'));
-		const firstImport = root.find(j.ImportDeclaration).at(0);
-		if (firstImport.length > 0) {
-			firstImport.insertBefore(newImport);
-		} else {
-			root.get().node.program.body.unshift(newImport);
-		}
+	if (hasEcoImport) {
+		return;
 	}
 
-	// Remove EcoComponent type import if no longer needed
+	const newImport = j.importDeclaration([j.importSpecifier(j.identifier('eco'))], j.literal('@ecopages/core'));
+	const firstImport = root.find(j.ImportDeclaration).at(0);
+	if (firstImport.length > 0) {
+		firstImport.insertBefore(newImport);
+	} else {
+		(root.get().node as { program: { body: unknown[] } }).program.body.unshift(newImport);
+	}
+}
+
+function pruneUnusedEcoComponentTypeImport(j: JSCodeshift, root: Collection<unknown>): void {
+	const ecoImports = root.find(j.ImportDeclaration, {
+		source: { value: '@ecopages/core' },
+	});
+
 	ecoImports.forEach((path) => {
-		if (path.node.specifiers) {
-			path.node.specifiers = path.node.specifiers.filter((spec) => {
-				if (spec.type === 'ImportSpecifier' && spec.imported.type === 'Identifier') {
-					if (spec.imported.name === 'EcoComponent') {
-						const usages = root.find(j.TSTypeReference, {
-							typeName: { name: 'EcoComponent' },
-						});
-						return usages.length > 0;
-					}
+		if (!path.node.specifiers) {
+			return;
+		}
+
+		path.node.specifiers = path.node.specifiers.filter((spec) => {
+			if (spec.type === 'ImportSpecifier' && spec.imported.type === 'Identifier') {
+				if (spec.imported.name === 'EcoComponent') {
+					const usages = root.find(j.TSTypeReference, {
+						typeName: { name: 'EcoComponent' },
+					});
+					return usages.length > 0;
 				}
-				return true;
-			});
-			// Remove the import entirely if it has no specifiers left
-			if (path.node.specifiers.length === 0) {
-				j(path).remove();
 			}
+			return true;
+		});
+
+		if (path.node.specifiers.length === 0) {
+			j(path).remove();
 		}
 	});
+}
+
+export default function transformer(file: FileInfo, api: API, _options: Options): string | null {
+	const j = api.jscodeshift;
+	const root = j(file.source);
+	let hasChanges = false;
+
+	const existingEcoComponent = root.find(j.CallExpression, {
+		callee: {
+			type: 'MemberExpression',
+			object: { name: 'eco' },
+			property: { name: 'component' },
+		},
+	});
+
+	const componentsToTransform: ExtractedComponentInfo[] = [];
+
+	root.find(j.ExpressionStatement).forEach((path) => {
+		const assignment = isComponentConfigAssignment(path.node.expression as never);
+		if (!assignment) {
+			return;
+		}
+
+		const { componentName, configObject } = assignment;
+		if (componentAlreadyUsesEco(existingEcoComponent, componentName)) {
+			return;
+		}
+
+		const dependencies = extractDependenciesFromConfig(configObject);
+		let componentFound = false;
+
+		root.find(j.VariableDeclaration).forEach((varPath) => {
+			const extracted = tryExtractComponentFromVariableDeclaration(j, varPath, componentName, dependencies);
+			if (!extracted) {
+				return;
+			}
+
+			componentsToTransform.push(extracted);
+			componentFound = true;
+		});
+
+		if (componentFound) {
+			j(path).remove();
+			hasChanges = true;
+		}
+	});
+
+	for (const comp of componentsToTransform) {
+		replaceComponentDeclaration(j, root, comp);
+		hasChanges = true;
+	}
+
+	if (!hasChanges) {
+		return null;
+	}
+
+	ensureEcoImport(j, root);
+	pruneUnusedEcoComponentTypeImport(j, root);
 
 	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
 }

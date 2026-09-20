@@ -2,11 +2,10 @@
  * Process-level kitchen-sink startup benchmark.
  */
 
-import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { buildScenarioStats, resolveTracePath, runStartupIteration } from './startup-bench-iteration.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const kitchenSinkDir = path.resolve(scriptDir, '..', '..');
@@ -36,189 +35,27 @@ function shouldRunBench() {
 	return process.env.ECOPAGES_BENCH === '1';
 }
 
-function quantile(sorted, q) {
-	if (sorted.length === 0) {
-		return 0;
-	}
-
-	const idx = (sorted.length - 1) * q;
-	const lo = Math.floor(idx);
-	const hi = Math.ceil(idx);
-	if (lo === hi) {
-		return sorted[lo];
-	}
-
-	return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-}
-
-function summarize(durations) {
-	const sorted = [...durations].sort((left, right) => left - right);
-	const sum = sorted.reduce((total, value) => total + value, 0);
-	return {
-		count: sorted.length,
-		min: sorted[0] ?? 0,
-		max: sorted[sorted.length - 1] ?? 0,
-		mean: sorted.length > 0 ? sum / sorted.length : 0,
-		median: quantile(sorted, 0.5),
-		p95: quantile(sorted, 0.95),
-	};
-}
-
-function waitForProcessExit(childProcess) {
-	return new Promise((resolve) => {
-		if (childProcess.exitCode !== null) {
-			resolve(childProcess.exitCode);
-			return;
-		}
-
-		childProcess.once('exit', (code) => resolve(code));
-	});
-}
-
-function attachProcessOutput(childProcess) {
-	const output = [];
-
-	const record = (chunk) => {
-		output.push(String(chunk));
-	};
-
-	childProcess.stdout.on('data', record);
-	childProcess.stderr.on('data', record);
-
-	return {
-		getOutput() {
-			return output.join('');
-		},
-	};
-}
-
-async function waitForHttpReady(baseUrl, childProcess, output, timeoutMs = 120_000) {
-	const deadline = Date.now() + timeoutMs;
-
-	while (Date.now() < deadline) {
-		if (childProcess.exitCode !== null) {
-			throw new Error(
-				`Dev server exited before becoming ready (code=${childProcess.exitCode})\n${output.getOutput()}`,
-			);
-		}
-
-		try {
-			const response = await fetch(`${baseUrl}/`, { signal: AbortSignal.timeout(2_000) });
-			if (response.status < 500) {
-				return;
-			}
-		} catch (error) {
-			if (childProcess.exitCode !== null) {
-				throw new Error(
-					`Dev server exited before becoming ready (code=${childProcess.exitCode})\n${output.getOutput()}`,
-				);
-			}
-
-			if (!(error instanceof Error) || error.name !== 'TimeoutError') {
-				// Retry until the deadline; connection errors are expected while booting.
-			}
-		}
-
-		await new Promise((resolve) => setTimeout(resolve, 50));
-	}
-
-	throw new Error(`Timed out waiting for dev server HTTP ready at ${baseUrl}\n${output.getOutput()}`);
-}
-
-async function stopChildProcess(childProcess) {
-	if (childProcess.exitCode !== null) {
-		return;
-	}
-
-	childProcess.kill('SIGTERM');
-
-	const exited = await Promise.race([
-		waitForProcessExit(childProcess),
-		new Promise((resolve) => setTimeout(() => resolve(null), 5_000)),
-	]);
-
-	if (exited === null) {
-		childProcess.kill('SIGKILL');
-		await waitForProcessExit(childProcess);
-	}
-}
-
 async function runScenario({ name, runtime, page, isolated }) {
 	const port = 4100 + Math.floor(Math.random() * 500);
 	const baseUrl = `http://127.0.0.1:${port}`;
-	const tracePath = path.join(resultsDir, `startup-trace-${name}.json`);
+	const tracePath = resolveTracePath(resultsDir, name);
 	const samples = [];
 	const launcher = runtime === 'bun' ? 'bun' : 'node';
 
 	for (let iteration = 0; iteration < warmupIterations + iterations; iteration += 1) {
-		const artifactScope = isolated ? `bench-startup-${name}-${iteration}` : 'bench-startup-warm';
-		const iterationTracePath = `${tracePath}.${iteration}.json`;
-		const processStart = performance.now();
-
-		const child = spawn(
+		const sample = await runStartupIteration({
 			launcher,
-			[ecopagesCli, 'dev', '--runtime', runtime, '--port', String(port), '--hostname', '127.0.0.1'],
-			{
-				cwd: kitchenSinkDir,
-				env: {
-					...process.env,
-					NODE_ENV: 'development',
-					ECOPAGES_STARTUP_TRACE: 'true',
-					ECOPAGES_STARTUP_TRACE_JSON: iterationTracePath,
-					ECOPAGES_E2E_ARTIFACT_SCOPE: artifactScope,
-					ECOPAGES_BASE_URL: baseUrl,
-					ECOPAGES_PORT: String(port),
-					ECOPAGES_HOSTNAME: '127.0.0.1',
-				},
-				stdio: ['ignore', 'pipe', 'pipe'],
-			},
-		);
-
-		const output = attachProcessOutput(child);
-
-		await waitForHttpReady(baseUrl, child, output);
-		const listenerReadyMs = performance.now() - processStart;
-
-		const browser = await chromium.launch({ headless: true });
-		const pageHandle = await browser.newPage();
-		let requestCount = 0;
-		let transferredBytes = 0;
-		pageHandle.on('response', (response) => {
-			requestCount += 1;
-			const headers = response.headers();
-			const contentLength = Number(headers['content-length'] ?? 0);
-			if (Number.isFinite(contentLength) && contentLength > 0) {
-				transferredBytes += contentLength;
-			}
+			runtime,
+			ecopagesCli,
+			kitchenSinkDir,
+			port,
+			baseUrl,
+			page,
+			name,
+			iteration,
+			isolated,
+			tracePath,
 		});
-
-		const navigationStart = performance.now();
-		const response = await pageHandle.goto(`${baseUrl}${page.path}`, { waitUntil: 'domcontentloaded' });
-		const requestTiming = response?.request().timing();
-		const firstByteMs =
-			requestTiming && requestTiming.responseStart >= 0 && requestTiming.requestStart >= 0
-				? requestTiming.responseStart - requestTiming.requestStart
-				: null;
-		await pageHandle.waitForSelector(page.selector, { timeout: 120_000 });
-		const interactiveReadyMs = performance.now() - navigationStart;
-		await browser.close();
-
-		await stopChildProcess(child);
-
-		const trace = JSON.parse(readFileSync(iterationTracePath, 'utf-8'));
-		const sample = {
-			listenerReadyMs,
-			interactiveReadyMs,
-			firstByteMs,
-			firstRequestWallMs: trace.firstRequest?.wallMs ?? null,
-			firstPageBrowserGraphMs: trace.phases?.['first-page-browser-graph']?.durationMs ?? null,
-			firstRequestSsrMs: trace.phases?.['first-request-ssr']?.durationMs ?? null,
-			graphBuildCount: trace.firstRequest?.graphBuildCount ?? null,
-			clientBundleBytes: trace.firstRequest?.clientBundleBytes ?? null,
-			bundleCount: trace.firstRequest?.bundleCount ?? null,
-			requestCount,
-			transferredBytes,
-		};
 
 		if (iteration >= warmupIterations) {
 			samples.push(sample);
@@ -231,13 +68,7 @@ async function runScenario({ name, runtime, page, isolated }) {
 		page: page.name,
 		isolated,
 		samples,
-		stats: {
-			listenerReadyMs: summarize(samples.map((sample) => sample.listenerReadyMs)),
-			interactiveReadyMs: summarize(samples.map((sample) => sample.interactiveReadyMs)),
-			firstPageBrowserGraphMs: summarize(
-				samples.map((sample) => sample.firstPageBrowserGraphMs).filter((value) => typeof value === 'number'),
-			),
-		},
+		stats: buildScenarioStats(samples),
 	};
 }
 

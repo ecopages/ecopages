@@ -27,16 +27,9 @@ import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import { type PageState } from './navigation.ts';
-import {
-	applyHandoffNavigation,
-	applySpaNavigation,
-	decideQueuedNavigationReplay,
-	resolveReactNavigation,
-} from './navigation-orchestrator.ts';
-import { morphHead } from './head-morpher.ts';
+import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
 import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client/view-transitions';
 import { manageWindowScroll } from '@ecopages/core/client/scroll';
-import { saveScrollPositions, restoreScrollPositions } from './scroll-persist.ts';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
@@ -352,180 +345,34 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		};
 	}, []);
 
-	const navigate = useCallback(
-		async (
-			url: string,
-			navigationOptions: {
-				isPopState?: boolean;
-				pushHistory?: boolean;
-				skipViewTransition?: boolean;
-				moduleUrlOverride?: string;
-			} = {},
-		) => {
-			const {
-				isPopState = false,
-				pushHistory = false,
-				skipViewTransition = false,
-				moduleUrlOverride,
-			} = navigationOptions;
-			const navigationRuntime = getEcoNavigationRuntime(window);
-			const navigation = navigationRuntime.beginNavigationTransaction();
-			activeNavigationRef.current = navigation;
-			const navigationId = navigation.id;
-			const isStale = () => !navigation.isCurrent();
-			const waitForRender = (nextPage: RouterPageState) => {
-				pendingRenderRef.current?.resolve();
-				const renderDfd = createDeferred<void>();
-				pendingRenderRef.current = {
-					navigationId,
-					page: nextPage,
-					resolve: renderDfd.resolve,
-				};
-				return renderDfd.promise;
-			};
-
-			try {
-				isNavigatingRef.current = true;
-				setIsNavigating(true);
-
-				const outcome = await resolveReactNavigation({
-					url,
-					signal: navigation.signal,
-					isStale,
-					isPopState,
-					pushHistory,
-					moduleUrlOverride,
-				});
-
-				if (outcome.kind === 'stale') {
-					return;
-				}
-
-				if (outcome.kind === 'hard-navigation') {
-					if (outcome.mode === 'assign') {
-						window.location.assign(outcome.href);
-					} else {
-						window.location.href = outcome.href;
-					}
-					return;
-				}
-
-				if (outcome.kind === 'spa') {
-					await applySpaNavigation(
-						outcome,
-						{
-							isStale,
-							hardAssign: (href) => {
-								window.location.assign(href);
-							},
-							morphHead,
-							applyViewTransitionNames,
-							saveScrollPositions,
-							restoreScrollPositions,
-							updateHistory: (finalPath, requestedUrl, direction) => {
-								if (direction === 'forward') {
-									window.history.pushState(null, '', finalPath);
-								} else if (finalPath !== requestedUrl) {
-									window.history.replaceState(null, '', finalPath);
-								}
-							},
-							commitPageData: (moduleUrl, props) => {
-								window.__ECO_PAGES__ = window.__ECO_PAGES__ || {};
-								window.__ECO_PAGES__.page = {
-									module: moduleUrl,
-									props,
-								};
-							},
-							setCurrentPage,
-							waitForRender,
-							runInReactTransition: (update) => {
-								startTransition(update);
-							},
-							startViewTransition:
-								!skipViewTransition && options.viewTransitions && document.startViewTransition
-									? (update) =>
-											new Promise<void>((resolve) => {
-												document.startViewTransition(async () => {
-													try {
-														await update();
-													} finally {
-														if (
-															isStale() &&
-															pendingRenderRef.current?.navigationId === navigationId
-														) {
-															pendingRenderRef.current.resolve();
-															pendingRenderRef.current = null;
-														}
-														resolve();
-													}
-												});
-											})
-									: undefined,
-							onCommittedPath: (finalPath) => {
-								committedPathRef.current = finalPath;
-							},
-						},
-						{ skipViewTransition, isPopState },
-					);
-					return;
-				}
-
-				await applyHandoffNavigation(outcome, {
-					isStale,
-					requestHandoff: (request) =>
-						navigationRuntime.requestHandoff({
-							...request,
-							source: 'react-router',
-							targetOwner: 'browser-router',
-						}),
-					hardAssign: (href) => {
-						window.location.assign(href);
-					},
-				});
-			} finally {
-				if (!isStale()) {
-					isNavigatingRef.current = false;
-					setIsNavigating(false);
-				}
-
-				const shouldReplayQueuedNavigation = activeNavigationRef.current?.id === navigationId;
-				const queuedNavigationHref = shouldReplayQueuedNavigation ? queuedNavigationHrefRef.current : null;
-				const replay = decideQueuedNavigationReplay({
-					queuedHref: queuedNavigationHref,
-					committedPath: committedPathRef.current,
-					runtimeActive: runtimeActiveRef.current,
-				});
-
-				navigation.complete();
-				if (activeNavigationRef.current?.id === navigationId) {
-					activeNavigationRef.current = null;
-				}
-
-				if (replay.kind !== 'none') {
-					queuedNavigationHrefRef.current = null;
-
-					if (replay.kind === 'local-navigate') {
-						void navigate(replay.href, { pushHistory: true });
-					} else {
-						// React finished after cleanup-before-handoff released ownership.
-						// Replay through the coordinator so the active owner receives the intent.
-						void navigationRuntime
-							.requestNavigation({
-								href: replay.href,
-								direction: 'forward',
-								source: 'react-router',
-							})
-							.then((handled) => {
-								if (!handled) {
-									window.location.assign(replay.href);
-								}
-							});
-					}
-				}
-			}
-		},
-		[options.viewTransitions],
+	const navigateRef = useRef<(url: string, navigationOptions?: RouterNavigateOptions) => Promise<void>>(
+		async () => {},
 	);
+	const navigate = useCallback(
+		async (url: string, navigationOptions = {}) => {
+			await runRouterNavigate(url, navigationOptions, {
+				options,
+				pendingRenderRef,
+				activeNavigationRef,
+				isNavigatingRef,
+				runtimeActiveRef,
+				queuedNavigationHrefRef,
+				committedPathRef,
+				setIsNavigating,
+				setCurrentPage,
+				startTransition,
+				createDeferred,
+				replayLocalNavigate: (href) => {
+					void navigateRef.current(href, { pushHistory: true });
+				},
+			});
+		},
+		[options],
+	);
+
+	useEffect(() => {
+		navigateRef.current = navigate;
+	}, [navigate]);
 
 	const getLinkFromEvent = useEffectEvent((event: MouseEvent | PointerEvent) =>
 		getAnchorFromNavigationEvent(event, options.linkSelector),

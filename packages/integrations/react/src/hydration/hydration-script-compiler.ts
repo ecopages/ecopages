@@ -3,6 +3,8 @@ import { rolldown, type LoadResult, type Plugin } from 'rolldown';
 
 const ISLAND_BOOTSTRAP_ID = '\0ecopages-react-island-bootstrap';
 const PAGE_BOOTSTRAP_ID = '\0ecopages-react-page-bootstrap';
+const PAGE_HYDRATION_MODULE_ID = '\0ecopages-react-page-hydration-module';
+const PAGE_HYDRATION_HMR_ID = '\0ecopages-react-page-hydration-hmr';
 const PAGE_DATA_READER_ID = '\0ecopages-react-page-data-reader';
 const PAGE_DATA_MANIFEST_ID = '\0ecopages-react-page-data-manifest';
 
@@ -19,23 +21,9 @@ export type CompiledIslandHydrationOptions = {
 	hmrEnabled?: boolean;
 };
 
-/** Complete inputs that affect a Page hydration script's generated source. */
-export type CompiledPageHydrationOptions = {
-	importPath: string;
-	pageModuleUrlExpression: string;
-	scriptId: string;
-	reactImportPath: string;
-	reactDomClientImportPath: string;
-	routerImportPath?: string;
-	layoutComposeImportPath: string;
-	pageLayoutNormalizationImportPath: string;
-	routerComponents?: { router: string; pageContent: string };
-	routerPropsExpression?: string;
-	hmrEnabled: boolean;
-	isMdx: boolean;
-	hasPagePreload: boolean;
-	minify: boolean;
-};
+export type { CompiledPageHydrationOptions } from './compiled-page-hydration-options.ts';
+import type { CompiledPageHydrationOptions } from './compiled-page-hydration-options.ts';
+import { createPageEntrySource } from './hydration-page-entry-source.ts';
 
 /** Serializes every compilation input so source/config changes cannot reuse stale output. */
 function getCacheKey(options: object): string {
@@ -72,78 +60,6 @@ document.readyState === "loading" ? document.addEventListener("DOMContentLoaded"
 }
 
 /**
- * Creates the Page entry contract consumed by the browser lifecycle.
- *
- * @remarks
- * Router adapters provide their tree expression as an intentional integration
- * boundary. Everything else—module normalization, page-data reading, HMR, and
- * root ownership—belongs to the shared browser module.
- */
-function createPageEntrySource(options: CompiledPageHydrationOptions): string {
-	if (options.routerComponents && !options.routerImportPath) {
-		throw new Error('routerImportPath is required when router components are configured');
-	}
-	if (options.routerComponents && !options.routerPropsExpression) {
-		throw new Error('routerPropsExpression is required when router components are configured');
-	}
-	const pageImport =
-		options.isMdx || options.hasPagePreload
-			? `import * as PageModule from ${JSON.stringify(options.importPath)};`
-			: `import Page from ${JSON.stringify(options.importPath)};`;
-	const initialPage =
-		options.isMdx || options.hasPagePreload
-			? `const initialPage = resolvePageModule(PageModule, ${options.isMdx}, ${options.isMdx ? 'ensurePageConfigLayouts' : 'undefined'});`
-			: `const initialPage = resolvePageModule({ default: Page }, false);`;
-	const routerImports = options.routerComponents
-		? `import { ${options.routerComponents.router}, ${options.routerComponents.pageContent} } from ${JSON.stringify(options.routerImportPath)};`
-		: '';
-	const routerTree = options.routerComponents
-		? `const createTree = (Page, props) => {
-  const pageContent = createElement(${options.routerComponents.pageContent});
-  return createElement(${options.routerComponents.router}, ${options.routerPropsExpression}, pageContent);
-};`
-		: 'const createTree = (Page, props) => composeLayoutPageTree(Page, props);';
-	const normalizationImport = options.isMdx
-		? `import { ensurePageConfigLayouts } from ${JSON.stringify(options.pageLayoutNormalizationImportPath)};`
-		: '';
-	const hmr = options.hmrEnabled
-		? `hmr: {
-    importPath: ${JSON.stringify(options.importPath)},
-    ${options.routerComponents ? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.file ?? "").join("|")' : ''}
-  },`
-		: '';
-	return `
-import { hydrateRoot } from ${JSON.stringify(options.reactDomClientImportPath)};
-import { createElement } from ${JSON.stringify(options.reactImportPath)};
-import { resolvePageModule, startPageHydration } from ${JSON.stringify(PAGE_BOOTSTRAP_ID)};
-import { readPageDataDocument, getPageDataFromDocument } from ${JSON.stringify(PAGE_DATA_READER_ID)};
-${options.routerComponents ? '' : `import { composeLayoutPageTree } from ${JSON.stringify(options.layoutComposeImportPath)};`}
-${routerImports}
-${normalizationImport}
-${pageImport}
-const pageModuleUrl = ${options.pageModuleUrlExpression};
-${initialPage}
-${routerTree}
-export default initialPage.Page;
-${options.hasPagePreload ? 'export const preload = initialPage.preload;' : ''}
-export const config = initialPage.Page.config;
-startPageHydration({
-  scriptId: ${JSON.stringify(options.scriptId)},
-  pageModuleUrl,
-  Page: initialPage.Page,
-  pageDataReader: { readPageDataDocument, getPageDataFromDocument },
-  runtime: { hydrateRoot, createElement },
-  createTree,
-  hasRouter: ${Boolean(options.routerComponents)},
-  isMdx: ${options.isMdx},
-  ${options.isMdx ? 'normalizePageConfig: ensurePageConfigLayouts,' : ''}
-  ${options.hasPagePreload ? 'preload: initialPage.preload,' : ''}
-  ${hmr}
-});
-`.trim();
-}
-
-/**
  * Resolves framework browser sources from repository TypeScript or published
  * JavaScript files while keeping application and vendor modules external.
  */
@@ -151,6 +67,8 @@ function createBootstrapPlugin(): Plugin {
 	const sourcePaths = new Map([
 		[ISLAND_BOOTSTRAP_ID, ['island-hydration.ts', 'island-hydration.js']],
 		[PAGE_BOOTSTRAP_ID, ['page-hydration.ts', 'page-hydration.js']],
+		[PAGE_HYDRATION_MODULE_ID, ['page-hydration-module.ts', 'page-hydration-module.js']],
+		[PAGE_HYDRATION_HMR_ID, ['page-hydration-hmr.ts', 'page-hydration-hmr.js']],
 		[PAGE_DATA_READER_ID, ['../page-data-reader.ts', '../page-data-reader.js']],
 	]);
 	const readBootstrapSource = (id: string): string => {
@@ -165,12 +83,21 @@ function createBootstrapPlugin(): Plugin {
 		}
 		throw new Error(`Unable to locate hydration bootstrap source for ${id}`);
 	};
+	const pageBootstrapRelativeImports = new Map([
+		['./page-hydration-module.ts', PAGE_HYDRATION_MODULE_ID],
+		['./page-hydration-hmr.ts', PAGE_HYDRATION_HMR_ID],
+	]);
 	return {
 		name: 'ecopages-react-hydration-bootstrap',
 		resolveId(source: string, importer?: string) {
 			if (sourcePaths.has(source)) return source;
 			if (importer === PAGE_DATA_READER_ID && source === './page-data-manifest.ts') {
 				return PAGE_DATA_MANIFEST_ID;
+			}
+			if (importer && pageBootstrapRelativeImports.has(source)) {
+				if (importer === PAGE_BOOTSTRAP_ID || importer === PAGE_HYDRATION_HMR_ID) {
+					return pageBootstrapRelativeImports.get(source);
+				}
 			}
 			return undefined;
 		},

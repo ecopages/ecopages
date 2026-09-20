@@ -44,22 +44,9 @@ type ModuleExportIndex = {
 	namedReexports: Map<string, { source: string; imported: string }>;
 };
 
-/**
- * Indexes local `eco.*()` factory exports and named `export { X } from` re-exports.
- *
- * @remarks
- * `export *` is ignored so a barrel cannot pull an entire kit into the graph.
- */
-function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>): ModuleExportIndex {
-	const cached = cache.get(file);
-	if (cached) return cached;
-
-	const source = readFileSync(file, 'utf8');
-	const parsed = cachedParseSync(file, source, { sourceType: 'module' });
-	const body = nodes(parsed.program.body);
+function collectDeclaredFactoryBindings(body: Node[]): { declared: Set<string>; factories: Set<string> } {
 	const declared = new Set<string>();
 	const factories = new Set<string>();
-	const namedReexports = new Map<string, { source: string; imported: string }>();
 
 	for (const statement of body) {
 		const declaration = statement.type === 'ExportNamedDeclaration' ? node(statement.declaration) : statement;
@@ -73,30 +60,70 @@ function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>)
 		if (statement.type === 'ExportDefaultDeclaration' && isFactory(statement.declaration)) factories.add('default');
 	}
 
+	return { declared, factories };
+}
+
+function indexReexportFromSource(
+	from: string,
+	specifiers: Node[],
+	namedReexports: Map<string, { source: string; imported: string }>,
+): void {
+	for (const specifier of specifiers) {
+		if (specifier.exportKind === 'type') continue;
+		const exported = identifierName(specifier.exported);
+		const imported = identifierName(specifier.local) ?? exported;
+		if (exported && imported) namedReexports.set(exported, { source: from, imported });
+	}
+}
+
+function indexLocalNamedExportSpecifiers(specifiers: Node[], declared: Set<string>, factories: Set<string>): void {
+	for (const specifier of specifiers) {
+		if (specifier.exportKind !== 'type' && declared.has(String(identifierName(specifier.local)))) {
+			const exported = identifierName(specifier.exported);
+			if (exported) factories.add(exported);
+		}
+	}
+}
+
+function indexNamedExportStatement(
+	statement: Node,
+	declared: Set<string>,
+	factories: Set<string>,
+	namedReexports: Map<string, { source: string; imported: string }>,
+): void {
+	if (statement.type === 'ExportDefaultDeclaration' && declared.has(String(identifierName(statement.declaration)))) {
+		factories.add('default');
+	}
+	if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') {
+		return;
+	}
+	const from = node(statement.source)?.value;
+	const specifiers = nodes(statement.specifiers);
+	if (typeof from === 'string') {
+		indexReexportFromSource(from, specifiers, namedReexports);
+		return;
+	}
+	indexLocalNamedExportSpecifiers(specifiers, declared, factories);
+}
+
+/**
+ * Indexes local `eco.*()` factory exports and named `export { X } from` re-exports.
+ *
+ * @remarks
+ * `export *` is ignored so a barrel cannot pull an entire kit into the graph.
+ */
+function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>): ModuleExportIndex {
+	const cached = cache.get(file);
+	if (cached) return cached;
+
+	const source = readFileSync(file, 'utf8');
+	const parsed = cachedParseSync(file, source, { sourceType: 'module' });
+	const body = nodes(parsed.program.body);
+	const { declared, factories } = collectDeclaredFactoryBindings(body);
+	const namedReexports = new Map<string, { source: string; imported: string }>();
+
 	for (const statement of body) {
-		if (
-			statement.type === 'ExportDefaultDeclaration' &&
-			declared.has(String(identifierName(statement.declaration)))
-		) {
-			factories.add('default');
-		}
-		if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') continue;
-		const from = node(statement.source)?.value;
-		if (typeof from === 'string') {
-			for (const specifier of nodes(statement.specifiers)) {
-				if (specifier.exportKind === 'type') continue;
-				const exported = identifierName(specifier.exported);
-				const imported = identifierName(specifier.local) ?? exported;
-				if (exported && imported) namedReexports.set(exported, { source: from, imported });
-			}
-			continue;
-		}
-		for (const specifier of nodes(statement.specifiers)) {
-			if (specifier.exportKind !== 'type' && declared.has(String(identifierName(specifier.local)))) {
-				const exported = identifierName(specifier.exported);
-				if (exported) factories.add(exported);
-			}
-		}
+		indexNamedExportStatement(statement, declared, factories, namedReexports);
 	}
 
 	const indexed = { factories, namedReexports };
@@ -171,6 +198,93 @@ function isCssImport(source: string): boolean {
 	return source.endsWith('.css') && !source.endsWith('.module.css');
 }
 
+function resolveStylesheetImportPath(
+	source: string,
+	ownerFile: string,
+	projectRoot: string,
+	pathPrefixes: string[],
+): string | undefined {
+	const isRelative = source.startsWith('.');
+	const isAlias = matchesTsconfigPathPrefix(source, pathPrefixes);
+	if (!isRelative && !isAlias) {
+		return undefined;
+	}
+	if (isRelative) {
+		const candidate = path.resolve(path.dirname(ownerFile), source);
+		return existsSync(candidate) ? realpathSync(candidate) : undefined;
+	}
+	return resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
+}
+
+function tryRecordSideEffectStylesheetImport(
+	statement: Node,
+	source: string,
+	ownerFile: string,
+	projectRoot: string,
+	pathPrefixes: string[],
+	result: DiscoveredImports,
+): boolean {
+	const specifiers = nodes(statement.specifiers);
+	if (!isCssImport(source) || specifiers.length > 0) {
+		return false;
+	}
+	const resolved = resolveStylesheetImportPath(source, ownerFile, projectRoot, pathPrefixes);
+	if (!resolved) {
+		if (source.startsWith('.') || matchesTsconfigPathPrefix(source, pathPrefixes)) {
+			throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`);
+		}
+		return false;
+	}
+	if (!existsSync(resolved)) {
+		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`);
+	}
+	result.stylesheets.push(resolved);
+	result.removals.push({ start: statement.start!, end: statement.end!, replacement: '' });
+	return true;
+}
+
+function collectFactoryComponentsFromImport(
+	statement: Node,
+	source: string,
+	ownerFile: string,
+	projectRoot: string,
+	pathPrefixes: string[],
+	factoryState: FactoryExportState,
+	result: DiscoveredImports,
+): void {
+	const specifiers = nodes(statement.specifiers);
+	const values = specifiers.filter(
+		(entry) =>
+			entry.importKind !== 'type' &&
+			(entry.type === 'ImportSpecifier' || entry.type === 'ImportDefaultSpecifier'),
+	);
+	if (!values.length || (!source.startsWith('.') && !matchesTsconfigPathPrefix(source, pathPrefixes))) {
+		return;
+	}
+	if (isServerSpecifier(source)) {
+		return;
+	}
+	const resolved = resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
+	if (!resolved) throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(source)} from ${ownerFile}`);
+	if (!/\.[jt]sx?$/.test(resolved) || resolved.includes(`${path.sep}node_modules${path.sep}`)) {
+		return;
+	}
+	for (const specifier of values) {
+		const imported = specifier.type === 'ImportDefaultSpecifier' ? 'default' : identifierName(specifier.imported);
+		const local = identifierName(specifier.local);
+		if (
+			typeof local === 'string' &&
+			imported &&
+			isFactoryExport(resolved, imported, projectRoot, pathPrefixes, {
+				...factoryState,
+				path: new Set(),
+			})
+		) {
+			result.components.push(local);
+		}
+	}
+}
+
 /**
  * Discovers local Eco Component imports and relative or aliased side-effect CSS.
  *
@@ -182,61 +296,29 @@ function isCssImport(source: string): boolean {
 export function discoverComponentImports(program: unknown, ownerFile: string, projectRoot: string): DiscoveredImports {
 	const result: DiscoveredImports = { components: [], stylesheets: [], watchFiles: [], removals: [] };
 	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
-	const factoryState = {
+	const factoryState: FactoryExportState = {
 		moduleIndex: new Map<string, ModuleExportIndex>(),
 		resolved: new Map<string, boolean>(),
 		watchFiles: new Set<string>(),
+		path: new Set(),
 	};
 	for (const statement of nodes(node(program)?.body)) {
 		if (statement.type !== 'ImportDeclaration' || statement.importKind === 'type') continue;
 		if (nodes(statement.attributes).length || nodes(statement.assertions).length) continue;
 		const source = node(statement.source)?.value;
 		if (typeof source !== 'string') continue;
-		const specifiers = nodes(statement.specifiers);
-		if (isCssImport(source) && !specifiers.length) {
-			const isRelative = source.startsWith('.');
-			const isAlias = matchesTsconfigPathPrefix(source, pathPrefixes);
-			if (isRelative || isAlias) {
-				const resolved = isRelative
-					? existsSync(path.resolve(path.dirname(ownerFile), source))
-						? realpathSync(path.resolve(path.dirname(ownerFile), source))
-						: undefined
-					: resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
-				if (!resolved || !existsSync(resolved)) {
-					throw new Error(
-						`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`,
-					);
-				}
-				result.stylesheets.push(resolved);
-				result.removals.push({ start: statement.start!, end: statement.end!, replacement: '' });
-				continue;
-			}
+		if (tryRecordSideEffectStylesheetImport(statement, source, ownerFile, projectRoot, pathPrefixes, result)) {
+			continue;
 		}
-		const values = specifiers.filter(
-			(entry) =>
-				entry.importKind !== 'type' &&
-				(entry.type === 'ImportSpecifier' || entry.type === 'ImportDefaultSpecifier'),
+		collectFactoryComponentsFromImport(
+			statement,
+			source,
+			ownerFile,
+			projectRoot,
+			pathPrefixes,
+			factoryState,
+			result,
 		);
-		if (!values.length || (!source.startsWith('.') && !matchesTsconfigPathPrefix(source, pathPrefixes))) continue;
-		if (isServerSpecifier(source)) continue;
-		const resolved = resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
-		if (!resolved) throw new Error(`[ecopages] Cannot resolve import ${JSON.stringify(source)} from ${ownerFile}`);
-		if (!/\.[jt]sx?$/.test(resolved) || resolved.includes(`${path.sep}node_modules${path.sep}`)) continue;
-		for (const specifier of values) {
-			const imported =
-				specifier.type === 'ImportDefaultSpecifier' ? 'default' : identifierName(specifier.imported);
-			const local = identifierName(specifier.local);
-			if (
-				typeof local === 'string' &&
-				imported &&
-				isFactoryExport(resolved, imported, projectRoot, pathPrefixes, {
-					...factoryState,
-					path: new Set(),
-				})
-			) {
-				result.components.push(local);
-			}
-		}
 	}
 	result.watchFiles.push(...factoryState.watchFiles);
 	return result;

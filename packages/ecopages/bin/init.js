@@ -220,52 +220,114 @@ function isCancelled(value) {
 	return false;
 }
 
+async function promptProjectDirectory() {
+	const answer = await prompts.text({
+		message: 'Project directory:',
+		placeholder: 'my-app',
+		validate: (value) => (value.trim().length === 0 ? 'Enter a project directory.' : undefined),
+	});
+	if (isCancelled(answer)) return null;
+	return answer.trim();
+}
+
+async function promptTemplateSelection() {
+	const answer = await prompts.select({
+		message: 'Select a template:',
+		options: [
+			...officialTemplates.map((template) => ({
+				label: template.displayName,
+				value: template.id,
+				hint: template.description,
+			})),
+			{
+				label: 'Community template',
+				value: '__community__',
+				hint: 'Use a Git repository or provider source.',
+			},
+		],
+	});
+	if (isCancelled(answer)) return null;
+	return answer;
+}
+
+async function promptCommunityTemplateSource() {
+	const sourceAnswer = await prompts.text({
+		message: 'Template source:',
+		placeholder: 'github:owner/repository#v1.0.0',
+		validate: (value) => (value.trim().length === 0 ? 'Enter a Git template source.' : undefined),
+	});
+	if (isCancelled(sourceAnswer)) return null;
+	return sourceAnswer.trim();
+}
+
+async function resolveInteractiveTemplateChoice(templateId, source) {
+	if (templateId || source) {
+		return { templateId, source };
+	}
+
+	const answer = await promptTemplateSelection();
+	if (answer === null) {
+		return null;
+	}
+	if (answer === '__community__') {
+		const communitySource = await promptCommunityTemplateSource();
+		if (communitySource === null) {
+			return null;
+		}
+		return { templateId, source: communitySource };
+	}
+	return { templateId: answer, source };
+}
+
+async function promptInstallChoice(packageManager, parsed) {
+	if (parsed.start) {
+		return true;
+	}
+	if (parsed.install !== undefined) {
+		return parsed.install;
+	}
+	if (!parsed.interactive) {
+		return undefined;
+	}
+
+	const answer = await prompts.confirm({
+		message: `Install dependencies with ${packageManager}?`,
+		initialValue: true,
+	});
+	if (isCancelled(answer)) return null;
+	return answer;
+}
+
+async function promptStartChoice(parsed, install) {
+	if (parsed.start !== undefined) {
+		return parsed.start;
+	}
+	if (!parsed.interactive || !install) {
+		return undefined;
+	}
+
+	const answer = await prompts.confirm({ message: 'Start the development server now?', initialValue: false });
+	if (isCancelled(answer)) return null;
+	return answer;
+}
+
 async function collectInitAnswers(parsed) {
 	const packageManager = detectPackageManager();
 	let dir = parsed.dir;
 	let templateId = parsed.template;
 	let source = parsed.from;
 
-	if (parsed.interactive) {
-		if (!dir) {
-			const answer = await prompts.text({
-				message: 'Project directory:',
-				placeholder: 'my-app',
-				validate: (value) => (value.trim().length === 0 ? 'Enter a project directory.' : undefined),
-			});
-			if (isCancelled(answer)) return null;
-			dir = answer.trim();
-		}
+	if (parsed.interactive && !dir) {
+		const promptedDir = await promptProjectDirectory();
+		if (promptedDir === null) return null;
+		dir = promptedDir;
+	}
 
-		if (!templateId && !source) {
-			const answer = await prompts.select({
-				message: 'Select a template:',
-				options: [
-					...officialTemplates.map((template) => ({
-						label: template.displayName,
-						value: template.id,
-						hint: template.description,
-					})),
-					{
-						label: 'Community template',
-						value: '__community__',
-						hint: 'Use a Git repository or provider source.',
-					},
-				],
-			});
-			if (isCancelled(answer)) return null;
-			if (answer === '__community__') {
-				const sourceAnswer = await prompts.text({
-					message: 'Template source:',
-					placeholder: 'github:owner/repository#v1.0.0',
-					validate: (value) => (value.trim().length === 0 ? 'Enter a Git template source.' : undefined),
-				});
-				if (isCancelled(sourceAnswer)) return null;
-				source = sourceAnswer.trim();
-			} else {
-				templateId = answer;
-			}
-		}
+	if (parsed.interactive) {
+		const templateChoice = await resolveInteractiveTemplateChoice(templateId, source);
+		if (templateChoice === null) return null;
+		templateId = templateChoice.templateId;
+		source = templateChoice.source;
 	}
 
 	if (!templateId && !source) templateId = defaultOfficialTemplate.id;
@@ -273,24 +335,13 @@ async function collectInitAnswers(parsed) {
 		prompts.log.step(`Resolved template source: ${getTemplateSource(templateId, source)}`);
 	}
 
-	let install = parsed.start ? true : parsed.install;
-	if (install === undefined && parsed.interactive) {
-		const answer = await prompts.confirm({
-			message: `Install dependencies with ${packageManager}?`,
-			initialValue: true,
-		});
-		if (isCancelled(answer)) return null;
-		install = answer;
-	}
-	install ??= false;
+	const installAnswer = await promptInstallChoice(packageManager, parsed);
+	if (installAnswer === null) return null;
+	const install = installAnswer ?? false;
 
-	let start = parsed.start;
-	if (start === undefined && parsed.interactive && install) {
-		const answer = await prompts.confirm({ message: 'Start the development server now?', initialValue: false });
-		if (isCancelled(answer)) return null;
-		start = answer;
-	}
-	start ??= false;
+	const startAnswer = await promptStartChoice(parsed, install);
+	if (startAnswer === null) return null;
+	const start = startAnswer ?? false;
 
 	return { dir, templateId, source, packageManager, install, start };
 }

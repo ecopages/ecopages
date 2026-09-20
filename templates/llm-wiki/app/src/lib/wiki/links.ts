@@ -1,8 +1,31 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { visit } from 'unist-util-visit';
 import { WIKI_ROOT } from '../../content/wiki';
+import { isOpaqueWikiLinkUrl, splitWikiLinkUrl } from './link-url-parts';
 
 const WIKI_MARKDOWN_LINK_PATTERN = /\]\(((?:\.\/|\.\.\/)*[^)\s#]+?\.md(?:[?#][^)]*)?)\)/g;
+
+function rewriteWikiPathname(pathname: string, currentCategory?: string): string | null {
+	const absWikiMatch = pathname.match(/^(?:\.\/|\.\.\/)*(?:\/)?wiki\/(.+)$/);
+	if (absWikiMatch) {
+		const slug = absWikiMatch[1].replace(/\.md$/, '');
+		return `${WIKI_ROOT}/${slug}`;
+	}
+
+	const relativeMatch = pathname.match(/^((?:\.\/|\.\.\/)*)([^/]+(?:\/[^/]+)*)\.md$/);
+	if (!relativeMatch || !currentCategory) {
+		return null;
+	}
+
+	const [, prefixes, relativePath] = relativeMatch;
+	const upCount = (prefixes.match(/\.\.\//g) || []).length;
+
+	if (upCount === 0) {
+		return `${WIKI_ROOT}/${currentCategory}/${relativePath}`;
+	}
+
+	return `${WIKI_ROOT}/${relativePath}`;
+}
 
 /**
  * Resolves a wiki link target relative to the current category directory.
@@ -12,43 +35,17 @@ const WIKI_MARKDOWN_LINK_PATTERN = /\]\(((?:\.\/|\.\.\/)*[^)\s#]+?\.md(?:[?#][^)
  * `/wiki/<category>/sibling`. Remark only sees those absolute URLs afterward.
  */
 export function rewriteWikiLinkUrl(url: string, currentCategory?: string): string {
-	if (
-		!url ||
-		url.startsWith('http://') ||
-		url.startsWith('https://') ||
-		url.startsWith('mailto:') ||
-		url.startsWith('tel:') ||
-		url.startsWith('data:')
-	) {
+	if (isOpaqueWikiLinkUrl(url)) {
 		return url;
 	}
 
-	const hashIndex = url.indexOf('#');
-	const pathPart = hashIndex === -1 ? url : url.slice(0, hashIndex);
-	const hash = hashIndex === -1 ? '' : url.slice(hashIndex);
-	const queryIndex = pathPart.indexOf('?');
-	const pathname = queryIndex === -1 ? pathPart : pathPart.slice(0, queryIndex);
-	const query = queryIndex === -1 ? '' : pathPart.slice(queryIndex);
-
-	const absWikiMatch = pathname.match(/^(?:\.\/|\.\.\/)*(?:\/)?wiki\/(.+)$/);
-	if (absWikiMatch) {
-		const slug = absWikiMatch[1].replace(/\.md$/, '');
-		return `${WIKI_ROOT}/${slug}${query}${hash}`;
+	const { pathname, query, hash } = splitWikiLinkUrl(url);
+	const rewrittenPath = rewriteWikiPathname(pathname, currentCategory);
+	if (!rewrittenPath) {
+		return url;
 	}
 
-	const relativeMatch = pathname.match(/^((?:\.\/|\.\.\/)*)([^/]+(?:\/[^/]+)*)\.md$/);
-	if (relativeMatch && currentCategory) {
-		const [, prefixes, relativePath] = relativeMatch;
-		const upCount = (prefixes.match(/\.\.\//g) || []).length;
-
-		if (upCount === 0) {
-			return `${WIKI_ROOT}/${currentCategory}/${relativePath}${query}${hash}`;
-		}
-
-		return `${WIKI_ROOT}/${relativePath}${query}${hash}`;
-	}
-
-	return url;
+	return `${rewrittenPath}${query}${hash}`;
 }
 
 /** Wiki slug (`category/page`) for a markdown href, or `null` when it is not a wiki page link. */

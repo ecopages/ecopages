@@ -1,16 +1,15 @@
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ContentScanner } from '@ecopages/content-processor';
+import { compareDocsEntries, docsFrontmatterSchema, type DocsFrontmatter } from '../src/content/docs';
+import { configuredSiteOrigin, normalizeSiteOrigin } from '../src/lib/docs/site-meta';
 import {
-	compareDocsEntries,
-	DOCS_SECTION_CONFIG,
-	docsFrontmatterSchema,
-	LLM_SECTION_ORDER,
-	type DocsFrontmatter,
-} from '../src/content/docs';
-import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
-import { absoluteUrl, configuredSiteOrigin, normalizeSiteOrigin } from '../src/lib/docs/site-meta';
+	appendAgentSkillSection,
+	exportLlmSectionPages,
+	groupPostsBySection,
+	orderedSectionIds,
+} from './llm-docs-export';
 
 const docsRoot = join(import.meta.dirname, '..');
 const publicRoot = join(docsRoot, 'src/public');
@@ -36,6 +35,36 @@ function createScanner(contentRoot: string): ContentScanner<DocsFrontmatter> {
 	});
 }
 
+function buildLlmsTxtPreamble(): string[] {
+	return [
+		'# Ecopages Documentation',
+		'> Ecopages is a static site generator written in TypeScript.',
+		'',
+		'## When to use this',
+		'',
+		'Reach for Ecopages when you are:',
+		'',
+		'- Scaffolding a new HTML-first multi-page app (`npx ecopages init`).',
+		'- Authoring Pages and Layouts, then picking an Integration (Ecopages JSX, React, Lit, KitaJS, or MDX).',
+		'- Choosing a Cache Strategy (static, dynamic, or revalidate) or adding typed handlers only when a Page needs more than static HTML.',
+		'',
+		'Do not use this site as a hosted SaaS or authenticated API. It is documentation and generated markdown for the open-source framework.',
+		'',
+		'## How to read the docs',
+		'',
+		'- This `llms.txt` file is an index only.',
+		'- Follow links to `/docs-llm/<section>/<slug>.md` for full page exports (HTML pages also advertise that URL as `rel=alternate`).',
+		'- For a progressive build guide, start at `/skill.txt` or `/skill/SKILL.md`.',
+		'',
+		'## CLI',
+		'',
+		'- npm package: [`ecopages`](https://www.npmjs.com/package/ecopages).',
+		'- Run without installing: `npx ecopages`, `pnpm dlx ecopages`, or `bunx ecopages`.',
+		'- Guide: `/docs/ecosystem/ecopages` (markdown export: `/docs-llm/ecosystem/ecopages.md`).',
+		'',
+	];
+}
+
 /**
  * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
  *
@@ -57,92 +86,19 @@ export async function generateLlmDocs(outputRoot = publicRoot, options: Generate
 	try {
 		await rm(stagingRoot, { recursive: true, force: true });
 		await mkdir(stagingRoot, { recursive: true });
-		const lines: string[] = [
-			'# Ecopages Documentation',
-			'> Ecopages is a static site generator written in TypeScript.',
-			'',
-			'## When to use this',
-			'',
-			'Reach for Ecopages when you are:',
-			'',
-			'- Scaffolding a new HTML-first multi-page app (`npx ecopages init`).',
-			'- Authoring Pages and Layouts, then picking an Integration (Ecopages JSX, React, Lit, KitaJS, or MDX).',
-			'- Choosing a Cache Strategy (static, dynamic, or revalidate) or adding typed handlers only when a Page needs more than static HTML.',
-			'',
-			'Do not use this site as a hosted SaaS or authenticated API. It is documentation and generated markdown for the open-source framework.',
-			'',
-			'## How to read the docs',
-			'',
-			'- This `llms.txt` file is an index only.',
-			'- Follow links to `/docs-llm/<section>/<slug>.md` for full page exports (HTML pages also advertise that URL as `rel=alternate`).',
-			'- For a progressive build guide, start at `/skill.txt` or `/skill/SKILL.md`.',
-			'',
-			'## CLI',
-			'',
-			'- npm package: [`ecopages`](https://www.npmjs.com/package/ecopages).',
-			'- Run without installing: `npx ecopages`, `pnpm dlx ecopages`, or `bunx ecopages`.',
-			'- Guide: `/docs/ecosystem/ecopages` (markdown export: `/docs-llm/ecosystem/ecopages.md`).',
-			'',
-		];
+		const lines = buildLlmsTxtPreamble();
+		const sections = groupPostsBySection(posts);
 
-		const sections = new Map<string, typeof posts>();
-
-		for (const post of posts) {
-			const sectionId = post.segments[0] ?? 'other';
-			if (!sections.has(sectionId)) {
-				sections.set(sectionId, []);
-			}
-			sections.get(sectionId)!.push(post);
-		}
-
-		const orderedSections = [
-			...LLM_SECTION_ORDER.filter((section) => sections.has(section)),
-			...Array.from(sections.keys())
-				.filter((section) => !LLM_SECTION_ORDER.includes(section as (typeof LLM_SECTION_ORDER)[number]))
-				.sort((a, b) => a.localeCompare(b)),
-		];
-
-		for (const sectionId of orderedSections) {
+		for (const sectionId of orderedSectionIds(sections)) {
 			const sectionPosts = sections.get(sectionId);
 			if (!sectionPosts || sectionPosts.length === 0) {
 				continue;
 			}
 
-			const sectionTitle = DOCS_SECTION_CONFIG[sectionId as keyof typeof DOCS_SECTION_CONFIG]?.title ?? sectionId;
-			lines.push(`## ${sectionTitle}`);
-
-			for (const page of sectionPosts) {
-				if (page.llms === false) {
-					continue;
-				}
-
-				const pageSlug = page.segments[page.segments.length - 1]!;
-				const body = await scanner.getRawContent(page.slug);
-				const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);
-				await mkdir(dirname(outputPath), { recursive: true });
-				await writeFile(outputPath, body, 'utf8');
-
-				const url = absoluteUrl(`/docs-llm/${sectionId}/${pageSlug}.md`, origin);
-				lines.push(`- [${page.title}](${url})`);
-			}
-
-			lines.push('');
+			await exportLlmSectionPages(scanner, sectionId, sectionPosts, stagingRoot, origin, lines);
 		}
 
-		lines.push('## Agent Skill');
-		lines.push('');
-		lines.push(`- [Skill index](${absoluteUrl('/skill.txt', origin)})`);
-		lines.push(`- [SKILL.md](${absoluteUrl('/skill/SKILL.md', origin)})`);
-
-		for (const module of SKILL_REFERENCE_MODULES) {
-			if (module.path === 'SKILL.md') {
-				continue;
-			}
-
-			lines.push(`- [${module.title}](${absoluteUrl(`/skill/${module.path}`, origin)})`);
-		}
-
-		lines.push('');
+		appendAgentSkillSection(lines, origin);
 
 		await mkdir(outputRoot, { recursive: true });
 		await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');

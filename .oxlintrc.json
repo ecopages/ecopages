@@ -32,18 +32,12 @@
 		},
 		{
 			"files": [
-				"apps/docs/scripts/generate-llm-docs.ts",
-				"e2e/scripts/playwright/run-isolated-app.mjs",
 				"packages/integrations/react/src/client-graph/ast-transform.ts",
 				"packages/integrations/react/src/client-graph/boundary-plugin.ts",
 				"packages/integrations/react/src/client-graph/reachability-analyzer.ts",
 				"packages/integrations/react/src/hmr/hmr-strategy.ts",
 				"packages/integrations/react/src/hydration/browser/page-hydration.ts",
-				"packages/integrations/react/src/hydration/hydration-script-compiler.ts",
-				"playground/kitchen-sink/bench/startup/run.mjs",
-				"scripts/debug-app.bench.mjs",
-				"templates/llm-wiki/app/src/lib/wiki/links.ts",
-				"templates/llm-wiki/app/src/lib/wiki/lint.ts"
+				"packages/integrations/react/src/hydration/hydration-script-compiler.ts"
 			],
 			"rules": {
 				"complexity": "off"

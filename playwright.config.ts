@@ -2,6 +2,7 @@
  * Playwright entrypoint. Fixtures self-describe in e2e/fixtures/<block>/fixture.e2e.ts.
  * Full suite: package.json scripts test:e2e:static, test:e2e:dev, test:e2e:kitchen-sink.
  */
+import './e2e/playwright/strip-inherited-pwdebug.mjs';
 import { defineConfig } from '@playwright/test';
 import { getSelectedPlaywrightProjects, includeWebServerForProjects } from './e2e/playwright/config-env';
 import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
@@ -31,11 +32,12 @@ export default defineConfig({
 	reporter: 'list',
 	use: {
 		/**
-		 * `test:all` and `test:e2e` must stay on chrome-headless-shell.
+		 * Keep default e2e runs on chromium-headless-shell (no visible Chrome.app).
 		 *
 		 * @remarks
-		 * Playwright 1.57+ ships Chrome for Testing as the Chromium binary. A headed
-		 * launch opens that `.app` in the macOS Dock. `pnpm test:e2e:ui` and `--headed`
+		 * Playwright 1.57+ ships Chrome for Testing as the headed Chromium binary.
+		 * Inherited `PWDEBUG` also forces headed inspector mode; e2e launchers strip
+		 * it in `createPlaywrightSubprocessEnv`. `pnpm test:e2e:ui` and `--headed`
 		 * still override this for local debugging.
 		 */
 		headless: true,

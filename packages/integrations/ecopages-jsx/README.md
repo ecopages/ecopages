@@ -78,6 +78,23 @@ new MyElement().renderHostToString({ mode: 'hydrate' });
 
 The legacy `hydrate: true` option remains compatible, but `mode` is the current SSR contract. Registered intrinsic tags that contain a dash are SSR candidates, and framework-specific host rendering should be adapted through the server custom-element render hook instead of hardcoding framework branches into JSX page code.
 
+The integration loads Radiant host serialization through the public `@ecopages/radiant/server/radiant-element-ssr` export after installing the light-DOM shim. Applications do not need a separate Radiant SSR side-effect import.
+
+### Registered Radiant scripts (`ssr: true`)
+
+Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so hosts can SSR without a redundant `import './my-element.script.ts'` in the component file.
+
+```ts
+export const ThemeToggle = eco.component({
+	dependencies: {
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true, lazy: { 'on:idle': true } }],
+	},
+	render: () => <theme-toggle />,
+});
+```
+
+Keep `import type` when you only need props from the script module. Do not add `ssr: true` to browser-only scripts that touch `window` or `document` without guards.
+
 ## MDX Support
 
 Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.

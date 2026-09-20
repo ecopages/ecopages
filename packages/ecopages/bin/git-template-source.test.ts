@@ -27,4 +27,18 @@ describe('normalizeGitSource', () => {
 	it('rejects unsupported hosts', () => {
 		expect(() => normalizeGitSource('https://example.com/owner/repo')).toThrow('Unsupported template host');
 	});
+
+	it('normalizes SourceHut tree URLs with a subpath', () => {
+		expect(normalizeGitSource('https://git.sr.ht/~owner/repo/tree/main/site')).toBe(
+			'sourcehut:~owner/repo/site#main',
+		);
+	});
+
+	it('rejects SourceHut URLs that do not include a repository', () => {
+		expect(() => normalizeGitSource('https://git.sr.ht/~owner')).toThrow('Unsupported template URL');
+	});
+
+	it('rejects GitHub URLs that do not include a repository', () => {
+		expect(() => normalizeGitSource('https://github.com/owner')).toThrow('Unsupported template URL');
+	});
 });

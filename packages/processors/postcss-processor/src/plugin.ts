@@ -9,6 +9,11 @@ import { fileSystem } from '@ecopages/file-system';
 import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
+import {
+	findPostcssConfigPath,
+	loadPostcssConfigFromFile,
+	type LoadedPostcssConfig,
+} from './postcss-config-loading.ts';
 import { PostCssProcessor } from './postcss-processor.ts';
 import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
 import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
@@ -513,82 +518,54 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * Get the PostCSS plugins from the options or a config file.
 	 * Searches for postcss.config.{js,cjs,mjs,ts} in the root directory.
 	 */
-	private async collectPostcssPlugins(): Promise<void> {
-		if (!this.context) {
-			throw new Error('Context must be set');
+	private resolvePostcssPluginsFromSources(loaded: LoadedPostcssConfig): void {
+		if (loaded.pluginFactories) {
+			this.pluginFactories = loaded.pluginFactories;
+			this.postcssPlugins = this.materializePluginFactories(loaded.pluginFactories);
+			return;
 		}
 
-		const configExtensions = ['js', 'cjs', 'mjs', 'ts'];
-		let foundConfigPath: string | undefined;
-		let loadedPlugins: postcss.AcceptedPlugin[] | undefined;
-		let loadedPluginFactories: PluginFactoryRecord | undefined;
-
-		for (const ext of configExtensions) {
-			const configPath = path.join(this.context.rootDir, `postcss.config.${ext}`);
-			if (fileSystem.exists(configPath)) {
-				foundConfigPath = configPath;
-				break;
-			}
-		}
-
-		if (foundConfigPath) {
-			try {
-				logger.debug(`Loading PostCSS config from: ${foundConfigPath}`);
-
-				const postcssConfigModule = await import(/* @vite-ignore */ foundConfigPath);
-				const postcssConfig = postcssConfigModule.default || postcssConfigModule;
-				if (
-					postcssConfig &&
-					typeof postcssConfig.pluginFactories === 'object' &&
-					postcssConfig.pluginFactories !== null
-				) {
-					loadedPluginFactories = postcssConfig.pluginFactories as PluginFactoryRecord;
-				}
-
-				if (postcssConfig && typeof postcssConfig.plugins === 'object' && postcssConfig.plugins !== null) {
-					if (Array.isArray(postcssConfig.plugins)) {
-						loadedPlugins = postcssConfig.plugins;
-					} else {
-						loadedPlugins = Object.values(postcssConfig.plugins as PluginsRecord);
-					}
-					logger.debug(`Successfully loaded ${loadedPlugins?.length ?? 0} plugins from config file.`);
-				} else {
-					logger.warn(
-						`PostCSS config file found (${foundConfigPath}), but no valid 'plugins' export detected.`,
-					);
-				}
-			} catch (error: any) {
-				logger.error(`Error loading PostCSS config from ${foundConfigPath}: ${error.message}`, error);
-				loadedPlugins = undefined;
-			}
-		} else {
-			logger.debug('No PostCSS config file found in root directory.');
-		}
-
-		if (loadedPluginFactories) {
-			this.pluginFactories = loadedPluginFactories;
-			this.postcssPlugins = this.materializePluginFactories(loadedPluginFactories);
-		} else if (loadedPlugins) {
+		if (loaded.plugins) {
 			this.pluginFactories = undefined;
-			this.postcssPlugins = loadedPlugins;
-		} else if (this.options?.pluginFactories || this.options?.plugins) {
+			this.postcssPlugins = loaded.plugins;
+			return;
+		}
+
+		if (this.options?.pluginFactories || this.options?.plugins) {
 			this.pluginFactories = this.options?.pluginFactories;
 
 			if (this.options?.plugins) {
 				logger.debug('Using PostCSS plugins provided in processor options.');
 				this.postcssPlugins = Object.values(this.options.plugins);
-			} else if (this.options?.pluginFactories) {
+				return;
+			}
+
+			if (this.options?.pluginFactories) {
 				logger.debug('Using PostCSS plugin factories provided in processor options.');
 				this.postcssPlugins = this.materializePluginFactories(this.options.pluginFactories);
+				return;
 			}
-		} else {
-			logger.warn(
-				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
-					'provide plugins via options, or create a postcss.config file.',
-			);
-			this.pluginFactories = undefined;
-			this.postcssPlugins = [];
 		}
+
+		logger.warn(
+			'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
+				'provide plugins via options, or create a postcss.config file.',
+		);
+		this.pluginFactories = undefined;
+		this.postcssPlugins = [];
+	}
+
+	private async collectPostcssPlugins(): Promise<void> {
+		if (!this.context) {
+			throw new Error('Context must be set');
+		}
+
+		const foundConfigPath = findPostcssConfigPath(this.context.rootDir);
+		const loaded = foundConfigPath
+			? await loadPostcssConfigFromFile(foundConfigPath)
+			: (logger.debug('No PostCSS config file found in root directory.'), {});
+
+		this.resolvePostcssPluginsFromSources(loaded);
 
 		if (!this.postcssPlugins || this.postcssPlugins.length === 0) {
 			logger.warn('No PostCSS plugins configured or loaded. CSS processing might be minimal.');

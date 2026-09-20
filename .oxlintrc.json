@@ -10,7 +10,15 @@
 		"no-empty-interface": "off",
 		"no-inferrable-types": "off",
 		"react/jsx-key": "off",
-		"complexity": ["error", { "max": 15 }]
+		"complexity": ["error", { "max": 15 }],
+		"no-unused-vars": [
+			"warn",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_"
+			}
+		]
 	},
 	"overrides": [
 		{

@@ -82,6 +82,10 @@
 			"types": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts",
 			"default": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts"
 		},
+		"./route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint": {
+			"types": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts",
+			"default": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts"
+		},
 		"./route-renderer/orchestration/string-markup-renderer": {
 			"types": "./src/route-renderer/orchestration/string-markup-renderer.ts",
 			"default": "./src/route-renderer/orchestration/string-markup-renderer.ts"

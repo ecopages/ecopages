@@ -47,6 +47,7 @@ function collectSsrScriptsFromConfig(
 	scriptPaths: Set<string>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
 	componentFile?: string,
+	requireLazyScriptEntry = false,
 ): void {
 	if (!componentFile) {
 		return;
@@ -55,6 +56,10 @@ function collectSsrScriptsFromConfig(
 	const componentDir = path.dirname(componentFile);
 	for (const script of config.dependencies?.scripts ?? []) {
 		if (typeof script === 'string' || script.ssr !== true || !script.src) {
+			continue;
+		}
+
+		if (requireLazyScriptEntry && !script.lazy) {
 			continue;
 		}
 
@@ -68,6 +73,7 @@ function collectSsrScriptsFromConfig(
 export function collectCustomElementSsrPreloadScripts(
 	components: Array<CustomElementSsrPreloadComponent | undefined>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
+	requireLazyScriptEntry = false,
 ): string[] {
 	const scriptPaths = new Set<string>();
 	const visitedConfigs = new Set<EcoComponentConfig>();
@@ -81,7 +87,7 @@ export function collectCustomElementSsrPreloadScripts(
 		visitedConfigs.add(config);
 
 		const componentFile = getComponentIdentity(component?.config)?.file;
-		collectSsrScriptsFromConfig(config, scriptPaths, resolveDependencyPath, componentFile);
+		collectSsrScriptsFromConfig(config, scriptPaths, resolveDependencyPath, componentFile, requireLazyScriptEntry);
 
 		for (const layout of config.layouts ?? []) {
 			collect(layout);
@@ -102,8 +108,24 @@ export function collectCustomElementSsrPreloadScripts(
 export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
 	enabled?: boolean;
+	/**
+	 * When true, only lazy script entries with `ssr: true` are preloaded.
+	 *
+	 * @remarks
+	 * Lit keeps this enabled so eager `ssr: true` scripts are not evaluated in an
+	 * isolated module graph that would register incompatible custom elements.
+	 */
+	requireLazyScriptEntry?: boolean;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	preferSourceImports?: boolean;
+	/**
+	 * Resolves a script path to the module entry the SSR renderer should import.
+	 *
+	 * @remarks
+	 * When this returns a processed bundle path, {@link importServerModule} is
+	 * skipped so preload shares the renderer's dependency graph (required for Lit).
+	 */
+	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
 	logLabel?: string;
 }
@@ -119,23 +141,29 @@ export interface CustomElementScriptPreloaderOptions {
 export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
 	private readonly enabled: boolean;
+	private readonly requireLazyScriptEntry: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	private readonly preferSourceImports: boolean;
+	private readonly resolvePreloadEntrypoint?: CustomElementScriptPreloaderOptions['resolvePreloadEntrypoint'];
 	private readonly importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
 	private readonly logLabel: string;
 
 	constructor({
 		cacheScope,
 		enabled = true,
+		requireLazyScriptEntry = false,
 		resolveDependencyPath,
 		preferSourceImports,
+		resolvePreloadEntrypoint,
 		importServerModule,
 		logLabel = 'ecopages',
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
 		this.enabled = enabled;
+		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
 		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
+		this.resolvePreloadEntrypoint = resolvePreloadEntrypoint;
 		this.importServerModule = importServerModule;
 		this.logLabel = logLabel;
 	}
@@ -149,7 +177,11 @@ export class CustomElementScriptPreloader {
 	}
 
 	collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
-		return collectCustomElementSsrPreloadScripts(components, this.resolveDependencyPath);
+		return collectCustomElementSsrPreloadScripts(
+			components,
+			this.resolveDependencyPath,
+			this.requireLazyScriptEntry,
+		);
 	}
 
 	/**
@@ -186,34 +218,36 @@ export class CustomElementScriptPreloader {
 			return;
 		}
 
-		const inFlight = scopeState.inFlightImports.get(scriptPath);
+		let inFlight = scopeState.inFlightImports.get(scriptPath);
 		if (inFlight) {
 			await inFlight;
 			return;
 		}
 
-		const importPromise = this.importScriptForPreload(scriptPath, registry);
-		scopeState.inFlightImports.set(scriptPath, importPromise);
+		inFlight = (async () => {
+			try {
+				await this.importScriptForPreload(scriptPath, registry);
+				scopeState.preloadedScripts.add(scriptPath);
+			} catch (error) {
+				scopeState.preloadFailedScripts.add(scriptPath);
 
-		try {
-			await importPromise;
-			scopeState.preloadedScripts.add(scriptPath);
-		} catch (error) {
-			scopeState.preloadFailedScripts.add(scriptPath);
-
-			if (this.isExpectedSsrPreloadError(error)) {
-				if (process.env.ECOPAGES_DEBUG === 'true') {
-					console.warn(
-						`[ecopages][${this.logLabel}] Skipping SSR preload for browser-only script: ${scriptPath}`,
-					);
+				if (this.isExpectedSsrPreloadError(error)) {
+					if (process.env.ECOPAGES_DEBUG === 'true') {
+						console.warn(
+							`[ecopages][${this.logLabel}] Skipping SSR preload for browser-only script: ${scriptPath}`,
+						);
+					}
+					return;
 				}
-				return;
-			}
 
-			console.warn(`[ecopages][${this.logLabel}] Failed to preload SSR script: ${scriptPath}`, error);
-		} finally {
-			scopeState.inFlightImports.delete(scriptPath);
-		}
+				console.warn(`[ecopages][${this.logLabel}] Failed to preload SSR script: ${scriptPath}`, error);
+			} finally {
+				scopeState.inFlightImports.delete(scriptPath);
+			}
+		})();
+
+		scopeState.inFlightImports.set(scriptPath, inFlight);
+		await inFlight;
 	}
 
 	private async importScriptForPreload(
@@ -221,6 +255,16 @@ export class CustomElementScriptPreloader {
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
 		const registryKey = registry ? getRegistryKey(registry) : 'default';
+
+		if (this.resolvePreloadEntrypoint) {
+			const preloadEntrypoint = await this.resolvePreloadEntrypoint(scriptPath);
+			const importUrl = pathToFileURL(preloadEntrypoint);
+			if (registry && typeof Bun === 'undefined') {
+				importUrl.searchParams.set('eco-ssr-registry', registryKey);
+			}
+			await import(/* @vite-ignore */ importUrl.href);
+			return;
+		}
 
 		if (this.importServerModule) {
 			await this.importServerModule(scriptPath, registryKey);

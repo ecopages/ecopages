@@ -500,6 +500,102 @@ export class StaticSiteGenerator {
 		}
 	}
 
+	private resetStaticGenerationState(force: boolean): void {
+		this.forceFullStaticGeneration = force;
+		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig);
+		this.pageModuleLoader = undefined;
+		if (!force) {
+			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
+		}
+		if (shouldPrebuildProductionPageBrowserGraphs() && force) {
+			clearProductionPageBrowserGraphSession(this.appConfig);
+		}
+	}
+
+	private async ensureUnifiedGraphForStaticGeneration(
+		routes: readonly StaticGenerationRoute[],
+		force: boolean,
+	): Promise<void> {
+		if (!shouldBuildPagesUnifiedGraph()) {
+			return;
+		}
+		await ensurePagesUnifiedGraphBuilt({
+			appConfig: this.appConfig,
+			entryPaths: routes.map((route) => route.templateRoute.filePath),
+			outdir: getServerModuleBuildCacheOutdir(this.appConfig),
+			force,
+		});
+	}
+
+	private async executeStaticGenerationBody(input: {
+		router: StaticGenerationRouteSource;
+		baseUrl: string;
+		routeRendererFactory?: StaticGenerationRendererFactory;
+		staticRoutes?: StaticRoute[];
+		preserveExportDirectory: boolean;
+		routes: readonly StaticGenerationRoute[];
+		skippedDynamicPages: string[];
+		activeStaticPathnames: Set<string>;
+		sitemapEligiblePathnames?: Set<string>;
+	}): Promise<void> {
+		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
+			await prebuildProductionPageBrowserGraphs(
+				input.routes.map((route) => ({
+					routeFile: route.templateRoute.filePath,
+					params: route.params,
+				})),
+				input.routeRendererFactory,
+			);
+		}
+
+		this.generateRobotsTxt();
+		await this.generateStaticPages({
+			router: input.router,
+			baseUrl: input.baseUrl,
+			routeRendererFactory: input.routeRendererFactory,
+			skipped: input.skippedDynamicPages,
+			activeStaticPathnames: input.activeStaticPathnames,
+			preloadedRoutes: input.routes,
+			sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+		});
+
+		if (input.staticRoutes && input.staticRoutes.length > 0 && input.routeRendererFactory) {
+			await this.generateExplicitStaticPages({
+				staticRoutes: input.staticRoutes,
+				routeRendererFactory: input.routeRendererFactory,
+				skipped: input.skippedDynamicPages,
+				activeStaticPathnames: input.activeStaticPathnames,
+				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+			});
+		}
+
+		if (input.preserveExportDirectory) {
+			this.pruneStaleStaticOutputs(input.activeStaticPathnames);
+		}
+	}
+
+	private finalizeStaticGenerationRun(input: {
+		baseUrl: string;
+		skippedDynamicPages: string[];
+		sitemapEligiblePathnames?: Set<string>;
+	}): void {
+		if (this.appConfig.sitemap?.enabled && input.sitemapEligiblePathnames) {
+			const locations = resolveSitemapLocations({
+				eligiblePathnames: [...input.sitemapEligiblePathnames],
+				sitemap: this.appConfig.sitemap,
+				baseUrl: input.baseUrl,
+			});
+			this.generateSitemap(locations, this.appConfig.sitemap);
+		}
+
+		if (input.skippedDynamicPages.length > 0) {
+			appLogger.debug(
+				`Skipped ${input.skippedDynamicPages.length} page(s) with cache: 'dynamic' (not supported in static generation)`,
+				input.skippedDynamicPages,
+			);
+		}
+	}
+
 	/**
 	 * Executes the full static-generation workflow for one app run.
 	 */
@@ -521,29 +617,11 @@ export class StaticSiteGenerator {
 		const skippedDynamicPages: string[] = [];
 		const activeStaticPathnames = new Set<string>();
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
-		this.forceFullStaticGeneration = force;
-		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig);
-		this.pageModuleLoader = undefined;
-
-		if (!force) {
-			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
-		}
-
-		if (shouldPrebuildProductionPageBrowserGraphs() && force) {
-			clearProductionPageBrowserGraphSession(this.appConfig);
-		}
+		this.resetStaticGenerationState(force);
 
 		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 		const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
-
-		if (shouldBuildPagesUnifiedGraph()) {
-			await ensurePagesUnifiedGraphBuilt({
-				appConfig: this.appConfig,
-				entryPaths: routes.map((route) => route.templateRoute.filePath),
-				outdir: getServerModuleBuildCacheOutdir(this.appConfig),
-				force,
-			});
-		}
+		await this.ensureUnifiedGraphForStaticGeneration(routes, force);
 
 		const staticExportContext = this.createStaticExportContext({
 			router,
@@ -558,40 +636,17 @@ export class StaticSiteGenerator {
 		await this.invokeStaticExportHook('beforeStaticExport', staticExportContext);
 
 		try {
-			if (shouldPrebuildProductionPageBrowserGraphs() && routeRendererFactory) {
-				await prebuildProductionPageBrowserGraphs(
-					routes.map((route) => ({
-						routeFile: route.templateRoute.filePath,
-						params: route.params,
-					})),
-					routeRendererFactory,
-				);
-			}
-
-			this.generateRobotsTxt();
-			await this.generateStaticPages({
+			await this.executeStaticGenerationBody({
 				router,
 				baseUrl,
 				routeRendererFactory,
-				skipped: skippedDynamicPages,
+				staticRoutes,
+				preserveExportDirectory,
+				routes,
+				skippedDynamicPages,
 				activeStaticPathnames,
-				preloadedRoutes: routes,
 				sitemapEligiblePathnames,
 			});
-
-			if (staticRoutes && staticRoutes.length > 0 && routeRendererFactory) {
-				await this.generateExplicitStaticPages({
-					staticRoutes,
-					routeRendererFactory,
-					skipped: skippedDynamicPages,
-					activeStaticPathnames,
-					sitemapEligiblePathnames,
-				});
-			}
-
-			if (preserveExportDirectory) {
-				this.pruneStaleStaticOutputs(activeStaticPathnames);
-			}
 		} catch (error) {
 			if (shouldPrebuildProductionPageBrowserGraphs()) {
 				clearProductionPageBrowserGraphSession(this.appConfig);
@@ -601,21 +656,11 @@ export class StaticSiteGenerator {
 			await this.invokeStaticExportHook('afterStaticExport', staticExportContext);
 		}
 
-		if (this.appConfig.sitemap?.enabled && sitemapEligiblePathnames) {
-			const locations = resolveSitemapLocations({
-				eligiblePathnames: [...sitemapEligiblePathnames],
-				sitemap: this.appConfig.sitemap,
-				baseUrl,
-			});
-			this.generateSitemap(locations, this.appConfig.sitemap);
-		}
-
-		if (skippedDynamicPages.length > 0) {
-			appLogger.debug(
-				`Skipped ${skippedDynamicPages.length} page(s) with cache: 'dynamic' (not supported in static generation)`,
-				skippedDynamicPages,
-			);
-		}
+		this.finalizeStaticGenerationRun({
+			baseUrl,
+			skippedDynamicPages,
+			sitemapEligiblePathnames,
+		});
 	}
 
 	private async generateExplicitStaticPages(input: {

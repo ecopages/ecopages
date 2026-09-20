@@ -26,44 +26,9 @@ export type PageData = {
 	props: Record<string, unknown>;
 };
 
-export type PageModule = {
-	Page: unknown;
-	preload?: (props: Record<string, unknown>) => void | Promise<void>;
-};
-
-/** Identifies a named preload export without widening the module boundary. */
-function isPagePreload(value: unknown): value is NonNullable<PageModule['preload']> {
-	return typeof value === 'function';
-}
-
-/**
- * Normalizes a loaded Page module into the shape used by hydration and HMR.
- *
- * @remarks
- * MDX modules carry page configuration as a named export and need layout
- * normalization before React reconstructs the page tree. Plain React modules
- * use their default export while still allowing a named `preload`.
- *
- * @param module - Imported Page or MDX module namespace.
- * @param isMdx - Whether the module carries MDX page configuration.
- * @param normalizePageConfig - Integration helper for normalizing MDX layouts.
- * @returns The Page component and optional preload hook used by hydration/HMR.
- */
-export function resolvePageModule(
-	module: Record<string, unknown>,
-	isMdx: boolean,
-	normalizePageConfig?: (config: unknown) => void,
-): PageModule {
-	const Page = module.default ?? module;
-	if (isMdx && module.config && Page && typeof Page === 'function') {
-		Object.assign(Page, { config: module.config });
-		normalizePageConfig?.(module.config);
-	}
-	return {
-		Page,
-		preload: isPagePreload(module.preload) ? module.preload : undefined,
-	};
-}
+export type { PageModule } from './page-hydration-module.ts';
+export { resolvePageModule } from './page-hydration-module.ts';
+import { handlePageHmr } from './page-hydration-hmr.ts';
 
 /** Configuration passed from a generated Page hydration entry. */
 export type PageHydrationOptions = {
@@ -177,11 +142,6 @@ function registerRouterOwnership(options: PageHydrationOptions): void {
 	runtime.navigation?.claimOwnership?.('react-router');
 }
 
-/** Returns the live page root without selecting a root by page or component key. */
-function getPageRoot(): PageRoot | null {
-	return getRuntime().react?.pageRoot ?? null;
-}
-
 /**
  * Checks whether asynchronous work still belongs to the current page instance.
  *
@@ -192,51 +152,6 @@ function getPageRoot(): PageRoot | null {
  */
 function isCurrentMountGeneration(generation: number): boolean {
 	return (getRuntime().react?.mountGeneration ?? 0) === generation;
-}
-
-/**
- * Imports and applies one HMR page update.
- *
- * @remarks
- * The registration generation is checked before importing and after each await,
- * so handlers retained across navigation cannot update a replacement page.
- * The replacement is published only after its preload succeeds. Initial startup
- * may finish with the previous component while that preload is pending; it must
- * never render the replacement before its dependencies are ready.
- */
-async function handleHmr(options: PageHydrationOptions, newUrl: string, generation: number): Promise<void> {
-	if (!options.hmr || !isCurrentMountGeneration(generation)) return;
-	try {
-		const newModule = (await import(/* @vite-ignore */ newUrl)) as Record<string, unknown>;
-		if (!isCurrentMountGeneration(generation)) return;
-		const nextPage = resolvePageModule(newModule, options.isMdx, options.normalizePageConfig);
-		const nextProps = options.pageDataReader.getPageDataFromDocument();
-		await nextPage.preload?.(nextProps);
-		if (!isCurrentMountGeneration(generation)) return;
-		const currentPage = options.Page;
-		options.Page = nextPage.Page;
-		options.preload = nextPage.preload;
-
-		if (options.hasRouter && getRuntime().navigation?.getOwnerState?.().owner === 'react-router') {
-			const currentLayoutStack = options.hmr.getLayoutStack?.(currentPage) ?? '';
-			const nextLayoutStack = options.hmr.getLayoutStack?.(nextPage.Page) ?? '';
-			await getRuntime().navigation?.reloadCurrentPage?.({
-				clearCache: currentLayoutStack !== nextLayoutStack,
-				moduleUrl: newUrl,
-				source: 'react-router',
-			});
-			console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated via router`);
-			return;
-		}
-
-		const activeRoot = getPageRoot();
-		if (!activeRoot || !isCurrentMountGeneration(generation)) return;
-		setPageState(options, readPageData(options));
-		activeRoot.render(options.createTree(nextPage.Page, nextProps));
-		console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated`);
-	} catch (error) {
-		console.error(`[ecopages] Failed to hot-reload ${options.isMdx ? 'MDX' : 'React'} component:`, error);
-	}
 }
 
 /**
@@ -253,7 +168,10 @@ function registerHmr(options: PageHydrationOptions): void {
 	const runtime = getRuntime();
 	const generation = runtime.react?.mountGeneration ?? 0;
 	runtime.hmrHandlers ??= {};
-	runtime.hmrHandlers[options.hmr.importPath] = (newUrl) => handleHmr(options, newUrl, generation);
+	runtime.hmrHandlers[options.hmr.importPath] = (newUrl) =>
+		handlePageHmr(options, newUrl, generation, readPageData, setPageState, (opts) =>
+			opts.pageDataReader.getPageDataFromDocument(),
+		);
 }
 
 /**

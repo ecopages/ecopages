@@ -31,14 +31,7 @@
 			}
 		},
 		{
-			"files": [
-				"packages/integrations/react/src/client-graph/ast-transform.ts",
-				"packages/integrations/react/src/client-graph/boundary-plugin.ts",
-				"packages/integrations/react/src/client-graph/reachability-analyzer.ts",
-				"packages/integrations/react/src/hmr/hmr-strategy.ts",
-				"packages/integrations/react/src/hydration/browser/page-hydration.ts",
-				"packages/integrations/react/src/hydration/hydration-script-compiler.ts"
-			],
+			"files": [],
 			"rules": {
 				"complexity": "off"
 			}

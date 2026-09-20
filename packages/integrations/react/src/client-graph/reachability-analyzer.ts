@@ -4,103 +4,42 @@
  * This module is responsible for performing static analysis on Ecopages client components
  * using the Oxc AST parser. It computes a strict "reachability graph" of all JavaScript/TypeScript
  * dependencies (imports, variables, functions, and classes) that begin from explicit client roots.
- *
- * In Ecopages, client roots are the `render`, `errorBoundary`, and `loadingFallback`
- * properties passed into `eco.page()`, `eco.layout()`, or `eco.component()`. A Page's named
- * `preload` export is an additional root. By tracing from these roots, the analyzer determines
- * which modules and bindings the browser needs and which imports it can prune.
  */
 
 import { parseModuleSource } from '@ecopages/core/cache';
-import type { ExportNamedDeclaration, ParseResult } from 'oxc-parser';
+import type { ParseResult } from 'oxc-parser';
+import { finalizeClientRoots } from './reachability-client-roots.ts';
+import { resolveFallbackClientRoots } from './reachability-fallback-roots.ts';
+export { hasPagePreloadExport } from './reachability-preload.ts';
+import { buildTopLevelIndex } from './reachability-top-level-index.ts';
+import { runReachabilityTraversal } from './reachability-traverse.ts';
+import type { ExplicitlyRequestedExports } from './reachability-export-names.ts';
 
 /**
  * Represents the computed results of a reachability analysis pass.
  */
 export type ReachabilityResult = {
-	/**
-	 * Map from import specifier (e.g. 'node:fs', '@/components/Button')
-	 * to a Set of imported bindings, or '*' for namespace imports.
-	 */
 	reachableImports: Map<string, Set<string> | '*'>;
-
-	/**
-	 * AST nodes of top-level declarations that are reachable.
-	 */
 	reachableDeclarations: Set<unknown>;
-
 	unreachableSideEffectImports: unknown[];
-
-	/**
-	 * Indicates whether the file had explicit eco client roots, or fell back to treating all exports as roots.
-	 */
 	isFallbackRoots: boolean;
-
-	/**
-	 * Whether the file was successfully parsed and analyzed.
-	 */
 	analyzed: boolean;
 };
 
-function isPreloadExportStatement(statement: ExportNamedDeclaration): boolean {
-	const declaration = statement.declaration;
-	if (declaration?.type === 'FunctionDeclaration' || declaration?.type === 'ClassDeclaration') {
-		return declaration.id?.type === 'Identifier' && declaration.id.name === 'preload';
-	}
-
-	if (declaration?.type === 'VariableDeclaration') {
-		return (
-			declaration.declarations?.some(
-				(declarator) => declarator.id.type === 'Identifier' && declarator.id.name === 'preload',
-			) ?? false
-		);
-	}
-
-	return statement.specifiers.some((specifier) => {
-		const exported = specifier.exported;
-		return exported.type === 'Identifier' ? exported.name === 'preload' : exported.value === 'preload';
-	});
+function emptyReachabilityResult(isFallbackRoots: boolean): ReachabilityResult {
+	return {
+		reachableImports: new Map(),
+		reachableDeclarations: new Set(),
+		unreachableSideEffectImports: [],
+		isFallbackRoots,
+		analyzed: false,
+	};
 }
-
-/**
- * Returns whether a module exports a named `preload` binding.
- *
- * @remarks
- * Hydration entries only wire `preload` when this is true, so Pages without
- * that export do not produce a missing-named-import warning.
- */
-export function hasPagePreloadExport(source: string, filename: string): boolean {
-	try {
-		const { program } = parseModuleSource(filename, source);
-		return program.body.some(
-			(statement) => statement.type === 'ExportNamedDeclaration' && isPreloadExportStatement(statement),
-		);
-	} catch {
-		return false;
-	}
-}
-
-/**
- * Optional export filter supplied by the client graph boundary when a local
- * module is imported through a narrower named-export surface.
- *
- * `'*'` means the whole module namespace is considered reachable, while a
- * `Set` restricts analysis to the named exports that are actually requested by
- * downstream client-reachable modules.
- */
-type ExplicitlyRequestedExports = Set<string> | '*';
 
 /**
  * Analyzes a module using Oxc AST and extracts a strict reachability graph
  * starting from client roots: `render`, `errorBoundary`, and `loadingFallback` of
  * `eco.page`, `eco.layout`, or `eco.component`, plus a Page's named `preload` export.
- *
- * @param source - Raw source string of the module.
- * @param filename - Absolute or relative path to the module file.
- * @param program - Optional pre-parsed Oxc program AST. When supplied, the
- *   internal `parseSync` call is skipped entirely (avoids double-parsing).
- * @param explicitlyRequestedExports - Optional named export filter propagated
- *   from a downstream importer when this module is only partially reachable.
  */
 export function analyzeReachability(
 	source: string,
@@ -108,514 +47,34 @@ export function analyzeReachability(
 	program?: ParseResult['program'],
 	explicitlyRequestedExports?: ExplicitlyRequestedExports,
 ): ReachabilityResult {
-	/**
-	 * AST Resolution
-	 *
-	 * If the caller already has a parsed AST (e.g. from a prior `parseSync` call in the same
-	 * pipeline), we reuse it directly to avoid double-parsing the same source text.
-	 * Otherwise we parse here and return early with an empty "unanalyzed" result on failure.
-	 */
 	let resolvedProgram: ParseResult['program'];
 
 	if (program) {
 		resolvedProgram = program;
 	} else {
-		let result;
 		try {
-			result = parseModuleSource(filename, source);
+			resolvedProgram = parseModuleSource(filename, source).program;
 		} catch {
-			return {
-				reachableImports: new Map(),
-				reachableDeclarations: new Set(),
-				unreachableSideEffectImports: [],
-				isFallbackRoots: true,
-				analyzed: false,
-			};
-		}
-		resolvedProgram = result.program;
-	}
-
-	/**
-	 * Top-level statement scan
-	 *
-	 * Make a single pass over the top-level AST body to build two indexes:
-	 *
-	 * - `topLevelImports`: every `import` declaration found in this module, keyed by specifier.
-	 *   Each entry carries a `bindings` map from local alias → imported name so that later
-	 *   identifier lookups can resolve `import { readFile as rf } from 'node:fs'` correctly.
-	 *
-	 * - `topLevelDeclarations`: every locally declared variable, function, or class so that
-	 *   the BFS traversal can follow identifier references into their definition nodes.
-	 *
-	 * As declarations are catalogued, `checkPotentialClientRoot()` is called to detect whether
-	 * any of them are `eco.page(…)` or `eco.component(…)` calls — the seed nodes for the graph.
-	 */
-	const topLevelImports: {
-		node: unknown;
-		specifier: string;
-		bindings: Map<string, string>;
-		isSideEffect: boolean;
-	}[] = [];
-	const topLevelDeclarations: Map<string, unknown> = new Map();
-	const potentialClientRoots: unknown[] = [];
-	const pagePreloadRoots: unknown[] = [];
-	let hasEcoPageRoot = false;
-
-	for (const statement of resolvedProgram.body) {
-		if (statement.type === 'ImportDeclaration') {
-			if ((statement as { importKind?: string }).importKind === 'type') {
-				continue;
-			}
-
-			const specifier = statement.source.value as string;
-			const bindings = new Map<string, string>();
-
-			if (!statement.specifiers || statement.specifiers.length === 0) {
-				topLevelImports.push({ node: statement, specifier, bindings, isSideEffect: true });
-			} else {
-				for (const spec of statement.specifiers) {
-					if (spec.type === 'ImportDefaultSpecifier') {
-						bindings.set(spec.local.name, 'default');
-					} else if (spec.type === 'ImportNamespaceSpecifier') {
-						bindings.set(spec.local.name, '*');
-					} else if (spec.type === 'ImportSpecifier') {
-						const importedName =
-							spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported as any).value;
-						bindings.set(spec.local.name, importedName);
-					}
-				}
-				topLevelImports.push({ node: statement, specifier, bindings, isSideEffect: false });
-			}
-		} else if (statement.type === 'VariableDeclaration') {
-			for (const decl of statement.declarations) {
-				if (decl.id.type === 'Identifier') {
-					topLevelDeclarations.set(decl.id.name, statement);
-					checkPotentialClientRoot(decl.init);
-				}
-			}
-		} else if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration') {
-			if (statement.id && statement.id.type === 'Identifier') {
-				topLevelDeclarations.set(statement.id.name, statement);
-			}
-		} else if (statement.type === 'ExportNamedDeclaration') {
-			if (statement.declaration) {
-				const decl = statement.declaration;
-				if (isPreloadExportStatement(statement)) {
-					pagePreloadRoots.push(statement);
-				}
-				if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
-					if (decl.id && decl.id.type === 'Identifier') {
-						topLevelDeclarations.set(decl.id.name, statement);
-					}
-				} else if (decl.type === 'VariableDeclaration') {
-					for (const v of decl.declarations) {
-						if (v.id.type === 'Identifier') {
-							topLevelDeclarations.set(v.id.name, statement);
-							checkPotentialClientRoot(v.init);
-						}
-					}
-				}
-			} else if (isPreloadExportStatement(statement)) {
-				pagePreloadRoots.push(statement);
-			}
-		} else if (statement.type === 'ExportDefaultDeclaration') {
-			checkPotentialClientRoot(statement.declaration);
-		} else if (statement.type === 'ExpressionStatement') {
-			checkPotentialClientRoot(statement.expression);
-		} else if (statement.type === 'ExportAllDeclaration' && (statement as { source?: { value: string } }).source) {
-			/**
-			 * `export * from '...'` unconditionally re-exports every binding from the
-			 * source module. Because the re-exported bindings do not create local
-			 * identifiers in this file, the BFS traverser would never encounter them
-			 * naturally. We therefore always seed these nodes into `potentialClientRoots`
-			 * so that `traverse` can mark the source specifier as fully reachable ('*').
-			 */
-			potentialClientRoots.push(statement);
+			return emptyReachabilityResult(true);
 		}
 	}
 
-	/**
-	 * Inspects a node to determine if it represents an Ecopages client root declaration.
-	 *
-	 * @param node - The AST node to inspect.
-	 */
-	function checkPotentialClientRoot(node: unknown) {
-		if (!node || typeof node !== 'object') return;
-		if (
-			(node as { type: string }).type === 'CallExpression' &&
-			(node as { callee: { type: string } }).callee.type === 'MemberExpression'
-		) {
-			const obj = (node as { callee: { object: unknown } }).callee.object;
-			const prop = (node as { callee: { property: unknown } }).callee.property;
-			if (
-				(obj as { type: string }).type === 'Identifier' &&
-				(obj as { name: string }).name === 'eco' &&
-				(prop as { type: string }).type === 'Identifier' &&
-				((prop as { name: string }).name === 'page' ||
-					(prop as { name: string }).name === 'component' ||
-					(prop as { name: string }).name === 'layout')
-			) {
-				if ((prop as { name: string }).name === 'page') {
-					hasEcoPageRoot = true;
-				}
-				potentialClientRoots.push((node as { callee: unknown }).callee);
+	const index = buildTopLevelIndex(resolvedProgram);
+	const potentialClientRoots = finalizeClientRoots(index.clientRootState);
+	const isFallbackRoots = resolveFallbackClientRoots(
+		resolvedProgram,
+		potentialClientRoots,
+		explicitlyRequestedExports,
+	);
 
-				const arg = (node as { arguments: unknown[] }).arguments[0];
-				if (arg && (arg as { type: string }).type === 'ObjectExpression') {
-					for (const prop of (arg as { properties: unknown[] }).properties) {
-						if (
-							(prop as { type: string }).type === 'Property' &&
-							(prop as { key: { type: string } }).key.type === 'Identifier'
-						) {
-							if (
-								['render', 'errorBoundary', 'loadingFallback', 'clientScripts'].includes(
-									(prop as { key: { name: string } }).key.name,
-								)
-							) {
-								potentialClientRoots.push((prop as { value: unknown }).value);
-							}
-						}
-					}
-				}
-			}
-		} else if (
-			(node as { type: string }).type === 'CallExpression' &&
-			(node as { callee: { type: string } }).callee.type === 'Identifier' &&
-			(node as { callee: { name: string } }).callee.name === 'dynamic'
-		) {
-			potentialClientRoots.push(node);
-		}
-	}
+	const { reachableImports, reachableDeclarations } = runReachabilityTraversal(
+		potentialClientRoots,
+		index.topLevelImports,
+		index.topLevelDeclarations,
+		explicitlyRequestedExports,
+	);
 
-	if (hasEcoPageRoot) {
-		potentialClientRoots.push(...pagePreloadRoots);
-	}
-
-	/**
-	 * Resolves the externally visible export name from an export specifier.
-	 *
-	 * @param specifier - Oxc export specifier node.
-	 * @returns The exported binding name when available.
-	 */
-	function getExportedName(specifier: any): string | undefined {
-		if (specifier?.exported?.type === 'Identifier') return specifier.exported.name;
-		if (typeof specifier?.exported?.value === 'string') return specifier.exported.value;
-		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
-		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
-		return undefined;
-	}
-
-	/**
-	 * Resolves the imported binding name represented by a re-export specifier.
-	 *
-	 * @param specifier - Oxc export specifier node.
-	 * @returns The source-module binding name that should be marked reachable.
-	 */
-	function getReexportedImportName(specifier: any): string | undefined {
-		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
-		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
-		if (specifier?.imported?.type === 'Identifier') return specifier.imported.name;
-		if (typeof specifier?.imported?.value === 'string') return specifier.imported.value;
-		return getExportedName(specifier);
-	}
-
-	/**
-	 * Resolves the local identifier used by a local export list entry.
-	 *
-	 * @param specifier - Oxc export specifier node.
-	 * @returns The local symbol name referenced by the export list.
-	 */
-	function getLocalExportName(specifier: any): string | undefined {
-		if (specifier?.local?.type === 'Identifier') return specifier.local.name;
-		if (typeof specifier?.local?.value === 'string') return specifier.local.value;
-		return undefined;
-	}
-
-	/**
-	 * Checks whether a named export is part of the explicitly requested subset.
-	 *
-	 * @param name - Export name to test.
-	 * @returns True when the export should seed or continue traversal.
-	 */
-	function isExplicitlyRequestedExport(name: string): boolean {
-		if (explicitlyRequestedExports === '*') return true;
-		return explicitlyRequestedExports?.has(name) ?? false;
-	}
-
-	/**
-	 * Client root resolution (fallback mode)
-	 *
-	 * If *no* `eco.page`/`eco.component` call was found in the file, we fall back to treating
-	 * every exported declaration as a potential client root. This covers utility modules that
-	 * don't use Ecopages conventions (plain React components, shared helpers, etc.)
-	 *
-	 * In fallback mode the analysis is intentionally permissive — the `isFallbackRoots` flag
-	 * propagates to callers so they know not to hard-fail on reachable forbidden imports
-	 * (since we cannot be 100% certain about the execution boundary).
-	 */
-	let isFallbackRoots = false;
-	if (potentialClientRoots.length === 0) {
-		if (explicitlyRequestedExports) {
-			for (const node of resolvedProgram.body) {
-				if ((node as { type: string }).type === 'ExportNamedDeclaration') {
-					const exportNode = node as any;
-					if (exportNode.source && exportNode.specifiers?.length) {
-						const hasRequestedReexport = exportNode.specifiers.some((specifier: any) => {
-							const exportedName = getExportedName(specifier);
-							return exportedName ? isExplicitlyRequestedExport(exportedName) : false;
-						});
-						if (hasRequestedReexport) {
-							potentialClientRoots.push(node);
-						}
-						continue;
-					}
-
-					if (
-						exportNode.declaration?.type === 'FunctionDeclaration' ||
-						exportNode.declaration?.type === 'ClassDeclaration'
-					) {
-						const declarationName = exportNode.declaration.id?.name;
-						if (declarationName && isExplicitlyRequestedExport(declarationName)) {
-							potentialClientRoots.push(node);
-						}
-						continue;
-					}
-
-					if (exportNode.declaration?.type === 'VariableDeclaration') {
-						const hasRequestedDeclaration = exportNode.declaration.declarations.some(
-							(declaration: any) =>
-								declaration.id?.type === 'Identifier' &&
-								isExplicitlyRequestedExport(declaration.id.name),
-						);
-						if (hasRequestedDeclaration) {
-							potentialClientRoots.push(node);
-						}
-						continue;
-					}
-
-					if (exportNode.specifiers?.length) {
-						const hasRequestedSpecifier = exportNode.specifiers.some((specifier: any) => {
-							const exportedName = getExportedName(specifier);
-							return exportedName ? isExplicitlyRequestedExport(exportedName) : false;
-						});
-						if (hasRequestedSpecifier) {
-							potentialClientRoots.push(node);
-						}
-					}
-				} else if ((node as { type: string }).type === 'ExportDefaultDeclaration') {
-					if (isExplicitlyRequestedExport('default')) {
-						potentialClientRoots.push(node);
-					}
-				} else if ((node as { type: string }).type === 'ExportAllDeclaration') {
-					if (explicitlyRequestedExports === '*') {
-						potentialClientRoots.push(node);
-					}
-				}
-			}
-		} else {
-			isFallbackRoots = true;
-			for (const node of resolvedProgram.body) {
-				if (
-					(node as { type: string }).type === 'ExportNamedDeclaration' ||
-					(node as { type: string }).type === 'ExportDefaultDeclaration' ||
-					(node as { type: string }).type === 'ExportAllDeclaration'
-				) {
-					potentialClientRoots.push(node);
-				}
-			}
-		}
-	}
-
-	/**
-	 * BFS reachability traversal
-	 *
-	 * Starting from the seed nodes collected above, we perform a breadth-first walk of the AST.
-	 * Every identifier encountered is checked against `topLevelDeclarations` (to enqueue further
-	 * nodes) and `topLevelImports` (to mark the referenced binding as reachable).
-	 *
-	 * `visitedNodes` guards against infinite cycles in recursive or mutually-recursive declarations.
-	 */
-	const reachableImports = new Map<string, Set<string> | '*'>();
-	const reachableDeclarations = new Set<unknown>();
-	const queue: unknown[] = [...potentialClientRoots];
-	const visitedNodes = new Set<unknown>();
-
-	/**
-	 * Registers an imported binding as reachable in the client graph.
-	 *
-	 * @param specifier - The module specifier from which the binding is imported.
-	 * @param importedName - The specific named export being imported, or '*' for namespace imports.
-	 */
-	function markImportReachable(specifier: string, importedName: string) {
-		let current = reachableImports.get(specifier);
-		if (current === '*') return;
-
-		if (importedName === '*') {
-			reachableImports.set(specifier, '*');
-		} else {
-			if (!current) {
-				current = new Set<string>();
-				reachableImports.set(specifier, current);
-			}
-			current.add(importedName);
-		}
-	}
-
-	/**
-	 * Traces an identifier to its origin declaration, enqueuing it for deep traversal if it resolves
-	 * to a local module-level declaration, or marking it as a reachable import if it originates from another module.
-	 *
-	 * @param name - The identifier name to check.
-	 */
-	function checkIdentifier(name: string) {
-		if (topLevelDeclarations.has(name)) {
-			const declNode = topLevelDeclarations.get(name);
-			if (!reachableDeclarations.has(declNode)) {
-				reachableDeclarations.add(declNode);
-				queue.push(declNode);
-			}
-		}
-
-		for (const imp of topLevelImports) {
-			if (imp.bindings.has(name)) {
-				markImportReachable(imp.specifier, imp.bindings.get(name)!);
-			}
-		}
-	}
-
-	/**
-	 * Recursively walks down an AST node to discover referenced variables and function calls,
-	 * building out the reachability graph.
-	 *
-	 * @param node - The Oxc AST node to traverse. Typed as `any` because Oxc lacks a unified iterable node type.
-	 * @param localScope - A set of identifiers that shadow module-level declarations within the current lexical scope.
-	 */
-	function traverse(node: any, localScope: Set<string>) {
-		if (!node || typeof node !== 'object') return;
-		if (visitedNodes.has(node)) return;
-		visitedNodes.add(node);
-
-		if (Array.isArray(node)) {
-			for (const child of node) traverse(child, localScope);
-			return;
-		}
-
-		const currentScope = localScope;
-
-		/**
-		 * `export * from '...'` nodes are seeded into the BFS queue by the top-level scan.
-		 * When the traverser reaches one here we immediately mark the entire source module
-		 * as reachable ('*'), then stop — there are no local identifiers to follow.
-		 */
-		if (node.type === 'ExportAllDeclaration' && typeof node.source?.value === 'string') {
-			markImportReachable(node.source.value as string, '*');
-			return;
-		}
-
-		if (node.type === 'ExportNamedDeclaration' && typeof node.source?.value === 'string') {
-			for (const specifier of node.specifiers ?? []) {
-				const importedName = getReexportedImportName(specifier);
-				if (importedName) {
-					markImportReachable(node.source.value as string, importedName);
-				}
-			}
-			return;
-		}
-
-		if (
-			node.type === 'ExportNamedDeclaration' &&
-			!node.source &&
-			explicitlyRequestedExports &&
-			node.specifiers?.length
-		) {
-			for (const specifier of node.specifiers) {
-				const exportedName = getExportedName(specifier);
-				if (!exportedName || !isExplicitlyRequestedExport(exportedName)) {
-					continue;
-				}
-
-				const localName = getLocalExportName(specifier);
-				if (localName && !currentScope.has(localName)) {
-					checkIdentifier(localName);
-				}
-			}
-			return;
-		}
-
-		if (node.type === 'Identifier' || (node.type === 'JSXIdentifier' && /^[A-Z]/.test(node.name))) {
-			if (!currentScope.has(node.name)) {
-				checkIdentifier(node.name);
-			}
-		} else if (node.type === 'MemberExpression') {
-			traverse(node.object, currentScope);
-			if (node.computed) {
-				traverse(node.property, currentScope);
-			}
-			return;
-		} else if (node.type === 'Property') {
-			if (node.computed) traverse(node.key, currentScope);
-			traverse(node.value, currentScope);
-			return;
-		} else if (node.type === 'JSXOpeningElement' || node.type === 'JSXClosingElement') {
-			traverse(node.name, currentScope);
-			if (node.attributes) {
-				for (const attr of node.attributes) traverse(attr, currentScope);
-			}
-			return;
-		} else if (node.type === 'JSXIdentifier') {
-			if (/^[A-Z]/.test(node.name) && !currentScope.has(node.name)) {
-				checkIdentifier(node.name);
-			}
-		} else if (node.type === 'JSXMemberExpression') {
-			traverse(node.object, currentScope);
-			return;
-		} else if (
-			node.type === 'CallExpression' &&
-			node.callee.type === 'Identifier' &&
-			node.callee.name === 'dynamic'
-		) {
-			const arg = node.arguments[0];
-			if (arg && (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression')) {
-				const body = arg.body;
-				if (body.type === 'ImportExpression' && body.source.type === 'Literal') {
-					markImportReachable(body.source.value as string, '*');
-				}
-			}
-		} else if (node.type === 'ImportExpression' && node.source.type === 'Literal') {
-			markImportReachable(node.source.value as string, '*');
-		}
-
-		if (
-			node.type === 'ArrowFunctionExpression' ||
-			node.type === 'FunctionExpression' ||
-			node.type === 'FunctionDeclaration'
-		) {
-			const newScope = new Set(currentScope);
-			if (node.id && node.id.type === 'Identifier') newScope.add(node.id.name);
-			if (node.params && node.params.items) {
-				for (const p of node.params.items) {
-					if (p.pattern && p.pattern.type === 'Identifier') {
-						newScope.add(p.pattern.name);
-					}
-				}
-			}
-			traverse(node.body, newScope);
-			return;
-		}
-
-		for (const key in node) {
-			if (key !== 'type' && key !== 'start' && key !== 'end') {
-				traverse(node[key], currentScope);
-			}
-		}
-	}
-
-	while (queue.length > 0) {
-		const root = queue.shift();
-		traverse(root, new Set());
-	}
-
-	const unreachableSideEffectImports = topLevelImports
+	const unreachableSideEffectImports = index.topLevelImports
 		.filter((imp) => imp.isSideEffect && !reachableImports.has(imp.specifier))
 		.map((imp) => imp.node);
 

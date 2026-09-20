@@ -90,29 +90,35 @@ function inferRolldownModuleTypeFromPath(filePath: string): string {
 	}
 }
 
+const DIRECT_ROLLDOWN_MODULE_LOADERS = new Set([
+	'js',
+	'jsx',
+	'ts',
+	'tsx',
+	'json',
+	'css',
+	'text',
+	'base64',
+	'dataurl',
+	'binary',
+	'empty',
+]);
+
+const ROLLDOWN_LOADER_ALIASES: Record<string, string> = {
+	'global-css': 'css',
+	'local-css': 'css',
+	file: 'asset',
+	copy: 'asset',
+};
+
 function normalizeRolldownModuleType(loader: unknown): string | undefined {
-	switch (loader) {
-		case 'js':
-		case 'jsx':
-		case 'ts':
-		case 'tsx':
-		case 'json':
-		case 'css':
-		case 'text':
-		case 'base64':
-		case 'dataurl':
-		case 'binary':
-		case 'empty':
-			return loader;
-		case 'global-css':
-		case 'local-css':
-			return 'css';
-		case 'file':
-		case 'copy':
-			return 'asset';
-		default:
-			return undefined;
+	if (typeof loader === 'string' && DIRECT_ROLLDOWN_MODULE_LOADERS.has(loader)) {
+		return loader;
 	}
+	if (typeof loader === 'string' && Object.prototype.hasOwnProperty.call(ROLLDOWN_LOADER_ALIASES, loader)) {
+		return ROLLDOWN_LOADER_ALIASES[loader];
+	}
+	return undefined;
 }
 
 function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string | undefined {

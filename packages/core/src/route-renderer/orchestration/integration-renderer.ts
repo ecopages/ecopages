@@ -555,39 +555,59 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		);
 	}
 
+	private serializeStringRenderChildren(children: ComponentRenderInput['children']): string | undefined {
+		if (children === undefined) {
+			return undefined;
+		}
+
+		if (typeof children === 'string') {
+			return children;
+		}
+
+		if (isMarkupNodeLike(children) && typeof children.outerHTML === 'string') {
+			return children.outerHTML;
+		}
+
+		return undefined;
+	}
+
+	private assertStringRenderChildren(input: ComponentRenderInput, serializedChildren: string | undefined): void {
+		if (input.children === undefined || serializedChildren !== undefined) {
+			return;
+		}
+
+		const componentFile = input.component.config?.identity?.file ?? 'unknown component';
+		const childTag = Object.prototype.toString.call(input.children);
+
+		throw new TypeError(
+			`[ecopages] ${this.name} renderer expected serialized children for ${componentFile}, received ${childTag}.`,
+		);
+	}
+
+	private assertStringRenderContent(input: ComponentRenderInput, content: EcoPagesElement): void {
+		if (typeof content === 'string') {
+			return;
+		}
+
+		const componentFile = input.component.config?.identity?.file ?? 'unknown component';
+		const contentTag = Object.prototype.toString.call(content);
+
+		throw new TypeError(
+			`[ecopages] ${this.name} renderer expected a string render result for ${componentFile}, received ${contentTag}.`,
+		);
+	}
+
 	protected async renderStringComponentWithSerializedChildren(
 		input: ComponentRenderInput,
 		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
 	): Promise<ComponentRenderResult> {
-		const serializedChildren =
-			input.children === undefined
-				? undefined
-				: typeof input.children === 'string'
-					? input.children
-					: isMarkupNodeLike(input.children) && typeof input.children.outerHTML === 'string'
-						? input.children.outerHTML
-						: undefined;
-
-		if (input.children !== undefined && serializedChildren === undefined) {
-			const componentFile = input.component.config?.identity?.file ?? 'unknown component';
-			const childTag = Object.prototype.toString.call(input.children);
-
-			throw new TypeError(
-				`[ecopages] ${this.name} renderer expected serialized children for ${componentFile}, received ${childTag}.`,
-			);
-		}
+		const serializedChildren = this.serializeStringRenderChildren(input.children);
+		this.assertStringRenderChildren(input, serializedChildren);
 
 		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
 		const content = await component(props);
-		if (typeof content !== 'string') {
-			const componentFile = input.component.config?.identity?.file ?? 'unknown component';
-			const contentTag = Object.prototype.toString.call(content);
-
-			throw new TypeError(
-				`[ecopages] ${this.name} renderer expected a string render result for ${componentFile}, received ${contentTag}.`,
-			);
-		}
-		const html = content;
+		this.assertStringRenderContent(input, content);
+		const html = content as string;
 		const assets =
 			input.component.config?.dependencies &&
 			typeof this.assetProcessingService?.processDependencies === 'function'

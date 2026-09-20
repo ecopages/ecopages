@@ -5,42 +5,87 @@ export function normalizeSegmentPath(pathname: string): string {
 	return pathname;
 }
 
+type SegmentMatchState = {
+	patternSegments: string[];
+	pathSegments: string[];
+	params: Record<string, string | string[]>;
+	patternIndex: number;
+	pathIndex: number;
+};
+
+function tryMatchCatchAllSegment(
+	patternSegment: string,
+	state: SegmentMatchState,
+): Record<string, string | string[]> | null {
+	if (!patternSegment.startsWith('[...') || !patternSegment.endsWith(']')) {
+		return null;
+	}
+
+	const paramName = patternSegment.slice(4, -1);
+	state.params[paramName] = state.pathSegments.slice(state.pathIndex);
+	return state.params;
+}
+
+function tryMatchDynamicSegment(patternSegment: string, pathSegment: string, state: SegmentMatchState): boolean {
+	if (patternSegment.startsWith(':')) {
+		state.params[patternSegment.slice(1)] = pathSegment;
+		state.patternIndex++;
+		state.pathIndex++;
+		return true;
+	}
+
+	if (patternSegment.startsWith('[') && patternSegment.endsWith(']')) {
+		state.params[patternSegment.slice(1, -1)] = pathSegment;
+		state.patternIndex++;
+		state.pathIndex++;
+		return true;
+	}
+
+	return false;
+}
+
+function matchTrailingCatchAll(state: SegmentMatchState): Record<string, string | string[]> | null {
+	const remaining = state.patternSegments.slice(state.patternIndex);
+	const catchAll = remaining[0];
+
+	if (remaining.length !== 1 || (catchAll !== '*' && !(catchAll.startsWith('[...') && catchAll.endsWith(']')))) {
+		return null;
+	}
+
+	if (catchAll.startsWith('[...')) {
+		const paramName = catchAll.slice(4, -1);
+		state.params[paramName] = [];
+	}
+
+	return state.params;
+}
+
 export function matchApiPathPattern(pattern: string, pathname: string): Record<string, string | string[]> | null {
 	const normalizedPattern = normalizeSegmentPath(pattern);
 	const normalizedPathname = normalizeSegmentPath(pathname);
 
-	const patternSegments = normalizedPattern.split('/').filter(Boolean);
-	const pathSegments = normalizedPathname.split('/').filter(Boolean);
-	const params: Record<string, string | string[]> = {};
+	const state: SegmentMatchState = {
+		patternSegments: normalizedPattern.split('/').filter(Boolean),
+		pathSegments: normalizedPathname.split('/').filter(Boolean),
+		params: {},
+		patternIndex: 0,
+		pathIndex: 0,
+	};
 
-	let patternIndex = 0;
-	let pathIndex = 0;
-
-	while (patternIndex < patternSegments.length && pathIndex < pathSegments.length) {
-		const patternSegment = patternSegments[patternIndex];
-		const pathSegment = pathSegments[pathIndex];
+	while (state.patternIndex < state.patternSegments.length && state.pathIndex < state.pathSegments.length) {
+		const patternSegment = state.patternSegments[state.patternIndex];
+		const pathSegment = state.pathSegments[state.pathIndex];
 
 		if (patternSegment === '*') {
-			return params;
+			return state.params;
 		}
 
-		if (patternSegment.startsWith('[...') && patternSegment.endsWith(']')) {
-			const paramName = patternSegment.slice(4, -1);
-			params[paramName] = pathSegments.slice(pathIndex);
-			return params;
+		const catchAllMatch = tryMatchCatchAllSegment(patternSegment, state);
+		if (catchAllMatch) {
+			return catchAllMatch;
 		}
 
-		if (patternSegment.startsWith(':')) {
-			params[patternSegment.slice(1)] = pathSegment;
-			patternIndex++;
-			pathIndex++;
-			continue;
-		}
-
-		if (patternSegment.startsWith('[') && patternSegment.endsWith(']')) {
-			params[patternSegment.slice(1, -1)] = pathSegment;
-			patternIndex++;
-			pathIndex++;
+		if (tryMatchDynamicSegment(patternSegment, pathSegment, state)) {
 			continue;
 		}
 
@@ -48,30 +93,19 @@ export function matchApiPathPattern(pattern: string, pathname: string): Record<s
 			return null;
 		}
 
-		patternIndex++;
-		pathIndex++;
+		state.patternIndex++;
+		state.pathIndex++;
 	}
 
-	if (patternIndex < patternSegments.length) {
-		const remaining = patternSegments.slice(patternIndex);
-		const catchAll = remaining[0];
+	if (state.patternIndex < state.patternSegments.length) {
+		return matchTrailingCatchAll(state);
+	}
 
-		if (remaining.length === 1 && (catchAll === '*' || (catchAll.startsWith('[...') && catchAll.endsWith(']')))) {
-			if (catchAll.startsWith('[...')) {
-				const paramName = catchAll.slice(4, -1);
-				params[paramName] = [];
-			}
-			return params;
-		}
-
+	if (state.pathIndex < state.pathSegments.length) {
 		return null;
 	}
 
-	if (pathIndex < pathSegments.length) {
-		return null;
-	}
-
-	return params;
+	return state.params;
 }
 
 export function scoreApiPathPattern(pattern: string): number {

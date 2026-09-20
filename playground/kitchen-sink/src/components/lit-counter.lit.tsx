@@ -6,7 +6,7 @@ import type { LitCounterProps } from './lit-counter.script';
 export const LitCounter = eco.component<LitCounterProps, EcoPagesElement>({
 	integration: 'lit',
 	dependencies: {
-		scripts: ['./lit-counter.script.ts'],
+		scripts: [{ src: './lit-counter.script.ts', ssr: true }],
 	},
 	render: ({ count = 0 }) =>
 		html`<lit-counter count=${count} data-counter-kind="lit"></lit-counter>` as unknown as EcoPagesElement,

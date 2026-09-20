@@ -218,7 +218,8 @@ function ensureEcoImport(j: JSCodeshift, root: Collection<unknown>): void {
 	}
 }
 
-function pruneUnusedEcoComponentTypeImport(j: JSCodeshift, root: Collection<unknown>): void {
+function pruneUnusedLegacyComponentTypeImports(j: JSCodeshift, root: Collection<unknown>): void {
+	const unusedTypeNames = new Set(['EcoComponent', 'PageProps']);
 	const ecoImports = root.find(j.ImportDeclaration, {
 		source: { value: '@ecopages/core' },
 	});
@@ -230,9 +231,10 @@ function pruneUnusedEcoComponentTypeImport(j: JSCodeshift, root: Collection<unkn
 
 		path.node.specifiers = path.node.specifiers.filter((spec) => {
 			if (spec.type === 'ImportSpecifier' && spec.imported.type === 'Identifier') {
-				if (spec.imported.name === 'EcoComponent') {
+				const importedName = spec.imported.name;
+				if (unusedTypeNames.has(importedName)) {
 					const usages = root.find(j.TSTypeReference, {
-						typeName: { name: 'EcoComponent' },
+						typeName: { name: importedName },
 					});
 					return usages.length > 0;
 				}
@@ -301,7 +303,7 @@ export default function transformer(file: FileInfo, api: API, _options: Options)
 	}
 
 	ensureEcoImport(j, root);
-	pruneUnusedEcoComponentTypeImport(j, root);
+	pruneUnusedLegacyComponentTypeImports(j, root);
 
 	return root.toSource({ quote: 'single', tabWidth: 2, useTabs: true });
 }

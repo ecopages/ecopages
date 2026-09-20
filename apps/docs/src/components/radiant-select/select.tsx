@@ -5,7 +5,7 @@ import type { RadiantSelectProps as SelectProps } from './select.script';
 export const RadiantSelect = eco.component({
 	dependencies: {
 		stylesheets: ['../radiant-field/field.css', './select.css'],
-		scripts: ['./select.script.tsx'],
+		scripts: [{ src: './select.script.tsx', ssr: true }],
 	},
 	render(props: JsxCustomElementAttributes<HTMLElement, SelectProps>) {
 		return (

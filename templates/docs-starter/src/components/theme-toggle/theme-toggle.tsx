@@ -7,7 +7,6 @@ import {
 } from '@ecopages/radiant-ui/cycle-toggle';
 import './theme-toggle.css';
 import type { ThemeToggleProps } from './theme-toggle.script';
-import './theme-toggle.script';
 
 export type ThemeToggleViewProps = ThemeToggleProps & {
 	label?: string;
@@ -15,7 +14,7 @@ export type ThemeToggleViewProps = ThemeToggleProps & {
 
 export const ThemeToggle = eco.component<ThemeToggleViewProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./theme-toggle.script.ts'],
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
 	render: ({ label = 'Theme', value = 'system', variant = 'ghost', size = 'sm', disabled, ...props }) => {
 		const preference = value ?? 'system';

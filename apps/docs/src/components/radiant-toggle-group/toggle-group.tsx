@@ -5,7 +5,7 @@ import type { RadiantToggleGroupProps as ToggleGroupProps } from './toggle-group
 export const RadiantToggleGroup = eco.component({
 	dependencies: {
 		stylesheets: ['../radiant-field/field.css', './toggle-group.css'],
-		scripts: ['./toggle-group.script.tsx'],
+		scripts: [{ src: './toggle-group.script.tsx', ssr: true }],
 	},
 	render(props: JsxCustomElementAttributes<HTMLElement, ToggleGroupProps>) {
 		return (

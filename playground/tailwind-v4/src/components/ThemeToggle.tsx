@@ -1,32 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore, useState } from 'react';
+
+const emptySubscribe = () => () => {};
+
+function readIsDark(): boolean {
+	const theme = localStorage.getItem('theme');
+	const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+	return theme === 'dark' || (!theme && prefersDark);
+}
+
+function applyDocumentTheme(isDark: boolean): void {
+	if (isDark) {
+		document.documentElement.classList.add('dark');
+	} else {
+		document.documentElement.classList.remove('dark');
+	}
+}
 
 export function ThemeToggle() {
-	const [mounted, setMounted] = useState(false);
-	const [isDark, setIsDark] = useState(false);
-
-	useEffect(() => {
-		setMounted(true);
-		const theme = localStorage.getItem('theme');
-		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-		if (theme === 'dark' || (!theme && prefersDark)) {
-			setIsDark(true);
-			document.documentElement.classList.add('dark');
-		} else {
-			setIsDark(false);
-			document.documentElement.classList.remove('dark');
+	const mounted = useSyncExternalStore(
+		emptySubscribe,
+		() => true,
+		() => false,
+	);
+	const [isDark, setIsDark] = useState(() => {
+		if (typeof window === 'undefined') {
+			return false;
 		}
-	}, []);
+
+		const dark = readIsDark();
+		applyDocumentTheme(dark);
+		return dark;
+	});
 
 	const toggleTheme = () => {
 		const newTheme = !isDark;
 		setIsDark(newTheme);
+		applyDocumentTheme(newTheme);
 
 		if (newTheme) {
-			document.documentElement.classList.add('dark');
 			localStorage.setItem('theme', 'dark');
 		} else {
-			document.documentElement.classList.remove('dark');
 			localStorage.setItem('theme', 'light');
 		}
 	};

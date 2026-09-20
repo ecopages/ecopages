@@ -93,17 +93,16 @@ To properly integrate the Lit component into Ecopages (handling dependencies and
 ```typescript
 import { eco } from '@ecopages/core';
 import { html } from 'lit';
-import './lit-counter.script';
 
 export const LitCounter = eco.component({
 	dependencies: {
-		scripts: ['lit-counter.script.ts'],
+		scripts: [{ src: './lit-counter.script.ts', ssr: true }],
 	},
 	render: (props: { count: number }) => html` <lit-counter count=${props.count}></lit-counter> `,
 });
 ```
 
-This wrapper ensures that the script is loaded when needed and provides a typed interface for using the component in pages.
+Lit preloads `dependencies.scripts` entries with `ssr: true` on the server before render, whether or not the entry is lazy in the browser. `lazy` controls browser timing only; `ssr: true` does not add an extra eager browser script for lazy entries. Omit `lazy` when the client script should load as soon as the page loads. The wrapper provides a typed interface for using the Lit element in pages.
 
 ## Using Lit Components in Pages
 

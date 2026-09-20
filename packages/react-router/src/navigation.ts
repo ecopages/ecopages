@@ -7,10 +7,10 @@
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
 import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
-import { createElement, type ComponentType } from 'react';
+import type { ComponentType } from 'react';
+import { adaptPageModule } from './page-module-adapter.ts';
 
 const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
 const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
@@ -146,56 +146,6 @@ export function extractComponentUrl(doc: Document): string | null {
 
 	const bootstrapScript = doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR);
 	return bootstrapScript?.src || null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-	return (typeof value === 'object' && value !== null) || typeof value === 'function'
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-/**
- * Adapts supported module export shapes to the router's page-component contract.
- *
- * @remarks
- * Never mutates the imported component function. When module-level config is
- * present but missing on the export, a thin wrapper carries `config` for layout
- * composition while rendering the original component.
- */
-function adaptPageModule(moduleNamespace: unknown): {
-	Component: NavigablePageComponent;
-	config?: EcoComponentConfig;
-	preload?: (props: PageProps) => Promise<void>;
-} | null {
-	const module = asRecord(moduleNamespace);
-	if (!module) {
-		return null;
-	}
-
-	const defaultExport = module.default;
-	const defaultRecord = asRecord(defaultExport);
-	const rawComponent = module.Content ?? defaultRecord?.Content ?? defaultExport;
-	if (typeof rawComponent !== 'function') {
-		return null;
-	}
-
-	const Imported = rawComponent as NavigablePageComponent;
-	const config = (module.config ?? defaultRecord?.config ?? Imported.config) as EcoComponentConfig | undefined;
-	const preloadValue = module.preload;
-	const preload =
-		typeof preloadValue === 'function' ? (preloadValue as (props: PageProps) => Promise<void>) : undefined;
-	if (config) {
-		ensurePageConfigLayouts(config);
-	}
-
-	if (!config || Imported.config === config) {
-		return { Component: Imported, config: Imported.config ?? config, preload };
-	}
-
-	const Page = ((props: PageProps) => createElement(Imported, props)) as NavigablePageComponent;
-	Page.config = config;
-	Page.displayName = Imported.displayName ?? Imported.name ?? 'EcoRouterPage';
-	return { Component: Page, config, preload };
 }
 
 /**

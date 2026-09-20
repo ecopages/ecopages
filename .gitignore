@@ -18,6 +18,7 @@ public/js
 .DS_Store
 *.pem
 .agent
+.cursor/
 
 # local env files
 .env

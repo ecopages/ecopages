@@ -64,7 +64,6 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
 const INTRINSIC_TEST_TAG = 'ecopages-jsx-intrinsic-contract';
 const RADIANT_ARRAY_TEST_TAG = 'ecopages-jsx-radiant-array-contract';
-
 function serializeStringChild(children: JsxRenderable | undefined): string {
 	if (children === undefined) {
 		return '';

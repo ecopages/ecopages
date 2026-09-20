@@ -1,4 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	invalidateCustomElementScriptPreload,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 
 const CUSTOM_ELEMENT_TAG_PATTERN = /@customElement\s*\(\s*['"`]([^'"`]+)['"`]/u;
 
@@ -52,6 +56,8 @@ export function clearRadiantCustomElementDefinition(tagName: string): void {
  * Clears the SSR custom-element registry entry for one registered Radiant script module.
  */
 export function invalidateRadiantRegisteredScriptSsrRegistration(scriptPath: string): boolean {
+	invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx);
+
 	const tagName = resolveRadiantCustomElementTag(scriptPath);
 	if (!tagName) {
 		return false;

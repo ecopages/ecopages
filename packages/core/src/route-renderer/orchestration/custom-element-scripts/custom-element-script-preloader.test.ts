@@ -86,6 +86,30 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 		]);
 	});
 
+	it('can limit collection to lazy scripts marked ssr: true', () => {
+		const host = eco.component(
+			bindComponentIdentity(
+				{ id: 'host', file: '/app/components/host.tsx', integration: 'lit' },
+				{
+					render: () => '',
+					dependencies: {
+						scripts: [
+							{ src: './eager.script.ts', ssr: true },
+							{ src: './lazy.script.ts', ssr: true, lazy: { 'on:idle': true } },
+						],
+					},
+				},
+			),
+		);
+		expect(
+			collectCustomElementSsrPreloadScripts(
+				[host],
+				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
+				true,
+			),
+		).toEqual(['/app/components/lazy.script.ts']);
+	});
+
 	it('collects eager and lazy scripts marked ssr: true', () => {
 		const host = eco.component(
 			bindComponentIdentity(
@@ -322,5 +346,27 @@ describe('CustomElementScriptPreloader', () => {
 			}),
 		);
 		warnSpy.mockRestore();
+	});
+
+	it('handles concurrent preload of browser-only scripts without throwing for second caller', async () => {
+		const importServerModule = vi.fn(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			throw new Error('window is not defined');
+		});
+		const preloader = createPreloader({
+			importServerModule,
+		});
+		const host = eco.component(
+			bindComponentIdentity(
+				{ id: 'concurrent-host', file: '/app/concurrent.tsx', integration: 'lit' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: './browser-only.script.ts', ssr: true }] },
+				},
+			),
+		);
+
+		await Promise.all([preloader.preloadSsrScripts([host]), preloader.preloadSsrScripts([host])]);
+		expect(importServerModule).toHaveBeenCalledTimes(1);
 	});
 });

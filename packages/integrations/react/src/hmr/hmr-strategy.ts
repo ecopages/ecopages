@@ -29,6 +29,14 @@ import {
 	resolveReactDeclaredModulesForEntrypoint,
 	type ReactHmrBuildTarget,
 } from './react-hmr-dev-transform-plugins.ts';
+import {
+	buildHmrAction,
+	collectHmrUpdateUrls,
+	ensureWatchedEntrypointOwnership,
+	resolveRequestedTargets,
+	scanDependencyHits,
+	type HmrProcessContext,
+} from './hmr-strategy-process.ts';
 
 const appLogger = new Logger('[ReactHmrStrategy]');
 
@@ -363,6 +371,30 @@ export class ReactHmrStrategy extends HmrStrategy {
 		};
 	}
 
+	private createProcessContext(resolvedFilePath: string, watchedFiles: Map<string, string>): HmrProcessContext {
+		return {
+			resolvedFilePath,
+			watchedFiles,
+			isLayoutFile: (filePath) => this.isLayoutFile(filePath),
+			isPageEntrypoint: (filePath) => this.isPageEntrypoint(filePath),
+			isReactEntrypoint: (filePath) => this.isReactEntrypoint(filePath),
+			ownsWatchedEntrypoint: (filePath) => this.ownsWatchedEntrypoint(filePath),
+			isDevTransformOutputUrl: (outputUrl) => this.isDevTransformOutputUrl(outputUrl),
+			collectReactPageBuildTargets: () => this.collectReactPageBuildTargets(),
+			hasLayoutOwnedDependencyTarget: (changedFilePath, requestedTargets) =>
+				this.hasLayoutOwnedDependencyTarget(changedFilePath, requestedTargets),
+			resolveBuildTargets: (requestedTargets, changedFilePath) =>
+				this.resolveBuildTargets(requestedTargets, changedFilePath),
+			partitionBuildTargets: (requestedTargets, groupedPageTargets) =>
+				this.partitionBuildTargets(requestedTargets, groupedPageTargets),
+			queueDevTransformOutputUpdates: (targets, requestedOutputUrls, updates) =>
+				this.queueDevTransformOutputUpdates(targets, requestedOutputUrls, updates),
+			markOwnedEntrypoint: (filePath) => this.pageMetadataCache.markOwnedEntrypoint(filePath),
+			getDependencyEntrypoints: (filePath) =>
+				this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath),
+		};
+	}
+
 	async process(_filePath: string): Promise<HmrAction> {
 		appLogger.debug(`Processing ${_filePath}`);
 		const resolvedFilePath = path.resolve(_filePath);
@@ -373,124 +405,62 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const isLayout = this.isLayoutFile(resolvedFilePath);
-		const isChangedPageEntrypoint = this.isPageEntrypoint(resolvedFilePath);
+		const processContext = this.createProcessContext(resolvedFilePath, watchedFiles);
+		const isLayout = processContext.isLayoutFile(resolvedFilePath);
+		const isChangedPageEntrypoint = processContext.isPageEntrypoint(resolvedFilePath);
 		if (isLayout) {
 			appLogger.debug(`Detected layout file change: ${resolvedFilePath}`);
 		}
 
 		const changedEntrypointOutput = watchedFiles.get(resolvedFilePath);
-		if (changedEntrypointOutput && !this.ownsWatchedEntrypoint(resolvedFilePath)) {
-			if (this.isReactEntrypoint(resolvedFilePath)) {
-				this.pageMetadataCache.markOwnedEntrypoint(resolvedFilePath);
-			} else {
-				appLogger.debug(`Skipping non-React watched entrypoint: ${resolvedFilePath}`);
-				return { type: 'none' };
-			}
+		if (ensureWatchedEntrypointOwnership(processContext, changedEntrypointOutput) === 'abort') {
+			appLogger.debug(`Skipping non-React watched entrypoint: ${resolvedFilePath}`);
+			return { type: 'none' };
 		}
 
-		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(resolvedFilePath);
-		const hasDependencyHits = dependencyHits.size > 0;
-		const affectedEntrypoints = new Map<string, string>();
-		let hasOwnedLayoutDependencyHit = false;
-		let layoutOwnedPageTargets: ReactHmrBuildTarget[] = [];
-		let hasLayoutOwnedRequestedTarget = false;
-
-		if (hasDependencyHits && !changedEntrypointOutput) {
-			for (const entrypoint of dependencyHits) {
-				const resolvedEntrypoint = path.resolve(entrypoint);
-				const outputUrl = watchedFiles.get(resolvedEntrypoint);
-				if (
-					outputUrl &&
-					(this.ownsWatchedEntrypoint(resolvedEntrypoint) || this.isDevTransformOutputUrl(outputUrl))
-				) {
-					affectedEntrypoints.set(resolvedEntrypoint, outputUrl);
-					continue;
-				}
-
-				if (this.isLayoutFile(resolvedEntrypoint) && this.ownsWatchedEntrypoint(resolvedEntrypoint)) {
-					hasOwnedLayoutDependencyHit = true;
-				}
-			}
-
-			if (affectedEntrypoints.size === 0 && !hasOwnedLayoutDependencyHit) {
-				if (!isLayout) {
-					appLogger.debug(`Dependency hits found but none map to React-owned watched entrypoints`);
-					return { type: 'none' };
-				}
-			}
+		const dependencyHits = processContext.getDependencyEntrypoints(resolvedFilePath);
+		const dependencyScan = scanDependencyHits(processContext, changedEntrypointOutput);
+		if (dependencyScan.shouldAbort) {
+			appLogger.debug(`Dependency hits found but none map to React-owned watched entrypoints`);
+			return { type: 'none' };
 		}
 
-		if (changedEntrypointOutput && !isLayout && !isChangedPageEntrypoint) {
-			layoutOwnedPageTargets = await this.collectReactPageBuildTargets();
-			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(
-				resolvedFilePath,
-				layoutOwnedPageTargets,
-			);
-		}
+		const { requestedTargets, hasLayoutOwnedRequestedTarget: initialLayoutOwned } = await resolveRequestedTargets(
+			processContext,
+			changedEntrypointOutput,
+			isLayout,
+			isChangedPageEntrypoint,
+			dependencyScan.hasOwnedLayoutDependencyHit,
+			dependencyScan.affectedEntrypoints,
+			dependencyHits.size > 0,
+		);
 
-		const requestedTargets = changedEntrypointOutput
-			? hasLayoutOwnedRequestedTarget
-				? [{ entrypointPath: resolvedFilePath, outputUrl: changedEntrypointOutput }, ...layoutOwnedPageTargets]
-				: [{ entrypointPath: resolvedFilePath, outputUrl: changedEntrypointOutput }]
-			: hasOwnedLayoutDependencyHit
-				? await this.collectReactPageBuildTargets()
-				: hasDependencyHits
-					? Array.from(affectedEntrypoints, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }))
-					: Array.from(watchedFiles, ([entrypointPath, outputUrl]) => ({ entrypointPath, outputUrl }));
+		const groupedPageTargets = await processContext.resolveBuildTargets(requestedTargets, resolvedFilePath);
+		const { pageTargets, nonPageTargets } = processContext.partitionBuildTargets(
+			requestedTargets,
+			groupedPageTargets,
+		);
 
-		const groupedPageTargets = await this.resolveBuildTargets(requestedTargets, resolvedFilePath);
-		const { pageTargets, nonPageTargets } = this.partitionBuildTargets(requestedTargets, groupedPageTargets);
+		let hasLayoutOwnedRequestedTarget = initialLayoutOwned;
 		if (!changedEntrypointOutput) {
-			hasLayoutOwnedRequestedTarget = await this.hasLayoutOwnedDependencyTarget(
+			hasLayoutOwnedRequestedTarget = await processContext.hasLayoutOwnedDependencyTarget(
 				resolvedFilePath,
 				requestedTargets,
 			);
 		}
-		const requiresLayoutRefresh = isLayout || hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
 
-		const updates: string[] = [];
-		const requestedOutputUrls = new Set(requestedTargets.map((target) => target.outputUrl));
-		this.queueDevTransformOutputUpdates(pageTargets, requestedOutputUrls, updates);
-
-		for (const { outputUrl } of nonPageTargets) {
-			if (!requestedOutputUrls.has(outputUrl)) {
-				continue;
-			}
-
-			if (this.isDevTransformOutputUrl(outputUrl)) {
-				updates.push(outputUrl);
-				continue;
-			}
-
-			appLogger.debug(`Skipping non-dev-transform HMR output: ${outputUrl}`);
-		}
+		const requiresLayoutRefresh =
+			isLayout || dependencyScan.hasOwnedLayoutDependencyHit || hasLayoutOwnedRequestedTarget;
+		const updates = collectHmrUpdateUrls(processContext, requestedTargets, pageTargets, nonPageTargets);
 
 		if (requiresLayoutRefresh) {
 			appLogger.debug(`Layout update detected, sending layout-update event`);
-			return {
-				type: 'broadcast',
-				events: [
-					{
-						type: 'layout-update',
-					},
-				],
-			};
-		}
-
-		if (updates.length > 0) {
+		} else if (updates.length > 0) {
 			appLogger.debug(`Broadcasting ${updates.length} updates`);
-			return {
-				type: 'broadcast',
-				events: updates.map((path) => ({
-					type: 'update',
-					path,
-					timestamp: Date.now(),
-				})),
-			};
+		} else {
+			appLogger.debug(`No updates generated`);
 		}
 
-		appLogger.debug(`No updates generated`);
-		return { type: 'none' };
+		return buildHmrAction(requiresLayoutRefresh, updates);
 	}
 }

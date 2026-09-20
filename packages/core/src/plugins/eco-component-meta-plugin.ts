@@ -174,6 +174,63 @@ export function attributeComponentIdentity(
 	);
 }
 
+function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
+	for (const statement of nodes(program?.body)) {
+		if (statement.type !== 'ExportNamedDeclaration' || !statement.declaration) {
+			continue;
+		}
+
+		const decl = node(statement.declaration);
+		if (decl?.type !== 'VariableDeclaration') {
+			continue;
+		}
+
+		for (const declarator of nodes(decl.declarations)) {
+			if (node(declarator.id)?.name === 'config') {
+				return declarator;
+			}
+		}
+	}
+
+	return undefined;
+}
+
+function buildMdxConfigIdentityEdits(options: {
+	contents: string;
+	configDeclarator: AstNode | undefined;
+	identityLiteral: string;
+	discoveryArgument: string;
+	removals: SourceEdit[];
+}): SourceEdit[] {
+	const edits: SourceEdit[] = [...options.removals];
+	const init = options.configDeclarator ? node(options.configDeclarator.init) : undefined;
+
+	if (!init || typeof init.start !== 'number' || typeof init.end !== 'number') {
+		return edits;
+	}
+
+	edits.push({
+		start: init.start,
+		end: init.end,
+		replacement: `bindComponentIdentity(${options.identityLiteral}, ${options.contents.slice(init.start, init.end)}${options.discoveryArgument})`,
+	});
+
+	return edits;
+}
+
+function buildMdxIdentityAppend(options: {
+	configDeclarator: AstNode | undefined;
+	identityLiteral: string;
+	discoveryArgument: string;
+}): string {
+	let appended = '';
+	if (!options.configDeclarator) {
+		appended += `\nexport const config = bindComponentIdentity(${options.identityLiteral}, {}${options.discoveryArgument});\n`;
+	}
+	appended += `attachDiscoveredDependencies(config);\nif (typeof MDXContent === 'function') MDXContent.config = config;\n`;
+	return appended;
+}
+
 /** Attributes compiled MDX module with canonical component identity and discovered dependencies. */
 export function attributeMdxComponentIdentity(
 	contents: string,
@@ -193,20 +250,7 @@ export function attributeMdxComponentIdentity(
 		return contents;
 	}
 
-	let configDeclarator: AstNode | undefined;
-	for (const statement of nodes(program?.body)) {
-		if (statement.type === 'ExportNamedDeclaration' && statement.declaration) {
-			const decl = node(statement.declaration);
-			if (decl?.type === 'VariableDeclaration') {
-				for (const declarator of nodes(decl.declarations)) {
-					if (node(declarator.id)?.name === 'config') {
-						configDeclarator = declarator;
-						break;
-					}
-				}
-			}
-		}
-	}
+	const configDeclarator = findMdxConfigDeclarator(program);
 
 	if (configDeclarator && isIdentityBinding(configDeclarator.init)) {
 		return contents;
@@ -216,23 +260,14 @@ export function attributeMdxComponentIdentity(
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
 
-	const edits: SourceEdit[] = [...discovered.removals];
-	if (configDeclarator && isAstNode(configDeclarator.init)) {
-		const init = configDeclarator.init;
-		if (typeof init.start === 'number' && typeof init.end === 'number') {
-			edits.push({
-				start: init.start,
-				end: init.end,
-				replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(init.start, init.end)}${discoveryArgument})`,
-			});
-		}
-	}
-
-	let appended = '';
-	if (!configDeclarator) {
-		appended += `\nexport const config = bindComponentIdentity(${identityLiteral}, {}${discoveryArgument});\n`;
-	}
-	appended += `attachDiscoveredDependencies(config);\nif (typeof MDXContent === 'function') MDXContent.config = config;\n`;
+	const edits = buildMdxConfigIdentityEdits({
+		contents,
+		configDeclarator,
+		identityLiteral,
+		discoveryArgument,
+		removals: discovered.removals,
+	});
+	const appended = buildMdxIdentityAppend({ configDeclarator, identityLiteral, discoveryArgument });
 
 	let transformed = contents;
 	for (const edit of edits.sort((left, right) => right.start - left.start)) {

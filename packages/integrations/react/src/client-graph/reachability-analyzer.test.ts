@@ -295,6 +295,45 @@ describe('analyzeReachability', () => {
 		expect(result.reachableImports.has('./auth')).toBe(false);
 		expect(result.reachableImports.get('./used')).toBeInstanceOf(Set);
 	});
+
+	it('marks require() specifiers reachable from client roots', () => {
+		const source = `
+			export default eco.page({
+				render: () => require('./runtime'),
+			});
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./runtime')).toBe('*');
+	});
+
+	it('seeds errorBoundary, loadingFallback, and clientScripts as client roots', () => {
+		const source = `
+			import { recover } from './recover';
+			import { spinner } from './spinner';
+			import { boot } from './boot';
+			import { unused } from './unused';
+
+			export default eco.page({
+				render: () => null,
+				errorBoundary: () => recover(),
+				loadingFallback: () => spinner(),
+				clientScripts: () => boot(),
+			});
+		`;
+
+		const result = analyzeReachability(source, 'page.tsx');
+
+		expect(result.analyzed).toBe(true);
+		expect(result.isFallbackRoots).toBe(false);
+		expect(result.reachableImports.get('./recover')).toEqual(new Set(['recover']));
+		expect(result.reachableImports.get('./spinner')).toEqual(new Set(['spinner']));
+		expect(result.reachableImports.get('./boot')).toEqual(new Set(['boot']));
+		expect(result.reachableImports.has('./unused')).toBe(false);
+	});
 });
 
 describe('hasPagePreloadExport', () => {

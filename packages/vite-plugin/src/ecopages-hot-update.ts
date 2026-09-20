@@ -42,6 +42,15 @@ type ProcessFileChangeOptions = {
 	invalidateClientModule?: (module: EnvironmentModuleNode) => void;
 };
 
+function shouldRestartForWatchedPath(file: string, extraWatchedPaths: string[]): boolean {
+	for (const watchedPath of extraWatchedPaths) {
+		if (file === watchedPath || file.startsWith(`${watchedPath}/`)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function dispatchHostOwnedHmr(
 	api: EcopagesPluginApi,
 	file: string,
@@ -62,37 +71,27 @@ function dispatchHostOwnedHmr(
 	});
 }
 
-function processEcopagesFileChange(
+function invalidateServerForPlan(
 	file: string,
-	{
-		server,
-		api,
-		hostRuntime,
-		extraWatchedPaths,
-		hostOwnsClient,
-		clientModules = [],
-		invalidateClientModule,
-	}: ProcessFileChangeOptions,
+	plan: ReturnType<DevelopmentHostRuntime['planFileChange']>,
+	options: ProcessFileChangeOptions,
+	isRegisteredScriptEdit: boolean,
+): void {
+	if (!plan.invalidateServerModules || isRegisteredScriptEdit) {
+		return;
+	}
+
+	options.hostRuntime.invalidateServerModules([file]);
+	invalidateFileInServerEnvironments(options.server, file);
+	options.api.invalidateAppCache();
+}
+
+function handleNonHmrPlan(
+	file: string,
+	plan: ReturnType<DevelopmentHostRuntime['planFileChange']>,
+	hostRuntime: DevelopmentHostRuntime,
+	api: EcopagesPluginApi,
 ): EnvironmentModuleNode[] | undefined {
-	for (const watchedPath of extraWatchedPaths) {
-		if (file === watchedPath || file.startsWith(`${watchedPath}/`)) {
-			void server.restart();
-			return [];
-		}
-	}
-
-	const plan = hostRuntime.planFileChange(file);
-	const hmrManager = getAppHmrManager(api.appConfig);
-	const graphPreparation = hmrManager?.isEnabled() === true ? prepareHmrFileChange(api.appConfig, file) : undefined;
-	const watchedFiles = hmrManager?.getWatchedFiles?.();
-	const isRegisteredScriptEdit = hmrManager?.isEnabled() === true && watchedFiles?.has(path.resolve(file)) === true;
-
-	if (plan.invalidateServerModules && !isRegisteredScriptEdit) {
-		hostRuntime.invalidateServerModules([file]);
-		invalidateFileInServerEnvironments(server, file);
-		api.invalidateAppCache();
-	}
-
 	if (plan.reloadBrowser) {
 		void api.getDevHostReady().then(() => {
 			hostRuntime.broadcastClientEvent({
@@ -115,9 +114,29 @@ function processEcopagesFileChange(
 		return [];
 	}
 
-	if (!plan.delegateToHmr) {
-		return clientModules;
+	return undefined;
+}
+
+function dispatchClientHmr(
+	file: string,
+	api: EcopagesPluginApi,
+	hostOwnsClient: () => boolean,
+	graphIdentities?: ReturnType<typeof prepareHmrFileChange>['affectedGraphIdentities'],
+): EnvironmentModuleNode[] | undefined {
+	if (!hostOwnsClient()) {
+		return undefined;
 	}
+
+	dispatchHostOwnedHmr(api, file, graphIdentities);
+	return [];
+}
+
+function handleDelegatedHmrChange(
+	file: string,
+	options: ProcessFileChangeOptions,
+	graphIdentities?: ReturnType<typeof prepareHmrFileChange>['affectedGraphIdentities'],
+): EnvironmentModuleNode[] {
+	const { clientModules = [], invalidateClientModule, hostOwnsClient, api } = options;
 
 	if (invalidateClientModule) {
 		for (const mod of clientModules) {
@@ -125,12 +144,43 @@ function processEcopagesFileChange(
 		}
 	}
 
-	if (hostOwnsClient()) {
-		dispatchHostOwnedHmr(api, file, graphPreparation?.affectedGraphIdentities);
-		return [];
+	const hostOwnedResult = dispatchClientHmr(file, api, hostOwnsClient, graphIdentities);
+	if (hostOwnedResult !== undefined) {
+		return hostOwnedResult;
 	}
 
 	return clientModules;
+}
+
+function processEcopagesFileChange(
+	file: string,
+	options: ProcessFileChangeOptions,
+): EnvironmentModuleNode[] | undefined {
+	const { server, api, hostRuntime, extraWatchedPaths, clientModules = [] } = options;
+
+	if (shouldRestartForWatchedPath(file, extraWatchedPaths)) {
+		void server.restart();
+		return [];
+	}
+
+	const plan = hostRuntime.planFileChange(file);
+	const hmrManager = getAppHmrManager(api.appConfig);
+	const graphPreparation = hmrManager?.isEnabled() === true ? prepareHmrFileChange(api.appConfig, file) : undefined;
+	const watchedFiles = hmrManager?.getWatchedFiles?.();
+	const isRegisteredScriptEdit = hmrManager?.isEnabled() === true && watchedFiles?.has(path.resolve(file)) === true;
+
+	invalidateServerForPlan(file, plan, options, isRegisteredScriptEdit);
+
+	const nonHmrResult = handleNonHmrPlan(file, plan, hostRuntime, api);
+	if (nonHmrResult !== undefined) {
+		return nonHmrResult;
+	}
+
+	if (!plan.delegateToHmr) {
+		return clientModules;
+	}
+
+	return handleDelegatedHmrChange(file, options, graphPreparation?.affectedGraphIdentities);
 }
 
 /**

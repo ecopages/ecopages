@@ -366,6 +366,96 @@ export interface ResolvedRolldownOptions {
 	outputOptions: OutputOptions;
 }
 
+function buildRolldownTransformOptions(options: BuildOptions): Record<string, unknown> | undefined {
+	const transformOptions: Record<string, unknown> = {};
+	if (options.define) {
+		transformOptions.define = options.define;
+	}
+	if (options.jsx) {
+		transformOptions.jsx = mapRolldownJsx(options.jsx);
+	}
+	if (options.target && /^(?:es|chrome|edge|firefox|safari|hermes|deno|ios)/.test(options.target)) {
+		transformOptions.target = options.target;
+	}
+	return Object.keys(transformOptions).length > 0 ? transformOptions : undefined;
+}
+
+function buildRolldownInputPlugins(
+	options: BuildOptions,
+	contextRoot: string,
+	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
+): RolldownPlugin[] {
+	const bundlePlugins = options.plugins ?? [];
+	const sourceTransforms = options.sourceTransforms ?? [];
+	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
+	return [
+		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
+		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
+		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
+		...appPlugins,
+	];
+}
+
+function buildRolldownInputOptions(
+	options: BuildOptions,
+	contextRoot: string,
+	external: (id: string) => boolean,
+	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
+): InputOptions {
+	return {
+		input: options.entrypoints,
+		cwd: contextRoot,
+		external,
+		platform: rolldownPlatform,
+		transform: buildRolldownTransformOptions(options),
+		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
+		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
+		...(process.env.ECOPAGES_PROFILE_BUILD === '1'
+			? {}
+			: {
+					checks: {
+						pluginTimings: false,
+					},
+				}),
+		experimental: {
+			nativeMagicString: true,
+		},
+		plugins: buildRolldownInputPlugins(options, contextRoot, rolldownPlatform),
+	};
+}
+
+function resolveRolldownEntryFileNames(options: BuildOptions): string {
+	const entryFileNames = toEntryFileNamesPattern(options.naming);
+	const jsExtension = getJavaScriptOutExtension(options, entryFileNames?.literal ?? false);
+	if (entryFileNames) {
+		return jsExtension ? `${entryFileNames.pattern}${jsExtension}` : entryFileNames.pattern;
+	}
+	return jsExtension ? `[name]${jsExtension}` : '[name]';
+}
+
+function shouldDisableRolldownCodeSplitting(options: BuildOptions): boolean {
+	if (options.splitting !== false) {
+		return false;
+	}
+	const entrypointCount = Array.isArray(options.entrypoints)
+		? options.entrypoints.length
+		: Object.keys(options.entrypoints).length;
+	return entrypointCount === 1;
+}
+
+function buildRolldownOutputOptions(options: BuildOptions, outdir: string): OutputOptions {
+	return {
+		dir: outdir,
+		format: mapRolldownFormat(options.format),
+		minify: !!options.minify,
+		entryFileNames: resolveRolldownEntryFileNames(options),
+		chunkFileNames: '[name]-[hash].js',
+		assetFileNames: '[name]-[hash][extname]',
+		sourcemap: mapRolldownSourcemap(options.sourcemap),
+		...(shouldDisableRolldownCodeSplitting(options) ? { codeSplitting: false } : {}),
+	};
+}
+
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
  * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
@@ -379,76 +469,10 @@ export function resolveRolldownOptions(
 ): ResolvedRolldownOptions {
 	const rolldownPlatform = mapRolldownPlatform(options.target);
 	const external = createExternalMatcher(options, appRootRequireCache);
-
-	const transformOptions: Record<string, unknown> = {};
-	if (options.define) {
-		transformOptions.define = options.define;
-	}
-	if (options.jsx) {
-		transformOptions.jsx = mapRolldownJsx(options.jsx);
-	}
-	if (options.target && /^(?:es|chrome|edge|firefox|safari|hermes|deno|ios)/.test(options.target)) {
-		transformOptions.target = options.target;
-	}
-
-	const bundlePlugins = options.plugins ?? [];
-	const sourceTransforms = options.sourceTransforms ?? [];
-	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
-	const allPlugins = [
-		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
-		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
-		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
-		...appPlugins,
-	];
-
-	const inputOptions: InputOptions = {
-		input: options.entrypoints,
-		cwd: contextRoot,
-		external,
-		platform: mapRolldownPlatform(options.target),
-		transform: Object.keys(transformOptions).length > 0 ? transformOptions : undefined,
-		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
-		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
-		...(process.env.ECOPAGES_PROFILE_BUILD === '1'
-			? {}
-			: {
-					checks: {
-						pluginTimings: false,
-					},
-				}),
-		experimental: {
-			nativeMagicString: true,
-		},
-		plugins: allPlugins,
+	return {
+		inputOptions: buildRolldownInputOptions(options, contextRoot, external, rolldownPlatform),
+		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
-
-	const entryFileNames = toEntryFileNamesPattern(options.naming);
-	const jsExtension = getJavaScriptOutExtension(options, entryFileNames?.literal ?? false);
-	const finalEntryFileNames = entryFileNames
-		? jsExtension
-			? `${entryFileNames.pattern}${jsExtension}`
-			: entryFileNames.pattern
-		: jsExtension
-			? `[name]${jsExtension}`
-			: '[name]';
-
-	const entrypointCount = Array.isArray(options.entrypoints)
-		? options.entrypoints.length
-		: Object.keys(options.entrypoints).length;
-	const disableCodeSplitting = options.splitting === false && entrypointCount === 1;
-
-	const outputOptions: OutputOptions = {
-		dir: outdir,
-		format: mapRolldownFormat(options.format),
-		minify: !!options.minify,
-		entryFileNames: finalEntryFileNames,
-		chunkFileNames: '[name]-[hash].js',
-		assetFileNames: '[name]-[hash][extname]',
-		sourcemap: mapRolldownSourcemap(options.sourcemap),
-		...(disableCodeSplitting ? { codeSplitting: false } : {}),
-	};
-
-	return { inputOptions, outputOptions };
 }
 
 /**

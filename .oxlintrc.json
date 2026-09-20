@@ -9,6 +9,27 @@
 		"no-explicit-any": "off",
 		"no-empty-interface": "off",
 		"no-inferrable-types": "off",
-		"react/jsx-key": "off"
-	}
+		"react/jsx-key": "off",
+		"complexity": ["error", { "max": 15 }],
+		"no-unused-vars": [
+			"warn",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_"
+			}
+		]
+	},
+	"overrides": [
+		{
+			"files": [
+				"**/*.{test,spec}.*",
+				"**/*.test.browser.ts",
+				"**/*.test.e2e.ts",
+				"**/test/**",
+				"**/type-tests/**"
+			],
+			"rules": { "complexity": "off" }
+		}
+	]
 }

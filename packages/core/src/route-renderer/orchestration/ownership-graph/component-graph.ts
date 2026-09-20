@@ -26,16 +26,79 @@ export type ComponentGraphWalkInput = {
 	source?: Exclude<OwnershipPlanNodeSource, 'route'>;
 };
 
-export function walkComponentGraph(input: {
-	roots: ComponentGraphRoot[];
-	currentIntegrationName: string;
+type ComponentGraphWalkState = {
+	seenComponents: Set<object>;
+	seenConfigs: Set<object>;
 	visitLayout?: boolean;
 	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
 	onConfig?: (config: EcoComponent['config']) => void;
-}): void {
-	const seenComponents = new Set<object>();
-	const seenConfigs = new Set<object>();
+};
 
+function visitComponentGraphConfig(
+	config: EcoComponent['config'],
+	parentIntegrationName: string,
+	state: ComponentGraphWalkState,
+	visitComponent: (
+		component: EcoComponent | Partial<EcoComponent>,
+		parentIntegrationName: string,
+		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
+	) => void,
+): void {
+	if (!config || state.seenConfigs.has(config)) {
+		return;
+	}
+
+	state.seenConfigs.add(config);
+	if (state.onConfig) {
+		state.onConfig(config);
+	}
+
+	if (state.visitLayout) {
+		for (const layout of config.layouts ?? []) {
+			if (layout?.config) {
+				visitComponentGraphConfig(layout.config, parentIntegrationName, state, visitComponent);
+			}
+		}
+	}
+
+	for (const child of config.dependencies?.components ?? []) {
+		visitComponent(child, parentIntegrationName, 'dependency');
+	}
+}
+
+function notifyComponentGraphConfig(config: EcoComponent['config'], state: ComponentGraphWalkState): void {
+	if (!state.onConfig || !config || state.seenConfigs.has(config)) {
+		return;
+	}
+
+	state.seenConfigs.add(config);
+	state.onConfig(config);
+}
+
+function visitComponentGraphChildren(
+	ecoComponent: EcoComponent,
+	integrationName: string,
+	state: ComponentGraphWalkState,
+	visitComponent: (
+		component: EcoComponent | Partial<EcoComponent>,
+		parentIntegrationName: string,
+		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
+	) => void,
+): void {
+	if (state.visitLayout) {
+		for (const layout of ecoComponent.config?.layouts ?? []) {
+			if (layout?.config) {
+				visitComponentGraphConfig(layout.config, integrationName, state, visitComponent);
+			}
+		}
+	}
+
+	for (const child of ecoComponent.config?.dependencies?.components ?? []) {
+		visitComponent(child, integrationName, 'dependency');
+	}
+}
+
+function createComponentGraphVisitor(state: ComponentGraphWalkState) {
 	const visitComponent = (
 		component: EcoComponent | Partial<EcoComponent>,
 		parentIntegrationName: string,
@@ -46,21 +109,18 @@ export function walkComponentGraph(input: {
 		}
 
 		const ecoComponent = component as EcoComponent;
-		if (seenComponents.has(ecoComponent)) {
+		if (state.seenComponents.has(ecoComponent)) {
 			return;
 		}
 
-		seenComponents.add(ecoComponent);
+		state.seenComponents.add(ecoComponent);
 		const identity = getComponentIdentity(ecoComponent);
 		const integrationName = ecoComponent.config?.integration ?? identity?.integration ?? parentIntegrationName;
 
-		if (input.onConfig && ecoComponent.config && !seenConfigs.has(ecoComponent.config)) {
-			seenConfigs.add(ecoComponent.config);
-			input.onConfig(ecoComponent.config);
-		}
+		notifyComponentGraphConfig(ecoComponent.config, state);
 
-		if (input.onComponent) {
-			const shouldContinue = input.onComponent({
+		if (state.onComponent) {
+			const shouldContinue = state.onComponent({
 				component: ecoComponent,
 				parentIntegrationName,
 				source,
@@ -70,42 +130,27 @@ export function walkComponentGraph(input: {
 			}
 		}
 
-		if (input.visitLayout) {
-			for (const layout of ecoComponent.config?.layouts ?? []) {
-				if (layout?.config) {
-					visitConfig(layout.config, integrationName);
-				}
-			}
-		}
-
-		for (const child of ecoComponent.config?.dependencies?.components ?? []) {
-			visitComponent(child, integrationName, 'dependency');
-		}
+		visitComponentGraphChildren(ecoComponent, integrationName, state, visitComponent);
 	};
 
-	const visitConfig = (config: EcoComponent['config'], parentIntegrationName: string): void => {
-		if (!config || seenConfigs.has(config)) {
-			return;
-		}
+	return visitComponent;
+}
 
-		seenConfigs.add(config);
-
-		if (input.onConfig) {
-			input.onConfig(config);
-		}
-
-		if (input.visitLayout) {
-			for (const layout of config.layouts ?? []) {
-				if (layout?.config) {
-					visitConfig(layout.config, parentIntegrationName);
-				}
-			}
-		}
-
-		for (const child of config.dependencies?.components ?? []) {
-			visitComponent(child, parentIntegrationName, 'dependency');
-		}
+export function walkComponentGraph(input: {
+	roots: ComponentGraphRoot[];
+	currentIntegrationName: string;
+	visitLayout?: boolean;
+	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
+	onConfig?: (config: EcoComponent['config']) => void;
+}): void {
+	const state: ComponentGraphWalkState = {
+		seenComponents: new Set(),
+		seenConfigs: new Set(),
+		visitLayout: input.visitLayout,
+		onComponent: input.onComponent,
+		onConfig: input.onConfig,
 	};
+	const visitComponent = createComponentGraphVisitor(state);
 
 	for (const root of input.roots) {
 		visitComponent(root.component, input.currentIntegrationName, root.source);

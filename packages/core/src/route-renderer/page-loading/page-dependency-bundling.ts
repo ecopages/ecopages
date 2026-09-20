@@ -175,6 +175,24 @@ function createPageDependencyPackagingPlan(
 	};
 }
 
+function isBundledStylesheetDependency(dependency: AssetDefinition, plan: PageDependencyPackagingPlan): boolean {
+	return (
+		Boolean(plan.bundledStylesheet) &&
+		dependency.kind === 'stylesheet' &&
+		dependency.source === 'file' &&
+		plan.bundleableStyleFilepaths.has(dependency.filepath)
+	);
+}
+
+function isBundledScriptDependency(dependency: AssetDefinition, plan: PageDependencyPackagingPlan): boolean {
+	return (
+		Boolean(plan.bundledScript) &&
+		dependency.kind === 'script' &&
+		dependency.source === 'file' &&
+		plan.bundleableScriptFilepaths.has(dependency.filepath)
+	);
+}
+
 function applyPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	plan: PageDependencyPackagingPlan,
@@ -184,27 +202,17 @@ function applyPageDependencyPackagingPlan(
 	let insertedScript = false;
 
 	for (const dependency of dependencies) {
-		if (
-			plan.bundledStylesheet &&
-			dependency.kind === 'stylesheet' &&
-			dependency.source === 'file' &&
-			plan.bundleableStyleFilepaths.has(dependency.filepath)
-		) {
+		if (isBundledStylesheetDependency(dependency, plan)) {
 			if (!insertedStylesheet) {
-				unifiedDependencies.push(plan.bundledStylesheet);
+				unifiedDependencies.push(plan.bundledStylesheet!);
 				insertedStylesheet = true;
 			}
 			continue;
 		}
 
-		if (
-			plan.bundledScript &&
-			dependency.kind === 'script' &&
-			dependency.source === 'file' &&
-			plan.bundleableScriptFilepaths.has(dependency.filepath)
-		) {
+		if (isBundledScriptDependency(dependency, plan)) {
 			if (!insertedScript) {
-				unifiedDependencies.push(plan.bundledScript);
+				unifiedDependencies.push(plan.bundledScript!);
 				insertedScript = true;
 			}
 			continue;

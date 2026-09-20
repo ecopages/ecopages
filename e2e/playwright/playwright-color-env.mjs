@@ -38,6 +38,29 @@ export function configurePlaywrightColorEnv(env = process.env) {
 	return env;
 }
 
+const PLAYWRIGHT_INSPECTOR_ENV_KEYS = ['PWDEBUG', 'npm_config_pwdebug', 'npm_package_config_pwdebug'];
+
+export function shouldKeepPlaywrightInspector(argv = process.argv) {
+	return argv.some((arg) => arg === '--debug' || arg.startsWith('--debug='));
+}
+
+/**
+ * Drop inherited Playwright inspector flags so default test runs stay headless.
+ *
+ * @remarks
+ * Any non-empty `PWDEBUG` other than `"0"` / `"false"` forces headed Chromium and
+ * the inspector. Cursor and some shells leave it set; Playwright also reads
+ * `npm_config_pwdebug`. `playwright-core` snapshots the value on first load, so
+ * callers must strip before importing Playwright.
+ */
+export function stripInheritedPlaywrightInspectorEnv(env) {
+	for (const key of PLAYWRIGHT_INSPECTOR_ENV_KEYS) {
+		delete env[key];
+	}
+
+	return env;
+}
+
 export function createPlaywrightSubprocessEnv(overrides = {}) {
-	return configurePlaywrightColorEnv({ ...process.env, ...overrides });
+	return configurePlaywrightColorEnv(stripInheritedPlaywrightInspectorEnv({ ...process.env, ...overrides }));
 }

@@ -91,6 +91,29 @@ export class LitSsrLazyPreloader {
 	/**
 	 * Collects lazy script file paths eligible for SSR preloading.
 	 */
+	private collectLazySsrScriptsFromConfig(
+		config: EcoComponentConfig,
+		scriptPaths: Set<string>,
+		componentFile?: string,
+	): void {
+		if (!componentFile) {
+			return;
+		}
+
+		const componentDir = path.dirname(componentFile);
+		for (const script of config.dependencies?.scripts ?? []) {
+			if (typeof script === 'string') {
+				continue;
+			}
+
+			if (!script.lazy || script.ssr !== true || !script.src) {
+				continue;
+			}
+
+			scriptPaths.add(this.resolveDependencyPath(componentDir, script.src));
+		}
+	}
+
 	collectSsrPreloadScripts(components: Array<LitSsrPreloadComponent | undefined>): string[] {
 		const scriptPaths = new Set<string>();
 		const visitedConfigs = new Set<EcoComponentConfig>();
@@ -103,27 +126,8 @@ export class LitSsrLazyPreloader {
 
 			visitedConfigs.add(config);
 
-			const scriptEntries = config.dependencies?.scripts ?? [];
 			const componentFile = getComponentIdentity(component?.config)?.file;
-
-			if (componentFile) {
-				const componentDir = path.dirname(componentFile);
-				for (const script of scriptEntries) {
-					if (typeof script === 'string') {
-						continue;
-					}
-
-					if (!script.lazy || script.ssr !== true) {
-						continue;
-					}
-
-					if (!script.src) {
-						continue;
-					}
-
-					scriptPaths.add(this.resolveDependencyPath(componentDir, script.src));
-				}
-			}
+			this.collectLazySsrScriptsFromConfig(config, scriptPaths, componentFile);
 
 			for (const layout of config.layouts ?? []) {
 				collect(layout);

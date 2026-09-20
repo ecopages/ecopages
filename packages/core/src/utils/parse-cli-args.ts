@@ -47,6 +47,48 @@ export type ParseCliArgsOptions = {
 	embeddedRuntime?: boolean;
 };
 
+function resolveEcopagesSubcommand(runtimeArgv: string[]): string {
+	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
+	if (ecopagesIndex === -1) {
+		return '';
+	}
+	if (
+		ecopagesIndex < runtimeArgv.length - 1 &&
+		ECOPAGES_AVAILABLE_COMMANDS.some((cmd) => runtimeArgv[ecopagesIndex + 1] === cmd)
+	) {
+		return runtimeArgv[ecopagesIndex + 1];
+	}
+	return 'start';
+}
+
+function deriveCliCommandFlags(
+	command: string,
+	values: {
+		dev?: boolean;
+		build?: boolean;
+		preview?: boolean;
+	},
+): {
+	isStartCommand: boolean;
+	isDevCommand: boolean;
+	isBuildCommand: boolean;
+	isPreviewCommand: boolean;
+} {
+	const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
+	const isDevCommand = command === 'dev' || !!values.dev;
+	const isBuildCommand = command === 'build' || !!values.build;
+	const isPreviewCommand = command === 'preview' || !!values.preview;
+	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand };
+}
+
+function applyNodeEnvForCliCommand(isDevCommand: boolean): void {
+	if (isDevCommand) {
+		process.env.NODE_ENV ??= 'development';
+	} else {
+		process.env.NODE_ENV = 'production';
+	}
+}
+
 /**
  * Parses command line arguments for the server.
  * It returns {@link ReturnParseCliArgs}
@@ -73,25 +115,8 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 		allowPositionals: true,
 	});
 
-	let command = '';
-	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
-
-	const isAvailableCommand = ecopagesIndex !== -1;
-
-	if (isAvailableCommand) {
-		command =
-			ecopagesIndex < runtimeArgv.length - 1 &&
-			ECOPAGES_AVAILABLE_COMMANDS.some((cmd) => {
-				return runtimeArgv[ecopagesIndex + 1] === cmd;
-			})
-				? runtimeArgv[ecopagesIndex + 1]
-				: 'start';
-	}
-
-	const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
-	const isDevCommand = command === 'dev' || !!values.dev;
-	const isBuildCommand = command === 'build' || !!values.build;
-	const isPreviewCommand = command === 'preview' || !!values.preview;
+	const command = resolveEcopagesSubcommand(runtimeArgv);
+	const { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand } = deriveCliCommandFlags(command, values);
 
 	const parsedCommandOptions = {
 		preview: isPreviewCommand,
@@ -105,11 +130,7 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 		reactFastRefresh: values['react-fast-refresh'],
 	};
 
-	if (isDevCommand) {
-		process.env.NODE_ENV ??= 'development';
-	} else {
-		process.env.NODE_ENV = 'production';
-	}
+	applyNodeEnvForCliCommand(isDevCommand);
 
 	return parsedCommandOptions;
 }

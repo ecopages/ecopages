@@ -11,6 +11,59 @@ export function isBrowserEcopagesVirtualImport(specifier: string): boolean {
 	return specifier.startsWith('ecopages:') && !isContentServerVirtualModule(specifier);
 }
 
+type ImportSpecifierNode = {
+	type?: string;
+	local?: { name?: string };
+	imported?: { type?: string; name?: string; value?: string };
+};
+
+function getNamedImportFromSpecifier(spec: ImportSpecifierNode): string | undefined {
+	if (spec.type !== 'ImportSpecifier') {
+		return undefined;
+	}
+
+	let importedName = spec.local?.name;
+	if (spec.imported?.type === 'Identifier') {
+		importedName = spec.imported.name;
+	} else if (spec.imported?.type === 'Literal') {
+		importedName = spec.imported.value;
+	}
+
+	return importedName;
+}
+
+function collectNamedImportsFromDeclaration(node: { specifiers?: ImportSpecifierNode[] }): string[] {
+	const namedImports: string[] = [];
+	for (const spec of node.specifiers ?? []) {
+		const importedName = getNamedImportFromSpecifier(spec);
+		if (importedName) {
+			namedImports.push(importedName);
+		}
+	}
+	return namedImports;
+}
+
+function recordVirtualImport(found: Map<string, Set<string> | null>, specifier: string, namedImports: string[]): void {
+	if (found.get(specifier) === null) {
+		return;
+	}
+
+	if (namedImports.length === 0) {
+		found.set(specifier, null);
+		return;
+	}
+
+	const existing = found.get(specifier);
+	if (!existing) {
+		found.set(specifier, new Set(namedImports));
+		return;
+	}
+
+	for (const imported of namedImports) {
+		existing.add(imported);
+	}
+}
+
 /**
  * Extracts runtime `ecopages:` virtual-module imports from a component source file.
  *
@@ -40,37 +93,7 @@ export function extractEcopagesVirtualImports(file: string): EcopagesVirtualImpo
 		const specifier: string = node.source?.value ?? '';
 		if (!isBrowserEcopagesVirtualImport(specifier)) continue;
 
-		if (found.get(specifier) === null) {
-			continue;
-		}
-
-		const namedImports: string[] = [];
-		for (const spec of node.specifiers ?? []) {
-			if (spec.type === 'ImportSpecifier') {
-				let importedName = spec.local?.name;
-				if (spec.imported?.type === 'Identifier') {
-					importedName = spec.imported.name;
-				} else if (spec.imported?.type === 'Literal') {
-					importedName = spec.imported.value;
-				}
-				namedImports.push(importedName);
-			}
-		}
-
-		if (namedImports.length === 0) {
-			found.set(specifier, null);
-			continue;
-		}
-
-		const existing = found.get(specifier);
-		if (!existing) {
-			found.set(specifier, new Set(namedImports));
-			continue;
-		}
-
-		for (const imported of namedImports) {
-			existing.add(imported);
-		}
+		recordVirtualImport(found, specifier, collectNamedImportsFromDeclaration(node));
 	}
 
 	return Array.from(found.entries()).map(([from, importsSet]) => ({

@@ -19,6 +19,7 @@ export default defineConfig({
 					name: 'shared-core',
 					environment: 'node',
 					include: [
+						'packages/codemod/**/*.test.ts',
 						'packages/core/src/**/*.test.ts',
 						'packages/core/src/**/*.test.tsx',
 						'packages/__internals/**/*.test.ts',

@@ -18,15 +18,14 @@ import {
 import { createRouteGraphLookupKey } from './route-instance-key.ts';
 import type { GroupedGraphBuildPlan } from './grouped-graph-build-plan.ts';
 
-function isGroupedContentScriptAsset(asset: AssetDefinition): asset is Extract<
-	AssetDefinition,
-	{ kind: 'script'; source: 'content' }
-> & {
+type GroupedContentScriptAsset = Extract<AssetDefinition, { kind: 'script'; source: 'content' }> & {
 	groupedBundle: {
 		id: string;
 		entryName: string;
 	};
-} {
+};
+
+function isGroupedContentScriptAsset(asset: AssetDefinition): asset is GroupedContentScriptAsset {
 	return asset.kind === 'script' && asset.source === 'content' && Boolean(asset.groupedBundle?.id);
 }
 
@@ -262,26 +261,58 @@ export class PageBrowserGraphService {
 		};
 	}
 
-	private async buildGroupedPageBrowserAssets(
+	private collectGroupedBuildPlanContributions(input: PageBrowserGraphResolveInput): {
+		contributions: GroupedPageBrowserGraphContribution[];
+		hasCollectionFailures: boolean;
+	} {
+		if (!input.groupedBuildPlan) {
+			return { contributions: [], hasCollectionFailures: false };
+		}
+		return {
+			contributions: input.groupedBuildPlan.instances.map((instance) => ({
+				routeFile: instance.routeFile,
+				dependencyInstanceKey: instance.dependencyInstanceKey,
+				contribution: instance.contribution,
+			})),
+			hasCollectionFailures: false,
+		};
+	}
+
+	private registerRouteGroupedDependencies(
+		routeLookupKey: string,
+		routeFile: string,
+		routeGroupedDependencies: GroupedContentScriptAsset[],
+		groupedDependencies: AssetDefinition[],
+		groupedAssetKeysByRoute: Map<string, Set<string>>,
+		routeDisplayPaths: Map<string, string>,
+		dependencyPaths: Set<string>,
+	): void {
+		if (routeGroupedDependencies.length === 0) {
+			return;
+		}
+		groupedDependencies.push(...routeGroupedDependencies);
+		groupedAssetKeysByRoute.set(
+			routeLookupKey,
+			new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
+		);
+		routeDisplayPaths.set(routeLookupKey, routeFile);
+		dependencyPaths.add(path.resolve(routeFile));
+	}
+
+	private mergePeerGroupedContributions(
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
-	): Promise<GroupedPageBrowserAssetsResult> {
+		groupedContributions: GroupedPageBrowserGraphContribution[],
+		hasCollectionFailures: boolean,
+	): {
+		groupedDependencies: AssetDefinition[];
+		groupedAssetKeysByRoute: Map<string, Set<string>>;
+		routeDisplayPaths: Map<string, string>;
+		dependencyPaths: Set<string>;
+		hasCollectionFailures: boolean;
+	} {
 		const dependencyInstanceKey = input.dependencyInstanceKey ?? '';
 		const currentRouteLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
-		const groupedCollection = input.groupedBuildPlan
-			? {
-					contributions: input.groupedBuildPlan.instances.map((instance) => ({
-						routeFile: instance.routeFile,
-						dependencyInstanceKey: instance.dependencyInstanceKey,
-						contribution: instance.contribution,
-					})),
-					hasCollectionFailures: false,
-				}
-			: {
-					contributions: [] as GroupedPageBrowserGraphContribution[],
-					hasCollectionFailures: false,
-				};
-		const groupedContributions = groupedCollection.contributions;
 		const currentRouteGroupedDependencies = (currentContribution.dependencies ?? []).filter((dep) =>
 			isGroupedContentScriptAsset(dep),
 		);
@@ -289,7 +320,7 @@ export class PageBrowserGraphService {
 		const groupedAssetKeysByRoute = new Map<string, Set<string>>();
 		const routeDisplayPaths = new Map<string, string>();
 		const dependencyPaths = new Set<string>([path.resolve(input.routeFile)]);
-		let hasCollectionFailures = groupedCollection.hasCollectionFailures;
+
 		if (currentRouteGroupedDependencies.length > 0) {
 			groupedAssetKeysByRoute.set(
 				currentRouteLookupKey,
@@ -305,31 +336,98 @@ export class PageBrowserGraphService {
 			) {
 				continue;
 			}
-
 			const { contribution, routeFile } = groupedContribution;
-
 			if (!contribution?.dependencies?.length) {
 				continue;
 			}
-
 			const routeGroupedDependencies = contribution.dependencies.filter((dep) =>
 				isGroupedContentScriptAsset(dep),
 			);
-			if (routeGroupedDependencies.length === 0) {
-				continue;
-			}
-
-			groupedDependencies.push(...routeGroupedDependencies);
-			groupedAssetKeysByRoute.set(
-				createRouteGraphLookupKey(routeFile, groupedContribution.dependencyInstanceKey),
-				new Set(routeGroupedDependencies.map((dep) => getGroupedBundleAssetKey(dep.groupedBundle))),
-			);
-			routeDisplayPaths.set(
+			this.registerRouteGroupedDependencies(
 				createRouteGraphLookupKey(routeFile, groupedContribution.dependencyInstanceKey),
 				routeFile,
+				routeGroupedDependencies,
+				groupedDependencies,
+				groupedAssetKeysByRoute,
+				routeDisplayPaths,
+				dependencyPaths,
 			);
-			dependencyPaths.add(path.resolve(routeFile));
 		}
+
+		return {
+			groupedDependencies,
+			groupedAssetKeysByRoute,
+			routeDisplayPaths,
+			dependencyPaths,
+			hasCollectionFailures,
+		};
+	}
+
+	private addGroupedDependencyFilePaths(groupedDependencies: AssetDefinition[], dependencyPaths: Set<string>): void {
+		for (const dependency of groupedDependencies) {
+			if (dependency.source === 'file') {
+				dependencyPaths.add(path.resolve(dependency.filepath));
+			}
+		}
+	}
+
+	private matchGroupedAssetsByRoute(
+		groupedAssetKeysByRoute: Map<string, Set<string>>,
+		routeDisplayPaths: Map<string, string>,
+		groupedAssetsByBundleKey: Map<string, IndexedGroupedAsset[]>,
+	): Map<string, ProcessedAsset[]> {
+		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
+
+		for (const [routeLookupKey, groupedAssetKeys] of groupedAssetKeysByRoute) {
+			const matchedAssets = [...groupedAssetKeys]
+				.flatMap((assetKey) => groupedAssetsByBundleKey.get(assetKey) ?? [])
+				.sort((left, right) => left.index - right.index)
+				.map(({ asset }) => asset);
+
+			if (groupedAssetKeys.size > 0 && matchedAssets.length === 0) {
+				appLogger.warn(
+					`Grouped page-browser assets for ${routeDisplayPaths.get(routeLookupKey) ?? routeLookupKey} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
+				);
+			}
+
+			groupedAssetsByRoute.set(routeLookupKey, matchedAssets);
+		}
+
+		return groupedAssetsByRoute;
+	}
+
+	private addProcessedGroupedAssetDependencyPaths(
+		processedGroupedDependencies: ProcessedAsset[],
+		dependencyPaths: Set<string>,
+	): void {
+		for (const asset of processedGroupedDependencies) {
+			if (asset.sourceFilepath) {
+				dependencyPaths.add(path.resolve(asset.sourceFilepath));
+			}
+			for (const bundledSourceFilepath of asset.bundledSourceFilepaths ?? []) {
+				dependencyPaths.add(path.resolve(bundledSourceFilepath));
+			}
+		}
+	}
+
+	private async buildGroupedPageBrowserAssets(
+		input: PageBrowserGraphResolveInput,
+		currentContribution: PageBrowserGraphContribution,
+	): Promise<GroupedPageBrowserAssetsResult> {
+		const groupedCollection = this.collectGroupedBuildPlanContributions(input);
+		const merged = this.mergePeerGroupedContributions(
+			input,
+			currentContribution,
+			groupedCollection.contributions,
+			groupedCollection.hasCollectionFailures,
+		);
+		const {
+			groupedDependencies,
+			groupedAssetKeysByRoute,
+			routeDisplayPaths,
+			dependencyPaths,
+			hasCollectionFailures,
+		} = merged;
 
 		if (groupedDependencies.length === 0) {
 			return {
@@ -340,43 +438,19 @@ export class PageBrowserGraphService {
 			};
 		}
 
-		for (const dependency of groupedDependencies) {
-			if (dependency.source === 'file') {
-				dependencyPaths.add(path.resolve(dependency.filepath));
-			}
-		}
+		this.addGroupedDependencyFilePaths(groupedDependencies, dependencyPaths);
 
 		const processedGroupedDependencies = await this.assetProcessingService.processDependencies(
 			groupedDependencies,
 			`${input.integrationName}:grouped-page-browser-graph`,
 		);
-		const groupedAssetsByRoute = new Map<string, ProcessedAsset[]>();
 		const groupedAssetsByBundleKey = indexGroupedAssetsByBundleKey(processedGroupedDependencies);
-
-		for (const [routeFile, groupedAssetKeys] of groupedAssetKeysByRoute) {
-			const matchedAssets = [...groupedAssetKeys]
-				.flatMap((assetKey) => groupedAssetsByBundleKey.get(assetKey) ?? [])
-				.sort((left, right) => left.index - right.index)
-				.map(({ asset }) => asset);
-
-			if (groupedAssetKeys.size > 0 && matchedAssets.length === 0) {
-				appLogger.warn(
-					`Grouped page-browser assets for ${routeDisplayPaths.get(routeFile) ?? routeFile} are missing groupedBundle metadata after processing. Hydration scripts may be omitted from HTML.`,
-				);
-			}
-
-			groupedAssetsByRoute.set(routeFile, matchedAssets);
-		}
-
-		for (const asset of processedGroupedDependencies) {
-			if (asset.sourceFilepath) {
-				dependencyPaths.add(path.resolve(asset.sourceFilepath));
-			}
-
-			for (const bundledSourceFilepath of asset.bundledSourceFilepaths ?? []) {
-				dependencyPaths.add(path.resolve(bundledSourceFilepath));
-			}
-		}
+		const groupedAssetsByRoute = this.matchGroupedAssetsByRoute(
+			groupedAssetKeysByRoute,
+			routeDisplayPaths,
+			groupedAssetsByBundleKey,
+		);
+		this.addProcessedGroupedAssetDependencyPaths(processedGroupedDependencies, dependencyPaths);
 
 		return {
 			assetsByRoute: groupedAssetsByRoute,

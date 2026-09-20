@@ -10,12 +10,7 @@
 		"no-empty-interface": "off",
 		"no-inferrable-types": "off",
 		"react/jsx-key": "off",
-		"complexity": [
-			"error",
-			{
-				"max": 15
-			}
-		]
+		"complexity": ["error", { "max": 15 }]
 	},
 	"overrides": [
 		{
@@ -26,15 +21,7 @@
 				"**/test/**",
 				"**/type-tests/**"
 			],
-			"rules": {
-				"complexity": "off"
-			}
-		},
-		{
-			"files": [],
-			"rules": {
-				"complexity": "off"
-			}
+			"rules": { "complexity": "off" }
 		}
 	]
 }

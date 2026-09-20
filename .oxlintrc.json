@@ -9,6 +9,81 @@
 		"no-explicit-any": "off",
 		"no-empty-interface": "off",
 		"no-inferrable-types": "off",
-		"react/jsx-key": "off"
-	}
+		"react/jsx-key": "off",
+		"complexity": [
+			"error",
+			{
+				"max": 15
+			}
+		]
+	},
+	"overrides": [
+		{
+			"files": [
+				"**/*.{test,spec}.*",
+				"**/*.test.browser.ts",
+				"**/*.test.e2e.ts",
+				"**/test/**",
+				"**/type-tests/**"
+			],
+			"rules": {
+				"complexity": "off"
+			}
+		},
+		{
+			"files": [
+				"apps/docs/scripts/generate-llm-docs.ts",
+				"e2e/scripts/playwright/run-isolated-app.mjs",
+				"packages/browser-router/src/client/dom/head-updater.ts",
+				"packages/browser-router/src/client/eco-router.ts",
+				"packages/browser-router/src/client/navigation-commit.ts",
+				"packages/codemod/src/transforms/migrate-to-eco-component.ts",
+				"packages/codemod/src/transforms/migrate-to-eco-page.ts",
+				"packages/core/src/adapters/abstract/segment-path-matcher.ts",
+				"packages/core/src/adapters/bun/create-app.ts",
+				"packages/core/src/adapters/shared/runtime/server-adapter.ts",
+				"packages/core/src/build/rolldown/rolldown-adapter-helpers.ts",
+				"packages/core/src/build/rolldown/rolldown-plugin-bridge.ts",
+				"packages/core/src/eco/lazy-injector-map.ts",
+				"packages/core/src/hmr/strategies/js-hmr-strategy.ts",
+				"packages/core/src/plugins/component-import-discovery.ts",
+				"packages/core/src/plugins/eco-component-meta-plugin.ts",
+				"packages/core/src/route-renderer/orchestration/integration-renderer.ts",
+				"packages/core/src/route-renderer/orchestration/ownership-graph/component-graph.ts",
+				"packages/core/src/route-renderer/orchestration/page-browser-graph/page-browser-graph.service.ts",
+				"packages/core/src/route-renderer/page-loading/component-dependency-collection.ts",
+				"packages/core/src/route-renderer/page-loading/ecopages-virtual-imports.ts",
+				"packages/core/src/route-renderer/page-loading/file-scoped-dependency-components.ts",
+				"packages/core/src/route-renderer/page-loading/page-dependency-bundling.ts",
+				"packages/core/src/services/assets/asset-processing-service/page-package.ts",
+				"packages/core/src/services/module-loading/page-module-import.service.ts",
+				"packages/core/src/services/validation/schema-validation-service.ts",
+				"packages/core/src/static-site-generator/static-site-generator.ts",
+				"packages/core/src/utils/parse-cli-args.ts",
+				"packages/core/src/watchers/project-watcher.ts",
+				"packages/dev-toolbar/src/apps/a11y/run-a11y-checks.ts",
+				"packages/ecopages/bin/git-template-source.js",
+				"packages/ecopages/bin/init.js",
+				"packages/integrations/lit/src/lit-ssr-lazy-preloader.ts",
+				"packages/integrations/react/src/client-graph/ast-transform.ts",
+				"packages/integrations/react/src/client-graph/boundary-plugin.ts",
+				"packages/integrations/react/src/client-graph/reachability-analyzer.ts",
+				"packages/integrations/react/src/hmr/hmr-strategy.ts",
+				"packages/integrations/react/src/hydration/browser/page-hydration.ts",
+				"packages/integrations/react/src/hydration/hydration-script-compiler.ts",
+				"packages/processors/postcss-processor/src/plugin.ts",
+				"packages/react-router/src/head-morpher.ts",
+				"packages/react-router/src/navigation.ts",
+				"packages/react-router/src/router.ts",
+				"packages/vite-plugin/src/ecopages-hot-update.ts",
+				"playground/kitchen-sink/bench/startup/run.mjs",
+				"scripts/debug-app.bench.mjs",
+				"templates/llm-wiki/app/src/lib/wiki/links.ts",
+				"templates/llm-wiki/app/src/lib/wiki/lint.ts"
+			],
+			"rules": {
+				"complexity": "off"
+			}
+		}
+	]
 }

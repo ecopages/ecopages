@@ -96,7 +96,7 @@ describe('React page lifecycle', () => {
 
 	it('registers router ownership and cleanup', async () => {
 		const testWindow = window as TestWindow;
-		testWindow.__ECO_REACT_HYDRATION_TEST__ = {
+		const testState: TestHydrationRuntime = {
 			hydrateCalls: [],
 			renderCalls: [],
 			claimedOwners: [],
@@ -104,12 +104,13 @@ describe('React page lifecycle', () => {
 			registrations: [],
 			unmountCount: 0,
 		};
+		testWindow.__ECO_REACT_HYDRATION_TEST__ = testState;
 		testWindow.__ECO_PAGES__ = {
 			navigation: {
 				getOwnerState: () => ({ owner: 'html', canHandleSpaNavigation: false }),
-				register: (registration) => testWindow.__ECO_REACT_HYDRATION_TEST__?.registrations.push(registration),
-				claimOwnership: (owner) => testWindow.__ECO_REACT_HYDRATION_TEST__?.claimedOwners.push(owner),
-				releaseOwnership: (owner) => testWindow.__ECO_REACT_HYDRATION_TEST__?.releasedOwners.push(owner),
+				register: (registration) => testState.registrations.push(registration),
+				claimOwnership: (owner) => testState.claimedOwners.push(owner),
+				releaseOwnership: (owner) => testState.releasedOwners.push(owner),
 			},
 		};
 		document.body.innerHTML = '<script data-eco-script-id="ecopages-react-page"></script>';
@@ -117,17 +118,17 @@ describe('React page lifecycle', () => {
 		startPageHydration(createPageOptions(testWindow, true));
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls[0]?.containerTag).toBe('BODY');
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls[0]?.hasRecoverableErrorHandler).toBe(true);
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.claimedOwners).toEqual(['react-router']);
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.registrations).toHaveLength(1);
+		expect(testState.hydrateCalls).toHaveLength(1);
+		expect(testState.hydrateCalls[0].containerTag).toBe('BODY');
+		expect(testState.hydrateCalls[0].hasRecoverableErrorHandler).toBe(true);
+		expect(testState.claimedOwners).toEqual(['react-router']);
+		expect(testState.registrations).toHaveLength(1);
 		expect(typeof testWindow.__ECO_PAGES__?.react?.cleanupPageRoot).toBe('function');
 
 		await testWindow.__ECO_PAGES__?.react?.cleanupPageRoot?.();
 
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.unmountCount).toBe(1);
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.releasedOwners).toEqual(['react-router']);
+		expect(testState.unmountCount).toBe(1);
+		expect(testState.releasedOwners).toEqual(['react-router']);
 		expect(testWindow.__ECO_PAGES__?.page).toBeUndefined();
 		expect(testWindow.__ECO_PAGES__?.react?.pageRoot).toBeNull();
 	});

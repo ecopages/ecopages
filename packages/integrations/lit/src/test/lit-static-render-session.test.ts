@@ -33,7 +33,7 @@ describe('LitStaticRenderSession', () => {
 			createWorkerClient,
 		});
 
-		const preloadSpy = vi.spyOn(session, 'preloadSsrLazyScripts').mockResolvedValue(undefined);
+		const preloadSpy = vi.spyOn(session, 'preloadSsrScripts').mockResolvedValue(undefined);
 
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
@@ -168,7 +168,7 @@ describe('LitStaticRenderSession', () => {
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 		});
-		const preloadSpy = vi.spyOn(session, 'preloadSsrLazyScripts').mockResolvedValue(undefined);
+		const preloadSpy = vi.spyOn(session, 'preloadSsrScripts').mockResolvedValue(undefined);
 
 		await session.preloadStaticRoutes({
 			appConfig: {

@@ -51,6 +51,7 @@ function createPreloader(options?: {
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
 	preferSourceImports?: boolean;
+	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
 }) {
 	return new CustomElementScriptPreloader({
 		cacheScope: CACHE_SCOPE,
@@ -59,6 +60,7 @@ function createPreloader(options?: {
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
 		importServerModule: options?.importServerModule,
 		preferSourceImports: options?.preferSourceImports ?? true,
+		resolvePreloadEntrypoint: options?.resolvePreloadEntrypoint,
 		logLabel: 'test',
 	});
 }
@@ -188,6 +190,40 @@ describe('CustomElementScriptPreloader', () => {
 		const disabledPreloader = createPreloader({ enabled: false, importServerModule });
 		await disabledPreloader.preloadSsrScripts([host]);
 		expect(importServerModule).toHaveBeenCalledTimes(1);
+	});
+
+	it('skips importServerModule when a preload entrypoint resolver is configured', async () => {
+		const importServerModule = vi.fn(async () => undefined);
+		const resolvePreloadEntrypoint = vi.fn(async (scriptPath: string) => scriptPath);
+		const directory = mkdtempSync(path.join(tmpdir(), 'core-resolver-'));
+		const script = path.join(directory, 'register.mjs');
+		writeFileSync(script, "customElements.define('resolver-counter', class extends HTMLElement {});");
+		const restoreRegistry = installTestCustomElementsRegistry();
+		const preloader = createPreloader({
+			importServerModule,
+			resolvePreloadEntrypoint,
+			preferSourceImports: true,
+			resolveDependencyPath: (_dir, src) => src,
+		});
+		const host = eco.component(
+			bindComponentIdentity(
+				{ id: 'host', file: path.join(directory, 'host.tsx'), integration: 'lit' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:visible': true } }] },
+				},
+			),
+		);
+
+		try {
+			await preloader.preloadSsrScripts([host]);
+			expect(resolvePreloadEntrypoint).toHaveBeenCalledWith(script);
+			expect(importServerModule).not.toHaveBeenCalled();
+			expect(customElements.get('resolver-counter')).toBeDefined();
+		} finally {
+			restoreRegistry();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	it('deduplicates concurrent preloads for the same script', async () => {

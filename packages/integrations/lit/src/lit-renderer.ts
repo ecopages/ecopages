@@ -35,7 +35,6 @@ import {
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
-import { createLitSsrPreloadEntrypointResolver } from './lit-ssr-preload-entrypoint.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
 	injectLitRenderedChildren,
@@ -68,22 +67,12 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const { getRenderSession, ...rendererOptions } = options;
 		super(rendererOptions);
 		this.getRenderSession = getRenderSession;
-		const preferSourceImports = typeof Bun !== 'undefined';
 		this.ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			logLabel: 'lit',
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: this.resolveDependencyPath.bind(this),
-			preferSourceImports,
-			resolvePreloadEntrypoint: createLitSsrPreloadEntrypointResolver({
-				preferSourceImports,
-				processDependencies: this.assetProcessingService?.processDependencies?.bind(
-					this.assetProcessingService,
-				),
-			}),
-			importServerModule: this.appConfig.runtime?.appModuleLoader
-				? createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr')
-				: undefined,
+			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
 		});
 	}
 
@@ -270,6 +259,13 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 
 	/**
 	 * Preloads SSR-eligible scripts to register custom elements before render.
+	 *
+	 * @remarks
+	 * When a render session exists (main thread), preload uses the session so
+	 * Bun source imports and the Node asset pipeline stay on that isolate.
+	 * With no session (static-render worker), preload uses this renderer's
+	 * app-module importer. A native source import in the worker leaves custom
+	 * elements undefined for `@lit-labs/ssr`.
 	 */
 	protected async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
 		ensureLitDomShim();

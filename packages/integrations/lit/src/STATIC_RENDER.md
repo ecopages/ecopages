@@ -24,6 +24,8 @@ LitRenderer.execute() (main)
        └─ session.renderPageInWorker()
             └─ postMessage(render) ─────► RouteRendererFactory.execute()
                                           (no active session in worker)
+                                          LitRenderer.ssrScriptPreloader uses
+                                          importServerModule (no entrypoint resolver)
 
 beforeStaticExport
   └─ ensureWorker() only when `renderSession` is still null

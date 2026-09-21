@@ -7,6 +7,8 @@
  * @module router
  */
 
+/* oxlint-disable react/refs, react-hooks/exhaustive-deps */
+
 import {
 	useEffect,
 	useEffectEvent,

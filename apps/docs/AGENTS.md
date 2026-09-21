@@ -10,6 +10,7 @@
 - Shared MDX chrome like `CodeTabs` is registered on `DocsLayout` so its CSS/scripts load on every docs page. Entry-specific interactive demos still declare `export const config = { dependencies: { components: [...] } }` in MDX.
 - Each MDX document imports the interactive components it renders (`CodeTabs`, `RuiAlert`, `ApiField`, and so on).
 - Docs chrome uses `@ecopages/radiant-ui` (sidebar, toc, breadcrumb, tabs, alerts, buttons, cycle theme toggle).
+- Radiant and Lit custom-element hosts register scripts with `dependencies.scripts: [{ src: './…script.ts', ssr: true }]`. `docs-layout.script.ts` uses the same pattern so sidebar, triggers, and shell chrome SSR; guard `document` / navigation listeners with `isServer` from `@ecopages/radiant/is-server`. `base-layout.script.ts` stays browser-only (router, clipboard).
 - Prose styles must exclude `.unstyled` / `.unstyled *` so alerts, code tabs, and other chrome are not restyled by `.prose`.
 - Prose `<table>` elements scroll horizontally in CSS (`display: block`, `max-width: 100%`, `overflow-x: auto`). Do not wrap them in MDX or rehype markup.
 

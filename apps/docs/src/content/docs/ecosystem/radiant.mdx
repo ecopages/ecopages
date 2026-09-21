@@ -6,7 +6,7 @@ order: 4
 
 # Radiant
 
-**@ecopages/radiant** is a ultra-minimalist library for building reactive Web Components. It is designed to play perfectly with Ecopages' dependency management and SSR capabilities.
+**@ecopages/radiant** is an ultra-minimalist library for building reactive Web Components. It is designed to play perfectly with Ecopages' dependency management and SSR capabilities.
 
 ## Introduction
 
@@ -52,17 +52,47 @@ A shorthand for `this.querySelector(selector)`. Returns the element every time i
 
 ## Using with Ecopages
 
-To use a Radiant component in your Ecopages project:
+Radiant hosts in JSX apps use [Ecopages JSX](/docs/integrations/ecopages-jsx) (`ecopagesJsxPlugin()` enables Radiant SSR by default). See [Creating Components](/docs/core/components) for the full `eco.component()` pattern.
 
-1. Create a `*.script.ts` file for the component logic.
-2. Define the component in your page or layout config:
+1. Put element registration in a `*.script.ts` file (call `customElements.define` or use `@customElement`).
+2. Wrap the host in `eco.component()` and declare the script with `ssr: true` so Ecopages evaluates it on the server before SSR. Use `import type` from the script module when you only need props—no separate value import in the wrapper file.
+3. Import the wrapper from pages; Ecopages discovers local `eco.component()` imports automatically.
+
+`counter.script.ts`:
 
 ```typescript
-import { eco } from '@ecopages/core';
+export type CounterProps = { count?: number };
 
-export default eco.page({
-  dependencies: {
-    scripts: ['./counter.script.ts'],
-  }
+export class CounterElement extends HTMLElement {
+	static observedAttributes = ['count'];
+
+	connectedCallback() {
+		this.textContent = String(this.getAttribute('count') ?? 0);
+	}
+
+	attributeChangedCallback() {
+		this.textContent = String(this.getAttribute('count') ?? 0);
+	}
+}
+
+if (!customElements.get('radiant-counter')) {
+	customElements.define('radiant-counter', CounterElement);
+}
+```
+
+`counter.tsx`:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import type { CounterProps } from './counter.script';
+
+export const Counter = eco.component<CounterProps, JsxRenderable>({
+	dependencies: {
+		scripts: [{ src: './counter.script.ts', ssr: true }],
+	},
+	render: ({ count = 0 }) => <radiant-counter count={count} />,
 });
 ```
+
+Add `lazy` on the script entry when browser delivery should wait for idle, interaction, or visibility. `lazy` does not skip server registration when `ssr: true` is set.

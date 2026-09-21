@@ -106,10 +106,8 @@ export class EcopagesJsxRadiantSsrPolicy {
 	private async ensureRuntimeInstalled(): Promise<void> {
 		if (!this.runtimeModulesPromise) {
 			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
-			const radiantElementSsrRuntimeModuleUrl = new URL(
-				'./radiant-element-ssr-bridge.js',
-				radiantLightDomShimEntry,
-			).href;
+			const radiantElementSsrRuntimeModuleUrl = import.meta
+				.resolve('@ecopages/radiant/server/radiant-element-ssr');
 
 			this.runtimeModulesPromise = (async () => {
 				const lightDomShimModule = await import(radiantLightDomShimEntry);

@@ -104,7 +104,7 @@ const DocsSiteHeader = () => (
 export const DocsLayout = eco.component<DocsLayoutProps, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./docs-layout.css'],
-		scripts: ['./docs-layout.script.ts'],
+		scripts: [{ src: './docs-layout.script.ts', ssr: true }],
 		components: [BaseLayout, CodeTabs, DocsPagination, Logo, ThemeToggle],
 	},
 	render: ({ children }) => {

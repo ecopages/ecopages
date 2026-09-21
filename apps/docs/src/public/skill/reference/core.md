@@ -63,7 +63,7 @@ In files declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page
 
 **What remains explicit:**
 
-- **Browser scripts:** Declare in `dependencies.scripts` (e.g. custom element registration and lazy loading).
+- **Browser scripts:** Declare in `dependencies.scripts`. Use `{ src, ssr: true }` when the script registers a custom element that must SSR (Lit and Ecopages JSX Radiant hosts). `lazy` controls browser timing only.
 - **`export *` barrels & packages:** `export * from ...` and external packages are not followed. Use explicit `dependencies.components` for these. Named `export { Counter } from './counter'` barrels are discovered.
 
 ```tsx
@@ -74,7 +74,7 @@ import './my-component.css';
 export const MyComponent = eco.component({
 	dependencies: {
 		// scripts remain explicit; Counter and my-component.css are discovered automatically
-		scripts: [{ src: './my-component.script.ts', lazy: { 'on:visible': true } }],
+		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:visible': true } }],
 	},
 	render: ({ title }) => (
 		<div>

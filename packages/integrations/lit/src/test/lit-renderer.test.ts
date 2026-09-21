@@ -32,7 +32,7 @@ class TestLitRenderer extends LitRenderer {
 		return this.htmlTemplate;
 	}
 
-	protected override async preloadSsrLazyScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+	protected override async preloadSsrScripts(components: Array<EcoComponent | undefined>): Promise<void> {
 		this.preloadedComponentBatches.push(components);
 	}
 }
@@ -1122,6 +1122,44 @@ describe('LitRenderer', () => {
 				expect(result).toEqual({ body: '<html>locals-in-process</html>' });
 			} finally {
 				inProcessSpy.mockRestore();
+			}
+		});
+	});
+
+	describe('ensureLitDomShim', () => {
+		it('repairs Element and HTMLElement when foreign shim lacks attributes and attachShadow', async () => {
+			const { ensureLitDomShim } = await import('../dom-shim.ts');
+			const originalAttributes = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attributes');
+			const originalAttachShadow = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attachShadow');
+
+			try {
+				delete (globalThis.Element.prototype as unknown as Record<string, unknown>).attributes;
+				delete (globalThis.Element.prototype as unknown as Record<string, unknown>).attachShadow;
+
+				ensureLitDomShim();
+
+				expect('attributes' in globalThis.Element.prototype).toBe(true);
+				expect(typeof globalThis.Element.prototype.attachShadow).toBe('function');
+
+				class MockEl extends globalThis.Element {
+					override getAttributeNames() {
+						return ['data-test'];
+					}
+					override getAttribute(name: string) {
+						return name === 'data-test' ? 'value' : null;
+					}
+				}
+				const el = new MockEl();
+				expect((el as unknown as { attributes: Array<{ name: string; value: string }> }).attributes).toEqual([
+					{ name: 'data-test', value: 'value' },
+				]);
+			} finally {
+				if (originalAttributes) {
+					Object.defineProperty(globalThis.Element.prototype, 'attributes', originalAttributes);
+				}
+				if (originalAttachShadow) {
+					Object.defineProperty(globalThis.Element.prototype, 'attachShadow', originalAttachShadow);
+				}
 			}
 		});
 	});

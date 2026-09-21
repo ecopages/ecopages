@@ -1,5 +1,9 @@
 # @ecopages/dev-toolbar
 
+## 0.2.0-rc.8
+
+No changes in this release.
+
 ## 0.2.0-rc.7
 
 ### Patch Changes

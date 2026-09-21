@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-rc.8
+
+### Patch Changes
+
+- Updated dependencies [[`e31f76b`](https://github.com/ecopages/ecopages/commit/e31f76b552abdd349c3ae7d94ffe20bb4384456a)]:
+    - @ecopages/core@0.2.0-rc.8
+    - @ecopages/react@0.2.0-rc.8
+
 ## 0.2.0-rc.7
 
 ### Patch Changes

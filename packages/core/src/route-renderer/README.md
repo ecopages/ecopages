@@ -66,6 +66,7 @@ Domain folders:
 - `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
 - `page-browser-graph/`: browser asset graph build, session cache, and injector assets
+- `custom-element-scripts/`: shared `ssr: true` script collection and server preload for custom-element registration
 
 **Page Browser Graph session behavior:**
 

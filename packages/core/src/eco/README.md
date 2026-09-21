@@ -67,7 +67,7 @@ scripts: [
 ];
 ```
 
-For Lit, this registers the custom element before server rendering while delaying browser execution until visibility. `ssr: true` does not force eager browser loading. To load eagerly, omit `lazy`. This corrects the previous behavior that emitted an extra eager script for SSR-enabled lazy entries.
+For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. `lazy` controls browser delivery only; it does not suppress server import. To load eagerly in the browser, omit `lazy`. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 

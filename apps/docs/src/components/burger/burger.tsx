@@ -3,7 +3,7 @@ import { eco } from '@ecopages/core';
 export const Burger = eco.component<{ class?: string }>({
 	dependencies: {
 		stylesheets: ['./burger.css'],
-		scripts: ['./burger.script.ts'],
+		scripts: [{ src: './burger.script.ts', ssr: true }],
 	},
 	render: ({ class: className }) => {
 		return (

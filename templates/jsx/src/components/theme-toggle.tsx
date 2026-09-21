@@ -30,7 +30,7 @@ function ThemeLabel({ preference }: { preference: ThemePreference }): string {
 
 export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./theme-toggle.script.ts'],
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
 	render: ({ value = 'system' }) => (
 		<theme-toggle data-value={value}>

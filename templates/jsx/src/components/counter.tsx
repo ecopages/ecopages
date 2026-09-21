@@ -8,7 +8,7 @@ export type CounterProps = {
 
 export const Counter = eco.component<CounterProps, JsxRenderable>({
 	dependencies: {
-		scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count = 0 }) => (
 		<demo-counter count={count}>

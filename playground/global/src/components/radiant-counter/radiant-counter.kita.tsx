@@ -4,7 +4,7 @@ import type { RadiantCounterProps } from './radiant-counter.script';
 export const RadiantCounter = eco.component<RadiantCounterProps>({
 	dependencies: {
 		stylesheets: ['./radiant-counter.css'],
-		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 
 	render: ({ count, ...props }) => {

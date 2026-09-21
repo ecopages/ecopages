@@ -21,7 +21,7 @@ type RadiantCounterProps = { count: number };
 
 export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
 	dependencies: {
-		scripts: [{ src: './radiant-counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => (
 		<radiant-counter count={count}>
@@ -61,13 +61,21 @@ export default eco.page({
 
 ## Lazy browser scripts
 
-Use a lazy declaration when a script should wait for an interaction or visibility trigger.
+Use a lazy declaration when a script should wait for an interaction or visibility trigger. Add `ssr: true` when the script registers a custom element that must render on the server (Radiant hosts and Lit elements).
 
 ```ts
 dependencies: {
-	scripts: [{ src: './search.script.ts', lazy: { 'on:interaction': 'focusin' } }],
+	scripts: [{ src: './search.script.ts', ssr: true, lazy: { 'on:interaction': 'focusin' } }],
 }
 ```
+
+`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only.
+
+### Troubleshooting custom element SSR
+
+- **Host renders empty or never upgrades on the server:** Add `ssr: true` on the registration script in the owning `eco.component()` `dependencies.scripts` entry. Lit and Ecopages JSX preload those entries; a side-effect `import './my.script.ts'` in the wrapper is not required (and duplicates ownership).
+- **Props only from the script module:** Use `import type` from the `.script.ts` file; keep registration on `dependencies.scripts`.
+- **Server errors or skipped preload:** Do not set `ssr: true` on browser-only scripts that touch `window` or `document` without guards.
 
 Ecopages stamps [island host attributes](/docs/core/island-hosts) on hydratable Component SSR roots so developer tools and client runtimes can discover them.
 

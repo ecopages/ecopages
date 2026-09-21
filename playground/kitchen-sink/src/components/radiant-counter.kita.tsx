@@ -10,7 +10,7 @@ export const RadiantCounter = eco.component<RadiantCounterComponentProps, EcoPag
 	integration: 'kitajs',
 	dependencies: {
 		stylesheets: ['./integration-counter.css', './radiant-counter.css'],
-		scripts: [{ src: './radiant-counter-element.script.ts' }],
+		scripts: [{ src: './radiant-counter-element.script.ts', ssr: true }],
 	},
 	render: ({ id = '', value = 0 }) => (
 		<radiant-counter id={id || undefined} data-radiant-counter data-counter-kind="radiant" value={value}>

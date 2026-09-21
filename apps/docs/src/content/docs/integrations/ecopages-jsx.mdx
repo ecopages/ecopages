@@ -116,6 +116,27 @@ ecopagesJsxPlugin({
 
 Set `radiant: false` when the app does not use Radiant web components and should not include that runtime contract.
 
+### Registered Radiant scripts (`ssr: true`)
+
+Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so Radiant hosts SSR without a redundant value import in the component file.
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import type { ThemeToggleProps } from './theme-toggle.script';
+
+export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
+	dependencies: {
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
+	},
+	render: (props) => <theme-toggle {...props} />,
+});
+```
+
+Keep `import type` when you only need props from the script module. Do not add `ssr: true` to browser-only layout scripts that use `window` or `document` without guards.
+
+If a Radiant host is missing from SSR HTML, confirm the registration script is on the same `eco.component()` with `ssr: true`. See [Creating Components](/docs/core/components#troubleshooting-custom-element-ssr).
+
 ## MDX Support
 
 Enable `mdx` to let the same integration own `.mdx` routes compiled against `@ecopages/jsx`.

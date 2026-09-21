@@ -3,7 +3,7 @@ import type { RadiantEditorProps } from './radiant-editor.script';
 
 export const RadiantEditor = eco.component<RadiantEditorProps & { name: string }>({
 	dependencies: {
-		scripts: ['./radiant-editor.script.ts'],
+		scripts: [{ src: './radiant-editor.script.ts', ssr: true }],
 	},
 
 	render: ({ content, name }) => {

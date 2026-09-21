@@ -122,8 +122,8 @@ export interface CustomElementScriptPreloaderOptions {
 	 * Resolves a script path to the module entry the SSR renderer should import.
 	 *
 	 * @remarks
-	 * When this returns a processed bundle path, {@link importServerModule} is
-	 * skipped so preload shares the renderer's dependency graph (required for Lit).
+	 * When this is set, {@link importServerModule} is skipped. Callers that need
+	 * the app module loader (Lit's static-render worker) must omit the resolver.
 	 */
 	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;

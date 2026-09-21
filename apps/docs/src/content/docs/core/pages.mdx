@@ -67,16 +67,16 @@ export default eco.page({
 
 For build-time and request-time data, see [Data Fetching](/docs/core/data-fetching).
 
-## Lazy Loading Components
+## Lazy browser scripts
 
-Lazy loading is configured on `dependencies.scripts` entries:
+Lazy loading is configured on `dependencies.scripts` entries. Add `ssr: true` when the script registers a custom element that must SSR (see [Components](/docs/core/components)):
 
 ```tsx
 import { eco } from '@ecopages/core';
 
 export const MyComponent = eco.component({
 	dependencies: {
-		scripts: [{ src: './my-component.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './my-component.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: (props) => <my-component {...props} />,
 });

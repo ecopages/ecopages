@@ -3,7 +3,7 @@ import type { RadiantInputProps } from './radiant-input.script';
 
 export const RadiantInput = eco.component<RadiantInputProps>({
 	dependencies: {
-		scripts: [{ src: './radiant-input.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+		scripts: [{ src: './radiant-input.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 
 	render: ({ value, label, name, required }) => {

@@ -35,6 +35,11 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { EcopagesJsxRenderSession } from './ecopages-jsx-render-session.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	CustomElementScriptPreloader,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { createCustomElementSsrPreloadEntrypointResolver } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
@@ -50,6 +55,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	private readonly mdxExtensions: string[];
 	private readonly renderSession: EcopagesJsxRenderSession;
 	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;
+	private readonly ssrScriptPreloader: CustomElementScriptPreloader;
 
 	/**
 	 * Serializes foreign-child props for string-first boundaries.
@@ -192,8 +198,28 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		this.renderSession = new EcopagesJsxRenderSession((assets) =>
 			this.htmlTransformer.dedupeProcessedAssets(assets),
 		);
-		this.radiantSsrPolicy =
-			jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(jsxConfig?.radiantSsrEnabled ?? false);
+		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
+		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
+		const preferSourceImports = typeof Bun !== 'undefined';
+		this.ssrScriptPreloader = new CustomElementScriptPreloader({
+			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
+			/**
+			 * @remarks
+			 * Node production builds evaluate registration scripts through the
+			 * asset pipeline during render. Preloading through the app module loader
+			 * registers Radiant hosts in an isolated graph and breaks SSR.
+			 */
+			enabled: radiantSsrEnabled && preferSourceImports,
+			logLabel: 'ecopages-jsx',
+			preferSourceImports,
+			resolveDependencyPath: (componentDir, sourcePath) => this.resolveDependencyPath(componentDir, sourcePath),
+			resolvePreloadEntrypoint: createCustomElementSsrPreloadEntrypointResolver({
+				preferSourceImports,
+				processDependencies: this.assetProcessingService?.processDependencies?.bind(
+					this.assetProcessingService,
+				),
+			}),
+		});
 	}
 
 	/** Returns whether the requested page file should be treated as MDX. */
@@ -213,135 +239,132 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	}
 
 	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
-		return await this.withPreparedRadiantRuntime(
-			async () =>
-				await this.renderSession.withActiveScope(async () => {
-					try {
-						const result = await this.renderPageWithDocumentShell({
-							page: {
-								component: options.Page,
-								props: {
-									...options.pageProps,
-									locals: options.pageLocals,
-								},
+		return await this.withPreparedRadiantRuntime(async () => {
+			await this.ssrScriptPreloader.preloadSsrScripts([
+				options.Page,
+				options.Layout,
+				options.HtmlTemplate,
+				...(options.resolvedPageDependencyComponents ?? []),
+			]);
+
+			return await this.renderSession.withActiveScope(async () => {
+				try {
+					const result = await this.renderPageWithDocumentShell({
+						page: {
+							component: options.Page,
+							props: {
+								...options.pageProps,
+								locals: options.pageLocals,
 							},
-							/**
-							 * @remarks Content components supplied by the Page dependency
-							 * resolver (for example the active MDX entry) carry foreign
-							 * ownership the static Page config cannot declare.
-							 */
-							foreignChildRoots: options.resolvedPageDependencyComponents,
-							layouts: resolveDocumentShellLayouts({
-								layout: options.Layout,
-								layoutEntries: options.layoutEntries,
-								params: options.params,
-								query: options.query,
-								locals: options.locals,
-							}),
-							htmlTemplate: options.HtmlTemplate,
-							metadata: options.metadata,
-							pageProps: options.pageProps ?? {},
-						});
+						},
+						/**
+						 * @remarks Content components supplied by the Page dependency
+						 * resolver (for example the active MDX entry) carry foreign
+						 * ownership the static Page config cannot declare.
+						 */
+						foreignChildRoots: options.resolvedPageDependencyComponents,
+						layouts: resolveDocumentShellLayouts({
+							layout: options.Layout,
+							layoutEntries: options.layoutEntries,
+							params: options.params,
+							query: options.query,
+							locals: options.locals,
+						}),
+						htmlTemplate: options.HtmlTemplate,
+						metadata: options.metadata,
+						pageProps: options.pageProps ?? {},
+					});
 
-						this.recordHmrOwnership([
-							options.Page,
-							options.Layout,
-							options.HtmlTemplate,
-							...(options.resolvedPageDependencyComponents ?? []),
-						]);
+					this.recordHmrOwnership([
+						options.Page,
+						options.Layout,
+						options.HtmlTemplate,
+						...(options.resolvedPageDependencyComponents ?? []),
+					]);
 
-						return result;
-					} catch (error) {
-						throw this.createRenderError('Error rendering page', error);
-					}
-				}),
-		);
+					return result;
+				} catch (error) {
+					throw this.createRenderError('Error rendering page', error);
+				}
+			});
+		});
 	}
 
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return await this.withPreparedRadiantRuntime(
-			async () =>
-				await this.renderSession.withActiveScope(async () => {
-					const assetFrame = this.renderSession.beginCollectedAssetFrame();
+		return await this.withPreparedRadiantRuntime(async () => {
+			await this.ssrScriptPreloader.preloadSsrScripts([input.component as EcoComponent]);
 
-					try {
-						if (typeof input.component !== 'function') {
-							throw new TypeError('JSX renderer expected a callable component.');
-						}
-						const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
+			return await this.renderSession.withActiveScope(async () => {
+				const assetFrame = this.renderSession.beginCollectedAssetFrame();
 
-						const componentProps =
-							input.children === undefined
-								? input.props
-								: {
-										...input.props,
-										children:
-											typeof input.children === 'string'
-												? createMarkupNodeLike(input.children)
-												: input.children,
-									};
-						const content = await this.withCustomElementRenderHook(() => component(componentProps));
-						const rendered = await this.renderJsx(content);
-						const queuedForeignSubtreeResolution =
-							await this.foreignSubtreeExecutionService.resolveQueuedHtml({
-								currentIntegrationName: this.name,
-								html: rendered.html,
-								runtimeContext:
-									this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
-										input,
-										getForeignSubtreeResolutionContextKey(this.name),
-									),
-								queueLabel: 'Ecopages JSX',
-								getOwningRenderer: (integrationName, rendererCache) =>
-									resolveOwningIntegrationRenderer({
-										appConfig: this.appConfig,
-										runtimeOrigin: this.runtimeOrigin,
-										currentIntegrationName: this.name,
-										currentRenderer: this,
-										integrationName,
-										cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
-									}),
-								applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-									this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-								dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-								renderQueuedChildren: (
-									children,
-									_runtimeContext,
-									queuedResolutionsByToken,
-									resolveToken,
-								) =>
-									this.renderQueuedForeignSubtreeChildren(
-										children,
-										queuedResolutionsByToken,
-										resolveToken,
-									),
-							});
-						const componentAssets =
-							input.component.config?.dependencies &&
-							typeof this.assetProcessingService?.processDependencies === 'function'
-								? await this.processComponentDependencies([input.component])
-								: [];
-						const assets = this.htmlTransformer.dedupeProcessedAssets([
-							...this.renderSession.endCollectedAssetFrame(assetFrame),
-							...queuedForeignSubtreeResolution.assets,
-							...componentAssets,
-						]);
-
-						this.recordHmrOwnership([input.component as EcoComponent]);
-
-						return this.finalizeIslandComponentRender(input, {
-							html: queuedForeignSubtreeResolution.html,
-							canAttachAttributes: true,
-							rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
-							integrationName: this.name,
-							assets,
-						});
-					} catch (error) {
-						this.renderSession.endCollectedAssetFrame(assetFrame);
-						throw this.createRenderError('Error rendering component', error);
+				try {
+					if (typeof input.component !== 'function') {
+						throw new TypeError('JSX renderer expected a callable component.');
 					}
-				}),
-		);
+					const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
+
+					const componentProps =
+						input.children === undefined
+							? input.props
+							: {
+									...input.props,
+									children:
+										typeof input.children === 'string'
+											? createMarkupNodeLike(input.children)
+											: input.children,
+								};
+					const content = await this.withCustomElementRenderHook(() => component(componentProps));
+					const rendered = await this.renderJsx(content);
+					const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
+						currentIntegrationName: this.name,
+						html: rendered.html,
+						runtimeContext:
+							this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+								input,
+								getForeignSubtreeResolutionContextKey(this.name),
+							),
+						queueLabel: 'Ecopages JSX',
+						getOwningRenderer: (integrationName, rendererCache) =>
+							resolveOwningIntegrationRenderer({
+								appConfig: this.appConfig,
+								runtimeOrigin: this.runtimeOrigin,
+								currentIntegrationName: this.name,
+								currentRenderer: this,
+								integrationName,
+								cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
+							}),
+						applyAttributesToFirstElement: (resolvedHtml, attributes) =>
+							this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
+						dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+						renderQueuedChildren: (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
+					});
+					const componentAssets =
+						input.component.config?.dependencies &&
+						typeof this.assetProcessingService?.processDependencies === 'function'
+							? await this.processComponentDependencies([input.component])
+							: [];
+					const assets = this.htmlTransformer.dedupeProcessedAssets([
+						...this.renderSession.endCollectedAssetFrame(assetFrame),
+						...queuedForeignSubtreeResolution.assets,
+						...componentAssets,
+					]);
+
+					this.recordHmrOwnership([input.component as EcoComponent]);
+
+					return this.finalizeIslandComponentRender(input, {
+						html: queuedForeignSubtreeResolution.html,
+						canAttachAttributes: true,
+						rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
+						integrationName: this.name,
+						assets,
+					});
+				} catch (error) {
+					this.renderSession.endCollectedAssetFrame(assetFrame);
+					throw this.createRenderError('Error rendering component', error);
+				}
+			});
+		});
 	}
 
 	override async renderToResponse<P = any>(
@@ -349,31 +372,32 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		props: P,
 		ctx: RenderToResponseContext,
 	): Promise<Response> {
-		return await this.withPreparedRadiantRuntime(
-			async () =>
-				await this.renderSession.withActiveScope(async () => {
-					try {
-						if (typeof view !== 'function') {
-							throw new TypeError('JSX renderer expected a callable view component.');
-						}
-						const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
-						const layouts = viewComponent.config?.layouts;
+		return await this.withPreparedRadiantRuntime(async () => {
+			const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
+			const layouts = viewComponent.config?.layouts;
+			await this.ssrScriptPreloader.preloadSsrScripts([view as EcoComponent, ...(layouts ?? [])]);
 
-						const response = await this.renderViewWithDocumentShell({
-							view: viewComponent,
-							props: props as Record<string, unknown>,
-							ctx,
-							layout: layouts?.[layouts.length - 1],
-						});
-
-						this.recordHmrOwnership([view as EcoComponent]);
-
-						return response;
-					} catch (error) {
-						throw this.createRenderError('Error rendering view', error);
+			return await this.renderSession.withActiveScope(async () => {
+				try {
+					if (typeof view !== 'function') {
+						throw new TypeError('JSX renderer expected a callable view component.');
 					}
-				}),
-		);
+
+					const response = await this.renderViewWithDocumentShell({
+						view: viewComponent,
+						props: props as Record<string, unknown>,
+						ctx,
+						layout: layouts?.[layouts.length - 1],
+					});
+
+					this.recordHmrOwnership([view as EcoComponent]);
+
+					return response;
+				} catch (error) {
+					throw this.createRenderError('Error rendering view', error);
+				}
+			});
+		});
 	}
 
 	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {

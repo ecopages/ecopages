@@ -4,7 +4,7 @@ import { Moon, Sun } from './icons.kita';
 export const ThemeToggle = eco.component({
 	dependencies: {
 		stylesheets: ['./theme-toggle.css'],
-		scripts: ['./theme-toggle.script.ts'],
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
 	},
 
 	render: () => {

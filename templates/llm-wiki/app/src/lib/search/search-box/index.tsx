@@ -13,7 +13,7 @@ export type SearchBoxProps = {
 
 export const SearchBox = eco.component<SearchBoxProps, JsxRenderable>({
 	dependencies: {
-		scripts: ['./search-box.script.tsx'],
+		scripts: [{ src: './search-box.script.tsx', ssr: true }],
 	},
 	render: ({ indexUrl = '/search-index.json', placeholder = 'Search…', label = 'Search' }) => {
 		return (

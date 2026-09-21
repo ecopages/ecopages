@@ -34,10 +34,7 @@ type CounterProps = {
 export const Counter = eco.component<CounterProps>({
   dependencies: {
     stylesheets: ['./counter.css'],
-    lazy: {
-      'on:interaction': 'mouseenter,focusin',
-      scripts: ['./counter.script.ts'],
-    },
+    scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
   },
   render: ({ count }) => <my-counter count={count}></my-counter>,
 });`;

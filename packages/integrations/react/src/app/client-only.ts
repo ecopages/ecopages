@@ -1,20 +1,19 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 type ClientOnlyProps = {
 	children: ReactNode;
 	fallback?: ReactNode;
 };
 
-export const useIsClient = (): boolean => {
-	const [isClient, setIsClient] = useState(false);
+const emptySubscribe = () => () => {};
 
-	useEffect(() => {
-		setIsClient(true);
-	}, []);
-
-	return isClient;
-};
+export const useIsClient = (): boolean =>
+	useSyncExternalStore(
+		emptySubscribe,
+		() => true,
+		() => false,
+	);
 
 export const ClientOnly = ({ children, fallback = null }: ClientOnlyProps): ReactNode => {
 	const isClient = useIsClient();

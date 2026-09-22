@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -9,28 +9,28 @@ import { compareDocsEntries, docsFrontmatterSchema, DOCS_ROOT } from './src/cont
 import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
 import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(configuredSiteOrigin())
-	.setSitemap({
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: configuredSiteOrigin(),
+	sitemap: {
 		enabled: true,
 		extraUrls: [...DOCS_SITEMAP_EXTRA_URLS],
 		exclude: ['/404', '/500'],
-	})
-	.setIntegrations([
+	},
+	integrations: [
 		ecopagesJsxPlugin({
 			extensions: ['.tsx', '.kita.tsx'],
 			mdx: docsMdxPluginOptions,
 		}),
-	])
-	.setDefaultMetadata({
+	],
+	defaultMetadata: {
 		title: 'Ecopages | Docs',
 		description: 'Ecopages is a static site generator written in TypeScript',
 		image: '/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
-	})
-	.setAdditionalWatchPaths(['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'])
-	.setProcessors([
+	},
+	additionalWatchPaths: ['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'],
+	processors: [
 		contentProcessorPlugin({
 			options: {
 				collections: {
@@ -65,7 +65,5 @@ const config = await new ConfigBuilder()
 				],
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});

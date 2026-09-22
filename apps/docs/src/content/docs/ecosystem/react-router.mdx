@@ -49,18 +49,14 @@ The `@ecopages/react-router` package enables Single Page Application (SPA) navig
 Add the router adapter to your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setIntegrations([reactPlugin({ router: ecoRouter() })])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [reactPlugin({ router: ecoRouter() })],
+});
 ```
 
 That's it, all pages now have SPA navigation enabled.

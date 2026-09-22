@@ -40,22 +40,14 @@ After installation, create an `eco.config.ts` file in your project's root direct
 
 ```typescript
 // filepath: eco.config.ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	// Optional: Set the canonical base URL for your site.
-	// Used for generating absolute URLs in production builds.
-	// If omitted, it defaults to http://localhost:3000 during development.
-	// Can be overridden by the ECOPAGES_BASE_URL environment variable.
-	.setBaseUrl('https://your-production-domain.com')
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: 'https://your-production-domain.com',
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ### Environment Variables
@@ -117,9 +109,8 @@ Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
 ```typescript
 // filepath: app.ts
 import { createApp } from '@ecopages/core/create-app';
-import config from './eco.config.ts';
 
-const app = await createApp({ appConfig: config });
+const app = await createApp();
 await app.start();
 ```
 

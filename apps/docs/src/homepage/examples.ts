@@ -1,29 +1,27 @@
 export const configExampleCode = `import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
 const baseUrl = import.meta.env?.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 
-const config = await new ConfigBuilder()
-  .setRootDir(import.meta.dir)
-  .setBaseUrl(baseUrl)
-  .setDefaultMetadata({
+export default defineConfig({
+  rootDir: import.meta.dir,
+  baseUrl,
+  defaultMetadata: {
     title: 'Ecopages',
     description: 'Pick an Integration, then author Pages',
-  })
-  .setIntegrations([ecopagesJsxPlugin()])
-  .setProcessors([
+  },
+  integrations: [ecopagesJsxPlugin()],
+  processors: [
     postcssProcessorPlugin(
       tailwindV4Preset({
         referencePath: path.resolve(import.meta.dir, 'src/styles/app.css'),
       })
     ),
-  ])
-  .build();
-
-export default config;`;
+  ],
+});`;
 
 export const componentExampleCode = `import { eco } from '@ecopages/core';
 

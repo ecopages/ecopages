@@ -1,11 +1,13 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { devices } from '@playwright/test';
+import { ECOPAGES_CONFIG_FILE_ENV } from '@ecopages/core/config';
 import { shouldReuseExistingTestServers } from '../../playwright/config-env.ts';
 import { defineFixture } from '../../playwright/define-fixture.ts';
 
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
-const postcssEnv = { ECOPAGES_USE_POSTCSS_PROCESSOR: 'true' };
+const postcssConfigPath = path.join(fixtureDir, 'eco.config.postcss.ts');
+const postcssEnv = { [ECOPAGES_CONFIG_FILE_ENV]: postcssConfigPath };
 
 export default defineFixture(
 	{

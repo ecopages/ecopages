@@ -7,7 +7,8 @@
  */
 
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import type { EcoPagesUserConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
@@ -30,21 +31,20 @@ export interface KitchenSinkConfigOptions {
 }
 
 /**
- * Builds the kitchen-sink config: Kita, React (+ MDX), Lit, Ecopages-JSX, MDX,
- * image processor, and Tailwind/PostCSS.
+ * User-owned kitchen-sink configuration shared by `eco.config.ts` and tests.
  */
-export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
+export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): EcoPagesUserConfig {
 	const rootDir = options.rootDir;
 	const distDir = options.distDir ?? 'dist';
 	const workDir = options.workDir ?? '.eco';
 	const baseUrl = options.baseUrl ?? 'http://localhost:3000';
 
-	return new ConfigBuilder()
-		.setRootDir(rootDir)
-		.setBaseUrl(baseUrl)
-		.setDistDir(distDir)
-		.setWorkDir(workDir)
-		.setIntegrations([
+	return {
+		rootDir,
+		baseUrl,
+		distDir,
+		workDir,
+		integrations: [
 			kitajsPlugin(),
 			ecopagesJsxPlugin({ extensions: ['.eco.tsx'] }),
 			litPlugin(),
@@ -63,8 +63,8 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 					jsxImportSource: '@kitajs/html',
 				},
 			}),
-		])
-		.setProcessors([
+		],
+		processors: [
 			contentProcessorPlugin({
 				options: {
 					collections: {
@@ -98,7 +98,21 @@ export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions)
 					referencePath: path.resolve(rootDir, 'src/styles/tailwind.css'),
 				}),
 			),
-		])
-		.setDevToolbar(devToolbar())
-		.build();
+		],
+		devToolbar: devToolbar(),
+	};
+}
+
+/**
+ * Finalizes the kitchen-sink config for tests and benchmarks that need a built app config.
+ */
+export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
+	const configFilePath = path.join(options.rootDir, 'eco.config.ts');
+	return finalizeEcoPagesConfig(
+		{
+			config: createKitchenSinkUserConfig(options),
+			configFilePath,
+		},
+		{},
+	);
 }

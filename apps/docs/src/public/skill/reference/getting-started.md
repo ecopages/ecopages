@@ -42,40 +42,37 @@ Create `eco.config.ts`:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = process.cwd();
+const appRoot = import.meta.dirname;
 
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setDefaultMetadata({
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	defaultMetadata: {
 		title: 'Your Site Title',
 		description: 'Your site description',
-	})
-	.setIntegrations([ecopagesJsxPlugin()])
-	.setProcessors([
+	},
+	integrations: [ecopagesJsxPlugin()],
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Application entry point
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 await app.start();
 ```

@@ -99,6 +99,7 @@ These flags are supported by server commands and map to environment variables.
 | `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Public base URL                                           |
 | `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs                                         |
 | `-r, --react-fast-refresh` | -                       | Enable React Fast Refresh                                 |
+| `-c, --config <file>`      | `ECOPAGES_CONFIG_FILE`  | Ecopages config file (default `eco.config.ts`)            |
 | `--runtime <runtime>`      | -                       | Force execution via `bun`, `node`, or `node-experimental` |
 
 ---
@@ -112,7 +113,7 @@ Ecopages listens to environment variables for configuration. When these are set,
 Used for generating absolute URLs in production builds (meta tags, [sitemap](/docs/core/sitemap) locations, etc.).
 
 1. **CLI flag**: `--base-url <url>`.
-2. **`ConfigBuilder.setBaseUrl()`**: Set directly in `eco.config.ts`.
+2. **`baseUrl` in `eco.config.ts`**: Set directly via `defineConfig({ baseUrl: '...' })`.
 3. **`ECOPAGES_BASE_URL`**: Environment variable override when the config does not set it explicitly.
 4. **Default**: `http://localhost:3000`.
 

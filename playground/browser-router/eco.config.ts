@@ -1,23 +1,23 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL,
+	integrations: [
 		kitajsPlugin(),
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
@@ -39,7 +39,5 @@ const config = await new ConfigBuilder()
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});

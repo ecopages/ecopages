@@ -1,6 +1,5 @@
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
-import appConfig from './eco.config';
 import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
@@ -10,7 +9,6 @@ const isViteHosted = process.env.ECOPAGES_CROSS_INTEGRATION_HOST === 'vite';
 const isE2ERun = process.env.ECOPAGES_CROSS_INTEGRATION_E2E === 'true';
 
 export const app = await createApp({
-	appConfig,
 	runtime: isViteHosted
 		? {
 				embedded: true,

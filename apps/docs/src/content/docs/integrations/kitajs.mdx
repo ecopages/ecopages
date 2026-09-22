@@ -43,18 +43,14 @@ Also install Kita's required peer packages in your app: `@kitajs/html` and `@kit
 Register the `kitajsPlugin` in your Ecopages configuration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([kitajsPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [kitajsPlugin()],
+});
 ```
 
 By default, KitaJS owns `.kita.tsx` route files and renders them through `@kitajs/html`.
@@ -108,26 +104,22 @@ KitaJS works well with other Ecopages plugins. For example, you can pair it with
 </RuiAlert>
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
 		kitajsPlugin(),
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Pair standalone `mdxPlugin()` with `compilerOptions.jsxImportSource: '@kitajs/html'` when MDX should compile against the KitaJS runtime.

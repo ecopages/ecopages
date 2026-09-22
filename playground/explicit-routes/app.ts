@@ -1,11 +1,10 @@
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
-import appConfig from './eco.config';
 import * as api from './src/handlers/api';
 import { adminGroup } from './src/handlers/admin';
 import { posts } from './src/data';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.static('/', () => import('./src/views/post-list-view.kita'))
 	.static('/posts', () => import('./src/views/post-list-view.kita'))

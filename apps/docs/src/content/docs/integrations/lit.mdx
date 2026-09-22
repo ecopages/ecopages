@@ -31,18 +31,14 @@ Also install Lit's required peer packages in your app: `lit`, `@lit-labs/ssr`, a
 Register the `litPlugin` in your Ecopages configuration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { litPlugin } from '@ecopages/lit';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [litPlugin()],
+});
 ```
 
 ## Creating Components with Lit
@@ -153,19 +149,15 @@ Lit components with client scripts stamp [island host attributes](/docs/core/isl
 The Lit integration works well with other Ecopages plugins. For example, you can pair it with KitaJS when an HTML-first shell should host nested Lit custom elements.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { litPlugin } from '@ecopages/lit';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([kitajsPlugin(), litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [kitajsPlugin(), litPlugin()],
+});
 ```
 
 By leveraging the Lit integration, you can create powerful, reactive components within your Ecopages project, combining the efficiency of static site generation with the interactivity of modern web components.

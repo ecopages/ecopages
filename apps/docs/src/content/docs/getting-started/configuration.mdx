@@ -13,24 +13,22 @@ Ecopages can be customized to fit your project's needs through a configuration f
 Here's a basic example of an Ecopages configuration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([ecopagesJsxPlugin()])
-	.setDefaultMetadata({
+export default defineConfig({
+	rootDir: process.cwd(),
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+	defaultMetadata: {
 		title: 'Your Site Title',
 		description: 'Your site description',
 		image: 'https://your-domain.com/og-image.png',
-	})
-	.build();
-
-export default config;
+	},
+});
 ```
+
+`createApp()` loads and finalizes this file automatically. Override the path with `createApp({ configFile })`, `ECOPAGES_CONFIG_FILE`, or `ecopages dev --config <file>`.
 
 ## Configuration API
 
@@ -153,18 +151,14 @@ Ecopages supports various integrations to extend its capabilities. Here are some
 To use an integration, install it and add it to your configuration. For example:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 For more details on specific integrations, refer to their respective documentation pages:

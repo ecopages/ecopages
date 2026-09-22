@@ -140,9 +140,8 @@ Create `app.ts`:
 
 ```typescript
 import { createApp } from "@ecopages/core/create-app";
-import appConfig from "./eco.config";
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 await app.start();
 ```
@@ -398,7 +397,7 @@ Register handlers in `app.ts`:
 import * as posts from "./src/handlers/posts";
 import { adminGroup } from "./src/handlers/admin";
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.post(posts.createPost);
 app.group(adminGroup);
@@ -924,10 +923,10 @@ In `app.ts`:
 
 ```typescript
 import { createApp } from "@ecopages/core";
-import appConfig from "./eco.config";
 import * as auth from "./src/handlers/auth.server";
 
-await createApp({ appConfig })
+const app = await createApp();
+await app
   .get("/api/auth/*", auth.authHandler)
   .post("/api/auth/*", auth.authHandler)
   .put("/api/auth/*", auth.authHandler)

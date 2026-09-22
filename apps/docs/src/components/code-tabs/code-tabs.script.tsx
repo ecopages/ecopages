@@ -165,7 +165,7 @@ export class RadiantCodeTabs extends RadiantElement {
 	}
 }
 
-declare module '@ecopages/jsx/jsx-runtime' {
+declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
 		'radiant-code-tabs': JsxCustomElementAttributes<RadiantCodeTabs, RadiantCodeTabsProps>;
 	}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-rc.9
+
+### Patch Changes
+
+- Updated dependencies [[`5a58517`](https://github.com/ecopages/ecopages/commit/5a58517de1f896240bb54858e12af9b872a76bb2)]:
+    - @ecopages/core@0.2.0-rc.9
+    - @ecopages/react@0.2.0-rc.9
+
 ## 0.2.0-rc.8
 
 ### Patch Changes

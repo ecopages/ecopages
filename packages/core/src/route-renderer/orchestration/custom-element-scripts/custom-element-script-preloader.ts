@@ -74,6 +74,7 @@ export function collectCustomElementSsrPreloadScripts(
 	components: Array<CustomElementSsrPreloadComponent | undefined>,
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string,
 	requireLazyScriptEntry = false,
+	collectForIntegration?: string,
 ): string[] {
 	const scriptPaths = new Set<string>();
 	const visitedConfigs = new Set<EcoComponentConfig>();
@@ -86,8 +87,19 @@ export function collectCustomElementSsrPreloadScripts(
 
 		visitedConfigs.add(config);
 
-		const componentFile = getComponentIdentity(component?.config)?.file;
-		collectSsrScriptsFromConfig(config, scriptPaths, resolveDependencyPath, componentFile, requireLazyScriptEntry);
+		const identity = getComponentIdentity(config);
+		const integration = config.integration ?? identity?.integration;
+		const ownsScripts = !collectForIntegration || integration === collectForIntegration;
+		const componentFile = ownsScripts ? identity?.file : undefined;
+		if (ownsScripts) {
+			collectSsrScriptsFromConfig(
+				config,
+				scriptPaths,
+				resolveDependencyPath,
+				componentFile,
+				requireLazyScriptEntry,
+			);
+		}
 
 		for (const layout of config.layouts ?? []) {
 			collect(layout);
@@ -127,6 +139,17 @@ export interface CustomElementScriptPreloaderOptions {
 	 */
 	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
+	/**
+	 * Limits script collection to components owned by one integration.
+	 *
+	 * @remarks
+	 * Dependency trees may include foreign integrations whose `ssr: true` scripts
+	 * are preloaded by their own renderer. Ownership uses
+	 * `config.integration ?? identity.integration`, matching render routing.
+	 * Ecopages JSX still walks nested components so it can find owned Radiant
+	 * hosts deeper in the graph.
+	 */
+	collectForIntegration?: string;
 	logLabel?: string;
 }
 
@@ -146,6 +169,7 @@ export class CustomElementScriptPreloader {
 	private readonly preferSourceImports: boolean;
 	private readonly resolvePreloadEntrypoint?: CustomElementScriptPreloaderOptions['resolvePreloadEntrypoint'];
 	private readonly importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
+	private readonly collectForIntegration?: string;
 	private readonly logLabel: string;
 
 	constructor({
@@ -156,6 +180,7 @@ export class CustomElementScriptPreloader {
 		preferSourceImports,
 		resolvePreloadEntrypoint,
 		importServerModule,
+		collectForIntegration,
 		logLabel = 'ecopages',
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
@@ -165,6 +190,7 @@ export class CustomElementScriptPreloader {
 		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
 		this.resolvePreloadEntrypoint = resolvePreloadEntrypoint;
 		this.importServerModule = importServerModule;
+		this.collectForIntegration = collectForIntegration;
 		this.logLabel = logLabel;
 	}
 
@@ -181,6 +207,7 @@ export class CustomElementScriptPreloader {
 			components,
 			this.resolveDependencyPath,
 			this.requireLazyScriptEntry,
+			this.collectForIntegration,
 		);
 	}
 

@@ -40,13 +40,13 @@ export const acmeStringPlugin = defineIntegration({
 ## Register it
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { acmeStringPlugin } from './acme-string-integration';
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setIntegrations([acmeStringPlugin()])
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [acmeStringPlugin()],
+});
 ```
 
 ## Author a Page

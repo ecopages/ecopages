@@ -312,16 +312,16 @@ Core does not call `teardown()` by default. Override it only when the integratio
 Register the integration in the Ecopages configuration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { CustomIntegration } from './custom-integration';
 
 const customIntegration = new CustomIntegration();
 
-const config = await new ConfigBuilder()
-	.setBaseUrl('https://example.com')
-	.setRootDir(process.cwd())
-	.setIntegrations([customIntegration])
-	.build();
+export default defineConfig({
+	baseUrl: 'https://example.com',
+	rootDir: import.meta.dirname,
+	integrations: [customIntegration],
+});
 ```
 
 `ConfigBuilder.build()` is the app-owned finalization boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
@@ -340,7 +340,7 @@ const config = await new ConfigBuilder()
 Here's a complete example including the plugin, renderer, and HMR strategy:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
@@ -398,9 +398,9 @@ export class CustomIntegration extends IntegrationPlugin {
 	}
 }
 
-const config = await new ConfigBuilder()
-	.setBaseUrl('https://example.com')
-	.setRootDir(process.cwd())
-	.setIntegrations([new CustomIntegration()])
-	.build();
+export default defineConfig({
+	baseUrl: 'https://example.com',
+	rootDir: import.meta.dirname,
+	integrations: [new CustomIntegration()],
+});
 ```

@@ -15,9 +15,8 @@ You define API handlers using methods on your app instance, typically in your `a
 ```typescript
 // filepath: app.ts
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Define a GET handler
 app.get('/api/greet', async ({ response }) => {
@@ -178,9 +177,8 @@ Register WebSocket routes on the app before calling `start()`. Ecopages provides
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.websocket('/ws/echo', {
 	onMessage(socket, message) {
@@ -202,7 +200,7 @@ import { createApp } from '@ecopages/core/create-app';
 import * as admin from './handlers/admin';
 import { authMiddleware } from './middleware/auth';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.group(
 	'/admin',

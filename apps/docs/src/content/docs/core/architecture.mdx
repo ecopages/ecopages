@@ -36,7 +36,7 @@ When a request hits your Ecopages application, it follows this simplified flow:
 
 The integration and processor lifecycle is split into stable framework-owned phases.
 
-1. **Config finalization**: `ConfigBuilder.build()` validates registrations, initializes processor context, validates runtime capability declarations, collects build contributions, and seals the app-owned build manifest.
+1. **Config finalization**: `defineConfig` authoring is loaded and finalized through `ConfigBuilder.build()`. This validates registrations, initializes processor context, validates runtime capability declarations, collects build contributions, and seals the app-owned build manifest.
 2. **Build contribution preparation**: processors run `prepareBuildContributions()` before integrations so asset-side contributions are collected before framework-specific additions.
 3. **App startup setup**: processors run `setup()` before integrations, and integrations receive runtime origin and HMR manager context before request handling begins.
 4. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.
@@ -58,7 +58,8 @@ For those wishing to dive deeper, we recommend exploring the source code:
 - **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
 - **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
 - **[`Processor`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/processor.ts)**: The asset-processing boundary for file capabilities, transformation, and watch behavior.
-- **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Validates and constructs your application state.
+- **[`defineConfig` / `loadEcoPagesConfig`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/index.ts)**: Ergonomic configuration authoring and asynchronous config loading.
+- **[`ConfigBuilder`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/config-builder.ts)**: Internal builder that validates and constructs finalized application state.
 
 ## Server Loading Boundary
 

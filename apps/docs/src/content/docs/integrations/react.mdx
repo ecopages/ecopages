@@ -30,18 +30,14 @@ Also install React's required peer packages in your app: `react` and `react-dom`
 To enable React support, add the `reactPlugin` to your Ecopages configuration.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([reactPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [reactPlugin()],
+});
 ```
 
 ## Creating Components
@@ -178,16 +174,14 @@ Plain opaque objects fail fast at core foreign-subtree queue boundaries; they ar
 The React plugin includes optional MDX support. When enabled, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
 		reactPlugin({
 			router: ecoRouter(),
 			mdx: {
@@ -197,10 +191,8 @@ const config = await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 This is the recommended approach when using a client-side router, as it ensures seamless navigation between TSX and MDX pages.
@@ -262,13 +254,14 @@ Path aliases resolve from `tsconfig.json` `compilerOptions.paths`, same as the E
 Plugin config — no manual vendor list when provider layouts are flagged:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: ecoRouter() })]).build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [reactPlugin({ router: ecoRouter() })],
+});
 ```
 
 Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:

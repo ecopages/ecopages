@@ -50,24 +50,20 @@ This page documents the **standalone** `@ecopages/mdx` plugin. Use it when MDX s
 Add `mdxPlugin` to your Ecopages configuration with an explicit `compilerOptions.jsxImportSource`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ### JSX runtime rules
@@ -185,20 +181,21 @@ Standalone MDX works alongside other integrations when MDX routes stay on your c
 Example: MDX on KitaJS with Lit for nested foreign subtrees:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { mdxPlugin } from '@ecopages/mdx';
 import { litPlugin } from '@ecopages/lit';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
 		litPlugin(),
-	])
-	.build();
+	],
+});
 ```
 
 Use `reactPlugin({ mdx: { enabled: true } })` when MDX routes should compile and hydrate as React.

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin, type ImageProcessorConfig } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
@@ -21,25 +21,23 @@ export const imageProcessorConfig: ImageProcessorConfig = {
 	],
 };
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL,
+	integrations: [
 		kitajsPlugin(),
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
 		imageProcessorPlugin({ options: imageProcessorConfig }),
-	])
-	.build();
-
-export default config;
+	],
+});

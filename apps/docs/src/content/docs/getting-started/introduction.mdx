@@ -143,9 +143,8 @@ Good for simple, quick endpoints.
 ```typescript
 // app.ts
 import { createApp } from '@ecopages/core/create-app';
-import config from './eco.config';
 
-const app = await createApp({ appConfig: config });
+const app = await createApp();
 
 app.get('/api/hello', async (ctx) => {
 	return ctx.response.json({ message: 'Hello world!' });

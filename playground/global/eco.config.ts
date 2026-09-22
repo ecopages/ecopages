@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
@@ -8,10 +8,10 @@ import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 import { reactPlugin } from '@ecopages/react';
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL,
+	integrations: [
 		kitajsPlugin(),
 		litPlugin(),
 		reactPlugin(),
@@ -20,8 +20,8 @@ export default await new ConfigBuilder()
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
@@ -39,5 +39,5 @@ export default await new ConfigBuilder()
 			},
 		}),
 		postcssProcessorPlugin(tailwindV3Preset()),
-	])
-	.build();
+	],
+});

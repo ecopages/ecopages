@@ -39,7 +39,7 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { createCustomElementSsrPreloadEntrypointResolver } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
+import { createSharedServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
 
 export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
@@ -203,22 +203,20 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		const preferSourceImports = typeof Bun !== 'undefined';
 		this.ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
-			/**
-			 * @remarks
-			 * Node production builds evaluate registration scripts through the
-			 * asset pipeline during render. Preloading through the app module loader
-			 * registers Radiant hosts in an isolated graph and breaks SSR.
-			 */
-			enabled: radiantSsrEnabled && preferSourceImports,
+			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
+			enabled: radiantSsrEnabled,
 			logLabel: 'ecopages-jsx',
 			preferSourceImports,
 			resolveDependencyPath: (componentDir, sourcePath) => this.resolveDependencyPath(componentDir, sourcePath),
-			resolvePreloadEntrypoint: createCustomElementSsrPreloadEntrypointResolver({
-				preferSourceImports,
-				processDependencies: this.assetProcessingService?.processDependencies?.bind(
-					this.assetProcessingService,
-				),
-			}),
+			/**
+			 * @remarks
+			 * Bun imports the source file through `preferSourceImports`. Node must
+			 * not: dev asset output is still the `.tsx` source, and a browser bundle
+			 * is a second Radiant graph. The page server-module loader transpiles
+			 * the script and externalizes packages, so `customElements.define` hits
+			 * the same module instances the page already loaded.
+			 */
+			importServerModule: preferSourceImports ? undefined : createSharedServerModuleImporter(this.appConfig),
 		});
 	}
 

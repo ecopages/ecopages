@@ -17,9 +17,7 @@ declare module '@ecopages/jsx' {
 }
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const RADIANT_HOST_SCRIPT = fileURLToPath(
-	new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url),
-);
+const RADIANT_HOST_SCRIPT = fileURLToPath(new URL('./fixtures/ssr-preload-radiant-host.script.tsx', import.meta.url));
 
 const Config = await createTestAppConfig();
 

@@ -134,9 +134,9 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx'),
-		).toEqual([]);
+		expect(collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx')).toEqual(
+			[],
+		);
 
 		const ownedOverride = eco.component(
 			bindComponentIdentity(
@@ -148,9 +148,9 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 				},
 			),
 		);
-		expect(
-			collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx'),
-		).toEqual(['/app/components/owned.script.ts']);
+		expect(collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx')).toEqual([
+			'/app/components/owned.script.ts',
+		]);
 	});
 
 	it('can limit collection to lazy scripts marked ssr: true', () => {

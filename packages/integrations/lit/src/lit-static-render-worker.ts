@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads';
-import { pathToFileURL } from 'node:url';
+import { loadEcoPagesConfig } from '@ecopages/core/config';
 import { setupAppRuntimePlugins } from '@ecopages/core/build/build-adapter';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
@@ -22,8 +22,7 @@ let routeRendererFactory: RouteRendererFactory | null = null;
  * before the Lit worker started (`ECOPAGES_LIT_STATIC_RENDER_WORKER`).
  */
 async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
-	const configModule = await import(/* @vite-ignore */ pathToFileURL(configModulePath).href);
-	appConfig = (configModule.default ?? configModule) as EcoPagesAppConfig;
+	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });
 
 	await setupAppRuntimePlugins({
 		appConfig,

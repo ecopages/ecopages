@@ -39,6 +39,10 @@ const sharedServerOptionDefinitions = {
 		type: 'string',
 		short: 'e',
 	},
+	config: {
+		type: 'string',
+		short: 'c',
+	},
 	help: {
 		type: 'boolean',
 		short: 'h',
@@ -60,6 +64,7 @@ function getMainHelpText() {
 		'',
 		'Global options:',
 		'  -e, --entry-file <file> Entry file (default: app.ts)',
+		'  -c, --config <file>     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help              Show help',
 		'  --version               Show version',
 	].join('\n');
@@ -79,6 +84,7 @@ function getServerCommandHelpText(commandName, description) {
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
+		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -97,6 +103,7 @@ function getBuildCommandHelpText() {
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
+		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -135,6 +142,7 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 			debug: values.debug,
 			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
+			configFile: values.config,
 		},
 	};
 }

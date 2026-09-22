@@ -170,6 +170,10 @@
 			"types": "./src/config/config-builder.ts",
 			"default": "./src/config/config-builder.ts"
 		},
+		"./config": {
+			"types": "./src/config/index.ts",
+			"default": "./src/config/index.ts"
+		},
 		"./constants": {
 			"types": "./src/config/constants.ts",
 			"default": "./src/config/constants.ts"

@@ -58,9 +58,9 @@ describe('createTestAppConfig', () => {
 		expect(config.templatesExt).toEqual([]);
 	});
 
-	it('allows builder overrides through configure', async () => {
+	it('allows user config overrides through configure', async () => {
 		const config = await createTestAppConfig({
-			configure: (builder) => builder.setRootDir('/tmp/test-root').setWorkDir('.eco-parallel'),
+			configure: (userConfig) => ({ ...userConfig, rootDir: '/tmp/test-root', workDir: '.eco-parallel' }),
 		});
 
 		expect(config.rootDir).toBe('/tmp/test-root');

@@ -110,7 +110,7 @@ export interface ProcessorAssetCapability {
 	extensions?: ProcessorExtensionPattern[];
 }
 
-export interface ProcessorConfig<TOptions = Record<string, unknown>> {
+export interface ProcessorConfig<TOptions = unknown> {
 	name: string;
 	description?: string;
 	options?: TOptions;
@@ -127,6 +127,11 @@ export interface ProcessorContext {
 }
 
 /**
+ * Unconstrained processor type for heterogeneous processor collections.
+ */
+export type AnyProcessor = Processor<unknown>;
+
+/**
  * Base class for content and asset processors that contribute build plugins.
  *
  * @remarks
@@ -139,7 +144,8 @@ export interface ProcessorContext {
  * Virtual modules that must resolve during route-module transpile belong in
  * `plugins`. Browser-only bundler hooks belong in `buildPlugins`.
  */
-export abstract class Processor<TOptions = Record<string, unknown>> {
+
+export abstract class Processor<TOptions = unknown> {
 	readonly name: string;
 	protected context?: ProcessorContext;
 	protected options?: TOptions;

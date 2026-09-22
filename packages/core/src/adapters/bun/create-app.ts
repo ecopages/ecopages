@@ -15,7 +15,7 @@ import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
-import type { EcopagesAppOptions } from '../create-app.ts';
+import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
@@ -44,7 +44,7 @@ export type BunRouteGroupBuilder<
  */
 
 export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplicationAdapter<
-	EcopagesAppOptions,
+	ResolvedEcopagesAppOptions,
 	Server<WebSocketData>,
 	Request
 > {
@@ -54,7 +54,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 	private readonly runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 
 	constructor(
-		options: EcopagesAppOptions,
+		options: ResolvedEcopagesAppOptions,
 		dependencies: {
 			runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 		},
@@ -265,7 +265,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
  * Factory function to create a Bun application
  */
 export async function createApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions,
+	options: ResolvedEcopagesAppOptions,
 ): Promise<BunEcopagesApp<WebSocketData>> {
 	return new BunEcopagesApp(options, {
 		runtimeHost: new BunRuntimeHost<WebSocketData>(),

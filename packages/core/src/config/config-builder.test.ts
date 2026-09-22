@@ -54,6 +54,15 @@ describe('EcoConfigBuilder', () => {
 		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
 	});
 
+	test('should honor setConfigModulePath for absolutePaths.config', async () => {
+		const config = await builder
+			.setRootDir('/project')
+			.setConfigModulePath('/project/config/eco.staging.ts')
+			.build();
+
+		expect(config.absolutePaths.config).toBe('/project/config/eco.staging.ts');
+	});
+
 	test('should configure static development prewarm paths', async () => {
 		const config = await builder.setDevPrewarmPaths(['/']).build();
 

@@ -2,6 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
+import {
+	resolveEcoConfigPath,
+	resolveEmittedEcoConfigPath,
+	assertProductionConfigIdentity,
+} from '@ecopages/core/config';
 
 const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 
@@ -26,7 +31,21 @@ export function buildEnvOverrides(options) {
 	if (options.debug) env.ECOPAGES_LOGGER_DEBUG = 'true';
 	if (options.nodeEnv) env.NODE_ENV = options.nodeEnv;
 	if (options.entryFile) env.ECOPAGES_ENTRY_FILE = options.entryFile;
+	if (options.configFile) {
+		env.ECOPAGES_CONFIG_FILE = path.isAbsolute(options.configFile)
+			? options.configFile
+			: path.resolve(process.cwd(), options.configFile);
+	}
 	return env;
+}
+
+export function resolveEcoConfigFilePath(options = {}, cwd = process.cwd(), resolverOptions = {}) {
+	return resolveEcoConfigPath({
+		configFile: options.configFile,
+		cwd,
+		required: false,
+		preferEmitted: resolverOptions.preferEmitted,
+	});
 }
 
 export function buildLaunchEnv(options) {
@@ -59,7 +78,7 @@ export function detectRuntime(options = {}) {
 	return 'node';
 }
 
-export function buildBunArgs(args, options, entryFile, hasConfig) {
+export function buildBunArgs(args, options, entryFile, configFilePath) {
 	const bunArgs = [];
 
 	if (options.watch) bunArgs.push('--watch');
@@ -67,8 +86,8 @@ export function buildBunArgs(args, options, entryFile, hasConfig) {
 
 	bunArgs.push('run');
 
-	if (hasConfig) {
-		bunArgs.push('--preload', `./eco.config.${'ts'}`);
+	if (configFilePath) {
+		bunArgs.push('--preload', configFilePath);
 	}
 
 	bunArgs.push(entryFile, ...args);
@@ -157,6 +176,10 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 	const { envOverrides, env } = buildLaunchEnv(resolvedOptions);
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
+	const isExplicitConfig = Boolean(resolvedOptions.configFile || process.env.ECOPAGES_CONFIG_FILE);
+	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd(), {
+		preferEmitted: usesProductionBundle(resolvedLaunchMode) && !isExplicitConfig,
+	});
 
 	const distServerApp = resolveProductionServerEntry(process.cwd());
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
@@ -167,6 +190,12 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 	}
 
 	if (useBundle) {
+		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, { isExplicitOverride: isExplicitConfig });
+		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd()) ?? resolvedConfigFile;
+		if (runtimeConfigFile) {
+			envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
+			env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
+		}
 		if (runtime === 'node') {
 			return {
 				runtime,
@@ -199,7 +228,7 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 	return {
 		runtime,
 		command: 'bun',
-		commandArgs: buildBunArgs(args, resolvedOptions, resolvedEntryFile, existsSync('eco.config.ts')),
+		commandArgs: buildBunArgs(args, resolvedOptions, resolvedEntryFile, resolvedConfigFile),
 		envOverrides,
 		env,
 	};

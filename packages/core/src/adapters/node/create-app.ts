@@ -3,7 +3,7 @@ import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
-import type { EcopagesAppOptions } from '../create-app.ts';
+import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
@@ -12,7 +12,7 @@ import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
-export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions, NodeServerInstance, Request> {
+export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
@@ -20,7 +20,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
 
 	constructor(
-		options: EcopagesAppOptions,
+		options: ResolvedEcopagesAppOptions,
 		dependencies: {
 			runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
 		},
@@ -165,12 +165,12 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<EcopagesAppOptions
 	}
 }
 
-export async function createNodeApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {
+export async function createNodeApp(options: ResolvedEcopagesAppOptions): Promise<NodeEcopagesApp> {
 	return new NodeEcopagesApp(options, {
 		runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
 	});
 }
 
-export async function createApp(options: EcopagesAppOptions): Promise<NodeEcopagesApp> {
+export async function createApp(options: ResolvedEcopagesAppOptions): Promise<NodeEcopagesApp> {
 	return createNodeApp(options);
 }

@@ -131,7 +131,7 @@ describe('StringMarkupRenderer', () => {
 			extensions: ['.deferred.ts'],
 		});
 		const config = await createTestAppConfig({
-			configure: (builder) => builder.setRootDir(FIXTURE_APP_PROJECT_DIR),
+			rootDir: FIXTURE_APP_PROJECT_DIR,
 			integrations: [createStringMarkupIntegration({ extensions: ['.ts'] }), deferredPlugin],
 			title: metadata.title,
 			description: metadata.description,

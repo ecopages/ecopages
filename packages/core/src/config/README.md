@@ -18,14 +18,22 @@ It is responsible for:
 
 ## Main Files
 
-- `config-builder.ts`: the primary builder and config finalization boundary
-- `config-builder.test.ts`: coverage for validation, path resolution, and runtime capability checks
+- `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
+- `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder`
+- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`)
+- `apply-user-config.ts`: maps declarative `EcoPagesUserConfig` fields onto `ConfigBuilder`
+- `is-finalized-app-config.ts`: rejects leftover `ConfigBuilder.build()` exports from `eco.config.ts`
+- `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
+- `config-builder.ts`: finalization boundary used by the loader and tests
+- `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup
+- `config-builder.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
 
 ## Ownership Rules
 
 - Integrations and processors declare contributions.
 - `ConfigBuilder.build()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
+- Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 
 App-owned is the default ownership path. Host-owned is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to app build execution.
 
@@ -34,3 +42,9 @@ App-owned is the default ownership path. Host-owned is explicit and should be se
 The result of this layer is a built `EcoPagesAppConfig` with resolved absolute paths and app-owned runtime services attached under `appConfig.runtime`.
 
 That built config is then consumed by server adapters, static generation, route rendering, and HMR.
+
+## Tests and fixtures
+
+- Production apps call `createApp()` (loads `eco.config.ts`) or pass `appConfig`, `userConfig`, or `configFile` explicitly.
+- `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached.
+- Core fixture helpers live in `packages/core/__fixtures__/app/test-app-config.ts` (`createFixtureAppConfig`, `createFixtureApp`).

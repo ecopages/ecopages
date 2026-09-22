@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0-rc.9
+
+### Patch Changes
+
+- [#317](https://github.com/ecopages/ecopages/pull/317) [`5a58517`](https://github.com/ecopages/ecopages/commit/5a58517de1f896240bb54858e12af9b872a76bb2) Thanks [@andeeplus](https://github.com/andeeplus)! - Register `ssr: true` custom-element scripts on Node through the page server-module loader. The dev asset pipeline still points at TypeScript source, so the previous Node preload never ran and hosts rendered as empty tags.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.9
+    - @ecopages/file-system@0.2.0-rc.9
+
 ## 0.2.0-rc.8
 
 ### Patch Changes

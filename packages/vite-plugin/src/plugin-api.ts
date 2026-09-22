@@ -14,8 +14,17 @@ import type { EcopagesVitePlugin } from './types.ts';
  * `EcoPagesAppConfig` export from `@ecopages/core` rather than the
  * `internal-types` import path.
  */
-export interface EcopagesViteOptions {
-	appConfig: EcoPagesAppConfig;
+type EcopagesViteConfigSource =
+	| {
+			appConfig: EcoPagesAppConfig;
+			configFile?: never;
+	  }
+	| {
+			appConfig?: never;
+			configFile?: string;
+	  };
+
+export type EcopagesViteOptions = EcopagesViteConfigSource & {
 	aliases?: Record<string, string>;
 	optimizeDeps?: {
 		include?: string[];
@@ -26,7 +35,7 @@ export interface EcopagesViteOptions {
 	diagnostics?: {
 		logResolvedPluginNames?: boolean;
 	};
-}
+};
 
 /**
  * Normalized Ecopages Vite options consumed by the composed plugin buckets.
@@ -105,10 +114,14 @@ export function adaptSourceTransformToVitePlugin(
 	};
 }
 
+export type ComposedEcopagesViteOptions = Omit<EcopagesViteOptions, 'configFile'> & {
+	appConfig: EcoPagesAppConfig;
+};
+
 /**
  * Creates the shared plugin API used by the composed Ecopages Vite surface.
  */
-export function createEcopagesPluginApi(options: EcopagesViteOptions): EcopagesPluginApi {
+export function createEcopagesPluginApi(options: ComposedEcopagesViteOptions): EcopagesPluginApi {
 	const resolvedOptions: ResolvedEcopagesViteOptions = {
 		appConfig: options.appConfig,
 		aliases: options.aliases ?? {},

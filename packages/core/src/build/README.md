@@ -45,6 +45,7 @@ build/
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
   runtime/                        profiles, executors, request policy/identity
+  server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, output normalization
   cache/                          persisted caches, fingerprints, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
@@ -60,6 +61,7 @@ build/
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `runtime/serialized-build-executor.ts`: FIFO queue primitive.
 - `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
+- `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `cache/cache-constants.ts`: shared `.build-cache.json` filename for persisted production caches.
 - `*.test.ts`: regression coverage colocated with each module.
 
@@ -175,6 +177,8 @@ Two persisted cache layers accelerate production builds. Both use `.build-cache.
 | Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` (module-loading) |
 
 `requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes both manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
+
+Server-entry cache hits require every recorded runtime artifact. Cache misses build the server entry and emitted config in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
 The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
 

@@ -2,7 +2,13 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { build, getAppBuildAdapter, setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
+import { build, setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
+import {
+	createServerBundleStagingDirectory,
+	publishServerBundleDirectory,
+	removeServerBundleStagingDirectory,
+	resolvePublishedServerBundlePaths,
+} from '../../../build/server-bundle-publication.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
@@ -10,12 +16,18 @@ import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
 	recordServerEntryBuildCache,
+	SERVER_BUNDLE_MANIFEST_FILENAME,
 	writeServerBundleDeployManifest,
 } from '../../../build/cache/server-entry-build-cache.ts';
 import {
 	clearProductionBuildCaches,
 	shouldResetStaticExportDirectory,
 } from '../../../static-site-generator/static-build-invalidation.ts';
+import {
+	assertCanBundleServerConfig,
+	bundleEcoConfigModule,
+	EMITTED_ECO_CONFIG_FILENAME,
+} from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
@@ -162,13 +174,7 @@ export class ServerStaticBuilder {
 	 * @throws If the build adapter is unavailable, is host-owned, or bundling fails.
 	 */
 	private async bundleServerEntry(options?: { force?: boolean }): Promise<void> {
-		const buildAdapter = getAppBuildAdapter(this.appConfig);
-		if (buildAdapter.ownership === 'vite-host') {
-			throw new Error(
-				'Cannot bundle the server entry file: build ownership is "vite-host". ' +
-					'The host runtime is expected to produce its own server bundle.',
-			);
-		}
+		assertCanBundleServerConfig(this.appConfig);
 
 		const entryPath = path.isAbsolute(this.entryFile)
 			? this.entryFile
@@ -180,7 +186,7 @@ export class ServerStaticBuilder {
 			);
 		}
 
-		const { serverOutdir, serverEntryPath } = getServerBundleOutputPaths(this.appConfig);
+		const { serverOutdir } = getServerBundleOutputPaths(this.appConfig);
 		const cached = lookupServerEntryBuildCache({
 			appConfig: this.appConfig,
 			entryPath,
@@ -188,48 +194,60 @@ export class ServerStaticBuilder {
 		});
 
 		if (cached) {
-			const hasBundle = cached.outputPaths.some(
-				(outputPath) =>
-					path.resolve(outputPath) === path.resolve(serverEntryPath) && fileSystem.exists(outputPath),
-			);
-			if (hasBundle) {
-				this.logger.info('Reusing cached server entry bundle');
-				writeServerBundleDeployManifest(this.appConfig, serverEntryPath);
-				return;
-			}
+			this.logger.info('Reusing cached server entry bundle');
+			return;
 		}
 
 		this.logger.info('Bundling server entry file...');
+		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
+		try {
+			const configBundle = await bundleEcoConfigModule(this.appConfig, {
+				outputDir: stagingDir,
+				runtimeDir: serverOutdir,
+			});
+			const stagedServerEntryPath = path.join(stagingDir, SERVER_BUNDLE_FILENAME);
+			const buildOptions = createServerBuildRequest(this.appConfig, {
+				profile: 'server-entry',
+				entrypoints: [entryPath],
+				outdir: stagingDir,
+				naming: SERVER_BUNDLE_FILENAME,
+				sourcemap: 'hidden',
+			});
+			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
 
-		const buildOptions = createServerBuildRequest(this.appConfig, {
-			profile: 'server-entry',
-			entrypoints: [entryPath],
-			outdir: serverOutdir,
-			naming: SERVER_BUNDLE_FILENAME,
-			sourcemap: 'hidden',
-		});
+			if (!result.success) {
+				const errorMessages = result.logs.map((log) => log.message).join('\n');
+				throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
+			}
 
-		const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
+			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
+				sourceConfigPath: this.appConfig.absolutePaths.config,
+				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,
+				outputDir: stagingDir,
+			});
 
-		if (!result.success) {
-			const errorMessages = result.logs.map((log) => log.message).join('\n');
-			throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
+			const stagedOutputPaths = [
+				...(result.outputs.length > 0
+					? result.outputs.map((output) => output.path)
+					: fileSystem.exists(stagedServerEntryPath)
+						? [stagedServerEntryPath]
+						: []),
+				...(configBundle ? [configBundle.emittedConfigPath] : []),
+				path.join(stagingDir, SERVER_BUNDLE_MANIFEST_FILENAME),
+			];
+			const outputPaths = resolvePublishedServerBundlePaths(stagedOutputPaths, stagingDir, serverOutdir);
+
+			publishServerBundleDirectory(stagingDir, serverOutdir);
+			recordServerEntryBuildCache({
+				appConfig: this.appConfig,
+				entryPath,
+				buildResult: result,
+				configBuildResult: configBundle?.buildResult,
+				outputPaths,
+			});
+		} finally {
+			removeServerBundleStagingDirectory(stagingDir);
 		}
-
-		const outputPaths =
-			result.outputs.length > 0
-				? result.outputs.map((output) => output.path)
-				: fileSystem.exists(serverEntryPath)
-					? [serverEntryPath]
-					: [];
-
-		recordServerEntryBuildCache({
-			appConfig: this.appConfig,
-			entryPath,
-			buildResult: result,
-			outputPaths,
-		});
-		writeServerBundleDeployManifest(this.appConfig, serverEntryPath);
 
 		this.logger.info('Server entry file bundled successfully');
 	}

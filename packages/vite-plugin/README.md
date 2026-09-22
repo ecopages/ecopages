@@ -15,14 +15,13 @@ You also need `@ecopages/core` and an Ecopages project config exported from `eco
 ```ts
 import { defineConfig } from 'vite';
 import { ecopages } from '@ecopages/vite-plugin';
-import appConfig from './eco.config';
 
 export default defineConfig({
-	plugins: [ecopages({ appConfig })],
+	plugins: [ecopages()],
 });
 ```
 
-The `appConfig` value should come from the Ecopages config builder flow. The plugin expects the public `EcoPagesAppConfig` export from `@ecopages/core`.
+By default the plugin loads and finalizes `eco.config.ts` from the project root. Pass `configFile` for a custom path, or `appConfig` in tests to skip loading.
 
 ## Plugin ordering
 
@@ -32,7 +31,7 @@ Recommended order:
 
 ```ts
 export default defineConfig({
-	plugins: [ecopages({ appConfig }), react(), tailwindcss()],
+	plugins: [ecopages(), react(), tailwindcss()],
 });
 ```
 

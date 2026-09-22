@@ -71,12 +71,13 @@ describe('launch-plan', () => {
 		expect(detectRuntime({ runtime: 'node' })).toBe('node');
 	});
 
-	it('buildBunArgs preloads eco.config.ts when present', () => {
-		expect(buildBunArgs(['--dev'], { hot: true }, 'app.ts', true)).toEqual([
+	it('buildBunArgs preloads the resolved config path when present', () => {
+		const configPath = '/tmp/project/eco.config.staging.ts';
+		expect(buildBunArgs(['--dev'], { hot: true }, 'app.ts', configPath)).toEqual([
 			'--hot',
 			'run',
 			'--preload',
-			'./eco.config.ts',
+			configPath,
 			'app.ts',
 			'--dev',
 		]);
@@ -197,7 +198,8 @@ describe('launch-plan', () => {
 				runtime: 'bun',
 				command: 'bun',
 			});
-			expect(plan.commandArgs).toEqual(['run', '--preload', './eco.config.ts', 'app.ts', '--preview']);
+			const configPreload = path.join(fs.realpathSync(tempDir), 'eco.config.ts');
+			expect(plan.commandArgs).toEqual(['run', '--preload', configPreload, 'app.ts', '--preview']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -280,6 +282,39 @@ describe('launch-plan', () => {
 				expect(plan.commandArgs).toEqual([
 					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('runs production bundles with the emitted config even when source config exists', () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				const serverDir = path.join(tempDir, 'dist', SERVER_BUNDLE_DIR);
+				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
+				const emittedConfigPath = path.join(serverDir, 'eco.config.mjs');
+				const resolvedEmittedConfigPath = path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, 'eco.config.mjs');
+				fs.mkdirSync(serverDir, { recursive: true });
+				fs.writeFileSync(path.join(serverDir, SERVER_BUNDLE_FILENAME), '// bundled', 'utf8');
+				fs.writeFileSync(sourceConfigPath, 'export default {}', 'utf8');
+				fs.writeFileSync(emittedConfigPath, 'export default {}', 'utf8');
+				fs.writeFileSync(
+					path.join(serverDir, 'manifest.json'),
+					JSON.stringify({
+						serverEntry: SERVER_BUNDLE_FILENAME,
+						distDir: path.join(tempDir, 'dist'),
+						sourceConfigPath,
+						sourceConfigRelativePath: 'eco.config.ts',
+						emittedConfigModule: 'eco.config.mjs',
+					}),
+					'utf8',
+				);
+
+				const plan = createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
+
+				expect(plan.env.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
+				expect(plan.envOverrides.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}

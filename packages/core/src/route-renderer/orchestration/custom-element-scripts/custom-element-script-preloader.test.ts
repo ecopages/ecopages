@@ -88,6 +88,71 @@ describe('collectCustomElementSsrPreloadScripts', () => {
 		]);
 	});
 
+	it('can limit collection to one integration while still walking nested components', () => {
+		const radiantChild = eco.component(
+			bindComponentIdentity(
+				{ id: 'radiant', file: '/app/components/radiant.eco.tsx', integration: 'ecopages-jsx' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: './radiant.script.ts', ssr: true }] },
+				},
+			),
+		);
+		const group = eco.component(
+			bindComponentIdentity(
+				{ id: 'group', file: '/app/components/group.kita.tsx', integration: 'kitajs' },
+				{
+					render: () => '',
+					dependencies: {
+						components: [radiantChild],
+						scripts: [{ src: './kita.script.ts', ssr: true }],
+					},
+				},
+			),
+		);
+
+		expect(
+			collectCustomElementSsrPreloadScripts(
+				[group],
+				(componentDir, sourcePath) => path.join(componentDir, sourcePath),
+				false,
+				'ecopages-jsx',
+			),
+		).toEqual(['/app/components/radiant.script.ts']);
+	});
+
+	it('prefers config.integration over identity when filtering owned scripts', () => {
+		const resolvePath = (componentDir: string, sourcePath: string) => path.join(componentDir, sourcePath);
+
+		const foreignOverride = eco.component(
+			bindComponentIdentity(
+				{ id: 'foreign', file: '/app/components/foreign.eco.tsx', integration: 'ecopages-jsx' },
+				{
+					integration: 'kitajs',
+					render: () => '',
+					dependencies: { scripts: [{ src: './foreign.script.ts', ssr: true }] },
+				},
+			),
+		);
+		expect(
+			collectCustomElementSsrPreloadScripts([foreignOverride], resolvePath, false, 'ecopages-jsx'),
+		).toEqual([]);
+
+		const ownedOverride = eco.component(
+			bindComponentIdentity(
+				{ id: 'owned', file: '/app/components/owned.kita.tsx', integration: 'kitajs' },
+				{
+					integration: 'ecopages-jsx',
+					render: () => '',
+					dependencies: { scripts: [{ src: './owned.script.ts', ssr: true }] },
+				},
+			),
+		);
+		expect(
+			collectCustomElementSsrPreloadScripts([ownedOverride], resolvePath, false, 'ecopages-jsx'),
+		).toEqual(['/app/components/owned.script.ts']);
+	});
+
 	it('can limit collection to lazy scripts marked ssr: true', () => {
 		const host = eco.component(
 			bindComponentIdentity(

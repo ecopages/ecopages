@@ -54,9 +54,8 @@ API routes are defined on your app instance in `app.ts`:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/users/:id', async ({ params, response }) => {
 	return response.json({ userId: params.id });
@@ -80,13 +79,14 @@ Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define
 Set the canonical base URL in `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl('https://example.com')
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: 'https://example.com',
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ### 404 Page

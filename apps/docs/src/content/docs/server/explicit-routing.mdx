@@ -24,9 +24,8 @@ Define routes using HTTP method functions on your app instance:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/users', async (ctx) => {
 	const users = await getUsers();
@@ -429,7 +428,7 @@ export default PostView;
 Explicit routes take precedence over file-system routes:
 
 ```typescript
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Explicit routes (higher priority)
 app.get('/posts', posts.index);
@@ -448,11 +447,10 @@ await app.start();
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { z } from 'zod';
-import appConfig from './eco.config';
 import { PostView, PostListView } from './src/views';
 import type { EcoMiddleware } from '@ecopages/core';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) => {
 	const session = await getSession(ctx.request.headers);

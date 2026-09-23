@@ -1,16 +1,16 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL)
-	.setIntegrations([reactPlugin({ router: ecoRouter(), mdx: { enabled: true }, explicitGraph: true })])
-	.setProcessors([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL,
+	integrations: [reactPlugin({ router: ecoRouter(), mdx: { enabled: true }, explicitGraph: true })],
+	processors: [
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
@@ -28,7 +28,5 @@ const config = await new ConfigBuilder()
 			},
 		}),
 		postcssProcessorPlugin(tailwindV3Preset()),
-	])
-	.build();
-
-export default config;
+	],
+});

@@ -26,6 +26,7 @@
 		"typecheck": "bunx tsc --noEmit"
 	},
 	"dependencies": {
+		"@clack/prompts": "^1.7.0",
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",
@@ -170,6 +171,10 @@
 			"types": "./src/config/config-builder.ts",
 			"default": "./src/config/config-builder.ts"
 		},
+		"./config": {
+			"types": "./src/config/index.ts",
+			"default": "./src/config/index.ts"
+		},
 		"./constants": {
 			"types": "./src/config/constants.ts",
 			"default": "./src/config/constants.ts"
@@ -213,6 +218,11 @@
 		"./hmr/client/hmr-runtime": {
 			"types": "./src/hmr/client/hmr-runtime.ts",
 			"default": "./src/hmr/client/hmr-runtime.ts"
+		},
+		"./dev/development-restart": {
+			"import": "./src/dev/development-restart.ts",
+			"types": "./src/dev/development-restart.ts",
+			"default": "./src/dev/development-restart.ts"
 		},
 		"./dev/host-runtime": {
 			"types": "./src/dev/host-runtime.ts",

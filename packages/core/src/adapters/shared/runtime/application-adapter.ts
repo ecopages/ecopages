@@ -12,6 +12,8 @@ import {
 	type RouteGroupDefinition,
 	type RouteHandler,
 } from '../../abstract/application-adapter.ts';
+import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../../dev/development-restart.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 
 export abstract class SharedApplicationAdapter<
 	TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
@@ -195,5 +197,19 @@ export abstract class SharedApplicationAdapter<
 		}
 
 		return this;
+	}
+
+	protected createDevelopmentRestartHandler(): ((changedFile: string) => Promise<void>) | undefined {
+		if (this.runtimeOptions.embedded) {
+			return undefined;
+		}
+
+		return async (changedFile: string) => {
+			appLogger.info(
+				`Configuration or environment file changed (${changedFile}). Restarting development server...`,
+			);
+			await this.stop();
+			process.exit(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		};
 	}
 }

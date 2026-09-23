@@ -35,24 +35,24 @@ You can customize this in your `eco.config.ts` file:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = process.cwd();
+const appRoot = import.meta.dirname;
 
-const config = await new ConfigBuilder()
-	// ... other configurations
-	.setProcessors([
+export default defineConfig({
+	rootDir: appRoot,
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
 		),
-	])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ## Script and CSS Loading
@@ -217,9 +217,8 @@ Ecopages provides a simple and intuitive way to create API endpoints and handle 
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/hello', async () => {
 	return new Response(JSON.stringify({ message: 'Hello world!' }));

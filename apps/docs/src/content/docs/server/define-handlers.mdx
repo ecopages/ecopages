@@ -94,7 +94,7 @@ Register prebuilt handlers with `app.add()`. Use `app.get(path, handler)` only f
 import { createApp } from '@ecopages/core/create-app';
 import * as blog from './handlers/blog';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.add(blog.list);
 app.add(blog.detail);
@@ -199,9 +199,8 @@ Register the entire group with `app.group()`:
 // app.ts
 import { createApp } from '@ecopages/core/create-app';
 import { adminGroup } from './handlers/admin';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.group(adminGroup);
 
@@ -390,7 +389,7 @@ export const protectedGroup = defineGroupHandler({
 import { createApp } from '@ecopages/core/create-app';
 import * as blog from './handlers/blog';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Public
 app.add(blog.list);

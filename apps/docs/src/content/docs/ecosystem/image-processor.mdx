@@ -33,16 +33,16 @@ Add the image processor to your Ecopages configuration:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 
-const appRoot = process.cwd();
+const appRoot = import.meta.dirname;
 
-export default await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setProcessors([
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	processors: [
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),
@@ -59,9 +59,9 @@ export default await new ConfigBuilder()
 				],
 			},
 		}),
-	])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 The processor name and image asset capabilities are fixed inside the plugin factory. Pass options only through `imageProcessorPlugin({ options })`.

@@ -71,7 +71,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 		...overrides,
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
-		sourceTransforms: getAppSourceTransforms(appConfig),
+		sourceTransforms: [...getAppSourceTransforms(appConfig), ...(input.sourceTransforms ?? [])],
 	};
 }
 

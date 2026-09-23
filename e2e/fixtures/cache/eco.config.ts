@@ -1,9 +1,7 @@
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { createStringMarkupIntegration } from '@ecopages/testing';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setIntegrations([createStringMarkupIntegration({ extensions: ['.ts'] })])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dir,
+	integrations: [createStringMarkupIntegration({ extensions: ['.ts'] })],
+});

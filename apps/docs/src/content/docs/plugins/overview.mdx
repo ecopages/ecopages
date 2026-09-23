@@ -44,14 +44,15 @@ Source transforms rewrite module source during browser and HMR builds. They are 
 Plugins are configured in your `eco.config.ts` file:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setProcessors([postcssProcessorPlugin()])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	processors: [postcssProcessorPlugin()],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 See [Custom Processor](/docs/plugins/custom-processor) and [Custom Integration](/docs/plugins/custom-integration) for details on creating your own plugins.

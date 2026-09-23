@@ -279,6 +279,23 @@ describe('ServerStaticBuilder', () => {
 			});
 			expect(builder).toBeDefined();
 		});
+
+		it('uses the rebound listening port for later builds', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
+				createMockDependencies();
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://localhost:3000',
+				logger,
+			});
+
+			builder.setRuntimeBinding({ port: 3001, runtimeOrigin: 'http://localhost:3001' });
+			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+
+			expect(calls.staticSiteGeneratorRun[0]).toMatchObject({ baseUrl: 'http://localhost:3001' });
+		});
 	});
 
 	describe('build', () => {

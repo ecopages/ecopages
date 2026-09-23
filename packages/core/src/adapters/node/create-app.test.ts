@@ -23,6 +23,7 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			buildStatic: async () => undefined,
 			servePreviewOnly: async () => undefined,
 			attachUserWebSocketUpgrades: () => {},
+			applyBoundPort: () => {},
 			dispose: async () => {},
 		};
 	}

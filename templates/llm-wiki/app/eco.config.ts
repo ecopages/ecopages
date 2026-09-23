@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { compareWikiEntries, wikiFrontmatterSchema } from './src/content/wiki';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -25,17 +25,17 @@ function resolveAppRoot(): string {
 
 const appRoot = resolveAppRoot();
 
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(LLM_WIKI_ORIGIN)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: LLM_WIKI_ORIGIN,
+	integrations: [
 		ecopagesJsxPlugin({
 			extensions: ['.tsx'],
 			mdx: mdxPluginOptions,
 		}),
-	])
-	.setAdditionalWatchPaths(['src/lib', 'src/layouts/docs-layout'])
-	.setProcessors([
+	],
+	additionalWatchPaths: ['src/lib', 'src/layouts/docs-layout'],
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
@@ -54,12 +54,10 @@ const config = await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.setDefaultMetadata({
+	],
+	defaultMetadata: {
 		title: 'LLM Wiki',
 		description: 'A persistent, LLM-maintained knowledge base',
 		image: '/favicon/favicon.svg',
-	})
-	.build();
-
-export default config;
+	},
+});

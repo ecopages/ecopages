@@ -5,6 +5,10 @@ import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan } from './launch-plan.js';
+import {
+	ECOPAGES_DEV_RESTART_EXIT_CODE,
+	ECOPAGES_DEV_RESTART_REASON_ENV,
+} from '@ecopages/core/dev/development-restart';
 import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
@@ -39,6 +43,10 @@ const sharedServerOptionDefinitions = {
 		type: 'string',
 		short: 'e',
 	},
+	config: {
+		type: 'string',
+		short: 'c',
+	},
 	help: {
 		type: 'boolean',
 		short: 'h',
@@ -60,6 +68,7 @@ function getMainHelpText() {
 		'',
 		'Global options:',
 		'  -e, --entry-file <file> Entry file (default: app.ts)',
+		'  -c, --config <file>     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help              Show help',
 		'  --version               Show version',
 	].join('\n');
@@ -79,6 +88,7 @@ function getServerCommandHelpText(commandName, description) {
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
+		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -97,6 +107,7 @@ function getBuildCommandHelpText() {
 		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
+		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -135,11 +146,12 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 			debug: values.debug,
 			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
+			configFile: values.config,
 		},
 	};
 }
 
-function runLaunchPlan(launchPlan) {
+function runLaunchPlan(launchPlan, options = {}) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
 		logger.debug(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
 	}
@@ -167,6 +179,11 @@ function runLaunchPlan(launchPlan) {
 	});
 
 	child.on('exit', (code) => {
+		if (options.superviseDevRestarts && code === ECOPAGES_DEV_RESTART_EXIT_CODE) {
+			options.onDevRestart?.();
+			return;
+		}
+
 		process.exit(code || 0);
 	});
 }
@@ -179,23 +196,38 @@ function runLaunchPlan(launchPlan) {
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
-	let launchPlan;
 	const requiresBuiltBundle = launchMode === 'start';
+	const superviseDevRestarts = launchMode === 'dev';
 
 	if (!requiresBuiltBundle && !existsSync(entryFile)) {
 		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
 		process.exit(1);
 	}
 
-	try {
-		launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		logger.error(message);
-		process.exit(1);
-	}
+	const launchChild = async (restartReason) => {
+		let launchPlan;
+		try {
+			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			logger.error(message);
+			process.exit(1);
+		}
 
-	runLaunchPlan(launchPlan);
+		if (restartReason) {
+			launchPlan.env[ECOPAGES_DEV_RESTART_REASON_ENV] = restartReason;
+			launchPlan.envOverrides[ECOPAGES_DEV_RESTART_REASON_ENV] = restartReason;
+		}
+
+		runLaunchPlan(launchPlan, {
+			superviseDevRestarts,
+			onDevRestart: () => {
+				void launchChild('configuration or environment change');
+			},
+		});
+	};
+
+	await launchChild();
 }
 
 async function runServerCommand(rawArgs, definition) {

@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
@@ -52,6 +53,7 @@ export interface NodeServerAdapterParams {
 	};
 	deferRuntimeAssetSetup?: boolean;
 	allowPortFallback?: boolean;
+	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	previewHost?: StaticPreviewHost;
 	requestBridge?: NodeHttpRequestBridge;
 	devRuntimeFactory?: NodeServerDevRuntimeFactory;
@@ -96,6 +98,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
 	private readonly allowPortFallback: boolean;
+	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly previewHost: StaticPreviewHost;
 	private readonly requestBridge: NodeHttpRequestBridge;
 	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
@@ -151,6 +154,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		super(options);
 		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
 		this.allowPortFallback = options.allowPortFallback !== false;
+		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorHandler = options.errorHandler;
@@ -275,6 +279,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			applyBoundPort: this.applyBoundPort.bind(this),
 			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
 			dispose: this.dispose.bind(this),
 		};
@@ -418,6 +423,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				hmrManager: this.hmrManager ?? undefined,
 				bridge: this.bridge,
 				hostOwnsDevClient: this.hostOwnsDevClient,
+				onRestartRequest: this.onDevelopmentRestart,
+				entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
 			});
 
 			this.projectWatcher = watcher;

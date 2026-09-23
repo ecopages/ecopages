@@ -41,18 +41,14 @@ Install the integration and its peer runtimes:
 Register the `ecopagesJsxPlugin` in your Ecopages config.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 By default, the plugin owns `.tsx` route files and compiles them against `@ecopages/jsx` with the automatic JSX runtime.
@@ -142,25 +138,21 @@ If a Radiant host is missing from SSR HTML, confirm the registration script is o
 Enable `mdx` to let the same integration own `.mdx` routes compiled against `@ecopages/jsx`.
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const appRoot = process.cwd();
-
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
 				enabled: true,
 				extensions: ['.mdx', '.md'],
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should stay on a non-React JSX runtime without the Ecopages JSX route owner.

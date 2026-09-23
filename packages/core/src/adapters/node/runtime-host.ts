@@ -39,10 +39,11 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, { port?:
 	): Promise<NodeServerInstance> {
 		const hostname = String(options.serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
 		const port = Number(options.serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
-		const runtimeOrigin = resolveServeRuntimeOrigin({ hostname, port });
 
-		const server = this.serverFactory(async (req, res) => {
+		let server: NodeServerInstance;
+		server = this.serverFactory(async (req, res) => {
 			try {
+				const runtimeOrigin = this.getOrigin(server, options.serveOptions);
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin);
 				const response = await options.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);
@@ -58,8 +59,12 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, { port?:
 			}
 		});
 
-		await new Promise<void>((resolve) => {
-			server.listen(port, hostname, () => resolve());
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(port, hostname, () => {
+				server.off('error', reject);
+				resolve();
+			});
 		});
 
 		return server;

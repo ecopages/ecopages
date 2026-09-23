@@ -42,16 +42,16 @@ Peer dependency: `@ecopages/core`.
 Register the processor in `eco.config.ts` and wire MDX frontmatter into your JSX or React integration:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import remarkGfm from 'remark-gfm';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
 				enabled: true,
@@ -60,8 +60,8 @@ export default await new ConfigBuilder()
 				}),
 			},
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		contentProcessorPlugin({
 			options: {
 				collections: {
@@ -74,8 +74,8 @@ export default await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
+	],
+});
 ```
 
 React apps use the same helper on `reactPlugin({ mdx: { enabled: true, ...withContentMdxPlugins() } })`.

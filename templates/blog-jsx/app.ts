@@ -2,14 +2,13 @@ import path from 'node:path';
 import { createApp } from '@ecopages/core/create-app';
 import { POSTS_CONTENT_DIR, comparePosts, postsFrontmatterSchema } from './src/content/posts';
 import { generateRss } from './src/content/generate-rss';
-import appConfig from './eco.config';
 
 const appRoot = import.meta.dirname;
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 await generateRss({
 	appRoot,
-	baseUrl: appConfig.baseUrl,
+	baseUrl: app.config.baseUrl,
 	contentRoot: path.join(appRoot, 'src', POSTS_CONTENT_DIR),
 	schema: postsFrontmatterSchema,
 	orderBy: comparePosts,

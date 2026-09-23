@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { createLogger, defineConfig, type Logger } from 'vite';
 import { ecopages } from '@ecopages/vite-plugin';
-import appConfig from './eco.config';
 
 const configRoot = import.meta.dirname;
 const generatedDirs = ['.e2e', 'dist', '.eco'];
@@ -45,11 +44,7 @@ const ignoredWatchPaths = Array.from(
 export default defineConfig({
 	logLevel: isCrossIntegrationE2e ? 'warn' : 'info',
 	customLogger: isCrossIntegrationE2e ? createCrossIntegrationE2eLogger() : undefined,
-	plugins: [
-		ecopages({
-			appConfig,
-		}),
-	],
+	plugins: [ecopages()],
 	server: {
 		watch: {
 			ignored: ignoredWatchPaths,

@@ -24,19 +24,20 @@ The plugin is **private to the monorepo** today but documents the host-side inte
 	defaultSelectedKey="npm"
 />
 
-Export your app config from `eco.config.ts` using `ConfigBuilder` (see [Configuration](/docs/getting-started/configuration)).
+Configure your project using `defineConfig` in `eco.config.ts` (see [Configuration](/docs/getting-started/configuration)).
 
 ## Usage
 
 ```typescript
 import { defineConfig } from 'vite';
 import { ecopages } from '@ecopages/vite-plugin';
-import appConfig from './eco.config';
 
 export default defineConfig({
-	plugins: [ecopages({ appConfig })],
+	plugins: [ecopages()],
 });
 ```
+
+`ecopages()` automatically loads and finalizes `eco.config.ts` asynchronously (using `buildOwnership: 'vite-host'`). You can also specify an alternate config path with `ecopages({ configFile: 'custom.config.ts' })` or supply a pre-finalized `appConfig` in tests.
 
 Register `ecopages()` **before** framework plugins such as `@vitejs/plugin-react` or Tailwind when those plugins also transform JSX or CSS.
 

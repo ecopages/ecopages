@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ApiHandler,
@@ -84,6 +85,7 @@ export interface BunServerAdapterParams {
 	hostOwnsDevClient?: boolean;
 	deferRuntimeAssetSetup?: boolean;
 	allowPortFallback?: boolean;
+	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	hmrManager?: HmrManager;
 	bridge?: ClientBridge;
 	previewHost?: StaticPreviewHost;
@@ -127,6 +129,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
 	private readonly allowPortFallback: boolean;
+	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly previewHost: StaticPreviewHost;
 
 	/**
@@ -214,6 +217,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		hostOwnsDevClient,
 		deferRuntimeAssetSetup,
 		allowPortFallback,
+		onDevelopmentRestart,
 		hmrManager,
 		bridge,
 		previewHost,
@@ -225,6 +229,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		super({ appConfig, runtimeOrigin, serveOptions, options });
 		this.deferRuntimeAssetSetup = deferRuntimeAssetSetup === true;
 		this.allowPortFallback = allowPortFallback !== false;
+		this.onDevelopmentRestart = onDevelopmentRestart;
 		this.apiHandlers = apiHandlers || [];
 		this.staticRoutes = staticRoutes || [];
 		this.errorHandler = errorHandler;
@@ -342,6 +347,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
 			hostOwnsDevClient: this.hostOwnsDevClient,
+			onRestartRequest: this.onDevelopmentRestart,
+			entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
 		});
 
 		this.projectWatcher = watcher;
@@ -670,6 +677,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
 			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			applyBoundPort: this.applyBoundPort.bind(this),
 			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
 			dispose: this.dispose.bind(this),
 		};

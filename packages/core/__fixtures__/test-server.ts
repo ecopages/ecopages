@@ -5,14 +5,12 @@
  * Usage: bun packages/core/__fixtures__/test-server.ts
  */
 
-import { createFixtureAppConfig } from './app/test-app-config';
-import { createBunServerAdapter } from '../src/adapters/bun/server-adapter';
+import { createFixtureApp } from './app/test-app-config.ts';
 import { Logger } from '@ecopages/logger';
 
 const logger = new Logger('[test-server]');
 
 const TEST_PORT = 3002;
-const TEST_URL = `http://localhost:${TEST_PORT}`;
 
 async function isPortInUse(port: number): Promise<boolean> {
 	try {
@@ -29,37 +27,36 @@ async function startServer() {
 		return;
 	}
 
+	if (!process.argv.includes('--dev')) {
+		process.argv.push('--dev');
+	}
+
 	logger.info('Starting fixture server with HMR...');
 
-	const appConfig = await createFixtureAppConfig();
-
-	const serverAdapter = await createBunServerAdapter({
-		appConfig,
-		runtimeOrigin: TEST_URL,
-		options: { watch: true },
-		serveOptions: {
+	const app = await createFixtureApp({
+		serverOptions: {
 			port: TEST_PORT,
 			hostname: 'localhost',
 		},
-		apiHandlers: [],
 	});
 
-	const server = Bun.serve(serverAdapter.getServerOptions({ enableHmr: true }) as any);
-	await serverAdapter.completeInitialization(server);
+	await app.start(({ origin }) => {
+		logger.info(`Fixture server running at ${origin}`);
+		logger.info('Press Ctrl+C to stop');
+	});
 
-	logger.info(`Fixture server running at ${TEST_URL}`);
-	logger.info('Press Ctrl+C to stop');
+	const shutdown = async () => {
+		logger.info('Stopping...');
+		await app.stop(true);
+		process.exit(0);
+	};
 
 	process.on('SIGINT', () => {
-		logger.info('\nStopping...');
-		server.stop(true);
-		process.exit(0);
+		void shutdown();
 	});
 
 	process.on('SIGTERM', () => {
-		console.log('\n[test-server] Stopping...');
-		server.stop(true);
-		process.exit(0);
+		void shutdown();
 	});
 }
 

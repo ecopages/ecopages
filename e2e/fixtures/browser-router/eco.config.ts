@@ -1,18 +1,16 @@
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
+export default defineConfig({
+	rootDir: import.meta.dir,
+	baseUrl: import.meta.env.ECOPAGES_BASE_URL,
+	integrations: [
 		kitajsPlugin(),
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});

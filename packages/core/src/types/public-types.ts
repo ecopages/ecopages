@@ -434,14 +434,7 @@ export type EcoChildren =
 			values?: readonly EcoChildren[];
 	  };
 
-/**
- * Represents the input configuration for EcoPages.
- */
-export type EcoPagesConfig = Omit<
-	Partial<EcoPagesAppConfig>,
-	'baseUrl' | 'derivedPaths' | 'templatesExt' | 'integrationsDependencies'
-> &
-	Pick<EcoPagesAppConfig, 'baseUrl' | 'rootDir'>;
+export type { EcoPagesUserConfig } from '../config/user-config-types.ts';
 
 export type EcoComponentConfig = {
 	/** Canonical integration, module, and stable component attribution. */

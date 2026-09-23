@@ -101,6 +101,7 @@ type RuntimeCapabilityOwner = {
  */
 export class ConfigBuilder {
 	private buildOwnership: BuildOwnership = 'rolldown';
+	private configModulePath?: string;
 
 	public config: EcoPagesAppConfig = {
 		baseUrl: '',
@@ -197,6 +198,18 @@ export class ConfigBuilder {
 	 */
 	setBuildOwnership(buildOwnership: BuildOwnership): this {
 		this.buildOwnership = buildOwnership;
+		return this;
+	}
+
+	/**
+	 * Sets the canonical path of the Ecopages config module on disk.
+	 *
+	 * @remarks
+	 * Used by the config loader so {@link EcoPagesAppConfig.absolutePaths.config}
+	 * reflects `--config` overrides and production-emitted config modules.
+	 */
+	setConfigModulePath(configModulePath: string): this {
+		this.configModulePath = configModulePath;
 		return this;
 	}
 
@@ -527,7 +540,7 @@ export class ConfigBuilder {
 		const absolutePagesDir = path.join(absoluteSrcDir, pagesDir);
 
 		this.config.absolutePaths = {
-			config: path.join(projectDir, 'eco.config.ts'),
+			config: this.configModulePath ?? path.join(projectDir, 'eco.config.ts'),
 			projectDir: projectDir,
 			srcDir: absoluteSrcDir,
 			distDir: absoluteDistDir,

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -5,7 +6,8 @@ import type {
 	EcoComponent,
 	EcoPagesElement,
 } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
+import { finalizeEcoPagesConfig, type EcoPagesUserConfig } from '@ecopages/core/config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
@@ -18,13 +20,19 @@ export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
 
 export type CreateTestAppConfigOptions = {
 	baseUrl?: string;
-	configure?: (builder: ConfigBuilder) => ConfigBuilder | void;
+	/** Adjusts the user config before finalization (same shape as `eco.config.ts`). */
+	configure?: (config: EcoPagesUserConfig) => EcoPagesUserConfig | void;
 	description?: string;
 	distDir?: string;
 	integrations?: AnyIntegrationPlugin[];
+	rootDir?: string;
 	runtimeOrigin?: string;
 	title?: string;
+	workDir?: string;
 };
+
+export type CreateTestAppOptions = CreateTestAppConfigOptions &
+	Omit<EcopagesAppOptions, 'appConfig' | 'configFile' | 'userConfig'>;
 
 export type CreateDeferredIntegrationPluginOptions = {
 	extensions?: string[];
@@ -84,34 +92,39 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 		description = 'Ecopages',
 		distDir,
 		integrations = [createStringMarkupIntegration()],
+		rootDir = '.',
 		runtimeOrigin = baseUrl,
 		title = 'Ecopages',
+		workDir,
 	} = options;
 
-	let builder = new ConfigBuilder();
-
-	if (distDir) {
-		builder = builder.setDistDir(distDir);
-	}
-
-	const configuredBuilder = configure?.(builder);
-	if (configuredBuilder) {
-		builder = configuredBuilder;
-	}
-
-	const config = await builder
-		.setRobotsTxt({
+	let userConfig: EcoPagesUserConfig = {
+		rootDir,
+		baseUrl,
+		distDir,
+		workDir,
+		integrations,
+		defaultMetadata: {
+			title,
+			description,
+		},
+		robotsTxt: {
 			preferences: {
 				'*': [],
 			},
-		})
-		.setIntegrations(integrations)
-		.setDefaultMetadata({
-			title,
-			description,
-		})
-		.setBaseUrl(baseUrl)
-		.build();
+		},
+	};
+
+	const configured = configure?.(userConfig);
+	if (configured) {
+		userConfig = configured;
+	}
+
+	const resolvedRoot = path.resolve(userConfig.rootDir);
+	const config = await finalizeEcoPagesConfig({
+		config: userConfig,
+		configFilePath: path.join(resolvedRoot, 'eco.config.ts'),
+	});
 
 	for (const integration of integrations) {
 		integration.setConfig(config);
@@ -119,6 +132,36 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 	}
 
 	return config;
+}
+
+/** Creates a universal Ecopages app using {@link createTestAppConfig}. */
+export async function createTestApp(options: CreateTestAppOptions = {}) {
+	const {
+		baseUrl,
+		configure,
+		description,
+		distDir,
+		integrations,
+		rootDir,
+		runtimeOrigin,
+		title,
+		workDir,
+		...appOptions
+	} = options;
+
+	const appConfig = await createTestAppConfig({
+		baseUrl,
+		configure,
+		description,
+		distDir,
+		integrations,
+		rootDir,
+		runtimeOrigin,
+		title,
+		workDir,
+	});
+
+	return createApp({ ...appOptions, appConfig });
 }
 
 export type { EcoPagesAppConfig, AnyIntegrationPlugin };

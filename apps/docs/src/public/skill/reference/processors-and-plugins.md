@@ -120,10 +120,11 @@ Class-based integrations extend `IntegrationPlugin`, provide a renderer, and spl
 For filter-based module rewrites during browser/HMR builds:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 
-await new ConfigBuilder()
-	.setSourceTransforms([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	sourceTransforms: [
 		{
 			name: 'banner-transform',
 			filter: /entry\.tsx$/,
@@ -131,8 +132,8 @@ await new ConfigBuilder()
 				return { code: `/* banner */\n${code}` };
 			},
 		},
-	])
-	.build();
+	],
+});
 ```
 
 Prefer source transforms over competing `onLoad` plugins when the change is a pure source rewrite.

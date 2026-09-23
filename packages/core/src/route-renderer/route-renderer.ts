@@ -68,6 +68,26 @@ export class RouteRendererFactory {
 	}
 
 	/**
+	 * Rebinds renderer creation to the actual listening origin.
+	 *
+	 * @remarks
+	 * A development server may select a fallback port after this factory is
+	 * constructed. Cached renderers retain their original page-module loader, so
+	 * they must be discarded when the origin changes.
+	 */
+	setRuntimeOrigin(runtimeOrigin: string): void {
+		if (this.runtimeOrigin === runtimeOrigin) {
+			return;
+		}
+
+		this.runtimeOrigin = runtimeOrigin;
+		this.rendererCache.clear();
+		for (const integration of this.appConfig.integrations) {
+			integration.setRuntimeOrigin?.(runtimeOrigin);
+		}
+	}
+
+	/**
 	 * Returns a route renderer for the supplied route file.
 	 */
 	getPageRenderer(filePath: string): PageRouteRenderer {

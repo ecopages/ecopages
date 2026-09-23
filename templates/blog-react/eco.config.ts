@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { POSTS_CONTENT_DIR, comparePosts, postsFrontmatterSchema } from './src/content/posts';
 import { blogMdxPluginOptions } from './src/lib/mdx-plugin-options';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
@@ -11,21 +11,21 @@ import { ecoRouter } from '@ecopages/react-router';
 
 const appRoot = import.meta.dirname;
 
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setSitemap({
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	sitemap: {
 		enabled: true,
 		extraUrls: ['/rss.xml'],
 		exclude: ['/404', '/500'],
-	})
-	.setIntegrations([
+	},
+	integrations: [
 		reactPlugin({
 			router: ecoRouter(),
 			mdx: blogMdxPluginOptions,
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		contentProcessorPlugin({
 			options: {
 				collections: {
@@ -59,7 +59,5 @@ const config = await new ConfigBuilder()
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildResult } from '../../build/build-adapter.ts';
@@ -176,11 +177,22 @@ export function resolveRouteModuleDependencyPaths(
 		? path.normalize(entrypointPath)
 		: path.normalize(path.resolve(rootDir, entrypointPath));
 
+	let realEntrypoint: string | undefined;
+	try {
+		realEntrypoint = fileSystem.exists(normalizedEntrypoint) ? fs.realpathSync(normalizedEntrypoint) : undefined;
+	} catch {
+		// fall back
+	}
+
 	const graphEntrypoints = buildResult.dependencyGraph?.entrypoints ?? {};
 	const dependencyPaths =
 		graphEntrypoints[normalizedEntrypoint] ??
+		(realEntrypoint ? graphEntrypoints[realEntrypoint] : undefined) ??
 		graphEntrypoints[entrypointPath] ??
-		Object.entries(graphEntrypoints).find(([candidate]) => path.normalize(candidate) === normalizedEntrypoint)?.[1];
+		Object.entries(graphEntrypoints).find(([candidate]) => {
+			const norm = path.normalize(candidate);
+			return norm === normalizedEntrypoint || (realEntrypoint !== undefined && norm === realEntrypoint);
+		})?.[1];
 
 	if (!dependencyPaths || dependencyPaths.length === 0) {
 		return [normalizedEntrypoint];

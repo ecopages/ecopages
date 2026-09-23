@@ -26,6 +26,7 @@
 		"typecheck": "bunx tsc --noEmit"
 	},
 	"dependencies": {
+		"@clack/prompts": "^1.7.0",
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",

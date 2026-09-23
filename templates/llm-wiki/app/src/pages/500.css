@@ -1,5 +1,5 @@
 .error500 {
-	@apply flex min-h-[calc(100vh-64px)] items-center justify-center p-8;
+	@apply flex items-center justify-center p-8;
 
 	&__content {
 		@apply w-full max-w-xl text-center;
@@ -23,6 +23,6 @@
 	}
 
 	&__actions {
-		@apply flex justify-center;
+		@apply mt-8 flex flex-wrap justify-center gap-4;
 	}
 }

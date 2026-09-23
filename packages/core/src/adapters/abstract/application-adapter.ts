@@ -12,6 +12,7 @@ import {
 	getAppModuleLoader,
 	setAppHostModuleLoader,
 } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
 import { getHostModuleLoader } from '../../services/module-loading/host-module-loader-registry.ts';
 import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -24,9 +25,12 @@ import type {
 	RouteOptions,
 	StaticRoute,
 	ViewLoader,
+	ErrorPageLoaders,
+	ErrorPageTemplateProps,
 	EcopagesRouteInfo,
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
+import { ERROR_PAGE_KIND_BY_STATUS, type HttpErrorPageStatus } from '../../errors/http-error-page-contract.ts';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	formatRuntimeServerStartedMessage,
@@ -148,6 +152,7 @@ export abstract class AbstractApplicationAdapter<
 	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
+	protected errorPageLoaders: ErrorPageLoaders = {};
 	protected errorHandler?: ErrorHandler;
 	/**
 	 * App-level WebSocket handlers keyed by URL path pattern (e.g. '/ws/chat/:id').
@@ -376,19 +381,27 @@ export abstract class AbstractApplicationAdapter<
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
 	 *
-	 * Uses a loader function to enable HMR in development.
+	 * String and URL inputs load through the server-module transpiler so HMR and
+	 * component identity transforms remain active in development.
 	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
-	 * @param loader - A function that dynamically imports the eco.page view module
+	 * @param loader - A view loader function, source path, or URL for the eco.page view module
 	 * @example
 	 * ```typescript
-	 * app.static('/login', () => import('./src/views/login.kita'))
-	 * app.static('/posts/:slug', () => import('./src/views/post-view.kita'))
+	 * app.static('/login', './src/views/login.kita')
+	 * app.static('/posts/:slug', './src/views/post-view.kita')
 	 * ```
 	 */
-	static<P>(path: string, loader: ViewLoader<P>): this {
-		this.staticRoutes.push({ path, loader });
+	static<P>(path: string, loader: ViewLoader<P> | string | URL): this {
+		const resolvedLoader = this.resolveViewLoader(loader);
+		this.staticRoutes.push({ path, loader: resolvedLoader });
 		return this;
+	}
+
+	private resolveViewLoader<P>(loader: ViewLoader<P> | string | URL): ViewLoader<P> {
+		return typeof loader === 'string' || loader instanceof URL
+			? createViewModuleLoader<P>(this.appConfig, loader)
+			: loader;
 	}
 
 	/**
@@ -396,6 +409,51 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	getStaticRoutes(): StaticRoute[] {
 		return this.staticRoutes;
+	}
+
+	/**
+	 * Registers a semantic HTML error page used when no filesystem `pages/{status}.*`
+	 * file exists.
+	 */
+	errorPage(status: HttpErrorPageStatus, loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		const kind = ERROR_PAGE_KIND_BY_STATUS[status];
+		const resolvedLoader = this.resolveViewLoader<ErrorPageTemplateProps>(loader);
+		this.errorPageLoaders = { ...this.errorPageLoaders, [kind]: resolvedLoader };
+		return this;
+	}
+
+	badRequest(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(400, loader);
+	}
+
+	unauthorized(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(401, loader);
+	}
+
+	forbidden(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(403, loader);
+	}
+
+	/**
+	 * Registers the not-found page used when no filesystem `pages/404.*` file exists.
+	 */
+	notFound(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(404, loader);
+	}
+
+	conflict(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(409, loader);
+	}
+
+	/**
+	 * Registers the server-error page used when no filesystem `pages/500.*` file exists.
+	 */
+	serverError(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(500, loader);
+	}
+
+	getErrorPageLoaders(): ErrorPageLoaders {
+		return this.errorPageLoaders;
 	}
 
 	/**

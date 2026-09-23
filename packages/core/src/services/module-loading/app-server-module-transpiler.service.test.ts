@@ -59,6 +59,7 @@ describe('app server module transpiler runtime state', () => {
 	it('keeps Ecopages integration modules on the framework transpiler path', () => {
 		const appConfig = {
 			absolutePaths: {
+				srcDir: '/app/src',
 				componentsDir: '/app/src/components',
 				includesDir: '/app/src/includes',
 				layoutsDir: '/app/src/layouts',
@@ -71,6 +72,7 @@ describe('app server module transpiler runtime state', () => {
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/index.tsx'), true);
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/includes/html.kita.tsx'), false);
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/layouts/base-layout.kita.tsx'), false);
+		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/views/explicit-team-view.kita.tsx'), false);
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/counter.lit.tsx'), false);
 		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/components/counter.lit.tsx'), false);
 	});

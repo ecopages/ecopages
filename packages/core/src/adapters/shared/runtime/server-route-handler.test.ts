@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ServerRouteHandler } from './server-route-handler';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
+import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import type { IHmrManager } from '../../../types/public-types.ts';
+import { HttpError } from '../../../errors/http-error.ts';
 
 function createMockDependencies() {
 	const Router = {
@@ -13,6 +15,7 @@ function createMockDependencies() {
 	const FileSystemResponseMatcher = {
 		handleMatch: vi.fn(() => Promise.resolve(new Response('Matched Content'))),
 		handleNoMatch: vi.fn(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
+		renderServerError: vi.fn(() => Promise.resolve(new Response('Internal Server Error', { status: 500 }))),
 	} as unknown as FileSystemResponseMatcher;
 
 	const HmrManager = {
@@ -58,6 +61,53 @@ describe('ServerRouteHandler', () => {
 			expect(response.status).toBe(404);
 		});
 
+		it('should render a server error when an explicit static route throws', async () => {
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const explicitError = new Error('Intentional server error');
+			const handler = new ServerRouteHandler({
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				explicitStaticRouteMatcher: {
+					match: vi.fn(() => ({ route: { path: '/boom', loader: vi.fn() }, params: {} })),
+					handleMatch: vi.fn(async () => {
+						throw explicitError;
+					}),
+				} as unknown as ExplicitStaticRouteMatcher,
+			});
+
+			const response = await handler.handleResponse(new Request('http://localhost/boom'));
+
+			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
+			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalledWith('/boom', explicitError);
+			expect(response.status).toBe(500);
+		});
+
+		it('should forward HttpError.NotFound from an explicit static route to renderServerError', async () => {
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const notFound = HttpError.NotFound('Post not found');
+			FileSystemResponseMatcher.renderServerError = vi.fn(() =>
+				Promise.resolve(new Response('Not Found', { status: 404 })),
+			);
+			const handler = new ServerRouteHandler({
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				explicitStaticRouteMatcher: {
+					match: vi.fn(() => ({
+						route: { path: '/posts/:slug', loader: vi.fn() },
+						params: { slug: 'missing' },
+					})),
+					handleMatch: vi.fn(async () => {
+						throw notFound;
+					}),
+				} as unknown as ExplicitStaticRouteMatcher,
+			});
+
+			const response = await handler.handleResponse(new Request('http://localhost/posts/missing'));
+
+			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalledWith('/posts/missing', notFound);
+			expect(response.status).toBe(404);
+		});
+
 		it('should not inject HMR script (injection lives in SharedServerAdapter)', async () => {
 			const { Router, FileSystemResponseMatcher, HmrManager } = createMockDependencies();
 			const handler = new ServerRouteHandler({
@@ -99,6 +149,7 @@ describe('ServerRouteHandler', () => {
 			const response = await handler.handleNoMatch(request);
 
 			expect(response.status).toBe(500);
+			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalled();
 			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'Test Error' });
 		});
 	});

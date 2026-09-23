@@ -12,6 +12,7 @@ export default defineConfig({
 	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	integrations: [
 		ecopagesJsxPlugin({
+			radiant: true,
 			mdx: {
 				enabled: true,
 			},

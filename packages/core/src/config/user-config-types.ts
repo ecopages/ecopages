@@ -55,14 +55,14 @@ export type EcoPagesUserConfig = {
 	publicDir?: string;
 
 	/**
-	 * Directory containing page route templates, relative to `srcDir`.
+	 * Directory containing page route files and semantic HTML error pages (`400.ts` through `500.ts`), relative to `srcDir`.
 	 *
 	 * @default 'pages'
 	 */
 	pagesDir?: string;
 
 	/**
-	 * Directory containing reusable includes, partials, or semantic templates (`html.ts`, `404.ts`, `500.ts`), relative to `srcDir`.
+	 * Directory containing reusable includes or the semantic `html.*` document shell, relative to `srcDir`.
 	 *
 	 * @default 'includes'
 	 */

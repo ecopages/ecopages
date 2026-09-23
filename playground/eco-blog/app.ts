@@ -8,8 +8,8 @@ const app = await createApp();
 await app
 	.get('/api/auth/*', auth.authHandler)
 	.post('/api/auth/*', auth.authHandler)
-	.static('/login', () => import('./src/views/auth/login.kita'))
-	.static('/signup', () => import('./src/views/auth/signup.kita'))
+	.static('/login', './src/views/auth/login.kita')
+	.static('/signup', './src/views/auth/signup.kita')
 	.add(blog.list)
 	.add(blog.detail)
 	.group(adminGroup)

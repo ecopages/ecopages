@@ -238,6 +238,19 @@ Standalone response helpers (`json`, `html`, `redirect`) share the same body emi
 
 Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
+### 6. Error pages
+
+Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:
+
+```typescript
+app.notFound('./src/views/not-found.kita');
+app.serverError('./src/views/server-error.kita');
+```
+
+String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms.
+
+When no custom page is configured, built-in HTML defaults are served instead.
+
 Attach the handler in your `app.ts` entry:
 
 ```typescript

@@ -68,7 +68,14 @@ export class ServerRouteHandler {
 		const explicitMatch = this.explicitStaticRouteMatcher?.match(request.url);
 
 		if (explicitMatch) {
-			return await this.explicitStaticRouteMatcher!.handleMatch(explicitMatch);
+			try {
+				return await this.explicitStaticRouteMatcher!.handleMatch(explicitMatch);
+			} catch (error) {
+				if (error instanceof Response) {
+					return error;
+				}
+				return await this.fileSystemResponseMatcher.renderServerError(pathname, error);
+			}
 		}
 
 		const fsMatch = !pathname.includes('.') && this.router.matchRequest(request.url);
@@ -90,8 +97,8 @@ export class ServerRouteHandler {
 	 * @throws HttpError for standard HTTP errors
 	 */
 	async handleNoMatch(request: Request): Promise<Response> {
+		const pathname = new URL(request.url).pathname;
 		try {
-			const pathname = new URL(request.url).pathname;
 			return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
 		} catch (error) {
 			if (error instanceof HttpError) {
@@ -101,7 +108,7 @@ export class ServerRouteHandler {
 				this.hmrManager?.broadcast({ type: 'error', message: error.message });
 				appLogger.error('Error handling no match:', error);
 			}
-			return new Response('Internal Server Error', { status: 500 });
+			return await this.fileSystemResponseMatcher.renderServerError(pathname, error);
 		}
 	}
 }

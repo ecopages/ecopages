@@ -544,6 +544,71 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/robots.txt', expect.any(String));
 		});
 
+		test('should emit built-in semantic error pages when no custom pages are configured', async () => {
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+			});
+
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', expect.stringContaining('Not Found'));
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/403.html', expect.stringContaining('Forbidden'));
+			expect(writeMock).toHaveBeenCalledWith(
+				'/test/project/dist/500.html',
+				expect.stringContaining('Something went wrong'),
+			);
+		});
+
+		test('should emit registered semantic error views through the explicit renderer', async () => {
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const view = Object.assign(() => null, {
+				config: { identity: { integration: 'fixture', file: '/src/views/not-found.tsx' } },
+			});
+			const renderToResponse = vi.fn(async () => new Response('<html>Registered not found</html>'));
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+				} satisfies StaticGenerationRendererFactory,
+				errorPageLoaders: {
+					notFound: async () => ({ default: view as never }),
+				},
+			});
+
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', '<html>Registered not found</html>');
+			expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
+		});
+
+		test('should fail the build when a registered semantic error view breaks', async () => {
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+
+			await expect(
+				ssg.run({
+					router: {
+						listStaticGenerationRoutes: vi.fn(async () => []),
+					} satisfies StaticGenerationRunnerInput['router'],
+					baseUrl: 'http://localhost:3000',
+					routeRendererFactory: {
+						getPageRenderer: vi.fn(),
+						getExplicitViewRenderer: vi.fn(),
+					} satisfies StaticGenerationRendererFactory,
+					errorPageLoaders: {
+						notFound: async () => {
+							throw new Error('broken not-found view');
+						},
+					},
+				}),
+			).rejects.toThrow('broken not-found view');
+		});
+
 		test('should write sitemap.xml after afterStaticExport when enabled', async () => {
 			const afterStaticExport = vi.fn(async () => {});
 			const ssg = new StaticSiteGenerator({

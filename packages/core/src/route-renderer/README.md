@@ -52,6 +52,10 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 - `RouteRendererFactory` chooses integration renderers from route files
 - `RouteRenderer` delegates execution to the selected renderer
 
+### `explicit-view-render-preparation.ts`
+
+Resolves the integration renderer and static props for one `eco.page()` view. Explicit static routes, static export, and registered error pages share this helper so view rendering does not fork per caller.
+
 ### `orchestration/`
 
 Root renderer classes:

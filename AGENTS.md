@@ -6,10 +6,14 @@ When behavior changes, update that folder's README and any parent index that lis
 
 ## Comments
 
-- No inline `//` for non-obvious behavior — document on the declaration with TSDoc.
+- No inline `//` for non-obvious behavior: document on the declaration with TSDoc.
 - TSDoc only when it adds info beyond the name; never restate the method/class/function.
 - Use `@remarks` for rationale, edge cases, and workarounds (`@remarks`-only blocks are fine).
 - Skip TSDoc on trivial or self-explanatory code.
+
+## Punctuation
+
+- Do not use em dashes. Rewrite the sentence with a period, colon, comma, semicolon, or parentheses.
 
 ## Formatting
 

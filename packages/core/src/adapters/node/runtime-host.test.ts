@@ -19,6 +19,8 @@ describe('NodeRuntimeHost', () => {
 		const serverFactory = vi.fn().mockImplementation((handler) => {
 			requestHandler = handler;
 			return {
+				once: vi.fn(),
+				off: vi.fn(),
 				listen: (_port: number, _hostname: string, callback: () => void) => callback(),
 				close: (_callback: (error?: Error | null) => void) => undefined,
 				closeAllConnections: () => undefined,
@@ -44,5 +46,35 @@ describe('NodeRuntimeHost', () => {
 		expect(loggerSpy).not.toHaveBeenCalled();
 		expect(res.end).not.toHaveBeenCalled();
 		expect(onError).not.toHaveBeenCalled();
+	});
+
+	it('rejects when listen fails with EADDRINUSE', async () => {
+		const requestBridge = {
+			createWebRequest: vi.fn(),
+			sendNodeResponse: vi.fn(),
+		};
+		const serverFactory = vi.fn().mockImplementation(() => {
+			return {
+				once: vi.fn().mockImplementation((event: string, handler: (error: Error) => void) => {
+					if (event === 'error') {
+						handler(Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' }));
+					}
+				}),
+				off: vi.fn(),
+				listen: vi.fn(),
+				close: vi.fn(),
+				closeAllConnections: vi.fn(),
+				address: vi.fn(),
+			};
+		});
+		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
+
+		await expect(
+			host.start({
+				serveOptions: { hostname: 'localhost', port: 3000 },
+				handleRequest: async () => new Response('ok'),
+				onError: async () => {},
+			}),
+		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});
 });

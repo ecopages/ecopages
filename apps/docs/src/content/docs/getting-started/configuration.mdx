@@ -30,6 +30,8 @@ export default defineConfig({
 
 `createApp()` loads and finalizes this file automatically. Override the path with `createApp({ configFile })`, `ECOPAGES_CONFIG_FILE`, or `ecopages dev --config <file>`.
 
+In development, adding, changing, or removing `eco.config.ts` or a supported project `.env` file restarts the dev server so integrations, directories, and environment values reload. Supported files are `.env`, `.env.local`, `.env.[NODE_ENV]`, and `.env.[NODE_ENV].local`. Page and component files still hot-reload without a full restart.
+
 ## Configuration API
 
 <ApiField name="rootDir" mandatory defaultValue="." type="string" setter="setRootDir">

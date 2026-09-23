@@ -125,6 +125,8 @@ Used to determine where the server listens.
 2. **Environment Variables**: `ECOPAGES_PORT` and `ECOPAGES_HOSTNAME`.
 3. **Defaults**: `localhost:3000`.
 
+When the preferred port is already in use, `ecopages dev` and `ecopages preview` can bind the next free port. TTY sessions ask for confirmation. Non-interactive sessions scan automatically only for the default port; a port pinned with `--port` or `ECOPAGES_PORT` fails instead.
+
 | Variable                | Description                          | Default                 |
 | :---------------------- | :----------------------------------- | :---------------------- |
 | `ECOPAGES_BASE_URL`     | The canonical base URL of your site. | `http://localhost:3000` |

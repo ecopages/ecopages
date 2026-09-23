@@ -41,7 +41,7 @@ function resolveViewModuleFilePath(appConfig: EcoPagesAppConfig, modulePath: str
  * Creates a view loader that imports through the app server-module transpiler.
  *
  * @remarks
- * Use this for `app.static()`, `app.notFound()`, and `app.serverError()` instead of
+ * Use this for `app.static()` and HTML error-page registrations instead of
  * raw dynamic `import()` so Node applies Ecopages build transforms (component identity).
  */
 export function createViewModuleLoader<P = Record<string, unknown>>(

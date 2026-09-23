@@ -555,6 +555,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', expect.stringContaining('Not Found'));
+			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/403.html', expect.stringContaining('Forbidden'));
 			expect(writeMock).toHaveBeenCalledWith(
 				'/test/project/dist/500.html',
 				expect.stringContaining('Something went wrong'),
@@ -583,7 +584,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', '<html>Registered not found</html>');
-			expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), {}, { status: 404 });
+			expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 		});
 
 		test('should fail the build when a registered semantic error view breaks', async () => {

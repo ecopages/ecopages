@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { HttpError } from '../../errors/http-error.ts';
 import { ErrorPageRenderer } from './error-page-renderer.ts';
 
 const appConfig = {
@@ -67,7 +68,7 @@ describe('ErrorPageRenderer', () => {
 
 		expect(result.body).toBe('<html>registered</html>');
 		expect(result.sourceFile).toBe('/app/src/views/not-found.kita.tsx');
-		expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), {}, { status: 404 });
+		expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 	});
 
 	it('falls back to the built-in document when no custom source exists', async () => {
@@ -78,6 +79,29 @@ describe('ErrorPageRenderer', () => {
 
 		expect(result.body).toContain('eco-error-page__title">Not Found</h1>');
 		expect(result.sourceFile).toBeUndefined();
+	});
+
+	it('renders the built-in forbidden document for status 403', async () => {
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const renderer = new ErrorPageRenderer({ appConfig });
+
+		const result = await renderer.render({
+			kind: 'forbidden',
+			error: HttpError.Forbidden('Admin only'),
+		});
+
+		expect(result.body).toContain('eco-error-page__title">Forbidden</h1>');
+		expect(result.body).toContain('Admin only');
+	});
+
+	it('renders a generic built-in document for non-factory 4xx statuses', async () => {
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const renderer = new ErrorPageRenderer({ appConfig });
+
+		const result = await renderer.render({ status: 418, error: new Error("I'm a teapot") });
+
+		expect(result.body).toContain('eco-error-page__title">Error 418</h1>');
+		expect(result.body).toContain('I&#39;m a teapot');
 	});
 
 	it('does not re-enter a custom source from renderBuiltIn', async () => {

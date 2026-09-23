@@ -36,25 +36,12 @@ export class FileSystemServerResponseFactory {
 	}
 
 	/**
-	 * Wraps already-rendered HTML in a 404 response envelope.
+	 * Wraps already-rendered HTML in an error response envelope.
 	 */
-	async createHtmlNotFoundResponse(body: RouteRendererBody) {
+	async createHtmlErrorResponse(status: number, body: RouteRendererBody) {
 		return await this.createResponseWithBody(body, {
-			status: 404,
-			statusText: STATUS_MESSAGE[404],
-			headers: {
-				'Content-Type': 'text/html; charset=utf-8',
-			},
-		});
-	}
-
-	/**
-	 * Wraps already-rendered HTML in a 500 response envelope.
-	 */
-	async createHtmlServerErrorResponse(body: RouteRendererBody) {
-		return await this.createResponseWithBody(body, {
-			status: 500,
-			statusText: STATUS_MESSAGE[500],
+			status,
+			statusText: STATUS_MESSAGE[status as keyof typeof STATUS_MESSAGE] ?? String(status),
 			headers: {
 				'Content-Type': 'text/html; charset=utf-8',
 			},

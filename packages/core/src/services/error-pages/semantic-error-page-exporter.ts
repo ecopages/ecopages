@@ -1,4 +1,9 @@
 import type { RouteRendererBody } from '../../types/public-types.ts';
+import {
+	ERROR_PAGE_KIND_BY_STATUS,
+	HTTP_ERROR_PAGE_STATUSES,
+	SEMANTIC_ERROR_PAGE_PATHNAMES,
+} from '../../errors/http-error-page-contract.ts';
 import { ErrorPageRenderer, type ErrorPageKind } from './error-page-renderer.ts';
 
 type StaticArtifactWriter = (input: {
@@ -9,7 +14,7 @@ type StaticArtifactWriter = (input: {
 }) => Promise<void>;
 
 /**
- * Emits semantic 404 and 500 artifacts using the same renderer as requests.
+ * Emits semantic error-page artifacts using the same renderer as requests.
  */
 export class SemanticErrorPageExporter {
 	private readonly errorPageRenderer: ErrorPageRenderer;
@@ -27,10 +32,11 @@ export class SemanticErrorPageExporter {
 	}
 
 	async export(activeStaticPathnames: Set<string>): Promise<void> {
-		await Promise.all([
-			this.exportOne('notFound', '/404', activeStaticPathnames),
-			this.exportOne('serverError', '/500', activeStaticPathnames),
-		]);
+		await Promise.all(
+			HTTP_ERROR_PAGE_STATUSES.map((status) =>
+				this.exportOne(ERROR_PAGE_KIND_BY_STATUS[status], `/${status}`, activeStaticPathnames),
+			),
+		);
 	}
 
 	private async exportOne(kind: ErrorPageKind, pathname: string, activeStaticPathnames: Set<string>): Promise<void> {
@@ -54,3 +60,5 @@ export class SemanticErrorPageExporter {
 		return await new Response(body as BodyInit).text();
 	}
 }
+
+export { SEMANTIC_ERROR_PAGE_PATHNAMES };

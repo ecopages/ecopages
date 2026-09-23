@@ -1,4 +1,5 @@
 import { appLogger } from '../../../global/app-logger.ts';
+import { shouldLogPageFailure } from '../../../errors/http-error-page-contract.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { StaticRoute } from '../../../types/public-types.ts';
 import type { ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
@@ -79,10 +80,12 @@ export class ExplicitStaticRouteMatcher {
 
 			return renderer.renderToResponse(renderableView, props, {});
 		} catch (error) {
-			appLogger.error(
-				`Error rendering explicit static route ${route.path}:`,
-				error instanceof Error ? error : String(error),
-			);
+			if (shouldLogPageFailure(error)) {
+				appLogger.error(
+					`Error rendering explicit static route ${route.path}:`,
+					error instanceof Error ? error : String(error),
+				);
+			}
 			throw error;
 		}
 	}

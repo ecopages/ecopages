@@ -84,26 +84,29 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
-	describe('createHtmlNotFoundResponse', () => {
+	describe('createHtmlErrorResponse', () => {
 		it('should create an html 404 response from a rendered body', async () => {
-			const response = await responseFactory.createHtmlNotFoundResponse('<h1>404 - Page Not Found</h1>');
+			const response = await responseFactory.createHtmlErrorResponse(404, '<h1>404 - Page Not Found</h1>');
 			const body = await response.text();
 			expect(body).toContain('<h1>404 - Page Not Found</h1>');
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			expect(response.status).toBe(404);
+			expect(response.statusText).toBe(STATUS_MESSAGE[404]);
 		});
-	});
 
-	describe('createHtmlServerErrorResponse', () => {
 		it('should create an html 500 response from a rendered body', async () => {
-			const response = await responseFactory.createHtmlServerErrorResponse(
-				'<h1>500 - Internal Server Error</h1>',
-			);
+			const response = await responseFactory.createHtmlErrorResponse(500, '<h1>500 - Internal Server Error</h1>');
 			const body = await response.text();
 			expect(body).toContain('<h1>500 - Internal Server Error</h1>');
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			expect(response.status).toBe(500);
 			expect(response.statusText).toBe(STATUS_MESSAGE[500]);
+		});
+
+		it('should keep a non-factory status on the response envelope', async () => {
+			const response = await responseFactory.createHtmlErrorResponse(502, '<h1>Bad Gateway</h1>');
+			expect(response.status).toBe(502);
+			expect(response.statusText).toBe('502');
 		});
 	});
 

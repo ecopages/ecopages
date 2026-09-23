@@ -42,7 +42,10 @@ import { resolveSitemapLocations } from './sitemap-routes.ts';
 import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
 import { normalizePathname } from '../utils/path-pattern.ts';
 import { ErrorPageRenderer } from '../services/error-pages/error-page-renderer.ts';
-import { SemanticErrorPageExporter } from '../services/error-pages/semantic-error-page-exporter.ts';
+import {
+	SemanticErrorPageExporter,
+	SEMANTIC_ERROR_PAGE_PATHNAMES,
+} from '../services/error-pages/semantic-error-page-exporter.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
@@ -553,7 +556,7 @@ export class StaticSiteGenerator {
 		}
 
 		this.generateRobotsTxt();
-		const semanticErrorPathnames = new Set(['/404', '/500']);
+		const semanticErrorPathnames = new Set<string>(SEMANTIC_ERROR_PAGE_PATHNAMES);
 		const pageRoutes = input.routes.filter((route) => !semanticErrorPathnames.has(route.pathname));
 		await this.generateStaticPages({
 			router: input.router,

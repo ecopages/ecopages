@@ -35,7 +35,7 @@ Three concentric shapes, plus profile executors and request policy:
 
 Plus one translation bridge:
 
-- `rolldown/rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into the bundler's native `Plugin` array. Each `EcoBuildPlugin` becomes its own plugin entry to preserve plugin-priority order.
+- `rolldown/rolldown-plugin-bridge.ts`: converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into the bundler's native `Plugin` array. Each `EcoBuildPlugin` becomes its own plugin entry to preserve plugin-priority order.
 
 ## Files
 
@@ -75,10 +75,10 @@ build/
 
 | Integration getter       | Processor getter | Manifest bucket          | Used in                                                          |
 | ------------------------ | ---------------- | ------------------------ | ---------------------------------------------------------------- |
-| — (loaders on config)    | —                | `loaderPlugins`          | Server and browser                                               |
+| (loaders on config)      | Not applicable   | `loaderPlugins`          | Server and browser                                               |
 | `plugins`                | `plugins`        | `runtimePlugins`         | Server and browser                                               |
 | `browserBuildPlugins`    | `buildPlugins`   | `browserBundlePlugins`   | Browser only                                                     |
-| `browserRuntimeManifest` | —                | `browserRuntimeManifest` | Browser (rewrite map; core synthesizes `browser-runtime-plugin`) |
+| `browserRuntimeManifest` | Not applicable   | `browserRuntimeManifest` | Browser (rewrite map; core synthesizes `browser-runtime-plugin`) |
 
 **Sealing flow**
 
@@ -131,9 +131,9 @@ Vite-based apps (or any future host runtime) should:
 
 `EcoBuildPluginBuilder` exposes three hooks:
 
-- `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
-- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
-- `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
+- `onResolve({ filter, namespace? }, callback)`: the bundler's `resolveId` mapped to the shared plugin shape.
+- `onLoad({ filter, namespace? }, callback)`: the bundler's `load` mapped the same way.
+- `module(specifier, callback)`: declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
 
@@ -141,9 +141,9 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 `BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
 
-- `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
-- `bundle` — accepted but ignored. The bundler always bundles.
-- `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
+- `splitting`: when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
+- `bundle`: accepted but ignored. The bundler always bundles.
+- `outbase`: accepted but ignored. The adapter derives the base from `options.root` directly.
 
 These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
 
@@ -218,10 +218,10 @@ Ecopages bundles with Rolldown across Node, Bun, and browser targets. Vite-hoste
 Rolldown evaluates plugin hooks on the Rust side and only calls JavaScript when the filter matches. Hooks without filters run for every module through Rust→JS FFI, causing **3–4× slowdown** with multiple plugins.
 
 ```typescript
-// BAD — called for every module
+// BAD: called for every module
 resolveId(source, importer) { /* ... */ }
 
-// GOOD — skipped unless the filter matches
+// GOOD: skipped unless the filter matches
 resolveId: {
   filter: { id: /\.tsx?$/ },
   handler(source, importer) { /* ... */ },

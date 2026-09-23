@@ -116,7 +116,7 @@ export type ReactPluginOptions = {
 	 *
 	 * Manual entries override auto-discovered entries for the same specifier.
 	 * Discovery normalizes package subpaths to package roots when collecting
-	 * vendors. Import rewrite matches exact specifiers only — register subpaths
+	 * vendors. Import rewrite matches exact specifiers only: register subpaths
 	 * separately in `runtimeModules` when page code imports them directly.
 	 *
 	 * `externals` on a library vendor must already be shared vendors (React, the

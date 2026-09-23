@@ -1,6 +1,6 @@
 # Dev toolbar (core)
 
-Server-side wiring for the development-only in-browser inspector. Public docs: [Dev toolbar](/docs/core/dev-toolbar).
+Server-side wiring for the development-only in-browser inspector. Public docs: [Dev toolbar](/docs/ecosystem/dev-toolbar).
 
 ## Boundaries
 
@@ -8,7 +8,7 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | **Core** (`DevToolbarHost`)               | Enablement, `/_dev_toolbar.js` delivery, per-route `#__ECO_DEV_MANIFEST__`, HTML script injection |
 | **Client package** (`devToolbar.package`) | Dock UI, panels, and any extra apps                                                               |
-| **Integrations**                          | Page rendering and browser assets — not toolbar dock apps                                         |
+| **Integrations**                          | Page rendering and browser assets: not toolbar dock apps                                          |
 
 `@ecopages/dev-toolbar` is an optional peer. Core does not import it at runtime unless `devToolbar.package` is configured. The dev manifest contract (`dev-toolbar-manifest-contract.ts`) lives in core so apps and custom toolbar clients can type the payload without installing the reference toolbar package.
 
@@ -20,7 +20,7 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 | `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
 | `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest                                                                                                                             |
 | `dev-toolbar-package.ts`           | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`)                                                                                                  |
-| `dev-toolbar-config.ts`            | `isDevToolbarEnabled` — watch mode, env var, package required                                                                                                               |
+| `dev-toolbar-config.ts`            | `isDevToolbarEnabled`: watch mode, env var, package required                                                                                                                |
 | `dev-toolbar-html-response.ts`     | Adapter helpers for injecting `import '/_dev_toolbar.js'`                                                                                                                   |
 | `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                                                   |
 | `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                                                            |

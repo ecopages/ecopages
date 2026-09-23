@@ -62,4 +62,4 @@ During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite serve
 
 ## Further reading
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — plugin composition, HMR boundaries, Astro-style extension evaluation
+- [ARCHITECTURE.md](./ARCHITECTURE.md): plugin composition, HMR boundaries, Astro-style extension evaluation

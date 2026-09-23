@@ -124,12 +124,12 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
  * @remarks
  * Resolution is evaluated in three tiers:
  *
- * 1. **Workspace packages** (`workspace:` protocol) — always bundled; they
+ * 1. **Workspace packages** (`workspace:` protocol): always bundled; they
  *    are source-only and cannot be resolved by Node.js at runtime.
- * 2. **App-declared packages** — bundled only when their resolved entry is a
+ * 2. **App-declared packages**: bundled only when their resolved entry is a
  *    TypeScript or JSX file (source packages); pre-compiled packages are left
  *    external so the app's own resolver handles them at runtime.
- * 3. **Everything else** (undeclared transitives) — split into two sub-cases:
+ * 3. **Everything else** (undeclared transitives): split into two sub-cases:
  *    - A **direct dependency of core** that resolves to a compiled JS file:
  *      externalized so the `runtime-build-output-normalizer` can rewrite the
  *      import to an absolute `file://` URL after the build. Runtime packages

@@ -4,30 +4,30 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ## Mental model
 
-1. **Declare collections** in `eco.config.ts` — content directory, frontmatter schema, and sort order.
-2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`.
-3. **Import the virtual module** — pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.
-4. **Own your frontmatter** — define fields with any [Standard Schema](https://standardschema.dev)-compatible library (Zod, Valibot, ArkType, etc.). The processor adds `slug` and `segments` from the file path.
+1. **Declare collections** in `eco.config.ts`: content directory, frontmatter schema, and sort order.
+2. **Scan at build time**: the processor validates frontmatter and writes generated modules under `.eco/cache/`.
+3. **Import the virtual module**: pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.
+4. **Own your frontmatter**: define fields with any [Standard Schema](https://standardschema.dev)-compatible library (Zod, Valibot, ArkType, etc.). The processor adds `slug` and `segments` from the file path.
 
 ### What this package owns vs. what your app owns
 
-| Layer                                                                 | Owned by                                                                                      |
-| :-------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
-| File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                                                                 |
-| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                                                                 |
-| `ContentScanner` for app scripts that emit `llms.txt`                 | `@ecopages/content-processor`                                                                 |
-| Routes (`eco.page`), layouts, metadata, URL shape                     | Your app                                                                                      |
-| Sidebar, breadcrumbs, pagination                                      | Your app — derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
+| Layer                                                                 | Owned by                                                                                     |
+| :-------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                                                                |
+| Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                                                                |
+| `ContentScanner` for app scripts that emit `llms.txt`                 | `@ecopages/content-processor`                                                                |
+| Routes (`eco.page`), layouts, metadata, URL shape                     | Your app                                                                                     |
+| Sidebar, breadcrumbs, pagination                                      | Your app: derive from `entries` and frontmatter fields such as `title`, `group`, and `order` |
 
 The processor gives you a typed manifest and MDX components at build time. Wire them into Ecopages routing and UI the same way you would any other data source.
 
 ## Features
 
-- **Build-time scanning** — content metadata is resolved before page bundles ship; MDX entry modules load on demand per slug on the server.
-- **Standard Schema validation** — frontmatter schemas stay in your app; the library validates through the Standard Schema interface.
-- **Typed virtual modules** — `ecopages:content/<collection>` with generated `Entry` types.
-- **Multiple collections** — docs, blog, changelog, or any keyed collection you configure.
-- **`ContentScanner`** — reuse the same scan/validate path in one-off build scripts. The scanner does not write `llms.txt`; the app script does.
+- **Build-time scanning**: content metadata is resolved before page bundles ship; MDX entry modules load on demand per slug on the server.
+- **Standard Schema validation**: frontmatter schemas stay in your app; the library validates through the Standard Schema interface.
+- **Typed virtual modules**: `ecopages:content/<collection>` with generated `Entry` types.
+- **Multiple collections**: docs, blog, changelog, or any keyed collection you configure.
+- **`ContentScanner`**: reuse the same scan/validate path in one-off build scripts. The scanner does not write `llms.txt`; the app script does.
 
 During development, edits to an entry's MDX body invalidate its compiled server collection bundle even when its frontmatter and generated manifest are unchanged. The next request rebuilds that bundle and renders the new body.
 
@@ -154,7 +154,7 @@ import type { Entry } from 'ecopages:content/docs';
 | `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry (lazy-loaded per slug). Throws `HttpError.NotFound` when missing.                                  |
 | `getEntryDependencies(slug)`   | server  | Returns `{ components: [entry] }` so collection walks MDX identity. Does not copy the dependency bag. Throws `HttpError.NotFound` when missing. |
 | `loadComponent(slug)`          | browser | Page Browser Graph loader for one MDX entry. Pair with `createCollectionComponentCache()` when a hydratable React Page renders the component.   |
-| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>` — frontmatter fields plus `slug` and `segments`.                                                 |
+| `Entry`                        | entries | **Type only.** `ContentEntry<YourFrontmatter>`: frontmatter fields plus `slug` and `segments`.                                                  |
 
 **Important:** `Entry` exists only in generated `.d.ts` files, not in the runtime cache module. Keep type imports on a separate `import type` line in page files that get bundled. Mixed imports like `import { entries, type Entry }` can cause the bundler to treat `Entry` as a runtime export and fail with `MISSING_EXPORT`.
 
@@ -273,7 +273,7 @@ export const docsNav = entries.map((entry) => ({
 }));
 ```
 
-Group or sort in your app — for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `templates/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
+Group or sort in your app: for example by a `group` frontmatter field and an `order` number. See `apps/docs` (`src/lib/content-nav.ts`) and `templates/docs-starter` (`src/content-nav.ts`) for full layouts with sections and sidebars.
 
 ## Build scripts
 
@@ -359,10 +359,10 @@ reactPlugin({
 import { remarkFrontmatter } from '@ecopages/content-processor/mdx';
 ```
 
-App-specific presentation plugins (syntax highlighting, GFM, table wrappers) stay in your app — for example `src/mdx/plugins.ts`.
+App-specific presentation plugins (syntax highlighting, GFM, table wrappers) stay in your app: for example `src/mdx/plugins.ts`.
 
 ## Content-entry ownership
 
 The integration that compiles an MDX entry also owns its rendering: an entry compiled with `mdx.extensions: ['.react.mdx']` on the React integration is a React component and must be rendered through a React-owned route (for example a `[...slug].react.tsx` catch-all). Calling it from a JSX (Radiant) or Kita render tree cannot serialize its output.
 
-The generated `getComponent()` preserves this ownership at render time: invoking an entry in its owning lane renders directly, while a supported foreign-child render lane queues the entry through its owning integration. If no handoff runtime is available, it throws with the entry path, owning integration, and active integration. When both integrations compile MDX for the same collection, declare disjoint `mdx.extensions` per integration — since the React MDX loader derives its filter from the declared extensions, only `.react.mdx` files compile with React. `mdx.extensions` replaces `compilerOptions.mdxExtensions` rather than merging with it.
+The generated `getComponent()` preserves this ownership at render time: invoking an entry in its owning lane renders directly, while a supported foreign-child render lane queues the entry through its owning integration. If no handoff runtime is available, it throws with the entry path, owning integration, and active integration. When both integrations compile MDX for the same collection, declare disjoint `mdx.extensions` per integration: since the React MDX loader derives its filter from the declared extensions, only `.react.mdx` files compile with React. `mdx.extensions` replaces `compilerOptions.mdxExtensions` rather than merging with it.

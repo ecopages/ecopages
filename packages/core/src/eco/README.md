@@ -16,7 +16,7 @@ The `eco` namespace provides a consistent, type-safe interface for:
 
 ## Layout assignment
 
-Layouts are assigned explicitly on each `eco.page({ layout })` call — either one layout component or an outer→inner array. EcoPages normalizes the stack at factory time to `config.layouts` and `config.layoutEntries`.
+Layouts are assigned explicitly on each `eco.page({ layout })` call: either one layout component or an outer→inner array. EcoPages normalizes the stack at factory time to `config.layouts` and `config.layoutEntries`.
 
 EcoPages does **not** infer layouts from `src/layouts/` file paths or route segment directories. A file under `src/layouts/` is only used when a page imports it and passes it to `layout`.
 
@@ -293,15 +293,13 @@ Both patterns work and can be mixed - the renderer checks for attached propertie
 
 ### `eco.html()`
 
-Creates the document shell component — the outermost HTML wrapper rendered once per page. Semantically equivalent to `eco.component()` but signals intent to tooling and readers that this component owns the full document structure (`<html>`, `<head>`, `<body>`).
+Creates the document shell component: the outermost HTML wrapper rendered once per page. `eco.html<E>()` takes one generic (the renderable). Props are `HtmlTemplateProps`.
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './document.css';
 
 export const Document = eco.html({
-	dependencies: {
-		stylesheets: ['./document.css'],
-	},
 	render: ({ children, metadata }) => (
 		<html lang="en">
 			<head>
@@ -315,14 +313,14 @@ export const Document = eco.html({
 
 ### `eco.layout()`
 
-Creates a route layout component — a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
+Creates a route layout component: a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children }) => <main>{children}</main>,
@@ -631,7 +629,7 @@ interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
 	modules?: string[];
-	/** Declared eco components only — see `EcoDeclaredComponent`. */
+	/** Declared eco components only: see `EcoDeclaredComponent`. */
 	components?: EcoDeclaredComponent[];
 }
 
@@ -658,8 +656,9 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 
 // html() and layout() accept the same options as component() but return
 // narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
-type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
+// html() takes one generic: the renderable `E`. Props are HtmlTemplateProps.
+type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;

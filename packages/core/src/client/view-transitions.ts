@@ -14,7 +14,7 @@ const ROOT_STYLES_ID = 'eco-vt-root-styles';
  * UA default is `html { view-transition-name: root }`, which snapshots the whole
  * document and crossfades with plus-lighter (flashes lighter on dark UIs). Routers
  * inject this opt-out when `viewTransitions` is enabled. Named `data-view-transition`
- * morphs still run. Full-page fades are not a supported default — use named elements
+ * morphs still run. Full-page fades are not a supported default: use named elements
  * or app-owned motion outside the View Transitions API.
  */
 const ROOT_STYLES_CSS = `html {

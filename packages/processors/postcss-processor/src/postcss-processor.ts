@@ -142,7 +142,7 @@ const processStringOrBufferSync: ProcessStringOrBufferSync = (contents, options)
 
 /**
  * PostCSS Processor
- * - {@link processPath} : It processes the given path using PostCSS
+ * - {@link processPath}: It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
  * - {@link processStringOrBufferSync}: It processes the given string or buffer synchronously using PostCSS (requires all plugins to be sync)
  */

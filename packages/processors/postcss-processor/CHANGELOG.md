@@ -44,7 +44,7 @@ All notable changes to `@ecopages/postcss-processor` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-## [UNRELEASED] — TBD
+## [UNRELEASED]: TBD
 
 ### Features
 

@@ -5,7 +5,7 @@
  * Page modules imported by the server (so the framework can read
  * `getStaticProps` / `staticPaths` / page metadata) commonly have
  * `import './style.css'` at the top. The bundler does not bundle
- * CSS, and the server only needs the JS exports — the CSS itself
+ * CSS, and the server only needs the JS exports: the CSS itself
  * is delivered to the browser via the page's `dependencies.stylesheets`
  * declarations. This plugin:
  *
@@ -18,7 +18,7 @@
  * Browser-side builds that want real CSS bundling should keep using
  * a dedicated CSS pipeline (e.g. the postcss processor's output)
  * and continue to declare stylesheets in `dependencies.stylesheets`
- * — the shim is intentionally inert for those flows.
+ * For those flows, the shim is intentionally inert.
  */
 
 import { existsSync, readFileSync } from 'node:fs';

@@ -165,7 +165,7 @@ export class PortManager {
 	 * Binds a server to the preferred port.
 	 *
 	 * @remarks
-	 * When the preferred port is free, binds it directly — no prompt, no
+	 * When the preferred port is free, binds it directly: no prompt, no
 	 * fallback. The interactive prompt only fires on a genuine EADDRINUSE
 	 * collision (TTY runs), and auto-approves after
 	 * {@link PortManagerOptions.autoApproveMs}. In non-interactive (CI) runs,

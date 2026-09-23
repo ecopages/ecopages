@@ -4,8 +4,8 @@ Minimal Ecopages project used by unit tests and `test-server.ts`.
 
 ## Config
 
-- `eco.config.ts` — `defineConfig(createFixtureUserConfig())` (author-facing default).
-- `fixture-user-config.ts` — shared user config for `eco.config.ts` and tests.
+- `eco.config.ts`: `defineConfig(createFixtureUserConfig())` (author-facing default).
+- `fixture-user-config.ts`: shared user config for `eco.config.ts` and tests.
 
 ## Tests
 

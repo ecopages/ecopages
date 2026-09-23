@@ -19,14 +19,14 @@
  *
  * Cache identity is `(filePath, source, allowListRules, inboundRules)`.
  * Allow-list hashing includes each package's permitted exports, not just
- * package names — otherwise `node:fs{readFileSync}` and
+ * package names: otherwise `node:fs{readFileSync}` and
  * `node:fs{writeFileSync}` would collide.
  *
  * Modules that inline external file contents (`readFileSync` rewrite) are
  * not stored: their output depends on files outside the importer source.
  *
  * **`rulesAdded` semantics:** the map holds the **after-state** of
- * every registry key this transform touched — both newly added keys
+ * every registry key this transform touched: both newly added keys
  * and keys that were grown (Set union) or promoted to `'*'`. On
  * replay the cache applies each entry via the same merge rules the
  * live transform uses (`mergeRequestedExportRules`), so a key that

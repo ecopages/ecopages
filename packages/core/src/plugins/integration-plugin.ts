@@ -145,7 +145,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * @remarks
 	 * Collected into {@link AppBuildManifest.runtimePlugins} during config finalization.
 	 * MDX loaders, virtual-module resolvers, and other transforms that must run during
-	 * route-module transpile belong here—not in {@link browserBuildPlugins}.
+	 * route-module transpile belong here, not in {@link browserBuildPlugins}.
 	 */
 	get plugins(): EcoBuildPlugin[] {
 		return [];

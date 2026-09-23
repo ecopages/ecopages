@@ -82,13 +82,13 @@ export interface NodeServerAdapterResult extends ServerAdapterResult {
  * `Request`/`Response` model.
  *
  * Lifecycle:
- * 1. `createAdapter()` — calls `initialize()` and returns the public adapter result.
- * 2. `completeInitialization(server)` — called once the HTTP server is listening.
+ * 1. `createAdapter()`: calls `initialize()` and returns the public adapter result.
+ * 2. `completeInitialization(server)`: called once the HTTP server is listening.
  *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
  *    `options.watch` is `true`.
- * 3. `handleRequest(request)` — delegates to `handleSharedRequest` for routing;
+ * 3. `handleRequest(request)`: delegates to `handleSharedRequest` for routing;
  *    intercepts `ClientAbortError` to return 499 instead of 500.
- * 4. `buildStatic()` — spins up an ephemeral runtime server, generates all static
+ * 4. `buildStatic()`: spins up an ephemeral runtime server, generates all static
  *    pages against it, then tears it down.
  *
  * @see SharedServerAdapter for routing, caching and response handler logic.
@@ -147,7 +147,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * @remarks
 	 * `previewHost`, `requestBridge`, and `devRuntimeFactory` are optional on the
 	 * public {@link NodeServerAdapterParams} so factory callers can omit them, but
-	 * they are mandatory by the time the concrete adapter is constructed —
+	 * they are mandatory by the time the concrete adapter is constructed:
 	 * {@link createNodeServerAdapter} fills in Node-specific defaults first. The
 	 * constructor signature makes that invariant explicit instead of relying on
 	 * non-null assertions.
@@ -300,7 +300,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * Releases dev-time resources owned by the adapter.
 	 *
 	 * @remarks
-	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
+	 * Safe to call multiple times. Does not stop the bound HTTP server: callers
 	 * should shut down transport through the runtime host before disposing.
 	 */
 	public async dispose(): Promise<void> {
@@ -328,8 +328,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *
 	 * Delegates to `handleSharedRequest` for all routing, caching, and response
 	 * handler logic. The only Node-specific concern here is translating a
-	 * `ClientAbortError` — which the body `ReadableStream` raises when the
-	 * underlying socket closes early — into a 499 response so it does not
+	 * `ClientAbortError`, which the body `ReadableStream` raises when the
+	 * underlying socket closes early, into a 499 response so it does not
 	 * incorrectly surface as a 500 in application logs.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {

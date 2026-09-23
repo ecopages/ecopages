@@ -11,7 +11,7 @@ It is responsible for:
 - enumerating renderable routes
 - rendering static outputs through the normal rendering pipeline
 - respecting route-level constraints such as cache policy and unsupported dynamic server-only paths
-- emitting semantic 404/500 artifacts through the shared error-page renderer
+- emitting semantic 400/401/403/404/409/500 artifacts through the shared error-page renderer
 
 ## Design Rule
 
@@ -58,8 +58,8 @@ Rendered HTML reuse is tracked in `.eco/.server-modules/.build-cache.json` under
 
 Integrations may implement:
 
-- `beforeStaticExport(context)` — runs after unified-graph prebuild, before page rendering
-- `afterStaticExport(context)` — runs in a `finally` block after generation completes
+- `beforeStaticExport(context)`: runs after unified-graph prebuild, before page rendering
+- `afterStaticExport(context)`: runs in a `finally` block after generation completes
 
 When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`. Development (`ecopages dev`) does not emit this file.
 

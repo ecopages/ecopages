@@ -1,7 +1,7 @@
 /**
  * Hydration asset creation service for React integration.
  *
- * Builds the asset definitions required for client-side React rendering — both at
+ * Builds the asset definitions required for client-side React rendering: both at
  * the page level and the component island level.
  *
  * @module

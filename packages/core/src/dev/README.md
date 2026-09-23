@@ -2,17 +2,21 @@ Development-only browser tooling is opt-in per application.
 
 ## Dev toolbar
 
-- `/_dev_toolbar.js` — browser bundle built by core from `devToolbar.package` (for example `@ecopages/dev-toolbar`)
-- `#__ECO_DEV_MANIFEST__` — per-page dependency graph payload for the Deps panel
+- `/_dev_toolbar.js`: browser bundle built by core from `devToolbar.package` (for example `@ecopages/dev-toolbar`)
+- `#__ECO_DEV_MANIFEST__`: per-page dependency graph payload for the Deps panel
 
-Public docs: [Dev toolbar](/docs/core/dev-toolbar) (built-in apps, manifest fields).
+Public docs: [Dev toolbar](/docs/ecosystem/dev-toolbar) (built-in apps, manifest fields).
 
 Configure in `eco.config.ts`:
 
 ```ts
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-.setDevToolbar(devToolbar())
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	devToolbar: devToolbar(),
+});
 ```
 
 For a custom client package, use `defineDevTool` from `@ecopages/core/dev-toolbar/define-dev-tool`.

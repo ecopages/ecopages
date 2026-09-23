@@ -243,7 +243,7 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
  *
  * The scan skips over leading whitespace, HTML comments (`<!-- -->`), CDATA
  * sections, and doctype declarations so that the attribute is always placed on
- * the first actual element — not spurious markup that can precede it.
+ * the first actual element: not spurious markup that can precede it.
  *
  * The insertion point is the end of the element's tag name, before any existing
  * attributes or the closing `>`, which produces output like:

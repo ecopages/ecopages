@@ -18,7 +18,7 @@ let routeRendererFactory: RouteRendererFactory | null = null;
  * Loads app config in the worker isolate and bootstraps rendering.
  *
  * @remarks
- * Processor `.setup()` is skipped here — the main thread already prepared disk artifacts
+ * Processor `.setup()` is skipped here: the main thread already prepared disk artifacts
  * before the Lit worker started (`ECOPAGES_LIT_STATIC_RENDER_WORKER`).
  */
 async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {

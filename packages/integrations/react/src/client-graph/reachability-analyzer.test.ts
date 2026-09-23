@@ -226,7 +226,7 @@ describe('analyzeReachability', () => {
 		const result = analyzeReachability(source, 'utils.ts');
 
 		expect(result.analyzed).toBe(true);
-		// export* nodes are now direct client roots — not fallback mode
+		// export* nodes are now direct client roots: not fallback mode
 		expect(result.isFallbackRoots).toBe(false);
 		expect(result.reachableImports.get('./shared-utils')).toBe('*');
 		expect(result.reachableImports.get('./more-helpers')).toBe('*');

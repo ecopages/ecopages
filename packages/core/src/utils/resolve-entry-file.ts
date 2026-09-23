@@ -31,10 +31,10 @@ export const ENTRY_FILE_FLAG = 'entry-file';
 /**
  * Resolved sources for the entry file, in precedence order (highest first):
  *
- * 1. `entryFile` argument — explicit caller override (e.g. constructor)
- * 2. `ECOPAGES_ENTRY_FILE` env var — set by the CLI when spawning
- * 3. `--entry-file` / `-e` CLI flag — read from `process.argv` via `parseArgs`
- * 4. `app.ts` — the framework default
+ * 1. `entryFile` argument: explicit caller override (e.g. constructor)
+ * 2. `ECOPAGES_ENTRY_FILE` env var: set by the CLI when spawning
+ * 3. `--entry-file` / `-e` CLI flag: read from `process.argv` via `parseArgs`
+ * 4. `app.ts`: the framework default
  */
 export interface ResolveEntryFileOptions {
 	/** Explicit override (e.g. constructor param or test fixture). */

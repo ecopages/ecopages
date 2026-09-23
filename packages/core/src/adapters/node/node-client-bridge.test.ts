@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NodeClientBridge } from './node-client-bridge.ts';
 
 // ---------------------------------------------------------------------------
-// Minimal WebSocket mock — only the surface that NodeClientBridge touches
+// Minimal WebSocket mock: only the surface that NodeClientBridge touches
 // ---------------------------------------------------------------------------
 function createMockWs(readyState = 1 /* OPEN */) {
 	return {

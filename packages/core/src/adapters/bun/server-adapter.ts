@@ -371,7 +371,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * by the HMR handler in development mode.
 	 *
 	 * User WebSocket paths are intercepted in the fetch handler via the pattern matcher.
-	 * The upgrade happens implicitly — no manual GET route registration needed.
+	 * The upgrade happens implicitly: no manual GET route registration needed.
 	 */
 	public getServerOptions({ enableHmr = false } = {}): BunServeOptions {
 		appLogger.debug(`[BunServerAdapter] getServerOptions called with enableHmr: ${enableHmr}`);
@@ -697,7 +697,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Releases dev-time resources owned by the adapter.
 	 *
 	 * @remarks
-	 * Safe to call multiple times. Does not stop the bound Bun server — callers
+	 * Safe to call multiple times. Does not stop the bound Bun server: callers
 	 * should shut down transport through the runtime host before disposing.
 	 */
 	public async dispose(): Promise<void> {

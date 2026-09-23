@@ -31,7 +31,7 @@ export class SerializedBuildExecutor implements BuildExecutor {
 	/**
 	 * Run a build through the serialized queue. The returned promise
 	 * resolves with the inner executor's `BuildResult`. A rejected
-	 * inner build does not block the queue — the next caller can
+	 * inner build does not block the queue: the next caller can
 	 * proceed.
 	 */
 	build(options: BuildOptions): Promise<BuildResult> {

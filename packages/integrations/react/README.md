@@ -120,7 +120,7 @@ The boundary cache is owned by the React plugin and shared by normal Page Browse
 
 It does **not** disable the client-graph AST boundary. Server-only `eco.page(...)` options such as `middleware` and `requires` are still stripped from browser bundles. With a router adapter, page hydration is already always on, so the option is redundant for SPA apps.
 
-The option name is historical — it forces hydration asset emission, it does not mean “skip graph transforms.”
+The option name is historical: it forces hydration asset emission, it does not mean “skip graph transforms.”
 
 ### What Stays and What Goes
 
@@ -262,7 +262,7 @@ Hydration preserves the SSR DOM when the server and client trees match. A
 component that renders different markup in the browser can still produce a
 normal React hydration mismatch or layout shift.
 
-Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
+Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case: a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
 
 #### When auto-discovery runs
 
@@ -297,7 +297,7 @@ Path aliases resolve from `tsconfig.json` `compilerOptions.paths` (oxc-resolver)
 
 #### Recommended setup
 
-Plugin config — no manual vendor list when provider layouts are flagged:
+Plugin config: no manual vendor list when provider layouts are flagged:
 
 ```ts
 import { ConfigBuilder } from '@ecopages/core/config-builder';
@@ -309,7 +309,7 @@ const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: 
 export default config;
 ```
 
-Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:
+Provider root layout: set `runtimeProvider: true` on the tier that mounts shared client state:
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -390,18 +390,18 @@ Registering only the library vendor, or only the singleton, is not enough when t
 
 #### Troubleshooting
 
-| Symptom                                       | Likely cause                                                                                                 | Fix                                                                                                                                    |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `No QueryClient set` after SPA navigation     | Provider library bundled per page chunk                                                                      | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors                                        |
-| Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                              | Import through the package root and register that root in `runtimeModules`                                                             |
-| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — layout vendor inlines one copy, page or dev prebundle loads another | Peer the singleton in the library; add explicit `runtimeModules` for it; list it in `externals` on the library vendor; rebuild vendors |
-| Wrong packages vendored (slow dev startup)    | Shell layout scanned as discovery root                                                                       | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                                                       |
-| Package not discovered                        | Layout outside `layouts/` / `components/`, or import not reachable from `render`                             | Move layout file or add explicit `runtimeModules` entry                                                                                |
-| `@/` alias not followed                       | Missing or invalid tsconfig paths                                                                            | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                   |
-| Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                                        | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                          |
-| `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                                          | Register the package root only; rebuild vendors. Subpath plugins are a separate module and must be bundled or declared themselves      |
-| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                                          | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                      |
-| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                                     | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                  |
+| Symptom                                       | Likely cause                                                                                                | Fix                                                                                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `No QueryClient set` after SPA navigation     | Provider library bundled per page chunk                                                                     | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors                                        |
+| Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                             | Import through the package root and register that root in `runtimeModules`                                                             |
+| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX): layout vendor inlines one copy, page or dev prebundle loads another | Peer the singleton in the library; add explicit `runtimeModules` for it; list it in `externals` on the library vendor; rebuild vendors |
+| Wrong packages vendored (slow dev startup)    | Shell layout scanned as discovery root                                                                      | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                                                       |
+| Package not discovered                        | Layout outside `layouts/` / `components/`, or import not reachable from `render`                            | Move layout file or add explicit `runtimeModules` entry                                                                                |
+| `@/` alias not followed                       | Missing or invalid tsconfig paths                                                                           | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                   |
+| Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                                       | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                          |
+| `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                                         | Register the package root only; rebuild vendors. Subpath plugins are a separate module and must be bundled or declared themselves      |
+| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                                         | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                      |
+| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                                    | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                  |
 
 #### Tests
 
@@ -431,4 +431,4 @@ export const RootLayout = eco.layout({
 });
 ```
 
-For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly` — not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.
+For code-split client-only modules, `import()` inside `useEffect` within `ClientOnly`: not `lazy()`. `dynamic({ ssr: false })` must also stay inside `ClientOnly`; it renders `null` on the server and `lazy()` in the browser.

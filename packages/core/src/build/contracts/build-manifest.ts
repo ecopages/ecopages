@@ -21,8 +21,8 @@ import {
  * | --- | --- | --- |
  * | `plugins` | `plugins` | `runtimePlugins` |
  * | `browserBuildPlugins` | `buildPlugins` | `browserBundlePlugins` |
- * | `browserRuntimeManifest` | — | `browserRuntimeManifest` |
- * | — (file loaders on config) | — | `loaderPlugins` |
+ * | `browserRuntimeManifest` | Not applicable | `browserRuntimeManifest` |
+ * | File loaders on config | Not applicable | `loaderPlugins` |
  *
  * Use {@link getServerBuildPlugins} and {@link getBrowserBuildPlugins} to turn
  * buckets into the plugin lists passed to Rolldown. App-aware call sites should

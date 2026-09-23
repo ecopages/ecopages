@@ -1,11 +1,10 @@
 import { eco } from '@ecopages/core';
 import { Head } from '@/includes/head';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
 const themeScript = `(function(){const s=localStorage.getItem('theme');const p=s==='light'||s==='dark'||s==='system'?s:'system';const t=p==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}})();`;
 
-const HtmlTemplate = eco.component<HtmlTemplateProps, JsxRenderable>({
+const HtmlTemplate = eco.html<JsxRenderable>({
 	dependencies: {
 		scripts: [
 			{

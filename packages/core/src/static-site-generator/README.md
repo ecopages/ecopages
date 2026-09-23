@@ -11,6 +11,7 @@ It is responsible for:
 - enumerating renderable routes
 - rendering static outputs through the normal rendering pipeline
 - respecting route-level constraints such as cache policy and unsupported dynamic server-only paths
+- emitting semantic 404/500 artifacts through the shared error-page renderer
 
 ## Design Rule
 
@@ -24,6 +25,8 @@ That means it should reuse:
 - asset processing
 
 It should not invent a parallel rendering stack just for build mode.
+
+Semantic error pages are excluded from ordinary page enumeration and emitted once by `services/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share source precedence and rendering behavior.
 
 ## Files
 

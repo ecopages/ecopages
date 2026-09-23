@@ -1,6 +1,6 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { EcoFunctionComponent, EcoPageComponent } from '../../../types/public-types.ts';
-import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoFunctionComponent, EcoPageComponent } from '../types/public-types.ts';
+import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
 type ExplicitStaticRenderPreparationResult = {
 	renderer: ExplicitViewRenderer;

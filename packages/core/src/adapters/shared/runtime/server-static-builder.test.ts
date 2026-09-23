@@ -387,6 +387,7 @@ describe('ServerStaticBuilder', () => {
 					baseUrl: 'http://localhost:3000',
 					routeRendererFactory: RouteRendererFactory,
 					staticRoutes: undefined,
+					errorPageLoaders: undefined,
 					force: false,
 					preserveExportDirectory: false,
 				},

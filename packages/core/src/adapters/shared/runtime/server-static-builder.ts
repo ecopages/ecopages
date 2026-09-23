@@ -31,7 +31,7 @@ import {
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
-import type { StaticRoute } from '../../../types/public-types.ts';
+import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
@@ -270,6 +270,7 @@ export class ServerStaticBuilder {
 			router: RouteRegistry;
 			routeRendererFactory: StaticGenerationRendererResolver;
 			staticRoutes?: StaticRoute[];
+			errorPageLoaders?: ErrorPageLoaders;
 		},
 	): Promise<void> {
 		const { baseUrl: explicitBaseUrl, force = false } = options ?? {};
@@ -290,6 +291,7 @@ export class ServerStaticBuilder {
 			baseUrl,
 			routeRendererFactory: dependencies.routeRendererFactory,
 			staticRoutes: dependencies.staticRoutes,
+			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
 			preserveExportDirectory,
 		});

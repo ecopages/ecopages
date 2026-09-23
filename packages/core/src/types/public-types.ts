@@ -1721,7 +1721,8 @@ export interface RouteGroupBuilder<
 
 /**
  * A function that dynamically imports a view module.
- * Used by app.static() to enable HMR in development.
+ * Used by app.static(), app.notFound(), and app.serverError() to enable HMR
+ * in development.
  */
 export type ViewLoader<P = any> = () => Promise<{ default: EcoPageComponent<P> }>;
 
@@ -1733,3 +1734,11 @@ export interface StaticRoute<P = any> {
 	path: string;
 	loader: ViewLoader<P>;
 }
+
+/**
+ * Lazy view loaders registered through `app.notFound()` and `app.serverError()`.
+ */
+export type ErrorPageLoaders = {
+	notFound?: ViewLoader<Error404TemplateProps>;
+	serverError?: ViewLoader<Error500TemplateProps>;
+};

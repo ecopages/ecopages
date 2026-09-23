@@ -4,8 +4,7 @@ import path from 'node:path';
 import { APP_TEST_ROUTES, INDEX_TEMPLATE_FILE } from '../../../../__fixtures__/constants.ts';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { MatchResult } from '../../../types/internal-types.ts';
-import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
-import type { PageRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import { RouteRendererFactory, type StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
@@ -40,10 +39,10 @@ const routeRendererFactory = new RouteRendererFactory({
 });
 
 function createRouteRendererFactoryWithStub404(
-	realFactory: PageRendererResolver,
+	realFactory: StaticGenerationRendererResolver,
 	error404TemplatePath: string,
 	options?: { executeError?: Error },
-): { factory: PageRendererResolver; execute: ReturnType<typeof vi.fn> } {
+): { factory: StaticGenerationRendererResolver; execute: ReturnType<typeof vi.fn> } {
 	const execute = options?.executeError
 		? vi.fn(async () => {
 				throw options.executeError;
@@ -69,15 +68,16 @@ function createRouteRendererFactoryWithStub404(
 
 				return realFactory.getPageRenderer(filePath);
 			},
+			getExplicitViewRenderer: realFactory.getExplicitViewRenderer?.bind(realFactory),
 		},
 	};
 }
 
 function createRouteRendererFactoryWithStub500(
-	realFactory: PageRendererResolver,
+	realFactory: StaticGenerationRendererResolver,
 	error500TemplatePath: string,
 	options?: { executeError?: Error },
-): { factory: PageRendererResolver; execute: ReturnType<typeof vi.fn> } {
+): { factory: StaticGenerationRendererResolver; execute: ReturnType<typeof vi.fn> } {
 	const execute = options?.executeError
 		? vi.fn(async () => {
 				throw options.executeError;
@@ -103,15 +103,16 @@ function createRouteRendererFactoryWithStub500(
 
 				return realFactory.getPageRenderer(filePath);
 			},
+			getExplicitViewRenderer: realFactory.getExplicitViewRenderer?.bind(realFactory),
 		},
 	};
 }
 
 function createRouteRendererFactoryWithThrowingPage(
-	realFactory: PageRendererResolver,
+	realFactory: StaticGenerationRendererResolver,
 	pageFilePath: string,
 	error: Error,
-): PageRendererResolver {
+): StaticGenerationRendererResolver {
 	return {
 		getPageRenderer(filePath: string) {
 			if (filePath === pageFilePath) {
@@ -127,10 +128,13 @@ function createRouteRendererFactoryWithThrowingPage(
 
 			return realFactory.getPageRenderer(filePath);
 		},
+		getExplicitViewRenderer: realFactory.getExplicitViewRenderer?.bind(realFactory),
 	};
 }
 
-function createRouteRendererFactoryWithMissing404Template(error404TemplatePath: string): PageRendererResolver {
+function createRouteRendererFactoryWithMissing404Template(
+	error404TemplatePath: string,
+): StaticGenerationRendererResolver {
 	return {
 		getPageRenderer(filePath: string) {
 			if (filePath === error404TemplatePath) {
@@ -139,13 +143,14 @@ function createRouteRendererFactoryWithMissing404Template(error404TemplatePath: 
 
 			throw new Error(`Unexpected page renderer request: ${filePath}`);
 		},
+		getExplicitViewRenderer: () => null,
 	};
 }
 
 function createRouteRendererFactoryWithMissing500Template(
-	realFactory: PageRendererResolver,
+	realFactory: StaticGenerationRendererResolver,
 	error500TemplatePath: string,
-): PageRendererResolver {
+): StaticGenerationRendererResolver {
 	return {
 		getPageRenderer(filePath: string) {
 			if (filePath === error500TemplatePath) {
@@ -154,6 +159,7 @@ function createRouteRendererFactoryWithMissing500Template(
 
 			return realFactory.getPageRenderer(filePath);
 		},
+		getExplicitViewRenderer: realFactory.getExplicitViewRenderer.bind(realFactory),
 	};
 }
 
@@ -441,7 +447,7 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleMatch(match);
 
 			expect(response.status).toBe(404);
-			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			expect(await response.text()).toContain('<h1>404 - Page Not Found</h1>');
 			expect(execute404).toHaveBeenCalledWith({
 				file: appConfig.absolutePaths.error404TemplatePath,
@@ -520,7 +526,7 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleMatch(match);
 
 			expect(response.status).toBe(500);
-			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			expect(await response.text()).toContain('<h1>500 - Internal Server Error</h1>');
 		});
 
@@ -656,7 +662,7 @@ describe('FileSystemResponseMatcher', () => {
 			}
 		});
 
-		it('should return plain 500 when a matched route throws and the custom 500 template is missing', async () => {
+		it('should return the built-in HTML 500 when a matched route throws and the custom 500 template is missing', async () => {
 			const renderError = new Error('page render failed');
 			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
 				routeRendererFactory,
@@ -688,11 +694,11 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleMatch(match);
 
 			expect(response.status).toBe(500);
-			expect(response.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
-			expect(await response.text()).toBe('Internal Server Error');
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+			expect(await response.text()).toContain('eco-error-page__title">Something went wrong</h1>');
 		});
 
-		it('should fall back to plain 500 when the custom 500 template render throws', async () => {
+		it('should fall back to the built-in HTML 500 when the custom 500 template render throws', async () => {
 			const renderError = new Error('page render failed');
 			const templateError = new Error('500 template render failed');
 			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
@@ -726,8 +732,8 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleMatch(match);
 
 			expect(response.status).toBe(500);
-			expect(response.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
-			expect(await response.text()).toBe('Internal Server Error');
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+			expect(await response.text()).toContain('eco-error-page__title">Something went wrong</h1>');
 		});
 
 		it('should return custom HTML 500 when the custom 404 template render throws', async () => {
@@ -752,16 +758,89 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleNoMatch('/missing-page');
 
 			expect(response.status).toBe(500);
-			expect(response.headers.get('Content-Type')).toBe('text/html');
+			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
 			expect(await response.text()).toContain('<h1>500 - Internal Server Error</h1>');
 		});
 
+		it('should render registered error views when filesystem pages are absent', async () => {
+			const appConfigWithoutErrorPages = {
+				...appConfig,
+				absolutePaths: {
+					...appConfig.absolutePaths,
+					error404TemplatePath: path.join(appConfig.rootDir, 'missing-404.ts'),
+					error500TemplatePath: path.join(appConfig.rootDir, 'missing-500.ts'),
+				},
+			};
+			const renderToResponse = vi.fn(
+				async (_view, props, context) =>
+					new Response(`<h1>${context.status} ${props.message ?? 'registered'}</h1>`),
+			);
+			const view = Object.assign(() => null, {
+				config: { identity: { integration: 'fixture', file: '/src/views/error.tsx' } },
+			});
+			const routeRendererFactory = {
+				getPageRenderer: vi.fn(),
+				getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+			};
+			const matcher = new FileSystemResponseMatcher({
+				appConfig: appConfigWithoutErrorPages,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory,
+				errorPageLoaders: {
+					notFound: async () => ({ default: view as never }),
+					serverError: async () => ({ default: view as never }),
+				},
+				fileSystemResponseFactory,
+			});
+
+			const notFoundResponse = await matcher.handleNoMatch('/missing-page');
+			expect(notFoundResponse.status).toBe(404);
+			expect(await notFoundResponse.text()).toContain('404 registered');
+
+			const throwingPageFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				new Error('page failed'),
+			);
+			const failingMatcher = new FileSystemResponseMatcher({
+				appConfig: appConfigWithoutErrorPages,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: throwingPageFactory,
+				errorPageLoaders: {
+					notFound: async () => {
+						throw new Error('not-found view failed');
+					},
+					serverError: async () => ({ default: view as never }),
+				},
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: { kind: 'exact', pathname: APP_TEST_ROUTES.index, filePath: INDEX_TEMPLATE_FILE },
+				params: {},
+				query: {},
+			};
+
+			const serverErrorResponse = await failingMatcher.handleMatch(match);
+			expect(serverErrorResponse.status).toBe(500);
+			expect(await serverErrorResponse.text()).toContain('500 registered');
+		});
+
 		it('should fall back to default 404 when the custom 404 template cannot be resolved', async () => {
+			const appConfigWithout404Template = {
+				...appConfig,
+				absolutePaths: {
+					...appConfig.absolutePaths,
+					error404TemplatePath: path.join(appConfig.rootDir, 'missing-404.ts'),
+				},
+			};
 			const missing404Factory = createRouteRendererFactoryWithMissing404Template(
-				appConfig.absolutePaths.error404TemplatePath,
+				appConfigWithout404Template.absolutePaths.error404TemplatePath,
 			);
 			const matcher = new FileSystemResponseMatcher({
-				appConfig,
+				appConfig: appConfigWithout404Template,
 				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
 				router,
 				routeRendererFactory: missing404Factory,
@@ -771,7 +850,7 @@ describe('FileSystemResponseMatcher', () => {
 			const response = await matcher.handleNoMatch('/missing-page');
 
 			expect(response.status).toBe(404);
-			expect(await response.text()).not.toContain('<h1>404 - Page Not Found</h1>');
+			expect(await response.text()).toContain('eco-error-page__title">Not Found</h1>');
 		});
 	});
 

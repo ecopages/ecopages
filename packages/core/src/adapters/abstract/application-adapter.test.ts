@@ -96,7 +96,7 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 		return this;
 	}
 
-	override static<P>(_path: string, _loader: ViewLoader<P>): this {
+	override static<P>(_path: string, _loader: ViewLoader<P> | string | URL): this {
 		return this;
 	}
 
@@ -116,6 +116,25 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 afterEach(() => {
 	clearHostModuleLoader();
 	delete process.env.NODE_ENV;
+});
+
+describe('application adapter error pages', () => {
+	it('registers not-found and server-error view loaders', () => {
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+		const notFoundLoader = async () => ({ default: {} as never });
+		const serverErrorLoader = async () => ({ default: {} as never });
+
+		adapter.notFound(notFoundLoader).serverError(serverErrorLoader);
+
+		assert.deepEqual(adapter.getErrorPageLoaders(), {
+			notFound: notFoundLoader,
+			serverError: serverErrorLoader,
+		});
+	});
 });
 
 describe('application adapter runtime bootstrap', () => {

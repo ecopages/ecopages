@@ -87,8 +87,8 @@ export function getCategoryOrder(): string[] {
  *
  * @remarks
  * Typed over `ContentEntry<Record<string, unknown>>` (not `WikiContentEntry`)
- * so this satisfies `EntryComparator<Record<string, unknown>>` — the type the
- * collections map contextually requires — without a parameter-variance error.
+ * so this satisfies `EntryComparator<Record<string, unknown>>`: the type the
+ * collections map contextually requires: without a parameter-variance error.
  */
 export function compareWikiEntries(
 	a: ContentEntry<Record<string, unknown>>,

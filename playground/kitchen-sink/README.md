@@ -49,7 +49,7 @@ To inspect locally:
 
 1. `bun dev`
 2. Open `/vendor-share/a`, then `/vendor-share/b`
-3. In Network, filter `/assets/vendors` — React and `zod` should each appear once and reuse across navigations
+3. In Network, filter `/assets/vendors`: React and `zod` should each appear once and reuse across navigations
 
 ## Dependency discovery fixtures
 

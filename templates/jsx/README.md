@@ -41,10 +41,10 @@ bun preview
 
 ## Structure
 
-- `src/pages` — routes, including the JSX index and MDX pages
-- `src/components` — interactive islands and theme controls
-- `src/lib` — small shared utilities such as `cx`
-- `src/layouts` — document shell and navigation
+- `src/pages`: routes, including the JSX index and MDX pages
+- `src/components`: interactive islands and theme controls
+- `src/lib`: small shared utilities such as `cx`
+- `src/layouts`: document shell and navigation
 
 This template uses plain-JS custom elements for interactivity so it can be ported to other integrations. Start customization in `src/pages/index.tsx` and `eco.config.ts`.
 

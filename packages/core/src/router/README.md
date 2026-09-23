@@ -46,17 +46,17 @@ Build-time static expansion is a separate operation. The registry invokes `stati
 
 The public interface is intentionally small:
 
-- `templateRoutes` — ordered readonly template routes
-- `init()` / `reload()` — rebuild discovery state and match metadata
-- `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query
-- `listStaticPathExpansions()` — build-time expansion for dynamic routes
-- `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded routes
+- `templateRoutes`: ordered readonly template routes
+- `init()` / `reload()`: rebuild discovery state and match metadata
+- `matchRequest(requestUrl)`: request-time matching result with requested pathname, matched template route, params, and query
+- `listStaticPathExpansions()`: build-time expansion for dynamic routes
+- `listStaticGenerationRoutes()`: build-time route planning for static generation across exact and expanded routes
 
 Match priority:
 
-1. `exact` — the pathname must equal the route pathname exactly.
-2. `dynamic` — the clean (bracket-stripped) prefix must appear in the pathname, and the segment counts must match.
-3. `catch-all` — the prefix segments must match the pathname. When multiple
+1. `exact`: the pathname must equal the route pathname exactly.
+2. `dynamic`: the clean (bracket-stripped) prefix must appear in the pathname, and the segment counts must match.
+3. `catch-all`: the prefix segments must match the pathname. When multiple
    catch-all routes match, shared prefix segments are compared from left to right
    so an earlier static segment wins over a dynamic one; when those patterns tie,
    the route with the longer prefix wins, then pathname order provides a
@@ -68,9 +68,9 @@ Match priority:
 
 Shared helpers used by `@ecopages/browser-router` and `@ecopages/react-router`:
 
-- `applyViewTransitionNames` / `clearViewTransitionNames` — named `data-view-transition` morph / fade styles (`eco-vt-dynamic-styles`).
-- `ensureRootViewTransitionStyles` — persisted CSS (`eco-vt-root-styles`, `data-eco-persist`) with `html { view-transition-name: none }` when VT is enabled.
-- `documentHasNamedViewTransitions` / `navigationHasNamedViewTransitions` — gate `startViewTransition` to pages with `data-view-transition` markup.
+- `applyViewTransitionNames` / `clearViewTransitionNames`: named `data-view-transition` morph / fade styles (`eco-vt-dynamic-styles`).
+- `ensureRootViewTransitionStyles`: persisted CSS (`eco-vt-root-styles`, `data-eco-persist`) with `html { view-transition-name: none }` when VT is enabled.
+- `documentHasNamedViewTransitions` / `navigationHasNamedViewTransitions`: gate `startViewTransition` to pages with `data-view-transition` markup.
 
 ### Navigation Coordinator (`navigation-coordinator.ts`)
 
@@ -85,12 +85,12 @@ const runtime = getEcoNavigationRuntime();
 
 The coordinator is framework-agnostic. Browser runtimes (e.g. `browser-router`, `react-router`) register themselves and the coordinator arbitrates:
 
-- **Ownership** — which runtime currently drives SPA navigation (`claimOwnership`, `releaseOwnership`, `setOwner`).
-- **Document owner marker** — an HTML attribute (`data-eco-document-owner`) written into rendered markup so the coordinator can `adoptDocumentOwner` on the incoming page.
-- **Navigation transactions** — each navigation begins a transaction with an `AbortSignal`; superseded navigations are automatically cancelled.
-- **Cross-runtime handoff** — `requestHandoff` passes a pre-fetched `Document` to the target runtime without tearing down the current page prematurely.
-- **Reload** — `reloadCurrentPage` delegates to whichever runtime currently owns the document.
-- **Events** — `subscribe` lets runtimes react to `owner-change` and `registration-change` events.
+- **Ownership**: which runtime currently drives SPA navigation (`claimOwnership`, `releaseOwnership`, `setOwner`).
+- **Document owner marker**: an HTML attribute (`data-eco-document-owner`) written into rendered markup so the coordinator can `adoptDocumentOwner` on the incoming page.
+- **Navigation transactions**: each navigation begins a transaction with an `AbortSignal`; superseded navigations are automatically cancelled.
+- **Cross-runtime handoff**: `requestHandoff` passes a pre-fetched `Document` to the target runtime without tearing down the current page prematurely.
+- **Reload**: `reloadCurrentPage` delegates to whichever runtime currently owns the document.
+- **Events**: `subscribe` lets runtimes react to `owner-change` and `registration-change` events.
 
 ### Navigation Lifecycle (`navigation-lifecycle.ts`)
 
@@ -108,9 +108,9 @@ import {
 
 `browser-router` and `react-router` call these helpers around their own commit implementations. Use `completeNavigationLifecycle` for the paired post-commit signals. Listeners use the DOM contract:
 
-- `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
-- `eco:after-swap` — post-commit signal after the runtime has applied the new page
-- `eco:page-load` — scheduled on the next animation frame after `eco:after-swap`
+- `eco:before-swap`: pre-commit hook with `newDocument` and `reload()`
+- `eco:after-swap`: post-commit signal after the runtime has applied the new page
+- `eco:page-load`: scheduled on the next animation frame after `eco:after-swap`
 
 This is separate from coordinator `subscribe()` events, which track runtime ownership rather than page lifecycle.
 
@@ -120,8 +120,8 @@ Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`
 
 Shared helpers for locating anchors and recovering stale navigation intent.
 
-- `getAnchorFromNavigationEvent(event, linkSelector)` — finds the nearest matching anchor in the event's composed path, including across Shadow DOM boundaries.
-- `recoverPendingNavigationHref(intent, hasInFlightNavigation, now, maxAgeMs?)` — resolves a previously captured pointer or hover target when the DOM changes before the click lands. Intents expire after `maxAgeMs` (default 1000 ms).
+- `getAnchorFromNavigationEvent(event, linkSelector)`: finds the nearest matching anchor in the event's composed path, including across Shadow DOM boundaries.
+- `recoverPendingNavigationHref(intent, hasInFlightNavigation, now, maxAgeMs?)`: resolves a previously captured pointer or hover target when the DOM changes before the click lands. Intents expire after `maxAgeMs` (default 1000 ms).
 
 ## Relationship To Rendering
 

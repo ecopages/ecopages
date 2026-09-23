@@ -1,14 +1,14 @@
 ---
 name: building-with-ecopages
 description: >-
-    Guides agents building Ecopages static sites and hybrid apps — integrations,
+    Guides agents building Ecopages static sites and hybrid apps: integrations,
     processors, eco.config.ts, eco.page/component, and API handlers. Use when
     scaffolding, configuring, or extending an Ecopages project.
 ---
 
 # Building with Ecopages
 
-Ecopages is a TypeScript-first static site generator with Bun and Node adapters. It is explicit, integration-agnostic, and static by default.
+Ecopages is an HTML-first TypeScript framework. It is explicit, integration-agnostic, and static by default.
 
 ## When to use this skill
 
@@ -25,13 +25,13 @@ For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<
 
 Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`.
 
-| Integration        | Owns                    | Notes                                                                                |
-| ------------------ | ----------------------- | ------------------------------------------------------------------------------------ |
-| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`   |
-| **React**          | React Pages and islands | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                          |
-| **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                              |
-| **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx` |
-| **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                       |
+| Integration        | Owns                    | Notes                                                                               |
+| ------------------ | ----------------------- | ----------------------------------------------------------------------------------- |
+| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`  |
+| **React**          | React Pages and islands | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                         |
+| **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                             |
+| **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })`: not React or `@ecopages/jsx` |
+| **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                      |
 
 Do not treat Ecopages as a React-only framework.
 
@@ -55,9 +55,9 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 2. Use `eco.page()` for routable pages; use `src/views/` for handler-rendered views.
 3. Match MDX to the owning integration: React MDX via `reactPlugin`, Ecopages JSX MDX via `ecopagesJsxPlugin`, standalone via `mdxPlugin` with explicit `jsxImportSource`.
 4. Register processors with factory functions: `postcssProcessorPlugin()`, `imageProcessorPlugin({ options })`.
-5. Processor build plugins use `EcoBuildPlugin`, not Bun-specific plugin types.
-6. Core owns plugin lifecycle ordering — see `reference/processors-and-plugins.md` before authoring custom plugins.
-7. In mixed-integration apps, compose cross-integration shells with integration-owned `EcoEmbed` (`@ecopages/<integration>/eco-embed`), which wraps `eco.embed()`. Plain opaque objects fail fast at core foreign-subtree queue boundaries — pass already-serialized HTML or use `EcoEmbed` instead of ad-hoc object children.
+5. Processor build plugins use `EcoBuildPlugin`, not runtime-specific bundler plugin types.
+6. Core owns plugin lifecycle ordering: see `reference/processors-and-plugins.md` before authoring custom plugins.
+7. In mixed-integration apps, compose cross-integration shells with integration-owned `EcoEmbed` (`@ecopages/<integration>/eco-embed`), which wraps `eco.embed()`. Plain opaque objects fail fast at core foreign-subtree queue boundaries: pass already-serialized HTML or use `EcoEmbed` instead of ad-hoc object children.
 
 ## Resources
 

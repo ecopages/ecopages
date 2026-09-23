@@ -7,8 +7,8 @@
  * through oxc-resolver and may read barrel re-export targets.
  *
  * This cache memoizes the result keyed by `(projectRoot, specifier)`. It is
- * process-local and not currently invalidated by the file watcher —
- * project contents are assumed to be stable for the lifetime of the process.
+ * process-local and not currently invalidated by the file watcher.
+ * Project contents are assumed to be stable for the lifetime of the process.
  */
 
 import path from 'node:path';

@@ -49,10 +49,10 @@ npm run build
 
 ## Structure
 
-- `src/pages` — routes, the shared showcase, and the MDX content page
-- `src/components` — React islands and theme controls
-- `src/lib` — small shared utilities such as `cx`
-- `src/layouts` — document shell and navigation
+- `src/pages`: routes, the shared showcase, and the MDX content page
+- `src/components`: React islands and theme controls
+- `src/lib`: small shared utilities such as `cx`
+- `src/layouts`: document shell and navigation
 
 No external services are required. Start customization in `src/pages/index.tsx` and
 `eco.config.ts`.

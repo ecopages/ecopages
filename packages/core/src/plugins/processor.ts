@@ -167,7 +167,7 @@ export abstract class Processor<TOptions = unknown> {
 	 *
 	 * @remarks
 	 * Maps to {@link AppBuildManifest.runtimePlugins}. Despite the name, these are
-	 * bundler plugins—not dev-server file processors. Runtime-only setup stays in
+	 * bundler plugins, not dev-server file processors. Runtime-only setup stays in
 	 * {@link setup}.
 	 */
 	abstract plugins?: EcoBuildPlugin[];

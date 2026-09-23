@@ -13,8 +13,8 @@ export type ReactPluginRuntimeModule =
 			 * Packages left unbundled in this vendor chunk.
 			 *
 			 * @remarks
-			 * Each entry must already be a shared vendor — React, the router bundle, or
-			 * another `runtimeModules` specifier — so import rewrite can emit
+			 * Each entry must already be a shared vendor: React, the router bundle, or
+			 * another `runtimeModules` specifier: so import rewrite can emit
 			 * `/assets/vendors/*.js`. Unmapped externals throw at plugin setup.
 			 */
 			externals?: string[];

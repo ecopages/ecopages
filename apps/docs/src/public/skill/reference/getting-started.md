@@ -10,29 +10,31 @@
 ## Interactive init
 
 ```sh
-bunx ecopages init
+pnpx ecopages init
 ```
+
+`npx ecopages init` is the npm equivalent.
 
 One-shot examples:
 
 ```sh
 # Minimal JSX starter
-bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev
+pnpx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm dev
 
-# Blog (KitaJS)
-bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev
+# Blog (Ecopages JSX)
+pnpx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm dev
 
 # Blog (React)
-bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev
+pnpx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm dev
 
 # Full-stack (React + Better Auth + Drizzle)
-bunx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev
+pnpx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm db:generate && pnpm db:migrate && pnpm dev
 ```
 
 ## Installation
 
 ```bash
-pnpm add @ecopages/core @ecopages/ecopages-jsx
+pnpm add -D ecopages typescript @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
 pnpm add -D @ecopages/postcss-processor @tailwindcss/postcss tailwindcss
 ```
 

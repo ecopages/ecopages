@@ -1,13 +1,13 @@
 # llm-wiki schema
 
-Conventions and workflows for maintaining this wiki. Co-evolve this file as we learn what works — it's not fixed.
+Conventions and workflows for maintaining this wiki. Co-evolve this file as we learn what works: it's not fixed.
 
 ## Layers
 
-- `sources/` — raw, immutable inputs. Never edit these after adding them; if a source is superseded, add a new one and note the supersession in the wiki page. Sources are copied into `app/src/public/sources/` during ingest and linked from wiki pages.
-- `wiki/` — LLM-maintained markdown pages organized by category directories. This is the layer you read; the agent writes and keeps it current.
-- `index.md` — generated catalog of every wiki page, one line each, grouped by category. Edit page `summary` frontmatter, not this file.
-- `log.md` — append-only chronological record of ingests, queries, and lint passes.
+- `sources/`: raw, immutable inputs. Never edit these after adding them; if a source is superseded, add a new one and note the supersession in the wiki page. Sources are copied into `app/src/public/sources/` during ingest and linked from wiki pages.
+- `wiki/`: LLM-maintained markdown pages organized by category directories. This is the layer you read; the agent writes and keeps it current.
+- `index.md`: generated catalog of every wiki page, one line each, grouped by category. Edit page `summary` frontmatter, not this file.
+- `log.md`: append-only chronological record of ingests, queries, and lint passes.
 
 ## Directory structure
 
@@ -33,12 +33,12 @@ The root `wiki/sortspec.md` optionally orders categories. Any category omitted t
 
 ## Page categories
 
-- `app/` — a host app or product surface.
-- `package/` — a shared library with no product behavior of its own.
-- `concept/` — cross-cutting vocabulary and invariants. Not step-by-step how-tos.
-- `recipe/` — a procedural house pattern ("how do we do X here"), with a pointer to a real source file.
-- `entity/` — a recurring named thing (a customer, an integration, a person).
-- `decision/` — a specific decision and its rationale, when it does not belong on another page.
+- `app/`: a host app or product surface.
+- `package/`: a shared library with no product behavior of its own.
+- `concept/`: cross-cutting vocabulary and invariants. Not step-by-step how-tos.
+- `recipe/`: a procedural house pattern ("how do we do X here"), with a pointer to a real source file.
+- `entity/`: a recurring named thing (a customer, an integration, a person).
+- `decision/`: a specific decision and its rationale, when it does not belong on another page.
 
 ### Concepts vs recipes
 
@@ -49,7 +49,7 @@ The root `wiki/sortspec.md` optionally orders categories. Any category omitted t
 
 ## Cross-referencing
 
-Use plain relative markdown links, not Obsidian wiki-links — keeps the wiki portable outside Obsidian.
+Use plain relative markdown links, not Obsidian wiki-links: keeps the wiki portable outside Obsidian.
 
 ### Same category
 
@@ -73,9 +73,9 @@ Every page should link to related pages; a page with no inbound links is a lint 
 
 Pages appear in the sidebar ordered by:
 
-1. **Category** — root `wiki/sortspec.md`, then remaining discovered categories alphabetically
-2. **Explicit position** — from per-directory `sortspec.md` (Obsidian Custom Sort format)
-3. **Title alphabetically** — tiebreaker for unlisted pages
+1. **Category**: root `wiki/sortspec.md`, then remaining discovered categories alphabetically
+2. **Explicit position**: from per-directory `sortspec.md` (Obsidian Custom Sort format)
+3. **Title alphabetically**: tiebreaker for unlisted pages
 
 Each category directory contains a `sortspec.md` that controls page ordering within that category. Edit this file to reorder pages. Pages listed first appear first; unlisted pages fall to the end alphabetically. The root `sortspec.md` uses the same `sorting-spec` field, but lists category directory names instead of page titles.
 
@@ -136,13 +136,13 @@ Generated. Do not edit by hand.
 Catalog of wiki pages, grouped by category. Updated on every ingest.
 
 ## App
-- [demo](./wiki/app/demo.md) — template landing page
+- [demo](./wiki/app/demo.md): template landing page
 
 ## Concept
-- [wiki-structure](./wiki/concept/wiki-structure.md) — how the wiki is organized
+- [wiki-structure](./wiki/concept/wiki-structure.md): how the wiki is organized
 
 ## Recipe
-- [ingest-source](./wiki/recipe/ingest-source.md) — file a new source into the wiki
+- [ingest-source](./wiki/recipe/ingest-source.md): file a new source into the wiki
 ```
 
 ## log.md format

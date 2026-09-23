@@ -45,12 +45,12 @@ All notable changes to `@ecopages/mdx` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-## [UNRELEASED] — TBD
+## [UNRELEASED]: TBD
 
 ### Breaking Changes
 
 - Standalone `mdxPlugin()` now **requires** `compilerOptions.jsxImportSource` (no `@kitajs/html` default).
-- Standalone `mdxPlugin()` rejects `react` and `@ecopages/jsx` — use `reactPlugin({ mdx: { enabled: true } })` or `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
+- Standalone `mdxPlugin()` rejects `react` and `@ecopages/jsx`: use `reactPlugin({ mdx: { enabled: true } })` or `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
 - Dropped `@kitajs/html` peer from standalone MDX. Shared loader utilities live in `@ecopages/mdx/core`.
 
 ### Features

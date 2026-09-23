@@ -1,5 +1,5 @@
 /**
- * Playwright `webServer` readiness — match the default runtime startup log.
+ * Playwright `webServer` readiness: match the default runtime startup log.
  *
  * @remarks
  * Dev servers log `Bun server running at http://localhost:PORT` or

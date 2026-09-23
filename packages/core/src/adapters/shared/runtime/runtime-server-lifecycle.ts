@@ -76,7 +76,7 @@ export function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeO
  * @remarks
  * Bun calls `buildRuntime()` during `initialize()` when watch is enabled; Node defers
  * runtime creation to `completeInitialization()`. Transport-specific setup stays in
- * each adapter — only shared teardown lives here.
+ * each adapter: only shared teardown lives here.
  */
 export async function disposeDevResources(options: {
 	projectWatcher: ProjectWatcher | null | undefined;

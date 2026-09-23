@@ -57,8 +57,8 @@ import styles from './styles.css';
 
 ## Layouts and includes
 
-- `src/includes/html.*` — document shell (`HtmlTemplateProps` with `children`, `metadata`, `pageProps`)
-- `src/includes/head.*` — head assets and metadata wiring
-- `src/layouts/` — page wrappers via `eco.page({ layout: BaseLayout })`
+- `src/includes/html.*`: document shell (`HtmlTemplateProps` with `children`, `metadata`, `pageProps`)
+- `src/includes/head.*`: head assets and metadata wiring
+- `src/layouts/`: page wrappers via `eco.page({ layout: BaseLayout })`
 
 Relative and aliased CSS imports inside layout and component files are auto-discovered. Use explicit `dependencies.stylesheets` when custom attributes (such as `media="print"`) or manual ordering overrides are required. Combine Page-local CSS with a content entry through `mergePageDependencies()`, not object spread.

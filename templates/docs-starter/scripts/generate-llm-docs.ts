@@ -10,6 +10,7 @@ import {
 	type DocsFrontmatter,
 } from '../src/content/docs';
 import { absoluteUrl, configuredSiteOrigin, normalizeSiteOrigin } from '../src/lib/docs/site-meta';
+import { toLlmMarkdown } from './llm-markdown';
 
 const appRoot = join(import.meta.dirname, '..');
 const publicRoot = join(appRoot, 'src/public');
@@ -36,7 +37,7 @@ function createScanner(contentRoot: string): ContentScanner<DocsFrontmatter> {
 }
 
 /**
- * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
+ * Writes generated Markdown page bodies and `llms.txt` into the public directory for static serving.
  *
  * @remarks
  * - `llms.txt` is a `.txt` discovery index only (when-to-use, CLI, section links).
@@ -62,7 +63,7 @@ export async function generateLlmDocs(outputRoot = publicRoot, options: Generate
 			'',
 			'Reach for this starter when you are:',
 			'',
-			'- Scaffolding an Ecopages documentation site (`npx ecopages init` and choose docs-starter).',
+			'- Scaffolding an Ecopages documentation site (`pnpx ecopages init` and choose docs-starter).',
 			'- Authoring MDX docs pages under `src/content/docs` with a catch-all route, sidebar, and Copy for LLM.',
 			'- Pointing agents at generated markdown via this index and `/docs-llm/<section>/<slug>.md`.',
 			'',
@@ -76,7 +77,7 @@ export async function generateLlmDocs(outputRoot = publicRoot, options: Generate
 			'## CLI',
 			'',
 			'- npm package: [`ecopages`](https://www.npmjs.com/package/ecopages).',
-			'- Run without installing: `npx ecopages`, `pnpm dlx ecopages`, or `bunx ecopages`.',
+			'- Run without installing: `pnpx ecopages` or `npx ecopages`.',
 			'',
 		];
 
@@ -112,7 +113,7 @@ export async function generateLlmDocs(outputRoot = publicRoot, options: Generate
 				}
 
 				const pageSlug = page.segments[page.segments.length - 1]!;
-				const body = await scanner.getRawContent(page.slug);
+				const body = toLlmMarkdown(await scanner.getRawContent(page.slug));
 				const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);
 				await mkdir(dirname(outputPath), { recursive: true });
 				await writeFile(outputPath, body, 'utf8');

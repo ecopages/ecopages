@@ -1,20 +1,18 @@
 # Ecopages
 
-A **modern, basic** web framework.
+An **HTML-first** web framework for multi-page apps.
 
-No virtual DOM. No complex state management. Just TypeScript and HTML.
+Pages are TypeScript modules that render HTML. Ecopages builds static files by default. Add interactive islands, request-time pages, or server routes only when the application needs them.
 
 ## Philosophy
 
-Most frameworks require you to learn complex abstractions like hooks, signals, or reactivity systems before you can build anything. Ecopages takes the opposite approach: you write functions that return HTML. That's it.
-
-The result is fast static pages, minimal dependencies, and code you can actually understand. When you need a server, add one. But you'll find static is often exactly what you need.
+Start with HTML, CSS, and TypeScript. Import local components and CSS next to the page that uses them. Ecopages discovers those imports and includes the required assets in the build. Static is the default cache strategy; a server is optional.
 
 ## Built With
 
-Ecopages runs on [Bun](https://bun.sh/) and [Node.js](https://nodejs.org/). Start with the first-party Ecopages JSX integration, or register another Integration that owns the route file types you use.
+Ecopages runs on [Node.js](https://nodejs.org/) and [Bun](https://bun.sh/). `createApp()` selects Bun when the process exposes it, otherwise Node. Start with the first-party Ecopages JSX integration, or register another Integration that owns the route file types you use.
 
-Ecopages supports multiple rendering libraries via plug-and-play integrations. Because Ecopages is an SSG framework operating at build-time, you must explicitly install both the integration plugin and its underlying renderer as development dependencies.
+Ecopages supports multiple rendering libraries through Integrations. Install the Integration and its renderer as development dependencies.
 
 - **Ecopages JSX** – Ecopages-owned JSX routes and optional Radiant hydration (Recommended choice)
   `pnpm add -D @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant`
@@ -31,16 +29,14 @@ For styling, use [Tailwind CSS](https://tailwindcss.com/) with `@apply` directiv
 
 As an early-stage project, Ecopages is evolving. Feedback welcome via [GitHub](https://github.com/ecopages/ecopages).
 
-## Current Features
-
-## Architecture And Docs Map
+## Architecture and docs map
 
 The workspace now has a more explicit documentation map so architecture notes live close to the code that owns them.
 
 ### For contributors and agents
 
-- [`AGENTS.md`](AGENTS.md) — coding standards for agents
-- [`CONTEXT.md`](CONTEXT.md) — domain vocabulary
+- [`AGENTS.md`](AGENTS.md): coding standards for agents
+- [`CONTEXT.md`](CONTEXT.md): domain vocabulary
 
 When a change affects subsystem behavior, update the local `README.md`, the parent documentation map if needed (`packages/core/README.md`, this section), and `CONTEXT.md` only when domain terms change. Other guides: [`e2e/README.md`](e2e/README.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), package roots under `packages/*/`.
 
@@ -61,11 +57,11 @@ Start here for package-level architecture:
 
 Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
-The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
+The current direction is explicit: Node and Bun are both first-class adapters (`createApp()` auto-selects from the process), Vite and Nitro own host-side build and dev when you embed, and Rolldown is the default core-owned bundler.
 
 ### Static Site Generation
 
-Build fast, SEO-friendly static sites with ease.
+Build static HTML that can be hosted without an application server.
 
 ### Lightweight Backend
 
@@ -147,7 +143,7 @@ If you are iterating on templates and already rebuilt the local npm packages, pa
 ### Documentation
 
 Learn more about using Ecopages:
-`pnpm run dev:docs`
+`pnpm dev:docs`
 
 For repository-local architecture notes and subsystem maps, start with the files listed in the architecture map above.
 

@@ -15,34 +15,35 @@
 ```
 project/
 ├── src/
-│   ├── pages/          # Static routes (eco.page, MDX)
-│   ├── views/          # Handler-rendered views
+│   ├── pages/          # Filesystem routes (eco.page, MDX)
+│   ├── views/          # Optional handler-rendered views
 │   ├── layouts/
 │   ├── components/
 │   ├── handlers/
 │   ├── includes/       # html.*, head.*, seo.*
 │   ├── lib/
-│   └── styles/
-├── public/
+│   ├── styles/
+│   └── public/         # Copied to dist (relative to src)
+├── app.ts
 ├── eco.config.ts
 └── package.json
 ```
 
-Semantic discovery: `src/includes/html.*`, `src/pages/404.*`, and `src/pages/500.*` resolve by basename and integration extension.
+Semantic discovery: `src/includes/html.*` and `src/pages/{400,401,403,404,409,500}.*` resolve by basename and integration extension. `createApp()` selects the adapter from the running process.
 
 ## The eco namespace
 
-- `eco.component()` — reusable components; **required** when declaring dependencies (scripts, stylesheets, child components)
-- `eco.page()` — page routes with metadata, layouts, `staticPaths`, `staticProps`
-- `eco.layout()` / `eco.html()` — semantic aliases for layouts and document shell
+- `eco.component()`: reusable components; **required** when declaring dependencies (scripts, stylesheets, child components)
+- `eco.page()`: page routes with metadata, layouts, `staticPaths`, `staticProps`
+- `eco.layout()` / `eco.html()`: semantic aliases for layouts and document shell
 
 Ecopages does not auto-detect script files by name pattern.
 
 ## Pages and views
 
-**Pages (`src/pages/`)** — file-based static routes.
+**Pages (`src/pages/`)**: file-based static routes.
 
-**Views (`src/views/`)** — rendered from handlers via `ctx.render()`. Must use `eco.page<Props>()` and dynamic `import()`.
+**Views (`src/views/`)** are rendered from handlers. Define them with `eco.page<Props>()` and load them through `ctx.renderServerModule()` so development invalidation and component-identity transforms apply. Do not use raw dynamic `import()` for a server-rendered view.
 
 ```tsx
 export default eco.page({
@@ -87,7 +88,7 @@ export const MyComponent = eco.component({
 
 ## Metadata and SEO
 
-Defaults in `eco.config.ts` via `.setDefaultMetadata()`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
+Defaults in `eco.config.ts` via `defaultMetadata`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
 
 ```tsx
 export default eco.page({
@@ -104,14 +105,19 @@ export default eco.page({
 Disabled by default. Enable in `eco.config.ts`:
 
 ```typescript
-.setSitemap({
-	enabled: true,
-	extraUrls: ['/rss.xml'],
-	exclude: ['/admin/**'],
-})
+import { defineConfig } from '@ecopages/core/config';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	sitemap: {
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/admin/**'],
+	},
+});
 ```
 
-Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after `afterStaticExport` during `ecopages build` only — not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.
+Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after `afterStaticExport` during `ecopages build` only: not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.
 
 ## Common patterns
 

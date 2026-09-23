@@ -2,23 +2,24 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It prefers Bun when available, falls back to Node otherwise, and applies runtime-specific launch behavior for each engine.
+It provides scaffolding and development commands to streamline your workflow. The CLI auto-detects Bun vs Node (`--runtime` overrides) and applies engine-specific launch behavior.
 
 ## Quick Start
 
 Initialize a new project from the interactive template picker:
 
 ```bash
-bunx ecopages init
+pnpx ecopages init
+# npx ecopages init
 ```
 
 For a deterministic invocation, select a template explicitly:
 
 ```bash
-bunx ecopages init my-app --template react
+pnpx ecopages init my-app --template jsx
 cd my-app
-bun install
-bun dev
+pnpm install
+pnpm dev
 ```
 
 ## Commands
@@ -62,7 +63,7 @@ Server and build commands accept the following options. They automatically map t
 
 ### Runtime Detection
 
-The CLI prefers Bun when the package manager already indicates Bun, when the `Bun` global is available, or when you force it with `--runtime bun`. Otherwise it falls back to Node.
+The CLI selects Bun when the package manager already indicates Bun, when the `Bun` global is available, or when you pass `--runtime bun`. Otherwise it uses Node.
 
 You can explicitly force the engine using the `--runtime` flag:
 
@@ -89,7 +90,7 @@ Set these in `.env` or on the command line when diagnosing slow dev startup or f
 | Env var                       | CLI                    | What you get                                                                                   |
 | :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
 | `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
-| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+| `ECOPAGES_STARTUP_TRACE=true` | :                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 

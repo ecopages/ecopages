@@ -44,7 +44,7 @@ All notable changes to `@ecopages/react-router` are documented here.
 
 > **Note:** Changelog tracking begins at version `0.2.0`. Changes prior to this release are not recorded here but are available in the git history.
 
-## [UNRELEASED] — TBD
+## [UNRELEASED]: TBD
 
 ### Breaking Changes
 
@@ -63,4 +63,4 @@ All notable changes to `@ecopages/react-router` are documented here.
 ## Migration Notes
 
 - `persistLayouts` defaults to `true` with `ecoRouter()`. Each nested layout tier is cached by `config.identity.file` or `id`; shared outer layouts stay mounted when navigating between routes with different inner tiers.
-- Plain React layout functions are not valid `eco.page({ layout })` values — use `eco.layout()` so layouts pass declared-component validation and enter the client graph.
+- Plain React layout functions are not valid `eco.page({ layout })` values: use `eco.layout()` so layouts pass declared-component validation and enter the client graph.

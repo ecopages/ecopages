@@ -6,44 +6,58 @@ order: 3
 
 # Build and Host
 
-Ecopages separates **core-owned build execution** from **host-managed dev/build** boundaries.
+Ecopages separates **core-owned build execution** from **host-managed dev/build** boundaries. The same `eco.config.ts` and `app.fetch()` contract apply in both cases.
 
 ## Build ownership
 
 | Mode | Who owns the bundler | Typical use |
 |------|----------------------|-------------|
-| **Rolldown (default)** | `@ecopages/core` via the build adapter | CLI, Bun/Node runtime, production server bundles |
+| **Rolldown (default)** | `@ecopages/core` via the build adapter | CLI, Node/Bun runtime, production server bundles |
 | **Vite host** | Vite + `@ecopages/vite-plugin` | Vite dev server, host-managed module graph |
 
-Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Ecopages plugins are bridged to Rolldown through a single consolidated plugin to minimize FFI overhead.
+Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Ecopages plugins (`EcoBuildPlugin`) are bridged into Rolldown. Optional [Vite host](/docs/ecosystem/vite-plugin) integration delegates dev-server orchestration to Vite; `ecopages build` still writes the same `dist` layout.
 
 ## What gets built
 
-- **Server entry** — app bootstrap and request handling
-- **Route modules** — page and layout server modules per integration
-- **Browser graphs** — Page Browser Graph entries and chunks per route or route cohort
-- **Static HTML** — build-time output for static cache strategies
+- **Server entry**: app bootstrap and request handling
+- **Route modules**: page and layout server modules per integration
+- **Browser graphs**: Page Browser Graph entries and chunks per route or route cohort
+- **Static HTML**: build-time output for static cache strategies
+- **Config artifact**: production server loads `dist/.server/eco.config.mjs`, not the TypeScript source config
+
+CSS and local components are discovered from imports in `eco.page()` / `eco.component()` modules. Processors such as PostCSS and the image pipeline plug into the same build.
 
 Development uses one-shot Rolldown builds with shared HMR and invalidation services; route-module and browser builds can run in parallel.
 
 ## Runtime entrypoint
 
-Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bun when available and falls back to Node. Vite/Nitro hosts still use the same app config and `app.fetch()` contract.
+Apps start through `createApp()` from `@ecopages/core/create-app`. With the default `adapter: 'auto'`, it selects Bun when `globalThis.Bun` is present and Node otherwise. Force a side with `adapter: 'node'` or `adapter: 'bun'`. Vite/Nitro hosts still use the same app config and `app.fetch()` contract.
 
 ### Boot vs embed
 
 | Mode | `createApp()` options | What `app.start()` does |
 |------|----------------------|-------------------------|
-| **Standalone** (CLI, Bun/Node) | default | Binds the port and serves traffic |
+| **Standalone** (CLI, Node/Bun) | default | Binds the port and serves traffic |
 | **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port |
 
 In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, and invokes the callback you pass to `app.start()` when the app can serve requests.
 
 See [Starting the server](/docs/server/server-api#starting-the-server) for a full `app.ts` example and the callback signature.
 
+## Commands
+
+| Command | Result |
+| --- | --- |
+| `ecopages dev` / `pnpm dev` | Development server, HMR, no production `dist` contract |
+| `ecopages build` / `pnpm build` | Writes `dist` (static HTML, assets, server bundle) |
+| `ecopages preview` / `pnpm preview` | Rebuilds `dist`, then serves it locally |
+| `ecopages start` / `pnpm start` | Serves an existing `dist` |
+
+`ecopages dev` does not generate `/sitemap.xml`. That file is written during static export. See [Sitemap](/docs/core/sitemap).
+
 ## Further reading
 
 - [Architecture](/docs/core/architecture)
-- [Sitemap](/docs/core/sitemap) — optional `sitemap.xml` during static export
+- [Deployment](/docs/reference/deployment)
 - [Vite Plugin](/docs/ecosystem/vite-plugin)
 - [Build layer README](https://github.com/ecopages/ecopages/blob/main/packages/core/src/build/README.md) in the repository

@@ -470,7 +470,7 @@ export abstract class AbstractApplicationAdapter<
 	 * `app.websocket('/ws/chat/:roomId', handler)` matches `/ws/chat/abc`,
 	 * `/ws/chat/xyz`, etc. Each connection receives its own `params.roomId`.
 	 *
-	 * Works across both Bun and Node runtimes — no runtime-specific imports needed.
+	 * Works across both Bun and Node runtimes: no runtime-specific imports needed.
 	 *
 	 * @example
 	 * ```typescript
@@ -509,11 +509,11 @@ export abstract class AbstractApplicationAdapter<
 				const paramName = segment.slice(1);
 				invariant(
 					paramName.length > 0,
-					`app.websocket(): invalid pattern "${path}" — empty param name in segment ":${paramName}".`,
+					`app.websocket(): invalid pattern "${path}": empty param name in segment ":${paramName}".`,
 				);
 				invariant(
 					!paramNames.has(paramName),
-					`app.websocket(): invalid pattern "${path}" — duplicate param name ":${paramName}".`,
+					`app.websocket(): invalid pattern "${path}": duplicate param name ":${paramName}".`,
 				);
 				paramNames.add(paramName);
 			}
@@ -563,7 +563,7 @@ export abstract class AbstractApplicationAdapter<
 
 	/**
 	 * Boot the server. When `onAppStart` is passed, it runs once the runtime can take traffic.
-	 * Embedded apps only register the callback — the host (for example Vite) boots the port.
+	 * Embedded apps only register the callback: the host (for example Vite) boots the port.
 	 */
 	public async start(onAppStart?: OnAppStartCallback): Promise<TServer | void> {
 		if (onAppStart) {

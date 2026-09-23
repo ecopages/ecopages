@@ -4,13 +4,13 @@
  * @remarks
  * The build layer exposes three concentric shapes:
  *
- * - `BuildAdapter` — the low-level backend contract. Two implementations
+ * - `BuildAdapter`: the low-level backend contract. Two implementations
  *   exist: a bundler-backed adapter (the real backend) and
  *   {@link ViteHostBuildAdapter} (a host-owned boundary marker that throws
  *   on direct use, for host runtimes that own their own build pipeline).
- * - `BuildExecutor` — the runtime-facing facade stored on
+ * - `BuildExecutor`: the runtime-facing facade stored on
  *   `appConfig.runtime.buildRuntime` via profile-based accessors.
- * - App-owned helpers (`getAppBuildAdapter` and the `set*` counterparts) —
+ * - App-owned helpers (`getAppBuildAdapter` and the `set*` counterparts):
  *   the supported way for runtime code to read and mutate the active adapter
  *   per `EcoPagesAppConfig`. Profile executors live on
  *   `appConfig.runtime.buildRuntime`.

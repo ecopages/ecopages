@@ -365,7 +365,7 @@ export async function assertNoMainFrameNavigationAfterHmr(page: Page, settleMs =
 	expect(reloaded, 'expected current-page refresh without a full document reload').toBe(false);
 }
 
-/** @deprecated Prefer {@link assertNoMainFrameNavigationAfterHmr} — this waits until the reload watch times out when no reload occurs. */
+/** @deprecated Prefer {@link assertNoMainFrameNavigationAfterHmr}: this waits until the reload watch times out when no reload occurs. */
 export function watchForMainFrameNavigation(page: Page, timeout = 10_000) {
 	return page
 		.waitForFunction(

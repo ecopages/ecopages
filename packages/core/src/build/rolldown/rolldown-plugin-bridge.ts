@@ -254,7 +254,7 @@ interface LoadRegistration {
  *
  * @remarks
  * Rolldown re-fires `buildStart` on each build, so registrations and the
- * virtual-module counter are cleared before every `setup` pass — otherwise
+ * virtual-module counter are cleared before every `setup` pass: otherwise
  * handlers accumulate when bridge plugins are reused.
  *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.

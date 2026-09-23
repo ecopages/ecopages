@@ -107,14 +107,14 @@ function runCommand(command) {
 const previewCommand = `NODE_ENV=production ECOPAGES_PORT=${port} ECOPAGES_PREVIEW_SERVE_ONLY=true pnpm --filter @ecopages/docs run preview`;
 
 if (isDistFresh()) {
-	console.log('[docs-e2e] dist is fresh — skipping build');
+	console.log('[docs-e2e] dist is fresh: skipping build');
 	runCommand(previewCommand);
 } else {
 	if (existsSync(docsDist)) {
-		console.log('[docs-e2e] dist is stale — rebuilding');
+		console.log('[docs-e2e] dist is stale: rebuilding');
 		rmSync(docsDist, { recursive: true, force: true });
 	} else {
-		console.log('[docs-e2e] no dist — building');
+		console.log('[docs-e2e] no dist: building');
 	}
 
 	if (existsSync(docsEco)) {

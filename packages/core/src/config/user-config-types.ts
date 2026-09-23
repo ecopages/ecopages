@@ -48,7 +48,7 @@ export type EcoPagesUserConfig = {
 	srcDir?: string;
 
 	/**
-	 * Directory for static public assets copied directly to `distDir`, relative to `rootDir`.
+	 * Directory for static public assets copied directly to `distDir`, relative to `srcDir`.
 	 *
 	 * @default 'public'
 	 */

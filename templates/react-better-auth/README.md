@@ -124,7 +124,7 @@ The Continue with GitHub button is shown only when both values are set. Otherwis
 
 ### Layout Strategy
 
-All pages share a single `BaseLayout` that uses `AuthNav` — a client-side session-aware navigation component.
+All pages share a single `BaseLayout` that uses `AuthNav`: a client-side session-aware navigation component.
 
 - Pages with auth middleware (e.g. `/dashboard`) pass `locals.session` for instant SSR rendering.
 - Pages without middleware (e.g. `/skills`) let `AuthNav` resolve the session client-side on hydration via `authClient.useSession()`.

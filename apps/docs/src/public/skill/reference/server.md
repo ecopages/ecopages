@@ -61,8 +61,9 @@ export const adminGroup = defineGroupHandler({
 		api.get({
 			path: '/',
 			handler: async (ctx) => {
-				const { default: AdminView } = await import('@/views/admin');
-				return ctx.render(AdminView, { user: ctx.session.user });
+				return ctx.renderServerModule(new URL('../views/admin.tsx', import.meta.url), {
+					user: ctx.session.user,
+				});
 			},
 		}),
 		api.post({
@@ -123,7 +124,8 @@ When rendering from handlers with `ctx.render()`:
 
 - Component must be `eco.page()` (not a plain framework component)
 - File lives in `src/views/`, not `src/pages/`
-- Import dynamically: `await import('@/views/dashboard')`
+- Load the view with `ctx.renderServerModule(new URL('../views/dashboard.tsx', import.meta.url), props)`
+- Do not use raw dynamic `import()`. It skips Ecopages server-module transforms.
 
 ## Client-side routing (React)
 

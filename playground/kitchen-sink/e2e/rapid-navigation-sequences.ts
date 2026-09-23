@@ -49,7 +49,7 @@ export async function settleAfterRapidHops(page: Page, recoveryPath = '/') {
 	await waitForNavigationIdle(page, 5_000);
 }
 
-/** Random hops from primary nav — the only links guaranteed in the shell during a click burst. */
+/** Random hops from primary nav: the only links guaranteed in the shell during a click burst. */
 export function randomHopSequence(count: number): string[] {
 	const pool = primaryLinks.map((link) => link.href);
 	const hops: string[] = [];

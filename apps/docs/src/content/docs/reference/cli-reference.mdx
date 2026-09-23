@@ -16,7 +16,7 @@ Run it with your package manager's one-off executor:
 	name="cli-reference-run"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages --help' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
 	]}
 	defaultSelectedKey="npm"
@@ -146,7 +146,7 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 	name="cli-reference-help"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages --help' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
 	]}
 	defaultSelectedKey="npm"
@@ -158,7 +158,7 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 	name="cli-reference-init"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages init ecopages-app' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app' },
 	]}
 	defaultSelectedKey="npm"
@@ -170,7 +170,7 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 	name="cli-reference-dev"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages dev' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages dev' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages dev' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages dev' },
 	]}
 	defaultSelectedKey="npm"
@@ -179,11 +179,11 @@ When the preferred port is already in use, `ecopages dev` and `ecopages preview`
 ### Build for production with a specific base URL
 
 ```bash
-ECOPAGES_BASE_URL=https://my-site.com pnpm dlx ecopages build
+ECOPAGES_BASE_URL=https://my-site.com pnpx ecopages build
 ```
 
 ### Start the production server
 
 ```bash
-pnpm dlx ecopages start --runtime node
+pnpx ecopages start --runtime node
 ```

@@ -1,12 +1,22 @@
 ---
 title: "Island Hosts"
-description: "How Ecopages stamps hydratable component roots for devtools and client hydration."
-order: 10
+description: "SSR markers that let tools and hydration find interactive component roots."
+order: 11
 ---
 
 # Island Hosts
 
-Hydratable component instances stamp a small, integration-agnostic attribute set on their SSR root. Dev tools (such as the [dev toolbar Islands panel](/docs/core/dev-toolbar)) and future runtime features use these markers to discover interactive islands without integration-specific selectors.
+An **island** is a hydratable component: server HTML plus a browser script. Ecopages stamps a small, integration-agnostic attribute set on that SSR root so tools and runtimes can find it without CSS-class hacks or per-framework selectors.
+
+You do not stamp these attributes yourself. Any `eco.component()` (or Integration equivalent) that ships a client script gets them during render.
+
+## What that enables
+
+- **Dev toolbar Islands panel**: list every interactive root on the page, jump to the DOM node, and see which Integration owns it. See [Dev toolbar](/docs/ecosystem/dev-toolbar).
+- **Hydration targeting**: React and other Integrations can match the SSR root to the client module (stable id, optional component key, optional props snapshot).
+- **Mixed rendering**: a Lit counter inside an Ecopages JSX page is still discoverable as one island, not a framework-specific custom element query.
+
+If a component is purely presentational (no client script), it is not an island and is not stamped.
 
 ## Attributes
 
@@ -22,26 +32,17 @@ React may replace the SSR host with `<eco-island>` after hydration. The marker i
 
 ## When stamping happens
 
-Core applies island host metadata through `finalizeIslandComponentRender()` when all of the following are true:
+Core applies island host metadata when all of the following are true:
 
-1. `integrationContext.componentInstanceId` is present
-2. The render result can attach attributes to a single root element (`canAttachAttributes`)
+1. The render has a component instance id
+2. The result can attach attributes to a single root element
 3. The render emits at least one client `script` asset
 
-Integrations that extend the contract (for example React's component key and props snapshot) should build on `buildIslandHostAttributes()` from `@ecopages/core` rather than inventing per-demo selectors.
+That is why a layout with only CSS is not an island, and a counter with `dependencies.scripts` is.
 
-## Integration coverage
+## Authoring a custom Integration
 
-| Integration | Stamping |
-| :--- | :--- |
-| React | `buildIslandHostAttributes()` in component SSR |
-| Lit | `finalizeIslandComponentRender()` in the Lit renderer |
-| KitaJS, MDX, string-markup | `finalizeIslandComponentRender()` via the string-markup renderer path |
-| Ecopages JSX | `finalizeIslandComponentRender()` in the Ecopages JSX renderer |
-
-## Using the helpers in custom integrations
-
-If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results that ship client scripts:
+Call `finalizeIslandComponentRender()` on component render results that ship client scripts:
 
 ```typescript
 import { finalizeIslandComponentRender } from '@ecopages/core';
@@ -55,9 +56,16 @@ return finalizeIslandComponentRender(input, {
 });
 ```
 
-For integrations that need extra hydration metadata, use `buildIslandHostAttributes()` and merge the result into `rootAttributes` before the foreign-subtree layer applies them to the first element.
+For extra hydration metadata, use `buildIslandHostAttributes()` and merge the result into `rootAttributes` before the foreign-subtree layer applies them to the first element. Prefer those helpers over inventing demo-only selectors.
+
+| Integration | Stamping |
+| :--- | :--- |
+| React | `buildIslandHostAttributes()` in component SSR |
+| Lit | `finalizeIslandComponentRender()` in the Lit renderer |
+| KitaJS, MDX, string-markup | `finalizeIslandComponentRender()` via the string-markup renderer path |
+| Ecopages JSX | `finalizeIslandComponentRender()` in the Ecopages JSX renderer |
 
 ## Related
 
-- [Components](/docs/core/components) — `eco.component`, dependencies, and client scripts
-- [Integrations overview](/docs/integrations/overview) — choosing and mixing renderers
+- [Components](/docs/core/components): `eco.component`, dependencies, and client scripts
+- [Integrations overview](/docs/integrations/overview): choosing and mixing renderers

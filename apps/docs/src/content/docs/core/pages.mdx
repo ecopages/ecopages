@@ -1,6 +1,6 @@
 ---
 title: "Pages"
-description: "Define pages with eco.page — static paths, data fetching, metadata, and rendering."
+description: "Define pages with eco.page: static paths, data fetching, metadata, and rendering."
 order: 4
 ---
 
@@ -43,7 +43,7 @@ See [Creating Layouts](/docs/core/layouts) for single and nested layout stacks.
 
 ## Using Components in Pages
 
-Import declared components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically. Every discovered entry must be a declared component — plain functions are rejected at render time.
+Import declared components directly. Ecopages discovers local `eco.component()`, `eco.layout()`, and `eco.html()` imports automatically. Every discovered entry must be a declared component: plain functions are rejected at render time.
 
 ```tsx
 import { RadiantCounter } from '@/components/radiant-counter';
@@ -61,7 +61,7 @@ export default eco.page({
 });
 ```
 
-**Note:** You do not need to repeat the page `layout` in `dependencies.components` — `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
+**Note:** You do not need to repeat the page `layout` in `dependencies.components`: `eco.page()` merges declared layouts into the dependency graph for you. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## Working with Data
 
@@ -83,3 +83,5 @@ export const MyComponent = eco.component({
 ```
 
 See [Components](/docs/core/components) for more patterns.
+
+Not-found, forbidden, and other HTML error pages (`400.*`–`500.*`) are documented in [Routing](/docs/core/routing). They are a different contract from API `HttpError` JSON responses.

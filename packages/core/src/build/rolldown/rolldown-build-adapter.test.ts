@@ -121,7 +121,7 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('bundled-source-package');
 	});
 
-	test('externalPackages bundles undeclared transitive dependencies (tier 3 — pnpm strict hoisting)', async () => {
+	test('externalPackages bundles undeclared transitive dependencies (tier 3: pnpm strict hoisting)', async () => {
 		// Simulate a transitive dep that the app has NOT declared in its package.json.
 		// Under pnpm strict hoisting, such packages are unreachable as bare specifiers
 		// from build output dirs (.eco/, .server-route-modules/, dist/.server/), so
@@ -158,7 +158,7 @@ describe('RolldownBuildAdapter', () => {
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
-		// The transitive dep must be inlined — NOT left as a bare specifier.
+		// The transitive dep must be inlined: NOT left as a bare specifier.
 		expect(code).not.toMatch(/from ['"]transitive-pkg['"]/);
 		expect(code).toContain('from-transitive-dep');
 	});

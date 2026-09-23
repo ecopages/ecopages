@@ -20,7 +20,7 @@ export type ContentMdxPlugins = {
  *
  * Prepends `remark-frontmatter` so `---` blocks are consumed at compile time
  * instead of rendering as thematic breaks. Pair this with
- * `contentProcessorPlugin()` — the processor validates frontmatter at scan time;
+ * `contentProcessorPlugin()`: the processor validates frontmatter at scan time;
  * this helper wires the matching MDX remark plugin for render time.
  */
 export function withContentMdxPlugins(options: ContentMdxPluginsOptions = {}): ContentMdxPlugins {

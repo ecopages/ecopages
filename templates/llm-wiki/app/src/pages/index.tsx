@@ -29,7 +29,7 @@ export default eco.page<{}, JsxRenderable>({
 						{section.items.map((page) => (
 							<li>
 								<a href={page.href}>{page.title}</a>
-								{` — ${page.summary}`}
+								{`: ${page.summary}`}
 							</li>
 						))}
 					</ul>

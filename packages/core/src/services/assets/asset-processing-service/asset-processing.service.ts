@@ -89,7 +89,7 @@ export class AssetProcessingService {
 	 * @remarks
 	 * Dependencies are deduplicated before processor execution so repeated
 	 * declarations across the render tree reuse the same emitted outputs and cache
-	 * entries. Returned asset order is unspecified — consumers must re-associate
+	 * entries. Returned asset order is unspecified: consumers must re-associate
 	 * outputs with inputs via dependency metadata such as `groupedBundle`, not by
 	 * array index alignment with the input list.
 	 */

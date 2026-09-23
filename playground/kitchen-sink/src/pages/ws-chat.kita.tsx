@@ -28,7 +28,7 @@ export default eco.page({
 			<div class="chat-lab" data-testid={getPageTestId('/ws-chat')}>
 				<section class="chat-lab__intro">
 					<p class="chat-lab__eyebrow">WebSocket injection</p>
-					<h1 class="chat-lab__title">Mini Chat — app.websocket() surface test</h1>
+					<h1 class="chat-lab__title">Mini Chat: app.websocket() surface test</h1>
 					<p class="chat-lab__summary">
 						This page opens a real WebSocket connection to <code>/ws/chat/lobby</code>. The server handler
 						is registered with <code>app.websocket('/ws/chat/:roomId', handler)</code> in{' '}
@@ -38,10 +38,10 @@ export default eco.page({
 					<ul class="chat-lab__facts">
 						<li>
 							<span class="chat-lab__fact-path">/ws/chat/:roomId</span> is a single registration that
-							matches every room id — <code>:roomId</code> arrives in <code>params</code>.
+							matches every room id. <code>:roomId</code> arrives in <code>params</code>.
 						</li>
 						<li>Messages are stored per room in an in-memory map (no DB).</li>
-						<li>Open a second tab and send a message — both tabs receive the broadcast in real time.</li>
+						<li>Open a second tab and send a message. Both tabs receive the broadcast in real time.</li>
 					</ul>
 				</section>
 

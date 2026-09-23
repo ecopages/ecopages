@@ -58,7 +58,7 @@ Configure your page with a declared layout to keep UI (headers, navs, sidebars) 
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
+export const BaseLayout = eco.layout<ReactNode>({
 	render: ({ children }) => (
 		<>
 			<header>My Site</header>
@@ -94,7 +94,7 @@ export default eco.page({
 	render: () => <h1>Docs</h1>,
 });
 
-// src/pages/settings/index.tsx — reuses the same AppShell cache key
+// src/pages/settings/index.tsx: reuses the same AppShell cache key
 import { eco } from '@ecopages/core';
 import { AppShell } from '../../layouts/app-shell';
 import { SettingsSection } from '../../layouts/settings-section';

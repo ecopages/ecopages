@@ -65,7 +65,7 @@ export const authHandler = async (ctx: ApiHandlerContext) => auth.handler(ctx.re
 Register in `app.ts`:
 
 ```typescript
-app.get('/api/auth/*', auth.authHandler).post('/api/auth/*', auth.authHandler);
+app.get('/api/auth/*', authHandler).post('/api/auth/*', authHandler);
 ```
 
 ## Client-side auth

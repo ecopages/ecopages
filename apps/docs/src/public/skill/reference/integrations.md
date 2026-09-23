@@ -40,7 +40,7 @@ ecopagesJsxPlugin({
 });
 ```
 
-Foreign-child ownership: Ecopages JSX uses renderer-owned foreign children for mixed rendering and Radiant hydration — not blanket client hydration for every component.
+Foreign-child ownership: Ecopages JSX uses renderer-owned foreign children for mixed rendering and Radiant hydration: not blanket client hydration for every component.
 
 Cross-integration shell stacks: use integration-owned `EcoEmbed` (`@ecopages/ecopages-jsx/eco-embed`, `@ecopages/react/eco-embed`, `@ecopages/kitajs/eco-embed`). It wraps `eco.embed()` so the active foreign-child runtime can queue subtrees in the owning renderer.
 
@@ -72,4 +72,4 @@ Runtime contract (for custom integrations):
 
 String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.
 
-Before queueing, core calls `assertForeignChildrenNotOpaque()` — plain objects throw instead of becoming `[object Object]` in HTML. Acceptable children include HTML strings, template results, markup nodes, arrays, and framework element markers.
+Before queueing, core calls `assertForeignChildrenNotOpaque()`: plain objects throw instead of becoming `[object Object]` in HTML. Acceptable children include HTML strings, template results, markup nodes, arrays, and framework element markers.

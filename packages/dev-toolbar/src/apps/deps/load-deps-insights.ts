@@ -88,7 +88,7 @@ export async function loadDepsInsights(doc: Document): Promise<DepsInsightsSnaps
 		uniqueInsights.map(async (insight) => {
 			insight.bytes = await fetchAssetBytes(insight.srcUrl);
 			if (insight.category === 'vendor' && insight.bytes !== null && insight.bytes >= LARGE_VENDOR_BYTES) {
-				insight.warning = 'Large vendor loaded eagerly — consider runtimeModules or lazy loading';
+				insight.warning = 'Large vendor loaded eagerly: consider runtimeModules or lazy loading';
 			}
 		}),
 	);

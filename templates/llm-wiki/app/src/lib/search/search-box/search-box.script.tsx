@@ -152,7 +152,7 @@ export function SearchTrigger({ label }: { label: string }) {
 }
 
 /**
- * `<radiant-search-box>` — a ⌘K command-palette search box. Loads documents from
+ * `<radiant-search-box>`: a ⌘K command-palette search box. Loads documents from
  * `indexUrl` (a JSON array of `SearchDocument`s, e.g. `/search-index.json`) and
  * searches client-side so it works under static `preview` as well as `dev`/`start`.
  *
@@ -190,7 +190,7 @@ export class RadiantSearchBox extends RadiantElement<SearchBoxBindings> {
 	private indexPromise?: Promise<SearchIndex>;
 
 	/**
-	 * Hoisted once — never call `.map` inside `render()`.
+	 * Hoisted once: never call `.map` inside `render()`.
 	 * @remarks Reads `this.recent` when `panel` changes; recent is refreshed before open.
 	 */
 	private readonly panelChrome = this.$.panel.map((panel) => this.renderChrome(panel, this.recent));
@@ -281,8 +281,8 @@ export class RadiantSearchBox extends RadiantElement<SearchBoxBindings> {
 	}
 
 	/**
-	 * `RuiInput`'s prop type only declares `on:input`/`on:change`/`on:blur` — no
-	 * `on:keydown` passthrough — so this listens via delegation instead of a JSX prop.
+	 * `RuiInput`'s prop type only declares `on:input`/`on:change`/`on:blur`: no
+	 * `on:keydown` passthrough: so this listens via delegation instead of a JSX prop.
 	 */
 	@onEvent({ selector: 'input[data-rui-control]', type: 'keydown' })
 	onInputKeydown(event: KeyboardEvent): void {

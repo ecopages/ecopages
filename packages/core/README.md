@@ -4,11 +4,11 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support and Vite-hosted compatibility for advanced dev and build orchestration. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an HTML-first multi-page framework. Pages render to HTML at build time by default, or at request time when a cache strategy or handler requires it. Interactive islands hydrate only where a component ships a browser script.
 
-- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise. Vite and Nitro still own host-side dev and build orchestration.
-- **Build Ownership**: Bun-native execution keeps a core-owned build path. Vite and Nitro own host-side transforms, module graph behavior, and deployment-oriented builds.
-- **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
+- **Runtime Boundary**: `createApp()` selects Bun when `globalThis.Bun` is present, otherwise Node (`adapter: 'auto'`). Vite and Nitro hosts still own their own dev/build orchestration and call `app.fetch()`.
+- **Build Ownership**: Core runs [Rolldown](https://rolldown.rs) by default. Optional Vite-host ownership delegates the module graph to Vite; `ecopages build` still writes `dist`.
+- **Framework agnostic**: First-class support for Ecopages JSX, React, Lit, MDX, and KitaJS via official Integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
 ## Current Architecture
@@ -238,21 +238,6 @@ Standalone response helpers (`json`, `html`, `redirect`) share the same body emi
 
 Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
-### 6. Error pages
-
-Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:
-
-```typescript
-app.notFound('./src/views/not-found.kita');
-app.serverError('./src/views/server-error.kita');
-```
-
-String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms.
-
-When no custom page is configured, built-in HTML defaults are served instead.
-
-Attach the handler in your `app.ts` entry:
-
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
 import { helloWorld } from './handlers/hello';
@@ -263,6 +248,23 @@ app.add(helloWorld);
 
 await app.start();
 ```
+
+### 6. Error pages
+
+Page-pipeline `HttpError` statuses are preserved on HTML responses. Unmatched URLs are HTML **404**. Generic `Error` values are HTML **500**. `app.get()` / `app.onError()` stay on JSON.
+
+Filesystem `src/pages/{status}.*` takes precedence for 400, 401, 403, 404, 409, and 500. For explicit-route apps, register `eco.page` modules:
+
+```typescript
+app.notFound('./src/views/not-found.kita');
+app.forbidden('./src/views/forbidden.kita');
+app.serverError('./src/views/server-error.kita');
+app.errorPage(409, './src/views/conflict.kita');
+```
+
+String and URL paths passed to `app.static()` and the error-page helpers load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms.
+
+When no custom page is configured, built-in HTML defaults are served instead. Named loaders do not create `/{status}` preview URLs.
 
 See the [official documentation](https://ecopages.app) for advanced usage, API handlers, and integrations.
 

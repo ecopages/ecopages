@@ -6,7 +6,7 @@ order: 1
 
 # `eco` Namespace
 
-A unified API for defining components, pages, and page data in EcoPages.
+A unified API for defining components, pages, and page data in Ecopages.
 
 ## Overview
 
@@ -36,7 +36,7 @@ export default eco.page({
 });
 ```
 
-Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
+Direct static named/default imports of local Eco Components contribute their Dependencies transitively. Configured TypeScript path aliases and relative imports are supported for both Components and CSS stylesheets (e.g., `import '@/components/button'` or `import '@/styles/main.css'`). Side-effect CSS imports become stylesheet Dependencies; the shared transform removes the imports so the existing asset pipeline owns delivery in server and browser builds. Prefer `import './file.css'` (or an alias) in new code. Use `dependencies.stylesheets` when you need attributes the import cannot express (`media="print"`) or when merging bags with `mergePageDependencies()`. In MDX documents, top-level component and CSS imports are discovered while markdown code blocks and dynamic imports within functions are safely ignored.
 
 Discovery is conservative and module-scoped: every Eco declaration in a file shares its imported Components and styles, even when a render condition omits a Component. It does not infer which Components actually render. **Best practice:** author **one `eco.component()` per file**. Co-locating multiple components in a single file will cause all declared components in that file to share discovered dependencies.
 
@@ -44,20 +44,29 @@ Imported Layouts contribute assets; only the explicit `layout` option controls L
 
 Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
 
-When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
+When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths. Page-owned CSS can still be a side-effect import; the merge bag is for the other file's contributions.
 
 ```ts
 import { eco, mergePageDependencies } from '@ecopages/core';
 import { getEntryDependencies } from 'ecopages:content/posts/server';
+import './post.css';
 
 export default eco.page({
 	dependencies: async ({ props }) =>
-		mergePageDependencies({ stylesheets: ['./post.css'] }, await getEntryDependencies(props.slug)),
+		mergePageDependencies({}, await getEntryDependencies(props.slug)),
 	render: () => <article />,
 });
 ```
 
-Browser scripts remain explicit:
+Browser scripts remain explicit. Entries can be a path string or an object:
+
+| Field | Role |
+| --- | --- |
+| `src` | Module path (relative to the declaring file, or aliased) |
+| `content` | Inline script source (theme bootstrap, etc.) |
+| `ssr` | Preload on the server before render (Lit / Ecopages JSX Radiant hosts) |
+| `lazy` | Browser delivery trigger (`on:idle`, `on:visible`, `on:interaction`) |
+| `attributes` | Extra `<script>` attributes (`defer`, `data-eco-rerun`, …) |
 
 ```ts
 scripts: [{
@@ -67,32 +76,32 @@ scripts: [{
 }]
 ```
 
-For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. Only those integrations run SSR preload today; other renderers ignore `ssr: true` until they adopt the same preloader. `lazy` controls browser delivery only; it does not suppress server import. Lazy entries with `ssr: true` do not emit a duplicate eager browser script—browser delivery follows `lazy`, or loads eagerly when `lazy` is omitted. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
+For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the server before rendering so `customElements.define` runs without a separate value import in the component file. Only those integrations run SSR preload today; other renderers ignore `ssr: true` until they adopt the same preloader. `lazy` controls browser delivery only; it does not suppress server import. Lazy entries with `ssr: true` do not emit a duplicate eager browser script. Browser delivery follows `lazy`, or loads eagerly when `lazy` is omitted. String-form `scripts: ['./file.ts']` stays browser-only unless you opt in with `{ src, ssr: true }`.
 
 Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
 ## Component Patterns
 
-EcoPages provides a unified API for creating components and pages. While there are a few ways to define components, **`eco.component()` is the standard and recommended approach** for most use cases, as it ensures proper dependency management, lazy loading, and type safety.
+Use `eco.component()` when a component owns scripts, stylesheets, discovered child components, or lazy-loading behavior. Plain JSX functions remain useful for markup that does not own those dependencies.
 
 ## Component Creation
 
 ### `eco.component()` (Standard)
 
 This is the primary way to create components in EcoPages. It handles:
-- **Dependency Management:** Automatically injects stylesheets and scripts.
-- **Lazy Loading:** Supports interaction, visibility, and idle triggers.
+- **Dependency Management:** Discovers local CSS and Eco Component imports; injects scripts you list in `dependencies.scripts`.
+- **Lazy Loading:** Supports interaction, visibility, and idle triggers on those scripts.
 - **Type Safety:** Infers props for both internal usage and custom elements.
 
 
-For components that need dependencies, scripts, or lazy loading:
+For components that need scripts or lazy loading:
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './counter.css';
 
 export const Counter = eco.component({
 	dependencies: {
-		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
@@ -130,7 +139,7 @@ export function Card({ children, className }: PropsWithChildren<{ className?: st
 - Components that only render HTML without scripts or dedicated stylesheets
 - Zero runtime cost - just functions returning markup
 
-> **Note:** If your component requires a dedicated CSS file, use `eco.component()` instead to manage the stylesheet dependency.
+> **Note:** If your component requires a dedicated CSS file, import it next to the component (`import './card.css'`) or use `eco.component()` so discovery can attach it. Do not rely on a plain function to own a stylesheet.
 
 ### Plain React Components (Integration)
 
@@ -182,24 +191,21 @@ All patterns can coexist in the same project. Use the right tool for the job.
 
 ## React Support
 
-EcoPages fully supports React components. You can use `eco.component()` with React to managing dependencies and hydration while maintaining type safety.
+Use `eco.component()` with React to manage dependencies and hydration while retaining type safety.
 
 Since React components return `ReactNode` or `JSX.Element` (not `EcoPagesElement`), you need to specify the return type generic:
 
 ```tsx
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
+import './button.css';
 
 type ButtonProps = {
 	label: string;
 	onClick?: () => void;
 };
 
-// Specify ReactNode as the second generic argument
 export const Button = eco.component<ButtonProps, ReactNode>({
-	dependencies: {
-		stylesheets: ['./button.css'],
-	},
 	render: ({ label, onClick }) => (
 		<button className="eco-button" onClick={onClick}>
 			{label}
@@ -274,15 +280,16 @@ Both patterns work and can be mixed - the renderer checks for attached propertie
 
 ### `eco.html()`
 
-Creates the document shell component — the outermost HTML wrapper rendered once per page. Semantically equivalent to `eco.component()` but signals to tooling and readers that this component owns the full document structure (`<html>`, `<head>`, `<body>`).
+Creates the document shell component: the outermost HTML wrapper rendered once per page. Semantically equivalent to `eco.component()` but signals that this component owns the document (`<html>`, `<head>`, `<body>`).
+
+`eco.html<E>()` takes **one** generic: the renderable. Props are `HtmlTemplateProps` (`children`, `metadata`, `headContent`, `language`, `pageProps`, `pageModuleUrl`).
 
 ```tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './document.css';
 
-export const Document = eco.html({
-	dependencies: {
-		stylesheets: ['./document.css'],
-	},
+export const Document = eco.html<JsxRenderable>({
 	render: ({ children, metadata }) => (
 		<html lang="en">
 			<head>
@@ -296,14 +303,14 @@ export const Document = eco.html({
 
 ### `eco.layout()`
 
-Creates a route layout component — a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
+Creates a route layout component: a wrapper rendered around page content. Semantically equivalent to `eco.component()` but clearly communicates that the component is intended to be used as a `layout` in `eco.page()`.
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children }) => (
@@ -312,7 +319,9 @@ export const BaseLayout = eco.layout({
 });
 ```
 
-Use `eco.layout()` components as the `layout` option in `eco.page()`. EcoPages merges declared layouts into the page dependency graph automatically — you do not need to list the layout again in `dependencies.components` unless you also render it manually inside `render` (unusual).
+Use `eco.layout()` components as the `layout` option in `eco.page()`. EcoPages merges declared layouts into the page dependency graph automatically: you do not need to list the layout again in `dependencies.components` unless you also render it manually inside `render` (unusual).
+
+`eco.layout<E>()` is typed as `LayoutProps<E>` (children plus request context). Extra chrome props (`class`, `prose`) are typed with `eco.component<YourProps, E>()`; both are valid `layout` values.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -353,7 +362,7 @@ layout: [
 ],
 ```
 
-On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), each tier is cached independently during SPA navigation. Routes that share an outer layout — for example `[AppShell, Docs]` and `[AppShell, Settings]` — reuse the same mounted outer instance while inner tiers swap.
+On React sites with [`@ecopages/react-router`](/docs/ecosystem/react-router), each tier is cached independently during SPA navigation. Routes that share an outer layout: for example `[AppShell, Docs]` and `[AppShell, Settings]`: reuse the same mounted outer instance while inner tiers swap.
 
 ### `eco.component()`
 
@@ -361,10 +370,10 @@ Define a reusable component with dependencies. Entries in `dependencies.componen
 
 ```tsx
 import { eco } from '@ecopages/core';
+import './base-layout.css';
 
 export const BaseLayout = eco.component({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children, class: className }) => (
@@ -378,9 +387,10 @@ export const BaseLayout = eco.component({
 **With lazy-loaded scripts:**
 
 ```tsx
+import './counter.css';
+
 export const Counter = eco.component({
 	dependencies: {
-		stylesheets: ['./counter.css'], // loaded immediately
 		scripts: [
 			{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } },
 		],
@@ -449,7 +459,7 @@ Core rejects plain opaque objects before they enter the foreign-subtree queue. V
 
 Accepted without throwing: HTML strings, template results (`strings` / `values`), markup nodes with `outerHTML`, arrays, and framework element markers (`$$typeof`).
 
-Use `EcoEmbed` (or pre-serialized HTML) for cross-integration shell stacks. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#mixed-rendering) for the full boundary contract.
+Use `EcoEmbed` (or pre-serialized HTML) for cross-integration shell stacks. See [Ecopages JSX: Mixed Rendering](/docs/integrations/ecopages-jsx#mixed-rendering) for the full boundary contract.
 
 ### `eco.page()`
 
@@ -589,10 +599,10 @@ export default eco.page<BlogPostProps>({
 ```tsx
 // components/counter/counter.tsx
 import { eco } from '@ecopages/core';
+import './counter.css';
 
 export const Counter = eco.component({
 	dependencies: {
-		stylesheets: ['./counter.css'],
 		scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 	},
 	render: ({ count }) => <my-counter count={count}></my-counter>,
@@ -659,7 +669,7 @@ interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
 	modules?: string[];
-	/** Declared eco components only — see `EcoDeclaredComponent`. */
+	/** Declared eco components only: see `EcoDeclaredComponent`. */
 	components?: EcoDeclaredComponent[];
 }
 
@@ -684,10 +694,10 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 	render: (props: P) => E;
 }
 
-// html() and layout() accept the same options as component() but return
-// narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
-type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
+// html() takes one generic `E` (the renderable). Props are HtmlTemplateProps.
+// layout() takes `E` as well; extra typed chrome props use eco.component() instead.
+type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 type EcoPageLayoutSpec<E = EcoPagesElement> =
 	| EcoDeclaredComponent<any, E>

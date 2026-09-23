@@ -2,20 +2,20 @@
 
 Development-only browser toolbar for Ecopages. Mounts during `ecopages dev` and does not ship to production builds.
 
-User-facing docs: [Dev toolbar](https://ecopages.dev/docs/core/dev-toolbar) (enablement, manifest, built-in apps).
+User-facing docs: [Dev toolbar](https://ecopages.app/docs/ecosystem/dev-toolbar) (enablement, manifest, built-in apps).
 
 ## Install
 
 Add the package to your app and opt in from config:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-export default new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setDevToolbar(devToolbar())
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	devToolbar: devToolbar(),
+});
 ```
 
 ```bash
@@ -30,11 +30,11 @@ Disable per project with `devToolbar: { enabled: false }`, or per process with `
 
 ## Built-in apps
 
-- **Navigation** — route timing archive, initial load, client navigation latency, HMR status, page Integration (route owner); writes `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist`) and exposes `window.__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
-- **Deps** — Page Browser Graph entry/chunk assets, vendor URLs, lazy-load hints
-- **Islands** — inspect island hosts stamped with `data-eco-island`, including SSR-emitted React `<eco-island>` hosts; repeated component instances are shown independently and hydration status reports `hydrated` (via `data-eco-hydrated` or verified component update completion), `registered` (for defined custom elements awaiting update completion), or `ssr-only`
-- **A11y** — axe-core audit (with built-in fallback checks) and in-page highlights
-- **Settings** — dock placement (top, bottom, left, right), stealth mode, and documentation link
+- **Navigation**: route timing archive, initial load, client navigation latency, HMR status, page Integration (route owner); writes `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist`) and exposes `window.__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
+- **Deps**: Page Browser Graph entry/chunk assets, vendor URLs, lazy-load hints
+- **Islands**: inspect island hosts stamped with `data-eco-island`, including SSR-emitted React `<eco-island>` hosts; repeated component instances are shown independently and hydration status reports `hydrated` (via `data-eco-hydrated` or verified component update completion), `registered` (for defined custom elements awaiting update completion), or `ssr-only`
+- **A11y**: axe-core audit (with built-in fallback checks) and in-page highlights
+- **Settings**: dock placement (top, bottom, left, right), stealth mode, and documentation link
 
 ## Bring your own dev toolbar
 
@@ -50,16 +50,16 @@ To replace this reference toolbar:
 
 ## Reference-toolbar internals
 
-`window.__ECO_DEV_TOOLBAR_APPS__` is an optional registry used inside this package for experimental extra dock apps. It is **not** a supported Ecopages extension API — app authors should replace `devToolbar.package` instead.
+`window.__ECO_DEV_TOOLBAR_APPS__` is an optional registry used inside this package for experimental extra dock apps. It is **not** a supported Ecopages extension API: app authors should replace `devToolbar.package` instead.
 
 ## Package layout
 
-- `src/bootstrap.ts` — injects toolbar CSS into `document.head`, boots navigation telemetry, and mounts `eco-dev-toolbar`; reload-safe telemetry ownership prevents HMR bundle re-evaluation from adding duplicate document listeners
-- `src/runtime/navigation-events.ts` — shares the three navigation lifecycle listeners across toolbar apps and removes them when the final subscriber unmounts
-- `src/shell/eco-dev-toolbar.tsx` — Radiant light-DOM host (JSX `render()`, no shadow root); panel positioning is pure CSS
-- `src/shell/motion.ts` — WAAPI motion for stealth dock reveal only; panel show/hide is CSS
-- `src/apps/*-panel.tsx` — Radiant JSX panels (navigation, deps, islands, a11y, settings)
-- `src/api/manifest-contract.ts` — browser-local mirror of the core dev manifest contract
-- `src/api/dev-manifest.ts` — internal DOM read/write for `#__ECO_DEV_MANIFEST__`
-- `src/api/types.ts` — toolbar app host contracts
-- `src/shell/` — custom element host, SVG icons, styles, and `ensureDevToolbarStyles()` (optional CSS override for BYO toolbars)
+- `src/bootstrap.ts`: injects toolbar CSS into `document.head`, boots navigation telemetry, and mounts `eco-dev-toolbar`; reload-safe telemetry ownership prevents HMR bundle re-evaluation from adding duplicate document listeners
+- `src/runtime/navigation-events.ts`: shares the three navigation lifecycle listeners across toolbar apps and removes them when the final subscriber unmounts
+- `src/shell/eco-dev-toolbar.tsx`: Radiant light-DOM host (JSX `render()`, no shadow root); panel positioning is pure CSS
+- `src/shell/motion.ts`: WAAPI motion for stealth dock reveal only; panel show/hide is CSS
+- `src/apps/*-panel.tsx`: Radiant JSX panels (navigation, deps, islands, a11y, settings)
+- `src/api/manifest-contract.ts`: browser-local mirror of the core dev manifest contract
+- `src/api/dev-manifest.ts`: internal DOM read/write for `#__ECO_DEV_MANIFEST__`
+- `src/api/types.ts`: toolbar app host contracts
+- `src/shell/`: custom element host, SVG icons, styles, and `ensureDevToolbarStyles()` (optional CSS override for BYO toolbars)

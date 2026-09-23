@@ -1,5 +1,5 @@
 /**
- * Isolated kitchen-sink HMR only — copies to `.e2e-tmp/` because tests mutate source.
+ * Isolated kitchen-sink HMR only: copies to `.e2e-tmp/` because tests mutate source.
  *
  * Dev, parity, and preview run in-repo via `cross-integration-dev` and
  * `cross-integration-preview` fixtures.

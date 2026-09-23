@@ -19,7 +19,7 @@ This docs app uses it for every page under `src/content/docs/`.
 | File discovery, frontmatter validation, manifest sort                 | `@ecopages/content-processor`                    |
 | Generated `ecopages:content/*` modules (`entries`, `getComponent`, …) | `@ecopages/content-processor`                    |
 | `ContentScanner` for app build scripts (this site uses it for `llms.txt`) | `@ecopages/content-processor`                    |
-| Routes, layouts, sidebar, breadcrumbs, pagination                     | Your app — derive from `entries` and frontmatter |
+| Routes, layouts, sidebar, breadcrumbs, pagination                     | Your app: derive from `entries` and frontmatter |
 
 `ContentScanner` is the same scan/validate path the processor uses at build time. It does not write `llms.txt`. This docs app (and the docs-starter template) call it from `scripts/generate-llm-docs.ts`.
 
@@ -82,7 +82,7 @@ React apps use the same helper on `reactPlugin({ mdx: { enabled: true, ...withCo
 
 Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
 
-Do not add `slug` or `segments` to your frontmatter schema — the processor derives them from the file path.
+Do not add `slug` or `segments` to your frontmatter schema: the processor derives them from the file path.
 
 ### Dev prewarm
 
@@ -107,11 +107,11 @@ development: `'all'` renders every collection route concurrently and can compete
 
 ### Docs app wiring
 
-- **Frontmatter schema and section config** — `src/content/docs.ts`
-- **Sidebar navigation** — `src/lib/content-nav.ts` joins section config with processor `entries`
-- **Catch-all route** — `src/pages/docs/[...slug]/index.tsx` resolves entries and renders MDX
-- **MDX component dependencies** — each document imports the components it renders
-- **Layout chrome** — `src/layouts/docs-layout/`
+- **Frontmatter schema and section config**: `src/content/docs.ts`
+- **Sidebar navigation**: `src/lib/content-nav.ts` joins section config with processor `entries`
+- **Catch-all route**: `src/pages/docs/[...slug]/index.tsx` resolves entries and renders MDX
+- **MDX component dependencies**: each document imports the components it renders
+- **Layout chrome**: `src/layouts/docs-layout/`
 
 Example frontmatter:
 
@@ -166,7 +166,7 @@ import type { Entry } from 'ecopages:content/docs';
 | `getEntryBySegments(segments)` | entries | Lookup by segment array                                      |
 | `getComponent(slug)`           | server  | `Promise` of the MDX component for the entry                 |
 | `getEntryDependencies(slug)`   | server  | Returns `{ components: [entry] }` so collection walks MDX identity. Throws `HttpError.NotFound` when missing. Combine Page-local relative assets with `mergePageDependencies()`. |
-| `Entry`                        | entries | Type only — frontmatter fields plus `slug` and `segments`    |
+| `Entry`                        | entries | Type only: frontmatter fields plus `slug` and `segments`    |
 
 Keep `Entry` on a separate `import type` line in bundled page files.
 
@@ -192,7 +192,7 @@ Run `ecopages dev` or `ecopages build` to generate precise types for configured 
 
 ## Related
 
-- [Custom Processor](/docs/plugins/custom-processor) — authoring processors
-- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run
-- [MDX Integration](/docs/integrations/mdx) — MDX compile pipeline
-- [docs-starter template](https://github.com/ecopages/ecopages/tree/main/templates/docs-starter) — minimal content-processor setup
+- [Custom Processor](/docs/plugins/custom-processor): authoring processors
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle): when processor hooks run
+- [MDX Integration](/docs/integrations/mdx): MDX compile pipeline
+- [docs-starter template](https://github.com/ecopages/ecopages/tree/main/templates/docs-starter): minimal content-processor setup

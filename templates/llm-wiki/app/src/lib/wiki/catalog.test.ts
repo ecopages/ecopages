@@ -27,11 +27,11 @@ Catalog of wiki pages, grouped by category. Updated on every ingest.
 
 ## Concept
 
-- [wiki-structure](./wiki/concept/wiki-structure.md) — how it is organized
+- [wiki-structure](./wiki/concept/wiki-structure.md): how it is organized
 
 ## App
 
-- [demo](./wiki/app/demo.md) — example page
+- [demo](./wiki/app/demo.md): example page
 `);
 });
 
@@ -42,8 +42,8 @@ test('catalog preserves distinct slugs with duplicate titles in explicit and fal
 	];
 	for (const titles of [[], ['Same']]) {
 		const markdown = renderCatalogMarkdown({ categories: ['app'], pagesByTitle: { app: titles }, entries });
-		expect(markdown).toContain('- [one](./wiki/app/one.md) — first');
-		expect(markdown).toContain('- [two](./wiki/app/two.md) — second');
+		expect(markdown).toContain('- [one](./wiki/app/one.md): first');
+		expect(markdown).toContain('- [two](./wiki/app/two.md): second');
 		expect(markdown.indexOf('[one]')).toBeLessThan(markdown.indexOf('[two]'));
 	}
 });

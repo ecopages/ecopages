@@ -9,7 +9,7 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # React Integration
 
-The `@ecopages/react` package introduces first-class integration with [React](https://reactjs.org/) version 19, enabling developers to build dynamic components using the latest React features within the Ecopages platform.
+The `@ecopages/react` package renders and hydrates [React 19](https://react.dev/) components in Ecopages Pages.
 
 ## Installation
 
@@ -49,11 +49,9 @@ The standard way to create components in Ecopages is via the `eco.component` fac
 ```tsx
 import { useState } from 'react';
 import { eco } from '@ecopages/core';
+import './counter.css';
 
 export const Counter = eco.component({
-	dependencies: {
-		stylesheets: ['./counter.css'],
-	},
 	render: () => {
 		const [count, setCount] = useState(0);
 
@@ -167,7 +165,7 @@ export default eco.page({
 });
 ```
 
-Plain opaque objects fail fast at core foreign-subtree queue boundaries; they are not coerced with `String(object)`. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#cross-integration-children) for accepted child shapes and the queue contract.
+Plain opaque objects fail fast at core foreign-subtree queue boundaries; they are not coerced with `String(object)`. See [Ecopages JSX: Mixed Rendering](/docs/integrations/ecopages-jsx#cross-integration-children) for accepted child shapes and the queue contract.
 
 ## MDX Support
 
@@ -251,7 +249,7 @@ Path aliases resolve from `tsconfig.json` `compilerOptions.paths`, same as the E
 
 ### Recommended setup
 
-Plugin config — no manual vendor list when provider layouts are flagged:
+Plugin config: no manual vendor list when provider layouts are flagged:
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
@@ -264,7 +262,7 @@ export default defineConfig({
 });
 ```
 
-Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:
+Provider root layout: set `runtimeProvider: true` on the tier that mounts shared client state:
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -347,10 +345,10 @@ reactPlugin({
 | `@/` alias not followed | Missing or invalid tsconfig paths | Add `compilerOptions.paths`; ensure `include` globs are valid JSON |
 | Stale bootstrap script hash in dev | Rendered HTML cached before runtime vendors changed | Rebuild or touch a route file; dev HTML cache keys include browser-runtime generation |
 
-Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active page. See [Dev Toolbar](/docs/core/dev-toolbar).
+Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active page. See [Dev Toolbar](/docs/ecosystem/dev-toolbar).
 
 ## Related guides
 
-- [React Router](/docs/ecosystem/react-router) — SPA navigation and layout persistence
-- [Creating Layouts](/docs/core/layouts) — nested layout stacks and `runtimeProvider`
-- [Dev Toolbar](/docs/core/dev-toolbar) — inspect page browser graph entries and vendor URLs
+- [React Router](/docs/ecosystem/react-router): SPA navigation and layout persistence
+- [Creating Layouts](/docs/core/layouts): nested layout stacks and `runtimeProvider`
+- [Dev Toolbar](/docs/ecosystem/dev-toolbar): inspect page browser graph entries and vendor URLs

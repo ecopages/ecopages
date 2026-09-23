@@ -5,7 +5,7 @@
  * run on every `pnpm test:vitest` invocation. Pair each suite with a package.json
  * script that sets the env var to `1`.
  *
- * @see e2e/README.md — Vitest opt-in suites
+ * @see e2e/README.md: Vitest opt-in suites
  */
 export type OptionalVitestSuite = {
 	env: string;

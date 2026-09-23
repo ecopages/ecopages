@@ -55,7 +55,7 @@ By default, the plugin owns `.tsx` route files and compiles them against `@ecopa
 
 ## Creating Pages
 
-Pages use the usual `eco.page()` contract. Assign route wrappers with `layout`; import nested components directly — Ecopages discovers local `eco.component()` imports automatically.
+Pages use the usual `eco.page()` contract. Assign route wrappers with `layout`; import nested components directly: Ecopages discovers local `eco.component()` imports automatically.
 
 ```tsx
 import { BaseLayout } from '@/layouts/base-layout';
@@ -198,7 +198,7 @@ Each integration ships its own adapter (`@ecopages/react/eco-embed`, `@ecopages/
 
 #### Opaque children fail fast at queue boundaries
 
-During mixed rendering, core validates children before foreign subtrees enter the queue. Plain opaque objects — values that string serializers would coerce to `[object Object]` — throw a `TypeError` instead of leaking object text into HTML.
+During mixed rendering, core validates children before foreign subtrees enter the queue. Plain opaque objects: values that string serializers would coerce to `[object Object]`: throw a `TypeError` instead of leaking object text into HTML.
 
 Accepted at the boundary without throwing:
 

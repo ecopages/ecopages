@@ -7,7 +7,7 @@ Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/f
 1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). PRs run `test:ci` (vitest + `test:e2e:pr`). `main` runs `test:ci:e2e` (vitest + full e2e). Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).
 2. **Cross-integration certifies host/runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. Each other cell (ecopages+bun, vite+node, vite+bun) runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs on bun and node static builds.
 3. **Rapid-navigation stays stressful.** Use `fireRapidLinkClicks` (overlapping navigations). Pacing every hop with full document waits stops testing SSR under load.
-4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink `dist/` is built once in shell before Playwright (`build:e2e:kitchen-sink`).
+4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell: dev servers must not boot together). Kitchen-sink `dist/` is built once in shell before Playwright (`build:e2e:kitchen-sink`).
 5. **Preview vs dev is capability-based.** Tests move to preview only when static output can serve them. API handlers, middleware locals, WebSockets, and HMR stay on dev/HMR projects.
 6. **Native Playwright.** Use `playwright test --project`, `--grep`, and `package.json` scripts. No custom test runner wrapper.
 
@@ -17,13 +17,13 @@ Playwright projects (17 total) are defined in `playwright.config.ts`.
 
 ## Three runs (full suite)
 
-| Script                        | What                                                                         |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.            |
-| `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).          |
-| `pnpm test:e2e:dev`           | One `playwright test` — fixture dev servers (core-hmr, react, react-router). |
-| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR          |
-| `pnpm test:e2e`               | Build + all three runs above.                                                |
+| Script                        | What                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.           |
+| `pnpm test:e2e:static`        | One `playwright test`: fixture static/preview projects (parallel).          |
+| `pnpm test:e2e:dev`           | One `playwright test`: fixture dev servers (core-hmr, react, react-router). |
+| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR         |
+| `pnpm test:e2e`               | Build + all three runs above.                                               |
 
 PR CI uses `test:e2e:pr` (drops node preview + HMR; greps canonical dev).
 
@@ -64,10 +64,10 @@ Or `pnpm test:e2e:ui` for the Playwright UI.
 
 ## Kitchen-sink cross-integration
 
-- **Preview** — in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
-- **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
-- **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
-- **HMR** — `includes-hmr.test.e2e.ts`, own workspace.
+- **Preview**: in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
+- **Canonical dev**: `cross-integration-dev-e2e` (ecopages + node), full suite.
+- **Parity**: bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
+- **HMR**: `includes-hmr.test.e2e.ts`, own workspace.
 
 Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`, `--browser.headless`). Inherited `PWDEBUG` is stripped before Playwright launches so the inspector cannot force headed Chromium (one visible tab per parallel worker). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window. `--debug` still enables the inspector.
 

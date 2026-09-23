@@ -21,16 +21,30 @@ Ecopages is structured around four main ownership layers:
 
 Packages declare contributions. Core decides lifecycle ordering and assembles the app-owned runtime/build state.
 
+## Config authoring vs finalization
+
+These are two different objects:
+
+| Step | API | What it is |
+| --- | --- | --- |
+| **Author** | `defineConfig({ ... })` in `eco.config.ts` | A typed identity helper. Returns your `EcoPagesUserConfig` unchanged. It does not resolve paths, start plugins, or create a build adapter. |
+| **Load** | `loadEcoPagesConfig()` / `createApp()` | Imports the config module (or accepts `userConfig` / `appConfig` in tests). |
+| **Finalize** | `ConfigBuilder.build()` | Internal. Validates Integrations and Processors, derives absolute paths, installs the component-identity source transform, initializes processors, checks runtime capabilities, and seals the app-owned build manifest. |
+
+Apps should default-export `defineConfig(...)` and call `createApp()`. Do not export a finalized `ConfigBuilder.build()` result from `eco.config.ts`: `createApp()` will reject that and tell you to author with `defineConfig()`.
+
+`ConfigBuilder` remains the finalization implementation used by the loader and tests. See [Plugin Lifecycle](/docs/core/plugin-lifecycle) for the ordered phases after `build()`.
+
 ## Request Lifecycle
 
 When a request hits your Ecopages application, it follows this simplified flow:
 
 1. **Runtime Host**: the active Bun or Node adapter receives the HTTP request and passes it into the shared core request pipeline.
-2. **Router**: The router matching logic identifies if the path corresponds to a static file, an API route, or a page file in `src/pages`.
-3. **Route Resolver**: If it's a page, Ecopages determines which integration handles the file extension (e.g., KitaJS for `.kita.tsx`).
-4. **Integration Renderer**: The specific renderer (React, Lit, etc.) is invoked with the page component and props.
-5. **Template Composition**: The page content is wrapped in the specified `HtmlTemplate`, `Head`, and `Seo` includes.
-6. **Response**: The final HTML (or JSON for APIs) is sent back to the client.
+2. **Router**: matching identifies a static file, an API route, an explicit page route, or a filesystem page under `src/pages`.
+3. **Route Resolver**: for a page, core selects the Integration that owns the file extension (for example Ecopages JSX for `.tsx`).
+4. **Integration Renderer**: that renderer is invoked with the page module and props.
+5. **Template Composition**: page content is wrapped in the `html` / `head` / `seo` includes and any declared layouts.
+6. **Response**: the final HTML (or JSON for APIs) is sent back to the client.
 
 ## Plugin Lifecycle
 
@@ -52,7 +66,7 @@ Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Browse
 
 For those wishing to dive deeper, we recommend exploring the source code:
 
-- **[`createApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: Recommended runtime entrypoint; selects Bun or Node adapter.
+- **[`createApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: Recommended runtime entrypoint; selects Bun or Node adapter (`adapter: 'auto'` by default).
 - **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
 - **[`BunServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/bun/server-adapter.ts)**: Handles the low-level Bun server interface.
 - **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
@@ -68,7 +82,7 @@ Server startup and server-side module execution are owned by core through the `S
 ## Design Philosophy
 
 - **Minimal Configuration**: Sensible defaults for structure and asset loading, with a simple config file to override them.
-- **Explicit Dependencies**: Components declare their own scripts and styles, preventing global bloat.
+- **Explicit Dependencies**: Components declare their own scripts; styles and local Eco Components are discovered from imports. That keeps global asset bloat out of the default path.
 - **Hybrid by Choice**: Optimization for static builds while maintaining full server capabilities.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">

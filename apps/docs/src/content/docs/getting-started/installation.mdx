@@ -16,30 +16,32 @@ To create a new Ecopages project, install the core package plus the rendering in
 		{
 			id: 'npm',
 			label: 'npm',
-			code: 'npm install @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+			code: 'npm install --save-dev ecopages typescript @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
 		},
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+			code: 'pnpm add --save-dev ecopages typescript @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
 		},
 		{
 			id: 'bun',
 			label: 'bun',
-			code: 'bun add @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+			code: 'bun add --dev ecopages typescript @ecopages/core @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
 		},
 	]}
 	defaultSelectedKey="npm"
 />
 
-This example installs the default stack: the core package plus Ecopages JSX and its peer runtimes. Register React, Lit, standalone MDX, or KitaJS when those Integrations should own routes.
+This command installs the CLI, TypeScript, the core package, Ecopages JSX, and its peer runtimes. These are development dependencies because Ecopages builds the application output. Register React, Lit, standalone MDX, or KitaJS when those Integrations should own routes.
+
+Prefer `ecopages init` when you want a working `app.ts`, `eco.config.ts`, and `src/` tree from a template. See the [CLI](/docs/ecosystem/ecopages).
 
 ## Configuration
 
-After installation, create an `eco.config.ts` file in your project's root directory to configure Ecopages. This file defines your site's structure, integrations, and canonical base URL.
+Create an `eco.config.ts` in the project root:
 
 ```typescript
-// filepath: eco.config.ts
+// eco.config.ts
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
@@ -50,12 +52,14 @@ export default defineConfig({
 });
 ```
 
+Add `import '@ecopages/core/declarations'` from a project type-entry (templates use `modules.d.ts`) so `import './file.css'` typechecks.
+
 ### Environment Variables
 
 Ecopages uses environment variables for configuration overrides. Create a `.env` file in your project root (and add it to `.gitignore`).
 
 ```bash
-# filepath: .env.example
+# .env.example
 # Overrides the baseUrl set in eco.config.ts (e.g., for different deployment stages)
 ECOPAGES_BASE_URL=https://staging.your-production-domain.com
 
@@ -69,52 +73,49 @@ ECOPAGES_PORT=8080
 ECOPAGES_LOGGER_DEBUG=true
 ```
 
-**Configuration Precedence:**
+**Configuration precedence:**
 
-- **Server Hostname/Port:** Constructor `serverOptions` > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
-- **Canonical Base URL:** `eco.config.ts` (`setBaseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
+- **Server hostname/port:** Constructor `serverOptions` > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
+- **Canonical base URL:** `eco.config.ts` (`baseUrl` / `setBaseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
 
 ## Project Structure
 
-A typical Ecopages project structure looks like this:
+A typical Ecopages JSX project looks like this:
 
 ```
-
 my-project/
 ├── src/
-│ ├── pages/
-│ ├── layouts/
-│ ├── components/
-│ └── includes/
-├── public/
-├── app.ts # Your application entry point
-├── eco.config.ts # Ecopages configuration
+│   ├── pages/          # Filesystem routes (required)
+│   ├── layouts/        # Route layouts
+│   ├── components/     # Reusable UI
+│   ├── includes/       # html, head, seo document shell
+│   ├── styles/         # Global CSS (optional)
+│   └── public/         # Copied to dist as-is (default: src/public)
+├── app.ts              # createApp() entry
+├── eco.config.ts       # defineConfig() authoring
 ├── package.json
-└── .env # Environment variables (optional)
-
+└── .env                # optional
 ```
 
-- `src/pages/`: Contains your page files (e.g., `.tsx`, `.mdx`, `.kita.tsx`, `.lit.tsx`)
-- `src/layouts/`: Holds layout components
-- `src/components/`: Stores reusable components
-- `src/includes/`: Contains include templates (e.g., `head.tsx`, `html.tsx` or integration-specific suffixes)
-- `public/`: Static assets that will be copied to the build directory
-- `app.ts`: The main script to run Ecopages commands.
-- `eco.config.ts`: Ecopages configuration file.
+- `src/pages/`: Page files (`.tsx` by default; `.mdx`, `.kita.tsx`, `.lit.tsx` when those Integrations are registered)
+- `src/includes/`: `html.*`, `head.*`, `seo.*` resolved by basename and Integration extension
+- `src/public/`: static assets; `publicDir` is relative to `srcDir`, not the repo root
+- `app.ts`: runtime entry; `createApp()` picks Bun or Node automatically
+- `eco.config.ts`: required
+
+Every directory path is overridable in `eco.config.ts`. See [Configuration](/docs/getting-started/configuration).
 
 ## Usage
 
-Create an entry point file (e.g., `app.ts`) to initialize and run Ecopages:
-
 ```typescript
-// filepath: app.ts
+// app.ts
 import { createApp } from '@ecopages/core/create-app';
 
 const app = await createApp();
 await app.start();
 ```
 
-Add the following scripts to your `package.json`:
+Add scripts to `package.json`:
 
 ```json
 {
@@ -122,19 +123,20 @@ Add the following scripts to your `package.json`:
 		"build": "ecopages build",
 		"dev": "ecopages dev",
 		"preview": "ecopages preview",
-		"start": "ecopages start",
-		"watch:dev": "ecopages dev:watch"
+		"start": "ecopages start"
 	}
 }
 ```
 
-Now you can use these commands:
+Then:
 
-- `pnpm run dev` (or `bun run dev`): Starts the development server. You can override the host, port, base URL, and runtime with CLI flags or environment variables.
-- `pnpm run build` (or `bun run build`): Builds your project for production into the `dist` directory.
-- `pnpm run start` (or `bun run start`): Starts the production server from the existing `dist` build output.
-- `pnpm run preview` (or `bun run preview`): Rebuilds `dist` and then serves that production output locally for verification.
+- `pnpm dev`: development server with HMR. Override host, port, base URL, and runtime with CLI flags or environment variables.
+- `pnpm build`: production output in `dist`.
+- `pnpm start`: serve the existing `dist` build.
+- `pnpm preview`: rebuild `dist`, then serve it locally.
+
+Use `npm run dev` / `npm run build` with npm. Bun scripts can be `bun dev` / `bun build`.
 
 ## Next Steps
 
-With Ecopages installed and configured, you're ready to start building your site. Check out the [Pages](/docs/core/pages) guide to learn how to create content using different integrations.
+With Ecopages installed and configured, start with [Pages](/docs/core/pages) and [Concepts](/docs/core/concepts).

@@ -26,13 +26,13 @@ It is best when you want:
 
 ## Install
 
-You can run the CLI directly with `bunx` (no global install required):
+You can run the CLI without a global install:
 
 <CodeTabs
 	name="ecopages-cli-run"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages --help' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
 	]}
 	defaultSelectedKey="npm"
@@ -60,7 +60,7 @@ Use the init command with a target directory, then optionally select a template:
 	name="ecopages-init-command"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init my-app' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init my-app' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages init my-app' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages init my-app' },
 	]}
 	defaultSelectedKey="npm"
@@ -83,7 +83,7 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev',
+			code: 'pnpx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm dev',
 		},
 		{
 			id: 'bun',
@@ -107,7 +107,7 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init radiant-app --template radiant && cd radiant-app && pnpm install && pnpm run dev',
+			code: 'pnpx ecopages init radiant-app --template radiant && cd radiant-app && pnpm install && pnpm dev',
 		},
 		{
 			id: 'bun',
@@ -131,7 +131,7 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev',
+			code: 'pnpx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm dev',
 		},
 		{
 			id: 'bun',
@@ -155,7 +155,7 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev',
+			code: 'pnpx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm dev',
 		},
 		{
 			id: 'bun',
@@ -179,7 +179,7 @@ Use these when you want a full bootstrap in one command chain.
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: 'pnpm dlx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev',
+			code: 'pnpx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm db:generate && pnpm db:migrate && pnpm dev',
 		},
 		{
 			id: 'bun',
@@ -208,10 +208,10 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init ecopages-app
+			code: `pnpx ecopages init ecopages-app
 cd ecopages-app
 pnpm install
-pnpm run dev`,
+pnpm dev`,
 		},
 		{
 			id: 'bun',
@@ -225,7 +225,7 @@ bun dev`,
 	defaultSelectedKey="npm"
 />
 
-#### 2) Blog with KitaJS
+#### 2) Blog with Ecopages JSX
 
 <CodeTabs
 	name="ecopages-blog-jsx-steps"
@@ -241,10 +241,10 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init blog-jsx --template blog-jsx
+			code: `pnpx ecopages init blog-jsx --template blog-jsx
 cd blog-jsx
 pnpm install
-pnpm run dev`,
+pnpm dev`,
 		},
 		{
 			id: 'bun',
@@ -274,10 +274,10 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init blog-react --template blog-react
+			code: `pnpx ecopages init blog-react --template blog-react
 cd blog-react
 pnpm install
-pnpm run dev`,
+pnpm dev`,
 		},
 		{
 			id: 'bun',
@@ -309,12 +309,12 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init react-better-auth --template react-better-auth
+			code: `pnpx ecopages init react-better-auth --template react-better-auth
 cd react-better-auth
 pnpm install
-pnpm run db:generate
-pnpm run db:migrate
-pnpm run dev`,
+pnpm db:generate
+pnpm db:migrate
+pnpm dev`,
 		},
 		{
 			id: 'bun',

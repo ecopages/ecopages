@@ -1,20 +1,18 @@
 ---
 title: "Explicit Routing"
-description: "Take full control of application routes with explicit server-side routing."
+description: "Define server routes, middleware, validation, and rendered views in app.ts."
 order: 4
 ---
 
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
 # Explicit Routing
 
-Explicit routing gives you full control over your application routes. Define handlers, middleware, validation, and render views programmatically in your `app.ts` file.
+Explicit routing defines handlers, middleware, validation, and rendered views in your `app.ts` file.
 
 ## Overview
 
-While file-system routing via the `pages/` directory works well for many use cases, explicit routing offers:
-
-- **Flexibility**: Structure your code however you prefer
-- **Control**: Clear overview of all routes in one place
-- **Freedom**: Choose your own architecture (MVC, handlers, services)
+Use filesystem Pages for routes that map naturally to files. Use explicit routing for APIs, middleware-heavy routes, or applications that keep route registration in one place.
 
 For architectural patterns and code organization examples, see [Routing Patterns](./routing-patterns).
 
@@ -43,11 +41,13 @@ await app.start();
 
 ## Rendering Views
 
-The `ctx.render()` method renders `eco.page` views from any route handler. The integration (React, Lit, KitaJS) is automatically detected based on the view's file extension at build time—no manual configuration required.
+The `ctx.render()` method renders `eco.page` views from a route handler. Register the view's Integration in `eco.config.ts`; Ecopages then selects that Integration from the transformed component identity.
 
 Load views through the server-module transpiler so Node applies component-identity transforms. `ctx.renderServerModule()` is the usual choice inside route handlers:
 
 ```typescript
+import { HttpError } from '@ecopages/core/errors';
+
 app.get('/posts/:slug', async (ctx) => {
 	const post = await getPost(ctx.params.slug);
 	if (!post) {
@@ -57,34 +57,14 @@ app.get('/posts/:slug', async (ctx) => {
 });
 ```
 
-### Error pages without `pages/`
-
-Explicit-route apps can register not-found and server-error views on the app instance. Filesystem `src/pages/404.*` and `500.*` still win when they exist.
-
-```typescript
-app.notFound('./src/views/not-found.kita')
-app.serverError('./src/views/server-error.kita')
-```
-
-When neither a pages error file nor an app loader is configured, Ecopages serves built-in HTML defaults with **inline CSS only** (not your app Tailwind or PostCSS pipeline). Those pages expose stable hooks for documentation and debugging:
-
-| Hook | Usage |
-| :--- | :--- |
-| `eco-error-page` | Root `<body>` class on built-in pages |
-| `eco-error-page--not-found` / `eco-error-page--server-error` | Status modifier |
-| `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
-| `eco-error-page__copy` | Development-only copy button on the default 500 page (icon + label; adds `eco-error-page__copy--copied` after a successful copy) |
-| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text inside the copy button |
-
-To match your site chrome, register `eco.page` views with `app.notFound()` / `app.serverError()` and style them like any other view. Common conventions:
-
-- Wrapper: `error404` or `error500`
-- Stack trace: `error500__stack`
-- Actions row: `error500__actions`
-
-Use your layout (for shared header/footer), Tailwind utility classes, and/or `dependencies.stylesheets` for a dedicated CSS file. The `playground/explicit-routes` app registers styled views under `src/views/`.
-
-In development, the built-in 500 page includes a **Copy error** button with escaped `message` and `stack` text. Custom 500 views receive the same props from the runtime when a render failure occurs.
+<RuiAlert variant="warning" layout="banner" class="unstyled">
+	<RuiAlertTitle>This throw is JSON 404, not the HTML 404 page</RuiAlertTitle>
+	<RuiAlertDescription>
+		`app.get()` is the API pipeline. `HttpError.NotFound` here becomes JSON (or your `app.onError()` response). To
+		serve the HTML not-found page, throw from an `app.static()` page or leave the URL unmatched. See
+		[HTML error pages](#html-error-pages).
+	</RuiAlertDescription>
+</RuiAlert>
 
 ### Partial Rendering
 
@@ -344,19 +324,29 @@ Invalid requests automatically receive a 400 response:
 
 ## Error Handling
 
-### HttpError
+HTML error pages and API errors are different pipelines. `app.onError()` does not run for `app.static()` failures or unmatched URLs.
 
-Throw `HttpError` for standard HTTP errors:
+| Source | `HttpError.*` | Generic `Error` |
+| :--- | :--- | :--- |
+| Unmatched URL | None | HTML **404** |
+| `app.static()` `staticProps` / `render` | HTML with that status | HTML **500** |
+| `app.get()` / groups / `app.add()` | JSON with that status | `app.onError()` or JSON 500 |
+
+`HttpError.BadRequest` (400), `Unauthorized` (401), `Forbidden` (403), `NotFound` (404), `Conflict` (409), and `InternalServerError` (500) each have a semantic HTML page. Other 4xx statuses use a built-in document; other 5xx statuses reuse the 500 page with the original status. `HttpError` values outside the valid 400–599 error range normalize to 500.
+
+### API errors
+
+Throw `HttpError` from `app.get()` and related handlers:
 
 ```typescript
 import { HttpError } from '@ecopages/core/errors';
 
-app.get('/posts/:slug', async (ctx) => {
+app.get('/api/posts/:slug', async (ctx) => {
 	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
-	return ctx.render(PostView, post);
+	return ctx.json(post);
 });
 ```
 
@@ -373,7 +363,7 @@ HttpError.InternalServerError(message?)
 
 ### Global Error Handler
 
-Use `app.onError()` to centralize error handling across all routes. This is useful for logging, transforming errors into consistent API responses, or handling unexpected exceptions:
+`app.onError()` centralizes **API** error handling (logging, JSON shape). It does not replace HTML 404/500 pages.
 
 ```typescript
 app.onError((error, ctx) => {
@@ -385,20 +375,86 @@ app.onError((error, ctx) => {
 });
 ```
 
+## HTML error pages
+
+Register `eco.page` modules when the app has no matching `src/pages/{status}.*`. Filesystem semantic pages still win when they exist.
+
+```typescript
+app.notFound('./src/views/not-found.kita');
+app.forbidden('./src/views/forbidden.kita');
+app.serverError('./src/views/server-error.kita');
+app.errorPage(409, './src/views/conflict.kita');
+```
+
+String and URL paths load through the server-module transpiler (HMR and component identity in development). Raw dynamic `import()` skips those transforms.
+
+When neither a filesystem error page nor an app loader is configured, Ecopages serves built-in HTML defaults with **inline CSS only** (not your app Tailwind or PostCSS pipeline). Stable hooks:
+
+| Hook | Usage |
+| :--- | :--- |
+| `eco-error-page` | Root `<body>` class on built-in pages |
+| `eco-error-page--bad-request` / `--unauthorized` / `--forbidden` / `--not-found` / `--conflict` / `--server-error` | Status modifier |
+| `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
+| `eco-error-page__copy` | Development-only copy button on the default 500 page (adds `eco-error-page__copy--copied` after a successful copy) |
+| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text |
+
+Custom pages use your layout and assets. Typical class names: `error404`, `error500`, `error500__stack`, `error500__actions`.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>app.serverError() does not create /500</RuiAlertTitle>
+	<RuiAlertDescription>
+		A filesystem `src/pages/500.*` is also a normal route at `/500` (status 200 preview). A registered server-error
+		page is only used when the page pipeline fails. `GET /500` on an explicit-route app is unmatched HTML 404
+		unless you also register that path with `app.static()`.
+	</RuiAlertDescription>
+</RuiAlert>
+
+### Preview HTML error pages
+
+Throw the matching `HttpError` from `staticProps` or `render`. Throw a generic `Error` only when you mean a server failure. Use `cache: 'dynamic'` on a demo route if you do not want it in static export.
+
+```typescript
+import { eco } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+
+export default eco.page({
+	cache: 'dynamic',
+	render: () => {
+		throw HttpError.Forbidden('Admin only');
+	},
+});
+```
+
+```bash
+curl -i http://localhost:3000/does-not-exist
+# HTTP/1.1 404
+
+curl -i http://localhost:3000/forbidden
+# HTTP/1.1 403
+
+curl -i http://localhost:3000/boom
+# HTTP/1.1 500
+```
+
+In development, custom and built-in 500 pages can show escaped `message` and `stack`. Production omits those props. 4xx pages receive the public `HttpError` message. The built-in 500 page includes a **Copy error** button.
+
+The `playground/explicit-routes` app wires `/boom` (500), `/forbidden` (403), and `app.notFound()` / `app.forbidden()` / `app.serverError()`. Restart `pnpm dev` after changing `app.ts`.
+
 ## Static Generation
 
-Register views for build-time static generation using lazy loaders:
+Register `eco.page` modules for build-time static generation. String and URL paths load through the same transpiler as `renderServerModule`, including HMR in development.
 
 ```typescript
 app.static('/posts', './src/views/post-list.kita');
 app.static('/posts/:slug', './src/views/post-view.kita');
 ```
 
-String and URL paths passed to `app.static()` load through the same transpiler as `renderServerModule`, including HMR in development. Views must be the default export and define `staticPaths` and `staticProps`:
+The default export must define `staticPaths` (for dynamic segments) and `staticProps`. `staticProps` receives `{ pathname, appConfig, runtimeOrigin }`: not a top-level `params` argument.
 
 ```typescript
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 
 const PostView = eco.page<PostViewProps>({
 	staticPaths: async () => {
@@ -408,12 +464,15 @@ const PostView = eco.page<PostViewProps>({
 		};
 	},
 
-	staticProps: async ({ params }) => {
-		const post = await getPost(params.slug);
+	staticProps: async ({ pathname }) => {
+		const post = await getPost(pathname.params.slug as string);
+		if (!post) {
+			throw HttpError.NotFound('Post not found');
+		}
 		return { props: { title: post.title, content: post.content } };
 	},
 
-	render: (props) => <article>...</article>
+	render: (props) => <article>...</article>,
 });
 
 export default PostView;
@@ -427,6 +486,7 @@ Define `eco.page` views anywhere in your codebase. Views used with `app.static()
 // src/views/post-view.tsx
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout';
+import './post-view.css';
 
 const PostView = eco.page<PostViewProps>({
 	layout: MainLayout,
@@ -435,10 +495,6 @@ const PostView = eco.page<PostViewProps>({
 		title: `${title} | My Blog`,
 		description: `By ${authorName}`
 	}),
-
-	dependencies: {
-		stylesheets: ['/styles/post.css']
-	},
 
 	render: ({ title, content }) => (
 		<article>
@@ -487,9 +543,12 @@ const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) =>
 	return next();
 };
 
-// Static routes (string paths load through the server transpiler on Node)
+// Static pages (string paths load through the server transpiler on Node)
 app.static('/posts', './src/views/post-list.kita');
 app.static('/posts/:slug', './src/views/post-view.kita');
+app.notFound('./src/views/not-found.kita');
+app.forbidden('./src/views/forbidden.kita');
+app.serverError('./src/views/server-error.kita');
 
 // Public API
 app.group('/api/v1', (r) => {
@@ -519,7 +578,7 @@ app.group('/api/v1/admin', (r) => {
 	});
 }, { middleware: [authMiddleware] });
 
-// Global error handler
+// API-only error handler (does not cover app.static() HTML 404/500)
 app.onError((error, ctx) => {
 	if (error instanceof HttpError) {
 		return ctx.json(error.toJSON(), { status: error.status });

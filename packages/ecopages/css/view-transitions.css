@@ -7,7 +7,7 @@
  * Works with both @ecopages/browser-router and @ecopages/react-router.
  *
  * Root opt-out (`html { view-transition-name: none }`) is injected by the router when
- * view transitions are enabled — do not duplicate here.
+ * view transitions are enabled: do not duplicate here.
  */
 
 /* Shared element transitions animate position/size smoothly */

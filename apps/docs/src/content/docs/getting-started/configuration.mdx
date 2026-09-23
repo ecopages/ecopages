@@ -1,10 +1,11 @@
 ---
 title: 'Configuration'
-description: 'Customize your Ecopages project through eco.config.ts — integrations, processors, metadata, and watch paths.'
+description: 'Customize your Ecopages project through eco.config.ts: integrations, processors, metadata, and watch paths.'
 order: 3
 ---
 
 import { ApiField } from '@/components/api-field/api-field';
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
 
 # Configuration
 
@@ -71,13 +72,15 @@ In development, adding, changing, or removing `eco.config.ts` or a supported pro
 	The directory for layout components, relative to the src directory.
 </ApiField>
 
-Ecopages now discovers the document shell and error pages semantically:
-
-- `src/includes/html.*` resolves the HTML shell by basename and integration extension.
-- `src/pages/404.*` resolves the not-found page by basename and integration extension.
-- `src/pages/500.*` resolves the server-error page by basename and integration extension.
-
-No template filename setter is required in `eco.config.ts`. If no `pages/500.*` file or `app.serverError()` loader is configured, the page pipeline serves a built-in HTML 500 page. In development, custom and default 500 pages can show `message` and `stack` from the thrown error; the built-in page also includes a **Copy error** button.
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Semantic filenames, no config setters</RuiAlertTitle>
+	<RuiAlertDescription>
+		The document shell and error pages resolve by basename and integration extension: `src/includes/html.*` and
+		`src/pages/400.*`, `401.*`, `403.*`, `404.*`, `409.*`, and `500.*`. There is no filename setter in
+		`eco.config.ts`. If neither a filesystem error page nor the matching `app.*()` loader is configured, the page
+		pipeline serves built-in HTML for that status. See [Routing](/docs/core/routing).
+	</RuiAlertDescription>
+</RuiAlert>
 
 <ApiField name="distDir" type="string" defaultValue="dist" setter="setDistDir">
 	The output directory for the built files.
@@ -136,8 +139,8 @@ No template filename setter is required in `eco.config.ts`. If no `pages/500.*` 
 </ApiField>
 
 <ApiField name="devToolbar" type="DevToolbarConfig" setter="setDevToolbar">
-	Development-only in-browser inspector. Install `@ecopages/dev-toolbar` and call `setDevToolbar(devToolbar())`. See
-	[Dev toolbar](/docs/core/dev-toolbar).
+	Development-only in-browser inspector. Install `@ecopages/dev-toolbar` and call `devToolbar()`. See
+	[Dev toolbar](/docs/ecosystem/dev-toolbar).
 </ApiField>
 
 ## Integrations

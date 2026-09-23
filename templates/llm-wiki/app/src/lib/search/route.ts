@@ -15,7 +15,7 @@ export const searchQuerySchema = z.object({
  * `searchWiki`) into this to expose it as a paginated JSON endpoint at `path`.
  *
  * @remarks
- * Agent-facing. The SearchBox does not use this route — it searches
+ * Agent-facing. The SearchBox does not use this route: it searches
  * `/search-index.json` in the browser so `preview` still works.
  *
  * @example

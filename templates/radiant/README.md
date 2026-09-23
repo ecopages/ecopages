@@ -21,16 +21,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Structure
 
-- `src/pages/index.tsx` — Radiant UI integration showcase using Radiant alert and button primitives
-- `src/pages/about.mdx` — the imported Markdown content example
-- `src/pages/image.mdx` and `src/pages/image-detail.mdx` — shared-element transition examples
-- `src/images/kita-kamakura.png` — source image used by the optimized-image card and transition pages
-- `src/components/logo/logo.tsx` — the Ecopages brand mark used by the document shell
-- `src/components/radiant-counter.tsx` — lazy-loaded custom-element counter using Radiant buttons
-- `src/components/showcase.mdx` — imported Markdown content rendered with prose styles
-- `src/lib` — small shared utilities such as `cx`
-- `src/components/theme-toggle.tsx` — the docs theme preference control
-- `src/layouts/base-layout` — shared document shell
+- `src/pages/index.tsx`: Radiant UI integration showcase using Radiant alert and button primitives
+- `src/pages/about.mdx`: the imported Markdown content example
+- `src/pages/image.mdx` and `src/pages/image-detail.mdx`: shared-element transition examples
+- `src/images/kita-kamakura.png`: source image used by the optimized-image card and transition pages
+- `src/components/logo/logo.tsx`: the Ecopages brand mark used by the document shell
+- `src/components/radiant-counter.tsx`: lazy-loaded custom-element counter using Radiant buttons
+- `src/components/showcase.mdx`: imported Markdown content rendered with prose styles
+- `src/lib`: small shared utilities such as `cx`
+- `src/components/theme-toggle.tsx`: the docs theme preference control
+- `src/layouts/base-layout`: shared document shell
 
 No external services are required. Start customization in `src/pages/index.tsx`
 and `eco.config.ts`.

@@ -21,7 +21,7 @@ export const DashboardContent = eco.component<DashboardContentProps, ReactNode>(
 					<dl className="dashboard-content__list">
 						<div>
 							<dt className="dashboard-content__list-item-label">Name</dt>
-							<dd className="dashboard-content__list-item-value">{user.name ?? '—'}</dd>
+							<dd className="dashboard-content__list-item-value">{user.name ?? 'Not available'}</dd>
 						</div>
 						<div>
 							<dt className="dashboard-content__list-item-label">Email</dt>

@@ -2,7 +2,7 @@
  * Kitchen-sink fixture for benchmark tests.
  *
  * Always roots at `playground/kitchen-sink` and uses {@link createKitchenSinkConfig}
- * — the same factory as `eco.config.ts`. Benchmarks may override only `distDir`
+ * This uses the same factory as `eco.config.ts`. Benchmarks may override only `distDir`
  * and `workDir` to isolate output; sources, integrations, and processors are
  * identical to the real app.
  */

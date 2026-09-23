@@ -24,7 +24,7 @@ One-way copy of the knowledge layers from the llm-wiki repo. Edit in the repo, t
 pnpm sync:obsidian
 \`\`\`
 
-Do not edit mirrored files here — changes will be overwritten on the next sync.
+Do not edit mirrored files here: changes will be overwritten on the next sync.
 `;
 
 function repoRootFromThisFile(): string {

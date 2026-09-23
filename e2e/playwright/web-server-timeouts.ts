@@ -7,7 +7,7 @@ export type PlaywrightWebServerConfig = {
  * Playwright `webServer.timeout` per server entry.
  *
  * Cross-integration preview must wait for `ecopages build` + full static generation
- * inside the isolated copy before the port opens — 300s is empirical headroom.
+ * inside the isolated copy before the port opens: 300s is empirical headroom.
  * Dev/HMR rows get 180s for cold SSR startup; lightweight fixtures use 120s.
  */
 export function getWebServerTimeout(server: PlaywrightWebServerConfig): number {

@@ -14,7 +14,7 @@ export default eco.page({
 	render: () => (
 		<>
 			<h1>Welcome</h1>
-			<p>Each post explains part of this template — Ecopages routing, the content processor, and SEO export.</p>
+			<p>Each post explains part of this template: Ecopages routing, the content processor, and SEO export.</p>
 			{entries.map((post) => (
 				<article className="post-card" key={post.slug}>
 					<a href={`/posts/${post.slug}`} className="post-card-link">

@@ -1,5 +1,5 @@
 /**
- * Kitchen-sink dev + parity e2e — in-repo, no .e2e-tmp copy.
+ * Kitchen-sink dev + parity e2e: in-repo, no .e2e-tmp copy.
  *
  * One Playwright process can run all four cells: each server uses a scoped
  * .eco-${scope} dir and its own port. HMR stays in the isolated fixture.

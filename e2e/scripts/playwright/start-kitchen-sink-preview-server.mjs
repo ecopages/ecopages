@@ -1,6 +1,6 @@
 /**
  * Serves a pre-built kitchen-sink dist for preview e2e. Run
- * `pnpm build:e2e:kitchen-sink` before Playwright — do not build here.
+ * `pnpm build:e2e:kitchen-sink` before Playwright: do not build here.
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';

@@ -32,7 +32,7 @@ export type ChatRoomMessage = {
 export const DEFAULT_ROOM = 'lobby';
 
 /**
- * In-memory message store — seeded with a few messages for the default room
+ * In-memory message store: seeded with a few messages for the default room
  * so history replay is testable.
  */
 export const CHAT_MESSAGES: ChatRoomMessage[] = [
@@ -53,7 +53,7 @@ export const CHAT_MESSAGES: ChatRoomMessage[] = [
 	{
 		id: '3',
 		username: 'bob',
-		text: 'Messages are stored in a module constant — no DB needed.',
+		text: 'Messages are stored in a module constant. No DB needed.',
 		roomId: DEFAULT_ROOM,
 		ts: Date.now() - 10_000,
 	},

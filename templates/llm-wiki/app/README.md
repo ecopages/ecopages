@@ -20,7 +20,7 @@ Self-contained Ecopages app that renders the parent [`../wiki`](../wiki) vault a
 | **wiki**        | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md)) |
 | **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                        |
 | **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser                          |
-| **cx**          | `cx(...classes)` — join class names, skip falsy values                                                      |
+| **cx**          | `cx(...classes)`: join class names, skip falsy values                                                       |
 
 ## Commands
 

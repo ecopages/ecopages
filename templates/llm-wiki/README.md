@@ -10,7 +10,7 @@ Based on [Andrej Karpathy's LLM Wiki gist](https://gist.github.com/karpathy/442a
 npx ecopages init my-wiki --template llm-wiki
 ```
 
-Then open the new directory in an LLM chat or coding agent and hand it [`SELF_DESTRUCT.md`](./SELF_DESTRUCT.md). It's a one-time bootstrap script: it reviews [`SCHEMA.md`](./SCHEMA.md) with you, discusses whether the default categories fit what you're documenting, asks before generating anything, does an initial ingest pass, then deletes itself (and a leftover `predev` reminder in `app/package.json`) — it has no reason to stick around once the wiki is live.
+Then open the new directory in an LLM chat or coding agent and hand it [`SELF_DESTRUCT.md`](./SELF_DESTRUCT.md). It's a one-time bootstrap script: it reviews [`SCHEMA.md`](./SCHEMA.md) with you, discusses whether the default categories fit what you're documenting, asks before generating anything, does an initial ingest pass, then deletes itself (and a leftover `predev` reminder in `app/package.json`): it has no reason to stick around once the wiki is live.
 
 If you run `pnpm dev` before doing this, a `predev` hook prints a one-line reminder to go do it first; it's silent once `SELF_DESTRUCT.md` is gone.
 
@@ -18,7 +18,7 @@ If you'd rather set the wiki up by hand, skip `SELF_DESTRUCT.md`, delete it (and
 
 ## Layout
 
-The vault and the site are separate on purpose — you can adopt the wiki pattern without pulling in Ecopages, or add the site later without touching your pages:
+The vault and the site are separate on purpose: you can adopt the wiki pattern without pulling in Ecopages, or add the site later without touching your pages:
 
 ```
 llm-wiki/

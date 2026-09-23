@@ -1,5 +1,5 @@
 /**
- * Kitchen-sink preview e2e — in-repo dist, no isolated workspace copy.
+ * Kitchen-sink preview e2e: in-repo dist, no isolated workspace copy.
  *
  * Build once via `pnpm build:e2e:kitchen-sink` before Playwright. Each webServer
  * only serves the existing static export (bun or node runtime).

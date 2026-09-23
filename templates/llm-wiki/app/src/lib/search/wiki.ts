@@ -71,7 +71,7 @@ export function invalidateWikiSearchCache(): void {
  * Writes the wiki search corpus as JSON for static/preview clients.
  *
  * @remarks
- * `pnpm preview` serves static files only — `/api/search` is unavailable there.
+ * `pnpm preview` serves static files only: `/api/search` is unavailable there.
  * The SearchBox loads this file and runs {@link createSearchIndex} in the browser.
  * Pass every output directory in one call so the wiki is tokenized once.
  */

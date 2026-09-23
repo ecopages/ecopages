@@ -18,15 +18,15 @@
  * ```
  *
  * Common flags:
- * - `--app <dir>` — required absolute or repo-relative path to the app
- * - `--paths <a,b>` — routes to fetch after listen (default: `/`)
- * - `--port <n>` — listen port (default: `3012`)
- * - `--link-local` — temporarily point matching deps at local dist + `pnpm update`
- * - `--workspace <dir>` — monorepo root with `pnpm-workspace.yaml` for overrides
- * - `--out <file>` — JSON report path (default: `.audit/debug-app-bench.json`)
- * - `--skip-cases <a,b>` — omit `cold-at-listen`, `after-listen`, and/or `warm-restart`
- * - `--measure-modules` — fetch rewritten `/assets/__eco_dev__/` + vendor URLs from HTML
- * - `--help` — print usage
+ * - `--app <dir>`: required absolute or repo-relative path to the app
+ * - `--paths <a,b>`: routes to fetch after listen (default: `/`)
+ * - `--port <n>`: listen port (default: `3012`)
+ * - `--link-local`: temporarily point matching deps at local dist + `pnpm update`
+ * - `--workspace <dir>`: monorepo root with `pnpm-workspace.yaml` for overrides
+ * - `--out <file>`: JSON report path (default: `.audit/debug-app-bench.json`)
+ * - `--skip-cases <a,b>`: omit `cold-at-listen`, `after-listen`, and/or `warm-restart`
+ * - `--measure-modules`: fetch rewritten `/assets/__eco_dev__/` + vendor URLs from HTML
+ * - `--help`: print usage
  */
 
 import { spawn } from 'node:child_process';

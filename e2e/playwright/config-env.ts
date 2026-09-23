@@ -7,7 +7,7 @@
 
 /**
  * Project names from `ECOPAGES_PLAYWRIGHT_PROJECTS` (comma-separated).
- * An empty set means “no filter” — every configured project is eligible.
+ * An empty set means “no filter”: every configured project is eligible.
  */
 export function getSelectedPlaywrightProjects(): Set<string> {
 	return new Set(
@@ -26,7 +26,7 @@ export function shouldReuseExistingTestServers(): boolean {
  * Whether a web-server entry should be registered for the current run.
  *
  * When no project filter is active, every server is included. With a filter,
- * only servers that back at least one selected project are started — this keeps
+ * only servers that back at least one selected project are started: this keeps
  * `playwright test --project foo` from booting the full cross-integration matrix.
  */
 export function includeWebServerForProjects(selectedProjects: Set<string>, serverProjects: string[]): boolean {

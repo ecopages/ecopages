@@ -8,7 +8,7 @@ Public packages are versioned with Changesets. `pnpm changeset` records a change
 
 ## External app debug / bottleneck bench
 
-Use [`debug-app.bench.mjs`](./debug-app.bench.mjs) to measure an app that lives **outside** this repository (for example a product monorepo). Do not commit app-specific harnesses here — pass the app path and routes as CLI args.
+Use [`debug-app.bench.mjs`](./debug-app.bench.mjs) to measure an app that lives **outside** this repository (for example a product monorepo). Do not commit app-specific harnesses here: pass the app path and routes as CLI args.
 
 ### When to use it
 
@@ -65,12 +65,12 @@ JSON report default: `.audit/debug-app-bench.json` (directory is gitignored).
 
 ### How to attribute bottlenecks
 
-| Symptom                                                                | Likely cause                                                                  |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| High `first-request-ssr` / route `curlMs`, small `__eco_dev__` modules | App SSR / auth / data — not the client transform path                         |
-| High `dev-client-transform`, page module **MB**                        | Still bundling an app cone; check import rewrite / vendor externalization     |
-| First nav many vendor requests, later navs fast                        | Expected Vite-like model; vendors should send long-cache headers              |
-| Transform warm ~1–50ms, cold still seconds                             | Vendor prebundle on first bare import — check first-hit stalls, not page size |
+| Symptom                                                                | Likely cause                                                                 |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| High `first-request-ssr` / route `curlMs`, small `__eco_dev__` modules | App SSR / auth / data: not the client transform path                         |
+| High `dev-client-transform`, page module **MB**                        | Still bundling an app cone; check import rewrite / vendor externalization    |
+| First nav many vendor requests, later navs fast                        | Expected Vite-like model; vendors should send long-cache headers             |
+| Transform warm ~1–50ms, cold still seconds                             | Vendor prebundle on first bare import: check first-hit stalls, not page size |
 
 ### Agent workflow (no skill required)
 
@@ -79,4 +79,4 @@ JSON report default: `.audit/debug-app-bench.json` (directory is gitignored).
 3. Open the JSON report; compare `firstRequestSsrMs` vs `devClientTransformMs` vs module `bytes`
 4. Fix the owning layer (app SSR vs core transform), rebuild, re-run the same command
 
-Keep product-specific notes (DB, auth seeds, ports) in the product repo — not here.
+Keep product-specific notes (DB, auth seeds, ports) in the product repo: not here.

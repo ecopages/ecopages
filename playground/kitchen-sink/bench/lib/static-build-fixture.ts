@@ -4,7 +4,7 @@
  * Uses the real kitchen-sink project (`createKitchenSinkConfig` / `eco.config.ts`)
  * with isolated dist/work dirs so bench runs do not clobber a developer's normal
  * `dist/` or `.eco/` output. Sources, routes, integrations, and processors are
- * unchanged — only artifact output paths differ.
+ * unchanged: only artifact output paths differ.
  */
 
 import path from 'node:path';

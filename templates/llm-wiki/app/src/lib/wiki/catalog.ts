@@ -57,7 +57,7 @@ export function renderCatalogMarkdown(input: CatalogRenderInput): string {
 		const ordered = orderByTitles(categoryPages, input.pagesByTitle[category] ?? []);
 		lines.push(`## ${formatCategoryTitle(category)}`, '');
 		for (const page of ordered) {
-			lines.push(`- [${pageName(page.slug)}](./wiki/${page.slug}.md) — ${page.summary}`);
+			lines.push(`- [${pageName(page.slug)}](./wiki/${page.slug}.md): ${page.summary}`);
 		}
 		lines.push('');
 	}

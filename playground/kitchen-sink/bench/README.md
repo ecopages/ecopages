@@ -1,7 +1,7 @@
 # ecopages bundle benchmark
 
 Lean [mitata](https://github.com/evanwashere/mitata)-based benchmark suite for the **kitchen-sink** project
-(`playground/kitchen-sink`) — the full integration demo app, not a synthetic
+(`playground/kitchen-sink`): the full integration demo app, not a synthetic
 fixture. All benches read from the real `src/` tree and use
 `kitchen-sink-config.ts` (same factory as `eco.config.ts`).
 
@@ -9,10 +9,10 @@ fixture. All benches read from the real `src/` tree and use
 
 | Layer                                    | Kitchen-sink?    | Notes                                                                                                      |
 | ---------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Sources**                              | Yes              | `playground/kitchen-sink/src/**` — all pages, layouts, handlers                                            |
-| **Config**                               | Yes              | `createKitchenSinkConfig()` — Kita, React, Lit, Ecopages-JSX, MDX, image processor, PostCSS/Tailwind       |
+| **Sources**                              | Yes              | `playground/kitchen-sink/src/**`: all pages, layouts, handlers                                             |
+| **Config**                               | Yes              | `createKitchenSinkConfig()`: Kita, React, Lit, Ecopages-JSX, MDX, image processor, PostCSS/Tailwind        |
 | **Server entry**                         | Yes              | Real `app.ts` (API routes, WebSocket handler, explicit views)                                              |
-| **E2E build (`buildStatic`, `SSG.run`)** | Yes              | Full route tree — all static pages, Lit fetch server, image pipeline                                       |
+| **E2E build (`buildStatic`, `SSG.run`)** | Yes              | Full route tree: all static pages, Lit fetch server, image pipeline                                        |
 | **Micro segments**                       | Sample pages     | Per-operation timing on one page per integration (not the full tree)                                       |
 | **Output dirs**                          | Usually isolated | `dist/__bench-*` / `.eco/__bench-*` so benches don't clobber `dist/`; one scenario uses production `dist/` |
 
@@ -40,7 +40,7 @@ fixture. All benches read from the real `src/` tree and use
   The previous implementation kept failing the subprocess spawn under
   vitest's worker isolation. The user's "2s HMR" claim is now localized
   through the heavy-library bench (heavy page 67-190 ms p99 vs single page
-  4-12 ms p99) — the bottleneck is library import graph, not bundling.
+  4-12 ms p99): the bottleneck is library import graph, not bundling.
 - Per-plugin micro-benchmarks. Sub-millisecond cost doesn't justify a
   bench harness.
 
@@ -221,25 +221,25 @@ bench/
 
 ## Files
 
-- `run.mts` — mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
-- `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
-- `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
+- `run.mts`: mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
+- `lib/mitata-report.ts`: mitata stats → baseline schema, shared quantile helpers.
+- `lib/kitchen-sink-fixture.ts`: builds the kitchen-sink `EcoPagesAppConfig`
   via the public `ConfigBuilder` API.
-- `lib/static-build-fixture.ts` — bootstrap for static-build benches.
-- `lib/bench-env.ts` — temporary env overrides for graph on/off scenarios.
-- `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.
-- `scripts/compare-baseline.ts` — diffs `mitata-bench.json` against `bench-baseline.json`.
-- `startup/run.mjs` — process-level dev startup + first-page interactive timing.
-- `startup/consolidate-baseline.ts` — writes `startup-baseline.json`.
-- `startup/compare-baseline.ts` — diffs `startup-bench.json` against `startup-baseline.json`.
-- `build-bench.ts` — production bundle scenarios.
-- `hmr-bench.ts` — HMR scenarios (the 4 cases the watcher actually triggers).
-- `heavy-bench.ts` — heavy-library scenario.
-- `integration-bench.ts` — one representative page per integration.
-- `memory-snap-bench.ts` — repeated rebuild stability.
-- `build-speed-bench.ts` — route-module disk cache warm hits.
-- `static-build-bench.ts` — static production build segments (server entry,
+- `lib/static-build-fixture.ts`: bootstrap for static-build benches.
+- `lib/bench-env.ts`: temporary env overrides for graph on/off scenarios.
+- `scripts/consolidate-baseline.ts`: reads `mitata-bench.json`, writes `bench-baseline.json`.
+- `scripts/compare-baseline.ts`: diffs `mitata-bench.json` against `bench-baseline.json`.
+- `startup/run.mjs`: process-level dev startup + first-page interactive timing.
+- `startup/consolidate-baseline.ts`: writes `startup-baseline.json`.
+- `startup/compare-baseline.ts`: diffs `startup-bench.json` against `startup-baseline.json`.
+- `build-bench.ts`: production bundle scenarios.
+- `hmr-bench.ts`: HMR scenarios (the 4 cases the watcher actually triggers).
+- `heavy-bench.ts`: heavy-library scenario.
+- `integration-bench.ts`: one representative page per integration.
+- `memory-snap-bench.ts`: repeated rebuild stability.
+- `build-speed-bench.ts`: route-module disk cache warm hits.
+- `static-build-bench.ts`: static production build segments (server entry,
   route-module Rolldown, SSG, full `buildStatic`, unified graph on/off). Uses isolated
   `dist/__bench-static-build__` / `.eco/__bench-static-build__` dirs.
-- `static-build-unified-graph-parity.test.ts` — HTML parity and eligibility for unified graph.
-- `results/bench-baseline.json` — versioned baseline.
+- `static-build-unified-graph-parity.test.ts`: HTML parity and eligibility for unified graph.
+- `results/bench-baseline.json`: versioned baseline.

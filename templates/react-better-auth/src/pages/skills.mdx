@@ -581,12 +581,12 @@ export function Seo({
       <link rel="manifest" href="/favicon/site.webmanifest" />
       <link rel="robots" href="/robots.txt" />
       <meta name="description" content={description} />
-      {keywords?.length ? <meta name="keywords" content={keywords.join(",")} /> : null}
+      {keywords?.length ? <meta name="keywords" content={keywords.join(",")} />: null}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {url ? <link rel="canonical" href={withBaseUrl(url)} /> : null}
+      {url ? <link rel="canonical" href={withBaseUrl(url)} />: null}
     </>
   );
 }
@@ -962,7 +962,7 @@ Create `src/lib/auth-client.ts`:
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-  baseURL: typeof window !== "undefined" ? window.location.origin : "",
+  baseURL: typeof window !== "undefined" ? window.location.origin: "",
 });
 ```
 

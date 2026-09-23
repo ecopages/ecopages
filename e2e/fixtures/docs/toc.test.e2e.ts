@@ -40,7 +40,7 @@ test.describe('Docs TOC', () => {
 		}
 	});
 
-	test('clicking a TOC link scrolls to the target heading — not the top of the page', async ({ page }) => {
+	test('clicking a TOC link scrolls to the target heading, not the top of the page', async ({ page }) => {
 		await page.evaluate(() => {
 			const content = document.querySelector('.docs-layout__content');
 			if (content instanceof HTMLElement) {

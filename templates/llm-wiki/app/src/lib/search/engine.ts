@@ -2,14 +2,14 @@
  * In-memory exact-match search over a small set of documents.
  *
  * Matching is AND across distinct query tokens, exact whole-token match (no
- * fuzzy/substring matching). Ranking is term-frequency with a title boost —
+ * fuzzy/substring matching). Ranking is term-frequency with a title boost,
  * enough for a small curated wiki without a search library.
  */
 
 /**
  * A string index signature here would widen `keyof` to `string` and collapse
  * `Omit<T, "content">` (used by `SearchResult`) back to `unknown` for every
- * field — extend via intersection instead (e.g. `SearchDocument & { category: string }`).
+ * field. Extend via intersection instead (e.g. `SearchDocument & { category: string }`).
  */
 export type SearchDocument = {
 	id: string;

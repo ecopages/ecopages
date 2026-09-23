@@ -13,7 +13,7 @@ export type MarkdownRouteOptions = {
  * Builds a ready-to-mount route that always returns markdown for `path`.
  *
  * @remarks
- * Static `preview` does not serve API routes — use `dev`/`start`, a `.md`
+ * Static `preview` does not serve API routes: use `dev`/`start`, a `.md`
  * suffix, or Accept negotiation on the HTML URL instead.
  *
  * @example

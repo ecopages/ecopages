@@ -49,10 +49,10 @@ npm run build
 
 ## Structure
 
-- `src/pages` — KitaJS routes and the shared, card-based integration showcase
-- `src/components` — Lit custom elements and theme controls
-- `src/lib` — small shared utilities such as `cx`
-- `src/layouts` — document shell and navigation
+- `src/pages`: KitaJS routes and the shared, card-based integration showcase
+- `src/components`: Lit custom elements and theme controls
+- `src/lib`: small shared utilities such as `cx`
+- `src/layouts`: document shell and navigation
 
 No external services are required. Start customization in `src/pages/index.lit.tsx` and
 `eco.config.ts`.

@@ -4,7 +4,7 @@
  */
 
 .error500 {
-	@apply flex flex-col items-center justify-center min-h-[60vh] text-center;
+	@apply flex flex-col items-center justify-center text-center;
 }
 
 .error500 h1 {

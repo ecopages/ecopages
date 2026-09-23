@@ -68,6 +68,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 			getServerOptions: () => ({}),
 			buildStatic: async () => undefined,
 			servePreviewOnly: async () => undefined,
+			applyBoundPort: () => {},
 			dispose: async () => {},
 		};
 	}

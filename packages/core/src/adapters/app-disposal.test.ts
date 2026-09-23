@@ -16,6 +16,7 @@ function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undef
 		buildStatic: async () => {},
 		servePreviewOnly: async () => {},
 		attachUserWebSocketUpgrades: () => {},
+		applyBoundPort: () => {},
 		dispose,
 	};
 }

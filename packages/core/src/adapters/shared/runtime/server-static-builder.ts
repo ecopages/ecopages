@@ -79,8 +79,8 @@ export interface ServerStaticBuilderLogger {
 export class ServerStaticBuilder {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly staticSiteGenerator: StaticSiteGenerator;
-	private readonly serveOptions: ServeOptions;
-	private readonly runtimeOrigin: string;
+	private serveOptions: ServeOptions;
+	private runtimeOrigin: string;
 	private readonly needsServerBundle: boolean;
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
@@ -107,6 +107,12 @@ export class ServerStaticBuilder {
 		this.entryFile = resolveEntryFile({ entryFile });
 		this.hmrManager = hmrManager;
 		this.onRuntimePlugin = onRuntimePlugin;
+	}
+
+	/** Keeps build-time URLs aligned with the server's actual listening port. */
+	setRuntimeBinding(input: { port: number; runtimeOrigin: string }): void {
+		this.serveOptions = { ...this.serveOptions, port: input.port };
+		this.runtimeOrigin = input.runtimeOrigin;
 	}
 
 	private prepareExportDirectory(force: boolean): boolean {

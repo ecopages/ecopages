@@ -23,15 +23,15 @@ bun dev
 
 ## Commands
 
-| Command               | Description                                         | Equivalent (Bun)                |
-| :-------------------- | :-------------------------------------------------- | :------------------------------ |
-| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`) | N/A                             |
-| `ecopages dev`        | Starts the dev server                               | `bun run [entry] --dev`         |
-| `ecopages dev:watch`  | Dev server + hard restarts on file changes          | `bun --watch run [entry] --dev` |
-| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                 | `bun --hot run [entry] --dev`   |
-| `ecopages build`      | Creates a production build                          | `bun run [entry] --build`       |
-| `ecopages start`      | Starts the production server                        | `bun run [entry]`               |
-| `ecopages preview`    | Previews the production build locally               | `bun run [entry] --preview`     |
+| Command               | Description                                             | Equivalent (Bun)                                             |
+| :-------------------- | :------------------------------------------------------ | :----------------------------------------------------------- |
+| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                          |
+| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
+| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                     | `bun --hot run [entry] --dev`                                |
+| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
+| `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
+| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
@@ -79,6 +79,8 @@ ecopages dev --port 8080 --debug
 # Dev server with React Fast Refresh enabled
 ecopages dev -r
 ```
+
+During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
 
 ### Debug logging and startup trace
 

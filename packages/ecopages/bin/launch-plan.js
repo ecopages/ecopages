@@ -7,6 +7,7 @@ import {
 	resolveEmittedEcoConfigPath,
 	assertProductionConfigIdentity,
 } from '@ecopages/core/config';
+import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/dev/development-restart';
 
 const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 
@@ -14,13 +15,7 @@ const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
 function getEnvFilePaths(nodeEnv) {
-	const envFiles = ['.env', '.env.local'];
-
-	if (nodeEnv) {
-		envFiles.push(`.env.${nodeEnv}`, `.env.${nodeEnv}.local`);
-	}
-
-	return envFiles.filter((envFile) => existsSync(envFile));
+	return getDevEnvFileNames(nodeEnv).filter((envFile) => existsSync(envFile));
 }
 
 export function buildEnvOverrides(options) {
@@ -35,6 +30,9 @@ export function buildEnvOverrides(options) {
 		env.ECOPAGES_CONFIG_FILE = path.isAbsolute(options.configFile)
 			? options.configFile
 			: path.resolve(process.cwd(), options.configFile);
+	}
+	if (options.watch) {
+		env[ECOPAGES_ENTRY_WATCH_ENV] = '1';
 	}
 	return env;
 }
@@ -216,10 +214,16 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 	}
 
 	if (runtime === 'node') {
+		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader];
+		if (resolvedOptions.watch) {
+			commandArgs.push('--watch');
+		}
+		commandArgs.push(resolvedEntryFile, ...args);
+
 		return {
 			runtime,
 			command: process.execPath,
-			commandArgs: ['--import', nodeRequirePreload, '--import', tsxLoader, resolvedEntryFile, ...args],
+			commandArgs,
 			envOverrides,
 			env,
 		};

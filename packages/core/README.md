@@ -54,6 +54,7 @@ flowchart TD
 	C --> D{Change kind}
 	D -->|Route or server source| E[Invalidate server modules]
 	D -->|Additional watch| E
+	D -->|Config or dotenv| R[Restart dev process]
 	E --> N[Notify processors]
 	N --> F[Reload browser]
 	D -->|Public asset| F

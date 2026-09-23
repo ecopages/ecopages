@@ -153,14 +153,18 @@ describe('loadEcoPagesConfig', () => {
 		expect(loaded.configFilePath).toBe(configPath);
 	});
 
-	it('rejects leftover ConfigBuilder.build() exports from eco.config.ts', async () => {
+	it('returns leftover ConfigBuilder.build() exports from eco.config.ts', async () => {
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
 			`export default { rootDir: ${JSON.stringify(tempDir)}, processors: new Map(), templatesExt: ['.ts'] };`,
 		);
 
-		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
+		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+		expect(appConfig.processors).toBeInstanceOf(Map);
+
+		await expect(loadEcoPagesUserConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
 			/exported a finalized app config/,
 		);
 	});

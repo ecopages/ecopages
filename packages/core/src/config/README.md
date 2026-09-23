@@ -22,7 +22,7 @@ It is responsible for:
 - `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder`
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`)
 - `apply-user-config.ts`: maps declarative `EcoPagesUserConfig` fields onto `ConfigBuilder`
-- `is-finalized-app-config.ts`: rejects leftover `ConfigBuilder.build()` exports from `eco.config.ts`
+- `is-finalized-app-config.ts`: detects leftover `ConfigBuilder.build()` exports so `loadEcoPagesConfig()` can reuse them
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
 - `config-builder.ts`: finalization boundary used by the loader and tests
 - `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup

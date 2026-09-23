@@ -17,6 +17,14 @@ function expectHmrDelegated(hmrManager: IHmrManager, filePath: string): void {
 	);
 }
 
+async function handleWatcherFileChange(watcher: ProjectWatcher, filePath: string): Promise<void> {
+	await (
+		watcher as unknown as {
+			handleFileChange(filePath: string): Promise<void>;
+		}
+	).handleFileChange(filePath);
+}
+
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
 	return await new ConfigBuilder().setRootDir(rootDir).build();
 };
@@ -152,6 +160,64 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 		await (watcher as any).handleFileChange(cssFilePath);
 		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
+	});
+
+	test('delegates dotenv changes to the runtime restart owner', async () => {
+		const onRestartRequest = vi.fn(async () => {});
+		const restartWatcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
+			changeDebounceMs: 0,
+			onRestartRequest,
+		});
+		const envPath = path.join(Config.rootDir, '.env.local');
+
+		await handleWatcherFileChange(restartWatcher, envPath);
+
+		await vi.waitFor(() => expect(onRestartRequest).toHaveBeenCalledOnce());
+		expect(onRestartRequest).toHaveBeenCalledWith(envPath);
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).not.toHaveBeenCalled();
+	});
+
+	test('lets a restart owner close the watcher without waiting on its own change task', async () => {
+		let restartWatcher: ProjectWatcher;
+		const onRestartRequest = vi.fn(async () => {
+			await restartWatcher.close();
+		});
+		restartWatcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
+			changeDebounceMs: 0,
+			onRestartRequest,
+		});
+
+		await handleWatcherFileChange(restartWatcher, path.join(Config.rootDir, '.env'));
+
+		await vi.waitFor(() => expect(onRestartRequest).toHaveBeenCalledOnce());
+		await expect(onRestartRequest.mock.results[0]?.value).resolves.toBeUndefined();
+	});
+
+	test('leaves config-module changes to the entry watcher when configured', async () => {
+		const onRestartRequest = vi.fn(async () => {});
+		const restartWatcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
+			changeDebounceMs: 0,
+			onRestartRequest,
+			entryWatcherOwnsConfig: true,
+		});
+
+		await handleWatcherFileChange(restartWatcher, Config.absolutePaths.config);
+
+		expect(onRestartRequest).not.toHaveBeenCalled();
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
 	describe('public directory files', () => {
@@ -788,6 +854,37 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			expect.any(Object),
 		);
 		expect(watcherHandle.add).not.toHaveBeenCalled();
+	});
+
+	test('watches every supported dotenv path before the files exist', async () => {
+		const Config = await createMockConfig();
+		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		};
+		const chokidarWatch = vi.fn(() => watcherHandle);
+		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(chokidarWatch).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				path.join(Config.rootDir, '.env'),
+				path.join(Config.rootDir, '.env.local'),
+				path.join(Config.rootDir, '.env.test'),
+				path.join(Config.rootDir, '.env.test.local'),
+			]),
+			expect.any(Object),
+		);
 	});
 
 	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {

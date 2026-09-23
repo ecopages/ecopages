@@ -1,0 +1,15 @@
+.error-diagnostics {
+	@apply block mt-8 max-h-[min(24rem,45vh)] overflow-y-auto rounded-lg border border-on-background/10 bg-on-background/[0.03] text-left;
+
+	&__header {
+		@apply sticky top-0 z-10 flex min-h-12 items-center justify-between gap-3 border-b border-on-background/10 bg-background/95 px-3 pl-4 font-mono text-xs font-semibold text-on-background/65 backdrop-blur-sm;
+	}
+
+	&__message {
+		@apply m-4 mb-0 text-sm font-mono text-red-600 dark:text-red-300;
+	}
+
+	&__stack {
+		@apply m-0 p-4 font-mono text-xs leading-relaxed text-on-background/75 whitespace-pre-wrap break-words;
+	}
+}

@@ -8,7 +8,13 @@ import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { NodeClientBridge } from './node-client-bridge.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
-import type { ApiHandler, ErrorHandler, StaticRoute, EcopagesWebSocketHandler } from '../../types/public-types.ts';
+import type {
+	ApiHandler,
+	ErrorHandler,
+	StaticRoute,
+	ErrorPageLoaders,
+	EcopagesWebSocketHandler,
+} from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {
 	attachNodeHttpWebSocketUpgrades,
@@ -45,6 +51,7 @@ export interface NodeServerAdapterParams {
 	serveOptions: NodeServeAdapterServerOptions;
 	apiHandlers?: ApiHandler[];
 	staticRoutes?: StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
 	hostOwnsDevClient?: boolean;
@@ -91,6 +98,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private initialized = false;
 	private apiHandlers: ApiHandler[];
 	private staticRoutes: StaticRoute[];
+	private errorPageLoaders: ErrorPageLoaders;
 	private errorHandler?: ErrorHandler;
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
@@ -157,6 +165,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
+		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
 		this.previewHost = options.previewHost;
 		this.requestBridge = options.requestBridge;
@@ -192,6 +201,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		}
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
+			errorPageLoaders: this.errorPageLoaders,
 			hmrManager: this.hmrManager ?? undefined,
 		});
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
@@ -224,6 +234,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				router: this.router,
 				routeRendererFactory: this.routeRendererFactory,
 				staticRoutes: this.staticRoutes,
+				errorPageLoaders: this.errorPageLoaders,
 			},
 		);
 
@@ -410,7 +421,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				runtimeOrigin: this.runtimeOrigin,
 			});
 
-			this.configureSharedResponseHandlers(this.staticRoutes, this.hmrManager);
+			this.configureSharedResponseHandlers({
+				staticRoutes: this.staticRoutes,
+				hmrManager: this.hmrManager,
+				errorPageLoaders: this.errorPageLoaders,
+			});
 
 			await this.startDevStaticRoutePrewarmWhenReady();
 
@@ -418,6 +433,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				config: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
 					staticRoutes: this.staticRoutes,
+					errorPageLoaders: this.errorPageLoaders,
 					hmrManager: this.hmrManager ?? undefined,
 				}),
 				hmrManager: this.hmrManager ?? undefined,

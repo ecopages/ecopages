@@ -14,11 +14,13 @@ export function shouldAppUseHostModuleLoader(appConfig: EcoPagesAppConfig, fileP
 	}
 
 	const normalizedFilePath = path.normalize(filePath);
+	const viewsDir = path.join(appConfig.absolutePaths.srcDir, 'views');
 	const frameworkOwnedDirectories = [
 		appConfig.absolutePaths.pagesDir,
 		appConfig.absolutePaths.includesDir,
 		appConfig.absolutePaths.layoutsDir,
 		appConfig.absolutePaths.componentsDir,
+		viewsDir,
 	].map((directoryPath) => path.normalize(directoryPath));
 	const isFrameworkOwnedModule = frameworkOwnedDirectories.some((directoryPath) => {
 		return normalizedFilePath === directoryPath || normalizedFilePath.startsWith(`${directoryPath}${path.sep}`);

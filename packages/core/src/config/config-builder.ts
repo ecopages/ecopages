@@ -45,7 +45,7 @@ export const CONFIG_BUILDER_ERRORS = {
 		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
 	duplicateProcessorName: (name: string): string => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string): string => `Loader with name "${name}" already exists`,
-	duplicateSemanticTemplate: (kind: 'html' | '404' | '500', matches: string[]): string =>
+	duplicateSemanticTemplate: (kind: string, matches: string[]): string =>
 		`Multiple ${kind} templates found: ${matches.join(', ')}`,
 	incompatibleRuntimeCapability: (
 		kind: 'integration' | 'processor',
@@ -146,6 +146,14 @@ export class ConfigBuilder {
 			publicDir: '',
 			srcDir: '',
 			htmlTemplatePath: '',
+			errorPageTemplatePaths: {
+				400: '',
+				401: '',
+				403: '',
+				404: '',
+				409: '',
+				500: '',
+			},
 			error404TemplatePath: '',
 			error500TemplatePath: '',
 		},
@@ -539,6 +547,33 @@ export class ConfigBuilder {
 		const absoluteIncludesDir = path.join(absoluteSrcDir, includesDir);
 		const absolutePagesDir = path.join(absoluteSrcDir, pagesDir);
 
+		const errorPageTemplatePaths = {
+			400: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '400',
+			}),
+			401: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '401',
+			}),
+			403: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '403',
+			}),
+			404: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '404',
+			}),
+			409: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '409',
+			}),
+			500: this.resolveSemanticTemplatePath({
+				dirPath: absolutePagesDir,
+				basename: '500',
+			}),
+		} as const;
+
 		this.config.absolutePaths = {
 			config: this.configModulePath ?? path.join(projectDir, 'eco.config.ts'),
 			projectDir: projectDir,
@@ -554,26 +589,15 @@ export class ConfigBuilder {
 				dirPath: absoluteIncludesDir,
 				basename: 'html',
 			}),
-			error404TemplatePath: this.resolveSemanticTemplatePath({
-				dirPath: absolutePagesDir,
-				basename: '404',
-			}),
-			error500TemplatePath: this.resolveSemanticTemplatePath({
-				dirPath: absolutePagesDir,
-				basename: '500',
-			}),
+			errorPageTemplatePaths,
+			error404TemplatePath: errorPageTemplatePaths[404],
+			error500TemplatePath: errorPageTemplatePaths[500],
 		};
 
 		return this;
 	}
 
-	private resolveSemanticTemplatePath({
-		dirPath,
-		basename,
-	}: {
-		dirPath: string;
-		basename: 'html' | '404' | '500';
-	}): string {
+	private resolveSemanticTemplatePath({ dirPath, basename }: { dirPath: string; basename: string }): string {
 		const extensions = this.config.templatesExt;
 		if (extensions.length === 0) {
 			return '';

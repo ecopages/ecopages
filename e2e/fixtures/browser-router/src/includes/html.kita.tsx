@@ -1,8 +1,7 @@
 import { eco } from '@ecopages/core';
-import type { EcoPagesElement, HtmlTemplateProps } from '@ecopages/core';
 import { Head } from '@/includes/head.kita';
 
-export default eco.html<HtmlTemplateProps, EcoPagesElement>({
+export default eco.html({
 	dependencies: {
 		components: [Head],
 	},

@@ -38,6 +38,7 @@ import type {
 	IHmrManager,
 	RenderContext,
 	StaticRoute,
+	ErrorPageLoaders,
 } from '../../../types/public-types.ts';
 
 type SharedResponseHandlerDependencies = {
@@ -123,11 +124,12 @@ export abstract class SharedServerAdapter<
 
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
 		hmrManager?: SharedHmrAssetManager;
 	}): Promise<void> {
 		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
-		this.configureSharedResponseHandlers(options.staticRoutes, options.hmrManager);
+		this.configureSharedResponseHandlers(options);
 	}
 
 	private ensureRouteRendererFactory(): void {
@@ -144,6 +146,7 @@ export abstract class SharedServerAdapter<
 
 	protected createSharedWatchRefreshCallback(options: {
 		staticRoutes: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
 		hmrManager?: SharedHmrAssetManager;
 		onRoutesReady?: () => Promise<void> | void;
 		onError?: (error: Error) => Promise<void> | void;
@@ -152,6 +155,7 @@ export abstract class SharedServerAdapter<
 			try {
 				await this.initializeSharedRouteHandling({
 					staticRoutes: options.staticRoutes,
+					errorPageLoaders: options.errorPageLoaders,
 					hmrManager: options.hmrManager,
 				});
 
@@ -219,26 +223,32 @@ export abstract class SharedServerAdapter<
 	 * 1. How to render React/Lit pages via `RouteRendererFactory`
 	 * 2. How to match logical routes to physical filesystem artifacts via `FileSystemResponseMatcher`
 	 * 3. Whether to serve the response from the embedded `PageCacheService` or generate it fresh on the fly.
-	 *
-	 * @param staticRoutes - A map of explicitly served static assets.
-	 * @param hmrManager - The runtime-specific Hot Module Replacement orchestrator (if watching).
 	 */
-	protected configureSharedResponseHandlers(staticRoutes: StaticRoute[], hmrManager?: IHmrManager): void {
+	protected configureSharedResponseHandlers(options: {
+		staticRoutes: StaticRoute[];
+		hmrManager?: IHmrManager;
+		errorPageLoaders?: ErrorPageLoaders;
+	}): void {
 		this.ensureRouteRendererFactory();
 
-		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } =
-			this.createSharedResponseHandlerDependencies(staticRoutes);
+		const { fileSystemResponseMatcher, explicitStaticRouteMatcher } = this.createSharedResponseHandlerDependencies(
+			options.staticRoutes,
+			options.errorPageLoaders,
+		);
 
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
 		this.routeHandler = new ServerRouteHandler({
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
 			explicitStaticRouteMatcher,
-			hmrManager,
+			hmrManager: options.hmrManager,
 		});
 	}
 
-	private createSharedResponseHandlerDependencies(staticRoutes: StaticRoute[]): SharedResponseHandlerDependencies {
+	private createSharedResponseHandlerDependencies(
+		staticRoutes: StaticRoute[],
+		errorPageLoaders?: ErrorPageLoaders,
+	): SharedResponseHandlerDependencies {
 		const fileSystemResponseFactory = new FileSystemServerResponseFactory({
 			options: {
 				watchMode: !!this.options?.watch,
@@ -251,6 +261,7 @@ export abstract class SharedServerAdapter<
 			assetPrefix: path.join(this.appConfig.rootDir, this.appConfig.distDir),
 			router: this.router,
 			routeRendererFactory: this.routeRendererFactory,
+			errorPageLoaders,
 			fileSystemResponseFactory,
 			cacheService,
 			defaultCacheStrategy: this.appConfig.cache?.defaultStrategy ?? 'static',

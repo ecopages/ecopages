@@ -10,6 +10,7 @@ import type {
 	ApiHandlerContext,
 	ErrorHandler,
 	StaticRoute,
+	ErrorPageLoaders,
 	EcopagesSocket,
 	EcopagesWebSocketHandler,
 } from '../../types/public-types.ts';
@@ -77,6 +78,7 @@ export interface BunServerAdapterParams {
 	serveOptions: BunServeAdapterServerOptions;
 	apiHandlers?: ApiHandler<string, Request, BunServerInstance>[];
 	staticRoutes?: StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
 	options?: {
@@ -117,6 +119,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	declare serveOptions: BunServeAdapterServerOptions;
 	protected apiHandlers: ApiHandler<string, Request, BunServerInstance>[];
 	protected staticRoutes: StaticRoute[];
+	protected errorPageLoaders: ErrorPageLoaders;
 
 	protected errorHandler?: ErrorHandler;
 
@@ -211,6 +214,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		serveOptions,
 		apiHandlers,
 		staticRoutes,
+		errorPageLoaders,
 		errorHandler,
 		websocketHandlers,
 		options,
@@ -232,6 +236,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.onDevelopmentRestart = onDevelopmentRestart;
 		this.apiHandlers = apiHandlers || [];
 		this.staticRoutes = staticRoutes || [];
+		this.errorPageLoaders = errorPageLoaders ?? {};
 		this.errorHandler = errorHandler;
 		this.bridge = bridge;
 		this.hmrManager = hmrManager;
@@ -327,6 +332,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		await this.createSharedWatchRefreshCallback({
 			staticRoutes: this.staticRoutes,
+			errorPageLoaders: this.errorPageLoaders,
 			hmrManager: this.hmrManager,
 			onRoutesReady: () => {
 				const options = this.getServerOptions({ enableHmr: true });
@@ -545,6 +551,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		if (!this.fullyInitialized) {
 			await this.initializeSharedRouteHandling({
 				staticRoutes: this.staticRoutes,
+				errorPageLoaders: this.errorPageLoaders,
 				hmrManager: this.hmrManager,
 			});
 		}
@@ -557,6 +564,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				router: this.router,
 				routeRendererFactory: this.routeRendererFactory,
 				staticRoutes: this.staticRoutes,
+				errorPageLoaders: this.errorPageLoaders,
 			},
 		);
 
@@ -575,6 +583,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		if (!this.fullyInitialized) {
 			await this.initializeSharedRouteHandling({
 				staticRoutes: this.staticRoutes,
+				errorPageLoaders: this.errorPageLoaders,
 				hmrManager: this.hmrManager,
 			});
 		}
@@ -640,6 +649,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
+			errorPageLoaders: this.errorPageLoaders,
 			hmrManager: this.hmrManager,
 		});
 

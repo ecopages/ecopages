@@ -97,10 +97,20 @@ Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched pa
 
 Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
 
+### Precedence
+
+1. **`src/pages/404.*` / `500.*`** — highest priority when the file exists.
+2. **`app.notFound()` / `app.serverError()`** — lazy view loaders for explicit-route apps without a `pages/` error file.
+3. **Built-in HTML defaults** — basic pages shipped by the framework when neither of the above is configured. They include inline CSS and `eco-error-page*` class hooks; they do not load your app stylesheets.
+
+Custom error pages (filesystem or `app.notFound()` / `app.serverError()`) use your layout and assets. Typical class names are `error404`, `error500`, and `error500__stack` with optional `dependencies.stylesheets`.
+
+### 500 Page behavior
+
 Important:
 
 - Applies to page rendering (matched routes and a failing custom 404). API handlers keep their own `errorHandler` / JSON response path.
-- If the `500.*` template is missing or throws, the response falls back to plain-text `Internal Server Error`. The custom page is never retried.
+- If the custom `500.*` template or app loader is missing or throws, the response falls back to the built-in HTML error page. The custom page is never retried.
 - In **development**, the thrown error is passed as page props (`message`, `stack`) so the custom 500 page can show the real failure. In **production**, those props are omitted so stacks are not serialized into HTML. The original error is always logged server-side.
 - Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 and has no error props unless you trigger a render failure).
 - Semantic error templates render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on `404.*` / `500.*` templates.

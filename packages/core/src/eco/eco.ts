@@ -160,6 +160,10 @@ function embed<P extends Record<string, unknown>, R>(
 
 /**
  * Creates a document shell component.
+ *
+ * @remarks
+ * Pass one generic for the renderable (`eco.html<JsxRenderable>()`,
+ * `eco.html<ReactNode>()`). Props are {@link HtmlTemplateProps}.
  */
 function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E> {
 	return createComponentFactory(options) as EcoHtmlComponent<E>;

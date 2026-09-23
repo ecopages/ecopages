@@ -122,6 +122,35 @@ describe('launch-plan', () => {
 		}
 	});
 
+	it('createLaunchPlan adds node --watch for dev:watch', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		try {
+			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+			process.chdir(tempDir);
+			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+
+			const plan = await createLaunchPlan(
+				['--dev'],
+				{ runtime: 'node', nodeEnv: 'development', watch: true },
+				'app.ts',
+				'dev',
+			);
+
+			expect(plan.commandArgs).toEqual([
+				'--import',
+				nodeRequirePreload,
+				'--import',
+				tsxLoader,
+				'--watch',
+				'app.ts',
+				'--dev',
+			]);
+			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('createLaunchPlan runs Node entries directly', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {

@@ -67,21 +67,22 @@ This strategy uses the **Stale-While-Revalidate** pattern, ensuring visitors alw
 
 ## Global Configuration
 
-You can configure global cache settings in your `eco.config.ts` file provided by the Config Builder.
+You can configure global cache settings in your `eco.config.ts` file using `defineConfig`.
 
 ```typescript
 // eco.config.ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setCacheConfig({
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	cache: {
 		enabled: true,
 		defaultStrategy: 'static',
 		maxEntries: 1000,
-	})
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+	},
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ### Configuration Options

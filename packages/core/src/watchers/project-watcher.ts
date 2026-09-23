@@ -14,6 +14,7 @@ import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/p
 import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
+import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -32,6 +33,10 @@ export interface ProjectWatcherConfig {
 	hostOwnsDevClient?: boolean;
 	/** Delay before a change event is processed; 0 disables debouncing. */
 	changeDebounceMs?: number;
+	/** Applies a config or dotenv change through the owning runtime lifecycle. */
+	onRestartRequest?: (filePath: string) => Promise<void>;
+	/** Whether an entry watcher already owns changes to the config module. */
+	entryWatcherOwnsConfig?: boolean;
 }
 
 /**
@@ -65,6 +70,9 @@ export class ProjectWatcher {
 	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private readonly changeDebounceMs: number;
+	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
+	private readonly entryWatcherOwnsConfig: boolean;
+	private restartRequestScheduled = false;
 	private watcher: FSWatcher | null = null;
 	private closed = false;
 	private pendingChangeEvents = new Map<
@@ -80,6 +88,8 @@ export class ProjectWatcher {
 		bridge,
 		hostOwnsDevClient,
 		changeDebounceMs,
+		onRestartRequest,
+		entryWatcherOwnsConfig,
 	}: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
@@ -91,6 +101,8 @@ export class ProjectWatcher {
 			changeDebounceMs ??
 			(envDebounceMs !== undefined && envDebounceMs !== '' ? Number(envDebounceMs) : undefined) ??
 			ProjectWatcher.duplicateChangeWindowMs;
+		this.onRestartRequest = onRestartRequest;
+		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
 		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
@@ -278,9 +290,40 @@ export class ProjectWatcher {
 		}
 	}
 
+	private handleRuntimeRestart(filePath: string): void {
+		const onRestartRequest = this.onRestartRequest;
+		if (!onRestartRequest) {
+			appLogger.warn(
+				`Configuration or environment file changed (${filePath}). Restart the development server to apply it.`,
+			);
+			return;
+		}
+
+		if (this.restartRequestScheduled) {
+			return;
+		}
+
+		this.restartRequestScheduled = true;
+		void this.changeQueue
+			.then(() => onRestartRequest(filePath))
+			.catch((error) => this.handleError(error))
+			.finally(() => {
+				this.restartRequestScheduled = false;
+			});
+	}
+
 	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		try {
 			const plan = this.invalidationService.planFileChange(filePath);
+
+			if (plan.category === 'runtime-restart') {
+				if (this.entryWatcherOwnsConfig && this.invalidationService.isConfigModuleFile(filePath)) {
+					return;
+				}
+
+				this.handleRuntimeRestart(filePath);
+				return;
+			}
 
 			if (plan.category === 'public-asset') {
 				await this.handlePublicDirFileChange(filePath);
@@ -514,6 +557,10 @@ export class ProjectWatcher {
 					? watchPath
 					: path.resolve(this.appConfig.rootDir, watchPath);
 			processorPaths.add(resolvedWatchPath);
+		}
+
+		for (const restartPath of resolveRuntimeRestartWatchPaths(this.appConfig)) {
+			processorPaths.add(restartPath);
 		}
 
 		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);

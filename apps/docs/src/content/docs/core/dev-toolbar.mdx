@@ -23,15 +23,15 @@ pnpm add -D @ecopages/dev-toolbar
 ```
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-export default new ConfigBuilder()
-  .setRootDir(import.meta.dirname)
-  .setDevToolbar(devToolbar())
-  .setIntegrations([ecopagesJsxPlugin()])
-  .build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	devToolbar: devToolbar(),
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 Disable per project with `devToolbar({ enabled: false })`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.

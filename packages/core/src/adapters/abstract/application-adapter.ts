@@ -34,6 +34,7 @@ import {
 } from '../../dev/runtime-server-started-message.ts';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
 
 /**
  * Runtime bootstrap options layered on top of the app config.
@@ -536,6 +537,12 @@ export abstract class AbstractApplicationAdapter<
 		const normalizedOrigin = origin.replace(/\/$/, '');
 
 		startupTrace.markServerListening();
+
+		const restartReason = process.env[ECOPAGES_DEV_RESTART_REASON_ENV];
+		if (restartReason) {
+			appLogger.info(`Development server restarted (${restartReason}).`);
+			delete process.env[ECOPAGES_DEV_RESTART_REASON_ENV];
+		}
 
 		if (!this.onAppStartCallback) {
 			this.logServerStarted(normalizedOrigin);

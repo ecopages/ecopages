@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
@@ -11,14 +11,14 @@ import remarkGfm from 'remark-gfm';
 const appRoot = process.cwd();
 const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(baseUrl)
-	.setDefaultMetadata({
-		title: 'Ecopages Better Auth Example',
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl,
+	defaultMetadata: {
+		title: 'Ecopages Better Auth Playground',
 		description: 'A minimal, high-performance starter template for Ecopages with Better Auth integration.',
-	})
-	.setIntegrations([
+	},
+	integrations: [
 		reactPlugin({
 			router: ecoRouter(),
 			mdx: {
@@ -37,8 +37,8 @@ const config = await new ConfigBuilder()
 				],
 			},
 		}),
-	])
-	.setProcessors([
+	],
+	processors: [
 		imageProcessorPlugin({
 			options: {
 				sourceDir: path.resolve(appRoot, 'src/images'),
@@ -60,7 +60,5 @@ const config = await new ConfigBuilder()
 				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});

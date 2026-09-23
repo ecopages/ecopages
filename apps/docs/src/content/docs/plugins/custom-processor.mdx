@@ -233,14 +233,15 @@ class CustomProcessor extends Processor {
 Register your processor in `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { customProcessorPlugin } from './custom-processor';
 
-const config = await new ConfigBuilder()
-	.setProcessors([customProcessorPlugin()])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	processors: [customProcessorPlugin()],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 `addProcessor(instance)` is also valid when you already hold a configured processor instance.

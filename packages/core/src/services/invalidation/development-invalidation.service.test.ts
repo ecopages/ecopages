@@ -187,4 +187,25 @@ describe('DevelopmentInvalidationService', () => {
 
 		expect(handler).toHaveBeenCalledWith('/test/project/src/components/widget.tsx');
 	});
+
+	it('classifies eco.config and dotenv files as runtime-restart', async () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-runtime-restart-'));
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		const envPath = path.join(rootDir, '.env');
+
+		try {
+			writeFileSync(configPath, 'export default {}');
+			writeFileSync(envPath, 'ECOPAGES_PORT=3000\n');
+			const appConfig = await new ConfigBuilder().setRootDir(rootDir).setConfigModulePath(configPath).build();
+			const service = new DevelopmentInvalidationService(appConfig);
+
+			expect(service.planFileChange(configPath)).toMatchObject({ category: 'runtime-restart' });
+			expect(service.planFileChange(envPath)).toMatchObject({ category: 'runtime-restart' });
+			expect(service.planFileChange(path.join(rootDir, 'src/pages/index.tsx'))).not.toMatchObject({
+				category: 'runtime-restart',
+			});
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
 });

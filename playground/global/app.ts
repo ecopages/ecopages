@@ -1,9 +1,8 @@
 import { createApp } from '@ecopages/core/create-app';
 import { defineApiHandler } from '@ecopages/core';
-import appConfig from './eco.config';
 import { getAllAuthorIds, getAllBlogPostSlugs, getAuthor, getBlogPost } from './src/mocks/data';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/hello', async ({ response, request, server }) => {
 	return response.json({

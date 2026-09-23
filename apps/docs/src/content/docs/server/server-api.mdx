@@ -14,9 +14,8 @@ Create an `app.ts` file in your project root:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/hello', async () => {
 	return new Response('Hello World');
@@ -192,9 +191,8 @@ Use `app.fetch()` to exercise handlers without a bound network server. This is t
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/api/hello', async ({ response }) => {
 	return response.json({ message: 'Hello World' });
@@ -211,12 +209,12 @@ console.log(data); // { message: 'Hello World' }
 Server configuration can be customized in your `eco.config.ts`:
 
 ```typescript 
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder() 
-	.setBaseUrl('http://localhost:3000') 
-	// ... other config
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build(); 
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+}); 
 ```

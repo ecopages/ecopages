@@ -23,12 +23,13 @@ The extension depends on your chosen integration (e.g. `.tsx` for Ecopages JSX, 
 You can configure includes in your `eco.config.ts`:
 
 ```tsx
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 Ecopages resolves `src/includes/html.*` automatically using the registered integration extensions.

@@ -4,9 +4,8 @@ import { env } from './src/lib/env';
 import { createMarkdownRoute, installMarkdownNegotiation } from './src/lib/md-response';
 import { createSearchRoute, searchWiki } from './src/lib/search';
 import { getWikiHomePath, getWikiMarkdown, matchWikiMarkdownPath } from './src/lib/wiki';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 const catalogRedirect = () => redirect('/', 307);
 app.get('/wiki', catalogRedirect);

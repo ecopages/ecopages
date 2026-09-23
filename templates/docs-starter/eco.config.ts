@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { compareDocsEntries, docsFrontmatterSchema } from './src/content/docs';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
@@ -10,27 +10,27 @@ import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/si
 
 const appRoot = path.resolve(import.meta.dirname);
 
-const config = await new ConfigBuilder()
-	.setRootDir(appRoot)
-	.setBaseUrl(configuredSiteOrigin())
-	.setSitemap({
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: configuredSiteOrigin(),
+	sitemap: {
 		enabled: true,
 		extraUrls: [...DOCS_SITEMAP_EXTRA_URLS],
 		exclude: ['/404', '/500'],
-	})
-	.setDefaultMetadata({
+	},
+	defaultMetadata: {
 		title: 'Docs starter',
 		description: 'An Ecopages docs template with MDX pages, sidebar navigation, and a theme toggle.',
 		image: '/assets/images/default-og.png',
-	})
-	.setIntegrations([
+	},
+	integrations: [
 		ecopagesJsxPlugin({
 			extensions: ['.tsx'],
 			mdx: docsMdxPluginOptions,
 		}),
-	])
-	.setAdditionalWatchPaths(['src/content', 'src/lib/docs', 'src/layouts/docs-layout'])
-	.setProcessors([
+	],
+	additionalWatchPaths: ['src/content', 'src/lib/docs', 'src/layouts/docs-layout'],
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(appRoot, 'src/styles/tailwind.css'),
@@ -48,7 +48,5 @@ const config = await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});

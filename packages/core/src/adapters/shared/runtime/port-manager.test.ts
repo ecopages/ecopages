@@ -125,10 +125,10 @@ describe('PortManager', () => {
 		expect(prompt).toHaveBeenCalledTimes(1);
 		expect(prompt.mock.calls[0]?.[0]).toContain('Port 3000 is already in use');
 		expect(prompt.mock.calls[0]?.[0]).toContain('next free: 3001');
-		expect(prompt.mock.calls[0]?.[0]).toContain('auto-yes in');
+		expect(prompt.mock.calls[0]?.[0]).toContain('auto-yes');
 		expect(bound).toBe(3001);
 		expect(warn).toHaveBeenCalledWith(
-			expect.stringContaining('Port 3000 is in use; preview serving on port 3001 instead.'),
+			expect.stringContaining('Port 3000 is in use; serving on port 3001 instead.'),
 		);
 	});
 

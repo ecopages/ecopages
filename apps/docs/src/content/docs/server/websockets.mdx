@@ -12,9 +12,8 @@ Ecopages provides a runtime-agnostic WebSocket API that works identically on Bun
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.websocket('/ws/echo', {
 	onMessage(socket, message) {
@@ -252,9 +251,8 @@ Register it:
 // app.ts
 import { createApp } from '@ecopages/core/create-app';
 import { chatHandler } from './src/handlers/chat';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.websocket('/ws/chat/:roomId', chatHandler);
 

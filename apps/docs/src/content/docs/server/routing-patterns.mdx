@@ -24,13 +24,14 @@ The examples below assume the following shared setup. You can copy this into you
 
 ```typescript
 // eco.config.ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-export default await new ConfigBuilder()
-  .setBaseUrl('http://localhost:3000')
-  .setIntegrations([ecopagesJsxPlugin()])
-  .build();
+export default defineConfig({
+  rootDir: import.meta.dirname,
+  baseUrl: 'http://localhost:3000',
+  integrations: [ecopagesJsxPlugin()],
+});
 
 // src/db.ts
 // Mock database client for demonstration
@@ -84,9 +85,8 @@ For small projects or rapid prototyping, define everything inline in `app.ts`.
 import { createApp } from '@ecopages/core/create-app';
 import { HttpError } from '@ecopages/core/errors';
 import { db } from './src/db';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.get('/posts', async (ctx) => {
 	const { default: PostListView } = await import('./src/views/post-list');
@@ -209,9 +209,8 @@ export async function destroy(ctx: ApiHandlerContext) {
 import { createApp } from '@ecopages/core/create-app';
 import * as posts from './src/handlers/posts';
 import * as users from './src/handlers/users';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Posts routes
 app.get('/posts', posts.index);
@@ -309,9 +308,8 @@ export function createPostsHandlers(db: Database) {
 import { createApp } from '@ecopages/core/create-app';
 import { createPostsHandlers } from './src/handlers/posts';
 import { db } from './src/db';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 const posts = createPostsHandlers(db);
 
 app.get('/posts', posts.index);
@@ -488,9 +486,8 @@ import { createApp } from '@ecopages/core/create-app';
 import { PostsController } from './src/controllers/posts.controller';
 import { PostsService } from './src/services/posts.service';
 import { db } from './src/db';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 const postsService = new PostsService(db);
 const postsController = new PostsController(postsService);
@@ -702,9 +699,8 @@ import { createBlogService } from './src/services/blog.service';
 import { postAdapter } from './src/adapters/post.adapter';
 import { createPostsHandlers } from './src/handlers/posts';
 import { db } from './src/db';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 const blogService = createBlogService(db);
 const posts = createPostsHandlers(blogService, postAdapter);
@@ -737,7 +733,7 @@ await app.start();
 You don't need to pick one pattern for your entire app. Mix patterns based on complexity:
 
 ```typescript
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Simple inline handler for about page
 app.get('/about', async (ctx) => {
@@ -767,7 +763,7 @@ Explicit routes take precedence over file-system routes. This allows you to:
 
 ```typescript
 // app.ts
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 // Explicit routes (higher priority)
 app.get('/posts', posts.index);

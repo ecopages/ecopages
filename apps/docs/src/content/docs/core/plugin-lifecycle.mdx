@@ -10,7 +10,7 @@ Ecopages keeps lifecycle ordering in core. Integrations and processors declare c
 
 ## Phase 1: Config Finalization
 
-`ConfigBuilder.build()` is the app-owned finalization boundary.
+`loadEcoPagesConfig()` (via `ConfigBuilder.build()`) is the app-owned finalization boundary. Users author configuration using `defineConfig()`, which is finalized into the app-owned configuration at startup.
 
 During this phase Ecopages:
 

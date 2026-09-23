@@ -3,8 +3,13 @@ import { runCli } from './cli.js';
 import * as giget from 'giget';
 import * as fs from 'node:fs';
 import * as launchPlan from './launch-plan.js';
+import * as childProcess from 'node:child_process';
 import path from 'node:path';
 import * as prompts from '@clack/prompts';
+import {
+	ECOPAGES_DEV_RESTART_EXIT_CODE,
+	ECOPAGES_DEV_RESTART_REASON_ENV,
+} from '@ecopages/core/dev/development-restart';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 const cliVersionTag = `v${pkg.version}`;
@@ -192,6 +197,37 @@ describe('CLI Commands', () => {
 			'app.ts',
 			'dev',
 		);
+	});
+
+	it('respawns supervised dev children after a restart request', async () => {
+		const childHandlers = new Map<string, (...args: unknown[]) => void>();
+		vi.mocked(childProcess.spawn).mockReturnValueOnce({
+			on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+				childHandlers.set(event, handler);
+			}),
+		} as never);
+		vi.mocked(launchPlan.createLaunchPlan)
+			.mockResolvedValueOnce({
+				runtime: 'node',
+				command: 'node',
+				commandArgs: [],
+				envOverrides: {},
+				env: {},
+			} as never)
+			.mockResolvedValueOnce({
+				runtime: 'node',
+				command: 'node',
+				commandArgs: [],
+				envOverrides: {},
+				env: {},
+			} as never);
+
+		await runCli(['dev']);
+		childHandlers.get('exit')?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
+		const restartedPlan = await vi.mocked(launchPlan.createLaunchPlan).mock.results[1]?.value;
+		expect(restartedPlan.env[ECOPAGES_DEV_RESTART_REASON_ENV]).toBe('configuration or environment change');
 	});
 
 	it('runs dev:hot command', async () => {

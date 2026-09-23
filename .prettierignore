@@ -1,3 +1,4 @@
 **/*.mdx
+apps/docs/src/public/docs-llm
 pnpm-lock.yaml
 bun.lock

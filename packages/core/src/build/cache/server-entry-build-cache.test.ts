@@ -114,4 +114,56 @@ describe('server-entry-build-cache', () => {
 
 		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
 	});
+
+	it('invalidates server-entry cache when eco.config.ts content changes', () => {
+		process.env.NODE_ENV = 'production';
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-entry-config-change-'));
+		tempDirs.push(rootDir);
+		const distDir = path.join(rootDir, 'dist');
+		const workDir = path.join(rootDir, '.eco');
+		const entryPath = path.join(rootDir, 'app.ts');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
+		writeFileSync(configPath, 'export default { rootDir: "." };\n', 'utf8');
+
+		const appConfig = {
+			rootDir,
+			distDir: 'dist',
+			absolutePaths: {
+				distDir,
+				workDir,
+				config: configPath,
+			},
+			processors: new Map(),
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+
+		const serverEntryPath = path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
+		fileSystem.ensureDir(path.dirname(serverEntryPath));
+		writeFileSync(serverEntryPath, 'export {};\n', 'utf8');
+
+		recordServerEntryBuildCache({
+			appConfig,
+			entryPath,
+			buildResult: {
+				success: true,
+				logs: [],
+				outputs: [{ path: serverEntryPath }],
+				dependencyGraph: {
+					entrypoints: {
+						[entryPath]: [entryPath],
+					},
+				},
+			},
+			outputPaths: [serverEntryPath],
+		});
+
+		const initial = lookupServerEntryBuildCache({ appConfig, entryPath });
+		assert.ok(initial);
+
+		writeFileSync(configPath, 'export default { rootDir: ".", modified: true };\n', 'utf8');
+
+		const afterConfigChange = lookupServerEntryBuildCache({ appConfig, entryPath });
+		assert.equal(afterConfigChange, undefined);
+	});
 });

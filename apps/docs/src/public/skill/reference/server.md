@@ -106,11 +106,10 @@ Register prebuilt `defineApiHandler` / `defineGet` declarations with `app.add()`
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 import * as posts from './src/handlers/posts';
 import { adminGroup } from './src/handlers/admin';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.add(posts.createPost);
 app.group(adminGroup);

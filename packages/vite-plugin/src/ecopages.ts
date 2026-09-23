@@ -1,3 +1,4 @@
+import { loadEcoPagesConfig } from '@ecopages/core/config';
 import type { PluginOption } from 'vite';
 import { ecopagesClientJsxCompat } from './ecopages-client-jsx-compat.ts';
 import { ecopagesConfig } from './ecopages-config.ts';
@@ -5,7 +6,8 @@ import { ecopagesDevServer } from './ecopages-dev-server.ts';
 import { ecopagesHotUpdate } from './ecopages-hot-update.ts';
 import { ecopagesIslands } from './ecopages-islands.ts';
 import { ecopagesMetadata } from './ecopages-metadata.ts';
-import { createEcopagesPluginApi, type EcopagesViteOptions } from './plugin-api.ts';
+import { createEcopagesPluginApi } from './plugin-api.ts';
+import type { ComposedEcopagesViteOptions, EcopagesViteOptions } from './plugin-api.ts';
 import { ecopagesSourceTransforms } from './ecopages-source-transforms.ts';
 import { ecopagesVirtualModules } from './ecopages-virtual-modules.ts';
 import type { EcopagesVitePlugin } from './types.ts';
@@ -23,10 +25,8 @@ import type { EcopagesVitePlugin } from './types.ts';
  * source transforms, island registration, metadata injection, JSX compatibility,
  * HMR, dev server bridging, and host-bridge integration.
  */
-export function ecopages(
-	options: Pick<EcopagesViteOptions, 'appConfig'> & Omit<Partial<EcopagesViteOptions>, 'appConfig'>,
-): PluginOption[] {
-	const api = createEcopagesPluginApi(options as EcopagesViteOptions);
+function composeEcopagesPlugins(options: ComposedEcopagesViteOptions): PluginOption[] {
+	const api = createEcopagesPluginApi(options);
 	const plugins: EcopagesVitePlugin[] = [
 		ecopagesClientJsxCompat(api),
 		ecopagesConfig(api),
@@ -41,4 +41,28 @@ export function ecopages(
 	api.setResolvedPluginNames(plugins.map((plugin) => plugin.name));
 
 	return plugins as PluginOption[];
+}
+
+/**
+ * Composes the Ecopages Vite plugin surface.
+ *
+ * @remarks
+ * When `appConfig` is omitted, loads `eco.config.ts` (or `configFile` /
+ * `ECOPAGES_CONFIG_FILE`). The returned promise is valid in Vite's `plugins`
+ * array.
+ */
+export function ecopages(options: EcopagesViteOptions = {}): Promise<PluginOption[]> {
+	if (options.appConfig && options.configFile) {
+		return Promise.reject(new Error('ecopages() accepts either appConfig or configFile, not both.'));
+	}
+
+	if (options.appConfig) {
+		return Promise.resolve(composeEcopagesPlugins(options));
+	}
+
+	const { configFile: _cf, ...baseOptions } = options;
+	return loadEcoPagesConfig({
+		configFile: options.configFile,
+		buildOwnership: 'vite-host',
+	}).then((appConfig) => composeEcopagesPlugins({ ...baseOptions, appConfig }));
 }

@@ -52,7 +52,8 @@ Supported overrides:
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
 - `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` for an intentionally integration-free config
-- `configure(builder)`: narrow escape hatch for one-off builder customization such as `rootDir`, `workDir`, or additional watch paths
+- `rootDir` / `workDir`: project paths on the user config (same fields as `defineConfig`)
+- `configure(userConfig)`: narrow escape hatch to adjust the user config before finalization
 
 Example:
 
@@ -62,9 +63,13 @@ import { createTestAppConfig } from '@ecopages/testing';
 const config = await createTestAppConfig({
 	distDir: testDir,
 	runtimeOrigin: 'http://127.0.0.1:4100',
-	configure: (builder) => builder.setWorkDir('.eco-parallel'),
+	workDir: '.eco-parallel',
 	integrations: [plugin],
 });
+
+// Or boot the full app adapter (same config path as createApp()):
+const app = await createTestApp({ workDir: '.eco-parallel', integrations: [plugin] });
+await app.start();
 ```
 
 ## String markup fixtures

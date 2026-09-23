@@ -1,5 +1,4 @@
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 await app.start();

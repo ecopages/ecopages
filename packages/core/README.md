@@ -30,19 +30,19 @@ The important ownership rules are:
 
 ```mermaid
 flowchart TD
-	A[eco.config.ts] --> B[ConfigBuilder.build]
-	B --> C[App build adapter]
-	B --> D[App build manifest]
-	B --> E[Build executor]
-	B --> F[Dev graph service]
-	B --> G[Host module loader boundary]
-	G --> H[PageModuleImportService]
-	E --> H
-	E --> I
-	E --> I[BrowserBundleService]
-	H --> J[Runtime app adapter]
-	J --> K[Bun adapter or Node adapter]
-	D --> I
+	A[eco.config.ts] --> B[defineConfig / loadEcoPagesConfig]
+	B --> C[ConfigBuilder.build]
+	C --> D[App build adapter]
+	C --> E[App build manifest]
+	C --> F[Build executor]
+	C --> G[Dev graph service]
+	C --> H[Host module loader boundary]
+	H --> I[PageModuleImportService]
+	F --> I
+	F --> J[BrowserBundleService]
+	I --> K[Runtime app adapter]
+	K --> L[Bun adapter or Node adapter]
+	E --> J
 ```
 
 ### Development Invalidation And HMR Flow
@@ -54,6 +54,7 @@ flowchart TD
 	C --> D{Change kind}
 	D -->|Route or server source| E[Invalidate server modules]
 	D -->|Additional watch| E
+	D -->|Config or dotenv| R[Restart dev process]
 	E --> N[Notify processors]
 	N --> F[Reload browser]
 	D -->|Public asset| F
@@ -120,34 +121,31 @@ The Ecopages architecture revolves around an `eco.config.ts` file and an applica
 
 ### 1. Configuration (`eco.config.ts`)
 
-Configure your integratons, processors, and default metadata. Ecopages uses a builder pattern:
+Configure your integrations, processors, and default metadata:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setDefaultMetadata({
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	defaultMetadata: {
 		title: 'My Ecopages Site',
 		description: 'Built with Ecopages',
-	})
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+	},
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp`. It will choose the Bun adapter when Bun is available and fall back to Node otherwise.
+Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and selects the appropriate runtime adapter (Bun when available, Node otherwise):
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 await app.start();
 ```
@@ -245,9 +243,8 @@ Attach the handler in your `app.ts` entry:
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
 import { helloWorld } from './handlers/hello';
-import appConfig from './eco.config';
 
-const app = await createApp({ appConfig });
+const app = await createApp();
 
 app.add(helloWorld);
 

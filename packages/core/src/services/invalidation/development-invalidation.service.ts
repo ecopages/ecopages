@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
 import type { EcoPagesAppConfig, RegisteredScriptEntrypointChangeHandler } from '../../types/internal-types.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -15,6 +16,7 @@ export type DevelopmentInvalidationCategory =
 	| 'route-source'
 	| 'processor-owned-asset'
 	| 'server-source'
+	| 'runtime-restart'
 	| 'other';
 
 /**
@@ -113,6 +115,17 @@ export class DevelopmentInvalidationService {
 	 * Classifies one changed file into an explicit framework invalidation plan.
 	 */
 	planFileChange(filePath: string): DevelopmentInvalidationPlan {
+		if (this.isRuntimeRestartFile(filePath)) {
+			return {
+				category: 'runtime-restart',
+				invalidateServerModules: false,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: false,
+				processorHandledAsset: false,
+			};
+		}
+
 		if (this.isPublicDirFile(filePath)) {
 			return {
 				category: 'public-asset',
@@ -198,6 +211,23 @@ export class DevelopmentInvalidationService {
 			delegateToHmr: true,
 			processorHandledAsset: false,
 		};
+	}
+
+	/**
+	 * Returns whether a config or dotenv edit should restart the development process.
+	 */
+	isRuntimeRestartFile(filePath: string): boolean {
+		return this.isConfigModuleFile(filePath) || isDevEnvFilePath(filePath, this.appConfig.rootDir);
+	}
+
+	/** Returns whether `filePath` is the resolved application config module. */
+	isConfigModuleFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const configPath = this.appConfig.absolutePaths?.config
+			? path.resolve(this.appConfig.absolutePaths.config)
+			: undefined;
+
+		return configPath !== undefined && resolvedPath === configPath;
 	}
 
 	/**

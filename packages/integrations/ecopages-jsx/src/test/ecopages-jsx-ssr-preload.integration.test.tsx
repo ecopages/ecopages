@@ -48,7 +48,8 @@ describe('Ecopages JSX SSR script preload integration', () => {
 
 		try {
 			const appConfig = await createTestAppConfig({
-				configure: (builder) => builder.setRootDir(PACKAGE_ROOT).setWorkDir(tempDir),
+				rootDir: PACKAGE_ROOT,
+				workDir: tempDir,
 			});
 			const Host = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',

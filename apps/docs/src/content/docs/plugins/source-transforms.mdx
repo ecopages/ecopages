@@ -6,7 +6,7 @@ order: 3
 
 # Source Transforms
 
-Source transforms rewrite module source during browser and HMR builds. Register them on `ConfigBuilder` when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
+Source transforms rewrite module source during browser and HMR builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
 
 Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. The Rolldown bridge runs source transforms after first-wins `onLoad` plugins, so metadata injection and similar loader passes still run on rewritten output.
 
@@ -37,13 +37,13 @@ Fields:
 Register transforms in `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setRootDir(process.cwd())
-	.setBaseUrl(process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000')
-	.setSourceTransforms([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	sourceTransforms: [
 		{
 			name: 'test-source-transform',
 			filter: /entry\.tsx$/,
@@ -51,9 +51,9 @@ const config = await new ConfigBuilder()
 				return { code: `/* source transform */\n${code}` };
 			},
 		},
-	])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 Use `addSourceTransform(name, transform)` when adding a single transform to an existing builder chain.

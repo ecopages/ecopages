@@ -43,14 +43,15 @@ This preset includes the standard Tailwind CSS v3 stack: `tailwindcss`, `tailwin
 />
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
-const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(tailwindV3Preset())]).build();
-
-export default config;
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	processors: [postcssProcessorPlugin(tailwindV3Preset())],
+});
 ```
 
 ### Tailwind v4 Preset (Recommended)
@@ -69,26 +70,25 @@ This preset supports Tailwind CSS v4, utilizing `@tailwindcss/postcss`. It inclu
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const appRoot = process.cwd();
+const appRoot = import.meta.dirname;
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	rootDir: appRoot,
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				// Path to your main CSS file containing `@import "tailwindcss";`
 				referencePath: path.resolve(appRoot, 'src/styles/app.css'),
 			}),
 		),
-	])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ### Browser Support
@@ -122,9 +122,13 @@ Then simply add the plugin without arguments:
 
 ```typescript
 // eco.config.ts
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
-const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin()]).build();
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	processors: [postcssProcessorPlugin()],
+});
 ```
 
 ### Manual Plugin Configuration
@@ -148,12 +152,13 @@ postcssProcessorPlugin({
 For advanced use cases, you can customize the processor with transformation hooks to modify CSS before or after PostCSS processing:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	processors: [
 		postcssProcessorPlugin({
 			// Define a filter for files to process (defaults to /\.css$/)
 			filter: /\.css$/,
@@ -164,11 +169,9 @@ const config = await new ConfigBuilder()
 			// Explicitly provide plugins (overrides defaults)
 			plugins: {/* custom plugins */},
 		}),
-	])
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ## Using CSS Imports

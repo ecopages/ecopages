@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
-import type { PageRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.types.ts';
@@ -10,12 +10,14 @@ import type { EcoPageFile } from '../../../types/public-types.ts';
 import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
 import { getBrowserRuntimeAssetGeneration } from '../../../services/assets/browser-runtime-asset-generation.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
-import type { FileRouteMiddleware, RequestLocals, RouteRendererBody } from '../../../types/public-types.ts';
+import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
+import type { ErrorPageLoaders } from '../../../types/public-types.ts';
+import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -32,7 +34,8 @@ export interface FileSystemResponseMatcherOptions {
 	appConfig: EcoPagesAppConfig;
 	assetPrefix: string;
 	router: RouteRegistry;
-	routeRendererFactory: PageRendererResolver;
+	routeRendererFactory: StaticGenerationRendererResolver;
+	errorPageLoaders?: ErrorPageLoaders;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
 	/** Optional cache service. When null, caching is disabled. */
 	cacheService?: PageCacheService | null;
@@ -51,7 +54,8 @@ export class FileSystemResponseMatcher {
 	private appConfig: EcoPagesAppConfig;
 	private assetPrefix: string;
 	private router: RouteRegistry;
-	private routeRendererFactory: PageRendererResolver;
+	private routeRendererFactory: StaticGenerationRendererResolver;
+	private errorPageRenderer: ErrorPageRenderer;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
@@ -61,6 +65,7 @@ export class FileSystemResponseMatcher {
 		assetPrefix,
 		router,
 		routeRendererFactory,
+		errorPageLoaders = {},
 		fileSystemResponseFactory,
 		cacheService = null,
 		defaultCacheStrategy = 'static',
@@ -69,6 +74,11 @@ export class FileSystemResponseMatcher {
 		this.assetPrefix = assetPrefix;
 		this.router = router;
 		this.routeRendererFactory = routeRendererFactory;
+		this.errorPageRenderer = new ErrorPageRenderer({
+			appConfig,
+			routeRendererFactory,
+			errorPageLoaders,
+		});
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy, () =>
 			getBrowserRuntimeAssetGeneration(this.appConfig),
@@ -173,84 +183,32 @@ export class FileSystemResponseMatcher {
 	}
 
 	/**
-	 * Renders the app-owned custom 404 page, falling back to the default text 404
+	 * Renders the app-owned custom 404 page, falling back to the built-in HTML 404
 	 * when the page template cannot be resolved.
 	 */
 	private async renderCustomNotFoundResponse(): Promise<Response> {
-		return this.renderCustomErrorPageResponse({
-			templatePath: this.appConfig.absolutePaths.error404TemplatePath,
-			label: '404',
-			createDefaultResponse: () => this.fileSystemResponseFactory.createDefaultNotFoundResponse(),
-			createHtmlResponse: (body) => this.fileSystemResponseFactory.createHtmlNotFoundResponse(body),
-		});
+		const result = await this.errorPageRenderer.render({ kind: 'notFound' });
+		return await this.fileSystemResponseFactory.createHtmlNotFoundResponse(result.body);
 	}
 
 	/**
-	 * Renders the app-owned custom 500 page, falling back to the default text 500
+	 * Renders the app-owned custom 500 page, falling back to the built-in HTML 500
 	 * when the page template cannot be resolved.
 	 */
 	private async renderCustomServerErrorResponse(error: unknown): Promise<Response> {
-		return this.renderCustomErrorPageResponse({
-			templatePath: this.appConfig.absolutePaths.error500TemplatePath,
-			label: '500',
-			props: this.buildServerErrorPageProps(error),
-			createDefaultResponse: () => this.fileSystemResponseFactory.createDefaultServerErrorResponse(),
-			createHtmlResponse: (body) => this.fileSystemResponseFactory.createHtmlServerErrorResponse(body),
-		});
+		const result = await this.errorPageRenderer.render({ kind: 'serverError', error });
+		return await this.fileSystemResponseFactory.createHtmlServerErrorResponse(result.body);
 	}
 
 	/**
-	 * Builds development-only error details for the custom 500 page.
-	 * @remarks Production omits these fields so stacks are not serialized into HTML.
+	 * Renders a server-error response for failures outside the file-route matcher.
 	 */
-	private buildServerErrorPageProps(error: unknown): Record<string, unknown> | undefined {
-		if (!isDevelopmentRuntime()) {
-			return undefined;
-		}
-
-		if (error instanceof Error) {
-			return {
-				message: error.message,
-				stack: error.stack,
-			};
-		}
-
-		return {
-			message: String(error),
-		};
-	}
-
-	private async renderCustomErrorPageResponse({
-		templatePath,
-		label,
-		props,
-		createDefaultResponse,
-		createHtmlResponse,
-	}: {
-		templatePath: string;
-		label: '404' | '500';
-		props?: Record<string, unknown>;
-		createDefaultResponse: () => Promise<Response>;
-		createHtmlResponse: (body: RouteRendererBody) => Promise<Response>;
-	}): Promise<Response> {
-		let routeRenderer;
-		try {
-			routeRenderer = this.routeRendererFactory.getPageRenderer(templatePath);
-		} catch {
-			appLogger.debug(
-				`Custom ${label} template not found, falling back to default ${label} response`,
-				templatePath,
-			);
-			return createDefaultResponse();
-		}
-
-		const result = await routeRenderer.execute({
-			file: templatePath,
-			props,
-			locals: {},
-		});
-
-		return createHtmlResponse(result.body);
+	async renderServerError(pathname: string, error: unknown): Promise<Response> {
+		return this.createInternalServerErrorResponse(
+			error instanceof Error ? error.message : 'Internal Server Error',
+			pathname,
+			error,
+		);
 	}
 
 	private async renderCustomNotFoundResponseOrServerError(pathname: string): Promise<Response> {
@@ -271,7 +229,7 @@ export class FileSystemResponseMatcher {
 	/**
 	 * Logs the original render failure, then tries the custom 500 page once.
 	 * @remarks Any failure while rendering the custom 500 page falls back to the
-	 * default plain-text response and never re-enters the custom page path.
+	 * default HTML response and never re-enters the custom page path.
 	 * In development the thrown error's `message` and `stack` are passed into the
 	 * custom 500 page props.
 	 */
@@ -292,11 +250,9 @@ export class FileSystemResponseMatcher {
 			if (serverErrorPageError instanceof Response) {
 				return serverErrorPageError;
 			}
-			appLogger.error(
-				`[FileSystemResponseMatcher] Custom 500 template failed at ${pathname}`,
-				serverErrorPageError,
-			);
-			return this.fileSystemResponseFactory.createDefaultServerErrorResponse();
+			logErrorPageFailure('serverError', serverErrorPageError);
+			const result = this.errorPageRenderer.renderBuiltIn({ kind: 'serverError', error });
+			return this.fileSystemResponseFactory.createHtmlServerErrorResponse(result.body);
 		}
 	}
 

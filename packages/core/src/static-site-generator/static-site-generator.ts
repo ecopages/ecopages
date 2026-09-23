@@ -9,6 +9,7 @@ import type {
 	PageMetadataProps,
 	SitemapConfig,
 	StaticRoute,
+	ErrorPageLoaders,
 } from '../types/public-types.ts';
 import type {
 	ExplicitViewRenderer,
@@ -18,7 +19,7 @@ import type {
 } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { prepareExplicitStaticRender } from '../adapters/shared/http/explicit-static-render-preparation.ts';
+import { prepareExplicitStaticRender } from '../route-renderer/explicit-view-render-preparation.ts';
 import { createRouteModuleStaticRenderCacheContext } from './static-build-invalidation.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import {
@@ -40,6 +41,8 @@ import { renderSitemap } from './sitemap.ts';
 import { resolveSitemapLocations } from './sitemap-routes.ts';
 import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
 import { normalizePathname } from '../utils/path-pattern.ts';
+import { ErrorPageRenderer } from '../services/error-pages/error-page-renderer.ts';
+import { SemanticErrorPageExporter } from '../services/error-pages/semantic-error-page-exporter.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
@@ -532,6 +535,7 @@ export class StaticSiteGenerator {
 		baseUrl: string;
 		routeRendererFactory?: StaticGenerationRendererFactory;
 		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
 		preserveExportDirectory: boolean;
 		routes: readonly StaticGenerationRoute[];
 		skippedDynamicPages: string[];
@@ -549,13 +553,15 @@ export class StaticSiteGenerator {
 		}
 
 		this.generateRobotsTxt();
+		const semanticErrorPathnames = new Set(['/404', '/500']);
+		const pageRoutes = input.routes.filter((route) => !semanticErrorPathnames.has(route.pathname));
 		await this.generateStaticPages({
 			router: input.router,
 			baseUrl: input.baseUrl,
 			routeRendererFactory: input.routeRendererFactory,
 			skipped: input.skippedDynamicPages,
 			activeStaticPathnames: input.activeStaticPathnames,
-			preloadedRoutes: input.routes,
+			preloadedRoutes: pageRoutes,
 			sitemapEligiblePathnames: input.sitemapEligiblePathnames,
 		});
 
@@ -568,6 +574,16 @@ export class StaticSiteGenerator {
 				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
 			});
 		}
+
+		const errorPageRenderer = new ErrorPageRenderer({
+			appConfig: this.appConfig,
+			routeRendererFactory: input.routeRendererFactory,
+			errorPageLoaders: input.errorPageLoaders,
+		});
+		await new SemanticErrorPageExporter({
+			errorPageRenderer,
+			writeArtifact: async (artifact) => await this.writeStaticPageArtifact(artifact),
+		}).export(input.activeStaticPathnames);
 
 		if (input.preserveExportDirectory) {
 			this.pruneStaleStaticOutputs(input.activeStaticPathnames);
@@ -604,6 +620,7 @@ export class StaticSiteGenerator {
 		baseUrl,
 		routeRendererFactory,
 		staticRoutes,
+		errorPageLoaders,
 		force = false,
 		preserveExportDirectory = false,
 	}: {
@@ -611,6 +628,7 @@ export class StaticSiteGenerator {
 		baseUrl: string;
 		routeRendererFactory?: StaticGenerationRendererFactory;
 		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
 		force?: boolean;
 		preserveExportDirectory?: boolean;
 	}) {
@@ -641,6 +659,7 @@ export class StaticSiteGenerator {
 				baseUrl,
 				routeRendererFactory,
 				staticRoutes,
+				errorPageLoaders,
 				preserveExportDirectory,
 				routes,
 				skippedDynamicPages,

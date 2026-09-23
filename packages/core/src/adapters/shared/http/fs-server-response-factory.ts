@@ -35,12 +35,6 @@ export class FileSystemServerResponseFactory {
 		return new Response(body as BodyInit, init);
 	}
 
-	async createDefaultNotFoundResponse() {
-		return new Response(STATUS_MESSAGE[404], {
-			status: 404,
-		});
-	}
-
 	/**
 	 * Wraps already-rendered HTML in a 404 response envelope.
 	 */
@@ -49,16 +43,7 @@ export class FileSystemServerResponseFactory {
 			status: 404,
 			statusText: STATUS_MESSAGE[404],
 			headers: {
-				'Content-Type': 'text/html',
-			},
-		});
-	}
-
-	async createDefaultServerErrorResponse() {
-		return new Response(STATUS_MESSAGE[500], {
-			status: 500,
-			headers: {
-				'Content-Type': 'text/plain; charset=utf-8',
+				'Content-Type': 'text/html; charset=utf-8',
 			},
 		});
 	}
@@ -71,7 +56,7 @@ export class FileSystemServerResponseFactory {
 			status: 500,
 			statusText: STATUS_MESSAGE[500],
 			headers: {
-				'Content-Type': 'text/html',
+				'Content-Type': 'text/html; charset=utf-8',
 			},
 		});
 	}

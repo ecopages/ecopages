@@ -41,3 +41,5 @@ Core services still own:
 - server loading
 - invalidation classification
 - route rendering orchestration
+
+Semantic 404/500 page selection and rendering belongs to `src/services/error-pages/`; adapters only turn its rendered body into runtime responses.

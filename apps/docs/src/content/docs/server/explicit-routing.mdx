@@ -45,18 +45,46 @@ await app.start();
 
 The `ctx.render()` method renders `eco.page` views from any route handler. The integration (React, Lit, KitaJS) is automatically detected based on the view's file extension at build time—no manual configuration required.
 
-Use dynamic imports for views to enable HMR (hot module replacement) during development:
+Load views through the server-module transpiler so Node applies component-identity transforms. `ctx.renderServerModule()` is the usual choice inside route handlers:
 
 ```typescript
 app.get('/posts/:slug', async (ctx) => {
-	const { default: PostView } = await import('./src/views/post-view');
 	const post = await getPost(ctx.params.slug);
 	if (!post) {
 		throw HttpError.NotFound('Post not found');
 	}
-	return ctx.render(PostView, post);
+	return ctx.renderServerModule(new URL('./src/views/post-view.kita', import.meta.url), post);
 });
 ```
+
+### Error pages without `pages/`
+
+Explicit-route apps can register not-found and server-error views on the app instance. Filesystem `src/pages/404.*` and `500.*` still win when they exist.
+
+```typescript
+app.notFound('./src/views/not-found.kita')
+app.serverError('./src/views/server-error.kita')
+```
+
+When neither a pages error file nor an app loader is configured, Ecopages serves built-in HTML defaults with **inline CSS only** (not your app Tailwind or PostCSS pipeline). Those pages expose stable hooks for documentation and debugging:
+
+| Hook | Usage |
+| :--- | :--- |
+| `eco-error-page` | Root `<body>` class on built-in pages |
+| `eco-error-page--not-found` / `eco-error-page--server-error` | Status modifier |
+| `eco-error-page__title`, `eco-error-page__message`, `eco-error-page__stack` | Text regions |
+| `eco-error-page__copy` | Development-only copy button on the default 500 page (icon + label; adds `eco-error-page__copy--copied` after a successful copy) |
+| `eco-error-page__copy-icon`, `eco-error-page__copy-label` | Clipboard / check icons and label text inside the copy button |
+
+To match your site chrome, register `eco.page` views with `app.notFound()` / `app.serverError()` and style them like any other view. Common conventions:
+
+- Wrapper: `error404` or `error500`
+- Stack trace: `error500__stack`
+- Actions row: `error500__actions`
+
+Use your layout (for shared header/footer), Tailwind utility classes, and/or `dependencies.stylesheets` for a dedicated CSS file. The `playground/explicit-routes` app registers styled views under `src/views/`.
+
+In development, the built-in 500 page includes a **Copy error** button with escaped `message` and `stack` text. Custom 500 views receive the same props from the runtime when a render failure occurs.
 
 ### Partial Rendering
 
@@ -362,11 +390,11 @@ app.onError((error, ctx) => {
 Register views for build-time static generation using lazy loaders:
 
 ```typescript
-app.static('/posts', () => import('./src/views/post-list'));
-app.static('/posts/:slug', () => import('./src/views/post-view'));
+app.static('/posts', './src/views/post-list.kita');
+app.static('/posts/:slug', './src/views/post-view.kita');
 ```
 
-The loader pattern `() => import('...')` enables HMR during development. Views must be the default export and define `staticPaths` and `staticProps`:
+String and URL paths passed to `app.static()` load through the same transpiler as `renderServerModule`, including HMR in development. Views must be the default export and define `staticPaths` and `staticProps`:
 
 ```typescript
 // src/views/post-view.tsx
@@ -459,9 +487,9 @@ const authMiddleware: EcoMiddleware<{ session: Session }> = async (ctx, next) =>
 	return next();
 };
 
-// Static routes (use loader pattern for HMR support)
-app.static('/posts', () => import('./src/views/post-list'));
-app.static('/posts/:slug', () => import('./src/views/post-view'));
+// Static routes (string paths load through the server transpiler on Node)
+app.static('/posts', './src/views/post-list.kita');
+app.static('/posts/:slug', './src/views/post-view.kita');
 
 // Public API
 app.group('/api/v1', (r) => {

@@ -13,6 +13,7 @@ function createMockDependencies() {
 	const FileSystemResponseMatcher = {
 		handleMatch: vi.fn(() => Promise.resolve(new Response('Matched Content'))),
 		handleNoMatch: vi.fn(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
+		renderServerError: vi.fn(() => Promise.resolve(new Response('Internal Server Error', { status: 500 }))),
 	} as unknown as FileSystemResponseMatcher;
 
 	const HmrManager = {
@@ -99,6 +100,7 @@ describe('ServerRouteHandler', () => {
 			const response = await handler.handleNoMatch(request);
 
 			expect(response.status).toBe(500);
+			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalled();
 			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'Test Error' });
 		});
 	});

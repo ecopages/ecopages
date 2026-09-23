@@ -12,6 +12,7 @@ import {
 	getAppModuleLoader,
 	setAppHostModuleLoader,
 } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
 import { getHostModuleLoader } from '../../services/module-loading/host-module-loader-registry.ts';
 import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -24,6 +25,9 @@ import type {
 	RouteOptions,
 	StaticRoute,
 	ViewLoader,
+	ErrorPageLoaders,
+	Error404TemplateProps,
+	Error500TemplateProps,
 	EcopagesRouteInfo,
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
@@ -148,6 +152,7 @@ export abstract class AbstractApplicationAdapter<
 	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
+	protected errorPageLoaders: ErrorPageLoaders = {};
 	protected errorHandler?: ErrorHandler;
 	/**
 	 * App-level WebSocket handlers keyed by URL path pattern (e.g. '/ws/chat/:id').
@@ -376,19 +381,27 @@ export abstract class AbstractApplicationAdapter<
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
 	 *
-	 * Uses a loader function to enable HMR in development.
+	 * String and URL inputs load through the server-module transpiler so HMR and
+	 * component identity transforms remain active in development.
 	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
-	 * @param loader - A function that dynamically imports the eco.page view module
+	 * @param loader - A view loader function, source path, or URL for the eco.page view module
 	 * @example
 	 * ```typescript
-	 * app.static('/login', () => import('./src/views/login.kita'))
-	 * app.static('/posts/:slug', () => import('./src/views/post-view.kita'))
+	 * app.static('/login', './src/views/login.kita')
+	 * app.static('/posts/:slug', './src/views/post-view.kita')
 	 * ```
 	 */
-	static<P>(path: string, loader: ViewLoader<P>): this {
-		this.staticRoutes.push({ path, loader });
+	static<P>(path: string, loader: ViewLoader<P> | string | URL): this {
+		const resolvedLoader = this.resolveViewLoader(loader);
+		this.staticRoutes.push({ path, loader: resolvedLoader });
 		return this;
+	}
+
+	private resolveViewLoader<P>(loader: ViewLoader<P> | string | URL): ViewLoader<P> {
+		return typeof loader === 'string' || loader instanceof URL
+			? createViewModuleLoader<P>(this.appConfig, loader)
+			: loader;
 	}
 
 	/**
@@ -396,6 +409,28 @@ export abstract class AbstractApplicationAdapter<
 	 */
 	getStaticRoutes(): StaticRoute[] {
 		return this.staticRoutes;
+	}
+
+	/**
+	 * Registers the not-found page view used when no filesystem `pages/404.*` template exists.
+	 */
+	notFound(loader: ViewLoader<Error404TemplateProps> | string | URL): this {
+		const resolvedLoader = this.resolveViewLoader<Error404TemplateProps>(loader);
+		this.errorPageLoaders = { ...this.errorPageLoaders, notFound: resolvedLoader };
+		return this;
+	}
+
+	/**
+	 * Registers the server-error page view used when no filesystem `pages/500.*` template exists.
+	 */
+	serverError(loader: ViewLoader<Error500TemplateProps> | string | URL): this {
+		const resolvedLoader = this.resolveViewLoader<Error500TemplateProps>(loader);
+		this.errorPageLoaders = { ...this.errorPageLoaders, serverError: resolvedLoader };
+		return this;
+	}
+
+	getErrorPageLoaders(): ErrorPageLoaders {
+		return this.errorPageLoaders;
 	}
 
 	/**

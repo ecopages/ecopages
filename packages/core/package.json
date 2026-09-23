@@ -218,6 +218,11 @@
 			"types": "./src/hmr/client/hmr-runtime.ts",
 			"default": "./src/hmr/client/hmr-runtime.ts"
 		},
+		"./dev/development-restart": {
+			"import": "./src/dev/development-restart.ts",
+			"types": "./src/dev/development-restart.ts",
+			"default": "./src/dev/development-restart.ts"
+		},
 		"./dev/host-runtime": {
 			"types": "./src/dev/host-runtime.ts",
 			"default": "./src/dev/host-runtime.ts"

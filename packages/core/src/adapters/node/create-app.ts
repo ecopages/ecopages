@@ -2,6 +2,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
@@ -82,6 +83,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 				cliArgs: this.cliArgs,
 			}).canBuildWithoutRuntimeServer,
 			allowPortFallback: binding.allowPortFallback,
+			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
 	}
 
@@ -125,13 +127,23 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 		}
 
 		const serveOptions = this.serverAdapter.getServerOptions();
-		startupTrace.beginServerListen();
-		this.server = await this.runtimeHost.start({
-			serveOptions,
-			handleRequest: async (request) => await this.serverAdapter!.handleRequest(request),
-			onError: async () => {},
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
 		});
-		this.runtimeOrigin = this.runtimeHost.getOrigin(this.server, serveOptions);
+		startupTrace.beginServerListen();
+		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
+			startOptions: {
+				serveOptions,
+				handleRequest: async (request) => await this.serverAdapter!.handleRequest(request),
+				onError: async () => {},
+			},
+			allowPortFallback: binding.allowPortFallback,
+			usePortManager: this.cliArgs.dev,
+		});
+		this.server = bindingResult.server;
+		this.runtimeOrigin = bindingResult.runtimeOrigin;
+		this.serverAdapter.applyBoundPort(bindingResult);
 
 		await this.serverAdapter.completeInitialization(this.server);
 		await this.notifyListening(this.runtimeOrigin);

@@ -13,6 +13,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandlerContext, EcopagesRouteInfo, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
 import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
@@ -118,6 +119,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 				cliArgs: this.cliArgs,
 			}).canBuildWithoutRuntimeServer,
 			allowPortFallback: binding.allowPortFallback,
+			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
 	}
 
@@ -202,12 +204,22 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 		const enableHmr = dev || (!preview && !build);
 		const runtimeServerOptions = serverAdapter.getServerOptions({ enableHmr });
-		startupTrace.beginServerListen();
-		this.server = await this.runtimeHost.start({
-			serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
-			handleRequest: async () => new Response(null, { status: 500 }),
-			onError: async () => {},
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
 		});
+		startupTrace.beginServerListen();
+		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
+			startOptions: {
+				serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
+				handleRequest: async () => new Response(null, { status: 500 }),
+				onError: async () => {},
+			},
+			allowPortFallback: binding.allowPortFallback,
+			usePortManager: dev,
+		});
+		this.server = bindingResult.server;
+		serverAdapter.applyBoundPort(bindingResult);
 
 		await serverAdapter.completeInitialization(this.server).catch((error: Error) => {
 			appLogger.error(`Failed to complete initialization: ${error}`);
@@ -216,16 +228,12 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		if (!this.server) {
 			throw new Error('Server failed to start');
 		}
-		const runtimeOrigin = this.runtimeHost.getOrigin(
-			this.server,
-			runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
-		);
 
 		let previewOrigin: string | undefined;
 		if (build || preview) {
 			previewOrigin = await this.runStaticBuildOnRuntimeServer(serverAdapter, preview, build, force);
 		} else {
-			await this.notifyListening(runtimeOrigin);
+			await this.notifyListening(bindingResult.runtimeOrigin);
 		}
 
 		if (preview && previewOrigin) {

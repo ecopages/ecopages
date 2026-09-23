@@ -35,6 +35,10 @@ export interface ServerAdapterResult {
 	servePreviewOnly: () => Promise<string | undefined>;
 	dispose(): Promise<void>;
 	/**
+	 * Updates listen metadata after the runtime binds its actual port.
+	 */
+	applyBoundPort: (input: { port: number; runtimeOrigin: string }) => void;
+	/**
 	 * Lists static-generation routes for app-start consumers.
 	 *
 	 * @remarks
@@ -60,6 +64,17 @@ export abstract class AbstractServerAdapter<
 		this.options = options.options || {};
 		this.serveOptions = options.serveOptions || {};
 		this.runtimeOrigin = options.runtimeOrigin;
+	}
+
+	/**
+	 * Updates listen metadata after the runtime binds its actual port.
+	 */
+	public applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
+		this.runtimeOrigin = input.runtimeOrigin;
+		this.serveOptions = {
+			...this.serveOptions,
+			port: input.port,
+		};
 	}
 
 	/**

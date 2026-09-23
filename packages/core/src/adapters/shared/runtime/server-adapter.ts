@@ -75,6 +75,13 @@ export abstract class SharedServerAdapter<
 	private devStaticRoutePrewarmStarted = false;
 	private sharedPageCacheService: PageCacheService | null | undefined;
 
+	/** Propagates the actual listening port to every binding-dependent service. */
+	public override applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
+		super.applyBoundPort(input);
+		this.routeRendererFactory?.setRuntimeOrigin(input.runtimeOrigin);
+		this.staticBuilder?.setRuntimeBinding(input);
+	}
+
 	/**
 	 * Warms declared static paths after the final watch-mode response pipeline exists.
 	 */

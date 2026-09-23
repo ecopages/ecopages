@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0-rc.10
+
+### Minor Changes
+
+- [#319](https://github.com/ecopages/ecopages/pull/319) [`22fd810`](https://github.com/ecopages/ecopages/commit/22fd8105d0b0a3a1de25962ea22d758440edbbb1) Thanks [@andeeplus](https://github.com/andeeplus)! - Add Vite-shaped `defineConfig` and async config loading from `eco.config.ts`. `createApp()` and `ecopages()` load the config when omitted; the CLI accepts `--config`, and production server bundles emit and load `dist/.server/eco.config.mjs`. Author-facing config is `EcoPagesUserConfig` only.
+
+- [#319](https://github.com/ecopages/ecopages/pull/319) [`a176633`](https://github.com/ecopages/ecopages/commit/a176633eb8ae84da9a64cf9d7d8ad210fda371e5) Thanks [@andeeplus](https://github.com/andeeplus)! - Dev servers use `PortManager` for port collisions, with a Clack confirmation on TTY sessions and safe default-port fallback in non-interactive environments. Adding, changing, or removing `eco.config` and supported `.env` files restarts the supervised `ecopages dev` process and reloads dotenv values.
+
+- [#323](https://github.com/ecopages/ecopages/pull/323) [`f669755`](https://github.com/ecopages/ecopages/commit/f669755186973edd702c78d8d9e0e726f982b3a8) Thanks [@andeeplus](https://github.com/andeeplus)! - Add `app.notFound()` and `app.serverError()` view loaders for explicit-route apps, keep filesystem `pages/404.*` and `500.*` as the highest-priority custom error pages, and ship built-in HTML 404/500 defaults with `eco-error-page*` class hooks (development 500 copy button swaps to a check icon, shows “Copied”, and resets). String and URL view registrations load through the server-module transpiler (fixes missing component identity when using raw dynamic `import()`); direct registrations are canonical and the redundant `app.viewModule()` wrapper is removed.
+
+- [#323](https://github.com/ecopages/ecopages/pull/323) [`c3c2331`](https://github.com/ecopages/ecopages/commit/c3c2331ee88fb9b383a384e3d35568876c1d9fd3) Thanks [@andeeplus](https://github.com/andeeplus)! - Preserve valid 4xx and 5xx `HttpError` statuses on HTML page-pipeline responses, normalizing out-of-range values to 500. Semantic pages now cover 400, 401, 403, 404, 409, and 500 (`pages/{status}.*`, `app.errorPage()`, and named helpers), with built-in documents when no custom page exists.
+
+### Patch Changes
+
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.10
+    - @ecopages/file-system@0.2.0-rc.10
+
 ## 0.2.0-rc.9
 
 ### Patch Changes

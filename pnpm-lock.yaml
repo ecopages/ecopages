@@ -308,6 +308,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@clack/prompts':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@ecopages/file-system':
         specifier: workspace:*
         version: link:../file-system

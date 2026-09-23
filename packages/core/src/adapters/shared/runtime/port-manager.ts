@@ -1,5 +1,5 @@
 import { createServer as createNetServer, type Server as NetServer } from 'node:net';
-import { createInterface } from 'node:readline';
+import { createClackDefaultPrompt } from './port-manager-default-prompt.ts';
 
 /**
  * Detects whether a thrown error indicates the requested port is already in
@@ -73,42 +73,6 @@ export function isPortAvailable(port: number, hostname = '127.0.0.1'): Promise<b
  */
 export type PromptFunction = (message: string, timeoutMs: number) => Promise<boolean>;
 
-function createDefaultPrompt(stdin: NodeJS.ReadStream, stdout: NodeJS.WriteStream): PromptFunction {
-	return async (message: string, timeoutMs: number) => {
-		stdout.write(`${message} `);
-
-		return await new Promise<boolean>((resolve) => {
-			const rl = createInterface({ input: stdin, output: undefined, terminal: false });
-			let settled = false;
-
-			const finish = (value: boolean) => {
-				if (settled) {
-					return;
-				}
-
-				settled = true;
-				clearTimeout(timer);
-				rl.close();
-				stdout.write('\n');
-				resolve(value);
-			};
-
-			const timer = setTimeout(() => finish(true), timeoutMs);
-
-			rl.once('line', (line) => {
-				const answer = line.trim().toLowerCase();
-				if (answer === '' || answer === 'y' || answer === 'yes') {
-					finish(true);
-				} else {
-					finish(false);
-				}
-			});
-
-			rl.once('close', () => finish(true));
-		});
-	};
-}
-
 /** Outcome of attempting to bind a single port. */
 type BindOutcome =
 	{ status: 'bound'; boundPort: number } | { status: 'port-in-use'; error: unknown } | { status: 'factory-refused' };
@@ -124,7 +88,7 @@ export interface PortManagerOptions {
 	warn?: (message: string) => void;
 	/** Infers a free port to display in the prompt. Defaults to {@link isPortAvailable}. */
 	probePort?: (port: number) => Promise<boolean>;
-	/** Custom prompter. Defaults to a readline-based yes/no prompt on the process stdio. */
+	/** Custom prompter. Defaults to a Clack confirm on interactive stdio. */
 	prompt?: PromptFunction;
 	/** Enables the prompt flow at all. Defaults to `process.stdin.isTTY && process.stdout.isTTY`. */
 	interactive?: boolean;
@@ -150,13 +114,13 @@ export interface BindPortOptions {
 	allowPortFallback: boolean;
 }
 
-const PREVIEW_PORT_RELEASE_RACE_RETRIES = 2;
-const PREVIEW_PORT_FALLBACK_ATTEMPTS = 20;
-const PREVIEW_PORT_RELEASE_RACE_DELAY_MS = 100;
-const PREVIEW_PORT_AUTO_APPROVE_MS = 10_000;
+const PORT_RELEASE_RACE_RETRIES = 2;
+const PORT_FALLBACK_ATTEMPTS = 20;
+const PORT_RELEASE_RACE_DELAY_MS = 100;
+const PORT_AUTO_APPROVE_MS = 10_000;
 
 /**
- * Owns preview-port assignment: probing, race-release retries, fallback, and
+ * Owns server-port assignment: probing, race-release retries, fallback, and
  * an optional interactive auto-approve prompt.
  *
  * @remarks
@@ -178,10 +142,10 @@ export class PortManager {
 		this.startOnPort = options.startOnPort;
 		this.warn = options.warn;
 		this.probePort = options.probePort ?? isPortAvailable;
-		this.maxPortOffset = options.maxPortOffset ?? PREVIEW_PORT_FALLBACK_ATTEMPTS - 1;
-		this.releaseRaceRetries = options.releaseRaceRetries ?? PREVIEW_PORT_RELEASE_RACE_RETRIES;
-		this.releaseRaceDelayMs = options.releaseRaceDelayMs ?? PREVIEW_PORT_RELEASE_RACE_DELAY_MS;
-		this.autoApproveMs = options.autoApproveMs ?? PREVIEW_PORT_AUTO_APPROVE_MS;
+		this.maxPortOffset = options.maxPortOffset ?? PORT_FALLBACK_ATTEMPTS - 1;
+		this.releaseRaceRetries = options.releaseRaceRetries ?? PORT_RELEASE_RACE_RETRIES;
+		this.releaseRaceDelayMs = options.releaseRaceDelayMs ?? PORT_RELEASE_RACE_DELAY_MS;
+		this.autoApproveMs = options.autoApproveMs ?? PORT_AUTO_APPROVE_MS;
 
 		this.interactive =
 			typeof options.interactive === 'boolean'
@@ -191,14 +155,14 @@ export class PortManager {
 		if (options.prompt) {
 			this.prompt = options.prompt;
 		} else if (this.interactive) {
-			this.prompt = createDefaultPrompt(process.stdin as NodeJS.ReadStream, process.stdout as NodeJS.WriteStream);
+			this.prompt = createClackDefaultPrompt();
 		} else {
 			this.prompt = undefined;
 		}
 	}
 
 	/**
-	 * Binds the preview server to the preferred port.
+	 * Binds a server to the preferred port.
 	 *
 	 * @remarks
 	 * When the preferred port is free, binds it directly — no prompt, no
@@ -222,7 +186,6 @@ export class PortManager {
 			return null;
 		}
 
-		// firstAttempt.status === 'port-in-use'
 		await this.shouldFallback(preferredPort, options.allowPortFallback, firstAttempt.error);
 
 		return await this.fallForward(preferredPort);
@@ -233,7 +196,7 @@ export class PortManager {
 			const nextFree = await this.findNextFreePort(preferredPort);
 			const nextFreeSuffix = typeof nextFree === 'number' ? ` (next free: ${nextFree})` : '';
 			const autoApproveHint = `auto-yes in ${Math.round(this.autoApproveMs / 1000)}s`;
-			const message = `[@ecopages/core] Port ${preferredPort} is already in use${nextFreeSuffix}. Bind there instead? [Y/n] (${autoApproveHint})`;
+			const message = `Port ${preferredPort} is already in use${nextFreeSuffix}. Bind to the next free port instead? (${autoApproveHint})`;
 			const accepted = await this.prompt(message, this.autoApproveMs);
 
 			if (!accepted) {
@@ -255,7 +218,7 @@ export class PortManager {
 
 			if (attempt.status === 'bound') {
 				this.warn?.(
-					`Port ${preferredPort} is in use; preview serving on port ${attempt.boundPort} instead. Pin the preview port with --port or ECOPAGES_PORT when a fixed binding is required.`,
+					`Port ${preferredPort} is in use; serving on port ${attempt.boundPort} instead. Pin the port with --port or ECOPAGES_PORT when a fixed binding is required.`,
 				);
 				return attempt.boundPort;
 			}

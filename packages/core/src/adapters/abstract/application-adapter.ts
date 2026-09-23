@@ -26,11 +26,11 @@ import type {
 	StaticRoute,
 	ViewLoader,
 	ErrorPageLoaders,
-	Error404TemplateProps,
-	Error500TemplateProps,
+	ErrorPageTemplateProps,
 	EcopagesRouteInfo,
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
+import { ERROR_PAGE_KIND_BY_STATUS, type HttpErrorPageStatus } from '../../errors/http-error-page-contract.ts';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	formatRuntimeServerStartedMessage,
@@ -412,21 +412,44 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	/**
-	 * Registers the not-found page view used when no filesystem `pages/404.*` template exists.
+	 * Registers a semantic HTML error page used when no filesystem `pages/{status}.*`
+	 * file exists.
 	 */
-	notFound(loader: ViewLoader<Error404TemplateProps> | string | URL): this {
-		const resolvedLoader = this.resolveViewLoader<Error404TemplateProps>(loader);
-		this.errorPageLoaders = { ...this.errorPageLoaders, notFound: resolvedLoader };
+	errorPage(status: HttpErrorPageStatus, loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		const kind = ERROR_PAGE_KIND_BY_STATUS[status];
+		const resolvedLoader = this.resolveViewLoader<ErrorPageTemplateProps>(loader);
+		this.errorPageLoaders = { ...this.errorPageLoaders, [kind]: resolvedLoader };
 		return this;
 	}
 
+	badRequest(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(400, loader);
+	}
+
+	unauthorized(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(401, loader);
+	}
+
+	forbidden(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(403, loader);
+	}
+
 	/**
-	 * Registers the server-error page view used when no filesystem `pages/500.*` template exists.
+	 * Registers the not-found page used when no filesystem `pages/404.*` file exists.
 	 */
-	serverError(loader: ViewLoader<Error500TemplateProps> | string | URL): this {
-		const resolvedLoader = this.resolveViewLoader<Error500TemplateProps>(loader);
-		this.errorPageLoaders = { ...this.errorPageLoaders, serverError: resolvedLoader };
-		return this;
+	notFound(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(404, loader);
+	}
+
+	conflict(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(409, loader);
+	}
+
+	/**
+	 * Registers the server-error page used when no filesystem `pages/500.*` file exists.
+	 */
+	serverError(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(500, loader);
 	}
 
 	getErrorPageLoaders(): ErrorPageLoaders {

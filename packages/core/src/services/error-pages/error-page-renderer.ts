@@ -5,21 +5,26 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ErrorPageLoaders, RouteRendererBody, ViewLoader } from '../../types/public-types.ts';
 import { prepareExplicitStaticRender } from '../../route-renderer/explicit-view-render-preparation.ts';
 import type { StaticGenerationRendererResolver } from '../../route-renderer/route-renderer.ts';
+import { ERROR_PAGE_STATUS_BY_KIND, kindForStatus, type ErrorPageKind } from '../../errors/http-error-page-contract.ts';
 import {
-	buildDefaultNotFoundHtml,
-	buildDefaultServerErrorHtml,
+	buildDefaultErrorHtml,
 	getDefaultServerErrorDetails,
-	type DefaultServerErrorDetails,
+	getPublicErrorMessage,
+	type DefaultErrorPageDetails,
 } from './default-error-pages.ts';
 
-export type ErrorPageKind = 'notFound' | 'serverError';
+export type { ErrorPageKind };
 
 export type ErrorPageRenderResult = {
 	body: RouteRendererBody;
 	sourceFile?: string;
 };
 
-export type ErrorPageRenderInput = { kind: 'notFound' } | { kind: 'serverError'; error?: unknown };
+export type ErrorPageRenderInput = {
+	kind?: ErrorPageKind;
+	status?: number;
+	error?: unknown;
+};
 
 type ErrorPageLoader = ViewLoader;
 
@@ -30,6 +35,14 @@ const ERROR_PAGE_RENDER_ERRORS = {
 		`View at ${routePath} is missing component identity integration. Ensure it's defined with eco.page() and exported as default.`,
 	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
 } as const;
+
+function resolveRenderTarget(input: ErrorPageRenderInput): { status: number; kind: ErrorPageKind | undefined } {
+	const status = input.status ?? (input.kind ? ERROR_PAGE_STATUS_BY_KIND[input.kind] : 500);
+	return {
+		status,
+		kind: input.kind ?? kindForStatus(status),
+	};
+}
 
 /**
  * Owns error-page source precedence and rendering for runtime and static paths.
@@ -60,15 +73,16 @@ export class ErrorPageRenderer {
 	}
 
 	async render(input: ErrorPageRenderInput): Promise<ErrorPageRenderResult> {
-		const source = this.resolveCustomSource(input.kind);
-		const props = this.getCustomPageProps(input);
+		const { status, kind } = resolveRenderTarget(input);
+		const source = kind ? this.resolveCustomSource(kind) : undefined;
+		const props = this.getCustomPageProps(status, input.error);
 
 		if (source?.kind === 'filesystem') {
 			return await this.renderFileSystemPage(source.templatePath, props);
 		}
 
 		if (source?.kind === 'loader') {
-			return await this.renderRegisteredPage(source.loader, input.kind === 'notFound' ? 404 : 500, props);
+			return await this.renderRegisteredPage(source.loader, status, props);
 		}
 
 		return this.renderBuiltIn(input);
@@ -83,11 +97,9 @@ export class ErrorPageRenderer {
 	 * fallback cannot re-enter the custom source.
 	 */
 	renderBuiltIn(input: ErrorPageRenderInput): ErrorPageRenderResult {
+		const { status } = resolveRenderTarget(input);
 		return {
-			body:
-				input.kind === 'notFound'
-					? buildDefaultNotFoundHtml()
-					: buildDefaultServerErrorHtml(getDefaultServerErrorDetails(input.error)),
+			body: buildDefaultErrorHtml(status, this.getCustomPageProps(status, input.error)),
 		};
 	}
 
@@ -113,7 +125,7 @@ export class ErrorPageRenderer {
 			return { kind: 'filesystem', templatePath };
 		}
 
-		const loader = kind === 'notFound' ? this.loaders.notFound : this.loaders.serverError;
+		const loader = this.loaders[kind];
 		if (loader) {
 			return { kind: 'loader', loader };
 		}
@@ -123,7 +135,7 @@ export class ErrorPageRenderer {
 
 	private async renderFileSystemPage(
 		templatePath: string,
-		props: DefaultServerErrorDetails | undefined,
+		props: DefaultErrorPageDetails & { status: number },
 	): Promise<ErrorPageRenderResult> {
 		if (!this.routeRendererFactory) {
 			throw new Error(`No route renderer available for ${templatePath}`);
@@ -138,8 +150,8 @@ export class ErrorPageRenderer {
 
 	private async renderRegisteredPage(
 		loader: ErrorPageLoader,
-		status: 404 | 500,
-		props: DefaultServerErrorDetails | undefined,
+		status: number,
+		props: DefaultErrorPageDetails & { status: number },
 	): Promise<ErrorPageRenderResult> {
 		if (!this.routeRendererFactory) {
 			throw new Error(`No route renderer available for __error__/${status}`);
@@ -159,11 +171,7 @@ export class ErrorPageRenderer {
 			errors: ERROR_PAGE_RENDER_ERRORS,
 		});
 
-		const response = await renderer.renderToResponse(
-			renderableView,
-			{ ...staticProps, ...(props ?? {}) },
-			{ status },
-		);
+		const response = await renderer.renderToResponse(renderableView, { ...staticProps, ...props }, { status });
 
 		return {
 			body: await response.text(),
@@ -172,13 +180,21 @@ export class ErrorPageRenderer {
 	}
 
 	private getTemplatePath(kind: ErrorPageKind): string {
-		return kind === 'notFound'
-			? this.appConfig.absolutePaths.error404TemplatePath
-			: this.appConfig.absolutePaths.error500TemplatePath;
+		const status = ERROR_PAGE_STATUS_BY_KIND[kind];
+		return (
+			this.appConfig.absolutePaths.errorPageTemplatePaths?.[status] ||
+			(kind === 'notFound' ? this.appConfig.absolutePaths.error404TemplatePath : '') ||
+			(kind === 'serverError' ? this.appConfig.absolutePaths.error500TemplatePath : '') ||
+			''
+		);
 	}
 
-	private getCustomPageProps(input: ErrorPageRenderInput): DefaultServerErrorDetails | undefined {
-		return input.kind === 'serverError' ? getDefaultServerErrorDetails(input.error) : undefined;
+	private getCustomPageProps(status: number, error: unknown): DefaultErrorPageDetails & { status: number } {
+		if (status >= 500) {
+			return { status, ...getDefaultServerErrorDetails(error) };
+		}
+		const message = getPublicErrorMessage(error);
+		return message ? { status, message } : { status };
 	}
 
 	private resolveViewSourceFile(sourceFile: string | undefined): string | undefined {
@@ -192,6 +208,7 @@ export class ErrorPageRenderer {
 /**
  * Logs a custom error-page failure without replacing the original request error.
  */
-export function logErrorPageFailure(kind: ErrorPageKind, error: unknown): void {
-	appLogger.error(`Custom ${kind === 'notFound' ? '404' : '500'} page failed`, error);
+export function logErrorPageFailure(kind: ErrorPageKind | undefined, error: unknown): void {
+	const status = kind ? ERROR_PAGE_STATUS_BY_KIND[kind] : 500;
+	appLogger.error(`Custom ${status} page failed`, error);
 }

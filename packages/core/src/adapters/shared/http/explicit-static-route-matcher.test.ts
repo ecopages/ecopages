@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/public-types.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
+import { HttpError } from '../../../errors/http-error.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 
 function createMockView(integration = 'string'): EcoPageComponent<any> {
 	const view = (() => '<div>Test</div>') as EcoPageComponent<any>;
@@ -296,6 +298,50 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await expect(matcher.handleMatch(match!)).rejects.toThrow(
 				'No renderer found for integration: nonexistent-integration',
 			);
+		});
+
+		test('should rethrow without logging when rendering throws HttpError.Forbidden', async () => {
+			const view = createMockView('string');
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				routeRendererFactory: {
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderToResponse: vi.fn(() => {
+							throw HttpError.Forbidden('Admin only');
+						}),
+					})),
+				} as any,
+				staticRoutes: [createMockRoute('/admin', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/admin');
+
+			try {
+				await expect(matcher.handleMatch(match!)).rejects.toMatchObject({ status: 403 });
+				expect(errorSpy).not.toHaveBeenCalled();
+			} finally {
+				errorSpy.mockRestore();
+			}
+		});
+
+		test('should rethrow when rendering the view fails', async () => {
+			const view = createMockView('string');
+			const matcher = new ExplicitStaticRouteMatcher({
+				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				routeRendererFactory: {
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderToResponse: vi.fn(() => {
+							throw new Error('Intentional server error');
+						}),
+					})),
+				} as any,
+				staticRoutes: [createMockRoute('/boom', view)],
+			});
+
+			const match = matcher.match('http://localhost:3000/boom');
+
+			await expect(matcher.handleMatch(match!)).rejects.toThrow('Intentional server error');
 		});
 
 		test('should call renderer.renderToResponse with correct arguments', async () => {

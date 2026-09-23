@@ -736,28 +736,26 @@ export type EcoLayoutComponent<T = EcoPagesElement> = EcoComponent<LayoutProps<T
 export type EcoHtmlComponent<T = EcoPagesElement> = EcoComponent<HtmlTemplateProps, T>;
 
 /**
- * Props type for the semantic `404.*` page template.
- * @remarks Semantic error templates receive safe empty `pageLocals` rather than
- * request-scoped locals. The runtime does not currently pass `message` / `stack`
- * when rendering the custom 404 page.
- */
-export interface Error404TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
-	message: string;
-	stack?: string;
-}
-
-/**
- * Props type for the semantic `500.*` page template.
- * @remarks In development, the page-pipeline passes `message` and `stack` from the
- * thrown error when rendering this page after a failure. In production those
- * fields are omitted so stacks are not serialized into HTML. Direct visits to
- * `/500` also omit them. Semantic error templates receive safe empty
+ * Props passed to semantic HTML error pages (`pages/{status}.*` and `app.*()` loaders).
+ *
+ * @remarks
+ * `status` is the HTTP status being rendered. `message` is the public `HttpError`
+ * text for 4xx page-pipeline failures; unmatched URLs omit it. `stack` is only
+ * passed for 5xx pages in development. Semantic error pages receive safe empty
  * `pageLocals` rather than request-scoped locals.
  */
-export interface Error500TemplateProps extends Omit<HtmlTemplateProps, 'children'> {
+export interface ErrorPageTemplateProps extends Omit<HtmlTemplateProps, 'children'> {
+	status: number;
 	message?: string;
 	stack?: string;
 }
+
+export type Error400TemplateProps = ErrorPageTemplateProps;
+export type Error401TemplateProps = ErrorPageTemplateProps;
+export type Error403TemplateProps = ErrorPageTemplateProps;
+export type Error404TemplateProps = ErrorPageTemplateProps;
+export type Error409TemplateProps = ErrorPageTemplateProps;
+export type Error500TemplateProps = ErrorPageTemplateProps;
 
 /**
  * Represents the parameters for a page.
@@ -1721,7 +1719,8 @@ export interface RouteGroupBuilder<
 
 /**
  * A function that dynamically imports a view module.
- * Used by app.static(), app.notFound(), and app.serverError() to enable HMR
+ * Used by `app.static()` and the HTML error-page helpers (`app.notFound()`,
+ * `app.forbidden()`, `app.serverError()`, `app.errorPage()`, …) to enable HMR
  * in development.
  */
 export type ViewLoader<P = any> = () => Promise<{ default: EcoPageComponent<P> }>;
@@ -1736,9 +1735,15 @@ export interface StaticRoute<P = any> {
 }
 
 /**
- * Lazy view loaders registered through `app.notFound()` and `app.serverError()`.
+ * Lazy view loaders registered through `app.errorPage()` and the named
+ * `app.badRequest()` / `app.unauthorized()` / `app.forbidden()` /
+ * `app.notFound()` / `app.conflict()` / `app.serverError()` helpers.
  */
 export type ErrorPageLoaders = {
-	notFound?: ViewLoader<Error404TemplateProps>;
-	serverError?: ViewLoader<Error500TemplateProps>;
+	badRequest?: ViewLoader<ErrorPageTemplateProps>;
+	unauthorized?: ViewLoader<ErrorPageTemplateProps>;
+	forbidden?: ViewLoader<ErrorPageTemplateProps>;
+	notFound?: ViewLoader<ErrorPageTemplateProps>;
+	conflict?: ViewLoader<ErrorPageTemplateProps>;
+	serverError?: ViewLoader<ErrorPageTemplateProps>;
 };

@@ -140,6 +140,7 @@ export type EcoPagesAppConfig = {
 		publicDir: string;
 		srcDir: string;
 		htmlTemplatePath: string;
+		errorPageTemplatePaths?: Record<400 | 401 | 403 | 404 | 409 | 500, string>;
 		error404TemplatePath: string;
 		error500TemplatePath: string;
 	};

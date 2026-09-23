@@ -128,11 +128,12 @@ describe('application adapter error pages', () => {
 		const notFoundLoader = async () => ({ default: {} as never });
 		const serverErrorLoader = async () => ({ default: {} as never });
 
-		adapter.notFound(notFoundLoader).serverError(serverErrorLoader);
+		adapter.notFound(notFoundLoader).serverError(serverErrorLoader).forbidden(notFoundLoader);
 
 		assert.deepEqual(adapter.getErrorPageLoaders(), {
 			notFound: notFoundLoader,
 			serverError: serverErrorLoader,
+			forbidden: notFoundLoader,
 		});
 	});
 });

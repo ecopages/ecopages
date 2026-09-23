@@ -12,8 +12,7 @@ import { getBrowserRuntimeAssetGeneration } from '../../../services/assets/brows
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
-import { HttpError } from '../../../errors/http-error.ts';
-import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
+import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import type { ErrorPageLoaders } from '../../../types/public-types.ts';
@@ -96,7 +95,11 @@ export class FileSystemResponseMatcher {
 		const isStaticFileRequest = ServerUtils.hasKnownStaticExtension(requestUrl);
 
 		if (!isStaticFileRequest) {
-			return this.renderCustomNotFoundResponseOrServerError(requestUrl);
+			return this.renderClientErrorResponseOrServerError(
+				requestUrl,
+				{ status: 404, kind: 'notFound', logAsServerError: false },
+				undefined,
+			);
 		}
 
 		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
@@ -104,7 +107,14 @@ export class FileSystemResponseMatcher {
 		const contentType = ServerUtils.getContentType(filePath);
 
 		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
-		return response ?? this.renderCustomNotFoundResponseOrServerError(requestUrl);
+		return (
+			response ??
+			this.renderClientErrorResponseOrServerError(
+				requestUrl,
+				{ status: 404, kind: 'notFound', logAsServerError: false },
+				undefined,
+			)
+		);
 	}
 
 	/**
@@ -165,79 +175,76 @@ export class FileSystemResponseMatcher {
 				renderResponse,
 			});
 		} catch (error) {
-			if (error instanceof Response) {
-				return error;
-			}
-			if (HttpError.isHttpError(error) && error.status === 404) {
-				return await this.renderCustomNotFoundResponseOrServerError(match.requestedPathname);
-			}
-			if (error instanceof LocalsAccessError) {
-				return await this.createInternalServerErrorResponse(error.message, match.requestedPathname, error);
-			}
-			return await this.createInternalServerErrorResponse(
-				error instanceof Error ? error.message : 'Internal Server Error',
-				match.requestedPathname,
-				error,
-			);
+			return await this.renderPageFailure(match.requestedPathname, error);
 		}
 	}
 
 	/**
-	 * Renders the app-owned custom 404 page, falling back to the built-in HTML 404
-	 * when the page template cannot be resolved.
-	 */
-	private async renderCustomNotFoundResponse(): Promise<Response> {
-		const result = await this.errorPageRenderer.render({ kind: 'notFound' });
-		return await this.fileSystemResponseFactory.createHtmlNotFoundResponse(result.body);
-	}
-
-	/**
-	 * Renders the app-owned custom 500 page, falling back to the built-in HTML 500
-	 * when the page template cannot be resolved.
-	 */
-	private async renderCustomServerErrorResponse(error: unknown): Promise<Response> {
-		const result = await this.errorPageRenderer.render({ kind: 'serverError', error });
-		return await this.fileSystemResponseFactory.createHtmlServerErrorResponse(result.body);
-	}
-
-	/**
-	 * Renders a server-error response for failures outside the file-route matcher.
+	 * Translates a page-pipeline failure into an HTML response whose status matches
+	 * the thrown `HttpError`, or 500 for generic failures.
+	 *
+	 * @remarks
+	 * Explicit static routes and filesystem pages share this so client `HttpError`
+	 * statuses cannot be collapsed into a server error.
 	 */
 	async renderServerError(pathname: string, error: unknown): Promise<Response> {
-		return this.createInternalServerErrorResponse(
-			error instanceof Error ? error.message : 'Internal Server Error',
-			pathname,
-			error,
-		);
+		return this.renderPageFailure(pathname, error);
 	}
 
-	private async renderCustomNotFoundResponseOrServerError(pathname: string): Promise<Response> {
+	private async renderPageFailure(pathname: string, error: unknown): Promise<Response> {
+		if (error instanceof Response) {
+			return error;
+		}
+		const classification = classifyPageFailure(error);
+		if (classification.status >= 500) {
+			return await this.createServerErrorResponse(pathname, classification, error);
+		}
+		return await this.renderClientErrorResponseOrServerError(pathname, classification, error);
+	}
+
+	private async renderClientErrorResponseOrServerError(
+		pathname: string,
+		classification: PageFailureClassification,
+		error: unknown,
+	): Promise<Response> {
 		try {
-			return await this.renderCustomNotFoundResponse();
-		} catch (error) {
-			if (error instanceof Response) {
-				return error;
+			return await this.renderErrorResponse(classification, error);
+		} catch (pageError) {
+			if (pageError instanceof Response) {
+				return pageError;
 			}
-			return await this.createInternalServerErrorResponse(
-				error instanceof Error ? error.message : 'Internal Server Error',
+			return await this.createServerErrorResponse(
 				pathname,
-				error,
+				{ status: 500, kind: 'serverError', logAsServerError: true },
+				pageError,
 			);
 		}
 	}
 
+	private async renderErrorResponse(classification: PageFailureClassification, error?: unknown): Promise<Response> {
+		const result = await this.errorPageRenderer.render({
+			kind: classification.kind,
+			status: classification.status,
+			error,
+		});
+		return await this.fileSystemResponseFactory.createHtmlErrorResponse(classification.status, result.body);
+	}
+
 	/**
-	 * Logs the original render failure, then tries the custom 500 page once.
-	 * @remarks Any failure while rendering the custom 500 page falls back to the
-	 * default HTML response and never re-enters the custom page path.
-	 * In development the thrown error's `message` and `stack` are passed into the
-	 * custom 500 page props.
+	 * Logs a server failure, then renders the server-error page with the classified status.
+	 *
+	 * @remarks
+	 * Non-factory 5xx statuses reuse the server-error page without being rewritten to 500.
+	 * A failure while rendering that page falls back to the built-in document at the same
+	 * status and never re-enters the custom page path. In development the thrown error's
+	 * `message` and `stack` are passed into the page props.
 	 */
-	private async createInternalServerErrorResponse(
-		message: string,
+	private async createServerErrorResponse(
 		pathname: string,
+		classification: PageFailureClassification,
 		error: unknown,
 	): Promise<Response> {
+		const message = error instanceof Error ? error.message : 'Internal Server Error';
 		if (isDevelopmentRuntime() || appLogger.isDebugEnabled()) {
 			appLogger.error(`[FileSystemResponseMatcher] ${message} at ${pathname}`, error);
 		} else {
@@ -245,14 +252,18 @@ export class FileSystemResponseMatcher {
 		}
 
 		try {
-			return await this.renderCustomServerErrorResponse(error);
+			return await this.renderErrorResponse(classification, error);
 		} catch (serverErrorPageError) {
 			if (serverErrorPageError instanceof Response) {
 				return serverErrorPageError;
 			}
-			logErrorPageFailure('serverError', serverErrorPageError);
-			const result = this.errorPageRenderer.renderBuiltIn({ kind: 'serverError', error });
-			return this.fileSystemResponseFactory.createHtmlServerErrorResponse(result.body);
+			logErrorPageFailure(classification.kind ?? 'serverError', serverErrorPageError);
+			const result = this.errorPageRenderer.renderBuiltIn({
+				kind: classification.kind ?? 'serverError',
+				status: classification.status,
+				error,
+			});
+			return this.fileSystemResponseFactory.createHtmlErrorResponse(classification.status, result.body);
 		}
 	}
 

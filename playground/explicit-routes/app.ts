@@ -9,6 +9,8 @@ const app = await createApp();
 app.static('/', './src/views/post-list-view.kita')
 	.static('/posts', './src/views/post-list-view.kita')
 	.static('/posts/:slug', './src/views/post-view.kita')
+	.static('/boom', './src/views/boom-view.kita')
+	.static('/forbidden', './src/views/forbidden-view.kita')
 	.get('/latest', async (ctx) => {
 		const latestPost = posts[posts.length - 1];
 		return ctx.renderServerModule(new URL('./src/views/post-view.kita', import.meta.url), latestPost);
@@ -17,6 +19,7 @@ app.static('/', './src/views/post-list-view.kita')
 	.add(api.detail)
 	.group(adminGroup)
 	.notFound('./src/views/not-found-view.kita')
+	.forbidden('./src/views/forbidden-error-view.kita')
 	.serverError('./src/views/server-error-view.kita');
 
 app.onError((error, ctx) => {

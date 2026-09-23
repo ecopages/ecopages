@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 import { MainLayout } from '@/layouts/main-layout.kita';
 import { type Post, posts } from '@/data';
 
@@ -17,7 +18,7 @@ export const PostView = eco.page<PostViewProps>({
 	},
 	staticProps: async ({ pathname }) => {
 		const post = posts.find((p) => p.slug === (pathname.params.slug as string));
-		if (!post) throw new Error('Post not found');
+		if (!post) throw HttpError.NotFound('Post not found');
 		return { props: post };
 	},
 	render: ({ title, content }) => (

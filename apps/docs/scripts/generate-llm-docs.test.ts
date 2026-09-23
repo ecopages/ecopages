@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { getDocsLlmUrlFromPathname } from '../src/lib/docs/docs-llm-url';
 import { DOCS_SITEMAP_EXTRA_URLS, docsPageHeadLinks } from '../src/lib/docs/site-meta';
+import { toLlmMarkdown } from './llm-markdown';
 
 const appRoot = path.resolve(import.meta.dirname, '..');
 const sourceContentRoot = join(appRoot, 'src/content/docs');
@@ -73,7 +74,9 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 		expect(llmsTxt).toContain('This `llms.txt` file is an index only.');
 		expect(llmsTxt).toContain('/docs-llm/<section>/<slug>.md');
 		expect(llmsTxt).toContain('## CLI');
+		expect(llmsTxt).toContain('pnpx ecopages');
 		expect(llmsTxt).toContain('npx ecopages');
+		expect(llmsTxt).not.toContain('bunx ecopages');
 		expect(llmsTxt).toContain('/docs/ecosystem/ecopages');
 		expect(llmsTxt).toContain('## Agent Skill');
 		expect(llmsTxt).toContain('/skill/SKILL.md');
@@ -81,10 +84,36 @@ test('generateLlmDocs writes llms.txt and markdown exports', async () => {
 
 		const introduction = await readFile(join(outputRoot, 'docs-llm/getting-started/introduction.md'), 'utf8');
 		expect(introduction).toContain('# Welcome to Ecopages');
+		expect(introduction).not.toContain('import { CodeTabs }');
+		expect(introduction).not.toContain('<CodeTabs');
+		expect(introduction).toContain('**npm**');
 		expect(await pathExists(join(outputRoot, 'docs-llm/llms-fixture/excluded.md'))).toBe(false);
 	} finally {
 		await rm(outputRoot, { recursive: true, force: true });
 	}
+});
+
+test('toLlmMarkdown removes UI-only MDX from agent exports', () => {
+	const markdown = toLlmMarkdown(`
+import { RuiAlert } from '@ecopages/radiant-ui/alert';
+
+# Example
+
+<RuiAlert><RuiAlertTitle>Note</RuiAlertTitle><RuiAlertDescription>Read the [guide](https://example.com/guide).</RuiAlertDescription></RuiAlert>
+
+<EcoImage src="/hero.png" alt="Hero" />
+
+\`\`\`tsx
+<EcoImage src="/hero.png" alt="Hero" />
+\`\`\`
+`);
+
+	expect(markdown).toContain('> **Note:**');
+	expect(markdown).toContain('[guide](https://example.com/guide)');
+	expect(markdown).toContain('![Hero](/hero.png)');
+	expect(markdown).not.toContain('<RuiAlert');
+	expect(markdown).not.toContain('<EcoImage src="/hero.png" alt="Hero" />\n\n```');
+	expect(markdown).toContain('```tsx\n<EcoImage src="/hero.png" alt="Hero" />');
 });
 
 test('generateLlmDocs leaves no staging directory behind', async () => {

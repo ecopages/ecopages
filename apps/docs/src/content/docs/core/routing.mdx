@@ -4,6 +4,8 @@ description: "File-based routing for pages and programmatic routing for API endp
 order: 5
 ---
 
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
 # Routing
 
 Ecopages uses file-based routing for pages and programmatic routing for API endpoints.
@@ -16,11 +18,11 @@ Every file in your `src/pages` directory corresponds to a route. The path relati
 
 Extensions depend on your active integrations:
 
-- `.tsx` — [Ecopages JSX](/docs/integrations/ecopages-jsx) (default in Installation)
-- `.kita.tsx` — [KitaJS](/docs/integrations/kitajs)
+- `.tsx`: [Ecopages JSX](/docs/integrations/ecopages-jsx) (default in Installation)
+- `.kita.tsx`: [KitaJS](/docs/integrations/kitajs)
 - `.tsx` with [React](/docs/integrations/react) when React owns the route
-- `.lit.tsx` — [Lit](/docs/integrations/lit)
-- `.mdx` — [MDX](/docs/integrations/mdx)
+- `.lit.tsx`: [Lit](/docs/integrations/lit)
+- `.mdx`: [MDX](/docs/integrations/mdx)
 
 ### Index Routes
 
@@ -40,7 +42,7 @@ Use bracket syntax: `[param]`.
 - `src/pages/blog/[slug].tsx` → `/blog/:slug`
 - `src/pages/users/[id]/profile.tsx` → `/users/:id/profile`
 
-Access params via `staticPaths` and `staticProps` on `eco.page` views, or at request time with `cache: 'dynamic'`.
+Access params via `staticPaths` and `staticProps` on `eco.page` pages, or at request time with `cache: 'dynamic'`.
 
 ### Catch-all Routes
 
@@ -68,9 +70,11 @@ Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define
 
 ### Route Priority
 
-1. **API / explicit routes** in `app.ts`
-2. **Static files** in `public`
-3. **File-based pages** in `src/pages`
+1. **API routes** from `app.get()`, `app.add()`, and groups
+2. **`app.static()` pages**
+3. **Filesystem pages** in `src/pages` (URLs without a file extension)
+4. **Static files** from `public` / disk
+5. **HTML 404** when nothing matches
 
 ---
 
@@ -89,31 +93,70 @@ export default defineConfig({
 });
 ```
 
-### 404 Page
+## Error pages
 
-Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched page requests render this template with status 404.
+Page-pipeline `HttpError` statuses are preserved on the HTML response. Generic `Error` values are HTML **500**. API handlers stay on JSON.
 
-### 500 Page
+| Trigger | Status | HTML page |
+| :--- | :--- | :--- |
+| Unmatched URL | **404** | `404.*` / `app.notFound()` |
+| `HttpError.BadRequest` | **400** | `400.*` / `app.badRequest()` |
+| `HttpError.Unauthorized` | **401** | `401.*` / `app.unauthorized()` |
+| `HttpError.Forbidden` | **403** | `403.*` / `app.forbidden()` |
+| `HttpError.NotFound` | **404** | `404.*` / `app.notFound()` |
+| `HttpError.Conflict` | **409** | `409.*` / `app.conflict()` |
+| `HttpError.InternalServerError` or generic `Error` | **500** | `500.*` / `app.serverError()` |
+| Other 4xx `new HttpError(status, …)` | that status | built-in HTML only |
+| Other 5xx `new HttpError(status, …)` | that status | `500.*` / `app.serverError()` |
+| `app.get()` / `app.onError()` | JSON | not these pages |
 
-Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
+<RuiAlert variant="warning" layout="banner" class="unstyled">
+	<RuiAlertTitle>API handlers do not use HTML error pages</RuiAlertTitle>
+	<RuiAlertDescription>
+		`app.get()`, `app.add()`, and `app.onError()` stay on the JSON path. Throwing `HttpError.Forbidden` from an API
+		handler returns JSON 403, not the HTML 403 page. HTML error pages apply to filesystem pages, `app.static()`
+		pages, and unmatched URLs. See [Explicit Routing](/docs/server/explicit-routing).
+	</RuiAlertDescription>
+</RuiAlert>
+
+### Filesystem pages
+
+Create `{status}.tsx` (or your integration extension) under `src/pages` for each status you want to brand: `400`, `401`, `403`, `404`, `409`, `500`.
 
 ### Precedence
 
-1. **`src/pages/404.*` / `500.*`** — highest priority when the file exists.
-2. **`app.notFound()` / `app.serverError()`** — lazy view loaders for explicit-route apps without a `pages/` error file.
-3. **Built-in HTML defaults** — basic pages shipped by the framework when neither of the above is configured. They include inline CSS and `eco-error-page*` class hooks; they do not load your app stylesheets.
+1. **`src/pages/{status}.*`**: highest priority when the file exists.
+2. **`app.errorPage(status, …)`** or the named helpers (`app.notFound()`, `app.forbidden()`, `app.serverError()`, …).
+3. **Built-in HTML defaults**: inline CSS and `eco-error-page*` class hooks only. They do not load your app stylesheets.
 
-Custom error pages (filesystem or `app.notFound()` / `app.serverError()`) use your layout and assets. Typical class names are `error404`, `error500`, and `error500__stack` with optional `dependencies.stylesheets`.
+Custom error pages use your layout and assets. Typical class names are `error404`, `error403`, `error500`, and `error500__stack`, with optional `dependencies.stylesheets`.
 
-### 500 Page behavior
+### Previewing error pages
 
-Important:
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Direct visits to /500 are not status 500</RuiAlertTitle>
+	<RuiAlertDescription>
+		When `src/pages/500.*` exists, it is also a normal filesystem route at `/500`. A direct visit is status **200**
+		and has no failure `message` / `stack` unless that page throws. `app.serverError()` does not create a `/500`
+		URL. The same is true for `/400`, `/401`, `/403`, and `/409`.
+	</RuiAlertDescription>
+</RuiAlert>
 
-- Applies to page rendering (matched routes and a failing custom 404). API handlers keep their own `errorHandler` / JSON response path.
-- If the custom `500.*` template or app loader is missing or throws, the response falls back to the built-in HTML error page. The custom page is never retried.
-- In **development**, the thrown error is passed as page props (`message`, `stack`) so the custom 500 page can show the real failure. In **production**, those props are omitted so stacks are not serialized into HTML. The original error is always logged server-side.
-- Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 and has no error props unless you trigger a render failure).
-- Semantic error templates render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on `404.*` / `500.*` templates.
+Preview the real statuses with a running server:
+
+```bash
+curl -i http://localhost:3000/does-not-exist
+# HTTP/1.1 404
+
+# Throw the matching HttpError from a page (see Explicit Routing), e.g. /forbidden → 403.
+```
+
+### Error page behavior
+
+- If a custom 4xx page is missing or throws, a 4xx page throw becomes HTML **500**. A custom 500 page that throws falls back to the built-in HTML 500 document and is never retried.
+- In **development**, 5xx pages receive `message` and `stack`. In **production**, those props are omitted. 4xx pages receive the public `HttpError` `message` (unmatched URLs omit it).
+- Semantic error pages render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on semantic error pages.
+- Every error page receives `status` on `ErrorPageTemplateProps`.
 
 ```tsx
 import { eco, type Error500TemplateProps } from '@ecopages/core';
@@ -122,8 +165,8 @@ export default eco.page<Error500TemplateProps>({
 	render: ({ message, stack }) => (
 		<div>
 			<h1>Something went wrong</h1>
-			{message ? <p>{message}</p> : null}
-			{stack ? <pre>{stack}</pre> : null}
+			{message ? <p>{message}</p>: null}
+			{stack ? <pre>{stack}</pre>: null}
 		</div>
 	),
 });
@@ -137,5 +180,5 @@ export default eco.page<Error500TemplateProps>({
 | :--- | :--- | :--- |
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
-| **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
-| **API endpoints** | `app.get('/api/...')` | Data, forms |
+| **Error pages** | `src/pages/404.*`, `src/pages/500.*`, or `app.notFound()` / `app.serverError()` | HTML 404 vs HTML 500 |
+| **API endpoints** | `app.get('/api/...')` | Data and forms; JSON errors, not HTML error pages |

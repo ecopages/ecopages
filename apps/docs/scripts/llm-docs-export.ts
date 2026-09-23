@@ -4,6 +4,7 @@ import type { ContentScanner } from '@ecopages/content-processor';
 import { DOCS_SECTION_CONFIG, LLM_SECTION_ORDER, type DocsFrontmatter } from '../src/content/docs';
 import { absoluteUrl } from '../src/lib/docs/site-meta';
 import { SKILL_REFERENCE_MODULES } from './skill-reference-modules';
+import { toLlmMarkdown } from './llm-markdown';
 
 type DocsManifestEntry = Awaited<ReturnType<ContentScanner<DocsFrontmatter>['getManifest']>>[number];
 
@@ -66,7 +67,7 @@ export async function exportLlmSectionPages(
 		}
 
 		const pageSlug = page.segments[page.segments.length - 1]!;
-		const body = await scanner.getRawContent(page.slug);
+		const body = toLlmMarkdown(await scanner.getRawContent(page.slug));
 		const outputPath = join(stagingRoot, sectionId, `${pageSlug}.md`);
 		await mkdir(dirname(outputPath), { recursive: true });
 		await writeFile(outputPath, body, 'utf8');

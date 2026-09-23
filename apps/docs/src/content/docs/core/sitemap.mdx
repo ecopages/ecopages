@@ -1,6 +1,6 @@
 ---
 title: "Sitemap"
-description: "Generate sitemap.xml during static export — eligibility rules, exclude patterns, extra URLs, and page-level noindex."
+description: "Generate sitemap.xml during static export: eligibility rules, exclude patterns, extra URLs, and page-level noindex."
 order: 14
 ---
 
@@ -56,8 +56,8 @@ See [Configuration](/docs/getting-started/configuration) and [Canonical Base URL
 
 During static export, Ecopages builds the sitemap in two passes:
 
-1. **Eligibility** — collect pathnames for pages that exported successfully and pass metadata robots checks.
-2. **Assembly** — apply `exclude`, resolve absolute locations, append `extraUrls`, dedupe.
+1. **Eligibility**: collect pathnames for pages that exported successfully and pass metadata robots checks.
+2. **Assembly**: apply `exclude`, resolve absolute locations, append `extraUrls`, dedupe.
 
 Pipeline for each page URL:
 
@@ -131,7 +131,7 @@ Relative paths resolve against `baseUrl`. Absolute `http(s)` URLs pass through u
 	<RuiAlertTitle>extraUrls bypass exclude and page robots</RuiAlertTitle>
 	<RuiAlertDescription>
 		URLs in <code>extraUrls</code> are always appended (deduped). They are not filtered by <code>exclude</code> or
-		<code>metadata.robots.index</code>. Use this deliberately — for example to list <code>/admin/manifest.json</code>{' '}
+		<code>metadata.robots.index</code>. Use this deliberately: for example to list <code>/admin/manifest.json</code>{' '}
 		while excluding <code>/admin/**</code> pages.
 	</RuiAlertDescription>
 </RuiAlert>
@@ -161,14 +161,14 @@ The generator does **not** emit `lastmod`, `changefreq`, or `priority`, and does
 After `ecopages build`, inspect `dist/sitemap.xml` or run `ecopages preview`. `ecopages dev` does not generate or serve `/sitemap.xml` (the path 404s).
 
 ```bash
-ECOPAGES_BASE_URL=https://example.com pnpm run build
+ECOPAGES_BASE_URL=https://example.com pnpm build
 grep -o '<loc>[^<]*</loc>' dist/sitemap.xml
 ```
 
-Confirm production `robots.txt` references the sitemap if you want crawlers to discover it automatically — Ecopages does not add a `Sitemap:` directive for you.
+Confirm production `robots.txt` references the sitemap if you want crawlers to discover it automatically: Ecopages does not add a `Sitemap:` directive for you.
 
 ## Related configuration
 
-- [Configuration](/docs/getting-started/configuration) — `setSitemap()` and `setRobotsTxt()`
-- [Pages](/docs/core/pages) — page metadata and cache strategies
-- [Deployment](/docs/reference/deployment) — set `ECOPAGES_BASE_URL` before building for production
+- [Configuration](/docs/getting-started/configuration): `setSitemap()` and `setRobotsTxt()`
+- [Pages](/docs/core/pages): page metadata and cache strategies
+- [Deployment](/docs/reference/deployment): set `ECOPAGES_BASE_URL` before building for production

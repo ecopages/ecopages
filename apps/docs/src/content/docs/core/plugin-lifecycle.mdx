@@ -1,7 +1,7 @@
 ---
 title: "Plugin Lifecycle"
 description: "How Ecopages orders plugin hooks across config, build, and runtime phases."
-order: 12
+order: 13
 ---
 
 # Plugin Lifecycle
@@ -10,7 +10,7 @@ Ecopages keeps lifecycle ordering in core. Integrations and processors declare c
 
 ## Phase 1: Config Finalization
 
-`loadEcoPagesConfig()` (via `ConfigBuilder.build()`) is the app-owned finalization boundary. Users author configuration using `defineConfig()`, which is finalized into the app-owned configuration at startup.
+`loadEcoPagesConfig()` (via `ConfigBuilder.build()`) is the app-owned finalization boundary. Users author configuration using `defineConfig()`, a typed identity helper that does not resolve paths or start plugins. `createApp()` loads that object and finalizes it at startup.
 
 During this phase Ecopages:
 

@@ -1,12 +1,12 @@
 ---
 title: "Dev toolbar"
 description: "Development-only in-browser inspector for navigation, dependencies, islands, and accessibility."
-order: 13
+order: 11
 ---
 
 # Dev toolbar
 
-The Ecopages **dev toolbar** is a development-only browser inspector. It mounts during `ecopages dev` and does not ship to production builds.
+The Ecopages **dev toolbar** is an optional development-only browser inspector from `@ecopages/dev-toolbar`. It mounts during `ecopages dev` and does not ship to production builds.
 
 Use it to answer three common questions while building:
 
@@ -65,7 +65,7 @@ The toolbar reads this manifest client-side. Important fields:
 | Field | Meaning |
 | --- | --- |
 | `route` | Absolute filesystem path of the page file that rendered this response |
-| `integration` | Owning Integration plugin name for that page file (for example `react`, `kitajs`, `lit`) |
+| `integration` | Owning Integration plugin name for that page file (for example `ecopages-jsx`, `react`, `lit`) |
 | `pageBrowserGraph` | Entry and chunk assets for the current route |
 | `vendorUrls` | Vendor asset URLs referenced by the page package |
 | `devTransformUrls` | Dev-transform module URLs under `/assets/__eco_dev__/` |
@@ -83,7 +83,7 @@ Machine-readable navigation history is written to `#__ECO_DEV_NAV_TELEMETRY__` i
 
 ## Island discovery
 
-Hydratable components stamp [island host attributes](/docs/core/island-hosts). The Islands app reads `data-eco-island`, `data-eco-island-integration`, and related markers — not integration-specific selectors.
+Hydratable components stamp [island host attributes](/docs/core/island-hosts). The Islands app reads `data-eco-island`, `data-eco-island-integration`, and related markers: not integration-specific selectors.
 
 ## Bring your own toolbar
 
@@ -92,13 +92,20 @@ Core delivers `/_dev_toolbar.js` and injects `#__ECO_DEV_MANIFEST__` on each dev
 Integrations do not register dock apps. Fork [`@ecopages/dev-toolbar`](https://github.com/ecopages/ecopages/tree/main/packages/dev-toolbar) for a working reference layout.
 
 ```typescript
+import { defineConfig } from '@ecopages/core/config';
 import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-.setDevToolbar(defineDevTool('@acme/my-dev-toolbar'))
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	devToolbar: defineDevTool('@acme/my-dev-toolbar'),
+	integrations: [ecopagesJsxPlugin()],
+});
 ```
 
 ## Related docs
 
-- [HMR](/docs/core/hmr) — hot updates and the client bridge
-- [Island hosts](/docs/core/island-hosts) — SSR markers for interactive islands
-- [Configuration](/docs/getting-started/configuration) — `eco.config.ts` options
+- [HMR](/docs/core/hmr): hot updates and the client bridge
+- [Island hosts](/docs/core/island-hosts): SSR markers for interactive islands
+- [Configuration](/docs/getting-started/configuration): `eco.config.ts` options
+- [Packages](/docs/ecosystem/packages): where this package sits in the ecosystem

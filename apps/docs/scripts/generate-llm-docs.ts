@@ -38,13 +38,13 @@ function createScanner(contentRoot: string): ContentScanner<DocsFrontmatter> {
 function buildLlmsTxtPreamble(): string[] {
 	return [
 		'# Ecopages Documentation',
-		'> Ecopages is a static site generator written in TypeScript.',
+		'> Ecopages is an HTML-first TypeScript framework. It builds static pages by default and adds islands or server routes when needed.',
 		'',
 		'## When to use this',
 		'',
 		'Reach for Ecopages when you are:',
 		'',
-		'- Scaffolding a new HTML-first multi-page app (`npx ecopages init`).',
+		'- Scaffolding a new HTML-first multi-page app (`pnpx ecopages init`).',
 		'- Authoring Pages and Layouts, then picking an Integration (Ecopages JSX, React, Lit, KitaJS, or MDX).',
 		'- Choosing a Cache Strategy (static, dynamic, or revalidate) or adding typed handlers only when a Page needs more than static HTML.',
 		'',
@@ -59,14 +59,14 @@ function buildLlmsTxtPreamble(): string[] {
 		'## CLI',
 		'',
 		'- npm package: [`ecopages`](https://www.npmjs.com/package/ecopages).',
-		'- Run without installing: `npx ecopages`, `pnpm dlx ecopages`, or `bunx ecopages`.',
+		'- Run without installing: `pnpx ecopages` or `npx ecopages`.',
 		'- Guide: `/docs/ecosystem/ecopages` (markdown export: `/docs-llm/ecosystem/ecopages.md`).',
 		'',
 	];
 }
 
 /**
- * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
+ * Writes generated Markdown page bodies and `llms.txt` into the public directory for static serving.
  *
  * @remarks
  * Agent-facing contract:

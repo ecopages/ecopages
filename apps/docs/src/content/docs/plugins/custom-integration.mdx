@@ -177,11 +177,11 @@ Cross-integration ownership belongs in the renderer. When a renderer must keep c
 
 The runtime contract has three steps:
 
-1. **Queue** — Override `createForeignChildRuntime()` for custom interception, or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` (the base class default).
-2. **Resolve** — After local HTML is produced in `renderComponent`, call `this.foreignSubtreeExecutionService.resolveQueuedHtml(...)` (string-markup paths can use `resolveStringQueuedHtml` / `renderStringComponentWithQueuedForeignSubtrees`).
-3. **Own** — Pass `getOwningRenderer` that calls `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. The same module exports `getForeignSubtreeTokenPrefix` and `getForeignSubtreeResolutionContextKey`.
+1. **Queue**: Override `createForeignChildRuntime()` for custom interception, or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` (the base class default).
+2. **Resolve**: After local HTML is produced in `renderComponent`, call `this.foreignSubtreeExecutionService.resolveQueuedHtml(...)` (string-markup paths can use `resolveStringQueuedHtml` / `renderStringComponentWithQueuedForeignSubtrees`).
+3. **Own**: Pass `getOwningRenderer` that calls `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. The same module exports `getForeignSubtreeTokenPrefix` and `getForeignSubtreeResolutionContextKey`.
 
-Prefer extending `StringMarkupRenderer` when the integration is string-first — queue and resolve are already wired. Integrations such as Lit and React use the explicit resolve step because the owning renderer must re-enter during foreign-subtree resolution to produce the correct SSR output.
+Prefer extending `StringMarkupRenderer` when the integration is string-first: queue and resolve are already wired. Integrations such as Lit and React use the explicit resolve step because the owning renderer must re-enter during foreign-subtree resolution to produce the correct SSR output.
 
 ```typescript
 import {

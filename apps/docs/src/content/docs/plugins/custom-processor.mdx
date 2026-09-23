@@ -95,12 +95,12 @@ Prefer the narrowest declaration that matches the processor's actual runtime nee
 
 Core owns the ordering. Processors participate in these phases:
 
-1. **`prepareBuildContributions()`** — runs during `ConfigBuilder.build()` before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
-2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
-3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
-4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
-5. **Watch callbacks** — in development, `onChange` / `onCreate` / `onDelete` on the `watch` config handle owned file paths.
-6. **`teardown()`** — optional override for explicit cleanup. Core does not call this hook today.
+1. **`prepareBuildContributions()`**: runs during `ConfigBuilder.build()` before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
+2. **Manifest collection**: processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
+3. **`setup()`**: runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
+4. **`process()`**: transforms assets when the asset pipeline or watch callbacks invoke the processor.
+5. **Watch callbacks**: in development, `onChange` / `onCreate` / `onDelete` on the `watch` config handle owned file paths.
+6. **`teardown()`**: optional override for explicit cleanup. Core does not call this hook today.
 
 ## Asset Capabilities
 

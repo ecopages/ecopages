@@ -9,7 +9,7 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # React Router
 
-The `@ecopages/react-router` package enables Single Page Application (SPA) navigation for EcoPages React applications. It provides seamless client-side navigation while preserving full SSR benefits.
+The `@ecopages/react-router` package adds client-side navigation to Ecopages React applications while preserving server-rendered page responses.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
 	<RuiAlertTitle>React Only</RuiAlertTitle>
@@ -63,14 +63,14 @@ That's it, all pages now have SPA navigation enabled.
 
 ### 2. Use Layouts (Optional)
 
-For persistent UI across navigations (headers, sidebars), assign a **declared** layout on `eco.page()`. Use `eco.layout()` — plain React functions are not valid layout values.
+For persistent UI across navigations (headers, sidebars), assign a **declared** layout on `eco.page()`. Use `eco.layout()`: plain React functions are not valid layout values.
 
 ```tsx
 // src/layouts/base-layout.tsx
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
+export const BaseLayout = eco.layout<ReactNode>({
 	render: ({ children }) => (
 		<>
 			<header>My Site</header>
@@ -95,7 +95,7 @@ When navigating between pages that share the same layout key (`config.identity.f
 
 #### Nested layouts
 
-Declare an outer → inner stack when routes need multiple wrappers — for example a site shell plus a section sidebar:
+Declare an outer → inner stack when routes need multiple wrappers: for example a site shell plus a section sidebar:
 
 ```tsx
 export default eco.page({
@@ -104,7 +104,7 @@ export default eco.page({
 });
 ```
 
-Routes with different inner tiers but the same outer layout — `[AppShell, Docs]` and `[AppShell, Settings]` — share one mounted **AppShell** during SPA navigation. React state in the shell survives; inner tiers mount and unmount with the active page.
+Routes with different inner tiers but the same outer layout: `[AppShell, Docs]` and `[AppShell, Settings]`: share one mounted **AppShell** during SPA navigation. React state in the shell survives; inner tiers mount and unmount with the active page.
 
 See [Creating Layouts](/docs/core/layouts) for per-tier props, dependency rules, and SSR locals behavior.
 
@@ -205,7 +205,7 @@ const MyComponent = () => {
 
 	return (
 		<button onClick={handleClick} disabled={isPending}>
-			{isPending ? 'Loading...' : 'Go to About'}
+			{isPending ? 'Loading...': 'Go to About'}
 		</button>
 	);
 };

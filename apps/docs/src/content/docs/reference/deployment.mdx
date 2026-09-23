@@ -8,61 +8,94 @@ import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-
 
 # Deployment
 
-Deploying an Ecopages application depends on whether you are using only static features or if you've added API routes and server-side logic.
+Deploying an Ecopages application depends on whether you only export static HTML or you also serve API routes and request-time pages.
+
+`createApp()` selects **Node** or **Bun** from the running process (`adapter: 'auto'`). Match the production image to the runtime you build with, or pass `adapter: 'node'` / `adapter: 'bun'` explicitly.
 
 ## Production Build
 
-Before deploying, you must create a production build. This processes your assets, pre-renders static pages, and prepares the `dist` directory.
+Create a production build before deploying. This processes assets, pre-renders static pages, and prepares `dist`.
 
 For projects using the [Vite host plugin](/docs/ecosystem/vite-plugin), `ecopages build` still produces the same `dist` output; Vite orchestrates dev and optional build integration only.
 
 ```bash
-pnpm run build
+pnpm build
 ```
 
 This command will:
 
 1. Set `NODE_ENV=production`.
 2. Clean the `dist` directory.
-3. Generate static HTML for all files in `src/pages`.
-4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
+3. Generate static HTML for pages with a static cache strategy.
+4. Write `robots.txt` and, when enabled, `sitemap.xml`. See [Sitemap](/docs/core/sitemap).
 5. Process images and CSS.
-6. Collect all necessary server-side files.
+6. Emit the server bundle and `dist/.server/eco.config.mjs` when the app has a server.
 
 ---
 
 ## Static Hosting
 
-If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider.
+If your site **does not** use API routes, middleware, or dynamic cache strategies, host the contents of `dist` on any static provider.
 
-- **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
-- **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
+- **Vercel / Netlify**: Connect the repository. Build command `pnpm build` (or `npm run build`). Output directory `dist`.
+- **GitHub Pages**: Run `pnpm build` in CI and publish the output directory.
+- **Any object store / CDN**: Upload `dist` after a CI build with `ECOPAGES_BASE_URL` set to the public origin.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
 	<RuiAlertTitle>Base URL Configuration</RuiAlertTitle>
 	<RuiAlertDescription>
-		Even for static sites, ensure your `ECOPAGES_BASE_URL` is set correctly during the build so that metadata and
-		links are absolute.
+		Even for static sites, set `ECOPAGES_BASE_URL` during the build so metadata, canonical URLs, and sitemap
+		locations are absolute.
 	</RuiAlertDescription>
 </RuiAlert>
 
 ---
 
-## Server Hosting (Node/Bun)
+## Server Hosting
 
-If your application uses **API routes** or **dynamic server logic**, you need a runtime environment compatible with the adapter you configured (Bun or Node).
+If the application uses **API routes**, **dynamic pages**, or **request-time logic**, run `ecopages start` (or your `start` script) on a long-lived Node or Bun process. The production server loads the emitted config from `dist`, not `eco.config.ts`.
 
-### 1. Using `pnpm run start`
+### 1. Using `pnpm start`
 
-After building, you can start the production server:
+After building:
 
 ```bash
-pnpm run start
+pnpm build
+pnpm start
 ```
 
-### 2. Docker Deployment
+Point the host at `0.0.0.0` and the port it assigns:
 
-You can easily containerize your Ecopages app using the official Bun image when using the Bun adapter.
+```bash
+ECOPAGES_HOSTNAME=0.0.0.0 ECOPAGES_PORT=8080 pnpm start
+```
+
+### 2. Docker (Node)
+
+```dockerfile
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile --prod=false
+
+COPY . .
+RUN pnpm build
+
+ENV NODE_ENV=production
+ENV ECOPAGES_HOSTNAME=0.0.0.0
+ENV ECOPAGES_PORT=3000
+
+EXPOSE 3000
+CMD ["pnpm", "start"]
+```
+
+Use a multi-stage build if you want a smaller runtime image (copy `dist`, production `node_modules`, and `package.json` only).
+
+### 3. Docker (Bun)
+
+Use this only when the app is built and started with Bun (`adapter: 'bun'` or a Bun process):
 
 ```dockerfile
 FROM oven/bun:latest
@@ -75,19 +108,20 @@ RUN bun install --production
 COPY . .
 RUN bun run build
 
+ENV ECOPAGES_HOSTNAME=0.0.0.0
 EXPOSE 3000
 CMD ["bun", "run", "start"]
 ```
 
-### 3. VPS / PaaS (Railway, Fly.io)
+### 4. VPS / PaaS (Railway, Fly.io, Render)
 
-Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.
+Set the start command to `pnpm start` (after a build step). The entry is still `app.ts`, compiled into the server bundle. Do not point the platform at `eco.config.ts`.
 
 ---
 
 ## Environment Check
 
-Before going live, check that these environment variables are set on your hosting provider:
+Set these on the build (static URLs) and/or the runtime (listen address):
 
 | Variable            | Recommended Value                                    |
 | :------------------ | :--------------------------------------------------- |

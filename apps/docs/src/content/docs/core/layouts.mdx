@@ -6,7 +6,7 @@ order: 8
 
 # Creating Layouts in Ecopages
 
-Layouts wrap page content with shared chrome — navigation, sidebars, providers, and other structure that repeats across routes. This guide covers document includes, declared layout components, single and nested layout stacks, and how layouts interact with SPA routing.
+Layouts wrap page content with shared chrome: navigation, sidebars, providers, and other structure that repeats across routes. This guide covers document includes, declared layout components, single and nested layout stacks, and how layouts interact with SPA routing.
 
 ## Includes Files
 
@@ -18,20 +18,17 @@ Defines the overall HTML envelope:
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import './html.css';
 
-export const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['./html.css'],
-	},
+export const Html = eco.html<JsxRenderable>({
 	render: ({ children }) => <html lang="en">{children}</html>,
 });
 ```
 
 ### head.tsx
 
-Defines `<head>` content — title, meta, icons:
+Defines `<head>` content: title, meta, icons:
 
 ```tsx
 import { eco, type PageHeadProps } from '@ecopages/core';
@@ -51,31 +48,31 @@ export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
 });
 ```
 
-Includes are applied automatically. Pages and route layouts render **inside** this shell — they do not replace it.
+Includes are applied automatically. Pages and route layouts render **inside** this shell: they do not replace it.
 
 ## Declared layout components
 
-Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions — including standard React components without eco metadata — are **not** valid layout values.
+Route layouts must be created with **`eco.layout()`** (or `eco.component()` when you need the broader factory). Plain functions: including standard React components without eco metadata: are **not** valid layout values.
 
 **Why:** `eco.page({ layout })` merges layouts into `dependencies.components`. At render time, EcoPages validates that every dependency entry is a **declared** component with bound `config.identity` (`eco.component()`, `eco.layout()`, or `eco.html()`). Undeclared values throw `UndeclaredComponentDependencyError`.
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { ReactNode } from 'react';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './base-layout.css';
 
-export const BaseLayout = eco.layout<{ children: ReactNode }>({
-	dependencies: {
-		stylesheets: ['./base-layout.css'],
-	},
+export const BaseLayout = eco.layout<JsxRenderable>({
 	render: ({ children }) => <main>{children}</main>,
 });
 ```
 
 Use `eco.layout()` for wrappers around page content. Reserve `eco.html()` for the document shell in `src/includes`.
 
+`eco.layout()` is typed as `LayoutProps` (children plus request context). Layouts that need extra typed props (`class`, `prose`) use `eco.component<YourProps>()`: that is still a valid `layout` value. Official templates do this for chrome props passed through `layout: { component, props }`.
+
 ## Single layout on a page
 
-Assign the layout on `eco.page()`. EcoPages wraps `render` output automatically — do not manually nest the layout inside `render` unless you have an exceptional one-off case.
+Assign the layout on `eco.page()`. EcoPages wraps `render` output automatically: do not manually nest the layout inside `render` unless you have an exceptional one-off case.
 
 ```tsx
 import { eco } from '@ecopages/core';
@@ -113,8 +110,8 @@ export default eco.page({
 
 EcoPages normalizes the stack to:
 
-- `config.layouts` — component references per tier
-- `config.layoutEntries` — components plus optional per-tier `props` factories
+- `config.layouts`: component references per tier
+- `config.layoutEntries`: components plus optional per-tier `props` factories
 
 ### Per-tier layout props
 
@@ -145,15 +142,15 @@ Provider layouts that mount shared client state (query clients, MobX stores, aud
 
 ## Layout dependencies
 
-Declare stylesheets, scripts, and child components on the layout factory. Direct local component imports are discovered automatically:
+Import co-located CSS. List browser scripts explicitly. Direct local component imports are discovered automatically:
 
 ```tsx
 import { SiteHeader } from '@/components/site-header';
 import { eco } from '@ecopages/core';
+import './base-layout.css';
 
 export const BaseLayout = eco.layout({
 	dependencies: {
-		stylesheets: ['./base-layout.css'],
 		scripts: ['./base-layout.script.ts'],
 	},
 	render: ({ children }) => (
@@ -165,14 +162,16 @@ export const BaseLayout = eco.layout({
 });
 ```
 
+Use explicit `dependencies.stylesheets` only when you need attributes the import cannot express (for example `media="print"`). That declaration overrides the discovered file.
+
 Every entry in `dependencies.components` must be a declared eco component, same as on pages. Use explicit `dependencies.components` only when discovery cannot follow the import (`export *` barrels, packages).
 
 ## How layouts are assigned
 
-Assign layouts on `eco.page({ layout })` — one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the declared component to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
+Assign layouts on `eco.page({ layout })`: one component or an outer→inner array. Import layout modules from `src/layouts/` (or elsewhere) and pass the declared component to `layout`; EcoPages does not auto-wrap pages based on layout file paths or route folders.
 
 ## Related guides
 
-- [`eco` namespace reference](/docs/reference/eco-namespace) — full API for `eco.layout()` and `eco.page()`
-- [Creating Pages](/docs/core/pages) — page structure and `dependencies`
-- [React Router](/docs/ecosystem/react-router) — layout persistence during SPA navigation
+- [`eco` namespace reference](/docs/reference/eco-namespace): full API for `eco.layout()` and `eco.page()`
+- [Creating Pages](/docs/core/pages): page structure and `dependencies`
+- [React Router](/docs/ecosystem/react-router): layout persistence during SPA navigation

@@ -6,21 +6,21 @@ order: 10
 
 # Includes in Ecopages
 
-Includes are special templates that define the structure of your pages. They help maintain consistency across your site and allow you to configure common elements like the HTML head and SEO meta tags.
+Includes are special templates that define the document shell. They keep `<html>`, `<head>`, and SEO tags consistent across every Page.
 
 ## Basic Structure
 
-By default, Ecopages looks for three main include files:
+By default, Ecopages looks for three include files under `src/includes`:
 
 1. `html.{ext}`: The root HTML template
 2. `head.{ext}`: The HTML head section
 3. `seo.{ext}`: SEO-related meta tags
 
-The extension depends on your chosen integration (e.g. `.tsx` for Ecopages JSX, `.kita.tsx`, `.lit.tsx`).
+The extension depends on your chosen integration (`.tsx` for Ecopages JSX, `.kita.tsx`, `.lit.tsx`). Core resolves them by basename: there is no filename setter in `eco.config.ts`.
 
 ## Configuration
 
-You can configure includes in your `eco.config.ts`:
+You do not register include filenames. Register Integrations so the resolver knows which extensions to try:
 
 ```tsx
 import { defineConfig } from '@ecopages/core/config';
@@ -32,28 +32,27 @@ export default defineConfig({
 });
 ```
 
-Ecopages resolves `src/includes/html.*` automatically using the registered integration extensions.
+Override the directory with `includesDir` if it is not `includes` (still relative to `srcDir`). See [Configuration](/docs/getting-started/configuration).
 
 ## Include Templates
 
 ### HTML Template
 
-The HTML template defines the overall structure of your pages. Use `eco.html()` to clearly signal that this component owns the full document shell:
+The HTML template defines the overall structure of your pages. Use `eco.html()` to signal that this component owns the full document shell:
 
 ```tsx
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import './html.css';
 
-const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
-	dependencies: {
-		stylesheets: ['./html.css'],
-	},
+const Html = eco.html<JsxRenderable>({
 	render: ({ children, language = 'en' }) => <html lang={language}>{children}</html>,
 });
 
 export default Html;
 ```
+
+`eco.html<E>()` takes one generic: the renderable (`JsxRenderable`, `ReactNode`, or the default HTML string). Props are `HtmlTemplateProps`.
 
 ### Head Template
 
@@ -77,11 +76,13 @@ const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
 export default Head;
 ```
 
+Global CSS often lives here as a side-effect import (`import '../styles/tailwind.css'`), same as on pages and layouts.
+
 ### SEO Template
 
 The SEO template handles meta tags for search engines and social sharing:
 
-```typescript
+```tsx
 import { eco, type PageMetadataProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 
@@ -91,7 +92,7 @@ const Seo = eco.component<PageMetadataProps, JsxRenderable>({
 		<meta name="keywords" content={keywords?.join(',')} />
 		<meta property="og:title" content={title} />
 		<meta property="og:description" content={description} />
-		{image ? <meta property="og:image" content={image} /> : null}
+		{image ? <meta property="og:image" content={image} />: null}
 	</>
 });
 
@@ -100,8 +101,8 @@ export default Seo;
 
 ## Best Practices
 
-1. **Keep Templates Simple**: Include templates should focus on structure and essential metadata
-2. **Use TypeScript**: Define proper interfaces for your template props
-3. **Maintain Consistency**: Use the same extension for all includes
-4. **Configure Properly**: Always set up includes in your config file
-5. **Handle Dependencies**: If your includes need scripts or styles, declare them in the config
+1. **Keep templates structural**: Includes own the document envelope, not page content.
+2. **Import CSS next to the include**: `import './html.css'` is enough; use `dependencies.stylesheets` only for attributes such as `media`.
+3. **List scripts explicitly**: inline theme bootstraps and other head scripts go in `dependencies.scripts` (string path or `{ content, attributes }`).
+4. **Use one extension** for all includes, matching the Integration that owns them.
+5. **Do not configure include filenames**: change `includesDir` if you must; keep `html` / `head` / `seo` basenames.

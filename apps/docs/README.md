@@ -1,5 +1,7 @@
 # Ecopages Docs
 
+The custom 500 page uses a Radiant diagnostics panel with a copy control only in development; production never renders error details.
+
 Public documentation app for the framework (ecopages.app). Pages are MDX under `src/content/docs`, rendered by a catch-all route, with Radiant UI chrome for sidebar, TOC, breadcrumb, alerts, and the theme toggle. Fenced code blocks are highlighted with `rehype-pretty-code` and get a Copy control via `transformerCopyButton` plus the base layout clipboard script.
 
 The sidebar is uncontrolled (`mobileDefaultOpen={false}`): crossing into the mobile breakpoint closes the drawer without a page-level `rui-sidebar-mobile-change` listener. TOC listeners register only in the browser so server renders do not keep document listeners between pages. Each MDX file imports the interactive components it renders, so client assets stay scoped to pages that use them.
@@ -22,7 +24,7 @@ Docs pages compile client JS on first open in dev. If a page feels slow, use the
 
 | Variable                      | Purpose                                                                  |
 | ----------------------------- | ------------------------------------------------------------------------ |
-| `ECOPAGES_STARTUP_TRACE=true` | Phase timings only — cleanest for perf work                              |
+| `ECOPAGES_STARTUP_TRACE=true` | Phase timings only: cleanest for perf work                               |
 | `ECOPAGES_LOGGER_DEBUG=true`  | Same trace **plus** verbose core/processor logs (`ecopages dev --debug`) |
 
 Example (trace only):
@@ -39,11 +41,11 @@ See also [packages/ecopages/README.md](../../packages/ecopages/README.md#debug-l
 
 This app is documentation, not a hosted API. Agents should follow a progressive path:
 
-1. **`/llms.txt`** — index only (when-to-use, CLI, section links). It is not a dump of every page body.
-2. **`/docs-llm/<section>/<slug>.md`** — raw MDX body for one page. HTML docs pages advertise that URL as `rel="alternate" type="text/markdown"`.
-3. **`/skill.txt`** then **`/skill/SKILL.md`** — task-oriented build guide. Read one reference module, not the whole pack.
+1. **`/llms.txt`**: index only (when-to-use, CLI, section links). It is not a dump of every page body.
+2. **`/docs-llm/<section>/<slug>.md`**: generated Markdown for one page. The export removes UI-only MDX components, preserves code fences, and turns tabs, alerts, and API fields into standard Markdown.
+3. **`/skill.txt`** then **`/skill/SKILL.md`**: task-oriented build guide. Read one reference module, not the whole pack.
 
-`pnpm run generate:llms` runs before `dev` and `build`. The script replaces the generator-owned `src/public/docs-llm/` tree, so deleted pages and `llms: false` entries are not left public. Absolute links in `llms.txt` use `configuredSiteOrigin()` from `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` passes to `setBaseUrl()`. Change that helper or `ECOPAGES_BASE_URL`; do not hardcode a different origin only in `setBaseUrl()`.
+`pnpm run generate:llms` runs before `dev` and `build`. The script replaces the generator-owned `src/public/docs-llm/` tree, so deleted pages and `llms: false` entries are not left public. Absolute links in `llms.txt` use `configuredSiteOrigin()` from `src/lib/docs/site-meta.ts`: the same helper `eco.config.ts` passes to `setBaseUrl()`. Change that helper or `ECOPAGES_BASE_URL`; do not hardcode a different origin only in `setBaseUrl()`.
 
 HTML `rel="alternate"` is derived from the page pathname. It does not read the `llms` frontmatter flag. After a generate, an excluded page can still advertise a markdown URL that no longer exists. The generator output is the source of truth for what is fetchable.
 

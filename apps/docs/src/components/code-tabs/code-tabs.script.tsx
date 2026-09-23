@@ -7,7 +7,7 @@ import { renderTabLabel } from './code-tab-icons';
 
 /**
  * Plain-text tabs escape `code`. Rich tabs pass highlighted HTML in `html` and
- * clipboard text in `content` — strings survive host-attribute JSON round-trips;
+ * clipboard text in `content`: strings survive host-attribute JSON round-trips;
  * JSX/`unsafeHtml` brands do not.
  */
 export type RadiantCodeTabItem =

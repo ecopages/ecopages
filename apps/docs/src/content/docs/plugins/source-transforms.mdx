@@ -27,10 +27,10 @@ const bannerTransform: EcoSourceTransform = {
 
 Fields:
 
-- `name` — stable identifier; also used to dedupe loader plugins in browser builds
-- `filter` — `RegExp` tested against normalized module ids
-- `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
-- `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip
+- `name`: stable identifier; also used to dedupe loader plugins in browser builds
+- `filter`: `RegExp` tested against normalized module ids
+- `enforce`: optional `'pre'` or `'post'` ordering (default runs between pre and post)
+- `transform(code, id)`: returns rewritten source, `{ code, map? }`, or `undefined` to skip
 
 ## Registration
 
@@ -83,5 +83,5 @@ See [Vite Plugin](/docs/ecosystem/vite-plugin) for host integration.
 
 ## See also
 
-- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when build contributions are collected
-- [Custom Processor](/docs/plugins/custom-processor) — processor-owned loaders and watch behavior
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle): when build contributions are collected
+- [Custom Processor](/docs/plugins/custom-processor): processor-owned loaders and watch behavior

@@ -1,6 +1,6 @@
 ---
 title: 'Introduction'
-description: 'Get started with Ecopages — a modern static site generator built on Bun and Node.js.'
+description: 'Get started with Ecopages, an HTML-first framework for static pages, optional islands, and optional server routes.'
 order: 1
 ---
 
@@ -13,8 +13,7 @@ import { CodeTabs } from '@/components/code-tabs';
 	<RuiAlertTitle>Beta Notice</RuiAlertTitle>
 	<RuiAlertDescription>
 		<p>
-			Ecopages is currently in beta (`0.2.0` prerelease on the release branch). The API may change before the
-			stable release.{' '}
+			Ecopages is currently in beta. APIs may change before the stable 1.0 release.{' '}
 			<a href="https://github.com/ecopages/ecopages/tree/main/templates" target="_blank">
 				Check out the templates.
 			</a>
@@ -26,119 +25,70 @@ import { CodeTabs } from '@/components/code-tabs';
 	name="introduction-init"
 	tabs={[
 		{ id: 'npm', label: 'npm', code: 'npx ecopages init ecopages-app' },
-		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init ecopages-app' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpx ecopages init ecopages-app' },
 		{ id: 'bun', label: 'bun', code: 'bunx ecopages init ecopages-app' },
 	]}
 	defaultSelectedKey="npm"
 />
 
-Ecopages is a **modern, basic** web framework built on [Bun](https://bun.sh/) and supports Node.js.
+Ecopages is an **HTML-first** framework for multi-page apps. You write TypeScript that returns HTML. A page is a file. The default output is static. Islands and a server are there when you need them.
 
-No virtual DOM. No complex state management. No framework-specific mental models. Just TypeScript and HTML.
+It runs on Node.js and Bun.
 
-## What Makes Ecopages Different?
+The default Ecopages JSX stack does not require a virtual DOM or a new reactivity system. Import CSS next to the page. Import a component and use it.
 
-Most frameworks require you to adopt an entirely new way of thinking: hooks, signals, reactivity systems, and layers of abstraction. Ecopages takes the opposite approach. You write functions that return HTML. That's it.
+## What makes it different?
 
-The result? Fast static pages, minimal dependencies, and code you can actually understand. When you need server-side logic, add it, but you'll find that static is often exactly what you need.
+Most frameworks ask you to adopt a new way of thinking first. Ecopages starts from the web you already know: files, HTML, CSS, and TypeScript.
 
-### Key Features
+- **A page is a file.** `src/pages/about.tsx` is `/about`.
+- **Static by default.** Build HTML once and host `dist` anywhere. Add APIs or request-time pages only when you need them.
+- **Choose a renderer.** [Ecopages JSX](/docs/integrations/ecopages-jsx) is the default for `.tsx`. [React](/docs/integrations/react), [Lit](/docs/integrations/lit), [MDX](/docs/integrations/mdx), and [KitaJS](/docs/integrations/kitajs) are optional.
+- **Typed server when you want it.** `app.get()`, `defineApiHandler`, middleware. Unused if you only ship static pages.
 
-1. **Plain TypeScript**: No framework DSL, no compiler magic. Write standard TypeScript functions that return HTML strings. Your IDE's autocomplete just works.
+The default bundler is [Rolldown](https://rolldown.rs). Add the [PostCSS processor](/docs/ecosystem/postcss-processor) when you need Tailwind or need to import CSS as a JavaScript string.
 
-2. **Web Fundamentals**: Embrace HTML, CSS, and browser APIs directly. No virtual DOM abstraction layer between you and the web.
+## Quick example
 
-3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
+### 1. Create a component
 
-4. **Lightweight, Safe Backend**:
-    - **Typed Handlers**: Define API handlers with full type inference using `defineApiHandler`.
-    - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API endpoints.
-    - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
-
-5. **Choose Your Templating**:
-
-- **[Ecopages JSX](/docs/integrations/ecopages-jsx)** – Default: `.tsx` Pages, optional Radiant
-- **[React 19](/docs/integrations/react)** – React Pages or islands, with hydration
-- **[Lit](/docs/integrations/lit)** – Web Components with SSR
-- **[MDX](/docs/integrations/mdx)** – Markdown with embedded components
-- **[KitaJS](/docs/integrations/kitajs)** – `.kita.tsx` Pages via `@kitajs/html`
-
-6. **TypeScript-First**: Full type inference for routes, props, and API handlers. No runtime overhead.
-
-7. **Built on Bun**: Leverages Bun's speed for fast builds, fast development, and fast production servers.
-
-## What Can You Build?
-
-- **Marketing sites** – Static pages with excellent SEO
-- **Documentation** – MDX-powered docs like the one you're reading
-- **Blogs** – Dynamic routes with `staticPaths` for each post
-- **Portfolios** – Beautiful static sites with interactive components
-- **Full-Stack Apps** – Combine static pages with typed API handlers for dynamic features
-- **Dashboards** – React or Lit components with live API data
-- **APIs** – REST endpoints alongside your static pages
-- **Everything Else** – Ecopages is flexible enough to build whatever you can imagine
-
-## How agents should read this site
-
-This site is documentation for the open-source framework, not a hosted SaaS or authenticated API. Scaffolded Ecopages apps do **not** emit these files unless you add a generator. The [docs-starter template](https://github.com/ecopages/ecopages/tree/main/templates/docs-starter) shows the pattern.
-
-Read in this order:
-
-1. [`/llms.txt`](/llms.txt) — discovery index only (when-to-use, CLI, section links).
-2. [`/docs-llm/<section>/<slug>.md`](/docs-llm/getting-started/introduction.md) — full MDX body for one page. HTML docs pages also advertise that URL as `rel="alternate"`.
-3. [`/skill.txt`](/skill.txt) then [`/skill/SKILL.md`](/skill/SKILL.md) — progressive build guide. Read one reference module for the task.
-
-`llms.txt` lists exported pages. Set `llms: false` in frontmatter to omit a page from the index and from the next generate of `/docs-llm/`.
-
-## Quick Example
-
-Here's how you can combine static pages with a typed backend:
-
-### 1. Create a Component
-
-Use `eco.component` to create reusable components with isolated dependencies.
-
-```typescript
-// src/components/Greeting.tsx
+```tsx
+// src/components/greeting.tsx
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './greeting.css';
 
-export const Greeting = eco.component<{ name: string }>({
-  render: ({ name }) => {
-    return <div class="greeting">Hello, {name}!</div>;
-  },
+export const Greeting = eco.component<{ name: string }, JsxRenderable>({
+	render: ({ name }) => <div class="greeting">Hello, {name}!</div>,
 });
 ```
 
-### 2. Create a Page
+### 2. Create a page
 
-Compose your page using components. Import local components directly — Ecopages discovers them automatically.
+Import local components and CSS directly:
 
-```typescript
+```tsx
 // src/pages/index.tsx
 import { eco } from '@ecopages/core';
-import { Greeting } from '../components/Greeting';
-import '../styles.css';
+import { Greeting } from '@/components/greeting';
+import './index.css';
 
 export default eco.page({
-  metadata: () => ({
-    title: 'Welcome to Ecopages',
-  }),
-  render: () => (
-    <main>
-      <h1>Welcome to Ecopages</h1>
-      <Greeting name="Developer" />
-    </main>
-  ),
+	metadata: () => ({
+		title: 'Welcome to Ecopages',
+	}),
+	render: () => (
+		<main>
+			<h1>Welcome to Ecopages</h1>
+			<Greeting name="Developer" />
+		</main>
+	),
 });
 ```
 
-### 3. Add Typed API Handlers
+### 3. Add a typed API handler
 
-You can define handlers inline or use `defineApiHandler` for better organization and type safety.
-
-#### Inline Handler
-
-Good for simple, quick endpoints.
+Inline for a one-off endpoint:
 
 ```typescript
 // app.ts
@@ -149,11 +99,11 @@ const app = await createApp();
 app.get('/api/hello', async (ctx) => {
 	return ctx.response.json({ message: 'Hello world!' });
 });
+
+await app.start();
 ```
 
-#### Organized & Type-Safe Handlers
-
-For larger apps, define handlers in separate files using `defineApiHandler`. This gives you automatic type inference for body, query, and path parameters based on your schema.
+For larger apps, `defineApiHandler` infers body, query, and path types from the schema:
 
 ```typescript
 // handlers/greet.ts
@@ -167,7 +117,6 @@ export const greetHandler = defineApiHandler({
 		body: z.object({ name: z.string() }),
 	},
 	handler: async (ctx) => {
-		// ctx.body is automatically typed as { name: string }
 		const { name } = ctx.body;
 		return ctx.response.json({ message: `Hello, ${name}!` });
 	},
@@ -176,16 +125,17 @@ export const greetHandler = defineApiHandler({
 
 ```typescript
 // app.ts
+import { createApp } from '@ecopages/core/create-app';
 import { greetHandler } from './handlers/greet';
 
-// ... app initialization
-
+const app = await createApp();
 app.add(greetHandler);
+await app.start();
 ```
 
-## Getting Started
+## Getting started
 
-Ready to try Ecopages? Check out the [Installation Guide](/docs/getting-started/installation) to create your first project.
+Create a project from the [Installation Guide](/docs/getting-started/installation), or scaffold and run:
 
 <CodeTabs
 	name="introduction-next-steps"
@@ -201,10 +151,10 @@ npm run dev`,
 		{
 			id: 'pnpm',
 			label: 'pnpm',
-			code: `pnpm dlx ecopages init my-ecopages
+			code: `pnpx ecopages init my-ecopages
 cd my-ecopages
 pnpm install
-pnpm run dev`,
+pnpm dev`,
 		},
 		{
 			id: 'bun',
@@ -212,7 +162,7 @@ pnpm run dev`,
 			code: `bunx ecopages init my-ecopages
 cd my-ecopages
 bun install
-bun run dev`,
+bun dev`,
 		},
 	]}
 	defaultSelectedKey="npm"

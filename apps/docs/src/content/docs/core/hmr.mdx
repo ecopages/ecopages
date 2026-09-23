@@ -1,63 +1,88 @@
 ---
 title: "HMR"
 description: "Integration-aware hot module replacement for fast feedback during local development."
-order: 11
+order: 12
 ---
 
 # Hot Module Replacement (HMR)
 
-Ecopages features a custom, integration-aware Hot Module Replacement system designed to provide instant feedback while preserving your application's state where possible.
+During `ecopages dev`, Ecopages watches the project and updates the browser without a full rebuild. Core classifies the change; Integrations and processors decide whether that is a CSS swap, a module update, React Fast Refresh, or a reload.
 
-## How it Works
+## How it works
 
-The HMR system consists of three main parts:
+1. **Project watcher** observes file changes.
+2. **Invalidation service** classifies the change (config, dotenv, page, script, CSS, other).
+3. **HMR manager** selects a strategy (Integration, processor, script, or fallback).
+4. **Client bridge** (WebSocket on `/_hmr`) applies the event in the browser.
 
-1. **HMR Manager**: Runs on the server and watches for file changes in your project.
-2. **Client Bridge**: A WebSocket-based communication channel that connects your browser to the development server.
-3. **HMR Strategies**: Specific logic for each integration that tells the browser how to handle a specific file change (e.g., update a CSS link or reload a specific JS module).
+Client events:
 
-## HMR Strategies
+| Event | Browser behavior |
+| --- | --- |
+| `css-update` | Refresh matching stylesheet `<link>` hrefs: no full reload |
+| `update` | Cache-bust and re-import the changed module URL |
+| `layout-update` | Soft current-page reload with layout cache cleared |
+| `reload` | Full `location.reload()` |
+| `error` | Log the failure; a reload may follow |
 
-Different file types require different update methods. Ecopages handles this automatically:
+## What actually hot-updates
 
-- **CSS Updates**: When a `.css` file changes, Ecopages broadcasts a `css-update` event. The browser hot-swaps the dynamic `<link>` tag without a full page reload.
-- **React Fast Refresh**: The React integration uses a custom strategy to apply component updates in-place while keeping state.
-- **Full Reload**: If a core configuration or an include file (like `head.ts`) changes, Ecopages triggers a full page reload to ensure consistency.
+- **CSS**: the [PostCSS processor](/docs/ecosystem/postcss-processor) broadcasts `css-update` for stylesheets it owns, including `@import` graphs. Without that processor, a CSS change typically falls through to a full reload.
+- **Declared browser scripts**: any file listed in `dependencies.scripts` is a registered entrypoint. `JsHmrStrategy` rebuilds watched entrypoints and either hot-accepts the module or reloads. The filename does **not** have to be `*.script.ts`; that suffix is a convention.
+- **React Fast Refresh**: the React Integration registers its own strategy so component updates can keep state.
+- **Pages, layouts, includes**: server-rendered templates usually reload or emit `layout-update` so SSR HTML stays consistent.
+- **`eco.config.ts` and `.env`**: these restart the process; they are not in-process HMR.
 
-## Client-Side Scripting
+## Client scripts
 
-For HMR to work on your custom scripts, make sure they are:
-1. Defined as `*.script.ts` files.
-2. Registered in your component's `config.dependencies.scripts`.
+Register the file on the component, layout, or page that owns it:
 
-## Customizing HMR
-
-If you are building a [Custom Integration](/docs/plugins/custom-integration), you can define your own HMR strategy by extending the `HmrStrategy` class.
-
-```typescript
-class MyCustomStrategy extends HmrStrategy {
-    matches(filePath: string) {
-        return filePath.endsWith('.myext');
-    }
-
-    async process(filePath: string): Promise<HmrAction> {
-        // Return a broadcast action to the client
-        return {
-            type: 'broadcast',
-            events: [{ type: 'update', path: filePath, timestamp: Date.now() }],
-        };
-    }
+```tsx
+dependencies: {
+	scripts: ['./widget.ts'],
 }
 ```
 
----
+or with SSR preload / lazy delivery:
 
-## Troubleshooting HMR
+```tsx
+dependencies: {
+	scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }],
+}
+```
 
-- **WebSocket Connection**: Ensure no firewall or proxy is blocking the WebSocket connection (defaults to the same port as the server).
-- **Console Errors**: Check the browser console for HMR logs. Ecopages will report if a hot-update fails and a full reload is required.
-- **Dependency Map**: If a change doesn't trigger an update, verify the file is correctly listed in the component dependencies.
+HMR keys off that registration (and the dependency graph of those entrypoints), not off a glob of `*.script.ts` files. Unregistered TypeScript in `src/` that no entrypoint imports will not get a targeted script update.
+
+## Customizing HMR
+
+If you are building a [Custom Integration](/docs/plugins/custom-integration), define a strategy by extending `HmrStrategy`.
+
+```typescript
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+
+class MyCustomStrategy extends HmrStrategy {
+	readonly type = HmrStrategyType.INTEGRATION;
+
+	matches(filePath: string) {
+		return filePath.endsWith('.myext');
+	}
+
+	async process(filePath: string): Promise<HmrAction> {
+		return {
+			type: 'broadcast',
+			events: [{ type: 'update', path: filePath, timestamp: Date.now() }],
+		};
+	}
+}
+```
+
+## Troubleshooting
+
+- **WebSocket**: `/_hmr` uses the same host and port as the dev server. Proxies must forward WebSockets.
+- **Console**: `[ecopages] HMR` logs report a failed hot-update that fell back to reload.
+- **Nothing happens**: confirm the file is imported (CSS) or listed in `dependencies.scripts` (browser JS). Config and env edits require a process restart.
 
 ## Related
 
-- [Dev toolbar](/docs/core/dev-toolbar) — navigation timings and dependency graph
+- [Dev toolbar](/docs/ecosystem/dev-toolbar): navigation timings and the Deps graph
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle): where HMR strategies register

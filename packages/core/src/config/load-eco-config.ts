@@ -11,10 +11,9 @@ import type {
 	LoadedEcoPagesUserConfig,
 } from './user-config-types.ts';
 
-type LoadedConfigModule = {
-	userConfig: EcoPagesUserConfig;
-	configFilePath: string;
-};
+type LoadedConfigModule =
+	| { kind: 'finalized'; appConfig: EcoPagesAppConfig; configFilePath: string }
+	| { kind: 'user'; userConfig: EcoPagesUserConfig; configFilePath: string };
 
 const moduleLoadCache = new Map<string, Promise<LoadedConfigModule>>();
 const appConfigCache = new Map<string, Promise<EcoPagesAppConfig>>();
@@ -39,9 +38,7 @@ function loadConfigModule(configFilePath: string): Promise<LoadedConfigModule> {
 	const loadPromise = (async (): Promise<LoadedConfigModule> => {
 		const exported = await importEcoConfigModule(configFilePath);
 		if (isFinalizedEcoPagesAppConfig(exported)) {
-			throw new Error(
-				`Ecopages config at ${configFilePath} exported a finalized app config. Use defineConfig(...) and let createApp() finalize the config.`,
-			);
+			return { kind: 'finalized', appConfig: exported, configFilePath };
 		}
 
 		if (!exported || typeof exported !== 'object') {
@@ -55,7 +52,7 @@ function loadConfigModule(configFilePath: string): Promise<LoadedConfigModule> {
 			throw new Error(`Ecopages config at ${configFilePath} must include a non-empty rootDir.`);
 		}
 
-		return { userConfig, configFilePath };
+		return { kind: 'user', userConfig, configFilePath };
 	})();
 
 	moduleLoadCache.set(configFilePath, loadPromise);
@@ -74,6 +71,13 @@ export async function loadEcoPagesUserConfig(
 ): Promise<LoadedEcoPagesUserConfig> {
 	const configFilePath = resolveEcoConfigPath(options);
 	const loaded = await loadConfigModule(configFilePath);
+
+	if (loaded.kind === 'finalized') {
+		throw new Error(
+			`Ecopages config at ${configFilePath} exported a finalized app config. Use defineConfig(...) and let createApp() finalize the config.`,
+		);
+	}
+
 	return {
 		config: loaded.userConfig,
 		configFilePath,
@@ -100,6 +104,8 @@ export async function finalizeEcoPagesConfig(
  *
  * @remarks
  * Coalesces concurrent loads and caches by `configFilePath` and `buildOwnership`.
+ * Files that still export a finalized {@link ConfigBuilder.build} result are returned as-is
+ * so workers and tests can load existing `eco.config.ts` modules.
  */
 export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}): Promise<EcoPagesAppConfig> {
 	const configFilePath = resolveEcoConfigPath(options);
@@ -113,6 +119,10 @@ export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}
 
 	const loadPromise = (async (): Promise<EcoPagesAppConfig> => {
 		const loaded = await loadConfigModule(configFilePath);
+		if (loaded.kind === 'finalized') {
+			return loaded.appConfig;
+		}
+
 		return await finalizeEcoPagesConfig(
 			{ config: loaded.userConfig, configFilePath },
 			{ buildOwnership: options.buildOwnership },

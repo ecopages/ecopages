@@ -1,4 +1,5 @@
 import { ConfigBuilder } from './config-builder.ts';
+import { resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
 
 function applyUserDirectoryConfig(builder: ConfigBuilder, userConfig: EcoPagesUserConfig): void {
@@ -41,8 +42,12 @@ function applyUserRuntimeConfig(builder: ConfigBuilder, userConfig: EcoPagesUser
 /**
  * Applies author-owned config fields onto a {@link ConfigBuilder} instance.
  */
-export function applyUserConfigToBuilder(builder: ConfigBuilder, userConfig: EcoPagesUserConfig): ConfigBuilder {
-	builder.setRootDir(userConfig.rootDir);
+export function applyUserConfigToBuilder(
+	builder: ConfigBuilder,
+	userConfig: EcoPagesUserConfig,
+	options: { cwd?: string } = {},
+): ConfigBuilder {
+	builder.setRootDir(resolveUserConfigRootDir(userConfig.rootDir, options.cwd));
 	applyUserDirectoryConfig(builder, userConfig);
 	applyUserPipelineConfig(builder, userConfig);
 	applyUserMetadataConfig(builder, userConfig);

@@ -14,6 +14,7 @@ import {
 } from '../../../build/cache/server-entry-build-cache.ts';
 import { resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
+import { loadEcoPagesConfig } from '../../../config/load-eco-config.ts';
 import { SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
@@ -80,6 +81,44 @@ describe('build → start contract', () => {
 
 		const resolvedEntry = resolveProductionServerEntry(rootDir);
 		assert.equal(resolvedEntry, serverEntryPath);
+	});
+
+	it('defaults omitted rootDir to the project cwd after emitting the config', async () => {
+		process.env.NODE_ENV = 'production';
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-default-root-'));
+		tempDirs.push(rootDir);
+		process.chdir(rootDir);
+
+		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		writeFileSync(configPath, 'export default {};\n', 'utf8');
+
+		const appConfig = await new ConfigBuilder()
+			.setRootDir(rootDir)
+			.setConfigModulePath(configPath)
+			.setDistDir('dist')
+			.setWorkDir('.eco')
+			.build();
+
+		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
+		const builder = new ServerStaticBuilder({
+			appConfig,
+			staticSiteGenerator,
+			serveOptions: { hostname: '127.0.0.1', port: 3000 },
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			entryFile: 'app.ts',
+			needsServerBundle: true,
+		});
+
+		await builder.build(undefined, {
+			router: {} as RouteRegistry,
+			routeRendererFactory: {} as StaticGenerationRendererResolver,
+		});
+
+		const { serverOutdir } = getServerBundleOutputPaths(appConfig);
+		const emittedConfigPath = path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME);
+		const loadedConfig = await loadEcoPagesConfig({ cwd: rootDir, configFile: emittedConfigPath });
+		assert.equal(loadedConfig.rootDir, rootDir);
 	});
 
 	it('does not emit a server bundle for static-only apps', async () => {

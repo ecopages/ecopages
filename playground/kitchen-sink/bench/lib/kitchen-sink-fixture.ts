@@ -43,7 +43,6 @@ export async function loadKitchenSinkConfig(options: KitchenSinkBenchConfigOptio
 		rootDir: KITCHEN_SINK_DIR,
 		distDir,
 		workDir,
-		baseUrl: 'http://localhost:3000',
 	});
 
 	configCache.set(cacheKey, config);

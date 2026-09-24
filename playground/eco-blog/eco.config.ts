@@ -22,8 +22,6 @@ export const imageProcessorConfig: ImageProcessorConfig = {
 };
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL,
 	integrations: [
 		kitajsPlugin(),
 		mdxPlugin({

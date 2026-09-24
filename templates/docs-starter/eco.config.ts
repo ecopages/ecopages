@@ -11,7 +11,6 @@ import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/si
 const appRoot = path.resolve(import.meta.dirname);
 
 export default defineConfig({
-	rootDir: appRoot,
 	baseUrl: configuredSiteOrigin(),
 	sitemap: {
 		enabled: true,

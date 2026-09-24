@@ -132,10 +132,6 @@ export class ProjectWatcher {
 		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
-	private isIncludeSourceFile(filePath: string): boolean {
-		return this.invalidationService.isIncludeSourceFile(filePath);
-	}
-
 	private requestBrowserReload(): void {
 		if (this.hostOwnsDevClient) {
 			return;
@@ -366,10 +362,7 @@ export class ProjectWatcher {
 
 			await this.handleStandardHmrFileChange(filePath, event, plan, graphPreparation);
 		} catch (error) {
-			if (error instanceof Error) {
-				this.bridge.error(error.message);
-				this.handleError(error);
-			}
+			this.handleError(error);
 		}
 	}
 
@@ -459,29 +452,6 @@ export class ProjectWatcher {
 			case 'unlink':
 				return watchConfig.onDelete;
 		}
-	}
-
-	/**
-	 * Checks if a file is in the public directory.
-	 */
-	private isPublicDirFile(filePath: string): boolean {
-		return this.invalidationService.isPublicDirFile(filePath);
-	}
-
-	/**
-	 * Checks if file path matches any additionalWatchPaths patterns.
-	 */
-	private matchesAdditionalWatchPaths(filePath: string): boolean {
-		return this.invalidationService.matchesAdditionalWatchPaths(filePath);
-	}
-
-	/**
-	 * Checks if a file is owned by a processor as an asset input.
-	 * Ownership requires declared asset capabilities; watch config only drives
-	 * {@link notifyProcessors} notifications.
-	 */
-	private isHandledByProcessor(filePath: string): boolean {
-		return this.invalidationService.isProcessorOwnedAsset(filePath);
 	}
 
 	/**

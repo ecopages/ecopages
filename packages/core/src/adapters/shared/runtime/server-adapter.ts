@@ -71,6 +71,7 @@ export abstract class SharedServerAdapter<
 		schemaValidator: this.schemaValidator,
 		getRenderContext: () => this.getRenderContext(),
 		getCacheService: () => this.getCacheService(),
+		isClientAbort: (error) => this.isClientAbortError(error),
 	});
 	protected hostOwnsDevClient = false;
 	private devStaticRoutePrewarmStarted = false;
@@ -382,6 +383,33 @@ export abstract class SharedServerAdapter<
 			context.serverInstance,
 			context.errorHandler,
 		);
+	}
+
+	/**
+	 * Recognises a runtime-specific client disconnect so it answers 499.
+	 *
+	 * @remarks
+	 * Only the Node adapter overrides it: its request bridge raises a dedicated
+	 * error when the socket closes while the body is read.
+	 */
+	protected isClientAbortError(_error: unknown): boolean {
+		return false;
+	}
+
+	/**
+	 * Resolves an error that escaped {@link handleSharedRequest} with the same
+	 * precedence as API handler errors, so `app.onError` sees it on every runtime.
+	 */
+	protected async handleUnexpectedRequestError(
+		error: unknown,
+		request: Request,
+		context: SharedRequestContext,
+	): Promise<Response> {
+		return await this.apiRequestPipeline.handleError(error, {
+			request,
+			serverInstance: context.serverInstance,
+			errorHandler: context.errorHandler,
+		});
 	}
 
 	/**

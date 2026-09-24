@@ -23,7 +23,6 @@ function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAp
 		additionalWatchPaths: [],
 		defaultMetadata: { title: 'Test', description: 'Test' },
 		integrations: [],
-		integrationsDependencies: [],
 		absolutePaths: {
 			config: '/test/project/eco.config.ts',
 			componentsDir: '/test/project/src/components',

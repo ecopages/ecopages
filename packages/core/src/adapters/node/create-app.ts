@@ -1,14 +1,15 @@
 import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
-import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
-import { NodeRuntimeHost } from './runtime-host.ts';
+import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
 import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
@@ -18,12 +19,12 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
 	private stopped = false;
-	private readonly runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
+	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 
 	constructor(
 		options: ResolvedEcopagesAppOptions,
 		dependencies: {
-			runtimeHost: RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }>;
+			runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 		},
 	) {
 		super(options, 'Node');
@@ -79,10 +80,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
-			deferRuntimeAssetSetup: resolveStaticRuntimeMode({
-				appConfig: this.appConfig,
-				cliArgs: this.cliArgs,
-			}).canBuildWithoutRuntimeServer,
+			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
@@ -135,9 +133,10 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 		startupTrace.beginServerListen();
 		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
 			startOptions: {
-				serveOptions,
-				handleRequest: async (request) => await this.serverAdapter!.handleRequest(request),
-				onError: async () => {},
+				serveOptions: {
+					...serveOptions,
+					handleRequest: async (request: Request) => await this.serverAdapter!.handleRequest(request),
+				},
 			},
 			allowPortFallback: binding.allowPortFallback,
 			usePortManager: this.cliArgs.dev,
@@ -162,7 +161,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 
 	public async attachWebSocketUpgrades(
 		httpServer: import('node:http').Server,
-		options?: { passthroughUnmatched?: boolean },
+		options?: WebSocketUpgradeOptions,
 	): Promise<void> {
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
@@ -170,7 +169,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 
 		if (!this.server) {
 			this.server = httpServer;
-			await this.serverAdapter.completeInitialization(httpServer);
+			await this.serverAdapter.completeInitialization(httpServer, options);
 			return;
 		}
 
@@ -182,8 +181,4 @@ export async function createNodeApp(options: ResolvedEcopagesAppOptions): Promis
 	return new NodeEcopagesApp(options, {
 		runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
 	});
-}
-
-export async function createApp(options: ResolvedEcopagesAppOptions): Promise<NodeEcopagesApp> {
-	return createNodeApp(options);
 }

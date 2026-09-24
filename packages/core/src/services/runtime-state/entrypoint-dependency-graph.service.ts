@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { DevGraphService } from './dev-graph.service.ts';
 
 /**
  * App-owned dependency graph used to target browser entrypoint rebuilds.
@@ -95,28 +94,12 @@ export class InMemoryEntrypointDependencyGraph implements EntrypointDependencyGr
 	}
 }
 
-function isLegacyEntrypointDependencyGraph(value: unknown): value is DevGraphService {
-	return (
-		Boolean(value) &&
-		typeof value === 'object' &&
-		typeof (value as EntrypointDependencyGraph).supportsSelectiveInvalidation === 'function' &&
-		typeof (value as EntrypointDependencyGraph).getDependencyEntrypoints === 'function' &&
-		typeof (value as EntrypointDependencyGraph).setEntrypointDependencies === 'function' &&
-		typeof (value as EntrypointDependencyGraph).clearEntrypointDependencies === 'function' &&
-		typeof (value as EntrypointDependencyGraph).reset === 'function'
-	);
-}
-
 /**
  * Returns the app-owned entrypoint dependency graph.
  */
 export function getAppEntrypointDependencyGraph(appConfig: EcoPagesAppConfig): EntrypointDependencyGraph {
 	if (appConfig.runtime?.entrypointDependencyGraph) {
 		return appConfig.runtime.entrypointDependencyGraph;
-	}
-
-	if (isLegacyEntrypointDependencyGraph(appConfig.runtime?.devGraphService)) {
-		return appConfig.runtime.devGraphService;
 	}
 
 	return new NoopEntrypointDependencyGraph();

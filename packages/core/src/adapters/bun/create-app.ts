@@ -12,7 +12,8 @@ import type { Server } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandlerContext, EcopagesRouteInfo, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
-import { resolveRuntimeBinding, resolveStaticRuntimeMode } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
@@ -75,25 +76,13 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 
 	public async attachWebSocketUpgrades(
 		httpServer: import('node:http').Server,
-		options?: { passthroughUnmatched?: boolean },
+		options?: WebSocketUpgradeOptions,
 	): Promise<void> {
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
 		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
-	}
-
-	/**
-	 * Complete the initialization of the server adapter by processing dynamic routes
-	 * @param server The Bun server instance
-	 */
-	public async completeInitialization(server: Server<WebSocketData>): Promise<void> {
-		if (!this.serverAdapter) {
-			throw new Error('Server adapter not initialized. Call start() first.');
-		}
-
-		await this.serverAdapter.completeInitialization(server);
 	}
 
 	/**
@@ -115,10 +104,7 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
 			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
-			deferRuntimeAssetSetup: resolveStaticRuntimeMode({
-				appConfig: this.appConfig,
-				cliArgs: this.cliArgs,
-			}).canBuildWithoutRuntimeServer,
+			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
@@ -160,62 +146,36 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		}
 	}
 
-	private async runStaticBuildOnRuntimeServer(
-		serverAdapter: BunServerAdapterResult,
-		preview: boolean,
-		build: boolean,
-		force: boolean,
-	): Promise<string | undefined> {
-		appLogger.debugTime('Building static pages');
-		const previewOrigin = await serverAdapter.buildStatic({ preview, force });
-		const buildRuntimeServer = this.server;
-		this.server = null;
-		if (buildRuntimeServer) {
-			await this.runtimeHost.stop(buildRuntimeServer, { force: true });
-		}
-		appLogger.debugTimeEnd('Building static pages');
-		if (build) {
-			process.exit(0);
-		}
-		return previewOrigin;
-	}
-
 	/**
-	 * Start the Bun application server
-	 * @param options Optional settings
-	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
+	 * Starts the Bun application server, or runs the preview/build flow when the
+	 * CLI requested one.
+	 *
+	 * @remarks
+	 * HMR endpoints and Bun's `development` serve mode follow the `dev` flag only,
+	 * matching the options `completeInitialization()` reloads the server with.
 	 */
 	protected async bootServer(): Promise<Server<WebSocketData> | void> {
 		const serverAdapter = await this.ensureServerAdapterReady();
 		const { dev, preview, build, force, serveOnly } = this.cliArgs;
-		const staticRuntimeMode = resolveStaticRuntimeMode({
-			appConfig: this.appConfig,
-			cliArgs: this.cliArgs,
-		});
 
 		if (preview && serveOnly) {
 			await this.bootPreviewServeOnly(serverAdapter);
 			return;
 		}
 
-		if (staticRuntimeMode.canBuildWithoutRuntimeServer) {
+		if (build || preview) {
 			await this.bootStaticWithoutRuntimeServer(serverAdapter, preview, build, force);
 			return;
 		}
 
-		const enableHmr = dev || (!preview && !build);
-		const runtimeServerOptions = serverAdapter.getServerOptions({ enableHmr });
+		const runtimeServerOptions = serverAdapter.getServerOptions({ enableHmr: dev });
 		const binding = resolveRuntimeBinding({
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
 		});
 		startupTrace.beginServerListen();
 		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
-			startOptions: {
-				serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData>,
-				handleRequest: async () => new Response(null, { status: 500 }),
-				onError: async () => {},
-			},
+			startOptions: { serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData> },
 			allowPortFallback: binding.allowPortFallback,
 			usePortManager: dev,
 		});
@@ -230,18 +190,8 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			throw new Error('Server failed to start');
 		}
 
-		let previewOrigin: string | undefined;
-		if (build || preview) {
-			previewOrigin = await this.runStaticBuildOnRuntimeServer(serverAdapter, preview, build, force);
-		} else {
-			await this.notifyListening(bindingResult.runtimeOrigin);
-		}
-
-		if (preview && previewOrigin) {
-			await this.notifyListening(previewOrigin);
-		}
-
-		return this.server ?? undefined;
+		await this.notifyListening(bindingResult.runtimeOrigin);
+		return this.server;
 	}
 
 	public override async stop(force = true): Promise<void> {

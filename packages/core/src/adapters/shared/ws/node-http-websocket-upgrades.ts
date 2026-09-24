@@ -23,6 +23,9 @@ export type AttachNodeHttpWebSocketUpgradesOptions = {
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
 
+/** Upgrade options a host passes when it attaches Ecopages to a server it shares. */
+export type WebSocketUpgradeOptions = Pick<AttachNodeHttpWebSocketUpgradesOptions, 'passthroughUnmatched'>;
+
 const attachedUpgradeServers = new WeakSet<NodeHttpServer>();
 
 function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
@@ -123,16 +126,22 @@ async function setupNodeWebSocketConnection(
 }
 
 /**
- * Wires Ecopages user WebSocket routes onto a Node HTTP server's `upgrade` event.
+ * Wires Ecopages WebSocket upgrades onto a Node HTTP server's `upgrade` event.
  *
  * Used by the Node adapter in standalone mode and by host integrations such as
  * the Vite plugin that embed Ecopages behind a foreign HTTP server.
+ *
+ * @remarks
+ * This is the single owner of the unmatched-upgrade policy: an upgrade claimed
+ * by `preflight` (for example `/_hmr`) or a user route is handled here, and
+ * anything else is destroyed unless `passthroughUnmatched` leaves it for other
+ * listeners on a shared server.
  */
 export function attachNodeHttpWebSocketUpgrades(
 	server: NodeHttpServer,
 	options: AttachNodeHttpWebSocketUpgradesOptions,
 ): void {
-	if (options.websocketHandlers.size === 0) {
+	if (options.websocketHandlers.size === 0 && !options.preflight) {
 		return;
 	}
 

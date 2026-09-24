@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
-import { resolveRuntimeBinding, resolveServeRuntimeOrigin, resolveStaticRuntimeMode } from './runtime-app-bootstrap.ts';
+import { resolveRuntimeBinding, resolveServeRuntimeOrigin } from './runtime-app-bootstrap.ts';
 
 describe('resolveServeRuntimeOrigin', () => {
 	it('normalizes hostname and port into an origin string', () => {
@@ -99,64 +99,5 @@ describe('runtime app bootstrap', () => {
 
 		assert.equal(binding.preferredPort, 3000);
 		assert.equal(binding.allowPortFallback, false);
-	});
-
-	it('builds static pages directly for build and preview commands', () => {
-		const previewMode = resolveStaticRuntimeMode({
-			appConfig: {
-				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
-			} as any,
-			cliArgs: {
-				preview: true,
-				build: false,
-				start: false,
-				dev: false,
-				force: false,
-				serveOnly: false,
-				port: undefined,
-				hostname: undefined,
-				reactFastRefresh: undefined,
-			},
-		});
-
-		assert.equal(previewMode.canBuildWithoutRuntimeServer, true);
-
-		const buildMode = resolveStaticRuntimeMode({
-			appConfig: {
-				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
-			} as any,
-			cliArgs: {
-				preview: false,
-				build: true,
-				start: false,
-				dev: false,
-				force: false,
-				serveOnly: false,
-				port: undefined,
-				hostname: undefined,
-				reactFastRefresh: undefined,
-			},
-		});
-
-		assert.equal(buildMode.canBuildWithoutRuntimeServer, true);
-
-		const devMode = resolveStaticRuntimeMode({
-			appConfig: {
-				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
-			} as any,
-			cliArgs: {
-				preview: false,
-				build: false,
-				start: false,
-				dev: true,
-				force: false,
-				serveOnly: false,
-				port: undefined,
-				hostname: undefined,
-				reactFastRefresh: undefined,
-			},
-		});
-
-		assert.equal(devMode.canBuildWithoutRuntimeServer, false);
 	});
 });

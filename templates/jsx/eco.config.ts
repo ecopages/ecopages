@@ -8,8 +8,6 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 const appRoot = import.meta.dirname;
 
 export default defineConfig({
-	rootDir: appRoot,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	integrations: [
 		ecopagesJsxPlugin({
 			radiant: true,

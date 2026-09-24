@@ -24,7 +24,7 @@ import { ecoRouter } from '@ecopages/react-router';
 import { comparePosts, POSTS_CONTENT_DIR, postFrontmatterSchema } from './src/content/posts.ts';
 
 export interface KitchenSinkConfigOptions {
-	rootDir: string;
+	rootDir?: string;
 	distDir?: string;
 	workDir?: string;
 	baseUrl?: string;
@@ -34,14 +34,11 @@ export interface KitchenSinkConfigOptions {
  * User-owned kitchen-sink configuration shared by `eco.config.ts` and tests.
  */
 export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): EcoPagesUserConfig {
-	const rootDir = options.rootDir;
+	const projectRoot = options.rootDir ?? process.cwd();
 	const distDir = options.distDir ?? 'dist';
 	const workDir = options.workDir ?? '.eco';
-	const baseUrl = options.baseUrl ?? 'http://localhost:3000';
 
-	return {
-		rootDir,
-		baseUrl,
+	const userConfig: EcoPagesUserConfig = {
 		distDir,
 		workDir,
 		integrations: [
@@ -79,8 +76,8 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 			}),
 			imageProcessorPlugin({
 				options: {
-					sourceDir: path.resolve(rootDir, 'src/images'),
-					outputDir: path.resolve(rootDir, distDir, 'images'),
+					sourceDir: path.resolve(projectRoot, 'src/images'),
+					outputDir: path.resolve(projectRoot, distDir, 'images'),
 					publicPath: '/images',
 					acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 					quality: 80,
@@ -95,24 +92,34 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 			}),
 			postcssProcessorPlugin(
 				tailwindV4Preset({
-					referencePath: path.resolve(rootDir, 'src/styles/tailwind.css'),
+					referencePath: path.resolve(projectRoot, 'src/styles/tailwind.css'),
 				}),
 			),
 		],
 		devToolbar: devToolbar(),
 	};
+
+	if (options.rootDir !== undefined) {
+		userConfig.rootDir = options.rootDir;
+	}
+	if (options.baseUrl !== undefined) {
+		userConfig.baseUrl = options.baseUrl;
+	}
+
+	return userConfig;
 }
 
 /**
  * Finalizes the kitchen-sink config for tests and benchmarks that need a built app config.
  */
 export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
-	const configFilePath = path.join(options.rootDir, 'eco.config.ts');
+	const projectRoot = options.rootDir ?? process.cwd();
+	const configFilePath = path.join(projectRoot, 'eco.config.ts');
 	return finalizeEcoPagesConfig(
 		{
 			config: createKitchenSinkUserConfig(options),
 			configFilePath,
 		},
-		{},
+		{ cwd: projectRoot },
 	);
 }

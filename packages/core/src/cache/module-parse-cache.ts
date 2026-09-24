@@ -29,10 +29,10 @@ export type ModuleParseOptions = ParserOptions & {
 	lang?: ParserOptions['lang'];
 };
 
-export type ParserLanguage = 'js' | 'jsx' | 'ts' | 'tsx';
+type ParserLanguage = 'js' | 'jsx' | 'ts' | 'tsx';
 
 /** Resolves the Oxc dialect for a source module from its file extension. */
-export function parserLanguageForFile(filePath: string): ParserLanguage {
+function parserLanguageForFile(filePath: string): ParserLanguage {
 	const extension = extname(filePath).toLowerCase();
 	if (extension === '.tsx') return 'tsx';
 	if (extension === '.ts' || extension === '.mts' || extension === '.cts') return 'ts';
@@ -42,7 +42,7 @@ export function parserLanguageForFile(filePath: string): ParserLanguage {
 
 /** Parses an ECMAScript module with the shared, normalized cache contract. */
 export function parseModuleSource(filePath: string, source: string, options: ModuleParseOptions = {}): ParseResult {
-	return moduleParseCache.getOrParse(filePath, source, normalizeModuleParseOptions(filePath, options));
+	return moduleParseCache.getOrParse(filePath, source, options);
 }
 
 type CacheKey = string;
@@ -55,14 +55,12 @@ type CacheEntry = {
 /**
  * LRU-bounded module parse cache.
  *
- * Single instance shared across the process. Constructed lazily; use
- * {@link moduleParseCache} for the default shared instance.
+ * One instance is shared across the process; call {@link parseModuleSource}
+ * to use it.
  */
 export class ModuleParseCache {
 	private readonly entries = new Map<CacheKey, CacheEntry>();
 	private readonly maxEntries: number;
-	private hits = 0;
-	private misses = 0;
 
 	constructor(maxEntries: number = DEFAULT_MAX_ENTRIES) {
 		if (maxEntries <= 0) {
@@ -83,14 +81,12 @@ export class ModuleParseCache {
 
 		const existing = this.entries.get(key);
 		if (existing && existing.hash === hash) {
-			this.hits += 1;
 			// Refresh LRU position.
 			this.entries.delete(key);
 			this.entries.set(key, existing);
 			return existing.result;
 		}
 
-		this.misses += 1;
 		const result = parseSync(filePath, source, normalizedOptions);
 		this.entries.set(key, { hash, result });
 
@@ -106,45 +102,12 @@ export class ModuleParseCache {
 
 		return result;
 	}
-
-	/** Clear all cached entries. Useful in tests and on full-rebuild signals. */
-	clear(): void {
-		this.entries.clear();
-		this.hits = 0;
-		this.misses = 0;
-	}
-
-	/** Current cache size (for observability). */
-	get size(): number {
-		return this.entries.size;
-	}
-
-	/** Cumulative hit/miss counters (for observability). */
-	stats(): { hits: number; misses: number; size: number; hitRate: number } {
-		const total = this.hits + this.misses;
-		return {
-			hits: this.hits,
-			misses: this.misses,
-			size: this.entries.size,
-			hitRate: total === 0 ? 0 : this.hits / total,
-		};
-	}
 }
 
 /**
- * Default shared cache. Use this from plugin code so the cache is
- * amortized across plugins and build invocations.
+ * Default shared cache, amortized across plugins and build invocations.
  */
-export const moduleParseCache = new ModuleParseCache();
-
-/**
- * Drop-in replacement for `oxc-parser.parseSync` that uses the shared
- * {@link moduleParseCache}. Use everywhere we currently call `parseSync`
- * on user/source files during a build.
- */
-export function cachedParseSync(filePath: string, source: string, options: ModuleParseOptions = {}): ParseResult {
-	return parseModuleSource(filePath, source, options);
-}
+const moduleParseCache = new ModuleParseCache();
 
 function normalizeModuleParseOptions(filePath: string, options: ModuleParseOptions): ModuleParseOptions {
 	return {

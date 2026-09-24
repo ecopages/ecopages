@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-	buildDefaultErrorHtml,
-	buildDefaultNotFoundHtml,
-	buildDefaultServerErrorHtml,
-	DEFAULT_ERROR_PAGE_CLASS_NAMES,
-} from './default-error-pages.ts';
+import { buildDefaultErrorHtml, DEFAULT_ERROR_PAGE_CLASS_NAMES } from './default-error-pages.ts';
 
 describe('default error pages', () => {
 	const originalNodeEnv = process.env.NODE_ENV;
@@ -25,7 +20,7 @@ describe('default error pages', () => {
 	});
 
 	it('builds a basic not-found page', () => {
-		const html = buildDefaultNotFoundHtml();
+		const html = buildDefaultErrorHtml(404);
 		expect(html).toContain('eco-error-page__title">Not Found</h1>');
 		expect(html).toContain(DEFAULT_ERROR_PAGE_CLASS_NAMES.root);
 		expect(html).toContain(DEFAULT_ERROR_PAGE_CLASS_NAMES.notFoundModifier);
@@ -43,7 +38,7 @@ describe('default error pages', () => {
 
 	it('omits error details and copy affordance in production', () => {
 		process.env.NODE_ENV = 'production';
-		const html = buildDefaultServerErrorHtml({
+		const html = buildDefaultErrorHtml(500, {
 			message: 'secret failure',
 			stack: 'Error: secret failure\n    at handler',
 		});
@@ -54,7 +49,7 @@ describe('default error pages', () => {
 
 	it('includes copy affordance and escaped details in development', () => {
 		process.env.NODE_ENV = 'development';
-		const html = buildDefaultServerErrorHtml({
+		const html = buildDefaultErrorHtml(500, {
 			message: 'render <failed>',
 			stack: 'Error: render <failed>',
 		});
@@ -71,7 +66,7 @@ describe('default error pages', () => {
 
 	it('does not place error-controlled text inside executable script source', () => {
 		process.env.NODE_ENV = 'development';
-		const html = buildDefaultServerErrorHtml({ message: '</script><script>globalThis.injected = true</script>' });
+		const html = buildDefaultErrorHtml(500, { message: '</script><script>globalThis.injected = true</script>' });
 
 		expect(html).not.toContain('</script><script>globalThis.injected = true</script>');
 		expect(html).toContain('&lt;/script&gt;&lt;script&gt;globalThis.injected = true&lt;/script&gt;');

@@ -151,11 +151,6 @@
 			"types": "./src/client/navigation-scripts/index.ts",
 			"default": "./src/client/navigation-scripts/index.ts"
 		},
-		"./eco": {
-			"browser": "./src/eco/eco.browser.ts",
-			"types": "./src/eco/eco.ts",
-			"default": "./src/eco/eco.ts"
-		},
 		"./eco/page-layout-normalization": {
 			"types": "./src/eco/page-layout-normalization.ts",
 			"default": "./src/eco/page-layout-normalization.ts"
@@ -178,17 +173,9 @@
 			"types": "./src/config/constants.ts",
 			"default": "./src/config/constants.ts"
 		},
-		"./diagnostics/startup-trace": {
-			"types": "./src/diagnostics/startup-trace.ts",
-			"default": "./src/diagnostics/startup-trace.ts"
-		},
 		"./diagnostics/request-pipeline-metrics": {
 			"types": "./src/diagnostics/request-pipeline-metrics.ts",
 			"default": "./src/diagnostics/request-pipeline-metrics.ts"
-		},
-		"./bun": {
-			"types": "./src/adapters/bun/index.ts",
-			"default": "./src/adapters/bun/index.ts"
 		},
 		"./hmr/hmr-strategy": {
 			"types": "./src/hmr/hmr-strategy.ts",
@@ -201,14 +188,6 @@
 		"./hmr/hmr-registered-entrypoints-context": {
 			"types": "./src/hmr/hmr-registered-entrypoints-context.ts",
 			"default": "./src/hmr/hmr-registered-entrypoints-context.ts"
-		},
-		"./hmr/hmr-runtime-paths": {
-			"types": "./src/hmr/hmr-runtime-paths.ts",
-			"default": "./src/hmr/hmr-runtime-paths.ts"
-		},
-		"./hmr/hmr-asset-paths": {
-			"types": "./src/hmr/hmr-asset-paths.ts",
-			"default": "./src/hmr/hmr-asset-paths.ts"
 		},
 		"./hmr/hmr-file-change-prep": {
 			"types": "./src/hmr/hmr-file-change-prep.ts",
@@ -226,10 +205,6 @@
 		"./dev/host-runtime": {
 			"types": "./src/dev/host-runtime.ts",
 			"default": "./src/dev/host-runtime.ts"
-		},
-		"./dev/client-bridge-registry": {
-			"types": "./src/dev/client-bridge-registry.ts",
-			"default": "./src/dev/client-bridge-registry.ts"
 		},
 		"./dev/hmr-manager-registry": {
 			"types": "./src/dev/hmr-manager-registry.ts",
@@ -259,10 +234,6 @@
 			"types": "./src/plugins/source-transform.ts",
 			"default": "./src/plugins/source-transform.ts"
 		},
-		"./build/build-types": {
-			"types": "./src/build/contracts/build-types.ts",
-			"default": "./src/build/contracts/build-types.ts"
-		},
 		"./build/build-adapter": {
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"
@@ -271,10 +242,6 @@
 			"types": "./src/build/runtime/build-runtime.ts",
 			"default": "./src/build/runtime/build-runtime.ts"
 		},
-		"./build/build-contracts": {
-			"types": "./src/build/contracts/build-contracts.ts",
-			"default": "./src/build/contracts/build-contracts.ts"
-		},
 		"./build/contracts/content-virtual-modules": {
 			"types": "./src/build/contracts/content-virtual-modules.ts",
 			"default": "./src/build/contracts/content-virtual-modules.ts"
@@ -282,18 +249,6 @@
 		"./services/module-loading/collection-server-module-build.service": {
 			"types": "./src/services/module-loading/collection-server-module-build.service.ts",
 			"default": "./src/services/module-loading/collection-server-module-build.service.ts"
-		},
-		"./build/production-build-cache": {
-			"types": "./src/build/cache/production-build-cache.ts",
-			"default": "./src/build/cache/production-build-cache.ts"
-		},
-		"./build/server-entry-build-cache": {
-			"types": "./src/build/cache/server-entry-build-cache.ts",
-			"default": "./src/build/cache/server-entry-build-cache.ts"
-		},
-		"./build/runtime-build-output-normalizer": {
-			"types": "./src/build/rolldown/runtime-build-output-normalizer.ts",
-			"default": "./src/build/rolldown/runtime-build-output-normalizer.ts"
 		},
 		"./build/browser-runtime-manifest": {
 			"types": "./src/build/browser/browser-runtime-manifest.ts",
@@ -315,14 +270,6 @@
 			"types": "./src/cache/index.ts",
 			"default": "./src/cache/index.ts"
 		},
-		"./plugins/foreign-jsx-override-plugin": {
-			"types": "./src/plugins/foreign-jsx-override-plugin.ts",
-			"default": "./src/plugins/foreign-jsx-override-plugin.ts"
-		},
-		"./plugins/alias-resolver-plugin": {
-			"types": "./src/plugins/alias-resolver-plugin.ts",
-			"default": "./src/plugins/alias-resolver-plugin.ts"
-		},
 		"./plugins/tsconfig-import-resolver": {
 			"types": "./src/plugins/tsconfig-import-resolver.ts",
 			"default": "./src/plugins/tsconfig-import-resolver.ts"
@@ -339,10 +286,6 @@
 			"import": "./src/utils/hash.ts",
 			"require": "./src/utils/hash.ts"
 		},
-		"./utils/hash": {
-			"import": "./src/utils/hash.ts",
-			"require": "./src/utils/hash.ts"
-		},
 		"./utils/resolve-entry-file": {
 			"import": "./src/utils/resolve-entry-file.ts",
 			"types": "./src/utils/resolve-entry-file.ts",
@@ -355,18 +298,6 @@
 		"./dev/transform-server": {
 			"types": "./src/dev/transform-server/index.ts",
 			"default": "./src/dev/transform-server/index.ts"
-		},
-		"./dev-toolbar/dev-toolbar-runtime-paths": {
-			"types": "./src/dev-toolbar/dev-toolbar-runtime-paths.ts",
-			"default": "./src/dev-toolbar/dev-toolbar-runtime-paths.ts"
-		},
-		"./dev-toolbar/dev-toolbar-package": {
-			"types": "./src/dev-toolbar/dev-toolbar-package.ts",
-			"default": "./src/dev-toolbar/dev-toolbar-package.ts"
-		},
-		"./dev-toolbar/dev-toolbar-host": {
-			"types": "./src/dev-toolbar/dev-toolbar-host.ts",
-			"default": "./src/dev-toolbar/dev-toolbar-host.ts"
 		},
 		"./dev-toolbar/define-dev-tool": {
 			"types": "./src/dev-toolbar/define-dev-tool.ts",

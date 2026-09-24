@@ -4,7 +4,6 @@
  */
 
 import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
-import { assertIntegrationInvariant } from '@ecopages/core/plugins/integration-plugin';
 import {
 	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
@@ -86,7 +85,7 @@ export class MDXRenderer extends StringMarkupRenderer {
 				getMetadata,
 			} as TPageModule;
 		} catch (error) {
-			assertIntegrationInvariant(false, `Error importing MDX file: ${error}`);
+			throw new Error(`[ecopages] Error importing MDX file: ${error}`);
 		}
 	}
 }

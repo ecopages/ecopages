@@ -139,13 +139,9 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 ## BuildOptions Caveats
 
-`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
+`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exception:
 
 - `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
-- `bundle` — accepted but ignored. The bundler always bundles.
-- `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
-
-These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
 
 ## Dev / watch path
 

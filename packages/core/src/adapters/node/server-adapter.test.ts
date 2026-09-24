@@ -2,15 +2,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
-import { DefaultNodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
 import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
-import type { NodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
+}));
+
+vi.mock('./server-adapter-dependencies.ts', () => ({
+	createNodeServerDevRuntime: () => ({
+		websocketServer: {},
+		bridge: {},
+		hmrManager: { setEnabled: vi.fn(), ensureRuntimeReady: vi.fn(async () => {}) },
+	}),
 }));
 
 class TestNodeServerAdapter extends NodeServerAdapter {
@@ -48,7 +54,6 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 		serveOptions: {},
 		options: { watch: true },
 		previewHost: new NodeStaticPreviewHost(),
-		devRuntimeFactory: new DefaultNodeServerDevRuntimeFactory(),
 		...options,
 	});
 }
@@ -166,19 +171,11 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('forwards passthroughUnmatched alongside the HMR preflight in watch mode', async () => {
-			const devRuntimeFactory: NodeServerDevRuntimeFactory = {
-				create: () =>
-					({
-						websocketServer: {},
-						bridge: {},
-						hmrManager: { setEnabled: vi.fn(), ensureRuntimeReady: vi.fn(async () => {}) },
-					}) as unknown as ReturnType<NodeServerDevRuntimeFactory['create']>,
-			};
 			const wiringDone = new Error('stop after upgrade wiring');
 			upgrades.attach.mockImplementationOnce(() => {
 				throw wiringDone;
 			});
-			const adapter = createAdapter({ options: { watch: true }, devRuntimeFactory });
+			const adapter = createAdapter({ options: { watch: true } });
 
 			await expect(adapter.completeInitialization(server, { passthroughUnmatched: true })).rejects.toBe(
 				wiringDone,

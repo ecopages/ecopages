@@ -39,7 +39,6 @@ function createScopedModuleUrl(moduleUrl: string, token: string): string {
 
 function createAppConfig(rootDir: string): EcoPagesAppConfig {
 	const appModuleLoader = {
-		owner: 'host',
 		async importModule<T = unknown>(options: { filePath: string }): Promise<T> {
 			const moduleUrl = pathToFileURL(options.filePath).href;
 			return (await import(moduleUrl)) as T;

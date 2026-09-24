@@ -6,7 +6,6 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 export interface ServerInvalidationState {
 	getServerInvalidationVersion(): number;
 	invalidateServerModules(changedFiles?: string[]): void;
-	reset(): void;
 }
 
 /**
@@ -20,10 +19,6 @@ export class CounterServerInvalidationState implements ServerInvalidationState {
 	}
 
 	invalidateServerModules(_changedFiles?: string[]): void {
-		this.serverInvalidationVersion += 1;
-	}
-
-	reset(): void {
 		this.serverInvalidationVersion += 1;
 	}
 }

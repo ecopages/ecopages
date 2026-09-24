@@ -10,7 +10,7 @@ import {
 } from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
 
-/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/hmr/hmr-asset-paths`. */
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
 const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
 
 function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {

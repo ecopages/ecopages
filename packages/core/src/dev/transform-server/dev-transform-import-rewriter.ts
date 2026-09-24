@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
-import { cachedParseSync } from '../../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../../plugins/tsconfig-import-resolver.ts';
 import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
@@ -75,7 +75,7 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 	const dependencies = new Set<string>();
 	const specifierNodes: StringLiteralNode[] = [];
 
-	const parseResult = cachedParseSync(normalizedSource, options.code, {
+	const parseResult = parseModuleSource(normalizedSource, options.code, {
 		sourceType: 'module',
 		lang: path.extname(normalizedSource).endsWith('x') ? 'tsx' : 'ts',
 	});

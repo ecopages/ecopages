@@ -122,22 +122,17 @@ describe('DevelopmentInvalidationService', () => {
 		appConfig.runtime = {
 			...(appConfig.runtime ?? {}),
 			appModuleLoader: {
-				owner: 'app',
 				importModule: async <T = unknown>() => ({}) as T,
 				invalidateDevelopmentGraph,
 			},
 		};
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.getServerModuleInvalidationVersion()).toBe(0);
+		expect(invalidationState.getServerInvalidationVersion()).toBe(0);
 
 		service.invalidateServerModules(['/test/project/src/components/Button.tsx']);
-		expect(service.getServerModuleInvalidationVersion()).toBe(1);
+		expect(invalidationState.getServerInvalidationVersion()).toBe(1);
 		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(1);
-
-		service.resetRuntimeState(['/test/project/src/pages/index.tsx']);
-		expect(service.getServerModuleInvalidationVersion()).toBe(3);
-		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(2);
 	});
 
 	it('clears persisted route-module entries before a route imports them', async () => {
@@ -157,10 +152,6 @@ describe('DevelopmentInvalidationService', () => {
 
 			service.invalidateServerModules([path.join(rootDir, 'src/content/docs/intro.mdx')]);
 			expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toMatchObject({ entries: {} });
-
-			writeFileSync(manifestPath, staleManifest);
-			service.resetRuntimeState([path.join(rootDir, 'src/content/docs/intro.mdx')]);
-			expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toMatchObject({ entries: {} });
 		} finally {
 			rmSync(rootDir, { recursive: true, force: true });
 		}
@@ -178,17 +169,6 @@ describe('DevelopmentInvalidationService', () => {
 			delegateToHmr: true,
 			processorHandledAsset: false,
 		});
-	});
-
-	it('notifies registered script entrypoint change handlers', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
-		const handler = vi.fn(async () => {});
-		const service = new DevelopmentInvalidationService(appConfig);
-
-		service.registerRegisteredScriptEntrypointChangeHandler(handler);
-		await service.notifyRegisteredScriptEntrypointChange('/test/project/src/components/widget.tsx');
-
-		expect(handler).toHaveBeenCalledWith('/test/project/src/components/widget.tsx');
 	});
 
 	it('classifies eco.config and dotenv files as runtime-restart', async () => {

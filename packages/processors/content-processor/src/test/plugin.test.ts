@@ -5,7 +5,6 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
-import { getCollectionServerBuildArtifact } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';
@@ -243,7 +242,7 @@ order: 1
 		installBuildRuntime(appConfig);
 		await plugin.setup();
 
-		expect(getCollectionServerBuildArtifact(appConfig, 'docs')).toBeUndefined();
+		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
 	});
 
 	test('frontmatter edits rewrite the entries module but not the server barrel', async () => {

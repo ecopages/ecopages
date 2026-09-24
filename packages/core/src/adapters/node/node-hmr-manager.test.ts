@@ -163,7 +163,7 @@ test('NodeHmrManager disables HMR instead of throwing when runtime bundle genera
 		throw new Error('Unexpected end of JSON input');
 	});
 
-	await assert.doesNotReject(() => manager.buildRuntime());
+	await assert.doesNotReject(() => manager.ensureRuntimeReady());
 	assert.equal(manager.isEnabled(), false);
 	assert.equal(runtimeEntrypoint, fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')));
 	assert.equal(runtimeEntrypoint?.includes(`${path.sep}.eco${path.sep}hmr${path.sep}client${path.sep}`), false);

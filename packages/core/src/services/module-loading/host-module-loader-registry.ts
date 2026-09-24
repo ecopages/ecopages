@@ -9,7 +9,3 @@ export function setHostModuleLoader(loader: SourceModuleLoader): void {
 export function getHostModuleLoader(): SourceModuleLoader | undefined {
 	return hostModuleLoader;
 }
-
-export function clearHostModuleLoader(): void {
-	hostModuleLoader = undefined;
-}

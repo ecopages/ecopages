@@ -7,17 +7,6 @@ export type WebSocketRouteMatch = {
 	kind: string;
 };
 
-/**
- * Pattern matcher for WebSocket route paths.
- */
-export function matchWebSocketPath(pattern: string, pathname: string): Record<string, string> | null {
-	return matchColonSegmentPath(pattern, pathname);
-}
-
-export function scoreWebSocketPattern(pattern: string): number {
-	return scoreColonSegmentPath(pattern);
-}
-
 export function findWebSocketRoute(
 	handlers: Map<string, EcopagesWebSocketHandler<any, any>>,
 	pathname: string,

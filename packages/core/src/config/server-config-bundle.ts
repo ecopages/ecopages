@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { build, getAppBuildAdapter } from '../build/build-adapter.ts';
 import type { BuildResult } from '../build/contracts/build-contracts.ts';
-import { cachedParseSync } from '../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -66,7 +66,7 @@ function collectImportMetaEdits(
 	needsNodePath: boolean;
 	pathBinding: string;
 } {
-	const program = cachedParseSync(id, code, { sourceType: 'module' }).program as unknown as AstNode;
+	const program = parseModuleSource(id, code, { sourceType: 'module' }).program as unknown as AstNode;
 	const fileDir = path.dirname(id);
 	const relativeDir = path.relative(serverOutdir, fileDir).replaceAll('\\', '/');
 	const relativeFile = relativeDir ? `${relativeDir}/${path.basename(id)}` : `./${path.basename(id)}`;

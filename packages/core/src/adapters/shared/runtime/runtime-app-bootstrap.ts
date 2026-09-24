@@ -2,8 +2,6 @@ import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../confi
 import type { ReturnParseCliArgs } from '../../../utils/parse-cli-args.ts';
 
 export type RuntimeBinding = {
-	preferredPort: number;
-	preferredHostname: string;
 	runtimeOrigin: string;
 	serveOptions: Record<string, unknown>;
 	watch: boolean;
@@ -39,8 +37,6 @@ export function resolveRuntimeBinding(options: {
 	const preferredHostname = options.cliArgs.hostname ?? env.ECOPAGES_HOSTNAME ?? DEFAULT_ECOPAGES_HOSTNAME;
 
 	return {
-		preferredPort,
-		preferredHostname,
 		allowPortFallback: !portExplicitlyConfigured,
 		runtimeOrigin: resolveServeRuntimeOrigin({
 			hostname: preferredHostname,

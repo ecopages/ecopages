@@ -6,7 +6,7 @@ import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
 export type ServerModuleTranspilerOptions = Omit<PageModuleBuildImportOptions, 'rootDir' | 'buildExecutor'>;
 
-export type ServerModuleImportDependency = Pick<AppModuleLoader, 'importModule' | 'invalidateDevelopmentGraph'>;
+export type ServerModuleImportDependency = Pick<AppModuleLoader, 'importModule'>;
 
 /**
  * Immutable execution context for one server-transpiler instance.
@@ -21,7 +21,6 @@ export type ServerModuleTranspilerBootstrapArgs = {
 	getBuildExecutor?: () => BuildExecutor | undefined;
 	canLoadSourceModuleFromHost?: (filePath: string) => boolean;
 	getHostModuleLoader?: SourceModuleLoaderFactory;
-	invalidateModules?: (changedFiles?: string[]) => void;
 	pageModuleImportService?: ServerModuleImportDependency;
 	/** Factory evaluated on each importModule call to produce plugins applied to every load. */
 	getDefaultPlugins?: () => EcoBuildPlugin[];
@@ -38,7 +37,6 @@ export class ServerModuleTranspiler {
 	private readonly pageModuleImportService: ServerModuleImportDependency;
 	private readonly getRootDir: () => string;
 	private readonly getBuildExecutor: () => BuildExecutor | undefined;
-	private readonly invalidateModules: (changedFiles?: string[]) => void;
 	private readonly getDefaultPlugins: () => EcoBuildPlugin[];
 
 	/**
@@ -55,14 +53,6 @@ export class ServerModuleTranspiler {
 		this.getRootDir = () => args.rootDir;
 		this.getBuildExecutor = args.getBuildExecutor ?? (() => undefined);
 		this.getDefaultPlugins = args.getDefaultPlugins ?? (() => []);
-		this.invalidateModules = (changedFiles) => {
-			if (args.invalidateModules) {
-				args.invalidateModules(changedFiles);
-				return;
-			}
-
-			this.pageModuleImportService.invalidateDevelopmentGraph();
-		};
 	}
 
 	/**
@@ -78,23 +68,5 @@ export class ServerModuleTranspiler {
 			rootDir: this.getRootDir(),
 			buildExecutor: this.getBuildExecutor(),
 		});
-	}
-
-	/**
-	 * Invalidates cached module state for development reloads.
-	 */
-	invalidate(changedFiles?: string[]): void {
-		this.invalidateModules(changedFiles);
-	}
-
-	/**
-	 * Releases transpiler-owned resources.
-	 *
-	 * @remarks
-	 * The current implementation delegates cache ownership to lower-level module
-	 * loading services, so disposal is intentionally a no-op for now.
-	 */
-	async dispose(): Promise<void> {
-		return;
 	}
 }

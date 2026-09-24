@@ -11,10 +11,13 @@ import {
 	type RouteGroupDefinition,
 } from './application-adapter.ts';
 import type { ApiHandlerContext, ViewLoader } from '../../types/public-types.ts';
-import {
-	setHostModuleLoader,
-	clearHostModuleLoader,
-} from '../../services/module-loading/host-module-loader-registry.ts';
+import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
+
+const hostModuleLoaderRegistry = vi.hoisted(() => ({ loader: undefined as SourceModuleLoader | undefined }));
+
+vi.mock('../../services/module-loading/host-module-loader-registry.ts', () => ({
+	getHostModuleLoader: () => hostModuleLoaderRegistry.loader,
+}));
 
 class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapterOptions, unknown, Request> {
 	constructor(options: ApplicationAdapterOptions) {
@@ -114,7 +117,7 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 }
 
 afterEach(() => {
-	clearHostModuleLoader();
+	hostModuleLoaderRegistry.loader = undefined;
 	delete process.env.NODE_ENV;
 });
 
@@ -169,10 +172,10 @@ describe('application adapter runtime bootstrap', () => {
 		process.env.NODE_ENV = 'development';
 		let importedId: string | undefined;
 		const filePath = import.meta.filename;
-		setHostModuleLoader(async (id) => {
+		hostModuleLoaderRegistry.loader = async (id) => {
 			importedId = id;
 			return { id };
-		});
+		};
 
 		const adapter = new TestApplicationAdapter({
 			appConfig: {
@@ -188,7 +191,6 @@ describe('application adapter runtime bootstrap', () => {
 
 		assert.ok(appModuleLoader);
 		assert.ok(hostModuleLoader);
-		assert.equal(appModuleLoader?.owner, 'host');
 		assert.deepEqual(await hostModuleLoader?.('/virtual:entry'), { id: '/virtual:entry' });
 		assert.deepEqual(
 			await appModuleLoader?.importModule({
@@ -211,11 +213,11 @@ describe('application adapter runtime bootstrap', () => {
 			'utf8',
 		);
 
-		setHostModuleLoader(async (id) => {
+		hostModuleLoaderRegistry.loader = async (id) => {
 			const moduleUrl = new URL(id);
 			moduleUrl.search = '';
 			return await import(moduleUrl.href);
-		});
+		};
 
 		const adapter = new TestApplicationAdapter({
 			appConfig: {

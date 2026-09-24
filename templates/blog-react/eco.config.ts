@@ -12,8 +12,6 @@ import { ecoRouter } from '@ecopages/react-router';
 const appRoot = import.meta.dirname;
 
 export default defineConfig({
-	rootDir: appRoot,
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	sitemap: {
 		enabled: true,
 		extraUrls: ['/rss.xml'],

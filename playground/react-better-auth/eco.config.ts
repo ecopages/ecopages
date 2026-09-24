@@ -9,11 +9,8 @@ import rehypePrettyCode from 'rehype-pretty-code';
 import remarkGfm from 'remark-gfm';
 
 const appRoot = process.cwd();
-const baseUrl = process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000';
 
 export default defineConfig({
-	rootDir: appRoot,
-	baseUrl,
 	defaultMetadata: {
 		title: 'Ecopages Better Auth Playground',
 		description: 'A minimal, high-performance starter template for Ecopages with Better Auth integration.',

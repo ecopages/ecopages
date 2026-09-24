@@ -7,8 +7,6 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
-	baseUrl: process.env.ECOPAGES_BASE_URL,
 	integrations: [
 		reactPlugin({
 			router: ecoRouter(),

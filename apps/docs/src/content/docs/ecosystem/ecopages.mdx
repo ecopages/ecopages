@@ -332,7 +332,7 @@ bun dev`,
 
 ## Runtime Notes
 
-The CLI auto-detects Bun when launched from Bun tooling and otherwise defaults to the Node thin-host path. You can override that explicitly with `--runtime bun`, `--runtime node`, or `--runtime node-experimental` on the lifecycle commands.
+The CLI runs your app on Bun when you launch the command through Bun (`bun dev`, `bun run dev`, `bunx ecopages …`) and on Node with any other launcher. Override it with `--runtime bun` or `--runtime node` on the lifecycle commands.
 
 ## Command Details
 

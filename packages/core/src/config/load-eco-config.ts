@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { applyUserConfigToBuilder } from './apply-user-config.ts';
@@ -18,9 +19,12 @@ type LoadedConfigModule =
 const moduleLoadCache = new Map<string, Promise<LoadedConfigModule>>();
 const appConfigCache = new Map<string, Promise<EcoPagesAppConfig>>();
 
-function createCacheKey(configFilePath: string, buildOwnership?: string): string {
-	const ownership = buildOwnership ?? 'rolldown';
-	return `${configFilePath}::${ownership}`;
+function resolveLoaderCwd(cwd?: string): string {
+	return path.resolve(cwd ?? process.cwd());
+}
+
+function createCacheKey(configFilePath: string, buildOwnership: string, cwd: string): string {
+	return `${configFilePath}::${buildOwnership}::${cwd}`;
 }
 
 async function importEcoConfigModule(configFilePath: string): Promise<unknown> {
@@ -48,8 +52,13 @@ function loadConfigModule(configFilePath: string): Promise<LoadedConfigModule> {
 		}
 
 		const userConfig = exported as EcoPagesUserConfig;
-		if (typeof userConfig.rootDir !== 'string' || userConfig.rootDir.length === 0) {
-			throw new Error(`Ecopages config at ${configFilePath} must include a non-empty rootDir.`);
+		if (
+			userConfig.rootDir !== undefined &&
+			(typeof userConfig.rootDir !== 'string' || userConfig.rootDir.length === 0)
+		) {
+			throw new Error(
+				`Ecopages config at ${configFilePath} must set rootDir to a non-empty string when provided.`,
+			);
 		}
 
 		return { kind: 'user', userConfig, configFilePath };
@@ -69,7 +78,8 @@ function loadConfigModule(configFilePath: string): Promise<LoadedConfigModule> {
 export async function loadEcoPagesUserConfig(
 	options: LoadEcoPagesConfigOptions = {},
 ): Promise<LoadedEcoPagesUserConfig> {
-	const configFilePath = resolveEcoConfigPath(options);
+	const cwd = resolveLoaderCwd(options.cwd);
+	const configFilePath = resolveEcoConfigPath({ ...options, cwd });
 	const loaded = await loadConfigModule(configFilePath);
 
 	if (loaded.kind === 'finalized') {
@@ -92,8 +102,9 @@ export async function finalizeEcoPagesConfig(
 	options: FinalizeEcoPagesConfigOptions = {},
 ): Promise<EcoPagesAppConfig> {
 	const buildOwnership = options.buildOwnership ?? loaded.config.buildOwnership ?? 'rolldown';
+	const cwd = resolveLoaderCwd(options.cwd);
 	const builder = new ConfigBuilder();
-	applyUserConfigToBuilder(builder, loaded.config);
+	applyUserConfigToBuilder(builder, loaded.config, { cwd });
 	builder.setBuildOwnership(buildOwnership);
 	builder.setConfigModulePath(loaded.configFilePath);
 	return await builder.build();
@@ -103,14 +114,15 @@ export async function finalizeEcoPagesConfig(
  * Loads and finalizes the Ecopages config for the current project.
  *
  * @remarks
- * Coalesces concurrent loads and caches by `configFilePath` and `buildOwnership`.
+ * Coalesces concurrent loads and caches by `configFilePath`, `buildOwnership`, and `cwd`.
  * Files that still export a finalized {@link ConfigBuilder.build} result are returned as-is
  * so workers and tests can load existing `eco.config.ts` modules.
  */
 export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}): Promise<EcoPagesAppConfig> {
-	const configFilePath = resolveEcoConfigPath(options);
+	const cwd = resolveLoaderCwd(options.cwd);
+	const configFilePath = resolveEcoConfigPath({ ...options, cwd });
 	const buildOwnership = options.buildOwnership ?? 'rolldown';
-	const cacheKey = createCacheKey(configFilePath, buildOwnership);
+	const cacheKey = createCacheKey(configFilePath, buildOwnership, cwd);
 
 	const cached = appConfigCache.get(cacheKey);
 	if (cached) {
@@ -125,7 +137,7 @@ export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}
 
 		return await finalizeEcoPagesConfig(
 			{ config: loaded.userConfig, configFilePath },
-			{ buildOwnership: options.buildOwnership },
+			{ buildOwnership: options.buildOwnership, cwd },
 		);
 	})();
 

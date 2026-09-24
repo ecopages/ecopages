@@ -3,6 +3,7 @@ export { loadEcoPagesConfig, loadEcoPagesUserConfig, finalizeEcoPagesConfig } fr
 export {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,
+	resolveUserConfigRootDir,
 	DEFAULT_ECO_CONFIG_FILENAME,
 	ECOPAGES_CONFIG_FILE_ENV,
 } from './resolve-eco-config-path.ts';

@@ -21,8 +21,6 @@ import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts'
  * import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
  *
  * export default defineConfig({
- *   rootDir: import.meta.dirname,
- *   baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
  *   integrations: [ecopagesJsxPlugin()],
  * });
  * ```
@@ -30,8 +28,10 @@ import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts'
 export type EcoPagesUserConfig = {
 	/**
 	 * Absolute or relative path to the project root directory.
+	 *
+	 * @default process.cwd()
 	 */
-	rootDir: string;
+	rootDir?: string;
 
 	/**
 	 * Canonical base URL for production deployment (e.g. `https://example.com`).
@@ -182,6 +182,12 @@ export type LoadedEcoPagesUserConfig = {
 
 export type FinalizeEcoPagesConfigOptions = {
 	buildOwnership?: BuildOwnership;
+	/**
+	 * Working directory used when `rootDir` is omitted.
+	 *
+	 * @default process.cwd()
+	 */
+	cwd?: string;
 };
 
 export type LoadEcoPagesConfigOptions = {

@@ -297,11 +297,5 @@ export async function finalizeDocumentShellHtml(
 		return html;
 	}
 
-	const transformedResponse = await htmlTransformer.transform(
-		new Response(html, {
-			headers: { 'Content-Type': 'text/html' },
-		}),
-		options.htmlContributions,
-	);
-	return await transformedResponse.text();
+	return htmlTransformer.transformHtml(html, options.htmlContributions);
 }

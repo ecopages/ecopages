@@ -31,7 +31,6 @@
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",
 		"@oxc-project/runtime": "0.141.0",
-		"@worker-tools/html-rewriter": "0.1.0-pre.19",
 		"chokidar": "^5.0.0",
 		"oxc-parser": "^0.141.0",
 		"oxc-resolver": "^11.24.2",

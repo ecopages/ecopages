@@ -1,11 +1,6 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../../types/public-types.ts';
-import {
-	DefaultHtmlRewriterProvider,
-	type HtmlRewriterElement,
-	type HtmlRewriterMode,
-	type HtmlRewriterProvider,
-} from './html-rewriter-provider.service.ts';
+import { HtmlRewriter } from './html-rewriter.ts';
 import {
 	buildProcessedAssetDedupeKey,
 	dedupeProcessedAssets,
@@ -18,35 +13,9 @@ export type HtmlDocumentContribution = {
 	html: string;
 };
 
-export interface HtmlTransformerServiceOptions {
-	htmlRewriterMode?: HtmlRewriterMode;
-	htmlRewriterProvider?: HtmlRewriterProvider;
-}
-
 export class HtmlTransformerService {
 	private processedDependencies: ProcessedAsset[] = [];
 	private pagePackage?: PagePackageResult;
-	private htmlRewriterProvider: HtmlRewriterProvider;
-
-	constructor(options: HtmlTransformerServiceOptions = {}) {
-		this.htmlRewriterProvider = options.htmlRewriterProvider ?? new DefaultHtmlRewriterProvider();
-
-		if (options.htmlRewriterMode) {
-			this.htmlRewriterProvider.setMode(options.htmlRewriterMode);
-		}
-	}
-
-	/**
-	 * Overrides the HTML rewriter runtime selection.
-	 *
-	 * This is intended for internal/runtime tests that need deterministic
-	 * selection between native, worker-tools, and string fallback behavior.
-	 *
-	 * @param mode Requested runtime selection strategy.
-	 */
-	setHtmlRewriterMode(mode: HtmlRewriterMode) {
-		this.htmlRewriterProvider.setMode(mode);
-	}
 
 	private formatAttributes(attrs?: Record<string, string>): string {
 		if (!attrs) return '';
@@ -67,14 +36,6 @@ export class HtmlTransformerService {
 			: `<link rel="stylesheet" href="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}>`;
 	}
 
-	private appendDependencies(element: HtmlRewriterElement, dependencies: ProcessedAsset[]) {
-		for (const dep of dependencies) {
-			const tag =
-				dep.kind === 'script' ? this.generateScriptTag(dep as ScriptAsset) : this.generateStylesheetTag(dep);
-			element.append(tag, { html: true });
-		}
-	}
-
 	private buildDependencyTags(dependencies: ProcessedAsset[]): string {
 		return dependencies
 			.map((dep) =>
@@ -83,64 +44,11 @@ export class HtmlTransformerService {
 			.join('');
 	}
 
-	private applyContributions(
-		element: HtmlRewriterElement,
-		contributions: HtmlDocumentContribution[],
-		placement: 'prepend' | 'append',
-	) {
-		for (const contribution of contributions) {
-			element[placement](contribution.html, { html: true });
-		}
-	}
-
-	/**
-	 * Injects generated markup immediately before the closing HTML tag when it is
-	 * present, or appends/prepends a fallback insertion otherwise.
-	 */
-	private injectBeforeClosingTag(html: string, tag: 'head' | 'body', content: string): string {
-		if (!content) {
-			return html;
-		}
-
-		const closingTag = `</${tag}>`;
-		const lowerHtml = html.toLowerCase();
-		const closingTagIndex = lowerHtml.lastIndexOf(closingTag);
-
-		if (closingTagIndex !== -1) {
-			return `${html.slice(0, closingTagIndex)}${content}${html.slice(closingTagIndex)}`;
-		}
-
-		if (tag === 'head') {
-			return `${content}${html}`;
-		}
-
-		return `${html}${content}`;
-	}
-
-	private injectAfterOpeningTag(html: string, tag: 'head' | 'body', content: string): string {
-		if (!content) {
-			return html;
-		}
-
-		const openingTag = new RegExp(`<${tag}\\b[^>]*>`, 'i');
-		const match = html.match(openingTag);
-		if (!match || match.index === undefined) {
-			return tag === 'head'
-				? `${content}${html}`
-				: html.replace(/<body\b[^>]*>/i, (value) => `${value}${content}`);
-		}
-
-		const insertAt = match.index + match[0].length;
-		return `${html.slice(0, insertAt)}${content}${html.slice(insertAt)}`;
-	}
-
-	private groupContributionsByPlacement(contributions: HtmlDocumentContribution[]) {
-		return {
-			headPrepend: contributions.filter((item) => item.placement === 'head-prepend'),
-			headAppend: contributions.filter((item) => item.placement === 'head-append'),
-			bodyPrepend: contributions.filter((item) => item.placement === 'body-prepend'),
-			bodyAppend: contributions.filter((item) => item.placement === 'body-append'),
-		};
+	private joinContributions(contributions: HtmlDocumentContribution[], placement: HtmlDocumentContributionPlacement) {
+		return contributions
+			.filter((item) => item.placement === placement)
+			.map((item) => item.html)
+			.join('');
 	}
 
 	/**
@@ -248,71 +156,60 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Injects the currently processed dependencies into an HTML response.
-	 *
-	 * @remarks
-	 * Native or worker-tools HTML rewriter support is preferred when available. A
-	 * string-based fallback remains in place for runtimes that cannot provide one
-	 * of those rewriter implementations.
+	 * Injects the queued dependencies and document contributions into a streaming
+	 * HTML response.
 	 */
-	async transform(
+	transform(
 		res: Response,
 		contributions: HtmlDocumentContribution[] = [],
 		pagePackage?: PagePackageResult,
-	): Promise<Response> {
+	): Response {
+		return this.createRewriter(contributions, pagePackage).transform(res);
+	}
+
+	/**
+	 * Injects the queued dependencies and document contributions into a complete
+	 * HTML string.
+	 */
+	transformHtml(
+		html: string,
+		contributions: HtmlDocumentContribution[] = [],
+		pagePackage?: PagePackageResult,
+	): string {
+		return this.createRewriter(contributions, pagePackage).transform(html);
+	}
+
+	/**
+	 * @remarks
+	 * Each slot is inserted as one joined string, so contributions and assets keep
+	 * their array order even though repeated `prepend` calls insert in reverse.
+	 * Documents without a `<head>` or `<body>` element, or whose element never
+	 * closes, skip the matching head or body injections (lol-html semantics).
+	 */
+	private createRewriter(contributions: HtmlDocumentContribution[], pagePackage?: PagePackageResult) {
 		const { head, body } = this.groupDependenciesByPosition(pagePackage);
-		const { headPrepend, headAppend, bodyPrepend, bodyAppend } = this.groupContributionsByPlacement(contributions);
-		const htmlRewriter = await this.htmlRewriterProvider.createHtmlRewriter();
+		const slots = {
+			head: {
+				prepend: this.joinContributions(contributions, 'head-prepend'),
+				append: `${this.buildDependencyTags(head)}${this.joinContributions(contributions, 'head-append')}`,
+			},
+			body: {
+				prepend: this.joinContributions(contributions, 'body-prepend'),
+				append: `${this.buildDependencyTags(body)}${this.joinContributions(contributions, 'body-append')}`,
+			},
+		};
 
-		if (htmlRewriter) {
-			htmlRewriter
-				.on('head', {
-					element: (element) => {
-						this.applyContributions(element, headPrepend, 'prepend');
-						this.appendDependencies(element, head);
-						this.applyContributions(element, headAppend, 'append');
-					},
-				})
-				.on('body', {
-					element: (element) => {
-						this.applyContributions(element, bodyPrepend, 'prepend');
-						this.appendDependencies(element, body);
-						this.applyContributions(element, bodyAppend, 'append');
-					},
-				});
-
-			return htmlRewriter.transform(res);
+		const rewriter = new HtmlRewriter();
+		for (const [tagName, slot] of Object.entries(slots)) {
+			if (!slot.prepend && !slot.append) continue;
+			rewriter.on(tagName, {
+				element(element) {
+					if (slot.prepend) element.prepend(slot.prepend, { html: true });
+					if (slot.append) element.append(slot.append, { html: true });
+				},
+			});
 		}
-
-		const html = await res.text();
-		const headers = new Headers(res.headers);
-
-		const withHeadPrependedContent = this.injectAfterOpeningTag(
-			html,
-			'head',
-			headPrepend.map((item) => item.html).join(''),
-		);
-		const withHeadDependencies = this.injectBeforeClosingTag(
-			withHeadPrependedContent,
-			'head',
-			`${this.buildDependencyTags(head)}${headAppend.map((item) => item.html).join('')}`,
-		);
-		const withBodyPrependedContent = this.injectAfterOpeningTag(
-			withHeadDependencies,
-			'body',
-			bodyPrepend.map((item) => item.html).join(''),
-		);
-		const transformedHtml = this.injectBeforeClosingTag(
-			withBodyPrependedContent,
-			'body',
-			`${this.buildDependencyTags(body)}${bodyAppend.map((item) => item.html).join('')}`,
-		);
-
-		return new Response(transformedHtml, {
-			headers,
-			status: res.status,
-			statusText: res.statusText,
-		});
+		return rewriter;
 	}
 
 	/**

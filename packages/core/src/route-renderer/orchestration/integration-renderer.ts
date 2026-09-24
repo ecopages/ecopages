@@ -792,7 +792,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
 				const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
-				const transformedResponse = await this.htmlTransformer.transform(
+				const transformedResponse = this.htmlTransformer.transform(
 					response,
 					htmlContributions,
 					resolvedPagePackage,

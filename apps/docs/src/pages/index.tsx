@@ -211,13 +211,13 @@ export default eco.page<{}, JsxRenderable>({
 								},
 								{
 									id: 'home-page',
-									label: 'src/pages/index.tsx',
+									label: '@/pages/index.tsx',
 									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${pageExample}</figure>`,
 									content: pageExampleCode,
 								},
 								{
 									id: 'eco-component',
-									label: 'eco.component.tsx',
+									label: '@/components/counter.tsx',
 									html: `<figure data-rehype-pretty-code-figure class="home-code-block">${componentExample}</figure>`,
 									content: componentExampleCode,
 								},

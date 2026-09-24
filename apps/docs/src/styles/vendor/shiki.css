@@ -34,6 +34,14 @@ figure[data-rehype-pretty-code-figure] pre > code {
 	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
 }
 
+/**
+ * Shiki emits empty `<span class="line"></span>` rows; grid layout collapses them unless
+ * they carry content. `rehype-pretty-code` injects a space; mirror that for direct Shiki HTML.
+ */
+figure[data-rehype-pretty-code-figure] pre > code > .line:empty::before {
+	content: ' ';
+}
+
 figure[data-rehype-pretty-code-figure] pre > code,
 figure[data-rehype-pretty-code-figure] pre > code span {
 	color: var(--shiki-light);

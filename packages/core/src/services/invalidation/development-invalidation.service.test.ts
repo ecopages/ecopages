@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigBuilder } from '../../config/config-builder.js';
 import { Processor } from '../../plugins/processor.js';
 import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
-import { InMemoryDevGraphService, setAppDevGraphService } from '../runtime-state/dev-graph.service.ts';
+import {
+	CounterServerInvalidationState,
+	setAppServerInvalidationState,
+} from '../runtime-state/server-invalidation-state.service.ts';
 import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../module-loading/route-module-build-manifest.ts';
 
 class StylesheetProcessor extends Processor {
@@ -111,10 +114,10 @@ describe('DevelopmentInvalidationService', () => {
 		expect(service.matchesAdditionalWatchPaths('/elsewhere/widget.ts')).toBe(true);
 	});
 
-	it('delegates server invalidation versioning to the app-owned dev graph service', async () => {
+	it('delegates server invalidation versioning to the app-owned invalidation state', async () => {
 		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
-		const devGraphService = new InMemoryDevGraphService();
-		setAppDevGraphService(appConfig, devGraphService);
+		const invalidationState = new CounterServerInvalidationState();
+		setAppServerInvalidationState(appConfig, invalidationState);
 		const invalidateDevelopmentGraph = vi.fn(() => {});
 		appConfig.runtime = {
 			...(appConfig.runtime ?? {}),

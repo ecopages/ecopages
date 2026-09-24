@@ -8,6 +8,7 @@ import { getRequiredBunRuntime } from '../utils/runtime.ts';
 
 type StaticContentServerOptions = {
 	port?: number;
+	hostname?: string;
 };
 
 /**
@@ -29,26 +30,20 @@ export class StaticContentServer {
 		return ['text/javascript', 'text/css'].includes(contentType);
 	}
 
-	private isHtml(contentType: string) {
-		return contentType === 'text/html';
-	}
+	/**
+	 * Serves the generated 404 page when present, or a plain-text fallback.
+	 */
+	private sendNotFoundPage(): Response {
+		const error404TemplatePath = join(this.appConfig.absolutePaths.distDir, '404.html');
 
-	private async sendNotFoundPage() {
-		const error404TemplatePath = `${this.appConfig.absolutePaths.distDir}/404.html`;
-
-		try {
-			fileSystem.exists(error404TemplatePath);
-		} catch {
-			return new Response(STATUS_MESSAGE[404], {
-				status: 404,
-			});
+		if (!fileSystem.exists(error404TemplatePath)) {
+			return new Response(STATUS_MESSAGE[404], { status: 404 });
 		}
 
-		const response = new Response(fileSystem.readFileAsBuffer(error404TemplatePath) as BodyInit, {
+		return new Response(fileSystem.readFileAsBuffer(error404TemplatePath) as BodyInit, {
+			status: 404,
 			headers: { 'Content-Type': 'text/html' },
 		});
-
-		return response;
 	}
 
 	private async serveFromDir({ path, request }: { path: string; request: Request }): Promise<Response> {
@@ -103,15 +98,9 @@ export class StaticContentServer {
 
 		if (reqPath === '/') reqPath = '/index.html';
 
-		const response = this.serveFromDir({
+		return this.serveFromDir({
 			path: reqPath,
 			request,
-		});
-
-		if (response) return response;
-
-		return new Response(STATUS_MESSAGE[404], {
-			status: 404,
 		});
 	}
 
@@ -119,6 +108,7 @@ export class StaticContentServer {
 		this.server = getRequiredBunRuntime().serve({
 			fetch: this.fetch.bind(this),
 			port: this.options.port,
+			hostname: this.options.hostname,
 		});
 	}
 

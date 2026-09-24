@@ -17,17 +17,28 @@ export type ApiRequestPipelineOptions = {
 	schemaValidator: SchemaValidationService;
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
+	/**
+	 * Recognises a client that disconnected mid-request.
+	 *
+	 * @remarks
+	 * Such errors are a normal browser behaviour, not a server fault, so
+	 * {@link ApiRequestPipeline.handleError} answers them with 499 without logging or
+	 * calling `app.onError`. Only the Node adapter supplies it.
+	 */
+	isClientAbort?: (error: unknown) => boolean;
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
 	private readonly schemaValidator: SchemaValidationService;
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
+	private readonly isClientAbort: (error: unknown) => boolean;
 
 	constructor(options: ApiRequestPipelineOptions) {
 		this.schemaValidator = options.schemaValidator;
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
+		this.isClientAbort = options.isClientAbort ?? (() => false);
 	}
 
 	match(
@@ -88,23 +99,46 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 			return await this.runMiddlewareChain(context, routeConfig);
 		} catch (error) {
-			if (error instanceof Response) return error;
-
-			if (errorHandler) {
-				try {
-					if (!context) {
-						context = this.createContext(request, params, serverInstance);
-					}
-					return await errorHandler(error, context);
-				} catch (handlerError) {
-					appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
-				}
-			}
-
-			if (error instanceof HttpError) return error.toResponse();
-			appLogger.error(`[ecopages] Error handling API request: ${error}`);
-			return new Response('Internal Server Error', { status: 500 });
+			return await this.handleError(error, { request, params, serverInstance, errorHandler, context });
 		}
+	}
+
+	/**
+	 * Resolves an error that escaped a handler into a response.
+	 *
+	 * @remarks
+	 * Precedence is a thrown `Response`, then a client abort (499), then the app
+	 * `onError` handler, then `HttpError.toResponse()`, then a logged plain 500.
+	 * Runtime adapters reuse this for errors that escape the whole request
+	 * pipeline so `app.onError` behaves the same on Bun and Node.
+	 */
+	async handleError(
+		error: unknown,
+		options: {
+			request: TRequest;
+			params?: Record<string, string | string[]>;
+			serverInstance: TServer | undefined;
+			errorHandler?: ErrorHandler<TRequest, TServer>;
+			context?: ApiHandlerContext<TRequest, TServer>;
+		},
+	): Promise<Response> {
+		if (error instanceof Response) return error;
+		if (this.isClientAbort(error)) return new Response(null, { status: 499 });
+
+		if (options.errorHandler) {
+			try {
+				const context =
+					options.context ??
+					this.createContext(options.request, options.params ?? {}, options.serverInstance);
+				return await options.errorHandler(error, context);
+			} catch (handlerError) {
+				appLogger.error('[ecopages] Error in custom error handler', handlerError);
+			}
+		}
+
+		if (error instanceof HttpError) return error.toResponse();
+		appLogger.error('[ecopages] Error handling request', error);
+		return new Response('Internal Server Error', { status: 500 });
 	}
 
 	private createContext(

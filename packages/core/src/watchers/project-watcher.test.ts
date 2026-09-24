@@ -7,8 +7,8 @@ import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts'
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { ConfigBuilder } from '../config/config-builder.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
-import { InMemoryDevGraphService, setAppDevGraphService } from '../services/runtime-state/dev-graph.service.ts';
-import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers.ts';
+import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
+import { createMockHmrManager, createMockBridge, installDevRuntimeState } from './project-watcher.test-helpers.ts';
 
 function expectHmrDelegated(hmrManager: IHmrManager, filePath: string): void {
 	expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
@@ -38,7 +38,7 @@ describe('ProjectWatcher', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 		RefreshCallback = vi.fn(async () => {});
@@ -118,7 +118,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 		RefreshCallback = vi.fn(async () => {});
@@ -139,7 +139,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 	test('should only invalidate server modules for route and server source changes', async () => {
 		const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 		const cssFilePath = path.join(Config.absolutePaths.srcDir, 'styles', 'main.css');
-		const serverInvalidationState = Config.runtime?.serverInvalidationState as InMemoryDevGraphService;
+		const serverInvalidationState = getAppServerInvalidationState(Config);
 
 		Config.processors.set('css', {
 			getWatchConfig: vi.fn(() => ({
@@ -554,7 +554,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(Bridge.error).toHaveBeenCalledWith('HMR error');
+			expect(HmrManager.broadcast).toHaveBeenCalledTimes(1);
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'HMR error' });
+			expect(Bridge.error).not.toHaveBeenCalled();
 		});
 
 		test('should continue processing after error', async () => {
@@ -566,7 +568,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(Bridge.error).toHaveBeenCalledWith('Processing failed');
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: 'Processing failed' });
 		});
 	});
 });
@@ -579,7 +581,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 
@@ -680,134 +682,6 @@ describe('ProjectWatcher - Priority Rules', () => {
 	});
 });
 
-describe('ProjectWatcher - Helper Methods', () => {
-	let watcher: ProjectWatcher;
-	let Config: EcoPagesAppConfig;
-
-	beforeEach(async () => {
-		Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
-		watcher = new ProjectWatcher({
-			config: Config as EcoPagesAppConfig,
-			refreshRouterRoutesCallback: vi.fn(async () => {}),
-			hmrManager: createMockHmrManager(),
-			bridge: createMockBridge(),
-			changeDebounceMs: 0,
-		});
-	});
-
-	describe('isPublicDirFile', () => {
-		test('should return true for files in public directory', () => {
-			const publicFile = path.join(Config.absolutePaths.publicDir, 'favicon.ico');
-			const result = (watcher as any).isPublicDirFile(publicFile);
-			expect(result).toBe(true);
-		});
-
-		test('should return false for files outside public directory', () => {
-			const srcFile = path.join(Config.absolutePaths.srcDir, 'app.tsx');
-			const result = (watcher as any).isPublicDirFile(srcFile);
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('matchesAdditionalWatchPaths', () => {
-		test('should match wildcard patterns', () => {
-			Config.additionalWatchPaths = ['**/*.config.ts'];
-			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.config.ts');
-			expect(result).toBe(true);
-		});
-
-		test('should match exact paths', () => {
-			const exactPath = '/test/project/tailwind.config.ts';
-			Config.additionalWatchPaths = [exactPath];
-			const result = (watcher as any).matchesAdditionalWatchPaths(exactPath);
-			expect(result).toBe(true);
-		});
-
-		test('should return false when no patterns match', () => {
-			Config.additionalWatchPaths = ['**/*.config.ts'];
-			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
-			expect(result).toBe(false);
-		});
-
-		test('should return false when additionalWatchPaths is empty', () => {
-			Config.additionalWatchPaths = [];
-			const result = (watcher as any).matchesAdditionalWatchPaths('/test/app.tsx');
-			expect(result).toBe(false);
-		});
-
-		test('should match files inside a watched directory', () => {
-			Config.additionalWatchPaths = ['src/registry'];
-			const nestedFile = path.join(Config.absolutePaths.srcDir, 'registry', 'widget.ts');
-			const result = (watcher as any).matchesAdditionalWatchPaths(nestedFile);
-			expect(result).toBe(true);
-		});
-	});
-
-	describe('isIncludeSourceFile', () => {
-		test('should return true for files in includes directory', () => {
-			const includeFile = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
-			const result = (watcher as any).isIncludeSourceFile(includeFile);
-			expect(result).toBe(true);
-		});
-
-		test('should return false for files outside includes directory', () => {
-			const srcFile = path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx');
-			const result = (watcher as any).isIncludeSourceFile(srcFile);
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('isHandledByProcessor', () => {
-		test('should return true when file matches processor asset capabilities', () => {
-			const Processor = {
-				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
-				canProcessAsset: vi.fn((_kind: string, filePath: string) => filePath.endsWith('.css')),
-			};
-			Config.processors.set('css', Processor as any);
-
-			const result = (watcher as any).isHandledByProcessor('/test/styles/main.css');
-			expect(result).toBe(true);
-		});
-
-		test('should return false when watch extensions do not imply ownership', () => {
-			const Processor = {
-				getAssetCapabilities: vi.fn(() => []),
-				getWatchConfig: vi.fn(() => ({
-					paths: ['/test/project/src'],
-					extensions: ['.css'],
-				})),
-			};
-			Config.processors.set('css', Processor as any);
-
-			const result = (watcher as any).isHandledByProcessor('/test/styles/main.css');
-			expect(result).toBe(false);
-		});
-
-		test('should return false when no processor owns the file', () => {
-			const Processor = {
-				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
-				canProcessAsset: vi.fn((_kind: string, filePath: string) => filePath.endsWith('.css')),
-			};
-			Config.processors.set('css', Processor as any);
-
-			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
-			expect(result).toBe(false);
-		});
-
-		test('should handle processor without asset capabilities', () => {
-			const Processor = {
-				getAssetCapabilities: vi.fn(() => []),
-				getWatchConfig: vi.fn(() => null),
-			};
-			Config.processors.set('no-capabilities', Processor as any);
-
-			const result = (watcher as any).isHandledByProcessor('/test/app.tsx');
-			expect(result).toBe(false);
-		});
-	});
-});
-
 describe('ProjectWatcher - Watch Subscriptions', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -815,7 +689,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 	test('should watch includes and src directories alongside processor paths', async () => {
 		const Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
 			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir].includes(String(targetPath)),
 		);
@@ -858,7 +732,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 	test('watches every supported dotenv path before the files exist', async () => {
 		const Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		const watcherHandle = {
 			add: vi.fn(),
 			on: vi.fn().mockReturnThis(),
@@ -889,7 +763,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {
 		const Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		vi.spyOn(fileSystem, 'exists').mockImplementation(
 			(targetPath) => String(targetPath) === Config.absolutePaths.srcDir,
 		);
@@ -923,7 +797,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 	test('should attach chokidar handlers only once when watcher subscription is requested twice', async () => {
 		const Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		const HmrManager = createMockHmrManager();
 		const Bridge = createMockBridge();
 		const watcherHandle = {
@@ -951,7 +825,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 	test('should refresh routes once for added page files', async () => {
 		const Config = await createMockConfig();
-		setAppDevGraphService(Config, new InMemoryDevGraphService());
+		installDevRuntimeState(Config);
 		const HmrManager = createMockHmrManager();
 		const Bridge = createMockBridge();
 		const eventHandlers = new Map<string, (path: string) => void>();

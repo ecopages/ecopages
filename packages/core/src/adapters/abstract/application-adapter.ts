@@ -31,7 +31,6 @@ import type {
 } from '../../types/public-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import { ERROR_PAGE_KIND_BY_STATUS, type HttpErrorPageStatus } from '../../errors/http-error-page-contract.ts';
-import { fileSystem } from '@ecopages/file-system';
 import {
 	formatRuntimeServerStartedMessage,
 	type EcopagesRuntimeLabel,
@@ -86,18 +85,6 @@ export interface AppStartInfo {
 
 export type OnAppStartCallback = (info: AppStartInfo) => void;
 
-/** @deprecated Use {@link AppStartInfo}. */
-export type ApplicationListeningInfo = AppStartInfo;
-
-/** @deprecated Use {@link OnAppStartCallback}. */
-export type StartCallback = OnAppStartCallback;
-
-/** @deprecated Use {@link OnAppStartCallback}. */
-export type ListenCallback = OnAppStartCallback;
-
-/** @deprecated Use {@link OnAppStartCallback}. */
-export type ApplicationListeningCallback = OnAppStartCallback;
-
 /**
  * Configuration options for application adapters
  */
@@ -105,11 +92,6 @@ export interface ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
 	runtime?: ApplicationRuntimeOptions;
-	/**
-	 * Options for clearing the output directory before starting the server
-	 * @default false
-	 */
-	clearOutput?: boolean;
 }
 
 /**
@@ -185,26 +167,6 @@ export abstract class AbstractApplicationAdapter<
 		getAppModuleLoader(this.appConfig);
 
 		startupTrace.markConfigReady();
-
-		if (options.clearOutput) {
-			this.clearDistFolder().catch((error) => {
-				appLogger.error('Error clearing dist folder', error as Error);
-			});
-		}
-	}
-
-	private async clearDistFolder(): Promise<void> {
-		const distPath = this.appConfig.absolutePaths.distDir;
-		const distExists = fileSystem.exists(distPath);
-
-		if (!distExists) return;
-
-		try {
-			await fileSystem.removeAsync(distPath);
-			appLogger.debug(`Cleared dist folder: ${distPath}`);
-		} catch (error) {
-			appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);
-		}
 	}
 
 	/**
@@ -371,13 +333,6 @@ export abstract class AbstractApplicationAdapter<
 	abstract group(group: RouteGroupDefinition<TRequest, TServer>): this;
 
 	/**
-	 * Get all registered API handlers
-	 */
-	getApiHandlers(): ApiHandler[] {
-		return this.apiHandlers;
-	}
-
-	/**
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
 	 *
@@ -402,13 +357,6 @@ export abstract class AbstractApplicationAdapter<
 		return typeof loader === 'string' || loader instanceof URL
 			? createViewModuleLoader<P>(this.appConfig, loader)
 			: loader;
-	}
-
-	/**
-	 * Get all registered static routes
-	 */
-	getStaticRoutes(): StaticRoute[] {
-		return this.staticRoutes;
 	}
 
 	/**
@@ -524,17 +472,14 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	/**
-	 * Get the registered WebSocket handlers map.
-	 *
-	 * @returns The map of WebSocket route patterns to handlers
-	 */
-	getWebsocketHandlers(): Map<string, EcopagesWebSocketHandler<any, any>> {
-		return this.websocketHandlers;
-	}
-
-	/**
 	 * Register a global error handler for all routes.
 	 * Useful for logging, monitoring integration, and custom error formatting.
+	 *
+	 * @remarks
+	 * It receives errors thrown by API handlers and their middleware, and errors
+	 * that escape the request pipeline. Page render failures render the error
+	 * page instead and do not reach it. Client disconnects answer 499 without
+	 * calling it.
 	 *
 	 * @example
 	 * ```typescript
@@ -547,13 +492,6 @@ export abstract class AbstractApplicationAdapter<
 	onError(handler: ErrorHandler<TRequest, TServer>): this {
 		this.errorHandler = handler as unknown as ErrorHandler;
 		return this;
-	}
-
-	/**
-	 * Get the registered error handler
-	 */
-	getErrorHandler(): ErrorHandler | undefined {
-		return this.errorHandler;
 	}
 
 	/**

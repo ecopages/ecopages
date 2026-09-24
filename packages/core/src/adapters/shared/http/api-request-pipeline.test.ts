@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import type { ApiHandler, RenderContext } from '../../../types/public-types.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 import { ApiRequestPipeline } from './api-request-pipeline.ts';
+
+class ClientAbort extends Error {}
 
 function createPipeline() {
 	return new ApiRequestPipeline({
@@ -12,7 +15,20 @@ function createPipeline() {
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
+		isClientAbort: (error) => error instanceof ClientAbort,
 	});
+}
+
+function throwingHandler(error: unknown): ApiHandler[] {
+	return [
+		{
+			path: '/api/fail',
+			method: 'POST',
+			handler: () => {
+				throw error;
+			},
+		},
+	];
 }
 
 describe('ApiRequestPipeline', () => {
@@ -118,5 +134,37 @@ describe('ApiRequestPipeline', () => {
 
 		expect(await response!.text()).toBe('done');
 		expect(order).toEqual(['middleware', 'handler']);
+	});
+
+	it('answers client aborts with 499 without logging or calling onError', async () => {
+		const errorHandler = vi.fn(async () => new Response('handled', { status: 418 }));
+		const loggerSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/fail', { method: 'POST' }),
+			throwingHandler(new ClientAbort()),
+			undefined,
+			errorHandler,
+		);
+
+		expect(response?.status).toBe(499);
+		expect(errorHandler).not.toHaveBeenCalled();
+		expect(loggerSpy).not.toHaveBeenCalled();
+		loggerSpy.mockRestore();
+	});
+
+	it('logs unhandled errors with the Error object so the stack is kept', async () => {
+		const error = new Error('boom');
+		const loggerSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/fail', { method: 'POST' }),
+			throwingHandler(error),
+			undefined,
+		);
+
+		expect(response?.status).toBe(500);
+		expect(loggerSpy).toHaveBeenCalledWith('[ecopages] Error handling request', error);
+		loggerSpy.mockRestore();
 	});
 });

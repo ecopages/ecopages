@@ -19,8 +19,8 @@ It is responsible for:
 ## Main Files
 
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
-- `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder`
-- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`)
+- `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder` (omitted `rootDir` defaults to `cwd`; `baseUrl` defaults during `ConfigBuilder.build()`)
+- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
 - `apply-user-config.ts`: maps declarative `EcoPagesUserConfig` fields onto `ConfigBuilder`
 - `is-finalized-app-config.ts`: detects leftover `ConfigBuilder.build()` exports so `loadEcoPagesConfig()` can reuse them
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
@@ -47,5 +47,5 @@ That built config is then consumed by server adapters, static generation, route 
 
 - Production apps call `createApp()` (loads `eco.config.ts`) or pass `appConfig`, `userConfig`, or `configFile` explicitly.
 - In development (`--dev`), adding, changing, or removing the resolved `eco.config` module or a supported project `.env` file triggers a supervised process restart (not in-process reload). The CLI re-merges dotenv files on respawn.
-- `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached.
+- `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached (by config path, build ownership, and cwd).
 - Core fixture helpers live in `packages/core/__fixtures__/app/test-app-config.ts` (`createFixtureAppConfig`, `createFixtureApp`).

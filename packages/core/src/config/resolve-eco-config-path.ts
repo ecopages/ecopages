@@ -7,6 +7,18 @@ export const DEFAULT_ECO_CONFIG_FILENAME = 'eco.config.ts';
 
 export const ECOPAGES_CONFIG_FILE_ENV = 'ECOPAGES_CONFIG_FILE';
 
+/**
+ * Resolves the project root used when `EcoPagesUserConfig.rootDir` is omitted.
+ *
+ * @remarks
+ * Defaults to `cwd` so source configs, in-memory `createApp({ userConfig })`,
+ * and production loads of `dist/.server/eco.config.mjs` share one rule.
+ * `path.resolve` keeps an explicit absolute `rootDir` unchanged.
+ */
+export function resolveUserConfigRootDir(rootDir?: string, cwd = process.cwd()): string {
+	return path.resolve(cwd, rootDir ?? '.');
+}
+
 export type ResolveEcoConfigPathOptions = {
 	configFile?: string;
 	cwd?: string;

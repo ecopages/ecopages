@@ -5,7 +5,6 @@ import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v
 import { reactPlugin } from '@ecopages/react';
 
 export default defineConfig({
-	rootDir: import.meta.dirname,
 	baseUrl: process.env.ECOPAGES_BASE_URL ?? '/',
 	integrations: [reactPlugin()],
 	processors: [

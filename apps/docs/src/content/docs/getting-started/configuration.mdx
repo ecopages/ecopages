@@ -17,8 +17,6 @@ import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
 export default defineConfig({
-	rootDir: process.cwd(),
-	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
 	integrations: [ecopagesJsxPlugin()],
 	defaultMetadata: {
 		title: 'Your Site Title',
@@ -34,12 +32,12 @@ In development, adding, changing, or removing `eco.config.ts` or a supported pro
 
 ## Configuration API
 
-<ApiField name="rootDir" mandatory defaultValue="." type="string" setter="setRootDir">
+<ApiField name="rootDir" defaultValue="process.cwd()" type="string" setter="setRootDir">
 	The root directory of your project, used to resolve paths to your project files.
 </ApiField>
 
-<ApiField name="baseUrl" mandatory type="string" setter="setBaseUrl">
-	The base URL of your project, used for generating absolute URLs for your pages.
+<ApiField name="baseUrl" defaultValue="http://localhost:3000" type="string" setter="setBaseUrl">
+	The base URL of your project, used for generating absolute URLs for your pages. `ECOPAGES_BASE_URL` overrides the default when `baseUrl` is omitted.
 </ApiField>
 
 <ApiField

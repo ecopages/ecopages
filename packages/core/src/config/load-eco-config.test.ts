@@ -9,7 +9,7 @@ import {
 	loadEcoPagesConfig,
 	loadEcoPagesUserConfig,
 } from './load-eco-config.ts';
-import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV } from './resolve-eco-config-path.ts';
+import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 
 describe('defineConfig', () => {
 	it('returns the same object synchronously', () => {
@@ -66,6 +66,16 @@ describe('resolveEcoConfigPath', () => {
 	});
 });
 
+describe('resolveUserConfigRootDir', () => {
+	it('defaults omitted rootDir to cwd', () => {
+		expect(resolveUserConfigRootDir(undefined, '/project')).toBe('/project');
+	});
+
+	it('resolves a relative rootDir against cwd', () => {
+		expect(resolveUserConfigRootDir('apps/docs', '/repo')).toBe(path.join('/repo', 'apps/docs'));
+	});
+});
+
 describe('loadEcoPagesConfig', () => {
 	let tempDir: string;
 	const originalEnv = process.env[ECOPAGES_CONFIG_FILE_ENV];
@@ -93,6 +103,51 @@ describe('loadEcoPagesConfig', () => {
 		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
 		expect(appConfig.absolutePaths.config).toBe(configPath);
 		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
+	it('defaults omitted rootDir to the loader cwd', async () => {
+		const configDir = path.join(tempDir, 'config');
+		const configPath = path.join(configDir, 'eco.config.ts');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.writeFileSync(configPath, 'export default {};');
+
+		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
+	it('defaults omitted rootDir from cwd when loading an emitted config', async () => {
+		const configDir = path.join(tempDir, 'dist', '.server');
+		const configPath = path.join(configDir, 'eco.config.mjs');
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.writeFileSync(configPath, 'export default {};\n');
+
+		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
+	it('rejects an invalid rootDir value when provided', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(configPath, 'export default { rootDir: 42 };');
+
+		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
+			/must set rootDir to a non-empty string/,
+		);
+	});
+
+	it('caches omitted-root configs separately per loader cwd', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		const cwdA = path.join(tempDir, 'a');
+		const cwdB = path.join(tempDir, 'b');
+		fs.mkdirSync(cwdA);
+		fs.mkdirSync(cwdB);
+		fs.writeFileSync(configPath, 'export default {};');
+
+		const configA = await loadEcoPagesConfig({ cwd: cwdA, configFile: configPath });
+		const configB = await loadEcoPagesConfig({ cwd: cwdB, configFile: configPath });
+
+		expect(configA.rootDir).toBe(cwdA);
+		expect(configB.rootDir).toBe(cwdB);
+		expect(configA).not.toBe(configB);
 	});
 
 	it('coalesces and caches loadEcoPagesConfig by config module path', async () => {

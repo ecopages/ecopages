@@ -52,7 +52,7 @@ Supported overrides:
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
 - `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` for an intentionally integration-free config
-- `rootDir` / `workDir`: project paths on the user config (same fields as `defineConfig`)
+- `rootDir` / `workDir`: project paths on the user config (same fields as `defineConfig`); omitted `rootDir` resolves from the current working directory
 - `configure(userConfig)`: narrow escape hatch to adjust the user config before finalization
 
 Example:

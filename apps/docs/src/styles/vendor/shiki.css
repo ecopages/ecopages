@@ -34,6 +34,10 @@ figure[data-rehype-pretty-code-figure] pre > code {
 	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
 }
 
+figure[data-rehype-pretty-code-figure] pre > code > .line {
+	min-height: 1lh;
+}
+
 figure[data-rehype-pretty-code-figure] pre > code,
 figure[data-rehype-pretty-code-figure] pre > code span {
 	color: var(--shiki-light);

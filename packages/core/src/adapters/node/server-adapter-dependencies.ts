@@ -11,22 +11,13 @@ export interface NodeServerDevRuntime {
 	hmrManager: NodeHmrManager;
 }
 
-export interface NodeServerDevRuntimeFactory {
-	create(options: { appConfig: EcoPagesAppConfig }): NodeServerDevRuntime;
-}
+/** Creates the dev WebSocket server, client bridge and HMR manager, and registers them for `appConfig`. */
+export function createNodeServerDevRuntime(appConfig: EcoPagesAppConfig): NodeServerDevRuntime {
+	const websocketServer = new WebSocketServer({ noServer: true });
+	const bridge = new NodeClientBridge();
+	const hmrManager = new NodeHmrManager({ appConfig, bridge });
+	setAppDevClientBridge(appConfig, bridge);
+	setAppHmrManager(appConfig, hmrManager);
 
-export class DefaultNodeServerDevRuntimeFactory implements NodeServerDevRuntimeFactory {
-	public create(options: { appConfig: EcoPagesAppConfig }): NodeServerDevRuntime {
-		const websocketServer = new WebSocketServer({ noServer: true });
-		const bridge = new NodeClientBridge();
-		const hmrManager = new NodeHmrManager({ appConfig: options.appConfig, bridge });
-		setAppDevClientBridge(options.appConfig, bridge);
-		setAppHmrManager(options.appConfig, hmrManager);
-
-		return {
-			websocketServer,
-			bridge,
-			hmrManager,
-		};
-	}
+	return { websocketServer, bridge, hmrManager };
 }

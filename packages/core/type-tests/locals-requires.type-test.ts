@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core/eco';
+import { eco } from '@ecopages/core';
 import type { FileRouteMiddlewareContext } from '@ecopages/core';
 
 declare module '@ecopages/core' {

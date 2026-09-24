@@ -25,11 +25,6 @@ export interface HmrManagerParams {
  * own explicit registration path.
  */
 export class HmrManager extends SharedHmrManager {
-	private wsHandler!: {
-		open: (ws: BunSocket) => void;
-		close: (ws: BunSocket) => void;
-	};
-
 	/**
 	 * Creates the Bun HMR manager around the shared HMR orchestration pipeline.
 	 *
@@ -75,11 +70,9 @@ export class HmrManager extends SharedHmrManager {
 			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${bridge.subscriberCount}`);
 		};
 
-		this.wsHandler = { open, close };
-
 		return {
-			open: this.wsHandler.open,
-			close: this.wsHandler.close,
+			open,
+			close,
 			message: (_ws, message) => {
 				appLogger.debug('[HMR] Received message from client:', message);
 			},

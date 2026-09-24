@@ -6,7 +6,6 @@ import {
 	ROUTE_MODULE_BUILD_CACHE_FILENAME,
 	createEmptyRouteModuleBuildCacheManifest,
 	createPersistedRouteModuleBuildKey,
-	getCorePackageVersion,
 	normalizeRouteModuleCachePath,
 	readRouteModuleBuildCacheManifest,
 	shouldPersistRouteModuleBuildCache,
@@ -15,6 +14,7 @@ import {
 	type RouteModuleBuildCacheManifest,
 	type RouteModuleStaticRenderCacheContext,
 } from './route-module-build-manifest.ts';
+import { getCorePackageVersion } from '../../build/cache/cache-keys.ts';
 import {
 	isProductionCacheManifestCurrent,
 	matchesProductionCacheFingerprint,

@@ -5,14 +5,13 @@ import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
 	ROUTE_MODULE_BUILD_CACHE_FILENAME,
-	RouteModuleBuildCache,
 	type RouteModuleBuildCacheManifest,
 	createPersistedRouteModuleBuildKey,
-	createPluginCacheKey,
-	hashPluginSetup,
 	resolvePageModuleOutputFileName,
 	shouldPersistRouteModuleBuildCache,
-} from './route-module-build-cache.ts';
+} from './route-module-build-manifest.ts';
+import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
+import { createPluginCacheKey, hashFunctionIdentity } from '../../build/cache/cache-keys.ts';
 import {
 	clearProductionBuildCaches,
 	shouldResetStaticExportDirectory,
@@ -298,7 +297,7 @@ describe('RouteModuleBuildCache', () => {
 
 		assert.notEqual(keyA, keyB);
 		assert.notEqual(createPluginCacheKey([pluginA]), createPluginCacheKey([pluginB]));
-		assert.notEqual(hashPluginSetup(pluginA.setup), hashPluginSetup(pluginB.setup));
+		assert.notEqual(hashFunctionIdentity(pluginA.setup), hashFunctionIdentity(pluginB.setup));
 	});
 
 	it('prunes rendered outputs that are no longer part of the active route set', () => {

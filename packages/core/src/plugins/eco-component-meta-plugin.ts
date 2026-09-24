@@ -3,7 +3,7 @@ import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
 import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import { cachedParseSync } from '../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
 
@@ -137,7 +137,7 @@ export function attributeComponentIdentity(
 
 	let program: AstNode;
 	try {
-		program = cachedParseSync(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
+		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
 		return contents;
 	}
@@ -170,7 +170,7 @@ export function attributeComponentIdentity(
 	}
 	return addIdentityBindingImport(
 		transformed,
-		cachedParseSync(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
+		parseModuleSource(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
 	);
 }
 
@@ -244,7 +244,7 @@ export function attributeMdxComponentIdentity(
 
 	let program: AstNode;
 	try {
-		program = cachedParseSync(filePath, contents, { lang: 'jsx', sourceType: 'module' })
+		program = parseModuleSource(filePath, contents, { lang: 'jsx', sourceType: 'module' })
 			.program as unknown as AstNode;
 	} catch {
 		return contents;
@@ -277,7 +277,7 @@ export function attributeMdxComponentIdentity(
 
 	return addNamedImport(
 		transformed,
-		cachedParseSync(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
+		parseModuleSource(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
 		'@ecopages/core',
 		['bindComponentIdentity', 'attachDiscoveredDependencies'],
 	);

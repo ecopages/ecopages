@@ -40,21 +40,11 @@ export interface BuildResult {
  *
  * @remarks
  * Fields that the adapter can forward are honored. `splitting: false` disables
- * Rolldown code splitting for single-entrypoint builds. `bundle` and `outbase`
- * are accepted for call-site compatibility but ignored.
+ * Rolldown code splitting for single-entrypoint builds.
  */
 export interface BuildOptions {
 	entrypoints: string[] | Record<string, string>;
 	outdir?: string;
-	/**
-	 * Base directory for `[dir]` placeholders in `naming`. Currently
-	 * the bundled adapter derives the base from `root` directly and
-	 * ignores this field.
-	 *
-	 * @deprecated Accepted for call-site compatibility only. Use record-form
-	 * `entrypoints` keys to preserve directory structure.
-	 */
-	outbase?: string;
 	naming?: string;
 	conditions?: string[];
 	define?: Record<string, string>;
@@ -66,8 +56,6 @@ export interface BuildOptions {
 	/** When `false` with a single entrypoint, inlines dynamic imports into one output file. */
 	splitting?: boolean;
 	root?: string;
-	/** @deprecated Accepted for call-site compatibility only. */
-	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
 	jsx?: {

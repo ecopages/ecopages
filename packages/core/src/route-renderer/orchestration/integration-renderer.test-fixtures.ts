@@ -243,7 +243,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		this.ForeignChildRuntimeCreationCount += 1;
 
 		if (this.UseFailFastForeignChildRuntime) {
-			return this.createFailFastForeignChildRuntime();
+			return this.foreignSubtreeExecutionService.createFailFastRuntime(this.name);
 		}
 
 		return super.createForeignChildRuntime(options);

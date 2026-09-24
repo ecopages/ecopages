@@ -38,7 +38,7 @@ describe('kitchen-sink graph lifecycle regression contract', () => {
 		);
 
 		const preparation = prepareHmrFileChange(appConfig, routeFile);
-		expect(preparation.invalidatedGraphCount).toBeGreaterThan(0);
 		expect(preparation.affectedGraphIdentities.some((identity) => identity.routeFile === routeFile)).toBe(true);
+		expect(session.getAffectedGraphIdentities(routeFile)).toEqual([]);
 	});
 });

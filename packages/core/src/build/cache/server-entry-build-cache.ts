@@ -19,9 +19,8 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
 
-import { SERVER_ENTRY_BUILD_CACHE_FILENAME } from './cache-constants.ts';
+import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from './cache-constants.ts';
 
-export { SERVER_ENTRY_BUILD_CACHE_FILENAME } from './cache-constants.ts';
 export const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 
 export interface ServerBundleDeployManifest {
@@ -62,7 +61,7 @@ function getServerEntryCacheDir(appConfig: EcoPagesAppConfig): string {
 }
 
 function getServerEntryCacheManifestPath(appConfig: EcoPagesAppConfig): string {
-	return path.join(getServerEntryCacheDir(appConfig), SERVER_ENTRY_BUILD_CACHE_FILENAME);
+	return path.join(getServerEntryCacheDir(appConfig), ROUTE_MODULE_BUILD_CACHE_FILENAME);
 }
 
 function hashDependencyGraph(
@@ -125,7 +124,7 @@ function writeServerEntryBuildCacheManifest(
 	manifest: ServerEntryBuildCacheManifest,
 ): void {
 	writeProductionCacheManifest(
-		path.join(getServerEntryCacheDir(appConfig), SERVER_ENTRY_BUILD_CACHE_FILENAME),
+		path.join(getServerEntryCacheDir(appConfig), ROUTE_MODULE_BUILD_CACHE_FILENAME),
 		manifest,
 	);
 }

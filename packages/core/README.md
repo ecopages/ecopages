@@ -278,12 +278,6 @@ import { defineApiHandler, defineGet, defineGroupHandler, eco } from '@ecopages/
 > [!NOTE]
 > Use `createApp()` from `@ecopages/core/create-app` as the application entrypoint.
 
-### Runtime Escape Hatches
-
-Use runtime-specific subpaths only when you explicitly need Bun-native APIs that bypass the universal abstractions:
-
-- `@ecopages/core/bun`
-
 ## Entry Point Roles
 
 The published subpaths are grouped by architectural role rather than by source folder.
@@ -299,7 +293,6 @@ Use these entrypoints when building an Ecopages app:
 - `@ecopages/core/hash`
 - `@ecopages/core/declarations`
 - `@ecopages/core/env`
-- `@ecopages/core/bun`
 
 ### Browser Navigation
 
@@ -326,7 +319,5 @@ Use these entrypoints only when implementing host adapters or framework-owned bu
 
 - `@ecopages/core/dev/host-runtime`
 - `@ecopages/core/build/build-adapter`
-- `@ecopages/core/build/build-types`
-- `@ecopages/core/plugins/foreign-jsx-override-plugin`
 
 These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.

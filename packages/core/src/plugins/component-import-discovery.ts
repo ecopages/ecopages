@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { cachedParseSync } from '../cache/module-parse-cache.ts';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import {
 	loadTsconfigPathPrefixes,
 	matchesTsconfigPathPrefix,
@@ -117,7 +117,7 @@ function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>)
 	if (cached) return cached;
 
 	const source = readFileSync(file, 'utf8');
-	const parsed = cachedParseSync(file, source, { sourceType: 'module' });
+	const parsed = parseModuleSource(file, source, { sourceType: 'module' });
 	const body = nodes(parsed.program.body);
 	const { declared, factories } = collectDeclaredFactoryBindings(body);
 	const namedReexports = new Map<string, { source: string; imported: string }>();

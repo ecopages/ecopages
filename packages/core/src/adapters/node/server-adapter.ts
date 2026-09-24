@@ -36,7 +36,7 @@ import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstr
 import { isNodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
-import { DefaultNodeServerDevRuntimeFactory, type NodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
+import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -62,7 +62,6 @@ export interface NodeServerAdapterParams {
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	previewHost?: StaticPreviewHost;
-	devRuntimeFactory?: NodeServerDevRuntimeFactory;
 }
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
@@ -108,7 +107,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly previewHost: StaticPreviewHost;
-	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
 	/**
 	 * Reference to the application-level WebSocket handlers map.
 	 *
@@ -135,17 +133,15 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 	/**
 	 * @remarks
-	 * `previewHost` and `devRuntimeFactory` are optional on the public
-	 * {@link NodeServerAdapterParams} so factory callers can omit them, but they
-	 * are mandatory by the time the concrete adapter is constructed —
-	 * {@link createNodeServerAdapter} fills in Node-specific defaults first. The
-	 * constructor signature makes that invariant explicit instead of relying on
-	 * non-null assertions.
+	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
+	 * factory callers can omit it, but it is mandatory by the time the concrete
+	 * adapter is constructed — {@link createNodeServerAdapter} fills in the Node
+	 * default first. The constructor signature makes that invariant explicit
+	 * instead of relying on non-null assertions.
 	 */
 	constructor(
 		options: NodeServerAdapterParams & {
 			previewHost: StaticPreviewHost;
-			devRuntimeFactory: NodeServerDevRuntimeFactory;
 		},
 	) {
 		super(options);
@@ -157,7 +153,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
 		this.previewHost = options.previewHost;
-		this.devRuntimeFactory = options.devRuntimeFactory;
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
@@ -370,7 +365,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		const passthroughUnmatched = options?.passthroughUnmatched;
 
 		if (this.options?.watch) {
-			const devRuntime = this.devRuntimeFactory.create({ appConfig: this.appConfig });
+			const devRuntime = createNodeServerDevRuntime(this.appConfig);
 			const wss = devRuntime.websocketServer;
 			this.bridge = devRuntime.bridge;
 			this.hmrManager = devRuntime.hmrManager;
@@ -453,13 +448,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
 	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
 	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
-	const devRuntimeFactory = params.devRuntimeFactory ?? new DefaultNodeServerDevRuntimeFactory();
 
 	const adapter = new NodeServerAdapter({
 		...params,
 		runtimeOrigin,
 		previewHost,
-		devRuntimeFactory,
 	});
 
 	return adapter.createAdapter();

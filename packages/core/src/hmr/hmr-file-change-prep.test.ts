@@ -42,6 +42,6 @@ describe('prepareHmrFileChange', () => {
 				entryFingerprint: 'index',
 			},
 		]);
-		expect(preparation.invalidatedGraphCount).toBe(1);
+		expect(session.getAffectedGraphIdentities(sharedLayout)).toEqual([]);
 	});
 });

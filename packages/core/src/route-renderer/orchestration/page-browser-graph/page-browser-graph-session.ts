@@ -651,8 +651,8 @@ export function getAppPageBrowserGraphSession(appConfig: EcoPagesAppConfig): Ses
 /**
  * Invalidates graph records that depend on the changed file path.
  */
-export function invalidatePageBrowserGraphSession(appConfig: EcoPagesAppConfig, filePath: string): number {
-	return getAppPageBrowserGraphSession(appConfig).invalidateByFilePath(filePath);
+export function invalidatePageBrowserGraphSession(appConfig: EcoPagesAppConfig, filePath: string): void {
+	getAppPageBrowserGraphSession(appConfig).invalidateByFilePath(filePath);
 }
 
 /**

@@ -16,11 +16,6 @@ export function getServerModuleBuildCacheOutdir(appConfig: EcoPagesAppConfig): s
 	return path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
 }
 
-/**
- * @deprecated Use {@link getServerModuleBuildCacheOutdir}.
- */
-export const getRouteModuleBuildCacheOutdir = getServerModuleBuildCacheOutdir;
-
 function getRouteModuleBuildCacheMap(appConfig: EcoPagesAppConfig): Map<string, RouteModuleBuildCache> {
 	const existing = appConfig.runtime?.routeModuleBuildCaches;
 	if (existing) {

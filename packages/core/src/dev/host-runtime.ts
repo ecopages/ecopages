@@ -13,7 +13,6 @@ export interface DevelopmentHostRuntime {
 	registerHostModuleLoader(loader: HostRuntimeModuleLoader): void;
 	planFileChange(filePath: string): DevelopmentInvalidationPlan;
 	invalidateServerModules(changedFiles?: string[]): void;
-	resetRuntimeState(changedFiles?: string[]): void;
 	broadcastClientEvent(event: ClientBridgeEvent): void;
 	isServerRenderedTemplatePlan(plan: DevelopmentInvalidationPlan): boolean;
 }
@@ -30,9 +29,6 @@ export function createDevelopmentHostRuntime(appConfig: EcoPagesAppConfig): Deve
 		},
 		invalidateServerModules(changedFiles) {
 			invalidationService.invalidateServerModules(changedFiles);
-		},
-		resetRuntimeState(changedFiles) {
-			invalidationService.resetRuntimeState(changedFiles);
 		},
 		broadcastClientEvent(event) {
 			getAppDevClientBridge(appConfig)?.broadcast(event);

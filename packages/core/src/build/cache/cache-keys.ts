@@ -81,6 +81,3 @@ export function hashFunctionIdentity(fn: (...args: never[]) => unknown): string 
 
 	return (hash >>> 0).toString(36);
 }
-
-/** @deprecated Use {@link hashFunctionIdentity}. */
-export const hashPluginSetup = hashFunctionIdentity;

@@ -47,8 +47,6 @@ describe('runtime app bootstrap', () => {
 			} as NodeJS.ProcessEnv,
 		});
 
-		assert.equal(binding.preferredPort, 4321);
-		assert.equal(binding.preferredHostname, '127.0.0.1');
 		assert.equal(binding.allowPortFallback, false);
 		assert.equal(binding.runtimeOrigin, 'http://127.0.0.1:4321');
 		assert.deepEqual(binding.serveOptions, {
@@ -75,7 +73,7 @@ describe('runtime app bootstrap', () => {
 			env: {} as NodeJS.ProcessEnv,
 		});
 
-		assert.equal(binding.preferredPort, 3000);
+		assert.equal(binding.serveOptions.port, 3000);
 		assert.equal(binding.allowPortFallback, true);
 	});
 
@@ -97,7 +95,7 @@ describe('runtime app bootstrap', () => {
 			} as NodeJS.ProcessEnv,
 		});
 
-		assert.equal(binding.preferredPort, 3000);
+		assert.equal(binding.serveOptions.port, 3000);
 		assert.equal(binding.allowPortFallback, false);
 	});
 });

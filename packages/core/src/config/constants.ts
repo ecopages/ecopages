@@ -16,11 +16,6 @@ export const STATUS_MESSAGE = {
 };
 
 /**
- *Variables used to determine if the app is running on Bun
- */
-export const IS_BUN = typeof Bun !== 'undefined';
-
-/**
  * Directory used for storing assets.
  */
 export const RESOLVED_ASSETS_DIR = 'assets';

@@ -35,7 +35,7 @@
  * registry as well.
  */
 
-import { rapidhash } from '@ecopages/core/utils/hash';
+import { rapidhash } from '@ecopages/core/hash';
 
 const DEFAULT_MAX_ENTRIES = 5_000;
 

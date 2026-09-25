@@ -7,7 +7,7 @@ import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 export default defineConfig({
-	integrations: [reactPlugin({ router: ecoRouter(), mdx: { enabled: true }, explicitGraph: true })],
+	integrations: [reactPlugin({ router: ecoRouter(), mdx: { enabled: true } })],
 	processors: [
 		imageProcessorPlugin({
 			options: {

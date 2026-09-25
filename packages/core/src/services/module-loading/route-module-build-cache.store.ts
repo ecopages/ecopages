@@ -84,7 +84,7 @@ export class RouteModuleBuildCache {
 		if (!this.dependencies.exists(outputPath)) {
 			return undefined;
 		}
-		if (entry.outputImports?.some((importPath) => !this.dependencies.exists(importPath))) {
+		if (!entry.outputImports?.every((importPath) => this.dependencies.exists(importPath))) {
 			return undefined;
 		}
 

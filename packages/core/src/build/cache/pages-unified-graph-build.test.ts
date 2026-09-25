@@ -9,8 +9,10 @@ import { createAppModuleLoader } from '../../services/module-loading/app-server-
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
 import {
 	ensurePagesUnifiedGraphBuilt,
+	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphEnabled,
 	isPagesUnifiedGraphPage,
+	PAGES_UNIFIED_GRAPH_CACHE_DIR,
 	PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
 	shouldBuildPagesUnifiedGraph,
 } from './pages-unified-graph-build.ts';
@@ -167,6 +169,33 @@ describe('pages-unified-graph-build', () => {
 		}
 
 		assert.equal(getPageModuleRolldownBuildInvocations(), 0);
+	});
+
+	it('does not import graph modules from a stale or incomplete manifest', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+		const entryPath = path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts');
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths: [entryPath], outdir, force: true });
+		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPath));
+
+		const manifestPath = path.join(
+			resolveInternalExecutionDir(appConfig),
+			PAGES_UNIFIED_GRAPH_CACHE_DIR,
+			PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
+		);
+		const manifest = JSON.parse(fileSystem.readFileSync(manifestPath));
+		const rewrite = (overrides: Record<string, unknown>) =>
+			fileSystem.write(manifestPath, JSON.stringify({ ...manifest, ...overrides }));
+
+		rewrite({ builtAt: manifest.builtAt + 1, outputImports: [path.join(outdir, 'missing-chunk.js')] });
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
+
+		rewrite({ builtAt: manifest.builtAt + 2, corePackageVersion: 'stale' });
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
 	it('rebuilds the graph when template extensions change', async () => {

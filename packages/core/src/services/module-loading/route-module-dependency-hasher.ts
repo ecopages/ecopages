@@ -9,8 +9,9 @@ import type { BuildResult } from '../../build/build-adapter.ts';
  * @remarks
  * Keys are normalized absolute filesystem paths. Values are opaque content hashes
  * produced by the active {@link FileSystem} implementation. Only app-owned source
- * files are tracked; `node:` builtins and `node_modules` paths are excluded
- * because they are covered by the core package {@link getCorePackageVersion | invalidation version}.
+ * files are tracked; `node:` builtins and `node_modules` paths are excluded.
+ * Installed packages stay external to route modules, and framework code changes
+ * with a release, which the core package version covers.
  */
 export type RouteModuleDependencyHashes = Record<string, string>;
 

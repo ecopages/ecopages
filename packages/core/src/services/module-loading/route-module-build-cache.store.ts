@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { collectLocalImports } from '../../build/cache/output-imports.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import { RouteModuleDependencyHasher, type RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 import {
@@ -26,6 +27,7 @@ type RouteModuleBuildCacheDependencies = {
 	readManifest: (manifestPath: string) => RouteModuleBuildCacheManifest | undefined;
 	writeManifest: (manifestPath: string, manifest: RouteModuleBuildCacheManifest) => void;
 	exists: (filePath: string) => boolean;
+	readFile: (filePath: string) => string;
 	getCorePackageVersion: () => string;
 	createDependencyHasher: () => RouteModuleDependencyHasher;
 };
@@ -46,6 +48,7 @@ export class RouteModuleBuildCache {
 			readManifest: dependencies?.readManifest ?? readRouteModuleBuildCacheManifest,
 			writeManifest: dependencies?.writeManifest ?? writeRouteModuleBuildCacheManifest,
 			exists: dependencies?.exists ?? ((filePath) => fileSystem.exists(filePath)),
+			readFile: dependencies?.readFile ?? ((filePath) => fileSystem.readFileSync(filePath)),
 			getCorePackageVersion: dependencies?.getCorePackageVersion ?? getCorePackageVersion,
 			createDependencyHasher: dependencies?.createDependencyHasher ?? (() => new RouteModuleDependencyHasher()),
 		};
@@ -77,11 +80,11 @@ export class RouteModuleBuildCache {
 			return undefined;
 		}
 
-		const outputPath = path.isAbsolute(entry.outputPath)
-			? entry.outputPath
-			: path.join(options.outdir, entry.outputPath);
-
+		const outputPath = resolveOutputPath(entry.outputPath, options.outdir);
 		if (!this.dependencies.exists(outputPath)) {
+			return undefined;
+		}
+		if (entry.outputImports?.some((importPath) => !this.dependencies.exists(importPath))) {
 			return undefined;
 		}
 
@@ -93,6 +96,8 @@ export class RouteModuleBuildCache {
 			fileHash: string;
 			outputPath: string;
 			dependencyModulePaths?: readonly string[];
+			/** Local imports of the output when the caller already collected them. */
+			outputImports?: string[];
 		},
 	): void {
 		if (!shouldPersistRouteModuleBuildCache(options)) {
@@ -107,6 +112,7 @@ export class RouteModuleBuildCache {
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[cacheFilePath] = options.fileHash;
 
+		const outputPath = resolveOutputPath(options.outputPath, options.outdir);
 		const manifest = this.loadManifest();
 		const existingEntry = manifest.entries[cacheFilePath];
 		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
@@ -116,6 +122,8 @@ export class RouteModuleBuildCache {
 			builtAt: Date.now(),
 			buildKey: createPersistedRouteModuleBuildKey(options, options.sourceTransforms),
 			dependencyHashes,
+			outputImports:
+				options.outputImports ?? collectLocalImports(this.dependencies.readFile(outputPath), outputPath),
 			renderedOutputs: existingEntry?.renderedOutputs,
 		};
 
@@ -231,11 +239,11 @@ export class RouteModuleBuildCache {
 		manifest.configHash = options.context.configHash;
 		manifest.buildInputsFingerprint = options.context.buildInputsFingerprint;
 		manifest.entries[cacheFilePath] = {
+			...existingEntry,
 			sourceHash: options.sourceHash,
 			outputPath: existingEntry?.outputPath ?? '',
 			builtAt: existingEntry?.builtAt ?? Date.now(),
 			buildKey: existingEntry?.buildKey ?? '',
-			dependencyHashes: existingEntry?.dependencyHashes,
 			renderedOutputs: {
 				...(existingEntry?.renderedOutputs ?? {}),
 				[options.pathname]: {
@@ -318,4 +326,8 @@ export class RouteModuleBuildCache {
 		this.manifest = manifest;
 		this.dependencies.writeManifest(this.manifestPath, manifest);
 	}
+}
+
+function resolveOutputPath(outputPath: string, outdir: string): string {
+	return path.isAbsolute(outputPath) ? outputPath : path.join(outdir, outputPath);
 }

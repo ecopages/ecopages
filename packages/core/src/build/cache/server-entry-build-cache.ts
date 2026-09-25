@@ -40,7 +40,7 @@ export interface ServerBundleDeployManifest {
 }
 
 export interface ServerEntryBuildCacheManifest {
-	invalidationVersion: string;
+	corePackageVersion: string;
 	entryPath: string;
 	entryHash: string;
 	configHash: string;
@@ -376,7 +376,7 @@ export function recordServerEntryBuildCache(options: {
 	const dependencyHashes = { ...appDependencyHashes, ...configDependencyHashes };
 
 	const manifest: ServerEntryBuildCacheManifest = {
-		invalidationVersion: getCorePackageVersion(),
+		corePackageVersion: getCorePackageVersion(),
 		entryPath,
 		entryHash,
 		configHash,

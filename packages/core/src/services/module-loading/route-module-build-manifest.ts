@@ -19,6 +19,11 @@ export interface RouteModuleBuildCacheEntry {
 	builtAt: number;
 	buildKey: string;
 	dependencyHashes?: RouteModuleDependencyHashes;
+	/**
+	 * Local files the compiled output imports (shared chunks, collection modules).
+	 * The entry is reused only while all of them exist.
+	 */
+	outputImports?: string[];
 	renderedOutputs?: Record<string, RouteModuleStaticRenderCacheEntry>;
 }
 
@@ -31,6 +36,7 @@ export interface RouteModuleStaticRenderCacheEntry {
 
 /** On-disk manifest describing all cached route-module builds for one server outdir. */
 export interface RouteModuleBuildCacheManifest {
+	/** `getCorePackageVersion()` of the build that wrote the manifest. */
 	corePackageVersion: string;
 	configHash?: string;
 	buildInputsFingerprint?: string;
@@ -110,15 +116,13 @@ export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCach
 }
 
 export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteModuleBuildCacheManifest | undefined {
-	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest & { invalidationVersion?: string }>(
-		manifestPath,
-	);
+	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest>(manifestPath);
 	if (!parsed || typeof parsed.entries !== 'object') {
 		return undefined;
 	}
 
 	return {
-		corePackageVersion: parsed.corePackageVersion ?? parsed.invalidationVersion ?? '',
+		corePackageVersion: parsed.corePackageVersion ?? '',
 		configHash: parsed.configHash,
 		buildInputsFingerprint: parsed.buildInputsFingerprint,
 		entries: parsed.entries,

@@ -37,4 +37,24 @@ describe('createMdxTransformCacheKey', () => {
 			createMdxTransformCacheKey(filePath, source, compilerOptions),
 		);
 	});
+
+	it('distinguishes factory plugins that capture different values', () => {
+		function createRemarkPlugin(enabled: boolean) {
+			return function remarkPlugin() {
+				return () => enabled;
+			};
+		}
+
+		const source = '# Hello\n';
+		const filePath = '/tmp/page.mdx';
+		const withEnabled = createMdxTransformCacheKey(filePath, source, {
+			remarkPlugins: [createRemarkPlugin(true)],
+		});
+		const withDisabled = createMdxTransformCacheKey(filePath, source, {
+			remarkPlugins: [createRemarkPlugin(false)],
+		});
+
+		expect(createRemarkPlugin(true).toString()).toBe(createRemarkPlugin(false).toString());
+		expect(withEnabled).not.toBe(withDisabled);
+	});
 });

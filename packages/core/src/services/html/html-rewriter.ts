@@ -104,7 +104,8 @@ type OpenElement = { name: string; foreign: boolean; append: string; after: stri
 
 type ScanResult = { textEnd: number; closed: boolean };
 
-type MarkupToken = { output: string; end: number };
+/** A tokenized piece of markup; `replacement` is set only when the rewrite changed it. */
+type MarkupToken = { end: number; replacement?: string };
 
 /** Extra characters consumed past the current script position, or a scan outcome. */
 type ScriptStep = number | 'more' | 'closed';
@@ -212,9 +213,13 @@ class RewriteSession {
 	private scriptState: 'data' | 'escaped' | 'double-escaped' = 'data';
 	private readonly openElements: OpenElement[] = [];
 	private readonly handlers: SelectorHandlers[];
+	private readonly handledTags: ReadonlySet<string>;
+	private readonly handlesAnyTag: boolean;
 
 	constructor(handlers: SelectorHandlers[]) {
 		this.handlers = handlers;
+		this.handledTags = new Set(handlers.map((entry) => entry.tagName));
+		this.handlesAnyTag = this.handledTags.has('*');
 	}
 
 	write(chunk: string): string {
@@ -228,9 +233,16 @@ class RewriteSession {
 		return output;
 	}
 
+	/**
+	 * @remarks
+	 * Unchanged markup is not copied token by token: `copied` trails `index`, and
+	 * the source between them is appended in one slice when a rewritten token or
+	 * the end of the chunk is reached.
+	 */
 	private drain(final: boolean): string {
 		const source = this.buffer;
 		let output = '';
+		let copied = 0;
 		let index = 0;
 
 		while (index < source.length) {
@@ -239,7 +251,6 @@ class RewriteSession {
 					this.rawTextTag === 'script'
 						? this.scanScript(source, index, final)
 						: this.scanRawText(source, index, final);
-				output += source.slice(index, scan.textEnd);
 				index = scan.textEnd;
 				if (!scan.closed) break;
 				this.rawTextTag = null;
@@ -248,19 +259,21 @@ class RewriteSession {
 
 			const lt = source.indexOf('<', index);
 			if (lt === -1) {
-				output += source.slice(index);
 				index = source.length;
 				break;
 			}
-			output += source.slice(index, lt);
 			index = lt;
 
 			const token = this.readMarkup(source, index, final);
 			if (!token) break;
-			output += token.output;
+			if (token.replacement !== undefined) {
+				output += `${source.slice(copied, index)}${token.replacement}`;
+				copied = token.end;
+			}
 			index = token.end;
 		}
 
+		output += source.slice(copied, index);
 		if (final) {
 			output += source.slice(index);
 			this.buffer = '';
@@ -276,23 +289,25 @@ class RewriteSession {
 		if (next === '!') return readDeclaration(source, index, final, this.inForeignContent());
 		if (next === '?') return readUntilTagClose(source, index);
 		if (next === '/') return this.readEndTag(source, index);
-		if (!isAsciiAlpha(next)) return { output: '<', end: index + 1 };
+		if (!isAsciiAlpha(next)) return { end: index + 1 };
 
 		const tag = scanTag(source, index);
 		if (!tag) return null;
-		return { output: this.openElement(source.slice(index, tag.end + 1), tag.selfClosing), end: tag.end + 1 };
+		return { end: tag.end + 1, replacement: this.openElement(source, index, tag.end + 1, tag.selfClosing) };
 	}
 
 	private readEndTag(source: string, index: number): MarkupToken | null {
 		const first = source[index + 2];
 		if (first === undefined) return null;
-		if (first === '>') return { output: '</>', end: index + 3 };
+		if (first === '>') return { end: index + 3 };
 		if (!isAsciiAlpha(first)) return readUntilTagClose(source, index);
 
 		const tag = scanTag(source, index);
 		if (!tag) return null;
-		const raw = source.slice(index, tag.end + 1);
-		return { output: this.closeElement(readTagName(raw, 2).toLowerCase(), raw), end: tag.end + 1 };
+		const end = tag.end + 1;
+		const closed = this.closeElement(readTagName(source, index + 2).toLowerCase());
+		if (!closed || (!closed.append && !closed.after)) return { end };
+		return { end, replacement: `${closed.append}${source.slice(index, end)}${closed.after}` };
 	}
 
 	private inForeignContent(): boolean {
@@ -308,30 +323,32 @@ class RewriteSession {
 	 * pending `append`/`after` content is dropped, as for any element closed
 	 * without its own end tag.
 	 */
-	private resolveForeign(name: string, raw: string): boolean {
+	private resolveForeign(name: string, source: string, index: number, end: number): boolean {
 		if (name === 'svg' || name === 'math') return true;
 		if (!this.inForeignContent()) return false;
-		if (!isForeignBreakout(name, raw)) return true;
+		if (!isForeignBreakout(name, source, index, end)) return true;
 
 		while (this.inForeignContent()) this.openElements.pop();
 		return false;
 	}
 
-	private openElement(raw: string, selfClosing: boolean): string {
-		const name = readTagName(raw, 1).toLowerCase();
-		const foreign = this.resolveForeign(name, raw);
+	/** Tracks the start tag `source[index, end)` and returns its rewrite, if a handler matched. */
+	private openElement(source: string, index: number, end: number, selfClosing: boolean): string | undefined {
+		const name = readTagName(source, index + 1).toLowerCase();
+		const foreign = this.resolveForeign(name, source, index, end);
 		const isVoid = VOID_ELEMENTS.has(name) || (foreign && selfClosing);
 		const openElement: OpenElement = { name, foreign, append: '', after: '' };
-		let output = raw;
+		let replacement: string | undefined;
 
-		const matching = this.handlers.filter((entry) => entry.tagName === '*' || entry.tagName === name);
-		if (matching.length > 0) {
-			const element = new RewriterElement(raw, name, selfClosing, !isVoid);
-			for (const entry of matching) entry.handlers.element?.(element);
-			output = element.renderStart();
+		if (this.handlesAnyTag || this.handledTags.has(name)) {
+			const element = new RewriterElement(source.slice(index, end), name, selfClosing, !isVoid);
+			for (const entry of this.handlers) {
+				if (entry.tagName === '*' || entry.tagName === name) entry.handlers.element?.(element);
+			}
+			replacement = element.renderStart();
 			openElement.append = element.renderAppend();
 			openElement.after = element.renderAfter();
-			if (isVoid) output += openElement.after;
+			if (isVoid) replacement += openElement.after;
 		}
 
 		if (!isVoid) {
@@ -342,17 +359,20 @@ class RewriteSession {
 			}
 		}
 
-		return output;
+		return replacement;
 	}
 
-	private closeElement(name: string, raw: string): string {
-		for (let position = this.openElements.length - 1; position >= 0; position--) {
+	/** Pops the nearest open element named `name` and returns it, if any. */
+	private closeElement(name: string): OpenElement | undefined {
+		const top = this.openElements[this.openElements.length - 1];
+		if (top?.name === name) return this.openElements.pop();
+		for (let position = this.openElements.length - 2; position >= 0; position--) {
 			const element = this.openElements[position];
 			if (element.name !== name) continue;
 			this.openElements.length = position;
-			return `${element.append}${raw}${element.after}`;
+			return element;
 		}
-		return raw;
+		return undefined;
 	}
 
 	private scanRawText(source: string, index: number, final: boolean): ScanResult {
@@ -624,11 +644,11 @@ function skipWhile(raw: string, index: number, predicate: (char: string, at: num
 function readDeclaration(source: string, index: number, final: boolean, foreign: boolean): MarkupToken | null {
 	if (source.startsWith('<!--', index)) {
 		const end = findCommentEnd(source, index);
-		return end === -1 ? null : { output: source.slice(index, end), end };
+		return end === -1 ? null : { end };
 	}
 	if (foreign && source.startsWith('<![CDATA[', index)) {
 		const close = source.indexOf(']]>', index + 9);
-		return close === -1 ? null : { output: source.slice(index, close + 3), end: close + 3 };
+		return close === -1 ? null : { end: close + 3 };
 	}
 
 	const rest = source.slice(index);
@@ -668,42 +688,46 @@ function scanTag(source: string, index: number): { end: number; selfClosing: boo
 	let position = index + 1;
 	while (position < source.length && !isTagNameEnd(source[position])) position++;
 
-	let quote: string | null = null;
 	let afterEquals = false;
 	let inUnquotedValue = false;
 	for (; position < source.length; position++) {
-		const char = source[position];
-		if (quote) {
-			if (char === quote) quote = null;
-			continue;
+		const code = source.charCodeAt(position);
+		if (code === CHAR_GREATER_THAN) {
+			return { end: position, selfClosing: source.charCodeAt(position - 1) === CHAR_SLASH && !inUnquotedValue };
 		}
-		if (char === '>') return { end: position, selfClosing: source[position - 1] === '/' && !inUnquotedValue };
-		if (isWhitespace(char)) {
+		if (isWhitespaceCode(code)) {
 			inUnquotedValue = false;
 			continue;
 		}
 		if (afterEquals) {
 			afterEquals = false;
-			if (char === '"' || char === "'") quote = char;
-			else inUnquotedValue = true;
+			if (code === CHAR_DOUBLE_QUOTE || code === CHAR_SINGLE_QUOTE) {
+				position = source.indexOf(source[position], position + 1);
+				if (position === -1) return null;
+			} else {
+				inUnquotedValue = true;
+			}
 			continue;
 		}
-		if (char === '=' && !inUnquotedValue) afterEquals = true;
+		if (code === CHAR_EQUALS && !inUnquotedValue) afterEquals = true;
 	}
 	return null;
 }
 
-function isForeignBreakout(name: string, raw: string): boolean {
+/** Whether the start tag `source[index, end)` named `name` ends foreign content. */
+function isForeignBreakout(name: string, source: string, index: number, end: number): boolean {
 	if (FOREIGN_BREAKOUT_TAGS.has(name)) return true;
 	return (
 		name === 'font' &&
-		parseStartTag(raw).attributes.some((attribute) => ['color', 'face', 'size'].includes(attribute.name))
+		parseStartTag(source.slice(index, end)).attributes.some((attribute) =>
+			['color', 'face', 'size'].includes(attribute.name),
+		)
 	);
 }
 
 function readUntilTagClose(source: string, index: number): MarkupToken | null {
 	const close = source.indexOf('>', index + 1);
-	return close === -1 ? null : { output: source.slice(index, close + 1), end: close + 1 };
+	return close === -1 ? null : { end: close + 1 };
 }
 
 function readTagName(raw: string, from: number): string {
@@ -742,6 +766,17 @@ function isAsciiAlpha(char: string): boolean {
 
 function isWhitespace(char: string): boolean {
 	return char === ' ' || char === '\n' || char === '\t' || char === '\r' || char === '\f';
+}
+
+const CHAR_DOUBLE_QUOTE = 34;
+const CHAR_SINGLE_QUOTE = 39;
+const CHAR_SLASH = 47;
+const CHAR_EQUALS = 61;
+const CHAR_GREATER_THAN = 62;
+
+/** {@link isWhitespace} for a UTF-16 code unit, for the hot tag scanner. */
+function isWhitespaceCode(code: number): boolean {
+	return code === 32 || code === 10 || code === 9 || code === 13 || code === 12;
 }
 
 function isTagNameEnd(char: string): boolean {

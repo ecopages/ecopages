@@ -20,8 +20,6 @@ describe('bindRuntimeServer', () => {
 		const runtimeHost = createRuntimeHost();
 		const startOptions = {
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			handleRequest: async () => new Response(),
-			onError: async () => {},
 		};
 
 		const result = await bindRuntimeServer(runtimeHost, {
@@ -44,8 +42,6 @@ describe('bindRuntimeServer', () => {
 		const result = await bindRuntimeServer(runtimeHost, {
 			startOptions: {
 				serveOptions: { hostname: 'localhost', port: 0 },
-				handleRequest: async () => new Response(),
-				onError: async () => {},
 			},
 			allowPortFallback: false,
 			usePortManager: false,
@@ -72,8 +68,6 @@ describe('bindRuntimeServer', () => {
 		const result = await bindRuntimeServer(runtimeHost, {
 			startOptions: {
 				serveOptions: { hostname: 'localhost', port: 3000 },
-				handleRequest: async () => new Response(),
-				onError: async () => {},
 			},
 			allowPortFallback: true,
 			usePortManager: true,

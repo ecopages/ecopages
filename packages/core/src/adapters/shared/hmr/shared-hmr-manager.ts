@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
@@ -51,7 +50,6 @@ type SharedHmrManagerParams = {
 export abstract class SharedHmrManager implements IHmrManager {
 	public readonly appConfig: EcoPagesAppConfig;
 	protected readonly bridge: IClientBridge;
-	protected watchers = new Map<string, fs.FSWatcher>();
 	protected runtimeWorkDir: string;
 	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
@@ -171,10 +169,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return this.enabled;
 	}
 
-	public isRuntimeReady(): boolean {
-		return this.runtimeReady && fileSystem.exists(this.getRuntimePath());
-	}
-
 	/**
 	 * Builds the browser HMR runtime once per manager session and reuses the in-flight build for concurrent callers.
 	 */
@@ -226,10 +220,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		} finally {
 			this.devToolbarBuildPromise = null;
 		}
-	}
-
-	public async buildRuntime(): Promise<void> {
-		await this.ensureRuntimeReady();
 	}
 
 	public getRuntimePath(): string {
@@ -537,10 +527,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.runtimeReady = false;
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
-		for (const watcher of this.watchers.values()) {
-			watcher.close();
-		}
-		this.watchers.clear();
 		this.entrypointDependencyGraph.reset();
 	}
 

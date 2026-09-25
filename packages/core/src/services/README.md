@@ -22,7 +22,7 @@ Typical responsibilities include:
 - `invalidation/`: file-change classification and invalidation policy
 - `runtime-state/`: app-owned invalidation state and dependency graphs
 - `runtime-manifest/`: node runtime manifest derivation and persistence
-- `html/`: final HTML dependency injection and rewriter selection
+- `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of Bun's `HTMLRewriter` API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). It runs the same way on Bun and Node, and `html-rewriter.parity.test.bun.ts` checks it against the native rewriter.
 - `error-pages/`: shared semantic 404/500 source precedence, rendering, built-in documents, and static export artifacts
 
 The asset-processing service caches emitted file assets by source identity in development as well as production.

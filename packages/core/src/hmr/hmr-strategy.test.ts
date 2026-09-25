@@ -33,10 +33,6 @@ describe('HmrStrategyType', () => {
 		expect(HmrStrategyType.INTEGRATION).toBe(100);
 	});
 
-	it('ASSET has value 50', () => {
-		expect(HmrStrategyType.ASSET).toBe(50);
-	});
-
 	it('SCRIPT has value 25', () => {
 		expect(HmrStrategyType.SCRIPT).toBe(25);
 	});
@@ -45,9 +41,8 @@ describe('HmrStrategyType', () => {
 		expect(HmrStrategyType.FALLBACK).toBe(0);
 	});
 
-	it('maintains priority order: INTEGRATION > ASSET > SCRIPT > FALLBACK', () => {
-		expect(HmrStrategyType.INTEGRATION).toBeGreaterThan(HmrStrategyType.ASSET);
-		expect(HmrStrategyType.ASSET).toBeGreaterThan(HmrStrategyType.SCRIPT);
+	it('maintains priority order: INTEGRATION > SCRIPT > FALLBACK', () => {
+		expect(HmrStrategyType.INTEGRATION).toBeGreaterThan(HmrStrategyType.SCRIPT);
 		expect(HmrStrategyType.SCRIPT).toBeGreaterThan(HmrStrategyType.FALLBACK);
 	});
 });
@@ -65,8 +60,8 @@ describe('HmrStrategy', () => {
 		});
 
 		it('allows negative priorityOffset', () => {
-			const strategy = new MockStrategy({ type: HmrStrategyType.ASSET, priorityOffset: -10 });
-			expect(strategy.priority).toBe(40);
+			const strategy = new MockStrategy({ type: HmrStrategyType.SCRIPT, priorityOffset: -10 });
+			expect(strategy.priority).toBe(15);
 		});
 	});
 
@@ -76,21 +71,19 @@ describe('HmrStrategy', () => {
 				new MockStrategy({ type: HmrStrategyType.FALLBACK, matchPattern: '.test' }),
 				new MockStrategy({ type: HmrStrategyType.INTEGRATION, matchPattern: '.test' }),
 				new MockStrategy({ type: HmrStrategyType.SCRIPT, matchPattern: '.test' }),
-				new MockStrategy({ type: HmrStrategyType.ASSET, matchPattern: '.test' }),
 			];
 
 			const sorted = [...strategies].sort((a, b) => b.priority - a.priority);
 
 			expect(sorted[0].type).toBe(HmrStrategyType.INTEGRATION);
-			expect(sorted[1].type).toBe(HmrStrategyType.ASSET);
-			expect(sorted[2].type).toBe(HmrStrategyType.SCRIPT);
-			expect(sorted[3].type).toBe(HmrStrategyType.FALLBACK);
+			expect(sorted[1].type).toBe(HmrStrategyType.SCRIPT);
+			expect(sorted[2].type).toBe(HmrStrategyType.FALLBACK);
 		});
 
 		it('priorityOffset can override default ordering', () => {
-			const assetWithHighOffset = new MockStrategy({
-				type: HmrStrategyType.ASSET,
-				priorityOffset: 60,
+			const scriptWithHighOffset = new MockStrategy({
+				type: HmrStrategyType.SCRIPT,
+				priorityOffset: 80,
 				matchPattern: '.test',
 			});
 			const integration = new MockStrategy({
@@ -98,13 +91,13 @@ describe('HmrStrategy', () => {
 				matchPattern: '.test',
 			});
 
-			expect(assetWithHighOffset.priority).toBeGreaterThan(integration.priority);
+			expect(scriptWithHighOffset.priority).toBeGreaterThan(integration.priority);
 		});
 	});
 
 	describe('matches', () => {
 		it('should be implemented by subclasses', () => {
-			const strategy = new MockStrategy({ type: HmrStrategyType.ASSET, matchPattern: '.css' });
+			const strategy = new MockStrategy({ type: HmrStrategyType.SCRIPT, matchPattern: '.css' });
 			expect(strategy.matches('styles.css')).toBe(true);
 			expect(strategy.matches('script.js')).toBe(false);
 		});
@@ -112,7 +105,7 @@ describe('HmrStrategy', () => {
 
 	describe('process', () => {
 		it('should return an HmrAction', async () => {
-			const strategy = new MockStrategy({ type: HmrStrategyType.ASSET });
+			const strategy = new MockStrategy({ type: HmrStrategyType.SCRIPT });
 			const action = await strategy.process('/path/to/file.');
 
 			expect(action.type).toBe('broadcast');

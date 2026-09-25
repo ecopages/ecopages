@@ -1,5 +1,5 @@
 import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/services/asset-processing-service';
-import { rapidhash } from '@ecopages/core/utils/hash';
+import { rapidhash } from '@ecopages/core/hash';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 
 /** Shared grouped-build id prefix for page-owned content scripts. */

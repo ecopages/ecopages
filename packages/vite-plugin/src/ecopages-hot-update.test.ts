@@ -1,7 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ClientBridgeEvent, EcoPagesAppConfig } from '@ecopages/core';
 import { ecopagesHotUpdate } from './ecopages-hot-update.ts';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { callPluginHook } from './test/plugin-hook.ts';
+
+const clientBroadcasts = vi.hoisted(() => new WeakMap<object, (event: ClientBridgeEvent) => void>());
+
+vi.mock('@ecopages/core/dev/host-runtime', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@ecopages/core/dev/host-runtime')>();
+	return {
+		...actual,
+		createDevelopmentHostRuntime: (appConfig: EcoPagesAppConfig) => ({
+			...actual.createDevelopmentHostRuntime(appConfig),
+			broadcastClientEvent: (event: ClientBridgeEvent) => clientBroadcasts.get(appConfig)?.(event),
+		}),
+	};
+});
 
 function createApi() {
 	return createEcopagesPluginApi({
@@ -64,8 +78,7 @@ describe('ecopagesHotUpdate', () => {
 		const api = createApi();
 		api.markDevHostReady();
 		const broadcast = vi.fn();
-		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
-		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+		clientBroadcasts.set(api.appConfig, broadcast);
 
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
@@ -102,8 +115,7 @@ describe('ecopagesHotUpdate', () => {
 	it('defers reload broadcasts until the dev host has finished loading', async () => {
 		const api = createApi();
 		const broadcast = vi.fn();
-		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
-		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+		clientBroadcasts.set(api.appConfig, broadcast);
 
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
@@ -181,8 +193,7 @@ describe('ecopagesHotUpdate', () => {
 		const api = createApi();
 		api.markDevHostReady();
 		const broadcast = vi.fn();
-		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
-		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+		clientBroadcasts.set(api.appConfig, broadcast);
 
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
@@ -220,8 +231,7 @@ describe('ecopagesHotUpdate', () => {
 		const api = createApi();
 		api.markDevHostReady();
 		const broadcast = vi.fn();
-		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
-		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+		clientBroadcasts.set(api.appConfig, broadcast);
 
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();
@@ -299,8 +309,7 @@ describe('ecopagesHotUpdate', () => {
 		api.appConfig.runtime = { devClientOwner: 'host' };
 		api.markDevHostReady();
 		const broadcast = vi.fn();
-		const { setAppDevClientBridge } = await import('@ecopages/core/dev/client-bridge-registry');
-		setAppDevClientBridge(api.appConfig, { broadcast } as never);
+		clientBroadcasts.set(api.appConfig, broadcast);
 
 		const plugin = ecopagesHotUpdate(api);
 		const send = vi.fn();

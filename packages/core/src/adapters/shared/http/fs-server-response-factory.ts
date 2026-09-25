@@ -14,10 +14,6 @@ export class FileSystemServerResponseFactory {
 		this.options = options;
 	}
 
-	isHtml(contentType: string) {
-		return contentType === 'text/html';
-	}
-
 	shouldEnableGzip(contentType: string) {
 		if (this.options.watchMode) return false;
 		const gzipEnabledExtensions = ['text/javascript', 'text/css'];

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { EcoBuildOnLoadResult } from '@ecopages/core/build/build-types';
+import type { EcoBuildOnLoadResult } from '@ecopages/core/plugins/integration-plugin';
 import { BundleService } from './bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 

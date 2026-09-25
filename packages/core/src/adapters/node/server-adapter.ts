@@ -18,7 +18,7 @@ import type {
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import {
 	attachNodeHttpWebSocketUpgrades,
-	type NodeHttpWebSocketUpgradePreflight,
+	type WebSocketUpgradeOptions,
 } from '../shared/ws/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
@@ -33,10 +33,10 @@ import {
 	startDevWarmup,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
-import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { isNodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
-import { DefaultNodeServerDevRuntimeFactory, type NodeServerDevRuntimeFactory } from './server-adapter-dependencies.ts';
+import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -62,14 +62,12 @@ export interface NodeServerAdapterParams {
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	previewHost?: StaticPreviewHost;
-	requestBridge?: NodeHttpRequestBridge;
-	devRuntimeFactory?: NodeServerDevRuntimeFactory;
 }
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
-	completeInitialization: (server: NodeServerInstance) => Promise<void>;
+	completeInitialization: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }) => void;
+	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => void;
 	dispose: () => Promise<void>;
 }
 
@@ -87,9 +85,10 @@ export interface NodeServerAdapterResult extends ServerAdapterResult {
  *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
  *    `options.watch` is `true`.
  * 3. `handleRequest(request)` — delegates to `handleSharedRequest` for routing;
- *    intercepts `ClientAbortError` to return 499 instead of 500.
- * 4. `buildStatic()` — spins up an ephemeral runtime server, generates all static
- *    pages against it, then tears it down.
+ *    intercepts `ClientAbortError` to return 499 instead of 500 and sends every
+ *    other escaped error through the shared `app.onError` boundary.
+ * 4. `buildStatic()` — generates static pages in-process through the shared
+ *    static builder (no runtime server), then optionally starts the preview server.
  *
  * @see SharedServerAdapter for routing, caching and response handler logic.
  */
@@ -108,8 +107,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly previewHost: StaticPreviewHost;
-	private readonly requestBridge: NodeHttpRequestBridge;
-	private readonly devRuntimeFactory: NodeServerDevRuntimeFactory;
 	/**
 	 * Reference to the application-level WebSocket handlers map.
 	 *
@@ -126,7 +123,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * Host integrations such as the Vite plugin call this so `app.websocket()`
 	 * handlers work while HTTP is still served by the host dev server.
 	 */
-	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: { passthroughUnmatched?: boolean }): void {
+	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: WebSocketUpgradeOptions): void {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: this.runtimeOrigin,
 			websocketHandlers: this.websocketHandlers,
@@ -134,29 +131,17 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		});
 	}
 
-	private wireUserWebSocketUpgrades(server: NodeServerInstance, preflight?: NodeHttpWebSocketUpgradePreflight): void {
-		attachNodeHttpWebSocketUpgrades(server, {
-			runtimeOrigin: this.runtimeOrigin,
-			websocketHandlers: this.websocketHandlers,
-			passthroughUnmatched: false,
-			preflight,
-		});
-	}
-
 	/**
 	 * @remarks
-	 * `previewHost`, `requestBridge`, and `devRuntimeFactory` are optional on the
-	 * public {@link NodeServerAdapterParams} so factory callers can omit them, but
-	 * they are mandatory by the time the concrete adapter is constructed —
-	 * {@link createNodeServerAdapter} fills in Node-specific defaults first. The
-	 * constructor signature makes that invariant explicit instead of relying on
-	 * non-null assertions.
+	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
+	 * factory callers can omit it, but it is mandatory by the time the concrete
+	 * adapter is constructed — {@link createNodeServerAdapter} fills in the Node
+	 * default first. The constructor signature makes that invariant explicit
+	 * instead of relying on non-null assertions.
 	 */
 	constructor(
 		options: NodeServerAdapterParams & {
 			previewHost: StaticPreviewHost;
-			requestBridge: NodeHttpRequestBridge;
-			devRuntimeFactory: NodeServerDevRuntimeFactory;
 		},
 	) {
 		super(options);
@@ -168,8 +153,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
 		this.previewHost = options.previewHost;
-		this.requestBridge = options.requestBridge;
-		this.devRuntimeFactory = options.devRuntimeFactory;
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
@@ -327,37 +310,35 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * Handles a single incoming Web `Request` and returns a Web `Response`.
 	 *
 	 * Delegates to `handleSharedRequest` for all routing, caching, and response
-	 * handler logic. The only Node-specific concern here is translating a
-	 * `ClientAbortError` — which the body `ReadableStream` raises when the
-	 * underlying socket closes early — into a 499 response so it does not
-	 * incorrectly surface as a 500 in application logs.
+	 * handler logic. Escaped errors go through the shared `app.onError`
+	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
 		if (!this.initialized) {
 			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
 		}
 
-		try {
-			const response = await this.handleSharedRequest(request, {
-				apiHandlers: this.apiHandlers,
-				errorHandler: this.errorHandler,
-				serverInstance: this.serverInstance,
-				hmrManager: this.hmrManager ?? undefined,
-			});
+		const context = {
+			apiHandlers: this.apiHandlers,
+			errorHandler: this.errorHandler,
+			serverInstance: this.serverInstance,
+			hmrManager: this.hmrManager ?? undefined,
+		};
 
-			return response;
+		try {
+			return await this.handleSharedRequest(request, context);
 		} catch (error) {
-			if (error instanceof NodeClientAbortError) {
-				/**
-				 * The client disconnected before the response was sent (killed tab,
-				 * network drop, or programmatic abort). This is a normal browser behaviour,
-				 * not a server fault. Return 499 (Client Closed Request) silently so the
-				 * error does not surface in application logs as a 500.
-				 */
-				return new Response(null, { status: 499 });
-			}
-			throw error;
+			return await this.handleUnexpectedRequestError(error, request, context);
 		}
+	}
+
+	/**
+	 * @remarks
+	 * The request body stream raises `NodeClientAbortError` when the socket closes
+	 * early (closed tab, network drop, programmatic abort).
+	 */
+	protected override isClientAbortError(error: unknown): boolean {
+		return isNodeClientAbortError(error);
 	}
 
 	/**
@@ -374,15 +355,17 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *   refreshes the router and response handlers when pages are added or removed.
 	 *
 	 * WebSocket upgrade requests that do not match a known path are rejected with an
-	 * immediate socket destroy to prevent unhandled upgrade leaks.
+	 * immediate socket destroy to prevent unhandled upgrade leaks, unless
+	 * `passthroughUnmatched` is set because a host (for example Vite) shares the
+	 * server and owns other upgrade paths.
 	 */
-	public async completeInitialization(server: NodeServerInstance): Promise<void> {
+	public async completeInitialization(server: NodeServerInstance, options?: WebSocketUpgradeOptions): Promise<void> {
 		this.serverInstance = server;
 
-		const hasUserWs = this.websocketHandlers.size > 0;
+		const passthroughUnmatched = options?.passthroughUnmatched;
 
 		if (this.options?.watch) {
-			const devRuntime = this.devRuntimeFactory.create({ appConfig: this.appConfig });
+			const devRuntime = createNodeServerDevRuntime(this.appConfig);
 			const wss = devRuntime.websocketServer;
 			this.bridge = devRuntime.bridge;
 			this.hmrManager = devRuntime.hmrManager;
@@ -405,15 +388,12 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				return true;
 			};
 
-			if (hasUserWs) {
-				this.wireUserWebSocketUpgrades(server, hmrPreflight);
-			} else {
-				server.on('upgrade', (req, socket, head) => {
-					if (!hmrPreflight(req, socket, head)) {
-						socket.destroy();
-					}
-				});
-			}
+			attachNodeHttpWebSocketUpgrades(server, {
+				runtimeOrigin: this.runtimeOrigin,
+				websocketHandlers: this.websocketHandlers,
+				passthroughUnmatched,
+				preflight: hmrPreflight,
+			});
 
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
 			startDevWarmup({
@@ -445,8 +425,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 
 			this.projectWatcher = watcher;
 			await watcher.createWatcherSubscription();
-		} else if (hasUserWs) {
-			this.wireUserWebSocketUpgrades(server);
+		} else {
+			this.attachUserWebSocketUpgrades(server, { passthroughUnmatched });
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {
@@ -468,15 +448,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
 	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
 	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
-	const requestBridge = params.requestBridge ?? new NodeHttpRequestBridge();
-	const devRuntimeFactory = params.devRuntimeFactory ?? new DefaultNodeServerDevRuntimeFactory();
 
 	const adapter = new NodeServerAdapter({
 		...params,
 		runtimeOrigin,
 		previewHost,
-		requestBridge,
-		devRuntimeFactory,
 	});
 
 	return adapter.createAdapter();

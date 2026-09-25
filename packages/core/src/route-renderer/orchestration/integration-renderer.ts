@@ -792,7 +792,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
 				const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
-				const transformedResponse = await this.htmlTransformer.transform(
+				const transformedResponse = this.htmlTransformer.transform(
 					response,
 					htmlContributions,
 					resolvedPagePackage,
@@ -950,10 +950,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		_renderOptions: IntegrationRendererRenderOptions<C>,
 	): Record<string, string> | undefined {
 		return undefined;
-	}
-
-	protected applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
-		return this.htmlTransformer.applyAttributesToFirstBodyElement(html, attributes);
 	}
 
 	protected applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
@@ -1147,13 +1143,5 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
 			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
 		});
-	}
-
-	/**
-	 * Creates an explicit fail-fast runtime for tests or renderers that do not
-	 * support cross-integration foreign-child execution.
-	 */
-	protected createFailFastForeignChildRuntime(): ForeignChildRuntime {
-		return this.foreignSubtreeExecutionService.createFailFastRuntime(this.name);
 	}
 }

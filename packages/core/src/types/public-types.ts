@@ -750,11 +750,8 @@ export interface ErrorPageTemplateProps extends Omit<HtmlTemplateProps, 'childre
 	stack?: string;
 }
 
-export type Error400TemplateProps = ErrorPageTemplateProps;
-export type Error401TemplateProps = ErrorPageTemplateProps;
 export type Error403TemplateProps = ErrorPageTemplateProps;
 export type Error404TemplateProps = ErrorPageTemplateProps;
-export type Error409TemplateProps = ErrorPageTemplateProps;
 export type Error500TemplateProps = ErrorPageTemplateProps;
 
 /**
@@ -862,25 +859,6 @@ export type EcoPageFile<T = unknown> = T & {
 };
 
 /**
- * Represents a CSS processor.
- */
-export interface CssProcessor {
-	/**
-	 * Processes a CSS file at the specified path.
-	 * @param path - The path to the CSS file.
-	 * @returns A promise that resolves to the processed CSS as a string.
-	 */
-	processPath: (path: string, options?: any) => Promise<string>;
-
-	/**
-	 * Processes a CSS string or buffer.
-	 * @param contents - The CSS contents as a string or buffer.
-	 * @returns A promise that resolves to the processed CSS as a string.
-	 */
-	processStringOrBuffer: (contents: string | Buffer, options?: any) => Promise<string>;
-}
-
-/**
  * The options for the route renderer.
  */
 export type RouteRendererOptions = {
@@ -918,68 +896,6 @@ export type RouteRenderResult = {
 	cacheStrategy?: CacheStrategy;
 	/** Source paths observed during render preparation for HTML cache invalidation. */
 	sourceDependencyPaths?: readonly string[];
-};
-
-/**
- * Represents the dependencies required for an integration plugin.
- * It combines the base integration plugin dependencies with specific integration plugin dependencies.
- */
-export type IntegrationPluginDependencies = BaseIntegrationPluginDependencies & SpecificIntegrationPluginDependencies;
-
-type BaseIntegrationPluginDependencies = {
-	inline?: boolean;
-};
-
-/**
- * Represents the dependencies required for a specific integration plugin.
- * It can be one of the following types:
- * {@link ScriptImportIntegrationPluginDependencies}
- * {@link ScriptContentIntegrationPluginDependencies}
- * {@link StylesheetImportIntegrationPluginDependencies}
- * {@link StylesheetContentIntegrationPluginDependencies}
- */
-type SpecificIntegrationPluginDependencies =
-	| ScriptImportIntegrationPluginDependencies
-	| ScriptContentIntegrationPluginDependencies
-	| StylesheetImportIntegrationPluginDependencies
-	| StylesheetContentIntegrationPluginDependencies;
-
-/**
- * Script dependencies for an integration plugin with an import path.
- */
-type ScriptImportIntegrationPluginDependencies = {
-	kind: 'script';
-	importPath: string;
-	position?: 'head' | 'body';
-	/** @default true */
-	minify?: boolean;
-};
-
-/**
- * Script dependencies for an integration plugin with content.
- */
-type ScriptContentIntegrationPluginDependencies = {
-	kind: 'script';
-	content: string;
-	position?: 'head' | 'body';
-	/** @default true */
-	minify?: boolean;
-};
-
-/**
- * Stylesheet dependencies for an integration plugin with an import path.
- */
-type StylesheetImportIntegrationPluginDependencies = {
-	kind: 'stylesheet';
-	importPath: string;
-};
-
-/**
- * Stylesheet dependencies for an integration plugin with content.
- */
-type StylesheetContentIntegrationPluginDependencies = {
-	kind: 'stylesheet';
-	content: string;
 };
 
 /**
@@ -1142,20 +1058,6 @@ export interface ComponentRenderResult {
 	rootAttributes?: Record<string, string>;
 	assets?: ProcessedAsset[];
 }
-
-/**
- * Represents a deep required type for a given object
- */
-export type DeepRequired<T> = Required<{
-	[K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>;
-}>;
-
-/**
- * The Prettify helper is a utility type that takes an object type and makes the hover overlay more readable.
- */
-export type Prettify<T> = {
-	[K in keyof T]: T[K];
-} & {};
 
 /**
  * Services available to API handlers.
@@ -1606,45 +1508,6 @@ export interface RouteSchema {
  * Helper type to extract inferred types from a schema, with fallback to unknown.
  */
 export type InferSchemaOutput<T> = T extends StandardSchema ? InferOutput<T> : unknown;
-
-/**
- * Context with typed body/query/headers based on the provided schema.
- */
-export type TypedApiHandlerContext<
-	TSchema extends RouteSchema,
-	TRequest extends Request = Request,
-	TServer = any,
-> = Omit<ApiHandlerContext<TRequest, TServer>, 'body' | 'query' | 'headers'> & {
-	body: InferSchemaOutput<TSchema['body']>;
-	query: InferSchemaOutput<TSchema['query']>;
-	headers: InferSchemaOutput<TSchema['headers']>;
-	params: InferSchemaOutput<TSchema['params']>;
-};
-
-/**
- * Options for the group method.
- *
- * @typeParam TContext - Extended context type that middleware provides to handlers
- *
- * @example Group with auth middleware extending context
- * ```typescript
- * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & { user: User };
- *
- * app.group<AuthContext>('/api', (r) => {
- *   r.get('/profile', (ctx) => {
- *     // ctx.user is properly typed!
- *     return ctx.json({ name: ctx.user.name });
- *   });
- * }, { middleware: [authMiddleware] });
- * ```
- */
-export interface GroupOptions<
-	TRequest extends Request = Request,
-	TServer = any,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> {
-	middleware?: Middleware<TRequest, TServer, TContext>[];
-}
 
 /**
  * Context type that combines schema-typed fields with an extended base context.

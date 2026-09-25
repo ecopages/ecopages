@@ -2,7 +2,7 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It prefers Bun when available, falls back to Node otherwise, and applies runtime-specific launch behavior for each engine.
+It provides scaffolding and development commands to streamline your workflow. It runs your app on Bun when you launch it through Bun, on Node otherwise, and applies runtime-specific launch behavior for each engine.
 
 ## Quick Start
 
@@ -62,7 +62,7 @@ Server and build commands accept the following options. They automatically map t
 
 ### Runtime Detection
 
-The CLI prefers Bun when the package manager already indicates Bun, when the `Bun` global is available, or when you force it with `--runtime bun`. Otherwise it falls back to Node.
+The CLI runs your app on Bun when you launch the command through Bun (`bun dev`, `bun run dev`, `bunx ecopages …`) or pass `--runtime bun`. Any other launcher (`pnpm`, `npm`, `npx`, `node`) runs it on Node.
 
 You can explicitly force the engine using the `--runtime` flag:
 

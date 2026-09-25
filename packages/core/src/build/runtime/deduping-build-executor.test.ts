@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { BuildExecutor, BuildOptions, BuildResult } from '../build-adapter.ts';
-import { createBuildRequestIdentity, DedupingBuildExecutor } from './deduping-build-executor.ts';
+import { createBuildRequestIdentity } from './build-request-identity.ts';
+import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 
 const buildOptions: BuildOptions = {
 	entrypoints: ['/in/a.ts'],

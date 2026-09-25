@@ -1,8 +1,6 @@
 import type { BuildExecutor, BuildOptions, BuildResult } from '../build-adapter.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 
-export { createBuildRequestIdentity, createBuildOptionsDedupeKey } from './build-request-identity.ts';
-
 /**
  * In-flight build coalescing wrapper.
  *

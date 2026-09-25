@@ -373,7 +373,7 @@ HttpError.InternalServerError(message?)
 
 ### Global Error Handler
 
-Use `app.onError()` to centralize error handling across all routes. This is useful for logging, transforming errors into consistent API responses, or handling unexpected exceptions:
+Use `app.onError()` to centralize error handling across all routes. This is useful for logging, transforming errors into consistent API responses, or handling unexpected exceptions. It receives errors thrown by API handlers and their middleware, and unexpected errors that escape request handling. Page render failures render your error page instead and do not reach `onError`.
 
 ```typescript
 app.onError((error, ctx) => {

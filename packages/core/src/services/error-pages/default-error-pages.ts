@@ -215,14 +215,7 @@ export function buildDefaultErrorHtml(status: number, details?: DefaultErrorPage
 <body class="${names.root} ${view.modifierClass}"><main class="${names.content}"><p class="${names.status}" aria-hidden="true">ERROR ${view.status}</p><h1 class="${names.title}">${escapeHtml(view.title)}</h1><p class="${names.message}">${escapeHtml(view.bodyMessage)}</p>${detailsBlock}</main></body></html>`;
 }
 
-/** Self-contained HTML for the framework default not-found response. */
-export function buildDefaultNotFoundHtml(): string {
-	return buildDefaultErrorHtml(404);
-}
-
-export type DefaultServerErrorDetails = DefaultErrorPageDetails;
-
-export function getDefaultServerErrorDetails(error: unknown): DefaultServerErrorDetails | undefined {
+export function getDefaultServerErrorDetails(error: unknown): DefaultErrorPageDetails | undefined {
 	if (!isDevelopmentRuntime() || error === undefined) {
 		return undefined;
 	}
@@ -238,9 +231,4 @@ export function getPublicErrorMessage(error: unknown): string | undefined {
 		return message.length > 0 ? message : undefined;
 	}
 	return undefined;
-}
-
-/** Self-contained HTML for the framework default server-error response. */
-export function buildDefaultServerErrorHtml(details?: DefaultServerErrorDetails): string {
-	return buildDefaultErrorHtml(500, details);
 }

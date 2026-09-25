@@ -1,5 +1,5 @@
 import { rapidhash } from '@ecopages/core/hash';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/hmr/hmr-asset-paths';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';

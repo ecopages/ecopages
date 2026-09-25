@@ -1,8 +1,7 @@
 import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { DevelopmentInvalidationService } from '../invalidation/development-invalidation.service.ts';
-import { type AppModuleLoader, type AppModuleLoaderOwner } from './app-module-loader.service.ts';
+import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { SourceModuleLoader } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
@@ -36,10 +35,6 @@ export function getAppHostModuleLoader(appConfig: EcoPagesAppConfig): SourceModu
 	return appConfig.runtime?.hostModuleLoader;
 }
 
-function getAppModuleLoaderOwner(appConfig: EcoPagesAppConfig): AppModuleLoaderOwner {
-	return getAppHostModuleLoader(appConfig) ? 'host' : 'app';
-}
-
 export function setAppHostModuleLoader(appConfig: EcoPagesAppConfig, hostModuleLoader?: SourceModuleLoader): void {
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
@@ -63,9 +58,6 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 	const appModuleLoader: AppModuleLoader & {
 		pageModuleImportService: PageModuleImportService;
 	} = {
-		get owner(): AppModuleLoaderOwner {
-			return getAppModuleLoaderOwner(appConfig);
-		},
 		pageModuleImportService,
 		async importModule<T = unknown>(options: PageModuleBuildImportOptions) {
 			return await pageModuleImportService.importModule<T>({
@@ -104,11 +96,8 @@ export function setAppModuleLoader(appConfig: EcoPagesAppConfig, appModuleLoader
  * instance.
  */
 export function createAppServerModuleTranspiler(appConfig: EcoPagesAppConfig): ServerModuleTranspiler {
-	const invalidationService = new DevelopmentInvalidationService(appConfig);
-
 	return new ServerModuleTranspiler({
 		rootDir: appConfig.rootDir,
-		invalidateModules: (changedFiles) => invalidationService.invalidateServerModules(changedFiles),
 		pageModuleImportService: getAppModuleLoader(appConfig),
 	});
 }

@@ -6,7 +6,7 @@ import { setAppBuildAdapter } from '../../build/build-adapter.ts';
 import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
-import { getAppModuleLoader, setAppHostModuleLoader } from './app-server-module-transpiler.service.ts';
+import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
 
 function createBuildResult(): BuildResult {
@@ -21,13 +21,11 @@ function createFakeImportService(): {
 	dependency: ServerModuleImportDependency;
 	calls: {
 		importModule: Array<unknown>;
-		invalidateDevelopmentGraph: number;
 	};
 	setResult(result: unknown): void;
 } {
 	const calls = {
 		importModule: [] as Array<unknown>,
-		invalidateDevelopmentGraph: 0,
 	};
 	let nextResult: unknown = undefined;
 
@@ -38,9 +36,6 @@ function createFakeImportService(): {
 			): Promise<T> {
 				calls.importModule.push(options);
 				return nextResult as T;
-			},
-			invalidateDevelopmentGraph(): void {
-				calls.invalidateDevelopmentGraph += 1;
 			},
 		},
 		calls,
@@ -103,20 +98,6 @@ describe('ServerModuleTranspiler', () => {
 		]);
 	});
 
-	it('invalidates the owned import graph when no app invalidation callback is provided', () => {
-		const fakeImportService = createFakeImportService();
-
-		const service = new ServerModuleTranspiler({
-			rootDir: '/bootstrap-app',
-			getBuildExecutor: () => ({ build: async () => createBuildResult() }),
-			pageModuleImportService: fakeImportService.dependency,
-		});
-
-		service.invalidate(['/bootstrap-app/src/pages/index.tsx']);
-
-		assert.equal(fakeImportService.calls.invalidateDevelopmentGraph, 1);
-	});
-
 	it('forwards an abstract host module loader into the default page import service', () => {
 		const hostModuleLoader = async (_id: string) => ({ default: { ok: true } });
 		const service = new ServerModuleTranspiler({
@@ -149,26 +130,6 @@ describe('ServerModuleTranspiler', () => {
 		const secondLoader = getAppModuleLoader(appConfig);
 
 		assert.equal(firstLoader, secondLoader);
-		assert.equal(firstLoader.owner, 'app');
-	});
-
-	it('reflects host ownership on the app-owned module loader after runtime wiring changes', () => {
-		const appConfig = {
-			rootDir: '/app',
-			absolutePaths: {
-				pagesDir: '/app/src/pages',
-				includesDir: '/app/src/includes',
-				layoutsDir: '/app/src/layouts',
-				componentsDir: '/app/src/components',
-			},
-			templatesExt: ['.tsx'],
-			runtime: {},
-		} as unknown as EcoPagesAppConfig;
-		const moduleLoader = getAppModuleLoader(appConfig);
-
-		setAppHostModuleLoader(appConfig, async () => ({ default: { ok: true } }));
-
-		assert.equal(moduleLoader.owner, 'host');
 	});
 
 	it('does not pass a process-wide invalidation version into app-owned module imports', async () => {

@@ -10,7 +10,6 @@ import type { IntegrationRenderer } from '../route-renderer/orchestration/integr
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
-import { invariant } from '../utils/invariant.ts';
 import type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
 import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
@@ -50,10 +49,6 @@ export function mergeIntegrationOptions<TDefaults, TOverrides>(
 	overrides: TOverrides,
 ): TDefaults & TOverrides {
 	return deepMerge(defaults, overrides);
-}
-
-export function assertIntegrationInvariant(condition: boolean, message?: string): asserts condition {
-	invariant(condition, message);
 }
 
 /**

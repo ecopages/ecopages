@@ -7,6 +7,12 @@ import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-br
 
 type NodeServerFactory = typeof createServer;
 
+export type NodeRuntimeServeOptions = {
+	port?: number;
+	hostname?: string;
+	handleRequest(request: Request): Promise<Response>;
+};
+
 /**
  * Node runtime host that binds the shared Web-request pipeline onto a concrete
  * Node HTTP server.
@@ -16,7 +22,7 @@ type NodeServerFactory = typeof createServer;
  * requests through `NodeHttpRequestBridge`, and handling socket-level failures.
  * Routing and rendering remain in the shared server adapter.
  */
-export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, { port?: number; hostname?: string }> {
+export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions> {
 	/**
 	 * Creates a Node runtime host with injectable request bridging and server
 	 * creation seams for tests and alternate hosts.
@@ -31,12 +37,11 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, { port?:
 	 * request pipeline.
 	 *
 	 * @remarks
-	 * Client disconnects are treated as normal aborts and do not trigger adapter
-	 * error logging or the runtime host's `onError` callback.
+	 * Client disconnects are treated as normal aborts and are not logged. Other
+	 * failures here (the response write, or an uninitialised adapter) are logged
+	 * with their stack and answered with 500.
 	 */
-	public async start(
-		options: RuntimeHostStartOptions<{ port?: number; hostname?: string }>,
-	): Promise<NodeServerInstance> {
+	public async start(options: RuntimeHostStartOptions<NodeRuntimeServeOptions>): Promise<NodeServerInstance> {
 		const hostname = String(options.serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
 		const port = Number(options.serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
 
@@ -45,17 +50,16 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, { port?:
 			try {
 				const runtimeOrigin = this.getOrigin(server, options.serveOptions);
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin);
-				const response = await options.handleRequest(webRequest);
+				const response = await options.serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);
 			} catch (error) {
 				if (isNodeClientAbortError(error)) {
 					return;
 				}
 
-				appLogger.error('Node server adapter request failed', error as Error);
+				appLogger.error('Node server adapter request failed', error);
 				res.statusCode = 500;
 				res.end('Internal Server Error');
-				await options.onError(error instanceof Error ? error : new Error(String(error)));
 			}
 		});
 

@@ -1,5 +1,4 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { DevGraphService } from './dev-graph.service.ts';
 
 /**
  * App-owned coarse invalidation state for server-executed modules.
@@ -7,7 +6,6 @@ import type { DevGraphService } from './dev-graph.service.ts';
 export interface ServerInvalidationState {
 	getServerInvalidationVersion(): number;
 	invalidateServerModules(changedFiles?: string[]): void;
-	reset(): void;
 }
 
 /**
@@ -23,35 +21,23 @@ export class CounterServerInvalidationState implements ServerInvalidationState {
 	invalidateServerModules(_changedFiles?: string[]): void {
 		this.serverInvalidationVersion += 1;
 	}
-
-	reset(): void {
-		this.serverInvalidationVersion += 1;
-	}
-}
-
-function isLegacyServerInvalidationState(value: unknown): value is DevGraphService {
-	return (
-		Boolean(value) &&
-		typeof value === 'object' &&
-		typeof (value as ServerInvalidationState).getServerInvalidationVersion === 'function' &&
-		typeof (value as ServerInvalidationState).invalidateServerModules === 'function' &&
-		typeof (value as ServerInvalidationState).reset === 'function'
-	);
 }
 
 /**
  * Returns the app-owned server invalidation state.
+ *
+ * @remarks
+ * When nothing is installed yet, a counter is installed on first read so later
+ * reads share its version instead of each starting from zero.
  */
 export function getAppServerInvalidationState(appConfig: EcoPagesAppConfig): ServerInvalidationState {
 	if (appConfig.runtime?.serverInvalidationState) {
 		return appConfig.runtime.serverInvalidationState;
 	}
 
-	if (isLegacyServerInvalidationState(appConfig.runtime?.devGraphService)) {
-		return appConfig.runtime.devGraphService;
-	}
-
-	return new CounterServerInvalidationState();
+	const serverInvalidationState = new CounterServerInvalidationState();
+	setAppServerInvalidationState(appConfig, serverInvalidationState);
+	return serverInvalidationState;
 }
 
 /**

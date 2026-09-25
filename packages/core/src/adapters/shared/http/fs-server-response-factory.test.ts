@@ -29,23 +29,6 @@ describe('FileSystemServerResponseFactory', () => {
 		});
 	});
 
-	describe('isHtml', () => {
-		it('should return true for text/html content type', () => {
-			const result = responseFactory.isHtml('text/html');
-			expect(result).toBe(true);
-		});
-
-		it('should return false for text/plain content type', () => {
-			const result = responseFactory.isHtml('text/plain');
-			expect(result).toBe(false);
-		});
-
-		it('should return false for other content types', () => {
-			const result = responseFactory.isHtml('application/json');
-			expect(result).toBe(false);
-		});
-	});
-
 	describe('shouldEnableGzip', () => {
 		it('should return false in watch mode', () => {
 			const responseFactoryWatch = new FileSystemServerResponseFactory({

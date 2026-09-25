@@ -7,15 +7,12 @@ import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	ApiHandler,
-	ApiHandlerContext,
 	ErrorHandler,
 	StaticRoute,
 	ErrorPageLoaders,
 	EcopagesSocket,
 	EcopagesWebSocketHandler,
 } from '../../types/public-types.ts';
-import { HttpError } from '../../errors/http-error.ts';
-import { createRequire } from '../../utils/locals-utils.ts';
 import { findWebSocketRoute } from '../abstract/ws-pattern-matcher.ts';
 
 import { fileSystem } from '@ecopages/file-system';
@@ -26,11 +23,13 @@ import { StaticSiteGenerator } from '../../static-site-generator/static-site-gen
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
 import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
-import { ApiResponseBuilder } from '../shared/http/api-response.ts';
 import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
 
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
-import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
+import {
+	attachNodeHttpWebSocketUpgrades,
+	type WebSocketUpgradeOptions,
+} from '../shared/ws/node-http-websocket-upgrades.ts';
 import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from './bun-user-websocket-lifecycle.ts';
 import { createEcopagesSocket } from '../shared/ws/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
@@ -99,7 +98,7 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	servePreviewOnly: () => Promise<string | undefined>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }) => void;
+	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: WebSocketUpgradeOptions) => void;
 	dispose: () => Promise<void>;
 }
 
@@ -250,7 +249,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	/**
 	 * Wires user WebSocket routes onto a Node HTTP server used by host integrations.
 	 */
-	public attachUserWebSocketUpgrades(server: NodeHttpServer, options?: { passthroughUnmatched?: boolean }): void {
+	public attachUserWebSocketUpgrades(server: NodeHttpServer, options?: WebSocketUpgradeOptions): void {
 		attachNodeHttpWebSocketUpgrades(server, {
 			runtimeOrigin: this.runtimeOrigin,
 			websocketHandlers: this.websocketHandlers,
@@ -484,59 +483,24 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 * Composes the base Bun server settings that all runtime modes build from.
 	 *
 	 * @remarks
-	 * This method centralizes the Bun-specific error boundary. It preserves the
-	 * shared route pipeline while still allowing adapter-level custom error-handler
-	 * execution and `HttpError` passthrough.
+	 * The `app.onError` boundary lives in {@link handleRequest}. Bun's `error`
+	 * hook only fires if that boundary itself throws, so it answers with a plain
+	 * 500 rather than rendering anything that could fail again.
 	 */
 	private buildServerSettings(): BunServeOptions {
 		const serverOptions = { ...this.serveOptions } as BunServeAdapterServerOptions;
-		const handleNoMatch = this.handleNoMatch.bind(this);
-		const waitForInit = this.waitForInitialization.bind(this);
 		const handleReq = this.handleRequest.bind(this);
-		const errorHandler = this.errorHandler;
-		const getCacheService = () => this.getCacheService();
-		const getRenderContext = () => this.getRenderContext();
 
 		appLogger.debug(`[BunServerAdapter] Building server settings`);
 
 		const finalOptions: BunServeOptions = {
 			...serverOptions,
-			async fetch(this: Server<unknown>, request: Request, _server: Server<unknown>) {
-				try {
-					await waitForInit();
-					return await handleReq(request);
-				} catch (error) {
-					if (error instanceof Response) return error;
-					if (errorHandler) {
-						try {
-							const locals: Record<string, unknown> = {};
-							const context: ApiHandlerContext<Request, BunServerInstance> = {
-								request,
-								params: {},
-								response: new ApiResponseBuilder(),
-								server: _server as BunServerInstance,
-								locals,
-								require: createRequire((): Record<string, unknown> => locals),
-								services: {
-									cache: getCacheService(),
-								},
-								...getRenderContext(),
-							};
-
-							return await errorHandler(error, context);
-						} catch (handlerError) {
-							appLogger.error(`[ecopages] Error in custom error handler: ${handlerError}`);
-						}
-					}
-					if (error instanceof HttpError) return error.toResponse();
-
-					appLogger.error(`[ecopages] Error handling request: ${error}`);
-					return new Response('Internal Server Error', { status: 500 });
-				}
+			async fetch(this: Server<unknown>, request: Request) {
+				return await handleReq(request);
 			},
 			error(this: Server<unknown>, error: Error) {
 				appLogger.error(`[ecopages] Error handling request: ${error}`);
-				return handleNoMatch(new Request('http://localhost'));
+				return new Response('Internal Server Error', { status: 500 });
 			},
 		};
 
@@ -723,18 +687,24 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	 *
 	 * @remarks
 	 * HMR HTML injection for API and page responses is owned by
-	 * `SharedServerAdapter.handleSharedRequest`. This method only maps the
-	 * request into the shared pipeline.
+	 * `SharedServerAdapter.handleSharedRequest`. This method waits for
+	 * initialization, maps the request into the shared pipeline, and sends any
+	 * escaped error through the shared `app.onError` boundary.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
-		const response = await this.handleSharedRequest(request, {
+		const context = {
 			apiHandlers: this.apiHandlers,
 			errorHandler: this.errorHandler,
 			serverInstance: this.serverInstance,
 			hmrManager: this.hmrManager,
-		});
+		};
 
-		return response;
+		try {
+			await this.waitForInitialization();
+			return await this.handleSharedRequest(request, context);
+		} catch (error) {
+			return await this.handleUnexpectedRequestError(error, request, context);
+		}
 	}
 
 	/**
@@ -751,22 +721,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		}
 
 		throw new Error('Server not initialized. Call completeInitialization() first.');
-	}
-
-	/**
-	 * Handles HTTP requests from the router adapter.
-	 */
-	public async handleResponse(request: Request): Promise<Response> {
-		await this.waitForInitialization();
-		return this.routeHandler.handleResponse(request);
-	}
-
-	/**
-	 * Handles requests that do not match any routes.
-	 */
-	private async handleNoMatch(request: Request): Promise<Response> {
-		await this.waitForInitialization();
-		return this.routeHandler.handleNoMatch(request);
 	}
 }
 

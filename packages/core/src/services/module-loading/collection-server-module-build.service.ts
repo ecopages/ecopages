@@ -30,13 +30,6 @@ function getArtifactMap(appConfig: EcoPagesAppConfig): Map<string, CollectionSer
 	return artifacts;
 }
 
-export function getCollectionServerBuildArtifact(
-	appConfig: EcoPagesAppConfig,
-	collectionName: string,
-): CollectionServerBuildArtifact | undefined {
-	return getArtifactMap(appConfig).get(collectionName);
-}
-
 export function clearCollectionServerBuildArtifacts(appConfig: EcoPagesAppConfig): void {
 	getArtifactMap(appConfig).clear();
 }

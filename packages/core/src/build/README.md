@@ -63,6 +63,7 @@ build/
 - `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `cache/cache-constants.ts`: shared `.build-cache.json` filename for persisted production caches.
+- `cache/output-imports.ts`: lists the local files reachable from a compiled module, including shared chunks, so a cached module is reused only while they exist.
 - `*.test.ts`: regression coverage colocated with each module.
 
 ## Default Flow
@@ -139,13 +140,9 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 ## BuildOptions Caveats
 
-`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exceptions:
+`BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exception:
 
 - `splitting` — when `false` with a single entrypoint, maps to Rolldown `codeSplitting: false` so dynamic imports stay in one file. Multi-entrypoint builds ignore `splitting: false` because Rolldown cannot inline across multiple inputs.
-- `bundle` — accepted but ignored. The bundler always bundles.
-- `outbase` — accepted but ignored. The adapter derives the base from `options.root` directly.
-
-These fields are kept in the type so existing call-sites compile. The proper fix is a more focused `BuildOptions` schema in a follow-up.
 
 ## Dev / watch path
 
@@ -191,7 +188,9 @@ Production static exports compile all template pages in one Rolldown invocation 
 | Graph manifest | `.eco/.server-pages-graph/.build-cache.json`          |
 | Chunk outputs  | `.eco/.server-modules/` (shared with per-route cache) |
 
-`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+`StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
+
+A persisted graph is reused only when it matches the core package version, the build inputs and the build key, and every local file reachable from its outputs still exists. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 

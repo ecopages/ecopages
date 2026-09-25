@@ -4,7 +4,6 @@ import {
 	ECO_ISLAND_HOST_ATTRIBUTE,
 	ECO_ISLAND_INTEGRATION_ATTRIBUTE,
 	finalizeIslandComponentRender,
-	isIslandHostElement,
 } from './island-host.ts';
 
 describe('island host attributes', () => {
@@ -36,16 +35,5 @@ describe('island host attributes', () => {
 
 		expect(result.rootAttributes?.[ECO_ISLAND_HOST_ATTRIBUTE]).toBe('');
 		expect(result.rootAttributes?.[ECO_ISLAND_INTEGRATION_ATTRIBUTE]).toBe('lit');
-	});
-
-	it('detects island hosts from marker attributes', () => {
-		const element = {
-			tagName: 'SECTION',
-			hasAttribute(name: string) {
-				return name === ECO_ISLAND_HOST_ATTRIBUTE;
-			},
-		} as unknown as Element;
-
-		expect(isIslandHostElement(element)).toBe(true);
 	});
 });

@@ -5,14 +5,13 @@ import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
 	ROUTE_MODULE_BUILD_CACHE_FILENAME,
-	RouteModuleBuildCache,
 	type RouteModuleBuildCacheManifest,
 	createPersistedRouteModuleBuildKey,
-	createPluginCacheKey,
-	hashPluginSetup,
 	resolvePageModuleOutputFileName,
 	shouldPersistRouteModuleBuildCache,
-} from './route-module-build-cache.ts';
+} from './route-module-build-manifest.ts';
+import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
+import { createPluginCacheKey, hashFunctionIdentity } from '../../build/cache/cache-keys.ts';
 import {
 	clearProductionBuildCaches,
 	shouldResetStaticExportDirectory,
@@ -29,10 +28,12 @@ function createTestDependencyHasher(): RouteModuleDependencyHasher {
 describe('RouteModuleBuildCache', () => {
 	let tempDir: string;
 	let manifestWrites: RouteModuleBuildCacheManifest[];
+	let outputSources: Map<string, string>;
 
 	beforeEach(() => {
 		tempDir = mkdtempSync(join(tmpdir(), 'ecopages-route-module-build-cache-'));
 		manifestWrites = [];
+		outputSources = new Map();
 		delete process.env.NODE_ENV;
 	});
 
@@ -41,14 +42,15 @@ describe('RouteModuleBuildCache', () => {
 		delete process.env.NODE_ENV;
 	});
 
-	function createCache(): RouteModuleBuildCache {
+	function createCache(exists: (filePath: string) => boolean = (filePath) => filePath.endsWith('.mjs')) {
 		return new RouteModuleBuildCache(tempDir, {
 			getCorePackageVersion: () => '1.0.0-test',
 			readManifest: () => undefined,
 			writeManifest: (_manifestPath, manifest) => {
 				manifestWrites.push(structuredClone(manifest));
 			},
-			exists: (filePath) => filePath.endsWith('.mjs'),
+			exists,
+			readFile: (filePath) => outputSources.get(filePath) ?? '',
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
 	}
@@ -171,6 +173,59 @@ describe('RouteModuleBuildCache', () => {
 		assert.equal(lookup?.outputPath, outputPath);
 	});
 
+	it('misses once a file the cached output imports is gone', () => {
+		process.env.NODE_ENV = 'production';
+		const outputPath = join(tempDir, 'posts-abc123.mjs');
+		const collectionPath = join(tempDir, '..', '.server-collections', 'posts-1.mjs');
+		outputSources.set(
+			outputPath,
+			[
+				`import { posts } from ${JSON.stringify(collectionPath)};`,
+				`export { chunk } from './chunk-a.js';`,
+				`const lazy = () => import('./lazy-b.js?v=1');`,
+				`import react from 'react';`,
+			].join('\n'),
+		);
+		const present = new Set([outputPath, collectionPath, join(tempDir, 'chunk-a.js'), join(tempDir, 'lazy-b.js')]);
+		const cache = createCache((filePath) => present.has(filePath));
+		const options = { filePath: '/app/pages/posts.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+
+		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: ['/app/pages/posts.tsx'] });
+
+		assert.deepEqual(
+			manifestWrites[manifestWrites.length - 1]?.entries['/app/pages/posts.tsx']?.outputImports?.sort(),
+			[join(tempDir, 'chunk-a.js'), join(tempDir, 'lazy-b.js'), collectionPath].sort(),
+		);
+		assert.equal(cache.lookup(options)?.outputPath, outputPath);
+
+		present.delete(collectionPath);
+		assert.equal(cache.lookup(options), undefined);
+	});
+
+	it('misses once a shared chunk reached through another output import is gone', () => {
+		process.env.NODE_ENV = 'production';
+		const outputPath = join(tempDir, 'page-abc123.mjs');
+		const srcChunk = join(tempDir, 'src-CLtpMCiA.js');
+		const commonChunk = join(tempDir, 'common-C70_Ss5a.js');
+		outputSources.set(outputPath, `import ${JSON.stringify(srcChunk)};\nexport default {};\n`);
+		outputSources.set(srcChunk, `import ${JSON.stringify(commonChunk)};\nexport const page = 1;\n`);
+		outputSources.set(commonChunk, `export const shared = 1;\n`);
+		const present = new Set([outputPath, srcChunk, commonChunk]);
+		const cache = createCache((filePath) => present.has(filePath));
+		const options = { filePath: '/app/pages/index.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+
+		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: ['/app/pages/index.tsx'] });
+
+		assert.deepEqual(
+			manifestWrites[manifestWrites.length - 1]?.entries['/app/pages/index.tsx']?.outputImports?.sort(),
+			[srcChunk, commonChunk].sort(),
+		);
+		assert.equal(cache.lookup(options)?.outputPath, outputPath);
+
+		present.delete(commonChunk);
+		assert.equal(cache.lookup(options), undefined);
+	});
+
 	it('misses when a tracked dependency hash changes', () => {
 		process.env.NODE_ENV = 'production';
 		const outputPath = join(tempDir, 'about-abc123.mjs');
@@ -183,6 +238,7 @@ describe('RouteModuleBuildCache', () => {
 			hashFile: (filePath) => hashes.get(filePath) ?? 'missing',
 		});
 		const cache = new RouteModuleBuildCache(tempDir, {
+			readFile: () => '',
 			getCorePackageVersion: () => '1.0.0-test',
 			readManifest: () => undefined,
 			writeManifest: () => {},
@@ -211,6 +267,7 @@ describe('RouteModuleBuildCache', () => {
 	it('misses when the core package version changes', () => {
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = new RouteModuleBuildCache(tempDir, {
+			readFile: () => '',
 			getCorePackageVersion: () => '2.0.0-test',
 			readManifest: () => ({
 				corePackageVersion: '1.0.0-test',
@@ -298,7 +355,7 @@ describe('RouteModuleBuildCache', () => {
 
 		assert.notEqual(keyA, keyB);
 		assert.notEqual(createPluginCacheKey([pluginA]), createPluginCacheKey([pluginB]));
-		assert.notEqual(hashPluginSetup(pluginA.setup), hashPluginSetup(pluginB.setup));
+		assert.notEqual(hashFunctionIdentity(pluginA.setup), hashFunctionIdentity(pluginB.setup));
 	});
 
 	it('prunes rendered outputs that are no longer part of the active route set', () => {
@@ -352,6 +409,7 @@ describe('RouteModuleBuildCache', () => {
 	it('records and reuses static render outputs by pathname when the import graph is fresh', () => {
 		process.env.NODE_ENV = 'production';
 		const cache = new RouteModuleBuildCache(tempDir, {
+			readFile: () => `import './chunk-a.js';`,
 			getCorePackageVersion: () => '1.0.0-test',
 			readManifest: () => undefined,
 			writeManifest: (_manifestPath, manifest) => {
@@ -385,6 +443,10 @@ describe('RouteModuleBuildCache', () => {
 			context,
 		});
 
+		assert.deepEqual(manifestWrites[manifestWrites.length - 1]?.entries[filePath]?.outputImports, [
+			join(tempDir, 'chunk-a.js'),
+		]);
+
 		assert.equal(
 			cache.lookupStaticRender({
 				filePath,
@@ -401,6 +463,7 @@ describe('RouteModuleBuildCache', () => {
 		process.env.NODE_ENV = 'production';
 		const manifestPath = join(tempDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
 		const cache = new RouteModuleBuildCache(tempDir, {
+			readFile: () => '',
 			getCorePackageVersion: () => '1.0.0-test',
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
@@ -430,6 +493,7 @@ describe('RouteModuleBuildCache', () => {
 			dependencyHashes: {
 				'/app/pages/about.tsx': 'abc123',
 			},
+			outputImports: [],
 		});
 	});
 });
@@ -455,6 +519,7 @@ describe('production build cache utilities', () => {
 		mkdirSync(modulesDir, { recursive: true });
 		writeFileSync(manifestPath, '{}', 'utf8');
 		const cache = new RouteModuleBuildCache(modulesDir, {
+			readFile: () => '',
 			getCorePackageVersion: () => '1.0.0-test',
 			readManifest: () => ({
 				corePackageVersion: '1.0.0-test',

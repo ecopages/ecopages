@@ -20,7 +20,6 @@ describe('collectAppDevPrewarmPlan', () => {
 		expect(await collectAppDevPrewarmPlan(appConfig)).toEqual({
 			pathnames: ['/docs/installation', '/docs/introduction', '/'],
 			beforeReadyPathnames: ['/'],
-			readiness: 'background',
 		});
 	});
 
@@ -38,7 +37,6 @@ describe('collectAppDevPrewarmPlan', () => {
 		expect(await collectAppDevPrewarmPlan(appConfig)).toEqual({
 			pathnames: ['/docs/introduction'],
 			beforeReadyPathnames: ['/docs/introduction'],
-			readiness: 'beforeReady',
 		});
 	});
 });

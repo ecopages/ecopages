@@ -82,8 +82,6 @@ import { createApp } from '@ecopages/core/create-app';
 import { defineApiHandler, defineGroupHandler } from '@ecopages/core';
 ```
 
-Treat `@ecopages/core/bun` as an advanced escape hatch for Bun-native APIs.
-
 ### Agent-facing documentation
 
 The public docs site publishes a discovery index at [ecopages.app/llms.txt](https://ecopages.app/llms.txt). That file is an index: follow its links to `/docs-llm/<section>/<slug>.md` for page bodies, or start at [ecopages.app/skill.txt](https://ecopages.app/skill.txt) for a progressive build guide.

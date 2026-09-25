@@ -21,7 +21,7 @@ function makeComponent(file: string, config: Partial<EcoComponentConfig> = {}): 
 }
 
 describe('EcopagesJsxRenderSession', () => {
-	const session = new EcopagesJsxRenderSession((assets) => assets);
+	const session = new EcopagesJsxRenderSession();
 
 	beforeEach(() => {
 		resetEjsxHmrOwnership();
@@ -46,7 +46,6 @@ describe('EcopagesJsxRenderSession', () => {
 	it('publishes HMR ownership when entering through the JSX SSR scope bridge', async () => {
 		const mdx = makeComponent(`${CONTENT_DIR}/intro.mdx`);
 		const state = {
-			collectedAssetFrames: [] as never[],
 			pendingHmrFileOwners: new Set<string>(),
 		};
 

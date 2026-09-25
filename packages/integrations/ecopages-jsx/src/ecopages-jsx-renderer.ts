@@ -122,7 +122,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 	/**
 	 * Re-renders queued JSX children inside the owning renderer so nested custom
-	 * elements and queued foreign subtrees contribute assets to the same frame.
+	 * elements and queued foreign subtrees resolve here rather than as opaque markup.
 	 */
 	private async renderQueuedForeignSubtreeChildren(
 		children: unknown,
@@ -133,15 +133,12 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			return { assets: [] };
 		}
 
-		let assets: ProcessedAsset[] = [];
 		let html: string;
 
 		if (typeof children === 'string') {
 			html = children;
 		} else {
-			const renderedChildren = await this.renderJsx(children as JsxRenderable);
-			html = renderedChildren.html;
-			assets = renderedChildren.assets;
+			html = await this.renderJsx(children as JsxRenderable);
 		}
 		html = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
 			html,
@@ -150,7 +147,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		);
 
 		return {
-			assets,
+			assets: [],
 			html,
 		};
 	}
@@ -195,9 +192,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
-		this.renderSession = new EcopagesJsxRenderSession((assets) =>
-			this.htmlTransformer.dedupeProcessedAssets(assets),
-		);
+		this.renderSession = new EcopagesJsxRenderSession();
 		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
 		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
 		const preferSourceImports = typeof Bun !== 'undefined';
@@ -293,8 +288,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			await this.ssrScriptPreloader.preloadSsrScripts([input.component as EcoComponent]);
 
 			return await this.renderSession.withActiveScope(async () => {
-				const assetFrame = this.renderSession.beginCollectedAssetFrame();
-
 				try {
 					if (typeof input.component !== 'function') {
 						throw new TypeError('JSX renderer expected a callable component.');
@@ -312,10 +305,10 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 											: input.children,
 								};
 					const content = await this.withCustomElementRenderHook(() => component(componentProps));
-					const rendered = await this.renderJsx(content);
+					const html = await this.renderJsx(content);
 					const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
 						currentIntegrationName: this.name,
-						html: rendered.html,
+						html,
 						runtimeContext:
 							this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
 								input,
@@ -343,7 +336,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 							? await this.processComponentDependencies([input.component])
 							: [];
 					const assets = this.htmlTransformer.dedupeProcessedAssets([
-						...this.renderSession.endCollectedAssetFrame(assetFrame),
 						...queuedForeignSubtreeResolution.assets,
 						...componentAssets,
 					]);
@@ -358,7 +350,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						assets,
 					});
 				} catch (error) {
-					this.renderSession.endCollectedAssetFrame(assetFrame);
 					throw this.createRenderError('Error rendering component', error);
 				}
 			});
@@ -398,15 +389,8 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 	}
 
-	private async renderJsx(value: JsxRenderable): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		const collectedAssets: ProcessedAsset[] = [];
-		const html = await this.withCustomElementRenderHook(() => renderToString(value));
-		const dedupedAssets = this.renderSession.recordCollectedAssets(collectedAssets);
-
-		return {
-			assets: dedupedAssets,
-			html,
-		};
+	private async renderJsx(value: JsxRenderable): Promise<string> {
+		return await this.withCustomElementRenderHook(() => renderToString(value));
 	}
 
 	private async withCustomElementRenderHook<T>(render: () => T): Promise<T> {

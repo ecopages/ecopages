@@ -1,11 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent } from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { getActiveSsrScopeValue, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { mergeEjsxHmrOwnership, publishEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
 type EcopagesJsxSsrRenderState = {
-	collectedAssetFrames: ProcessedAsset[][];
 	pendingHmrFileOwners: Set<string>;
 };
 
@@ -41,7 +39,7 @@ async function runWithCommittedHmrOwnership<T>(
 }
 
 /**
- * Tracks JSX SSR asset-collection state for one active render flow.
+ * Tracks JSX SSR HMR-ownership state for one active render flow.
  *
  * @remarks
  * The renderer still mirrors this state into `@ecopages/jsx/server` so nested
@@ -51,19 +49,13 @@ async function runWithCommittedHmrOwnership<T>(
  * JSX server helpers.
  */
 export class EcopagesJsxRenderSession {
-	private readonly dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
-
-	constructor(dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[]) {
-		this.dedupeProcessedAssets = dedupeProcessedAssets;
-	}
-
 	/**
 	 * Runs one render inside the active session scope.
 	 *
 	 * @remarks
 	 * When a render is already active, the current session state is reused and
 	 * mirrored back into the JSX SSR scope so nested `renderToString()` calls see
-	 * the same asset frame stack. When no session exists yet, a new state is
+	 * the same HMR-ownership set. When no session exists yet, a new state is
 	 * created and published through both the internal async-local store and the
 	 * JSX SSR scope bridge. HMR ownership accumulated during the outer scope is
 	 * published once when that scope completes.
@@ -83,7 +75,6 @@ export class EcopagesJsxRenderSession {
 		}
 
 		const state: EcopagesJsxSsrRenderState = {
-			collectedAssetFrames: [],
 			pendingHmrFileOwners: new Set<string>(),
 		};
 
@@ -94,37 +85,8 @@ export class EcopagesJsxRenderSession {
 		);
 	}
 
-	beginCollectedAssetFrame(): ProcessedAsset[] {
-		const state = this.getState();
-		const frame: ProcessedAsset[] = [];
-		state.collectedAssetFrames.push(frame);
-		return frame;
-	}
-
-	endCollectedAssetFrame(frame: ProcessedAsset[]): ProcessedAsset[] {
-		const activeFrame = this.getState().collectedAssetFrames.pop();
-
-		if (!activeFrame || activeFrame !== frame) {
-			return this.dedupeProcessedAssets(frame);
-		}
-
-		return this.dedupeProcessedAssets(activeFrame);
-	}
-
 	mergeHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
 		mergeEjsxHmrOwnership(ensurePendingHmrFileOwners(this.getState()), components);
-	}
-
-	recordCollectedAssets(collectedAssets: ProcessedAsset[]): ProcessedAsset[] {
-		const dedupedAssets = this.dedupeProcessedAssets(collectedAssets);
-		const state = this.getState();
-		const activeFrame = state.collectedAssetFrames[state.collectedAssetFrames.length - 1];
-
-		if (activeFrame) {
-			activeFrame.push(...dedupedAssets);
-		}
-
-		return dedupedAssets;
 	}
 
 	/**

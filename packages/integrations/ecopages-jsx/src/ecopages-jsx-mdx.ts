@@ -51,21 +51,6 @@ export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginO
 		projectRoot: options.projectRoot,
 	});
 
-export const registerBunMdxPlugin = async (options: CreateEcopagesJsxMdxLoaderPluginOptions): Promise<void> => {
-	if (typeof Bun === 'undefined') {
-		return;
-	}
-
-	const plugin = createMdxLoaderPlugin(options);
-
-	Bun.plugin({
-		name: plugin.name,
-		setup(build) {
-			return plugin.setup(build as any);
-		},
-	});
-};
-
 export const isMdxFile = (filePath: string, extensions: string[]): boolean => {
 	return extensions.some((ext) => filePath.endsWith(ext));
 };

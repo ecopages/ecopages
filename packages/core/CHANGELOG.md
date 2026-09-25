@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.2.0-rc.11
+
+### Patch Changes
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`092502a`](https://github.com/ecopages/ecopages/commit/092502aa9cd169e7a03a7bb97d7f16685c9c7146) Thanks [@andeeplus](https://github.com/andeeplus)! - Persisted build caches in `.eco` are validated before reuse:
+
+    - A cached page module is reused only while the files it imports still exist, so a partly deleted or interrupted `.eco` folder no longer crashes the build.
+    - Page modules are no longer imported from a pages graph that an older build wrote, for example before an upgraded build rebuilds it.
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`f09227f`](https://github.com/ecopages/ecopages/commit/f09227f22184ceebf577a8227b38df42a77f46eb) Thanks [@andeeplus](https://github.com/andeeplus)! - Attribute stamping on the `<html>` element, the body root and island roots now uses the HTML rewriter instead of regular expressions:
+
+    - Tags inside comments and scripts no longer match, and `>` inside a quoted attribute value no longer breaks stamping.
+    - Quotes in stamped values are escaped.
+    - An attribute the element already has is replaced instead of duplicated.
+    - Stamped attributes now follow the element's existing attributes.
+
+    HTML dependency injection is also about twice as fast on large pages.
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`6fb4725`](https://github.com/ecopages/ecopages/commit/6fb4725ea4fcf0ea1773bfadcd154702434e0502) Thanks [@andeeplus](https://github.com/andeeplus)! - Final HTML injection now uses a built-in streaming rewriter with the same output as Bun's `HTMLRewriter` (lol-html) on every runtime. The `@worker-tools/html-rewriter` dependency and the Node string fallback are gone.
+
+    - `HtmlTransformerService.transform()` now returns the `Response` synchronously. Existing `await` calls still work.
+    - Removed `HtmlTransformerService.setHtmlRewriterMode()` and the `HtmlTransformerServiceOptions` constructor options. There is only one rewriter now, so there is nothing to select.
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`bcbda3d`](https://github.com/ecopages/ecopages/commit/bcbda3df0bbbe57e85a57789bbbb92c881053f9a) Thanks [@andeeplus](https://github.com/andeeplus)! - Removed unused public API from `@ecopages/core`:
+
+    - Subpaths:
+        - `@ecopages/core/bun`: use `createApp` from `@ecopages/core/create-app` and the handler helpers from `@ecopages/core`.
+        - `@ecopages/core/eco`: import `eco` from `@ecopages/core`.
+        - `@ecopages/core/utils/hash`: use `@ecopages/core/hash`.
+        - `@ecopages/core/build/build-types`: the build plugin types are exported from `@ecopages/core/plugins/integration-plugin`.
+        - `@ecopages/core/hmr/hmr-asset-paths`: import `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`.
+        - Internal modules with no replacement: `build/build-contracts`, `build/production-build-cache`, `build/server-entry-build-cache`, `build/runtime-build-output-normalizer`, `diagnostics/startup-trace`, `hmr/hmr-runtime-paths`, `dev/client-bridge-registry`, `dev-toolbar/dev-toolbar-host`, `dev-toolbar/dev-toolbar-package`, `dev-toolbar/dev-toolbar-runtime-paths`, `plugins/foreign-jsx-override-plugin` and `plugins/alias-resolver-plugin`.
+    - Root exports:
+        - `createEcoBuildPluginFromSourceTransform`, `getAppSourceTransforms` and `normalizeTransformId`: import them from `@ecopages/core/plugins/source-transform`.
+        - `mergeLayoutDependencies`: import it from `@ecopages/core/eco/page-layout-normalization`.
+        - `attributeComponentIdentity`, `registerDiscoveredDependencies`, `getInferredStylesheets`, `DiscoveredDependencies`, `listFileOwnedDependencyContributions`, `ECO_ISLAND_HOST_ATTRIBUTE`, `ECO_ISLAND_INTEGRATION_ATTRIBUTE`, `isIslandHostElement` and `mergeIslandHostAttributes`.
+        - The types `CssProcessor`, `IntegrationPluginDependencies`, `DeepRequired`, `Prettify`, `TypedApiHandlerContext` and `GroupOptions`, and `Error400TemplateProps`, `Error401TemplateProps` and `Error409TemplateProps` (use `ErrorPageTemplateProps`).
+    - Other members:
+        - `IS_BUN` from `@ecopages/core/constants`.
+        - `HmrStrategyType.ASSET`; use `INTEGRATION` or `SCRIPT` with a `priorityOffset`.
+        - `invalidatedGraphCount` from the `prepareHmrFileChange()` result.
+        - `resetRuntimeState()` from the development host runtime.
+        - `assertIntegrationInvariant` from `@ecopages/core/plugins/integration-plugin`.
+        - `getCollectionServerBuildArtifact` from `@ecopages/core/services/module-loading/collection-server-module-build.service`.
+        - `ModuleParseCache`, `moduleParseCache`, `cachedParseSync`, `parserLanguageForFile` and the `ParserLanguage` type from `@ecopages/core/cache`; use `parseModuleSource`.
+        - The ignored `outbase` and `bundle` fields of `BuildOptions`.
+        - The protected `IntegrationRenderer.applyAttributesToFirstBodyElement()` and `createFailFastForeignChildRuntime()` methods.
+        - The `devRuntimeFactory` option of the Node server adapter.
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`faa6221`](https://github.com/ecopages/ecopages/commit/faa622198dc55677b309bb2e4e7ae7c96677886f) Thanks [@andeeplus](https://github.com/andeeplus)! - Runtime adapter fixes:
+
+    - Bun `start` no longer boots `Bun.serve` in `development` mode or exposes `/_hmr`; both now follow `--dev` only.
+    - `app.onError` now receives errors that escape the request pipeline on Node as well as Bun. As on Bun, `app.fetch()` on Node now resolves with the resulting response instead of rejecting, so an embedding host such as Vite no longer receives these errors in its own error middleware.
+    - Unhandled request errors are logged with their stack trace instead of a one-line message.
+    - A client that disconnects mid-request on Node gets a 499 wherever the abort surfaces, including inside API handlers. It is no longer logged as an error or passed to `app.onError`.
+    - Bun's last-resort `error` hook answers with a plain 500 instead of rendering the not-found page.
+    - On Node, `attachWebSocketUpgrades(server, { passthroughUnmatched: true })` now honours the option on the first call, so an embedded host such as Vite keeps its own WebSocket upgrades (for example Vite HMR).
+    - The Bun preview server answers missing pages with status 404, serves `404.html` with that status, no longer throws when `404.html` is absent, and binds the configured hostname.
+    - Dev file-change errors are broadcast to the browser once instead of twice, and non-`Error` throws are logged instead of dropped.
+    - A duplicate source transform name now reports a source-transform error instead of a loader error.
+    - Removed unused API:
+        - the unawaited `clearOutput` app option
+        - the app getters `getApiHandlers()`, `getStaticRoutes()`, `getWebsocketHandlers()` and `getErrorHandler()`
+        - the deprecated `StartCallback`, `ListenCallback`, `ApplicationListeningCallback` and `ApplicationListeningInfo` types from `@ecopages/core/create-app`; use `OnAppStartCallback` and `AppStartInfo`
+        - `BunEcopagesApp.completeInitialization()`
+        - the never-read `integrationsDependencies` app config field
+
+- [#330](https://github.com/ecopages/ecopages/pull/330) [`f815c41`](https://github.com/ecopages/ecopages/commit/f815c411772048af88c3319561a35af6def9a430) Thanks [@andeeplus](https://github.com/andeeplus)! - `eco.config.ts` may omit `rootDir`; Ecopages defaults it to `process.cwd()` (or the loader `cwd` option). An empty `rootDir` string remains invalid.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.11
+    - @ecopages/file-system@0.2.0-rc.11
+
 ## 0.2.0-rc.10
 
 ### Minor Changes

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.0-rc.11
+
+### Patch Changes
+
+- [#335](https://github.com/ecopages/ecopages/pull/335) [`bcbda3d`](https://github.com/ecopages/ecopages/commit/bcbda3df0bbbe57e85a57789bbbb92c881053f9a) Thanks [@andeeplus](https://github.com/andeeplus)! - Removed unused public API from `@ecopages/core`:
+
+    - Subpaths:
+        - `@ecopages/core/bun`: use `createApp` from `@ecopages/core/create-app` and the handler helpers from `@ecopages/core`.
+        - `@ecopages/core/eco`: import `eco` from `@ecopages/core`.
+        - `@ecopages/core/utils/hash`: use `@ecopages/core/hash`.
+        - `@ecopages/core/build/build-types`: the build plugin types are exported from `@ecopages/core/plugins/integration-plugin`.
+        - `@ecopages/core/hmr/hmr-asset-paths`: import `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`.
+        - Internal modules with no replacement: `build/build-contracts`, `build/production-build-cache`, `build/server-entry-build-cache`, `build/runtime-build-output-normalizer`, `diagnostics/startup-trace`, `hmr/hmr-runtime-paths`, `dev/client-bridge-registry`, `dev-toolbar/dev-toolbar-host`, `dev-toolbar/dev-toolbar-package`, `dev-toolbar/dev-toolbar-runtime-paths`, `plugins/foreign-jsx-override-plugin` and `plugins/alias-resolver-plugin`.
+    - Root exports:
+        - `createEcoBuildPluginFromSourceTransform`, `getAppSourceTransforms` and `normalizeTransformId`: import them from `@ecopages/core/plugins/source-transform`.
+        - `mergeLayoutDependencies`: import it from `@ecopages/core/eco/page-layout-normalization`.
+        - `attributeComponentIdentity`, `registerDiscoveredDependencies`, `getInferredStylesheets`, `DiscoveredDependencies`, `listFileOwnedDependencyContributions`, `ECO_ISLAND_HOST_ATTRIBUTE`, `ECO_ISLAND_INTEGRATION_ATTRIBUTE`, `isIslandHostElement` and `mergeIslandHostAttributes`.
+        - The types `CssProcessor`, `IntegrationPluginDependencies`, `DeepRequired`, `Prettify`, `TypedApiHandlerContext` and `GroupOptions`, and `Error400TemplateProps`, `Error401TemplateProps` and `Error409TemplateProps` (use `ErrorPageTemplateProps`).
+    - Other members:
+        - `IS_BUN` from `@ecopages/core/constants`.
+        - `HmrStrategyType.ASSET`; use `INTEGRATION` or `SCRIPT` with a `priorityOffset`.
+        - `invalidatedGraphCount` from the `prepareHmrFileChange()` result.
+        - `resetRuntimeState()` from the development host runtime.
+        - `assertIntegrationInvariant` from `@ecopages/core/plugins/integration-plugin`.
+        - `getCollectionServerBuildArtifact` from `@ecopages/core/services/module-loading/collection-server-module-build.service`.
+        - `ModuleParseCache`, `moduleParseCache`, `cachedParseSync`, `parserLanguageForFile` and the `ParserLanguage` type from `@ecopages/core/cache`; use `parseModuleSource`.
+        - The ignored `outbase` and `bundle` fields of `BuildOptions`.
+        - The protected `IntegrationRenderer.applyAttributesToFirstBodyElement()` and `createFailFastForeignChildRuntime()` methods.
+        - The `devRuntimeFactory` option of the Node server adapter.
+
+- [#342](https://github.com/ecopages/ecopages/pull/342) [`926f37d`](https://github.com/ecopages/ecopages/commit/926f37d79c79796e747a7eef7b504f56180a42cd) Thanks [@andeeplus](https://github.com/andeeplus)! - Stop registering the JSX MDX loader twice on Bun, and include compiler plugin functions in the MDX transform cache key so swapping remark/rehype/recma plugins no longer reuses a stale compile.
+- Updated dependencies [[`092502a`](https://github.com/ecopages/ecopages/commit/092502aa9cd169e7a03a7bb97d7f16685c9c7146), [`f09227f`](https://github.com/ecopages/ecopages/commit/f09227f22184ceebf577a8227b38df42a77f46eb), [`6fb4725`](https://github.com/ecopages/ecopages/commit/6fb4725ea4fcf0ea1773bfadcd154702434e0502), [`bcbda3d`](https://github.com/ecopages/ecopages/commit/bcbda3df0bbbe57e85a57789bbbb92c881053f9a), [`faa6221`](https://github.com/ecopages/ecopages/commit/faa622198dc55677b309bb2e4e7ae7c96677886f), [`f815c41`](https://github.com/ecopages/ecopages/commit/f815c411772048af88c3319561a35af6def9a430)]:
+    - @ecopages/core@0.2.0-rc.11
+
 ## 0.2.0-rc.10
 
 ### Patch Changes

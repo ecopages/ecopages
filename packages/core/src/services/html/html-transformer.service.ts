@@ -1,6 +1,6 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../../types/public-types.ts';
-import { HtmlRewriter } from './html-rewriter.ts';
+import { HtmlRewriter, rewriteFirstElement, type HtmlRewriterAttributeTarget } from './html-rewriter.ts';
 import {
 	buildProcessedAssetDedupeKey,
 	dedupeProcessedAssets,
@@ -82,65 +82,41 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Applies attributes to the opening `<html>` tag when present.
+	 * Sets attributes on the first `<html>` start tag.
 	 */
 	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
-		const htmlTagMatch = html.match(/<html\b[^>]*>/i);
-		if (!htmlTagMatch || htmlTagMatch.index === undefined) {
-			return html;
-		}
-
-		const attrs = this.buildAttributeString(attributes);
-		if (attrs.length === 0) {
-			return html;
-		}
-
-		const injectionOffset = htmlTagMatch.index + htmlTagMatch[0].length - 1;
-		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+		return stampAttributes(html, attributes, (element) => element.tagName === 'html');
 	}
 
 	/**
-	 * Applies attributes to the first element nested directly under `<body>`.
+	 * Sets attributes on the element that directly follows the `<body>` start tag.
+	 *
+	 * @remarks
+	 * Nothing is stamped when text or a comment comes first (whitespace aside).
 	 */
 	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string {
-		const bodyMatch = html.match(/<body\b[^>]*>/i);
-		if (!bodyMatch || bodyMatch.index === undefined) {
-			return html;
-		}
-
-		const bodyOpenEnd = bodyMatch.index + bodyMatch[0].length;
-		const afterBody = html.slice(bodyOpenEnd);
-		const firstTagMatch = afterBody.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
-		if (!firstTagMatch || firstTagMatch.index === undefined) {
-			return html;
-		}
-
-		const attrs = this.buildAttributeString(attributes);
-		if (attrs.length === 0) {
-			return html;
-		}
-
-		const injectionOffset = bodyOpenEnd + firstTagMatch[1].length + firstTagMatch[2].length;
-		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+		let insideBody = false;
+		return stampAttributes(
+			html,
+			attributes,
+			(element) => {
+				if (insideBody) return true;
+				insideBody = element.tagName === 'body';
+				return false;
+			},
+			{ leadingOnly: true },
+		);
 	}
 
 	/**
-	 * Applies attributes to the first element in a fragment or full-document HTML
-	 * string.
+	 * Sets attributes on the element a fragment or document starts with.
+	 *
+	 * @remarks
+	 * Nothing is stamped when text or a comment comes first (whitespace aside),
+	 * so a Lit render that opens with `<!--lit-part-->` keeps its markup.
 	 */
 	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
-		const firstTagMatch = html.match(/^(\s*<)([a-zA-Z][a-zA-Z0-9:-]*)(\b[^>]*>)/);
-		if (!firstTagMatch || firstTagMatch.index === undefined) {
-			return html;
-		}
-
-		const attrs = this.buildAttributeString(attributes);
-		if (attrs.length === 0) {
-			return html;
-		}
-
-		const injectionOffset = firstTagMatch[1].length + firstTagMatch[2].length;
-		return `${html.slice(0, injectionOffset)}${attrs}${html.slice(injectionOffset)}`;
+		return stampAttributes(html, attributes, () => true, { leadingOnly: true });
 	}
 
 	/**
@@ -259,14 +235,30 @@ export class HtmlTransformerService {
 
 		return dedupeProcessedAssets([...nonGraphHtmlAssets, ...entryHtmlAssets]);
 	}
+}
 
-	/**
-	 * Builds a serialized HTML attribute string from an attribute object.
-	 */
-	private buildAttributeString(attributes: Record<string, string>): string {
-		return Object.entries(attributes)
-			.filter(([key, value]) => key.length > 0 && value.length > 0)
-			.map(([key, value]) => ` ${key}="${value}"`)
-			.join('');
-	}
+/**
+ * Sets `attributes` on the first element that `isTarget` accepts.
+ *
+ * @remarks
+ * Entries with an empty name or value are skipped, and an attribute the element
+ * already has is replaced rather than duplicated.
+ */
+function stampAttributes(
+	html: string,
+	attributes: Record<string, string>,
+	isTarget: (element: HtmlRewriterAttributeTarget) => boolean,
+	options?: { leadingOnly?: boolean },
+): string {
+	const entries = Object.entries(attributes).filter(([name, value]) => name.length > 0 && value.length > 0);
+	if (entries.length === 0) return html;
+
+	return rewriteFirstElement(
+		html,
+		isTarget,
+		(element) => {
+			for (const [name, value] of entries) element.setAttribute(name, value);
+		},
+		options,
+	);
 }

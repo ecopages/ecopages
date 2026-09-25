@@ -98,6 +98,52 @@ export class HtmlRewriter {
 	}
 }
 
+/** Attribute access on the element passed to {@link rewriteFirstElement}. */
+export type HtmlRewriterAttributeTarget = Pick<
+	HtmlRewriterElement,
+	'tagName' | 'attributes' | 'getAttribute' | 'hasAttribute' | 'setAttribute' | 'removeAttribute'
+>;
+
+/**
+ * Rewrites the attributes of the first start tag that `isTarget` accepts and
+ * returns the rest of `html` unchanged.
+ *
+ * @remarks
+ * Uses the same tokenizer as {@link HtmlRewriter}, so tags inside comments, raw
+ * text and quoted attribute values never match. Scanning stops once the target
+ * is rewritten, so the cost grows with the markup before the target rather than
+ * with the whole document. Only attribute changes are offered: content placed
+ * with `append` or `after` needs the element's end tag, which is never reached.
+ *
+ * With `leadingOnly`, the target must directly follow the previous start tag
+ * (or the start of `html`), whitespace aside. When text, a comment or an end tag
+ * comes first, scanning stops and nothing is rewritten.
+ */
+export function rewriteFirstElement(
+	html: string,
+	isTarget: (element: HtmlRewriterAttributeTarget) => boolean,
+	rewrite: (element: HtmlRewriterAttributeTarget) => void,
+	options: { leadingOnly?: boolean } = {},
+): string {
+	const leadingOnly = options.leadingOnly ?? false;
+	const session: RewriteSession = new RewriteSession(
+		[
+			{
+				tagName: '*',
+				handlers: {
+					element(element) {
+						if (!isTarget(element)) return;
+						if (!leadingOnly || !session.contentBeforeStartTag) rewrite(element);
+						session.stop();
+					},
+				},
+			},
+		],
+		{ trackLeadingText: leadingOnly },
+	);
+	return `${session.write(html)}${session.end()}`;
+}
+
 type SelectorHandlers = { tagName: string; handlers: HtmlRewriterElementHandlers };
 
 type OpenElement = { name: string; foreign: boolean; append: string; after: string };
@@ -211,15 +257,32 @@ class RewriteSession {
 	private buffer = '';
 	private rawTextTag: string | null = null;
 	private scriptState: 'data' | 'escaped' | 'double-escaped' = 'data';
+	private stopped = false;
+	private markupSinceStartTag = false;
 	private readonly openElements: OpenElement[] = [];
 	private readonly handlers: SelectorHandlers[];
 	private readonly handledTags: ReadonlySet<string>;
 	private readonly handlesAnyTag: boolean;
+	private readonly trackLeadingText: boolean;
 
-	constructor(handlers: SelectorHandlers[]) {
+	/**
+	 * @param options.trackLeadingText Also count non-whitespace text in
+	 * {@link contentBeforeStartTag}. Off by default because it scans every text run.
+	 */
+	constructor(handlers: SelectorHandlers[], options: { trackLeadingText?: boolean } = {}) {
 		this.handlers = handlers;
 		this.handledTags = new Set(handlers.map((entry) => entry.tagName));
 		this.handlesAnyTag = this.handledTags.has('*');
+		this.trackLeadingText = options.trackLeadingText ?? false;
+	}
+
+	/**
+	 * Whether a comment, end tag or other non-start-tag markup (and, when tracked,
+	 * non-whitespace text) appeared between the previous start tag and the one
+	 * whose handlers are running.
+	 */
+	get contentBeforeStartTag(): boolean {
+		return this.markupSinceStartTag;
 	}
 
 	write(chunk: string): string {
@@ -231,6 +294,11 @@ class RewriteSession {
 		const output = this.drain(true);
 		this.openElements.length = 0;
 		return output;
+	}
+
+	/** Stops tokenizing after the current tag; the remaining input passes through verbatim. */
+	stop(): void {
+		this.stopped = true;
 	}
 
 	/**
@@ -245,7 +313,7 @@ class RewriteSession {
 		let copied = 0;
 		let index = 0;
 
-		while (index < source.length) {
+		while (index < source.length && !this.stopped) {
 			if (this.rawTextTag) {
 				const scan =
 					this.rawTextTag === 'script'
@@ -258,6 +326,10 @@ class RewriteSession {
 			}
 
 			const lt = source.indexOf('<', index);
+			const textEnd = lt === -1 ? source.length : lt;
+			if (this.trackLeadingText && !this.markupSinceStartTag && hasNonWhitespace(source, index, textEnd)) {
+				this.markupSinceStartTag = true;
+			}
 			if (lt === -1) {
 				index = source.length;
 				break;
@@ -274,7 +346,7 @@ class RewriteSession {
 		}
 
 		output += source.slice(copied, index);
-		if (final) {
+		if (final || this.stopped) {
 			output += source.slice(index);
 			this.buffer = '';
 		} else {
@@ -286,14 +358,23 @@ class RewriteSession {
 	private readMarkup(source: string, index: number, final: boolean): MarkupToken | null {
 		const next = source[index + 1];
 		if (next === undefined) return null;
+		if (isAsciiAlpha(next)) {
+			const tag = scanTag(source, index);
+			if (!tag) return null;
+			return { end: tag.end + 1, replacement: this.openElement(source, index, tag.end + 1, tag.selfClosing) };
+		}
+
+		const token = this.readNonStartTag(source, index, next, final);
+		if (token) this.markupSinceStartTag = true;
+		return token;
+	}
+
+	/** Reads a comment, declaration, processing instruction, end tag or a stray `<`. */
+	private readNonStartTag(source: string, index: number, next: string, final: boolean): MarkupToken | null {
 		if (next === '!') return readDeclaration(source, index, final, this.inForeignContent());
 		if (next === '?') return readUntilTagClose(source, index);
 		if (next === '/') return this.readEndTag(source, index);
-		if (!isAsciiAlpha(next)) return { end: index + 1 };
-
-		const tag = scanTag(source, index);
-		if (!tag) return null;
-		return { end: tag.end + 1, replacement: this.openElement(source, index, tag.end + 1, tag.selfClosing) };
+		return { end: index + 1 };
 	}
 
 	private readEndTag(source: string, index: number): MarkupToken | null {
@@ -350,6 +431,7 @@ class RewriteSession {
 			openElement.after = element.renderAfter();
 			if (isVoid) replacement += openElement.after;
 		}
+		this.markupSinceStartTag = false;
 
 		if (!isVoid) {
 			this.openElements.push(openElement);
@@ -773,6 +855,13 @@ const CHAR_SINGLE_QUOTE = 39;
 const CHAR_SLASH = 47;
 const CHAR_EQUALS = 61;
 const CHAR_GREATER_THAN = 62;
+
+function hasNonWhitespace(source: string, start: number, end: number): boolean {
+	for (let position = start; position < end; position++) {
+		if (!isWhitespaceCode(source.charCodeAt(position))) return true;
+	}
+	return false;
+}
 
 /** {@link isWhitespace} for a UTF-16 code unit, for the hot tag scanner. */
 function isWhitespaceCode(code: number): boolean {

@@ -174,6 +174,56 @@ describe('HtmlTransformerService', () => {
 		expect(result).toContain('<aside aria-live="polite">Content</aside>');
 	});
 
+	it('replaces an attribute the target already has instead of duplicating it', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToFirstElement('<div data-eco-component-id="old">x</div>', {
+				'data-eco-component-id': 'new',
+			}),
+		).toBe('<div data-eco-component-id="new">x</div>');
+	});
+
+	it('stamps nothing when text or a comment precedes the fragment or body root', () => {
+		const transformer = new HtmlTransformerService();
+		const litRender = '<!--lit-part AbC=--><lit-counter count="0"></lit-counter><!--/lit-part-->';
+
+		expect(transformer.applyAttributesToFirstElement(litRender, { 'data-a': '1' })).toBe(litRender);
+		expect(transformer.applyAttributesToFirstElement('text <span>x</span>', { 'data-a': '1' })).toBe(
+			'text <span>x</span>',
+		);
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body><!-- c --><main>M</main></body>', { 'data-a': '1' }),
+		).toBe('<body><!-- c --><main>M</main></body>');
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body>\n  <main>M</main></body>', { 'data-a': '1' }),
+		).toBe('<body>\n  <main data-a="1">M</main></body>');
+	});
+
+	it('ignores tags in comments and scripts and quoted > when stamping', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToHtmlElement('<!-- <html> --><script>"<html>"</script><html data-a="x>y">', {
+				lang: 'en',
+			}),
+		).toBe('<!-- <html> --><script>"<html>"</script><html data-a="x>y" lang="en">');
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body data-a="x>y"><main>M</main></body>', {
+				role: 'main',
+			}),
+		).toBe('<body data-a="x>y"><main role="main">M</main></body>');
+	});
+
+	it('escapes quotes in stamped values and skips empty names or values', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToFirstElement('<div>x</div>', { title: 'a "b"', 'data-empty': '', '': 'v' }),
+		).toBe('<div title="a &quot;b&quot;">x</div>');
+		expect(transformer.applyAttributesToFirstElement('<div>x</div>', { 'data-empty': '' })).toBe('<div>x</div>');
+	});
+
 	it('should deduplicate processed assets while preserving order', () => {
 		const transformer = new HtmlTransformerService();
 		const first = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;

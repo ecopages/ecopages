@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { HtmlRewriter, type HtmlRewriterElement, type HtmlRewriterElementHandlers } from './html-rewriter.ts';
+import {
+	HtmlRewriter,
+	rewriteFirstElement,
+	type HtmlRewriterElement,
+	type HtmlRewriterElementHandlers,
+} from './html-rewriter.ts';
 
 /**
  * Expected outputs are what Bun 1.3.8's native `HTMLRewriter` (lol-html) produces
@@ -260,6 +265,43 @@ describe('HtmlRewriter (lol-html parity)', () => {
 
 	it('rejects selectors it cannot match', () => {
 		expect(() => new HtmlRewriter().on('body > main', {})).toThrow(/tag-name and "\*" selectors only/);
+	});
+});
+
+describe('rewriteFirstElement', () => {
+	it('rewrites only the first matching start tag and passes the rest through verbatim', () => {
+		const output = rewriteFirstElement(
+			'<!-- <div> --><script>"<div>"</script><div a="x>y">1<div>2</div></div><p',
+			(element) => element.tagName === 'div',
+			(element) => void element.setAttribute('b', '2'),
+		);
+
+		expect(output).toBe('<!-- <div> --><script>"<div>"</script><div a="x>y" b="2">1<div>2</div></div><p');
+	});
+
+	it('with leadingOnly, rewrites nothing when text or a comment precedes the target', () => {
+		const stamp = (html: string) =>
+			rewriteFirstElement(
+				html,
+				() => true,
+				(element) => void element.setAttribute('b', '2'),
+				{ leadingOnly: true },
+			);
+
+		expect(stamp('  <div>x</div>')).toBe('  <div b="2">x</div>');
+		expect(stamp('<!--c--><div>x</div>')).toBe('<!--c--><div>x</div>');
+		expect(stamp('t<div>x</div>')).toBe('t<div>x</div>');
+	});
+
+	it('returns the input unchanged when nothing matches', () => {
+		const html = '<main><p>x</p></main>';
+		expect(
+			rewriteFirstElement(
+				html,
+				(element) => element.tagName === 'div',
+				() => {},
+			),
+		).toBe(html);
 	});
 });
 

@@ -12,7 +12,6 @@ import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hyd
 import {
 	appendMdxExtensions,
 	createMdxLoaderPlugin,
-	registerBunMdxPlugin,
 	resolveMdxCompilerOptions,
 	type ResolvedMdxCompileOptions,
 } from './ecopages-jsx-mdx.ts';
@@ -193,15 +192,14 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	}
 
 	/**
-	 * Registers MDX tooling and completes the base integration setup.
+	 * Ensures the MDX loader exists, then completes the base integration setup.
+	 *
+	 * @remarks
+	 * Bun registers `integration.plugins` after `setup()` returns. Calling
+	 * `Bun.plugin` here would install the same MDX loader twice.
 	 */
 	override async setup(): Promise<void> {
 		this.ensureMdxLoaderPlugin();
-
-		if (typeof Bun !== 'undefined' && this.mdxEnabled && this.mdxCompilerOptions) {
-			await this.registerMdxBunPlugin();
-		}
-
 		await super.setup();
 	}
 
@@ -215,28 +213,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		}
 
 		this.mdxLoaderPlugin = createMdxLoaderPlugin({
-			compilerOptions: this.mdxCompilerOptions,
-			extensions: this.mdxExtensions,
-			projectRoot: this.appConfig.rootDir,
-		});
-	}
-
-	/**
-	 * Registers Bun's MDX loader at runtime setup time.
-	 *
-	 * Build-time contribution collection may run where Bun is absent, so
-	 * this hook stays isolated from manifest preparation.
-	 */
-	private async registerMdxBunPlugin(): Promise<void> {
-		if (typeof Bun === 'undefined' || !this.mdxCompilerOptions) {
-			return;
-		}
-
-		if (!this.appConfig) {
-			throw new Error('[EcopagesJsxPlugin] Cannot register Bun MDX plugin: appConfig is not set');
-		}
-
-		await registerBunMdxPlugin({
 			compilerOptions: this.mdxCompilerOptions,
 			extensions: this.mdxExtensions,
 			projectRoot: this.appConfig.rootDir,

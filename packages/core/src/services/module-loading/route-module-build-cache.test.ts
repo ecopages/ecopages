@@ -202,6 +202,30 @@ describe('RouteModuleBuildCache', () => {
 		assert.equal(cache.lookup(options), undefined);
 	});
 
+	it('misses once a shared chunk reached through another output import is gone', () => {
+		process.env.NODE_ENV = 'production';
+		const outputPath = join(tempDir, 'page-abc123.mjs');
+		const srcChunk = join(tempDir, 'src-CLtpMCiA.js');
+		const commonChunk = join(tempDir, 'common-C70_Ss5a.js');
+		outputSources.set(outputPath, `import ${JSON.stringify(srcChunk)};\nexport default {};\n`);
+		outputSources.set(srcChunk, `import ${JSON.stringify(commonChunk)};\nexport const page = 1;\n`);
+		outputSources.set(commonChunk, `export const shared = 1;\n`);
+		const present = new Set([outputPath, srcChunk, commonChunk]);
+		const cache = createCache((filePath) => present.has(filePath));
+		const options = { filePath: '/app/pages/index.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+
+		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: ['/app/pages/index.tsx'] });
+
+		assert.deepEqual(
+			manifestWrites[manifestWrites.length - 1]?.entries['/app/pages/index.tsx']?.outputImports?.sort(),
+			[srcChunk, commonChunk].sort(),
+		);
+		assert.equal(cache.lookup(options)?.outputPath, outputPath);
+
+		present.delete(commonChunk);
+		assert.equal(cache.lookup(options), undefined);
+	});
+
 	it('misses when a tracked dependency hash changes', () => {
 		process.env.NODE_ENV = 'production';
 		const outputPath = join(tempDir, 'about-abc123.mjs');

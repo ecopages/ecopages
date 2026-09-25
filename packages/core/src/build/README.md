@@ -63,7 +63,7 @@ build/
 - `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `cache/cache-constants.ts`: shared `.build-cache.json` filename for persisted production caches.
-- `cache/output-imports.ts`: lists the local files a compiled module imports, so a cached module is reused only while they exist.
+- `cache/output-imports.ts`: lists the local files reachable from a compiled module, including shared chunks, so a cached module is reused only while they exist.
 - `*.test.ts`: regression coverage colocated with each module.
 
 ## Default Flow
@@ -190,7 +190,7 @@ Production static exports compile all template pages in one Rolldown invocation 
 
 `StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
 
-A persisted graph is reused only when it matches the core package version, the build inputs and the build key, and every file its outputs import still exists. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+A persisted graph is reused only when it matches the core package version, the build inputs and the build key, and every local file reachable from its outputs still exists. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 

@@ -22,7 +22,7 @@ import {
 	writeProductionCacheManifest,
 } from './production-build-cache.ts';
 import { getCorePackageVersion } from './cache-keys.ts';
-import { readLocalImports } from './output-imports.ts';
+import { collectReachableLocalImports } from './output-imports.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { BuildResult } from '../build-adapter.ts';
@@ -41,7 +41,10 @@ export interface PagesUnifiedGraphCacheManifest {
 	buildKey: string;
 	builtAt: number;
 	outputs: Record<string, string>;
-	/** Local files the outputs import; the graph is reused only while all of them exist. */
+	/**
+	 * Local files reachable from the outputs through local imports, including
+	 * shared chunks. The graph is reused only while all of them exist.
+	 */
 	outputImports: string[];
 }
 
@@ -260,7 +263,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = readLocalImports(compiledOutput);
+		const compiledOutputImports = collectReachableLocalImports(compiledOutput);
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
 		routeModuleBuildCache.recordBuild({

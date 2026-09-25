@@ -34,6 +34,56 @@ export function collectLocalImports(code: string, modulePath: string): string[] 
 	return [...localImports];
 }
 
+export type LocalImportFileAccess = {
+	exists: (filePath: string) => boolean;
+	readFile: (filePath: string) => string;
+};
+
+const defaultLocalImportFileAccess: LocalImportFileAccess = {
+	exists: (filePath) => fileSystem.exists(filePath),
+	readFile: (filePath) => fileSystem.readFileSync(filePath),
+};
+
+/**
+ * Lists every local file reachable from `modulePath` through local imports.
+ *
+ * @remarks
+ * Direct {@link collectLocalImports} misses shared chunks that a page output
+ * only reaches through another chunk. Persisted caches walk this graph so reuse
+ * fails when any reachable file is gone. `modulePath` itself is omitted; callers
+ * already check that the compiled output exists.
+ */
+export function collectReachableLocalImports(
+	modulePath: string,
+	fileAccess: LocalImportFileAccess = defaultLocalImportFileAccess,
+): string[] {
+	const reachable = new Set<string>();
+	const pending = [modulePath];
+	const visited = new Set<string>();
+
+	while (pending.length > 0) {
+		const current = pending.pop();
+		if (!current || visited.has(current)) {
+			continue;
+		}
+		visited.add(current);
+
+		if (current !== modulePath) {
+			reachable.add(current);
+		}
+
+		if (current !== modulePath && !fileAccess.exists(current)) {
+			continue;
+		}
+
+		for (const imported of collectLocalImports(fileAccess.readFile(current), current)) {
+			pending.push(imported);
+		}
+	}
+
+	return [...reachable];
+}
+
 /** Reads a compiled module from disk and lists its local imports. */
 export function readLocalImports(modulePath: string): string[] {
 	return collectLocalImports(fileSystem.readFileSync(modulePath), modulePath);

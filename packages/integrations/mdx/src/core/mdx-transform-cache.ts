@@ -19,10 +19,28 @@ export function resetMdxTransformCacheForTests(): void {
 	compileInvocations = 0;
 }
 
+/**
+ * Includes function-valued compiler plugins in the cache fingerprint.
+ *
+ * @remarks
+ * `JSON.stringify` replaces functions in arrays with `null`, so two plugin
+ * lists of the same length would collide. Names plus `Function#toString`
+ * distinguish them without disabling the cache.
+ */
+function serializeMdxCompilerOptions(compilerOptions?: CompileOptions): string {
+	return JSON.stringify(compilerOptions ?? {}, (_key, value) => {
+		if (typeof value === 'function') {
+			return `__fn:${value.name}:${value.toString()}`;
+		}
+
+		return value;
+	});
+}
+
 export function createMdxTransformCacheKey(filePath: string, source: string, compilerOptions?: CompileOptions): string {
 	const sourceHash = createHash('sha256').update(source).digest('hex').slice(0, 16);
 	const fingerprint = createHash('sha256')
-		.update(JSON.stringify(compilerOptions ?? {}))
+		.update(serializeMdxCompilerOptions(compilerOptions))
 		.digest('hex')
 		.slice(0, 16);
 	return `${filePath}::${sourceHash}::${fingerprint}`;

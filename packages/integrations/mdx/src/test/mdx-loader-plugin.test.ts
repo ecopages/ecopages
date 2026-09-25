@@ -178,6 +178,42 @@ describe('createMdxLoaderPlugin', () => {
 		resetMdxTransformCacheForTests();
 	});
 
+	it('recompiles when compiler plugin functions change and the source does not', async () => {
+		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
+			await import('../core/mdx-transform-cache.ts');
+		resetMdxTransformCacheForTests();
+
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+
+		const loadWithPlugins = async (remarkPlugins: Array<() => void>) => {
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			const plugin = createMdxLoaderPlugin({
+				projectRoot: tempDir,
+				compilerOptions: { remarkPlugins },
+			});
+			plugin.setup(builder);
+			return getOnLoadCallback()({ path: filePath });
+		};
+
+		await loadWithPlugins([
+			function remarkPluginAlpha() {
+				return;
+			},
+		]);
+		await loadWithPlugins([
+			function remarkPluginBeta() {
+				return;
+			},
+		]);
+
+		expect(getMdxCompileInvocationCount()).toBe(2);
+		resetMdxTransformCacheForTests();
+	});
+
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-'));
 		tempDirs.push(tempDir);

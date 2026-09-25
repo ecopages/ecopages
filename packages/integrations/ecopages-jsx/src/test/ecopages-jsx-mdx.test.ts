@@ -1,18 +1,13 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/plugins/integration-plugin';
-import {
-	createMdxLoaderPlugin,
-	normalizeMdxPageModule,
-	registerBunMdxPlugin,
-	resolveMdxCompilerOptions,
-} from '../ecopages-jsx-mdx.ts';
+import { createMdxLoaderPlugin, normalizeMdxPageModule, resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 
 function createBuilderHarness() {
 	let onLoadCallback:
@@ -80,27 +75,6 @@ describe('ecopages-jsx-mdx', () => {
 		expect(result?.contents).toContain('attachDiscoveredDependencies');
 		expect(result?.contents).toContain('integration: "ecopages-jsx"');
 		expect(result?.contents).toContain('components: () => [Child]');
-	});
-
-	it('registers with Bun.plugin using the created loader plugin', async () => {
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-jsx-mdx-bun-'));
-		tempDirs.push(tempDir);
-
-		const mockBunPlugin = vi.fn();
-		(globalThis as any).Bun = { plugin: mockBunPlugin };
-
-		const compilerOptions = resolveMdxCompilerOptions({ enabled: true });
-		await registerBunMdxPlugin({
-			compilerOptions,
-			extensions: ['.mdx'],
-			projectRoot: tempDir,
-		});
-
-		expect(mockBunPlugin).toHaveBeenCalledTimes(1);
-		const registeredPlugin = mockBunPlugin.mock.calls[0][0];
-		expect(registeredPlugin.name).toBe('ecopages-jsx-mdx-loader');
-
-		delete (globalThis as any).Bun;
 	});
 
 	it('reuses loader-attributed config by reference', () => {

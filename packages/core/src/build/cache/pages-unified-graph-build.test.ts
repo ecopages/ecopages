@@ -21,6 +21,7 @@ import {
 	getTotalRolldownBuildInvocations,
 	resetRolldownBuildInvocationCounts,
 } from '../rolldown/rolldown-build-invocation-metrics.ts';
+import { collectReachableLocalImports } from './output-imports.ts';
 import { getServerModuleBuildCacheOutdir } from '../../services/module-loading/route-module-build-cache-registry.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
@@ -196,6 +197,42 @@ describe('pages-unified-graph-build', () => {
 
 		rewrite({ builtAt: manifest.builtAt + 2, corePackageVersion: 'stale' });
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
+	});
+
+	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+		const entryPaths = [
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ts'),
+			path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/postcss-hmr.ts'),
+		];
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+		const manifest = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths,
+			outdir,
+			force: true,
+		});
+		assert.ok(manifest);
+
+		const recorded = new Set(manifest.outputImports);
+		for (const outputPath of Object.values(manifest.outputs)) {
+			for (const reachable of collectReachableLocalImports(outputPath)) {
+				assert.equal(recorded.has(reachable), true, `missing reachable import ${reachable}`);
+			}
+		}
+
+		const nestedImport = manifest.outputImports.find(
+			(importPath) => !Object.values(manifest.outputs).includes(importPath),
+		);
+		if (nestedImport) {
+			fileSystem.remove(nestedImport);
+			assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]), undefined);
+		}
 	});
 
 	it('rebuilds the graph when template extensions change', async () => {

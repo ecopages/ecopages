@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { collectLocalImports } from '../../build/cache/output-imports.ts';
+import { collectReachableLocalImports } from '../../build/cache/output-imports.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import { RouteModuleDependencyHasher, type RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 import {
@@ -123,7 +123,11 @@ export class RouteModuleBuildCache {
 			buildKey: createPersistedRouteModuleBuildKey(options, options.sourceTransforms),
 			dependencyHashes,
 			outputImports:
-				options.outputImports ?? collectLocalImports(this.dependencies.readFile(outputPath), outputPath),
+				options.outputImports ??
+				collectReachableLocalImports(outputPath, {
+					exists: (filePath) => this.dependencies.exists(filePath),
+					readFile: (filePath) => this.dependencies.readFile(filePath),
+				}),
 			renderedOutputs: existingEntry?.renderedOutputs,
 		};
 

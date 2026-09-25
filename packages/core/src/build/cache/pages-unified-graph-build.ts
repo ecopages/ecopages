@@ -152,7 +152,7 @@ function isGraphManifestCurrent(
 		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
 		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
 		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
-		(manifest.outputImports ?? []).every((filePath) => fileSystem.exists(filePath))
+		manifest.outputImports?.every((filePath) => fileSystem.exists(filePath)) === true
 	);
 }
 

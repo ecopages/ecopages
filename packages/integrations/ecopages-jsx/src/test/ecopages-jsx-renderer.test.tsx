@@ -966,14 +966,14 @@ describe('EcopagesJsxRenderer', () => {
 			const NestedScopeProbe = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',
 				render: () => {
-					const state = getActiveSsrScopeValue<{ collectedAssetFrames: unknown[] }>(
+					const state = getActiveSsrScopeValue<{ pendingHmrFileOwners: Set<string> }>(
 						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
 					);
 
 					return (
 						<span
 							data-nested-scope={String(Boolean(state))}
-							data-nested-frame-depth={state?.collectedAssetFrames.length ?? -1}
+							data-nested-hmr-owners={String(state?.pendingHmrFileOwners instanceof Set)}
 						/>
 					);
 				},
@@ -982,7 +982,7 @@ describe('EcopagesJsxRenderer', () => {
 			const OuterScopeProbe = eco.component<{}, JsxRenderable>({
 				integration: 'ecopages-jsx',
 				render: () => {
-					const state = getActiveSsrScopeValue<{ collectedAssetFrames: unknown[] }>(
+					const state = getActiveSsrScopeValue<{ pendingHmrFileOwners: Set<string> }>(
 						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
 					);
 					const nestedHtml = renderToString(<NestedScopeProbe />);
@@ -990,7 +990,7 @@ describe('EcopagesJsxRenderer', () => {
 					return (
 						<section
 							data-outer-scope={String(Boolean(state))}
-							data-outer-frame-depth={state?.collectedAssetFrames.length ?? -1}
+							data-outer-hmr-owners={String(state?.pendingHmrFileOwners instanceof Set)}
 						>
 							{createMarkupNodeLike(nestedHtml)}
 						</section>
@@ -1004,9 +1004,9 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			expect(result.html).toContain('data-outer-scope="true"');
-			expect(result.html).toContain('data-outer-frame-depth="1"');
+			expect(result.html).toContain('data-outer-hmr-owners="true"');
 			expect(result.html).toContain('data-nested-scope="true"');
-			expect(result.html).toContain('data-nested-frame-depth="1"');
+			expect(result.html).toContain('data-nested-hmr-owners="true"');
 		});
 
 		it('preserves SSR scope across nested async scope helpers', async () => {

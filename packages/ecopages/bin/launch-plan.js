@@ -58,6 +58,16 @@ export function buildLaunchEnv(options) {
 	};
 }
 
+/**
+ * Picks the runtime for the app process.
+ *
+ * @remarks
+ * Bun runs the app when the command was launched through Bun (`bun dev`,
+ * `bun run dev`, `bunx ecopages`), when the CLI itself runs on Bun, or with
+ * `--runtime bun`. Every other launcher gets Node. The user-agent check is
+ * needed because Bun honours the CLI's `node` shebang, so the CLI process is
+ * Node even when Bun launched it.
+ */
 export function detectRuntime(options = {}) {
 	if (options.runtime === 'bun' || options.runtime === 'node') {
 		return options.runtime;
@@ -65,11 +75,7 @@ export function detectRuntime(options = {}) {
 
 	const userAgent = process.env.npm_config_user_agent || '';
 
-	if (userAgent.startsWith('bun/')) {
-		return 'bun';
-	}
-
-	if (typeof Bun !== 'undefined') {
+	if (userAgent.startsWith('bun/') || typeof Bun !== 'undefined') {
 		return 'bun';
 	}
 

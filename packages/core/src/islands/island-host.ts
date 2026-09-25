@@ -15,7 +15,7 @@ export type IslandHostAttributesInput = {
 /**
  * @remarks Presence marker for hydratable component hosts, similar in spirit to Astro's `astro-island`.
  */
-export function mergeIslandHostAttributes(input: {
+function mergeIslandHostAttributes(input: {
 	integrationName: string;
 	componentInstanceId: string;
 	existing?: Record<string, string>;
@@ -41,22 +41,6 @@ export function buildIslandHostAttributes(input: IslandHostAttributesInput): Rec
 	}
 
 	return attributes;
-}
-
-export function isIslandHostElement(element: Element): boolean {
-	if (element.hasAttribute(ECO_ISLAND_HOST_ATTRIBUTE)) {
-		return true;
-	}
-
-	if (element.hasAttribute(ECO_ISLAND_COMPONENT_KEY_ATTRIBUTE)) {
-		return true;
-	}
-
-	if (element.tagName.toLowerCase() === 'eco-island') {
-		return true;
-	}
-
-	return element.hasAttribute(ECO_ISLAND_COMPONENT_ID_ATTRIBUTE) && element.hasAttribute(ECO_ISLAND_PROPS_ATTRIBUTE);
 }
 
 export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }> | undefined): boolean {

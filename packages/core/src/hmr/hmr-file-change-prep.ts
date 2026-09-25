@@ -8,7 +8,6 @@ import {
 
 export type HmrFileChangePreparation = {
 	affectedGraphIdentities: AffectedGraphIdentity[];
-	invalidatedGraphCount: number;
 };
 
 /**
@@ -17,10 +16,7 @@ export type HmrFileChangePreparation = {
 export function prepareHmrFileChange(appConfig: EcoPagesAppConfig, filePath: string): HmrFileChangePreparation {
 	const resolvedFilePath = path.resolve(filePath);
 	const affectedGraphIdentities = getAffectedPageBrowserGraphIdentities(appConfig, resolvedFilePath);
-	const invalidatedGraphCount = invalidatePageBrowserGraphSession(appConfig, resolvedFilePath);
+	invalidatePageBrowserGraphSession(appConfig, resolvedFilePath);
 
-	return {
-		affectedGraphIdentities,
-		invalidatedGraphCount,
-	};
+	return { affectedGraphIdentities };
 }

@@ -11,9 +11,7 @@ import type { ComponentRenderInput, EcoComponent, PageMetadataProps, SitemapConf
 export type InternalComponentRenderInput = ComponentRenderInput & {
 	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 };
-import type { RouteRegistry } from '../router/server/route-registry.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
-import type { DevGraphService } from '../services/runtime-state/dev-graph.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { SourceModuleLoader } from '../services/module-loading/module-loading-types.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
@@ -125,8 +123,6 @@ export type EcoPagesAppConfig = {
 	defaultMetadata: PageMetadataProps;
 	/** Integrations plugins */
 	integrations: AnyIntegrationPlugin[];
-	/** Integrations dependencies */
-	integrationsDependencies: IntegrationDependencyConfig[];
 	/** Derived Paths */
 	absolutePaths: {
 		config: string;
@@ -174,7 +170,6 @@ export type EcoPagesAppConfig = {
 		buildOwnership?: BuildOwnership;
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
-		devGraphService?: DevGraphService;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
 		hostModuleLoader?: SourceModuleLoader;
@@ -228,16 +223,6 @@ export type EcoPagesAppConfig = {
 	};
 };
 
-export type IntegrationDependencyConfig = {
-	integration: string;
-	kind: 'script' | 'stylesheet';
-	position?: 'head' | 'body';
-	srcUrl: string;
-	filePath: string;
-	/** @todo inline dependencies not implemented yet */
-	inline?: boolean;
-};
-
 /**
  * The possible kinds of a route.
  */
@@ -258,38 +243,12 @@ export type MatchResult = {
 };
 
 /**
- * Represents a route in EcoPages.
- */
-export type Route = {
-	kind: RouteKind;
-	filePath: string;
-	pathname: string;
-};
-
-/**
- * Represents the routes in EcoPages.
- */
-export type Routes = Record<string, Route>;
-
-/**
  * Represents the options for the file system server.
  */
 export type FileSystemServerOptions = {
 	watchMode: boolean;
 	port?: number | string;
 };
-
-/**
- * Represents the file system server adapter.
- */
-export interface EcoPagesFileSystemServerAdapter<ServerInstanceOptions = unknown> {
-	startServer(serverOptions: ServerInstanceOptions):
-		| {
-				router: RouteRegistry;
-				server: unknown;
-		  }
-		| Promise<{ router: RouteRegistry; server: unknown }>;
-}
 
 // Re-export HMR types from public-types for internal use
 export type {

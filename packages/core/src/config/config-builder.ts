@@ -45,6 +45,7 @@ export const CONFIG_BUILDER_ERRORS = {
 		'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
 	duplicateProcessorName: (name: string): string => `Processor with name "${name}" already exists`,
 	duplicateLoaderName: (name: string): string => `Loader with name "${name}" already exists`,
+	duplicateSourceTransformName: (name: string): string => `Source transform with name "${name}" already exists`,
 	duplicateSemanticTemplate: (kind: string, matches: string[]): string =>
 		`Multiple ${kind} templates found: ${matches.join(', ')}`,
 	incompatibleRuntimeCapability: (
@@ -124,7 +125,6 @@ export class ConfigBuilder {
 			exclude: [],
 		},
 		integrations: [],
-		integrationsDependencies: [],
 		distDir: DEFAULT_ECOPAGES_DIST_DIR,
 		defaultMetadata: {
 			title: 'Ecopages',
@@ -513,7 +513,7 @@ export class ConfigBuilder {
 	 */
 	addSourceTransform(name: string, sourceTransform: EcoSourceTransform): this {
 		if (this.config.sourceTransforms.has(name)) {
-			throw new Error(CONFIG_BUILDER_ERRORS.duplicateLoaderName(name));
+			throw new Error(CONFIG_BUILDER_ERRORS.duplicateSourceTransformName(name));
 		}
 		this.config.sourceTransforms.set(name, sourceTransform);
 		return this;

@@ -57,19 +57,15 @@ function normalizeDefine(define: Record<string, string> | undefined): string {
  * are sorted. Plugin, `conditions`, and source-transform order is preserved because
  * Rolldown hook and `conditionNames` precedence depend on it.
  *
- * Deprecated / ignored adapter fields (`splitting`, `bundle`, `outbase`) still
- * participate in the key so requests that differ only on those fields do not
- * coalesce. Empty `conditions` / `define` / `external` normalize to the same
- * sentinel as `undefined`.
+ * Empty `conditions` / `define` / `external` normalize to the same sentinel as
+ * `undefined`.
  */
 export function createBuildRequestIdentity(options: BuildOptions): string {
 	return [
 		normalizeEntrypoints(options.entrypoints),
 		options.root ? path.resolve(options.root) : 'root:default',
 		options.outdir ? path.resolve(options.outdir) : 'outdir:default',
-		options.outbase ? path.resolve(options.outbase) : 'outbase:default',
 		options.splitting ?? 'splitting:default',
-		options.bundle ?? 'bundle:default',
 		options.externalPackages ?? 'externalPackages:default',
 		options.target ?? 'target:default',
 		options.format ?? 'format:default',
@@ -85,6 +81,3 @@ export function createBuildRequestIdentity(options: BuildOptions): string {
 		createSourceTransformCacheKey(options.sourceTransforms),
 	].join('::');
 }
-
-/** @deprecated Use {@link createBuildRequestIdentity}. */
-export const createBuildOptionsDedupeKey = createBuildRequestIdentity;

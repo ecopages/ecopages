@@ -30,7 +30,7 @@ Call site (route scan, renderer, SSG, API)
 ## Caching layers
 
 1. **In-memory promise cache** (`PageModuleImportService.importCache`) — keyed by runtime, file path, content-derived reuse identity (`createRouteModuleReuseIdentity`), and source hash. Cleared by `invalidateDevelopmentGraph()`.
-2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. Manifest field `corePackageVersion` invalidates entries when the framework package changes.
+2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. Manifest field `corePackageVersion` invalidates entries when the framework package changes. An entry is also reused only while every local file its compiled output imports still exists.
 3. **Unified graph manifest** — production static export fast path only; see build layer docs.
 
 Development import URLs use `sourceHash` plus a per-service import generation counter. Node uses that value in its `?update=` query. Bun also receives a generation-specific compiled output filename because it retains a previously imported file when only its query changes. Both paths advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.

@@ -28,7 +28,6 @@ import { createBuildRequestIdentity } from '../../build/runtime/build-request-id
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
 	outdir?: string;
-	outbase?: string;
 	naming?: string;
 	conditions?: string[];
 	define?: Record<string, string>;
@@ -36,7 +35,6 @@ export type BrowserBundleOptions = {
 	treeshaking?: boolean;
 	splitting?: boolean;
 	root?: string;
-	bundle?: boolean;
 	externalPackages?: boolean;
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
@@ -46,10 +44,6 @@ export type BrowserBundleOptions = {
 };
 
 type BrowserBundleGroupedOptions = Omit<BrowserBundleOptions, 'entrypoints'>;
-
-export interface BrowserBundleExecutor {
-	bundle(options: BrowserBundleOptions): Promise<BuildResult>;
-}
 
 export type BrowserBundleGroupedEntry = {
 	entrypoint: string;
@@ -78,7 +72,7 @@ function resolveBrowserBundleExecutor(
  * the app-owned executor rather than direct backend calls. Assembles a complete
  * request via {@link createBrowserBuildRequest} before scheduling.
  */
-export class BrowserBundleService implements BrowserBundleExecutor {
+export class BrowserBundleService {
 	private readonly appConfig: EcoPagesAppConfig;
 
 	constructor(appConfig: EcoPagesAppConfig) {

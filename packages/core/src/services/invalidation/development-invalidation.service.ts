@@ -1,12 +1,9 @@
 import path from 'node:path';
 import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
-import type { EcoPagesAppConfig, RegisteredScriptEntrypointChangeHandler } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
-import { appLogger } from '../../global/app-logger.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
-
-export type { RegisteredScriptEntrypointChangeHandler };
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -42,7 +39,7 @@ export interface DevelopmentInvalidationPlan {
  * @remarks
  * This service centralizes two responsibilities:
  * - file-change classification for watcher behavior
- * - app-owned server-module invalidation versioning backed by the dev graph
+ * - app-owned server-module invalidation
  *
  * Hosts and watchers should ask this service what a file change means instead
  * of deciding invalidation semantics inline.
@@ -52,13 +49,6 @@ export class DevelopmentInvalidationService {
 
 	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
-	}
-
-	/**
-	 * Returns the current app-owned server-module invalidation version.
-	 */
-	getServerModuleInvalidationVersion(): number {
-		return getAppServerInvalidationState(this.appConfig).getServerInvalidationVersion();
 	}
 
 	/**
@@ -73,42 +63,6 @@ export class DevelopmentInvalidationService {
 		for (const processor of this.appConfig.processors.values()) {
 			processor.invalidateServerArtifacts?.();
 		}
-	}
-
-	/**
-	 * Registers an integration-owned handler for registered script entrypoint edits.
-	 */
-	registerRegisteredScriptEntrypointChangeHandler(handler: RegisteredScriptEntrypointChangeHandler): void {
-		const runtime = this.appConfig.runtime ?? {};
-		this.appConfig.runtime = runtime;
-		runtime.registeredScriptEntrypointChangeHandlers ??= [];
-		runtime.registeredScriptEntrypointChangeHandlers.push(handler);
-	}
-
-	/**
-	 * Notifies integration handlers that a registered script entrypoint changed.
-	 */
-	async notifyRegisteredScriptEntrypointChange(filePath: string): Promise<void> {
-		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
-
-		for (const handler of handlers) {
-			try {
-				await handler(filePath);
-			} catch (error) {
-				appLogger.error(
-					`Failed to handle registered script entrypoint change for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
-				);
-			}
-		}
-	}
-
-	/**
-	 * Resets runtime-owned graph state and invalidates server modules.
-	 */
-	resetRuntimeState(changedFiles?: string[]): void {
-		this.invalidateServerModules(changedFiles);
-		const serverInvalidationState = getAppServerInvalidationState(this.appConfig);
-		serverInvalidationState.reset();
 	}
 
 	/**

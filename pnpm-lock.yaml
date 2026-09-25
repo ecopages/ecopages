@@ -329,9 +329,6 @@ importers:
       '@standard-schema/utils':
         specifier: ^0.3.0
         version: 0.3.0
-      '@worker-tools/html-rewriter':
-        specifier: 0.1.0-pre.19
-        version: 0.1.0-pre.19
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -3799,12 +3796,6 @@ packages:
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
-  '@stardazed/streams-compression@1.0.0':
-    resolution: {integrity: sha512-SQCiwxdIVJ5xxUBYptN+fc+tJpSDbxQuJ0+3u2SmHjIzr6JIRZ28AVFtFnGy6x6j3UBlaLx73w9rC6UAFxnd1g==}
-
-  '@stardazed/zlib@1.0.1':
-    resolution: {integrity: sha512-MS6PCYiRNJ32c69+3NPyL+bu7LpiFDvMcBXnlhQnF8CKMG0R/xRVCCo422NPkQ0+Cox3xKpk5Lc1LfWFS4b3cw==}
-
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
@@ -4248,12 +4239,6 @@ packages:
 
   '@vue/shared@3.5.42':
     resolution: {integrity: sha512-2rPxex1jQf4jvl9MOHl6YaXCPcrNqz/FstMOEh3QWY+/OME9nQTvl9WYeCwhW7AFjaR0SnngZGlp/wkR6rkI6g==}
-
-  '@worker-tools/html-rewriter@0.1.0-pre.19':
-    resolution: {integrity: sha512-IUbEZwvSdp8vtaB1LAZ/sBRJGNycd9a8cbkqO05rMEPm5MC59Sb+wiGCWaaRXrwQLDAyWeod4QC/q0TuSUI5EA==}
-
-  '@worker-tools/resolvable-promise@0.2.0-pre.6':
-    resolution: {integrity: sha512-+5RcuruCLB/P3FYYb376RgyImXaq9BBQoOskUbgPyNK3O0AXPakrXUj1EELv+lcnUSdFws/ufdrrWODLJyoTmg==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -8412,12 +8397,6 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@stardazed/streams-compression@1.0.0':
-    dependencies:
-      '@stardazed/zlib': 1.0.1
-
-  '@stardazed/zlib@1.0.1': {}
-
   '@swc/helpers@0.5.23':
     dependencies:
       tslib: 2.8.1
@@ -8938,13 +8917,6 @@ snapshots:
       '@vue/shared': 3.5.42
 
   '@vue/shared@3.5.42': {}
-
-  '@worker-tools/html-rewriter@0.1.0-pre.19':
-    dependencies:
-      '@stardazed/streams-compression': 1.0.0
-      '@worker-tools/resolvable-promise': 0.2.0-pre.6
-
-  '@worker-tools/resolvable-promise@0.2.0-pre.6': {}
 
   acorn-jsx@5.3.2(acorn@8.18.0):
     dependencies:

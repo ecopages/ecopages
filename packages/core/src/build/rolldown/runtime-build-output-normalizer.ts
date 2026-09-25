@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { appLogger } from '../../global/app-logger.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 
 const corePackageRequire = createRequire(new URL('../../../package.json', import.meta.url));
@@ -250,9 +251,7 @@ function rewriteRuntimeBuildOutputImports(code: string, rootDir: string): string
 }
 
 export function normalizeNodeRuntimeBuildOutputFile(filePath: string, rootDir: string): void {
-	if (process.env.ECOPAGES_LOGGER_DEBUG === 'true') {
-		console.log(`[normalizeNodeRuntimeBuildOutputFile] Checking ${filePath}`);
-	}
+	appLogger.debug(`[normalizeNodeRuntimeBuildOutputFile] Checking ${filePath}`);
 	if (!/\.(?:[cm]?js)$/u.test(filePath)) {
 		return;
 	}
@@ -265,9 +264,7 @@ export function normalizeNodeRuntimeBuildOutputFile(filePath: string, rootDir: s
 	const code = fileSystem.readFileSync(filePath, 'utf-8');
 	const rewritten = rewriteRuntimeBuildOutputImports(code, rootDir);
 	if (rewritten !== code) {
-		if (process.env.ECOPAGES_LOGGER_DEBUG === 'true') {
-			console.log(`[normalizeNodeRuntimeBuildOutputFile] Rewriting ${filePath}`);
-		}
+		appLogger.debug(`[normalizeNodeRuntimeBuildOutputFile] Rewriting ${filePath}`);
 		fileSystem.writeFileSync(filePath, rewritten);
 	}
 }

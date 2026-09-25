@@ -27,20 +27,6 @@ describe('app server module transpiler runtime state', () => {
 		assert.equal(getAppHostModuleLoader(appConfig), hostModuleLoader);
 	});
 
-	it('exposes host ownership when a host module loader is configured', () => {
-		const hostModuleLoader = async (id: string) => ({ id });
-		const appConfig = {
-			rootDir: '/app',
-			runtime: {
-				hostModuleLoader,
-			},
-		} as any;
-
-		const moduleLoader = getAppModuleLoader(appConfig);
-
-		assert.equal(moduleLoader.owner, 'host');
-	});
-
 	it('creates a server transpiler that uses the app module loader', () => {
 		const hostModuleLoader = async (id: string) => ({ id });
 		const appConfig = {

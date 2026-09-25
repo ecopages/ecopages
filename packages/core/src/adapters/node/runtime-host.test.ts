@@ -27,7 +27,6 @@ describe('NodeRuntimeHost', () => {
 				address: () => ({ address: '127.0.0.1', port: 3000, family: 'IPv4' }),
 			};
 		});
-		const onError = vi.fn();
 		const loggerSpy = vi.spyOn(appLogger, 'error');
 		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
 
@@ -35,9 +34,8 @@ describe('NodeRuntimeHost', () => {
 			serveOptions: {
 				hostname: 'localhost',
 				port: 3000,
+				handleRequest: async () => new Response('ok'),
 			},
-			handleRequest: async () => new Response('ok'),
-			onError,
 		});
 
 		const res = { statusCode: 200, end: vi.fn() };
@@ -45,7 +43,6 @@ describe('NodeRuntimeHost', () => {
 
 		expect(loggerSpy).not.toHaveBeenCalled();
 		expect(res.end).not.toHaveBeenCalled();
-		expect(onError).not.toHaveBeenCalled();
 	});
 
 	it('rejects when listen fails with EADDRINUSE', async () => {
@@ -71,9 +68,7 @@ describe('NodeRuntimeHost', () => {
 
 		await expect(
 			host.start({
-				serveOptions: { hostname: 'localhost', port: 3000 },
-				handleRequest: async () => new Response('ok'),
-				onError: async () => {},
+				serveOptions: { hostname: 'localhost', port: 3000, handleRequest: async () => new Response('ok') },
 			}),
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});

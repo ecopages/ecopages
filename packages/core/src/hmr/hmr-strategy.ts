@@ -28,7 +28,7 @@ import type { ClientBridgeEvent } from '../types/public-types.ts';
 
 /**
  * Defines the category of an HMR strategy, which determines its execution priority.
- * Strategies are evaluated in descending order: INTEGRATION → ASSET → SCRIPT → FALLBACK.
+ * Strategies are evaluated in descending order: INTEGRATION → SCRIPT → FALLBACK.
  *
  * @remarks
  * The numeric values represent base priorities. Strategies can fine-tune their priority
@@ -40,12 +40,6 @@ export const HmrStrategyType = {
 	 * Highest priority to allow framework-specific HMR handling.
 	 */
 	INTEGRATION: 100,
-
-	/**
-	 * Asset processing strategies (CSS, images, etc.)
-	 * High priority for specialized asset handling.
-	 */
-	ASSET: 50,
 
 	/**
 	 * Generic script bundling strategies (JS/TS)
@@ -91,8 +85,8 @@ export interface HmrAction {
  *
  * @example
  * ```typescript
- * class MyAssetStrategy extends HmrStrategy {
- *   readonly type = HmrStrategyType.ASSET;
+ * class MyImageStrategy extends HmrStrategy {
+ *   readonly type = HmrStrategyType.INTEGRATION;
  *   readonly priorityOffset = 5;
  *
  *   matches(filePath: string): boolean {

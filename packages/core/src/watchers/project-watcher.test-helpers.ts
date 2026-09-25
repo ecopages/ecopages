@@ -1,5 +1,9 @@
 import { vi } from 'vitest';
-import type { IHmrManager } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import {
+	InMemoryEntrypointDependencyGraph,
+	setAppEntrypointDependencyGraph,
+} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
@@ -51,3 +55,15 @@ export const createMockBridge = (): ClientBridge =>
 		broadcast: vi.fn(() => {}),
 		subscriberCount: 0,
 	}) as unknown as ClientBridge;
+
+/**
+ * Installs the in-memory entrypoint dependency graph that the HMR managers
+ * provide in dev.
+ *
+ * @remarks
+ * `ConfigBuilder.build()` already installs the invalidation counter and a
+ * no-op graph; this swaps in a graph that records dependencies.
+ */
+export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
+	setAppEntrypointDependencyGraph(appConfig, new InMemoryEntrypointDependencyGraph());
+}

@@ -12,7 +12,10 @@ type BunStaticPreviewServer = {
 };
 
 type BunStaticPreviewServerFactory = {
-	createServer(args: { appConfig: EcoPagesAppConfig; options: { port: number } }): BunStaticPreviewServer;
+	createServer(args: {
+		appConfig: EcoPagesAppConfig;
+		options: { port: number; hostname: string };
+	}): BunStaticPreviewServer;
 };
 
 type BunStaticPreviewLogger = {
@@ -36,7 +39,7 @@ export class BunStaticPreviewHost implements StaticPreviewHost {
 			startOnPort: async (port) => {
 				const candidate = this.previewServerFactory.createServer({
 					appConfig: options.appConfig,
-					options: { port },
+					options: { port, hostname: options.hostname },
 				});
 
 				const boundPort = candidate.server?.port ?? null;

@@ -1,413 +1,150 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessedAsset } from '../assets/asset-processing-service/index.js';
 import { HtmlTransformerService } from './html-transformer.service.ts';
-import type {
-	HtmlRewriterElement,
-	HtmlRewriterMode,
-	HtmlRewriterProvider,
-	HtmlRewriterRuntime,
-} from './html-rewriter-provider.service.ts';
 
-type HtmlRewriterHandler = {
-	element: (element: HtmlRewriterElement) => void;
-};
-
-class TestHtmlRewriter {
-	private handlers = new Map<'head' | 'body', HtmlRewriterHandler>();
-
-	on(selector: 'head' | 'body', handler: HtmlRewriterHandler): TestHtmlRewriter {
-		this.handlers.set(selector, handler);
-		return this;
-	}
-
-	transform(response: Response): Response {
-		const body = new ReadableStream<Uint8Array>({
-			start: async (controller) => {
-				const html = await response.text();
-				let result = html;
-
-				for (const selector of ['head', 'body'] as const) {
-					const handler = this.handlers.get(selector);
-					if (!handler) {
-						continue;
-					}
-
-					const chunks: string[] = [];
-					const prependedChunks: string[] = [];
-					handler.element({
-						prepend: (content: string) => {
-							prependedChunks.push(content);
-						},
-						append: (content: string) => {
-							chunks.push(content);
-						},
-					});
-
-					const openingTag = new RegExp(`<${selector}\\b[^>]*>`, 'i');
-					result = result.replace(openingTag, (value) => `${value}${prependedChunks.join('')}`);
-					const closingTag = `</${selector}>`;
-					result = result.replace(closingTag, `${chunks.join('')}${closingTag}`);
-				}
-
-				controller.enqueue(new TextEncoder().encode(result));
-				controller.close();
-			},
-		});
-
-		return new Response(body, {
-			headers: response.headers,
-			status: response.status,
-			statusText: response.statusText,
-		});
-	}
-}
-
-class TestHtmlRewriterProvider implements HtmlRewriterProvider {
-	public mode: HtmlRewriterMode = 'auto';
-
-	setMode(mode: HtmlRewriterMode) {
-		this.mode = mode;
-	}
-
-	async createHtmlRewriter(): Promise<HtmlRewriterRuntime | null> {
-		return this.mode === 'fallback' ? null : new TestHtmlRewriter();
-	}
-}
-
-class PassthroughHtmlRewriter {
-	public seenResponse: Response | undefined;
-
-	on(): PassthroughHtmlRewriter {
-		return this;
-	}
-
-	transform(response: Response): Response {
-		this.seenResponse = response;
-		return response;
-	}
-}
-
-class PassthroughHtmlRewriterProvider implements HtmlRewriterProvider {
-	public readonly htmlRewriter = new PassthroughHtmlRewriter();
-
-	setMode(): void {}
-
-	async createHtmlRewriter(): Promise<HtmlRewriterRuntime | null> {
-		return this.htmlRewriter as unknown as HtmlRewriterRuntime;
-	}
-}
-
-type HtmlRewriterModeScenario = {
+type InjectionScenario = {
 	label: string;
 	html: string;
 	dependencies: ProcessedAsset[];
-	expectedFragments: string[];
-	unexpectedFragments?: string[];
+	expected: string;
 };
 
-type HtmlRewriterModeCase = {
-	label: string;
-	mode: 'auto' | 'native' | 'worker-tools' | 'fallback';
-};
-
-describe('HtmlTransformerService', () => {
-	const createMockResponse = (html: string) => {
-		return new Response(html, {
-			headers: { 'Content-Type': 'text/html' },
-		});
-	};
-
-	const createTransformer = (mode: HtmlRewriterMode = 'auto') => {
-		const htmlRewriterProvider = new TestHtmlRewriterProvider();
-		const transformer = new HtmlTransformerService({ htmlRewriterMode: mode, htmlRewriterProvider });
-		return { transformer, htmlRewriterProvider };
-	};
-
-	const htmlRewriterModeCases: HtmlRewriterModeCase[] = [
-		{ label: 'auto', mode: 'auto' },
-		{ label: 'native', mode: 'native' },
-		{ label: 'worker-tools', mode: 'worker-tools' },
-		{ label: 'fallback', mode: 'fallback' },
-	];
-
-	const htmlRewriterScenarios: HtmlRewriterModeScenario[] = [
-		{
-			label: 'injects mixed head and body dependencies while preserving document content',
-			html: '<html><head><title>Matrix</title></head><body><main>Page content</main></body></html>',
-			dependencies: [
-				{
-					kind: 'stylesheet',
-					inline: false,
-					position: 'head',
-					srcUrl: '/matrix.css',
-					attributes: { media: 'screen' },
-				},
-				{
-					kind: 'script',
-					inline: true,
-					content: 'window.matrix = true;',
-					position: 'head',
-					srcUrl: '/matrix-inline.js',
-					attributes: { id: 'matrix-inline' },
-				},
-				{
-					kind: 'script',
-					inline: false,
-					position: 'body',
-					srcUrl: '/matrix-body.js',
-					attributes: { defer: 'true' },
-				},
-			],
-			expectedFragments: [
-				'<title>Matrix</title>',
-				'<main>Page content</main>',
-				'<link rel="stylesheet" href="/matrix.css" media="screen">',
-				'<script id="matrix-inline">window.matrix = true;</script>',
-				'<script src="/matrix-body.js" defer="true"></script>',
-			],
-		},
-		{
-			label: 'skips excluded scripts while still injecting remaining dependencies',
-			html: '<html><head></head><body><section>Visible</section></body></html>',
-			dependencies: [
-				{
-					kind: 'script',
-					inline: false,
-					position: 'body',
-					srcUrl: '/excluded.js',
-					excludeFromHtml: true,
-				},
-				{
-					kind: 'script',
-					inline: false,
-					position: 'body',
-					srcUrl: '/included.js',
-				},
-			],
-			expectedFragments: ['<section>Visible</section>', '<script src="/included.js"></script>'],
-			unexpectedFragments: ['<script src="/excluded.js"></script>'],
-		},
-		{
-			label: 'injects inline styles and preserves nested body markup',
-			html: '<html><head></head><body><div><span>Nested</span></div></body></html>',
-			dependencies: [
-				{
-					kind: 'stylesheet',
-					inline: true,
-					position: 'head',
-					content: '.nested{color:red;}',
-					srcUrl: '/nested.css',
-					attributes: { 'data-test': 'inline-style' },
-				},
-			],
-			expectedFragments: [
-				'<div><span>Nested</span></div>',
-				'<style data-test="inline-style">.nested{color:red;}</style>',
-			],
-		},
-	];
-
-	it('should inject script dependencies correctly', async () => {
-		const dependencies: ProcessedAsset[] = [
-			{
-				kind: 'script',
-				inline: true,
-				content: "console.log('test')",
-				position: 'body',
-				srcUrl: '/test.js',
-				attributes: { id: 'test-script' },
-			},
-		];
-
-		const { transformer } = createTransformer();
-		transformer.setProcessedDependencies(dependencies);
-		const Response = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(Response);
-		const html = await result.text();
-
-		expect(html).toContain('<script id="test-script">console.log(\'test\')</script>');
-	});
-
-	it('should inject stylesheet dependencies correctly', async () => {
-		const dependencies: ProcessedAsset[] = [
+const INJECTION_SCENARIOS: InjectionScenario[] = [
+	{
+		label: 'places head and body dependencies before the closing tags',
+		html: '<html><head><title>Matrix</title></head><body><main>Page content</main></body></html>',
+		dependencies: [
 			{
 				kind: 'stylesheet',
 				inline: false,
 				position: 'head',
-				srcUrl: '/test.css',
+				srcUrl: '/matrix.css',
 				attributes: { media: 'screen' },
 			},
-		];
+			{
+				kind: 'script',
+				inline: true,
+				content: 'window.matrix = true;',
+				position: 'head',
+				srcUrl: '/matrix-inline.js',
+				attributes: { id: 'matrix-inline' },
+			},
+			{
+				kind: 'script',
+				inline: false,
+				position: 'body',
+				srcUrl: '/matrix-body.js',
+				attributes: { defer: 'true' },
+			},
+		],
+		expected:
+			'<html><head><title>Matrix</title><link rel="stylesheet" href="/matrix.css" media="screen"><script id="matrix-inline">window.matrix = true;</script></head><body><main>Page content</main><script src="/matrix-body.js" defer="true"></script></body></html>',
+	},
+	{
+		label: 'skips scripts excluded from html',
+		html: '<html><head></head><body><section>Visible</section></body></html>',
+		dependencies: [
+			{ kind: 'script', inline: false, position: 'body', srcUrl: '/excluded.js', excludeFromHtml: true },
+			{ kind: 'script', inline: false, position: 'body', srcUrl: '/included.js' },
+		],
+		expected:
+			'<html><head></head><body><section>Visible</section><script src="/included.js"></script></body></html>',
+	},
+	{
+		label: 'defaults scripts to the body and keeps stylesheets in the head',
+		html: '<html><head></head><body><div><span>Nested</span></div></body></html>',
+		dependencies: [
+			{
+				kind: 'stylesheet',
+				inline: true,
+				position: 'head',
+				content: '.nested{color:red;}',
+				srcUrl: '/nested.css',
+				attributes: { 'data-test': 'inline-style' },
+			},
+			{ kind: 'script', inline: true, content: 'const x = 1;', srcUrl: '/inline.js' } as ProcessedAsset,
+		],
+		expected:
+			'<html><head><style data-test="inline-style">.nested{color:red;}</style></head><body><div><span>Nested</span></div><script>const x = 1;</script></body></html>',
+	},
+	{
+		label: 'ignores head and body tags inside scripts and comments',
+		html: '<html><head><script>document.write("</head><body>")</script></head><body><!-- </body> --><main>M</main></body></html>',
+		dependencies: [
+			{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
+			{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
+		],
+		expected:
+			'<html><head><script>document.write("</head><body>")</script><link rel="stylesheet" href="/a.css"></head><body><!-- </body> --><main>M</main><script src="/b.js"></script></body></html>',
+	},
+];
 
-		const { transformer } = createTransformer();
+describe('HtmlTransformerService', () => {
+	it.each(INJECTION_SCENARIOS)('$label', ({ html, dependencies, expected }) => {
+		const transformer = new HtmlTransformerService();
 		transformer.setProcessedDependencies(dependencies);
-		const Response = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(Response);
-		const html = await result.text();
 
-		expect(html).toContain('<link rel="stylesheet" href="/test.css" media="screen">');
+		expect(transformer.transformHtml(html)).toBe(expected);
 	});
 
-	it('injects html contributions into explicit document slots', async () => {
-		const { transformer } = createTransformer();
-		const response = createMockResponse(
+	it('injects html contributions into explicit document slots in array order', () => {
+		const transformer = new HtmlTransformerService();
+
+		const html = transformer.transformHtml(
 			'<html><head><title>Base</title></head><body><main>Page</main></body></html>',
+			[
+				{ placement: 'head-prepend', html: '<meta name="first">' },
+				{ placement: 'head-prepend', html: '<meta name="second">' },
+				{ placement: 'head-append', html: '<script>window.headAppend = true;</script>' },
+				{ placement: 'body-prepend', html: '<div id="body-prepend"></div>' },
+				{ placement: 'body-append', html: '<div id="body-append"></div>' },
+			],
 		);
 
-		const result = await transformer.transform(response, [
-			{ placement: 'head-prepend', html: '<meta name="slot" content="head-prepend">' },
-			{ placement: 'head-append', html: '<script>window.headAppend = true;</script>' },
-			{ placement: 'body-prepend', html: '<div id="body-prepend"></div>' },
-			{ placement: 'body-append', html: '<div id="body-append"></div>' },
-		]);
-		const html = await result.text();
-
-		expect(html).toContain('<head><meta name="slot" content="head-prepend"><title>Base</title>');
-		expect(html).toContain('<script>window.headAppend = true;</script></head>');
-		expect(html).toContain('<body><div id="body-prepend"></div><main>Page</main>');
-		expect(html).toContain('<div id="body-append"></div></body>');
+		expect(html).toBe(
+			'<html><head><meta name="first"><meta name="second"><title>Base</title><script>window.headAppend = true;</script></head><body><div id="body-prepend"></div><main>Page</main><div id="body-append"></div></body></html>',
+		);
 	});
 
-	it('passes the original response through to the html rewriter so stream bodies remain available', async () => {
-		const htmlRewriterProvider = new PassthroughHtmlRewriterProvider();
-		const transformer = new HtmlTransformerService({ htmlRewriterProvider });
+	it('streams response bodies through the rewriter', async () => {
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies([{ kind: 'script', inline: false, position: 'body', srcUrl: '/app.js' }]);
+		const encoder = new TextEncoder();
 		const response = new Response(
 			new ReadableStream<Uint8Array>({
 				start(controller) {
-					controller.enqueue(
-						new TextEncoder().encode('<html><head></head><body><main>Streaming</main></body></html>'),
-					);
+					controller.enqueue(encoder.encode('<html><head></head><bo'));
+					controller.enqueue(encoder.encode('dy><main>Streaming</main></bo'));
+					controller.enqueue(encoder.encode('dy></html>'));
 					controller.close();
 				},
 			}),
-			{ headers: { 'Content-Type': 'text/html' } },
+			{ status: 203, headers: { 'Content-Type': 'text/html' } },
 		);
 
-		const result = await transformer.transform(response);
+		const result = transformer.transform(response);
 
-		expect(htmlRewriterProvider.htmlRewriter.seenResponse).toBe(response);
-		expect(await result.text()).toContain('<main>Streaming</main>');
+		expect(result.status).toBe(203);
+		expect(result.body).toBeInstanceOf(ReadableStream);
+		expect(await result.text()).toBe(
+			'<html><head></head><body><main>Streaming</main><script src="/app.js"></script></body></html>',
+		);
 	});
 
-	it('should handle both inline and src dependencies', async () => {
-		const dependencies: ProcessedAsset[] = [
-			{
-				kind: 'script',
-				inline: true,
-				content: 'const x = 1;',
-				position: 'head',
-				srcUrl: '/inline.js',
-			},
-			{
-				kind: 'script',
-				inline: false,
-				position: 'body',
-				srcUrl: '/external.js',
-			},
-		];
+	it('skips head injection when the document has no head element', () => {
+		const transformer = new HtmlTransformerService();
+		transformer.setProcessedDependencies([
+			{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
+			{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
+		]);
 
-		const { transformer } = createTransformer();
-		transformer.setProcessedDependencies(dependencies);
-		const Response = createMockResponse('<html><head></head><body></body></html>');
-		const result = await transformer.transform(Response);
-		const html = await result.text();
-
-		expect(html).toContain('<script>const x = 1;</script>');
-		expect(html).toContain('<script src="/external.js"></script>');
-	});
-
-	it('should preserve existing HTML content', async () => {
-		const dependencies: ProcessedAsset[] = [
-			{
-				kind: 'script',
-				inline: true,
-				content: "console.log('test')",
-				position: 'body',
-				srcUrl: '/test.js',
-			},
-		];
-
-		const originalHtml = '<html><head><title>Test</title></head><body><div>Content</div></body></html>';
-		const { transformer } = createTransformer();
-		transformer.setProcessedDependencies(dependencies);
-		const Response = createMockResponse(originalHtml);
-		const result = await transformer.transform(Response);
-		const html = await result.text();
-
-		expect(html).toContain('<title>Test</title>');
-		expect(html).toContain('<div>Content</div>');
-		expect(html).toContain("console.log('test')");
-	});
-
-	it('should use the injected html rewriter provider when available', async () => {
-		const dependencies: ProcessedAsset[] = [
-			{
-				kind: 'script',
-				inline: false,
-				position: 'body',
-				srcUrl: '/native.js',
-			},
-		];
-
-		const { transformer } = createTransformer();
-		transformer.setProcessedDependencies(dependencies);
-		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
-		const html = await result.text();
-
-		expect(html).toContain('<script src="/native.js"></script>');
-	});
-
-	it('should fall back to string injection when the provider returns no rewriter', async () => {
-		const dependencies: ProcessedAsset[] = [
-			{
-				kind: 'stylesheet',
-				inline: false,
-				position: 'head',
-				srcUrl: '/worker-tools.css',
-			},
-		];
-
-		const { transformer } = createTransformer('fallback');
-		transformer.setProcessedDependencies(dependencies);
-		const result = await transformer.transform(createMockResponse('<html><head></head><body></body></html>'));
-		const html = await result.text();
-
-		expect(html).toContain('<link rel="stylesheet" href="/worker-tools.css">');
-	});
-
-	it('should delegate html rewriter mode changes to the injected provider', () => {
-		const { transformer, htmlRewriterProvider } = createTransformer();
-
-		transformer.setHtmlRewriterMode('worker-tools');
-		expect(htmlRewriterProvider.mode).toBe('worker-tools');
-
-		transformer.setHtmlRewriterMode('fallback');
-		expect(htmlRewriterProvider.mode).toBe('fallback');
-	});
-
-	it('should support the same transformation scenarios across all html rewriter modes', async () => {
-		for (const modeCase of htmlRewriterModeCases) {
-			const { transformer } = createTransformer(modeCase.mode);
-
-			for (const scenario of htmlRewriterScenarios) {
-				transformer.setProcessedDependencies(scenario.dependencies);
-
-				const result = await transformer.transform(createMockResponse(scenario.html));
-				const html = await result.text();
-
-				for (const expectedFragment of scenario.expectedFragments) {
-					expect(html, `${modeCase.label}: ${scenario.label}`).toContain(expectedFragment);
-				}
-
-				for (const unexpectedFragment of scenario.unexpectedFragments ?? []) {
-					expect(html, `${modeCase.label}: ${scenario.label}`).not.toContain(unexpectedFragment);
-				}
-			}
-		}
+		expect(transformer.transformHtml('<body><main>M</main></body>')).toBe(
+			'<body><main>M</main><script src="/b.js"></script></body>',
+		);
 	});
 
 	it('should apply attributes to the html element', () => {
-		const { transformer } = createTransformer();
+		const transformer = new HtmlTransformerService();
 		const result = transformer.applyAttributesToHtmlElement(
 			'<!DOCTYPE html><html lang="en"><body>Hello</body></html>',
 			{
@@ -419,7 +156,7 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('should apply attributes to the first body child', () => {
-		const { transformer } = createTransformer();
+		const transformer = new HtmlTransformerService();
 		const result = transformer.applyAttributesToFirstBodyElement(
 			'<html><body><main>Hello</main><footer>Footer</footer></body></html>',
 			{ 'data-eco-component-id': 'root-1', role: 'main' },
@@ -429,7 +166,7 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('should apply attributes to the first fragment element', () => {
-		const { transformer } = createTransformer();
+		const transformer = new HtmlTransformerService();
 		const result = transformer.applyAttributesToFirstElement('   <aside>Content</aside><div>Other</div>', {
 			'aria-live': 'polite',
 		});
@@ -437,8 +174,58 @@ describe('HtmlTransformerService', () => {
 		expect(result).toContain('<aside aria-live="polite">Content</aside>');
 	});
 
+	it('replaces an attribute the target already has instead of duplicating it', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToFirstElement('<div data-eco-component-id="old">x</div>', {
+				'data-eco-component-id': 'new',
+			}),
+		).toBe('<div data-eco-component-id="new">x</div>');
+	});
+
+	it('stamps nothing when text or a comment precedes the fragment or body root', () => {
+		const transformer = new HtmlTransformerService();
+		const litRender = '<!--lit-part AbC=--><lit-counter count="0"></lit-counter><!--/lit-part-->';
+
+		expect(transformer.applyAttributesToFirstElement(litRender, { 'data-a': '1' })).toBe(litRender);
+		expect(transformer.applyAttributesToFirstElement('text <span>x</span>', { 'data-a': '1' })).toBe(
+			'text <span>x</span>',
+		);
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body><!-- c --><main>M</main></body>', { 'data-a': '1' }),
+		).toBe('<body><!-- c --><main>M</main></body>');
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body>\n  <main>M</main></body>', { 'data-a': '1' }),
+		).toBe('<body>\n  <main data-a="1">M</main></body>');
+	});
+
+	it('ignores tags in comments and scripts and quoted > when stamping', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToHtmlElement('<!-- <html> --><script>"<html>"</script><html data-a="x>y">', {
+				lang: 'en',
+			}),
+		).toBe('<!-- <html> --><script>"<html>"</script><html data-a="x>y" lang="en">');
+		expect(
+			transformer.applyAttributesToFirstBodyElement('<body data-a="x>y"><main>M</main></body>', {
+				role: 'main',
+			}),
+		).toBe('<body data-a="x>y"><main role="main">M</main></body>');
+	});
+
+	it('escapes quotes in stamped values and skips empty names or values', () => {
+		const transformer = new HtmlTransformerService();
+
+		expect(
+			transformer.applyAttributesToFirstElement('<div>x</div>', { title: 'a "b"', 'data-empty': '', '': 'v' }),
+		).toBe('<div title="a &quot;b&quot;">x</div>');
+		expect(transformer.applyAttributesToFirstElement('<div>x</div>', { 'data-empty': '' })).toBe('<div>x</div>');
+	});
+
 	it('should deduplicate processed assets while preserving order', () => {
-		const { transformer } = createTransformer();
+		const transformer = new HtmlTransformerService();
 		const first = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
 		const duplicate = { kind: 'script', srcUrl: '/assets/app.js', position: 'head' } as ProcessedAsset;
 		const second = { kind: 'stylesheet', srcUrl: '/assets/app.css', position: 'head' } as ProcessedAsset;
@@ -447,7 +234,7 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('should preserve assets with different package roles during dedupe', () => {
-		const { transformer } = createTransformer();
+		const transformer = new HtmlTransformerService();
 		const pageScript = {
 			kind: 'script',
 			srcUrl: '/assets/app.js',
@@ -464,8 +251,8 @@ describe('HtmlTransformerService', () => {
 		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
 	});
 
-	it('should prefer page package html assets during transform', async () => {
-		const { transformer } = createTransformer();
+	it('should prefer page package html assets during transform', () => {
+		const transformer = new HtmlTransformerService();
 		transformer.setProcessedDependencies([
 			{
 				kind: 'script',
@@ -493,15 +280,14 @@ describe('HtmlTransformerService', () => {
 			dynamicChunks: [],
 		});
 
-		const response = await transformer.transform(new Response('<html><head></head><body></body></html>'));
-		const html = await response.text();
+		const html = transformer.transformHtml('<html><head></head><body></body></html>');
 
 		expect(html).toContain('<script src="/chosen.js"></script>');
 		expect(html).not.toContain('/ignored.js');
 	});
 
-	it('injects page browser entry assets while keeping chunk assets out of initial html', async () => {
-		const { transformer } = createTransformer();
+	it('injects page browser entry assets while keeping chunk assets out of initial html', () => {
+		const transformer = new HtmlTransformerService();
 		const routeStylesheet = {
 			kind: 'stylesheet',
 			srcUrl: '/route.css',
@@ -533,8 +319,7 @@ describe('HtmlTransformerService', () => {
 			dynamicChunks: [chunkScript],
 		});
 
-		const response = await transformer.transform(new Response('<html><head></head><body></body></html>'));
-		const html = await response.text();
+		const html = transformer.transformHtml('<html><head></head><body></body></html>');
 
 		expect(transformer.getProcessedDependencies()).toEqual([routeStylesheet, entryScript]);
 		expect(html).toContain('<link rel="stylesheet" href="/route.css">');

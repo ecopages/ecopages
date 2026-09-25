@@ -1,19 +1,12 @@
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
 import type { ReturnParseCliArgs } from '../../../utils/parse-cli-args.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 
 export type RuntimeBinding = {
-	preferredPort: number;
-	preferredHostname: string;
 	runtimeOrigin: string;
 	serveOptions: Record<string, unknown>;
 	watch: boolean;
 	/** Whether preview may bind to the next free port when the preferred port is busy. */
 	allowPortFallback: boolean;
-};
-
-export type StaticRuntimeMode = {
-	canBuildWithoutRuntimeServer: boolean;
 };
 
 function normalizeOriginHostname(hostname: string): string {
@@ -44,8 +37,6 @@ export function resolveRuntimeBinding(options: {
 	const preferredHostname = options.cliArgs.hostname ?? env.ECOPAGES_HOSTNAME ?? DEFAULT_ECOPAGES_HOSTNAME;
 
 	return {
-		preferredPort,
-		preferredHostname,
 		allowPortFallback: !portExplicitlyConfigured,
 		runtimeOrigin: resolveServeRuntimeOrigin({
 			hostname: preferredHostname,
@@ -57,14 +48,5 @@ export function resolveRuntimeBinding(options: {
 			...(options.serverOptions ?? {}),
 		},
 		watch: options.cliArgs.dev,
-	};
-}
-
-export function resolveStaticRuntimeMode(options: {
-	appConfig: EcoPagesAppConfig;
-	cliArgs: ReturnParseCliArgs;
-}): StaticRuntimeMode {
-	return {
-		canBuildWithoutRuntimeServer: options.cliArgs.build || options.cliArgs.preview,
 	};
 }

@@ -11,7 +11,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 describe('production-build-cache', () => {
 	test('shared manifest helpers invalidate consistently across cache kinds', () => {
 		const manifest = {
-			invalidationVersion: '1.0.0',
+			corePackageVersion: '1.0.0',
 			buildInputsFingerprint: 'inputs-v1',
 			buildKey: 'node::esm::plugin-a',
 			builtAt: Date.now(),
@@ -40,7 +40,7 @@ describe('production-build-cache', () => {
 
 	test('processor plugin fingerprint change invalidates all cache kinds uniformly', () => {
 		const before = {
-			invalidationVersion: '1.0.0',
+			corePackageVersion: '1.0.0',
 			buildInputsFingerprint: 'inputs-before',
 			buildKey: 'node::esm::plugin-a',
 		};

@@ -71,6 +71,12 @@ describe('launch-plan', () => {
 		expect(detectRuntime({ runtime: 'node' })).toBe('node');
 	});
 
+	it('detectRuntime picks bun when the command was launched through Bun', () => {
+		process.env.npm_config_user_agent = 'bun/1.3.0 npm/? node/v24.0.0 darwin arm64';
+		expect(detectRuntime()).toBe('bun');
+		expect(detectRuntime({ runtime: 'node' })).toBe('node');
+	});
+
 	it('buildBunArgs preloads the resolved config path when present', () => {
 		const configPath = '/tmp/project/eco.config.staging.ts';
 		expect(buildBunArgs(['--dev'], { hot: true }, 'app.ts', configPath)).toEqual([

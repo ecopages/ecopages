@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { afterEach, describe, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import type { NodeServerAdapterParams, NodeServerAdapterResult } from './server-adapter.ts';
 import { NodeEcopagesApp } from './create-app.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -7,6 +7,7 @@ import { NodeRuntimeHost } from './runtime-host.ts';
 
 class TestNodeEcopagesApp extends NodeEcopagesApp {
 	public capturedParams: NodeServerAdapterParams | undefined;
+	public completeInitializationCalls: unknown[][] = [];
 
 	constructor(options: ConstructorParameters<typeof NodeEcopagesApp>[0]) {
 		super(options, {
@@ -18,7 +19,9 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 		this.capturedParams = params;
 		return {
 			getServerOptions: () => params.serveOptions,
-			completeInitialization: async () => {},
+			completeInitialization: async (...args) => {
+				this.completeInitializationCalls.push(args);
+			},
 			handleRequest: async () => new Response(null, { status: 204 }),
 			buildStatic: async () => undefined,
 			servePreviewOnly: async () => undefined,
@@ -33,17 +36,29 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 	}
 }
 
+beforeEach(() => {
+	for (const key of ['NODE_ENV', 'ECOPAGES_INTERNAL_EMBEDDED_RUNTIME', 'ECOPAGES_PORT', 'ECOPAGES_HOSTNAME']) {
+		vi.stubEnv(key, undefined);
+	}
+});
+
 afterEach(() => {
-	process.env.NODE_ENV = undefined;
-	process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME = undefined;
-	process.env.ECOPAGES_PORT = '';
-	process.env.ECOPAGES_HOSTNAME = '';
+	vi.unstubAllEnvs();
 	vi.restoreAllMocks();
 });
 
 describe('node embedded app bootstrap', () => {
+	it('forwards passthroughUnmatched when a host attaches WebSocket upgrades first', async () => {
+		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as any, runtime: { embedded: true } });
+		const httpServer = {} as import('node:http').Server;
+
+		await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
+
+		assert.deepEqual(app.completeInitializationCalls, [[httpServer, { passthroughUnmatched: true }]]);
+	});
+
 	it('keeps watch mode enabled for embedded development runtimes', async () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 
 		const app = new TestNodeEcopagesApp({
 			appConfig: {

@@ -3,13 +3,5 @@
  *
  * @module @ecopages/core/cache
  */
-export {
-	ModuleParseCache,
-	moduleParseCache,
-	cachedParseSync,
-	parseModuleSource,
-	parserLanguageForFile,
-	type ModuleParseOptions,
-	type ParserLanguage,
-} from './module-parse-cache.ts';
+export { parseModuleSource, type ModuleParseOptions } from './module-parse-cache.ts';
 export { recordModuleTransformProfile } from './module-transform-profiler.ts';

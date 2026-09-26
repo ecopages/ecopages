@@ -175,44 +175,23 @@ Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugi
 
 Cross-integration ownership belongs in the renderer. When a renderer must keep control of its subtree even after another integration encounters it, implement renderer-owned foreign-child handling in the `IntegrationRenderer` subclass.
 
-The runtime contract has three steps:
+The runtime contract has two steps:
 
-1. **Queue** — Override `createForeignChildRuntime()` for custom interception, or call `this.foreignSubtreeExecutionService.createQueuedRuntime(...)` (the base class default).
-2. **Resolve** — After local HTML is produced in `renderComponent`, call `this.foreignSubtreeExecutionService.resolveQueuedHtml(...)` (string-markup paths can use `resolveStringQueuedHtml` / `renderStringComponentWithQueuedForeignSubtrees`).
-3. **Own** — Pass `getOwningRenderer` that calls `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`. The same module exports `getForeignSubtreeTokenPrefix` and `getForeignSubtreeResolutionContextKey`.
+1. **Queue**: while your renderer runs, the base `createForeignChildRuntime()` replaces each foreign child with a token. Override it only for custom interception.
+2. **Resolve**: after `renderComponent` produces its HTML, call `this.resolveQueuedForeignSubtrees(...)`. It hands each queued subtree to the renderer that owns it and replaces the token with the result.
 
-Prefer extending `StringMarkupRenderer` when the integration is string-first — queue and resolve are already wired. Integrations such as Lit and React use the explicit resolve step because the owning renderer must re-enter during foreign-subtree resolution to produce the correct SSR output.
+Prefer extending `StringMarkupRenderer` when the integration is string-first; both steps are already wired. Lit, React and Ecopages JSX call the resolve step themselves, because the owning renderer must re-enter during resolution to produce the correct SSR output.
 
 ```typescript
-import {
-	getForeignSubtreeResolutionContextKey,
-	resolveOwningIntegrationRenderer,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
-
-const queued = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
-	currentIntegrationName: this.name,
+const queued = await this.resolveQueuedForeignSubtrees(
 	html,
-	runtimeContext: this.foreignSubtreeExecutionService.getQueuedRuntimeContext(
-		input,
-		getForeignSubtreeResolutionContextKey(this.name),
-	),
-	queueLabel: this.name,
-	getOwningRenderer: (integrationName, rendererCache) =>
-		resolveOwningIntegrationRenderer({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-			currentIntegrationName: this.name,
-			currentRenderer: this,
-			integrationName,
-			cache: rendererCache,
-		}),
-	applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-		this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-	dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-	renderQueuedChildren: (children, _ctx, byToken, resolveToken) =>
+	this.getQueuedForeignSubtreeContext(input),
+	(children, _context, byToken, resolveToken) =>
 		this.renderQueuedForeignSubtreeChildren(children, byToken, resolveToken),
-});
+);
 ```
+
+`getQueuedForeignSubtreeContext(input)` returns the queue state your renderer stored on `input`, or `undefined` when nothing was queued. `queued.html` is the resolved markup, and `queued.assets` holds the owning renderers' assets, deduplicated. Merge them with your component's own assets.
 
 `renderQueuedChildren` renders the children of one queued foreign subtree inside your renderer. The owning renderer then renders the foreign component around the result. Return a `QueuedForeignSubtreeChildRenderResult` (exported from `@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service`):
 

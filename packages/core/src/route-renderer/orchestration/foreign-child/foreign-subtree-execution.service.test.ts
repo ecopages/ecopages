@@ -259,7 +259,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			queueLabel: 'Test',
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 				if (children === undefined) {
-					return { assets: [], html: undefined };
+					return {};
 				}
 
 				let html = typeof children === 'string' ? children : String(children ?? '');
@@ -272,10 +272,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 					html = html.split(token).join(await resolveToken(token));
 				}
 
-				return {
-					assets: [createAsset('shared-asset'), createAsset('children-asset')],
-					html,
-				};
+				return { html };
 			},
 			resolveForeignSubtree,
 			applyAttributesToFirstElement,
@@ -288,7 +285,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		expect(result.assets).toEqual([
 			createAsset('shared-asset'),
 			createAsset('child-asset'),
-			createAsset('children-asset'),
 			createAsset('parent-asset'),
 		]);
 		expect(resolveForeignSubtree).toHaveBeenCalledTimes(2);
@@ -325,7 +321,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 				queueLabel: 'Test',
 				renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 					if (children === undefined) {
-						return { assets: [], html: undefined };
+						return {};
 					}
 
 					let html = typeof children === 'string' ? children : String(children ?? '');
@@ -338,7 +334,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 						html = html.split(token).join(await resolveToken(token));
 					}
 
-					return { assets: [], html };
+					return { html };
 				},
 				resolveForeignSubtree: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
@@ -385,10 +381,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',
-			renderQueuedChildren: async (children) => ({
-				assets: [],
-				children,
-			}),
+			renderQueuedChildren: async (children) => ({ children }),
 			resolveForeignSubtree,
 			applyAttributesToFirstElement,
 			dedupeProcessedAssets: dedupeAssets,
@@ -454,7 +447,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',
-			renderQueuedChildren: async () => ({ assets: [], html: undefined }),
+			renderQueuedChildren: async () => ({}),
 			resolveForeignSubtree,
 			applyAttributesToFirstElement,
 			dedupeProcessedAssets: dedupeAssets,

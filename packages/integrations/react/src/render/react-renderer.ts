@@ -63,7 +63,7 @@ import {
 	createForeignSubtreeRuntimeContext,
 	renderForeignComponentWithSerializedHtml,
 	renderReactManagedComponent,
-	renderReactQueuedForeignSubtreeChildren,
+	renderQueuedChildrenToHtml,
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
 import { BundleError, ReactRenderError } from './errors.ts';
@@ -219,10 +219,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
 				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) =>
-				renderReactQueuedForeignSubtreeChildren({
+			renderQueuedChildren: async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
+				html: await renderQueuedChildrenToHtml({
 					children,
-					currentRuntimeContext,
+					runtimeContext: currentRuntimeContext,
 					queuedResolutionsByToken,
 					resolveToken,
 					runtime: this.getReactRuntimeModules(),
@@ -231,6 +231,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 					resolveQueuedTokens: (value, tokens, resolve) =>
 						this.foreignSubtreeExecutionService.resolveQueuedTokens(value, tokens, resolve),
 				}),
+			}),
 		});
 	}
 

@@ -109,17 +109,6 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Sets attributes on the element a fragment or document starts with.
-	 *
-	 * @remarks
-	 * Nothing is stamped when text or a comment comes first (whitespace aside),
-	 * so a Lit render that opens with `<!--lit-part-->` keeps its markup.
-	 */
-	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
-		return stampAttributes(html, attributes, () => true, { leadingOnly: true });
-	}
-
-	/**
 	 * Removes duplicate processed assets while preserving first-seen order.
 	 *
 	 * @remarks
@@ -235,6 +224,17 @@ export class HtmlTransformerService {
 
 		return dedupeProcessedAssets([...nonGraphHtmlAssets, ...entryHtmlAssets]);
 	}
+}
+
+/**
+ * Sets attributes on the element a fragment or document starts with.
+ *
+ * @remarks
+ * Nothing is stamped when text or a comment comes first (whitespace aside),
+ * so a Lit render that opens with `<!--lit-part-->` keeps its markup.
+ */
+export function applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
+	return stampAttributes(html, attributes, () => true, { leadingOnly: true });
 }
 
 /**

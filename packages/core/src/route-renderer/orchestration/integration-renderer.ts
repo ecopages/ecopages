@@ -62,7 +62,12 @@ import {
 	resolveOwningIntegrationRenderer,
 } from './foreign-child/owning-renderer-resolution.ts';
 import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
-import { ForeignSubtreeExecutionService } from './foreign-child/foreign-subtree-execution.service.ts';
+import {
+	ForeignSubtreeExecutionService,
+	type ForeignSubtreeExecutionOwningRenderer,
+	type QueuedForeignSubtreeResolutionContext,
+	type RenderQueuedForeignSubtreeChildren,
+} from './foreign-child/foreign-subtree-execution.service.ts';
 import {
 	composeDocumentShell,
 	finalizeDocumentShellHtml,
@@ -634,22 +639,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const componentRender = await this.renderStringComponentWithSerializedChildren(input, component);
 		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveStringQueuedHtml({
 			currentIntegrationName: this.name,
-			renderInput: input,
 			html: componentRender.html,
-			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
-			queueLabel: 'String',
+			runtimeContext: this.getQueuedForeignSubtreeContext(input),
 			getOwningRenderer: (integrationName, rendererCache) =>
-				resolveOwningIntegrationRenderer({
-					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
-					currentIntegrationName: this.name,
-					currentRenderer: this,
-					integrationName,
-					cache: rendererCache,
-				}),
-			applyAttributesToFirstElement: (html, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(html, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
+				this.resolveOwningRenderer(integrationName, rendererCache),
 		});
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
 			...(componentRender.assets ?? []),
@@ -1002,14 +995,62 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
 				}),
 			getOwningRenderer: (integrationName, rendererCache) =>
-				resolveOwningIntegrationRenderer({
-					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
-					currentIntegrationName: this.name,
-					currentRenderer: this,
-					integrationName,
-					cache: rendererCache,
-				}),
+				this.resolveOwningRenderer(integrationName, rendererCache),
+		});
+	}
+
+	/**
+	 * Returns the renderer that owns `integrationName`, reusing `rendererCache`
+	 * for the current render.
+	 */
+	protected resolveOwningRenderer(
+		integrationName: string,
+		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
+	): Promise<ForeignSubtreeExecutionOwningRenderer> {
+		return resolveOwningIntegrationRenderer({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.runtimeOrigin,
+			currentIntegrationName: this.name,
+			currentRenderer: this,
+			integrationName,
+			cache: rendererCache,
+		});
+	}
+
+	/**
+	 * Returns the queued foreign-subtree state this renderer keeps on `input`, or
+	 * `undefined` when nothing was queued for it.
+	 */
+	protected getQueuedForeignSubtreeContext<
+		TContext extends QueuedForeignSubtreeResolutionContext = QueuedForeignSubtreeResolutionContext,
+	>(input: ComponentRenderInput): TContext | undefined {
+		return this.foreignSubtreeExecutionService.getQueuedRuntimeContext<TContext>(
+			input,
+			getForeignSubtreeResolutionContextKey(this.name),
+		);
+	}
+
+	/**
+	 * Replaces the foreign-subtree tokens queued while rendering `html` with the
+	 * HTML each owning renderer produces.
+	 *
+	 * @remarks
+	 * `renderQueuedChildren` renders a subtree's children inside this renderer
+	 * before the owning renderer renders the subtree around them. The returned
+	 * assets are the owning renderers' assets, deduplicated.
+	 */
+	protected resolveQueuedForeignSubtrees<TContext extends QueuedForeignSubtreeResolutionContext>(
+		html: string,
+		runtimeContext: TContext | undefined,
+		renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
+			html,
+			runtimeContext,
+			renderQueuedChildren,
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.resolveOwningRenderer(integrationName, rendererCache),
 		});
 	}
 

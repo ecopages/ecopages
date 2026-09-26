@@ -21,14 +21,9 @@ import {
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
-	ForeignSubtreeExecutionOwningRenderer,
 	QueuedForeignSubtreeChildRenderResult,
 	QueuedForeignSubtreeResolutionContext,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import {
-	getForeignSubtreeResolutionContextKey,
-	resolveOwningIntegrationRenderer,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
 import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
@@ -185,30 +180,12 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		const renderedHtml = await renderLitValueToString(content);
 		const html =
 			renderedChildren === undefined ? renderedHtml : injectLitRenderedChildren(renderedHtml, renderedChildren);
-		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
+		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtrees(
 			html,
-			runtimeContext:
-				this.foreignSubtreeExecutionService.getQueuedRuntimeContext<QueuedForeignSubtreeResolutionContext>(
-					input,
-					getForeignSubtreeResolutionContextKey(this.name),
-				),
-			queueLabel: 'Lit',
-			getOwningRenderer: (integrationName, rendererCache) =>
-				resolveOwningIntegrationRenderer({
-					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
-					currentIntegrationName: this.name,
-					currentRenderer: this,
-					integrationName,
-					cache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
-				}),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: (children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
+			this.getQueuedForeignSubtreeContext(input),
+			(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
 				this.renderLitQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-		});
+		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
 		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
 		const assets =

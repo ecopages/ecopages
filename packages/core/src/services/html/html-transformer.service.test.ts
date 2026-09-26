@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessedAsset } from '../assets/asset-processing-service/index.js';
-import { HtmlTransformerService } from './html-transformer.service.ts';
+import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
 
 type InjectionScenario = {
 	label: string;
@@ -166,8 +166,7 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('should apply attributes to the first fragment element', () => {
-		const transformer = new HtmlTransformerService();
-		const result = transformer.applyAttributesToFirstElement('   <aside>Content</aside><div>Other</div>', {
+		const result = applyAttributesToFirstElement('   <aside>Content</aside><div>Other</div>', {
 			'aria-live': 'polite',
 		});
 
@@ -175,10 +174,8 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('replaces an attribute the target already has instead of duplicating it', () => {
-		const transformer = new HtmlTransformerService();
-
 		expect(
-			transformer.applyAttributesToFirstElement('<div data-eco-component-id="old">x</div>', {
+			applyAttributesToFirstElement('<div data-eco-component-id="old">x</div>', {
 				'data-eco-component-id': 'new',
 			}),
 		).toBe('<div data-eco-component-id="new">x</div>');
@@ -188,10 +185,8 @@ describe('HtmlTransformerService', () => {
 		const transformer = new HtmlTransformerService();
 		const litRender = '<!--lit-part AbC=--><lit-counter count="0"></lit-counter><!--/lit-part-->';
 
-		expect(transformer.applyAttributesToFirstElement(litRender, { 'data-a': '1' })).toBe(litRender);
-		expect(transformer.applyAttributesToFirstElement('text <span>x</span>', { 'data-a': '1' })).toBe(
-			'text <span>x</span>',
-		);
+		expect(applyAttributesToFirstElement(litRender, { 'data-a': '1' })).toBe(litRender);
+		expect(applyAttributesToFirstElement('text <span>x</span>', { 'data-a': '1' })).toBe('text <span>x</span>');
 		expect(
 			transformer.applyAttributesToFirstBodyElement('<body><!-- c --><main>M</main></body>', { 'data-a': '1' }),
 		).toBe('<body><!-- c --><main>M</main></body>');
@@ -216,12 +211,10 @@ describe('HtmlTransformerService', () => {
 	});
 
 	it('escapes quotes in stamped values and skips empty names or values', () => {
-		const transformer = new HtmlTransformerService();
-
-		expect(
-			transformer.applyAttributesToFirstElement('<div>x</div>', { title: 'a "b"', 'data-empty': '', '': 'v' }),
-		).toBe('<div title="a &quot;b&quot;">x</div>');
-		expect(transformer.applyAttributesToFirstElement('<div>x</div>', { 'data-empty': '' })).toBe('<div>x</div>');
+		expect(applyAttributesToFirstElement('<div>x</div>', { title: 'a "b"', 'data-empty': '', '': 'v' })).toBe(
+			'<div title="a &quot;b&quot;">x</div>',
+		);
+		expect(applyAttributesToFirstElement('<div>x</div>', { 'data-empty': '' })).toBe('<div>x</div>');
 	});
 
 	it('should deduplicate processed assets while preserving order', () => {

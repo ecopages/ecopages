@@ -1,4 +1,5 @@
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import { applyAttributesToFirstElement } from '../../../services/html/html-transformer.service.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
@@ -13,6 +14,7 @@ import {
 	type ForeignChildRuntime,
 } from './component-render-context.ts';
 import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './foreign-child-output.utils.ts';
+import { dedupeProcessedAssets } from '../page-browser-graph/processed-asset-dedupe.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
@@ -103,33 +105,21 @@ export interface ForeignSubtreeQueuedRuntimeOptions<TContext extends QueuedForei
 	) => TContext;
 }
 
-export interface ForeignSubtreeStringQueuedHtmlOptions {
-	currentIntegrationName: string;
-	renderInput: ComponentRenderInput;
-	html: string;
-	runtimeContextKey: string;
-	queueLabel: string;
-	getOwningRenderer(
-		integrationName: string,
-		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): Promise<ForeignSubtreeExecutionOwningRenderer>;
-	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
-	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
-}
-
 export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
 	currentIntegrationName: string;
 	html: string;
 	runtimeContext?: TContext;
-	queueLabel: string;
 	renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>;
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
 	): Promise<ForeignSubtreeExecutionOwningRenderer>;
-	applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string;
-	dedupeProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[];
 }
+
+export type ForeignSubtreeStringQueuedHtmlOptions = Omit<
+	ForeignSubtreeQueuedHtmlOptions<QueuedForeignSubtreeResolutionContext>,
+	'renderQueuedChildren'
+>;
 
 export interface ResolveQueuedForeignSubtreeTokensOptions<TContext extends QueuedForeignSubtreeResolutionContext> {
 	html: string;
@@ -140,8 +130,6 @@ export interface ResolveQueuedForeignSubtreeTokensOptions<TContext extends Queue
 		input: ComponentRenderInput,
 		rendererCache: Map<string, unknown>,
 	) => Promise<ForeignSubtreeRenderPayload | undefined>;
-	applyAttributesToFirstElement: (html: string, attributes: Record<string, string>) => string;
-	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
 }
 
 /**
@@ -291,23 +279,26 @@ export class ForeignSubtreeExecutionService {
 		return runtimeContext as TContext;
 	}
 
-	async resolveStringQueuedHtml<TContext extends QueuedForeignSubtreeResolutionContext>(
+	/**
+	 * Resolves queued foreign subtrees for a renderer whose children are markup.
+	 *
+	 * @remarks
+	 * String children and markup nodes are serialized and their nested tokens
+	 * resolved. Structured children pass to the owning renderer unchanged; opaque
+	 * objects are rejected.
+	 */
+	async resolveStringQueuedHtml(
 		options: ForeignSubtreeStringQueuedHtmlOptions,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		const runtimeContext = this.getQueuedRuntimeContext<TContext>(options.renderInput, options.runtimeContextKey);
-
 		return this.resolveQueuedHtml({
-			currentIntegrationName: options.currentIntegrationName,
-			html: options.html,
-			runtimeContext,
-			queueLabel: options.queueLabel,
+			...options,
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 				if (children === undefined) {
 					return {};
 				}
 
 				if (typeof children !== 'string' && !isMarkupNodeLike(children)) {
-					assertForeignChildrenNotOpaque(children, options.queueLabel);
+					assertForeignChildrenNotOpaque(children, options.currentIntegrationName);
 					return { children };
 				}
 
@@ -319,9 +310,6 @@ export class ForeignSubtreeExecutionService {
 
 				return { html };
 			},
-			getOwningRenderer: options.getOwningRenderer,
-			applyAttributesToFirstElement: options.applyAttributesToFirstElement,
-			dedupeProcessedAssets: options.dedupeProcessedAssets,
 		});
 	}
 
@@ -331,7 +319,7 @@ export class ForeignSubtreeExecutionService {
 		return this.resolveQueuedForeignSubtreeTokens({
 			html: options.html,
 			runtimeContext: options.runtimeContext,
-			queueLabel: options.queueLabel,
+			queueLabel: options.currentIntegrationName,
 			renderQueuedChildren: options.renderQueuedChildren,
 			resolveForeignSubtree: (input, rendererCache) =>
 				this.resolveForeignSubtreeInOwningRenderer({
@@ -340,8 +328,6 @@ export class ForeignSubtreeExecutionService {
 					rendererCache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
 					getOwningRenderer: options.getOwningRenderer,
 				}),
-			applyAttributesToFirstElement: options.applyAttributesToFirstElement,
-			dedupeProcessedAssets: options.dedupeProcessedAssets,
 		});
 	}
 
@@ -422,10 +408,7 @@ export class ForeignSubtreeExecutionService {
 				const resolvedHtml =
 					foreignSubtreeRender.attachmentPolicy.kind === 'first-element' &&
 					foreignSubtreeRender.rootAttributes
-						? options.applyAttributesToFirstElement(
-								foreignSubtreeRender.html,
-								foreignSubtreeRender.rootAttributes,
-							)
+						? applyAttributesToFirstElement(foreignSubtreeRender.html, foreignSubtreeRender.rootAttributes)
 						: foreignSubtreeRender.html;
 
 				resolvedHtmlByToken.set(token, resolvedHtml);
@@ -449,7 +432,7 @@ export class ForeignSubtreeExecutionService {
 		}
 
 		return {
-			assets: options.dedupeProcessedAssets(collectedAssets),
+			assets: dedupeProcessedAssets(collectedAssets),
 			html: resolvedHtml,
 		};
 	}

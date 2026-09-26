@@ -1,8 +1,6 @@
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { EcoComponentConfig } from '@ecopages/core';
-import type { CompileOptions } from '@mdx-js/mdx';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from '../client-graph/declared-modules.ts';
-import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
 
 export type ReactHmrBuildTarget = {
@@ -17,8 +15,7 @@ type ImportedReactPageModule = {
 
 export type ReactHmrDevTransformPluginOptions = {
 	pageMetadataCache: HmrPageMetadataCache;
-	mdxCompilerOptions?: CompileOptions;
-	projectRoot: string;
+	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	getBuildPlugins: (declaredModules?: readonly string[]) => EcoBuildPlugin[];
 	importNodePageModule: (entrypointPath: string) => Promise<ImportedReactPageModule>;
 };
@@ -46,13 +43,8 @@ export function buildReactDevTransformPlugins(
 ): EcoBuildPlugin[] {
 	const plugins = options.getBuildPlugins(declaredModules);
 
-	if (shouldEnableMdx && options.mdxCompilerOptions) {
-		plugins.unshift(
-			createReactMdxLoaderPlugin({
-				compilerOptions: options.mdxCompilerOptions,
-				projectRoot: options.projectRoot,
-			}),
-		);
+	if (shouldEnableMdx && options.getMdxLoaderPlugin) {
+		plugins.unshift(options.getMdxLoaderPlugin());
 	}
 
 	return plugins;

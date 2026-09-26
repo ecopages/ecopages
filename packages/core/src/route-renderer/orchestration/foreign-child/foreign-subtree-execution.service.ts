@@ -40,11 +40,28 @@ export type QueuedForeignSubtreeResolutionContext = {
 
 type QueuedForeignSubtreeIntegrationContext = BaseIntegrationContext & Record<string, unknown>;
 
-type QueuedForeignSubtreeChildRenderResult = {
-	assets: ProcessedAsset[];
+/**
+ * Children of a queued foreign subtree after the host renderer has processed them.
+ *
+ * @remarks
+ * Set `html` when the host serialized the children, or `children` to pass them
+ * to the owning renderer unserialized. Leave both unset when there are no
+ * children. Assets are not returned here: the owning renderer reports the
+ * foreign component's assets, and host components' assets come from their
+ * declared dependencies.
+ */
+export type QueuedForeignSubtreeChildRenderResult = {
 	html?: string;
 	children?: unknown;
 };
+
+/** Renders the children of one queued foreign subtree inside the host renderer. */
+export type RenderQueuedForeignSubtreeChildren<TContext extends QueuedForeignSubtreeResolutionContext> = (
+	children: unknown,
+	runtimeContext: TContext,
+	queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
+	resolveToken: (token: string) => Promise<string>,
+) => Promise<QueuedForeignSubtreeChildRenderResult>;
 
 export interface ForeignSubtreeExecutionOwningRenderer {
 	readonly name: string;
@@ -105,12 +122,7 @@ export interface ForeignSubtreeQueuedHtmlOptions<TContext extends QueuedForeignS
 	html: string;
 	runtimeContext?: TContext;
 	queueLabel: string;
-	renderQueuedChildren(
-		children: unknown,
-		runtimeContext: TContext,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<{ assets: ProcessedAsset[]; children?: unknown; html?: string }>;
+	renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>;
 	getOwningRenderer(
 		integrationName: string,
 		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
@@ -123,12 +135,7 @@ export interface ResolveQueuedForeignSubtreeTokensOptions<TContext extends Queue
 	html: string;
 	runtimeContext?: TContext;
 	queueLabel: string;
-	renderQueuedChildren: (
-		children: unknown,
-		runtimeContext: TContext,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolution>,
-		resolveToken: (token: string) => Promise<string>,
-	) => Promise<QueuedForeignSubtreeChildRenderResult>;
+	renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>;
 	resolveForeignSubtree: (
 		input: ComponentRenderInput,
 		rendererCache: Map<string, unknown>,
@@ -296,12 +303,12 @@ export class ForeignSubtreeExecutionService {
 			queueLabel: options.queueLabel,
 			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
 				if (children === undefined) {
-					return { assets: [], html: undefined };
+					return {};
 				}
 
 				if (typeof children !== 'string' && !isMarkupNodeLike(children)) {
 					assertForeignChildrenNotOpaque(children, options.queueLabel);
-					return { assets: [], children };
+					return { children };
 				}
 
 				const html = await this.resolveQueuedTokens(
@@ -310,7 +317,7 @@ export class ForeignSubtreeExecutionService {
 					resolveToken,
 				);
 
-				return { assets: [], html };
+				return { html };
 			},
 			getOwningRenderer: options.getOwningRenderer,
 			applyAttributesToFirstElement: options.applyAttributesToFirstElement,
@@ -388,10 +395,6 @@ export class ForeignSubtreeExecutionService {
 					resolveToken,
 				);
 				syncQueuedResolutions();
-
-				if (renderedChildren.assets.length > 0) {
-					collectedAssets.push(...renderedChildren.assets);
-				}
 
 				const foreignSubtreeRender = await options.resolveForeignSubtree(
 					{

@@ -95,11 +95,16 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 	].join('::');
 }
 
+/**
+ * @remarks
+ * Manifests without `outputImports` predate import validation and cannot show
+ * that their chunks still exist, so they are treated as absent.
+ */
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
 	const manifest = readProductionCacheManifest<PagesUnifiedGraphCacheManifest>(
 		getPagesUnifiedGraphCachePath(appConfig),
 	);
-	if (!manifest?.outputs) {
+	if (!manifest?.outputs || !Array.isArray(manifest.outputImports)) {
 		return undefined;
 	}
 	return manifest;
@@ -155,7 +160,7 @@ function isGraphManifestCurrent(
 		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
 		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
 		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
-		manifest.outputImports?.every((filePath) => fileSystem.exists(filePath)) === true
+		manifest.outputImports.every((filePath) => fileSystem.exists(filePath))
 	);
 }
 
@@ -253,6 +258,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();
+	const directImportsCache = new Map<string, string[]>();
 
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
@@ -263,7 +269,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = collectReachableLocalImports(compiledOutput);
+		const compiledOutputImports = collectReachableLocalImports(compiledOutput, { directImportsCache });
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
 		routeModuleBuildCache.recordBuild({

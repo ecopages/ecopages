@@ -214,6 +214,14 @@ const queued = await this.foreignSubtreeExecutionService.resolveQueuedHtml({
 });
 ```
 
+`renderQueuedChildren` renders the children of one queued foreign subtree inside your renderer. The owning renderer then renders the foreign component around the result. Return a `QueuedForeignSubtreeChildRenderResult` (exported from `@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service`):
+
+- `{ html }` when your renderer serialized the children. Resolve nested queued tokens in that HTML first with `this.foreignSubtreeExecutionService.resolveQueuedTokens(html, byToken, resolveToken)`.
+- `{ children }` to pass the children to the owning renderer unserialized.
+- `{}` when there are no children.
+
+The result carries no assets. The owning renderer reports the foreign component's assets, and your own components' assets come from their declared `dependencies`.
+
 ## Hot Module Replacement (HMR)
 
 To support HMR in a custom integration, implement an `HmrStrategy` and register it in the plugin.

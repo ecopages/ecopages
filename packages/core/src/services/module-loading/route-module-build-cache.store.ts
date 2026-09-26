@@ -84,7 +84,7 @@ export class RouteModuleBuildCache {
 		if (!this.dependencies.exists(outputPath)) {
 			return undefined;
 		}
-		if (!entry.outputImports?.every((importPath) => this.dependencies.exists(importPath))) {
+		if (!entry.outputImports.every((importPath) => this.dependencies.exists(importPath))) {
 			return undefined;
 		}
 
@@ -125,8 +125,10 @@ export class RouteModuleBuildCache {
 			outputImports:
 				options.outputImports ??
 				collectReachableLocalImports(outputPath, {
-					exists: (filePath) => this.dependencies.exists(filePath),
-					readFile: (filePath) => this.dependencies.readFile(filePath),
+					fileAccess: {
+						exists: (filePath) => this.dependencies.exists(filePath),
+						readFile: (filePath) => this.dependencies.readFile(filePath),
+					},
 				}),
 			renderedOutputs: existingEntry?.renderedOutputs,
 		};

@@ -15,18 +15,20 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
-import type { ForeignSubtreeExecutionOwningRenderer } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import type {
+	ForeignSubtreeExecutionOwningRenderer,
+	QueuedForeignSubtreeChildRenderResult,
+	QueuedForeignSubtreeResolutionContext,
+} from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import {
 	getForeignSubtreeResolutionContextKey,
 	resolveOwningIntegrationRenderer,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
@@ -139,24 +141,14 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		children: unknown,
 		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
-	): Promise<{ assets: ProcessedAsset[]; children?: unknown; html?: string }> {
+	): Promise<QueuedForeignSubtreeChildRenderResult> {
 		const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
 			children,
 			queuedResolutionsByToken,
 			resolveToken,
 		);
 
-		if (typeof renderedChildren !== 'string') {
-			return {
-				assets: [],
-				children: renderedChildren,
-			};
-		}
-
-		return {
-			assets: [],
-			html: renderedChildren,
-		};
+		return typeof renderedChildren === 'string' ? { html: renderedChildren } : { children: renderedChildren };
 	}
 
 	/**

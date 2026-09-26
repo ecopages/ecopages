@@ -7,12 +7,6 @@ import { recordMdxTransform } from '@ecopages/core/diagnostics/request-pipeline-
 import sourceMap from 'source-map';
 import { VFile } from 'vfile';
 import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions } from './mdx-utils.ts';
-import {
-	createMdxTransformCacheKey,
-	readMdxTransformCache,
-	recordMdxCompileInvocation,
-	writeMdxTransformCache,
-} from './mdx-transform-cache.ts';
 
 export interface CreateMdxLoaderPluginOptions {
 	name: string;
@@ -25,6 +19,25 @@ export interface CreateMdxLoaderPluginOptions {
 	loader?: 'js' | 'jsx';
 }
 
+type MdxCompileCacheEntry = {
+	source: string;
+	contents: string;
+	map?: unknown;
+};
+
+/**
+ * Creates an MDX loader that compiles each file once per source revision.
+ *
+ * @remarks
+ * The loader owns its compile cache. Its compiler options never change, so the
+ * cache is keyed by file path and an entry is reused while the source is
+ * unchanged. Create one loader per integration and reuse it for server builds,
+ * browser bundles and HMR rebuilds so they share compiles. A new loader, for
+ * example after a config reload, starts with an empty cache.
+ *
+ * Only the MDX compile is cached. Component identity attribution runs on every
+ * load, so changes to imported components apply without a recompile.
+ */
 export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): EcoBuildPlugin {
 	const {
 		name,
@@ -43,6 +56,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 	}
 
 	const filter = createMdxExtensionFilter(extensions, { allowQueryString: true });
+	const compileCache = new Map<string, MdxCompileCacheEntry>();
 
 	return {
 		name,
@@ -50,27 +64,17 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
 				const source = await readFile(filePath, 'utf-8');
-				const compileOptions = {
-					...compilerOptions,
-					format: resolveCompileFormat(filePath, compilerOptions),
-					SourceMapGenerator: sourceMap.SourceMapGenerator,
-				};
-				const cacheKey = createMdxTransformCacheKey(filePath, source, compileOptions);
-				let cached = readMdxTransformCache(cacheKey);
-				if (cached) {
-					recordMdxTransform();
-				} else {
-					const file = new VFile({ path: filePath, value: source });
-					recordMdxCompileInvocation();
-					const compiled = await compile(file, compileOptions);
-					recordMdxTransform();
-					cached = {
-						contents: String(compiled.value),
-						loader,
-						map: compiled.map,
-					};
-					writeMdxTransformCache(cacheKey, cached);
+				let cached = compileCache.get(filePath);
+				if (cached?.source !== source) {
+					const compiled = await compile(new VFile({ path: filePath, value: source }), {
+						...compilerOptions,
+						format: resolveCompileFormat(filePath, compilerOptions),
+						SourceMapGenerator: sourceMap.SourceMapGenerator,
+					});
+					cached = { source, contents: String(compiled.value), map: compiled.map };
+					compileCache.set(filePath, cached);
 				}
+				recordMdxTransform();
 
 				const transformed = attributeMdxComponentIdentity(
 					cached.contents,
@@ -86,7 +90,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 
 				return {
 					contents: `${transformed}${inlineSourceMap}`,
-					loader: cached.loader ?? loader,
+					loader,
 					resolveDir: path.dirname(args.path),
 				};
 			});

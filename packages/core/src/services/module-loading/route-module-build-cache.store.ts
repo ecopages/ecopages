@@ -125,8 +125,10 @@ export class RouteModuleBuildCache {
 			outputImports:
 				options.outputImports ??
 				collectReachableLocalImports(outputPath, {
-					exists: (filePath) => this.dependencies.exists(filePath),
-					readFile: (filePath) => this.dependencies.readFile(filePath),
+					fileAccess: {
+						exists: (filePath) => this.dependencies.exists(filePath),
+						readFile: (filePath) => this.dependencies.readFile(filePath),
+					},
 				}),
 			renderedOutputs: existingEntry?.renderedOutputs,
 		};

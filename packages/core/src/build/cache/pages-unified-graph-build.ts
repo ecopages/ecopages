@@ -258,6 +258,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();
+	const directImportsCache = new Map<string, string[]>();
 
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
@@ -268,7 +269,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = collectReachableLocalImports(compiledOutput);
+		const compiledOutputImports = collectReachableLocalImports(compiledOutput, { directImportsCache });
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
 		routeModuleBuildCache.recordBuild({

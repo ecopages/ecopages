@@ -51,16 +51,8 @@ import {
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
 import { mergePageBrowserGraph } from '@ecopages/core/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils';
-import {
-	getForeignSubtreeResolutionContextKey,
-	getForeignSubtreeTokenPrefix,
-	resolveOwningIntegrationRenderer,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution';
-import type { ForeignChildRuntime } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
-import type { ForeignSubtreeExecutionOwningRenderer } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { asReactComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
-	createForeignSubtreeRuntimeContext,
 	renderForeignComponentWithSerializedHtml,
 	renderReactManagedComponent,
 	renderQueuedChildrenToHtml,
@@ -191,35 +183,14 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		this.htmlTransformer.setPagePackage(pagePackage);
 	}
 
-	private resolveOwningRenderer(
-		integrationName: string,
-		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): Promise<ForeignSubtreeExecutionOwningRenderer> {
-		return resolveOwningIntegrationRenderer({
-			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
-			currentIntegrationName: this.name,
-			currentRenderer: this,
-			integrationName,
-			cache: rendererCache,
-		});
-	}
-
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
 	): Promise<{ assets: ProcessedAsset[]; html: string }> {
-		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
-			currentIntegrationName: this.name,
+		return this.resolveQueuedForeignSubtrees(
 			html,
 			runtimeContext,
-			queueLabel: 'React',
-			getOwningRenderer: (integrationName, rendererCache) =>
-				this.resolveOwningRenderer(integrationName, rendererCache),
-			applyAttributesToFirstElement: (resolvedHtml, attributes) =>
-				this.htmlTransformer.applyAttributesToFirstElement(resolvedHtml, attributes),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			renderQueuedChildren: async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
+			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
 				html: await renderQueuedChildrenToHtml({
 					children,
 					runtimeContext: currentRuntimeContext,
@@ -232,7 +203,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 						this.foreignSubtreeExecutionService.resolveQueuedTokens(value, tokens, resolve),
 				}),
 			}),
-		});
+		);
 	}
 
 	/**
@@ -250,11 +221,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * deterministic mount target per component instance.
 	 */
 	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const runtimeContext =
-			this.foreignSubtreeExecutionService.getQueuedRuntimeContext<ReactForeignSubtreeResolutionContext>(
-				input,
-				getForeignSubtreeResolutionContextKey(this.name),
-			);
+		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(input);
 
 		if (!isReactManagedComponent(input.component, this.name)) {
 			return renderForeignComponentWithSerializedHtml({
@@ -282,23 +249,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 			hydrationAssetService: this.hydrationAssetService,
 			canBuildIslandAssets: Boolean(this.assetProcessingService),
-		});
-	}
-
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}): ForeignChildRuntime {
-		return this.foreignSubtreeExecutionService.createQueuedRuntime<ReactForeignSubtreeResolutionContext>({
-			renderInput: options.renderInput,
-			rendererCache: options.rendererCache,
-			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
-			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
-			createRuntimeContext: (integrationContext, rendererCache) =>
-				createForeignSubtreeRuntimeContext({
-					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
-					componentInstanceScope: integrationContext.componentInstanceId,
-				}),
 		});
 	}
 
@@ -386,10 +336,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			normalizeUnresolvedMarkerArtifactHtml: (html) => this.normalizeUnresolvedMarkerArtifactHtml(html),
 			getRootTagName: (html) => this.getRootTagName(html),
 			getQueuedForeignSubtreeResolutionContext: (input) =>
-				this.foreignSubtreeExecutionService.getQueuedRuntimeContext<ReactForeignSubtreeResolutionContext>(
-					input,
-					getForeignSubtreeResolutionContextKey(this.name),
-				),
+				this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(input),
 			resolveQueuedForeignSubtreeHtml: (html, runtimeContext) =>
 				this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext),
 		});

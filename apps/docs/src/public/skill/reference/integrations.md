@@ -66,9 +66,8 @@ Authoring rule: use integration-owned `EcoEmbed` when nesting shells across inte
 
 Runtime contract (for custom integrations):
 
-1. **Queue** foreign subtrees with `createForeignChildRuntime()` / `foreignSubtreeExecutionService.createQueuedRuntime(...)`.
-2. **Resolve** queued tokens with `foreignSubtreeExecutionService.resolveQueuedHtml(...)` after local HTML is produced.
-3. **Own** subtrees through `resolveOwningIntegrationRenderer` from `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution`.
+1. **Queue**: the base `createForeignChildRuntime()` replaces foreign children with tokens while the renderer runs.
+2. **Resolve**: after local HTML is produced, call `this.resolveQueuedForeignSubtrees(html, this.getQueuedForeignSubtreeContext(input), renderQueuedChildren)`. It hands each queued subtree to its owning renderer.
 
 String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.
 

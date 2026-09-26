@@ -33,7 +33,7 @@ import {
 	type AsyncEcoComponent,
 	type EcopagesJsxMdxPageModule,
 } from './ecopages-jsx-mdx.ts';
-import { EcopagesJsxRenderSession } from './ecopages-jsx-render-session.ts';
+import { recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } from './ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
@@ -53,7 +53,6 @@ export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ec
 export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 	name = ECOPAGES_JSX_PLUGIN_NAME;
 	private readonly mdxExtensions: string[];
-	private readonly renderSession: EcopagesJsxRenderSession;
 	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;
 	private readonly ssrScriptPreloader: CustomElementScriptPreloader;
 
@@ -192,7 +191,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		});
 
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
-		this.renderSession = new EcopagesJsxRenderSession();
 		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
 		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
 		const preferSourceImports = typeof Bun !== 'undefined';
@@ -240,7 +238,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 				...(options.resolvedPageDependencyComponents ?? []),
 			]);
 
-			return await this.renderSession.withActiveScope(async () => {
+			return await withEjsxHmrOwnershipScope(async () => {
 				try {
 					const result = await this.renderPageWithDocumentShell({
 						page: {
@@ -268,7 +266,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						pageProps: options.pageProps ?? {},
 					});
 
-					this.recordHmrOwnership([
+					recordEjsxHmrOwnership([
 						options.Page,
 						options.Layout,
 						options.HtmlTemplate,
@@ -287,7 +285,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		return await this.withPreparedRadiantRuntime(async () => {
 			await this.ssrScriptPreloader.preloadSsrScripts([input.component as EcoComponent]);
 
-			return await this.renderSession.withActiveScope(async () => {
+			return await withEjsxHmrOwnershipScope(async () => {
 				try {
 					if (typeof input.component !== 'function') {
 						throw new TypeError('JSX renderer expected a callable component.');
@@ -340,7 +338,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						...componentAssets,
 					]);
 
-					this.recordHmrOwnership([input.component as EcoComponent]);
+					recordEjsxHmrOwnership([input.component as EcoComponent]);
 
 					return this.finalizeIslandComponentRender(input, {
 						html: queuedForeignSubtreeResolution.html,
@@ -366,7 +364,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			const layouts = viewComponent.config?.layouts;
 			await this.ssrScriptPreloader.preloadSsrScripts([view as EcoComponent, ...(layouts ?? [])]);
 
-			return await this.renderSession.withActiveScope(async () => {
+			return await withEjsxHmrOwnershipScope(async () => {
 				try {
 					if (typeof view !== 'function') {
 						throw new TypeError('JSX renderer expected a callable view component.');
@@ -379,7 +377,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						layout: layouts?.[layouts.length - 1],
 					});
 
-					this.recordHmrOwnership([view as EcoComponent]);
+					recordEjsxHmrOwnership([view as EcoComponent]);
 
 					return response;
 				} catch (error) {
@@ -408,14 +406,5 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		return ({ instance }: { instance?: unknown; tagName: string }) => {
 			return instance ? this.radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined;
 		};
-	}
-
-	/**
-	 * Records the source files that produced the current render so
-	 * {@link EcopagesJsxHmrStrategy} can match later watcher events without
-	 * re-walking the component tree.
-	 */
-	private recordHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
-		this.renderSession.mergeHmrOwnership(components);
 	}
 }

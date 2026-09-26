@@ -61,7 +61,6 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 		</html>
 	);
 };
-const ECOPAGES_JSX_SSR_RENDER_STATE_KEY = Symbol.for('@ecopages/ecopages-jsx.ssr-render-state');
 const INTRINSIC_TEST_TAG = 'ecopages-jsx-intrinsic-contract';
 const RADIANT_ARRAY_TEST_TAG = 'ecopages-jsx-radiant-array-contract';
 function serializeStringChild(children: JsxRenderable | undefined): string {
@@ -951,62 +950,6 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('<strong');
 			expect(result.html).toContain('data-ecopages-jsx-leaf="true"');
 			expect(result.html).toContain('>Leaf</strong>');
-		});
-
-		it('propagates renderer SSR scope across nested JSX renders', async () => {
-			const renderer = new TestEcopagesJsxRenderer({
-				appConfig: Config,
-				assetProcessingService: {
-					processDependencies: vi.fn(async () => []),
-				} as never,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-			});
-
-			const NestedScopeProbe = eco.component<{}, JsxRenderable>({
-				integration: 'ecopages-jsx',
-				render: () => {
-					const state = getActiveSsrScopeValue<{ pendingHmrFileOwners: Set<string> }>(
-						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
-					);
-
-					return (
-						<span
-							data-nested-scope={String(Boolean(state))}
-							data-nested-hmr-owners={String(state?.pendingHmrFileOwners instanceof Set)}
-						/>
-					);
-				},
-			});
-
-			const OuterScopeProbe = eco.component<{}, JsxRenderable>({
-				integration: 'ecopages-jsx',
-				render: () => {
-					const state = getActiveSsrScopeValue<{ pendingHmrFileOwners: Set<string> }>(
-						ECOPAGES_JSX_SSR_RENDER_STATE_KEY,
-					);
-					const nestedHtml = renderToString(<NestedScopeProbe />);
-
-					return (
-						<section
-							data-outer-scope={String(Boolean(state))}
-							data-outer-hmr-owners={String(state?.pendingHmrFileOwners instanceof Set)}
-						>
-							{createMarkupNodeLike(nestedHtml)}
-						</section>
-					);
-				},
-			});
-
-			const result = await renderer.renderComponent({
-				component: OuterScopeProbe,
-				props: {},
-			});
-
-			expect(result.html).toContain('data-outer-scope="true"');
-			expect(result.html).toContain('data-outer-hmr-owners="true"');
-			expect(result.html).toContain('data-nested-scope="true"');
-			expect(result.html).toContain('data-nested-hmr-owners="true"');
 		});
 
 		it('preserves SSR scope across nested async scope helpers', async () => {

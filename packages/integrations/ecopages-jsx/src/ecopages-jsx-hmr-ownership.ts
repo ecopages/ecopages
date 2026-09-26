@@ -1,18 +1,23 @@
 /**
- * Tracks the source files that participate in the active SSR render tree.
+ * Tracks the source files that produced the most recent JSX render.
  *
  * @remarks
- * The JSX integration renderer calls {@link updateEjsxHmrOwnership} after each
- * page, component, or view render so the HMR strategy can answer
- * "does this changed file affect SSR HTML?" without re-walking the tree on
- * every watcher event.
+ * The JSX renderer runs each page, component, or view render inside
+ * {@link withEjsxHmrOwnershipScope} and records its components with
+ * {@link recordEjsxHmrOwnership}. `EcopagesJsxHmrStrategy` reads the result to
+ * decide whether a changed file affects SSR HTML without walking the component
+ * tree on every watcher event.
  *
- * The state is module-scoped because the HMR strategy and renderer live in
- * different call sites (server strategy vs SSR renderer) and share no other
- * lifecycle anchor. A fresh state is installed only when the source-file set
- * changes, so the renderer's per-render hook stays O(1) in the steady state.
+ * The state is module-scoped because the renderer and the HMR strategy share no
+ * other lifecycle anchor. Publishing replaces it only when the file set changes,
+ * so repeated renders of the same page keep the existing state.
+ *
+ * Only the latest top-level render is kept. With several pages open, a file
+ * used only by a page that rendered earlier is not matched until that page
+ * renders again.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { rapidhash } from '@ecopages/core/hash';
 import { collectComponentConfigFilePaths } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
 import type { EcoComponent } from '@ecopages/core';
@@ -28,6 +33,8 @@ const EMPTY_STATE: EjsxHmrOwnershipState = {
 };
 
 let currentState: EjsxHmrOwnershipState = EMPTY_STATE;
+
+const pendingFileOwners = new AsyncLocalStorage<Set<string>>();
 
 /**
  * Returns the most recently recorded active render tree.
@@ -52,18 +59,53 @@ export function updateEjsxHmrOwnership(
 }
 
 /**
- * Merges one render tree into a pending ownership set during an active render.
+ * Runs one render and publishes the files it recorded once the outermost scope ends.
+ *
+ * @remarks
+ * Nested renders, such as components and foreign subtrees resolved inside a
+ * page, join the outer scope, so the published set covers the whole render tree
+ * instead of the last nested render.
  */
-export function mergeEjsxHmrOwnership(target: Set<string>, components: ReadonlyArray<EcoComponent | undefined>): void {
-	for (const file of collectFileOwners(components)) {
-		target.add(file);
+export async function withEjsxHmrOwnershipScope<T>(render: () => T | Promise<T>): Promise<T> {
+	if (pendingFileOwners.getStore()) {
+		return await render();
+	}
+
+	const fileOwners = new Set<string>();
+	try {
+		return await pendingFileOwners.run(fileOwners, render);
+	} finally {
+		if (fileOwners.size > 0) {
+			publishEjsxHmrOwnership(fileOwners);
+		}
 	}
 }
 
 /**
- * Publishes the merged ownership set for the completed render.
+ * Adds the source files of `components`, their declared dependencies and their
+ * layouts to the active render scope.
+ *
+ * @throws Error when called outside {@link withEjsxHmrOwnershipScope}.
  */
-export function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
+export function recordEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | undefined>): void {
+	const fileOwners = pendingFileOwners.getStore();
+	if (!fileOwners) {
+		throw new Error('Ecopages JSX HMR ownership can only be recorded inside an active render scope.');
+	}
+
+	for (const file of collectFileOwners(components)) {
+		fileOwners.add(file);
+	}
+}
+
+/**
+ * Resets the state to empty. Used by tests and by HMR manager teardown.
+ */
+export function resetEjsxHmrOwnership(): void {
+	currentState = EMPTY_STATE;
+}
+
+function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
 	const hash = hashFileSet(files);
 
 	if (hash === currentState.hash) {
@@ -74,13 +116,6 @@ export function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
 		fileOwners: new Set(files),
 		hash,
 	};
-}
-
-/**
- * Resets the state to empty. Used by tests and by HMR manager teardown.
- */
-export function resetEjsxHmrOwnership(): void {
-	currentState = EMPTY_STATE;
 }
 
 function collectFileOwners(components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>): Set<string> {

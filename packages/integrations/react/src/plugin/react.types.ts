@@ -1,4 +1,5 @@
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
@@ -152,7 +153,15 @@ export type ReactPluginOptions = {
 export type ReactRendererConfig = {
 	routerAdapter?: ReactRouterAdapter;
 	runtimeModules?: ResolvedReactPluginRuntimeModule[];
-	mdxCompilerOptions?: CompileOptions;
+	/**
+	 * Returns the plugin-owned MDX loader, creating it on first call. Set only
+	 * when MDX is enabled.
+	 *
+	 * @remarks
+	 * Server builds, browser bundles and HMR rebuilds all use this one loader, so
+	 * they share its compile cache.
+	 */
+	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: HmrPageMetadataCache;
 	/** Persistent React-plugin-owned cache shared by bundles and HMR transforms. */

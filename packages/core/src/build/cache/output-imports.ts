@@ -8,10 +8,11 @@ import { parseSync } from 'oxc-parser';
  * `file:` specifiers in static imports, re-exports and literal dynamic imports.
  *
  * @remarks
- * Persisted build caches record these so a cached module is reused only while
- * the shared chunks and generated modules it loads (for example
- * `.server-collections`) still exist. Uses `parseSync` directly rather than the
- * shared parse cache, so large compiled bundles are not retained in memory.
+ * {@link collectReachableLocalImports} follows these edges so persisted build
+ * caches can check that the shared chunks and generated modules a cached module
+ * loads (for example `.server-collections`) still exist. Uses `parseSync`
+ * directly rather than the shared parse cache, so large compiled bundles are not
+ * retained in memory.
  */
 export function collectLocalImports(code: string, modulePath: string): string[] {
 	const { module } = parseSync(modulePath, code, { lang: 'js', sourceType: 'module' });
@@ -48,15 +49,22 @@ const defaultLocalImportFileAccess: LocalImportFileAccess = {
  * Lists every local file reachable from `modulePath` through local imports.
  *
  * @remarks
- * Direct {@link collectLocalImports} misses shared chunks that a page output
- * only reaches through another chunk. Persisted caches walk this graph so reuse
- * fails when any reachable file is gone. `modulePath` itself is omitted; callers
- * already check that the compiled output exists.
+ * {@link collectLocalImports} alone misses shared chunks that a page output only
+ * reaches through another chunk. Persisted caches record this full set and are
+ * reused only while every file in it exists. `modulePath` itself is omitted,
+ * because callers already check that the compiled output exists.
+ *
+ * A missing file is listed but not followed, so a cache recorded against it
+ * never validates.
+ *
+ * Pass one `directImportsCache` to every walk of a single build so shared chunks
+ * are read and parsed once instead of once per output.
  */
 export function collectReachableLocalImports(
 	modulePath: string,
-	fileAccess: LocalImportFileAccess = defaultLocalImportFileAccess,
+	options: { fileAccess?: LocalImportFileAccess; directImportsCache?: Map<string, string[]> } = {},
 ): string[] {
+	const { fileAccess = defaultLocalImportFileAccess, directImportsCache = new Map<string, string[]>() } = options;
 	const reachable = new Set<string>();
 	const pending = [modulePath];
 	const visited = new Set<string>();
@@ -76,17 +84,15 @@ export function collectReachableLocalImports(
 			continue;
 		}
 
-		for (const imported of collectLocalImports(fileAccess.readFile(current), current)) {
-			pending.push(imported);
+		let directImports = directImportsCache.get(current);
+		if (!directImports) {
+			directImports = collectLocalImports(fileAccess.readFile(current), current);
+			directImportsCache.set(current, directImports);
 		}
+		pending.push(...directImports);
 	}
 
 	return [...reachable];
-}
-
-/** Reads a compiled module from disk and lists its local imports. */
-export function readLocalImports(modulePath: string): string[] {
-	return collectLocalImports(fileSystem.readFileSync(modulePath), modulePath);
 }
 
 function resolveLocalSpecifier(specifier: string, directory: string): string | undefined {

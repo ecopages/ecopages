@@ -333,7 +333,7 @@ describe('ReactHmrStrategy', () => {
 				initialOwnedEntrypoints: [entrypointA, entrypointB],
 			}) as any,
 			runtimeManifest: defaultRuntimeManifest,
-			mdxCompilerOptions: {},
+			getMdxLoaderPlugin: () => ({ name: 'mdx-loader', setup: () => {} }),
 			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
 		});

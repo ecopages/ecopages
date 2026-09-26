@@ -7,6 +7,7 @@ import {
 	ROUTE_MODULE_BUILD_CACHE_FILENAME,
 	type RouteModuleBuildCacheManifest,
 	createPersistedRouteModuleBuildKey,
+	readRouteModuleBuildCacheManifest,
 	resolvePageModuleOutputFileName,
 	shouldPersistRouteModuleBuildCache,
 } from './route-module-build-manifest.ts';
@@ -280,6 +281,7 @@ describe('RouteModuleBuildCache', () => {
 						dependencyHashes: {
 							'/app/pages/about.tsx': 'hash:about.tsx',
 						},
+						outputImports: [],
 					},
 				},
 			}),
@@ -511,6 +513,23 @@ describe('production build cache utilities', () => {
 		delete process.env.NODE_ENV;
 	});
 
+	it('drops persisted entries that have no outputImports when reading the manifest', () => {
+		const manifestPath = join(tempDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
+		const entry = { sourceHash: 'a', outputPath: '/out/a.mjs', builtAt: 1, buildKey: 'key' };
+		writeFileSync(
+			manifestPath,
+			JSON.stringify({
+				corePackageVersion: '1.0.0-test',
+				entries: { '/app/legacy.tsx': entry, '/app/current.tsx': { ...entry, outputImports: [] } },
+			}),
+			'utf8',
+		);
+
+		assert.deepEqual(Object.keys(readRouteModuleBuildCacheManifest(manifestPath)?.entries ?? {}), [
+			'/app/current.tsx',
+		]);
+	});
+
 	it('clears persisted manifests on force builds in production', () => {
 		process.env.NODE_ENV = 'production';
 		const ecoDir = join(tempDir, '.eco');
@@ -529,6 +548,7 @@ describe('production build cache utilities', () => {
 						outputPath: join(modulesDir, 'about.mjs'),
 						builtAt: 1,
 						buildKey: 'stale',
+						outputImports: [],
 					},
 				},
 			}),

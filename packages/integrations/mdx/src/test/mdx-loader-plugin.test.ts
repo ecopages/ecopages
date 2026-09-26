@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { compile } from '@mdx-js/mdx';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -9,6 +10,11 @@ import type {
 } from '@ecopages/core/plugins/integration-plugin';
 import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
 import { resolveMdxCompilerOptions } from '../core/mdx-utils.ts';
+
+vi.mock('@mdx-js/mdx', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@mdx-js/mdx')>();
+	return { ...actual, compile: vi.fn(actual.compile) };
+});
 
 function createBuilderHarness() {
 	let onLoadCallback:
@@ -46,6 +52,10 @@ function createBuilderHarness() {
 
 describe('createMdxLoaderPlugin', () => {
 	const tempDirs: string[] = [];
+
+	beforeEach(() => {
+		vi.mocked(compile).mockClear();
+	});
 
 	afterEach(() => {
 		for (const tempDir of tempDirs.splice(0)) {
@@ -155,10 +165,6 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('reuses compiled output for unchanged MDX source', async () => {
-		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
-			await import('../core/mdx-transform-cache.ts');
-		resetMdxTransformCacheForTests();
-
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-cache-'));
 		tempDirs.push(tempDir);
 
@@ -173,16 +179,47 @@ describe('createMdxLoaderPlugin', () => {
 		const first = await onLoad({ path: filePath });
 		await onLoad({ path: filePath });
 
-		expect(getMdxCompileInvocationCount()).toBe(1);
+		expect(compile).toHaveBeenCalledTimes(1);
 		expect(first?.contents).toContain('bindComponentIdentity');
-		resetMdxTransformCacheForTests();
+	});
+
+	it('reuses compiled output across builds that share one loader', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-shared-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+
+		const plugin = createMdxLoaderPlugin({ projectRoot: tempDir });
+		for (let build = 0; build < 2; build += 1) {
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			plugin.setup(builder);
+			await getOnLoadCallback()({ path: filePath });
+		}
+
+		expect(compile).toHaveBeenCalledTimes(1);
+	});
+
+	it('recompiles when the MDX source changes', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-edit-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Before\n');
+
+		const { builder, getOnLoadCallback } = createBuilderHarness();
+		createMdxLoaderPlugin({ projectRoot: tempDir }).setup(builder);
+		const onLoad = getOnLoadCallback();
+
+		await onLoad({ path: filePath });
+		writeFileSync(filePath, '# After\n');
+		const edited = await onLoad({ path: filePath });
+
+		expect(compile).toHaveBeenCalledTimes(2);
+		expect(edited?.contents).toContain('After');
 	});
 
 	it('recompiles when compiler plugin functions change and the source does not', async () => {
-		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
-			await import('../core/mdx-transform-cache.ts');
-		resetMdxTransformCacheForTests();
-
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugins-'));
 		tempDirs.push(tempDir);
 
@@ -210,42 +247,7 @@ describe('createMdxLoaderPlugin', () => {
 			},
 		]);
 
-		expect(getMdxCompileInvocationCount()).toBe(2);
-		resetMdxTransformCacheForTests();
-	});
-
-	it('recompiles when factory plugins capture different values and the source does not', async () => {
-		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
-			await import('../core/mdx-transform-cache.ts');
-		resetMdxTransformCacheForTests();
-
-		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-factory-'));
-		tempDirs.push(tempDir);
-
-		const filePath = path.join(tempDir, 'page.mdx');
-		writeFileSync(filePath, '# Hello\n');
-
-		function createRemarkPlugin(enabled: boolean) {
-			return function remarkPlugin(): void {
-				void enabled;
-			};
-		}
-
-		const loadWithPlugin = async (remarkPlugin: () => void) => {
-			const { builder, getOnLoadCallback } = createBuilderHarness();
-			const plugin = createMdxLoaderPlugin({
-				projectRoot: tempDir,
-				compilerOptions: { remarkPlugins: [remarkPlugin] },
-			});
-			plugin.setup(builder);
-			return getOnLoadCallback()({ path: filePath });
-		};
-
-		await loadWithPlugin(createRemarkPlugin(true));
-		await loadWithPlugin(createRemarkPlugin(false));
-
-		expect(getMdxCompileInvocationCount()).toBe(2);
-		resetMdxTransformCacheForTests();
+		expect(compile).toHaveBeenCalledTimes(2);
 	});
 
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
@@ -296,10 +298,6 @@ describe('createMdxLoaderPlugin', () => {
 	});
 
 	it('re-runs discovery and reflects imported child changes even when MDX compile is cache-hit', async () => {
-		const { getMdxCompileInvocationCount, resetMdxTransformCacheForTests } =
-			await import('../core/mdx-transform-cache.ts');
-		resetMdxTransformCacheForTests();
-
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-dyn-'));
 		tempDirs.push(tempDir);
 
@@ -316,7 +314,7 @@ describe('createMdxLoaderPlugin', () => {
 		const onLoad = getOnLoadCallback();
 
 		const firstResult = await onLoad({ path: filePath });
-		expect(getMdxCompileInvocationCount()).toBe(1);
+		expect(compile).toHaveBeenCalledTimes(1);
 		// Not an eco.component initially
 		expect(firstResult?.contents).not.toContain('components: () => [Child]');
 
@@ -328,11 +326,9 @@ describe('createMdxLoaderPlugin', () => {
 
 		// Second load: MDX file was NOT changed, so compile is cached!
 		const secondResult = await onLoad({ path: filePath });
-		expect(getMdxCompileInvocationCount()).toBe(1);
+		expect(compile).toHaveBeenCalledTimes(1);
 		// Attribution ran post-cache, so it dynamically discovered Child!
 		expect(secondResult?.contents).toContain('components: () => [Child]');
-
-		resetMdxTransformCacheForTests();
 	});
 
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {

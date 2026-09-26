@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
+
+async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefined> {
+	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
+	await plugin.prepareBuildContributions();
+
+	let filter: RegExp | undefined;
+	await plugin.plugins[0]?.setup({
+		onResolve() {},
+		onLoad(options) {
+			filter = options.filter;
+		},
+		module() {},
+	});
+	return filter;
+}
 
 describe('ReactPlugin', () => {
 	it('supports direct construction with default public options', () => {
@@ -21,7 +37,7 @@ describe('ReactPlugin', () => {
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
 	});
 
-	it('derives the MDX loader filter from declared MDX extensions only', () => {
+	it('derives the MDX loader filter from declared MDX extensions only', async () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
@@ -30,13 +46,13 @@ describe('ReactPlugin', () => {
 			},
 		});
 
-		const mdxCompilerOptions = (plugin as unknown as { mdxCompilerOptions?: { mdxExtensions?: string[] } })
-			.mdxCompilerOptions;
+		const filter = await getMdxLoaderFilter(plugin);
 
-		expect(mdxCompilerOptions?.mdxExtensions).toEqual(['.react.mdx']);
+		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
+		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);
 	});
 
-	it('does not merge leftover compilerOptions.mdxExtensions into the loader filter', () => {
+	it('does not merge leftover compilerOptions.mdxExtensions into the loader filter', async () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
@@ -48,9 +64,9 @@ describe('ReactPlugin', () => {
 			},
 		});
 
-		const mdxCompilerOptions = (plugin as unknown as { mdxCompilerOptions?: { mdxExtensions?: string[] } })
-			.mdxCompilerOptions;
+		const filter = await getMdxLoaderFilter(plugin);
 
-		expect(mdxCompilerOptions?.mdxExtensions).toEqual(['.react.mdx']);
+		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
+		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);
 	});
 });

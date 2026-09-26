@@ -197,6 +197,9 @@ describe('pages-unified-graph-build', () => {
 
 		rewrite({ builtAt: manifest.builtAt + 2, corePackageVersion: 'stale' });
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
+
+		rewrite({ builtAt: manifest.builtAt + 3, outputImports: undefined });
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
 	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {

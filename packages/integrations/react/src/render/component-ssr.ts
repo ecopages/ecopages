@@ -178,36 +178,6 @@ export async function renderQueuedChildrenToHtml(options: {
 	return await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken);
 }
 
-export async function renderReactQueuedForeignSubtreeChildren(options: {
-	children: unknown;
-	currentRuntimeContext: ReactForeignSubtreeResolutionContext;
-	queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>;
-	resolveToken: (token: string) => Promise<string>;
-	runtime: ReactRuntimeModules;
-	integrationName: string;
-	normalizeUnresolvedMarkerArtifactHtml: (html: string) => string;
-	resolveQueuedTokens: (
-		html: string,
-		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	) => Promise<string>;
-}): Promise<{ assets: ProcessedAsset[]; html?: string }> {
-	const { currentRuntimeContext, ...rest } = options;
-	const renderedHtml = await renderQueuedChildrenToHtml({
-		...rest,
-		runtimeContext: currentRuntimeContext,
-	});
-
-	if (renderedHtml === undefined) {
-		return { assets: [] };
-	}
-
-	return {
-		assets: [],
-		html: renderedHtml,
-	};
-}
-
 export async function renderForeignComponentWithSerializedHtml(options: {
 	input: ComponentRenderInput;
 	runtimeContext: ReactForeignSubtreeResolutionContext | undefined;

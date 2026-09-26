@@ -75,6 +75,22 @@ describe('BundleService', () => {
 		expect(options.external).not.toEqual(expect.arrayContaining(['react', 'react-dom', 'react-dom/client']));
 	});
 
+	it('adds the plugin-owned MDX loader to MDX bundles only', async () => {
+		const mdxLoader = { name: 'react-mdx-loader', setup: () => {} };
+		const service = new BundleService({
+			rootDir: '/app',
+			appConfig: testAppConfig,
+			hostIntegrationName: 'react',
+			getMdxLoaderPlugin: () => mdxLoader,
+		});
+
+		const mdxOptions = await service.createBundleOptions('ecopages-react-page', true, []);
+		const tsxOptions = await service.createBundleOptions('ecopages-react-page', false, []);
+
+		expect(mdxOptions.plugins).toContain(mdxLoader);
+		expect(tsxOptions.plugins).not.toContain(mdxLoader);
+	});
+
 	it('enables minify only for production runtimes', async () => {
 		const service = new BundleService({
 			rootDir: '/app',

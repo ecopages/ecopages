@@ -182,9 +182,7 @@ test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', as
 
 test('EcopagesJsxPlugin setup exposes the MDX loader without calling Bun.plugin', async () => {
 	const mockBunPlugin = vi.fn();
-	const host = globalThis as unknown as { Bun?: unknown };
-	const previousBun = host.Bun;
-	host.Bun = { plugin: mockBunPlugin };
+	vi.stubGlobal('Bun', { plugin: mockBunPlugin });
 
 	try {
 		const plugin = ecopagesJsxPlugin({
@@ -199,10 +197,6 @@ test('EcopagesJsxPlugin setup exposes the MDX loader without calling Bun.plugin'
 		assert.equal(mockBunPlugin.mock.calls.length, 0);
 		assert.equal(plugin.plugins[0]?.name, 'ecopages-jsx-mdx-loader');
 	} finally {
-		if (previousBun === undefined) {
-			delete host.Bun;
-		} else {
-			host.Bun = previousBun;
-		}
+		vi.unstubAllGlobals();
 	}
 });

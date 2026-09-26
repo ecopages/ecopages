@@ -33,7 +33,6 @@ const RADIANT_HYDRATOR_SCRIPT_ID = 'ecopages-jsx-radiant-hydrator';
 type ResolvedJsxPluginConfig = Omit<IntegrationPluginConfig, 'name' | 'extensions' | 'jsxImportSource'> & {
 	extensions: string[];
 	includeRadiant: boolean;
-	mdxEnabled: boolean;
 	mdxExtensions: string[];
 	mdxCompilerOptions?: ResolvedMdxCompileOptions;
 };
@@ -62,7 +61,6 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 		...baseConfig,
 		extensions,
 		includeRadiant: radiant ?? true,
-		mdxEnabled,
 		mdxExtensions,
 		mdxCompilerOptions: mdxEnabled && mdx ? resolveMdxCompilerOptions(mdx) : undefined,
 	};
@@ -73,7 +71,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
 
 	private includeRadiant: boolean;
-	private mdxEnabled: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
 	private mdxExtensions: string[];
 	private mdxLoaderPlugin?: EcoBuildPlugin;
@@ -98,7 +95,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	constructor(options?: EcopagesJsxPluginOptions) {
 		const config = resolvePluginOptions(options);
-		const { extensions, includeRadiant, mdxEnabled, mdxExtensions, mdxCompilerOptions, ...baseConfig } = config;
+		const { extensions, includeRadiant, mdxExtensions, mdxCompilerOptions, ...baseConfig } = config;
 
 		super({
 			name: ECOPAGES_JSX_PLUGIN_NAME,
@@ -108,7 +105,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 		});
 
 		this.includeRadiant = includeRadiant;
-		this.mdxEnabled = mdxEnabled;
 		this.mdxExtensions = mdxExtensions;
 		this.mdxCompilerOptions = mdxCompilerOptions;
 
@@ -204,7 +200,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	}
 
 	private ensureMdxLoaderPlugin(): void {
-		if (!this.mdxEnabled || !this.mdxCompilerOptions || this.mdxLoaderPlugin) {
+		if (!this.mdxCompilerOptions || this.mdxLoaderPlugin) {
 			return;
 		}
 

@@ -20,10 +20,11 @@ export interface RouteModuleBuildCacheEntry {
 	buildKey: string;
 	dependencyHashes?: RouteModuleDependencyHashes;
 	/**
-	 * Local files the compiled output imports (shared chunks, collection modules).
-	 * The entry is reused only while all of them exist.
+	 * Local files reachable from the compiled output through local imports,
+	 * including shared chunks and collection modules. The entry is reused only
+	 * while all of them exist.
 	 */
-	outputImports?: string[];
+	outputImports: string[];
 	renderedOutputs?: Record<string, RouteModuleStaticRenderCacheEntry>;
 }
 
@@ -115,6 +116,11 @@ export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCach
 	};
 }
 
+/**
+ * @remarks
+ * Entries without `outputImports` predate import validation and cannot show that
+ * their chunks still exist, so they are dropped and rebuild on the next lookup.
+ */
 export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteModuleBuildCacheManifest | undefined {
 	const parsed = readProductionCacheManifest<RouteModuleBuildCacheManifest>(manifestPath);
 	if (!parsed || typeof parsed.entries !== 'object') {
@@ -125,7 +131,9 @@ export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteMo
 		corePackageVersion: parsed.corePackageVersion ?? '',
 		configHash: parsed.configHash,
 		buildInputsFingerprint: parsed.buildInputsFingerprint,
-		entries: parsed.entries,
+		entries: Object.fromEntries(
+			Object.entries(parsed.entries).filter(([, entry]) => Array.isArray(entry.outputImports)),
+		),
 	};
 }
 

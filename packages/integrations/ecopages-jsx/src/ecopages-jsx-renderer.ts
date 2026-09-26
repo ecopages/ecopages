@@ -13,6 +13,7 @@ import {
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
 	ForeignSubtreeExecutionOwningRenderer,
+	QueuedForeignSubtreeChildRenderResult,
 	QueuedForeignSubtreeResolutionContext,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import {
@@ -23,7 +24,6 @@ import type {
 	ForeignChildInterceptionInput,
 	ForeignChildRuntime,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
@@ -127,27 +127,19 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		children: unknown,
 		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
 		resolveToken: (token: string) => Promise<string>,
-	): Promise<{ assets: ProcessedAsset[]; html?: string }> {
+	): Promise<QueuedForeignSubtreeChildRenderResult> {
 		if (children === undefined) {
-			return { assets: [] };
+			return {};
 		}
 
-		let html: string;
-
-		if (typeof children === 'string') {
-			html = children;
-		} else {
-			html = await this.renderJsx(children as JsxRenderable);
-		}
-		html = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-			html,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
+		const html = typeof children === 'string' ? children : await this.renderJsx(children as JsxRenderable);
 
 		return {
-			assets: [],
-			html,
+			html: await this.foreignSubtreeExecutionService.resolveQueuedTokens(
+				html,
+				queuedResolutionsByToken,
+				resolveToken,
+			),
 		};
 	}
 

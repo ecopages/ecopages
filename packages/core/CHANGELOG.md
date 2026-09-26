@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-rc.13
+
+### Patch Changes
+
+- [#345](https://github.com/ecopages/ecopages/pull/345) [`6f8bc45`](https://github.com/ecopages/ecopages/commit/6f8bc45ab759638dc447d71e71921cde16c67508) Thanks [@andeeplus](https://github.com/andeeplus)! - `IntegrationRenderer` now wires queued foreign-subtree resolution itself. Custom integrations call `this.resolveQueuedForeignSubtrees(html, this.getQueuedForeignSubtreeContext(input), renderQueuedChildren)` instead of passing an owner lookup, attribute stamping and asset de-duplication to `resolveQueuedHtml` by hand.
+
+    - `resolveQueuedHtml` no longer takes `queueLabel`, `applyAttributesToFirstElement` or `dedupeProcessedAssets`. Queue errors name the integration, for example `lit`, instead of a label such as `Lit` or `String`.
+    - The `@ecopages/core/route-renderer/orchestration/foreign-child/owning-renderer-resolution` subpath is no longer exported. Use `this.resolveOwningRenderer(...)` from a renderer subclass.
+    - `this.htmlTransformer.applyAttributesToFirstElement` is removed; the resolve step stamps root attributes itself.
+
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.13
+    - @ecopages/file-system@0.2.0-rc.13
+
 ## 0.2.0-rc.12
 
 ### Patch Changes

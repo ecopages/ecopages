@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-rc.12
+
+### Patch Changes
+
+- Updated dependencies [[`7a2bce8`](https://github.com/ecopages/ecopages/commit/7a2bce80b9fc69bcc33a9638bb66a682d42399ec), [`2af8ec9`](https://github.com/ecopages/ecopages/commit/2af8ec9d741fa97422ea0019af5543b70bc5cf94), [`dc0cb56`](https://github.com/ecopages/ecopages/commit/dc0cb56357df65a00562af331fb6d65e0b0c1879)]:
+    - @ecopages/core@0.2.0-rc.12
+    - @ecopages/mdx@0.2.0-rc.12
+
 ## 0.2.0-rc.11
 
 ### Patch Changes

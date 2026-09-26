@@ -12,12 +12,11 @@ import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers }
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
-import type { CompileOptions } from '@mdx-js/mdx';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
-import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
 import type { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 
@@ -30,7 +29,7 @@ export interface BundleServiceConfig {
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
 	runtimeModules?: ResolvedReactPluginRuntimeModule[];
-	mdxCompilerOptions?: CompileOptions;
+	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
@@ -170,24 +169,13 @@ export class BundleService {
 			? []
 			: [runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
-		if (isMdx && this.config.mdxCompilerOptions) {
-			const mdxPlugin = createReactMdxLoaderPlugin({
-				compilerOptions: this.config.mdxCompilerOptions,
-				projectRoot: this.config.rootDir,
-			});
-			options.plugins = [
-				...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
-				graphBoundaryPlugin,
-				...runtimePlugins,
-				mdxPlugin,
-			];
-		} else {
-			options.plugins = [
-				...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
-				graphBoundaryPlugin,
-				...runtimePlugins,
-			];
-		}
+		const mdxPlugin = isMdx ? this.config.getMdxLoaderPlugin?.() : undefined;
+		options.plugins = [
+			...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
+			graphBoundaryPlugin,
+			...runtimePlugins,
+			...(mdxPlugin ? [mdxPlugin] : []),
+		];
 
 		return options;
 	}

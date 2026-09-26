@@ -17,7 +17,6 @@ import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
-import type { CompileOptions } from '@mdx-js/mdx';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
@@ -45,7 +44,7 @@ export interface ReactHmrStrategyOptions {
 	projectRoot?: string;
 	pageMetadataCache: HmrPageMetadataCache;
 	runtimeManifest: BrowserRuntimeManifest;
-	mdxCompilerOptions?: CompileOptions;
+	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
 	/**
@@ -67,7 +66,7 @@ type ImportedReactPageModule = {
  */
 export class ReactHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
-	private mdxCompilerOptions?: CompileOptions;
+	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly projectRoot: string;
 	private readonly ownedTemplateExtensions: Set<string>;
 	private readonly allTemplateExtensions: string[];
@@ -83,8 +82,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private getDevTransformPluginOptions() {
 		return {
 			pageMetadataCache: this.pageMetadataCache,
-			mdxCompilerOptions: this.mdxCompilerOptions,
-			projectRoot: this.projectRoot,
+			getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 			getBuildPlugins: (declaredModules?: readonly string[]) => this.getBuildPlugins(declaredModules),
 			importNodePageModule: (entrypointPath: string) => this.importNodePageModule(entrypointPath),
 		};
@@ -97,7 +95,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
 		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
-		this.mdxCompilerOptions = options.mdxCompilerOptions;
+		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
 			(a, b) => b.length - a.length,
@@ -127,7 +125,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 
 	private isReactEntrypoint(filePath: string): boolean {
 		if (filePath.endsWith('.mdx')) {
-			return this.mdxCompilerOptions !== undefined;
+			return this.getMdxLoaderPlugin !== undefined;
 		}
 
 		if (!filePath.endsWith('.tsx')) {

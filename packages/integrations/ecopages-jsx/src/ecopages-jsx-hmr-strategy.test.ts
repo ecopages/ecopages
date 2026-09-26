@@ -4,10 +4,10 @@ import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import {
 	getEjsxHmrOwnership,
-	mergeEjsxHmrOwnership,
-	publishEjsxHmrOwnership,
+	recordEjsxHmrOwnership,
 	resetEjsxHmrOwnership,
 	updateEjsxHmrOwnership,
+	withEjsxHmrOwnershipScope,
 } from './ecopages-jsx-hmr-ownership.ts';
 import type { EcoComponent, EcoComponentConfig, ResolvedHmrEntrypoint } from '@ecopages/core';
 
@@ -310,7 +310,7 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/a.tsx`)).toBe(true);
 	});
 
-	it('merges nested render trees before publishing ownership', () => {
+	it('merges nested render trees before publishing ownership', async () => {
 		const mdxFile = `${SRC_DIR}/content/docs/intro.mdx`;
 		const depFile = `${COMPONENTS_DIR}/demo.tsx`;
 		const pageFile = `${PAGES_DIR}/docs/[...slug]/index.tsx`;
@@ -321,10 +321,10 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		});
 		const page = makeComponent(pageFile);
 
-		const pending = new Set<string>();
-		mergeEjsxHmrOwnership(pending, [mdx]);
-		mergeEjsxHmrOwnership(pending, [page]);
-		publishEjsxHmrOwnership(pending);
+		await withEjsxHmrOwnershipScope(async () => {
+			recordEjsxHmrOwnership([mdx]);
+			await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership([page]));
+		});
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(pageFile)).toBe(true);

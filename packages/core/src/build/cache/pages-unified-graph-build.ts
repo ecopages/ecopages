@@ -95,11 +95,16 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 	].join('::');
 }
 
+/**
+ * @remarks
+ * Manifests without `outputImports` predate import validation and cannot show
+ * that their chunks still exist, so they are treated as absent.
+ */
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
 	const manifest = readProductionCacheManifest<PagesUnifiedGraphCacheManifest>(
 		getPagesUnifiedGraphCachePath(appConfig),
 	);
-	if (!manifest?.outputs) {
+	if (!manifest?.outputs || !Array.isArray(manifest.outputImports)) {
 		return undefined;
 	}
 	return manifest;
@@ -155,7 +160,7 @@ function isGraphManifestCurrent(
 		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
 		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
 		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
-		manifest.outputImports?.every((filePath) => fileSystem.exists(filePath)) === true
+		manifest.outputImports.every((filePath) => fileSystem.exists(filePath))
 	);
 }
 

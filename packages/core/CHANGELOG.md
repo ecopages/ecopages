@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0-rc.12
+
+### Patch Changes
+
+- [#344](https://github.com/ecopages/ecopages/pull/344) [`7a2bce8`](https://github.com/ecopages/ecopages/commit/7a2bce80b9fc69bcc33a9638bb66a682d42399ec) Thanks [@andeeplus](https://github.com/andeeplus)! - Persisted build caches now read and parse each shared chunk once per build instead of once per page, and discard entries written before import validation existed.
+
+- [#344](https://github.com/ecopages/ecopages/pull/344) [`dc0cb56`](https://github.com/ecopages/ecopages/commit/dc0cb56357df65a00562af331fb6d65e0b0c1879) Thanks [@andeeplus](https://github.com/andeeplus)! - The `renderQueuedChildren` callback passed to `resolveQueuedHtml` no longer returns `assets`. No built-in integration ever returned any. The owning renderer reports the foreign component's assets, and host components' assets come from their declared dependencies. Return `{ html }`, `{ children }` or `{}`, typed as `QueuedForeignSubtreeChildRenderResult`.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.12
+    - @ecopages/file-system@0.2.0-rc.12
+
 ## 0.2.0-rc.11
 
 ### Patch Changes

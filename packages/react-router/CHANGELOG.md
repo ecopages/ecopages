@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-rc.13
+
+### Patch Changes
+
+- Updated dependencies [[`6f8bc45`](https://github.com/ecopages/ecopages/commit/6f8bc45ab759638dc447d71e71921cde16c67508)]:
+    - @ecopages/core@0.2.0-rc.13
+    - @ecopages/react@0.2.0-rc.13
+
 ## 0.2.0-rc.12
 
 ### Patch Changes

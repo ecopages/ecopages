@@ -38,6 +38,7 @@ type ResolvedReactPluginConfig = Omit<
 > & {
 	extensions: string[];
 	integrationDependencies?: AssetDefinition[];
+	mdxCompilerOptions?: CompileOptions;
 	rendererConfig: ReactRendererConfig;
 };
 
@@ -84,7 +85,6 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 	const rendererConfig: ReactRendererConfig = {
 		routerAdapter: router,
 		runtimeModules: resolvedRuntimeModules,
-		mdxCompilerOptions: mdxEnabled && mdx ? resolveReactMdxCompilerOptions(mdx) : undefined,
 		mdxExtensions,
 		hmrPageMetadataCache: new HmrPageMetadataCache(),
 		forceBrowserGraph: explicitGraph ?? false,
@@ -94,6 +94,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		...baseConfig,
 		extensions,
 		integrationDependencies: dependencies,
+		mdxCompilerOptions: mdxEnabled && mdx ? resolveReactMdxCompilerOptions(mdx) : undefined,
 		rendererConfig,
 	};
 };
@@ -105,10 +106,9 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	renderer = ReactRenderer;
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
-	private readonly mdxEnabled: boolean;
-	private readonly mdxCompilerOptions?: CompileOptions;
 	private readonly mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
+	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
 	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
@@ -125,7 +125,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 
 	constructor(options?: ReactPluginOptions) {
 		const config = resolveReactPluginOptions(options);
-		const { extensions, rendererConfig, integrationDependencies, ...baseConfig } = config;
+		const { extensions, rendererConfig, integrationDependencies, mdxCompilerOptions, ...baseConfig } = config;
 
 		super({
 			name: PLUGIN_NAME,
@@ -136,21 +136,23 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		});
 
 		this.routerAdapter = rendererConfig.routerAdapter;
-		this.mdxCompilerOptions = rendererConfig.mdxCompilerOptions;
-		this.mdxEnabled = Boolean(rendererConfig.mdxCompilerOptions);
+		this.getMdxLoaderPlugin = mdxCompilerOptions
+			? () => (this.mdxLoaderPlugin ??= this.createMdxLoaderPlugin(mdxCompilerOptions))
+			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new HmrPageMetadataCache();
 		this.clientGraphBoundaryCache = new ClientGraphBoundaryCache();
 		this.forceBrowserGraph = rendererConfig.forceBrowserGraph ?? false;
 		this.rendererConfig = {
 			...rendererConfig,
+			getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 			mdxExtensions: this.mdxExtensions,
 			hmrPageMetadataCache: this.hmrPageMetadataCache,
 			forceBrowserGraph: this.forceBrowserGraph,
 			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 		};
 
-		if (this.mdxEnabled) {
+		if (mdxCompilerOptions) {
 			appLogger.debug('MDX mode enabled with React jsx runtime');
 		}
 
@@ -237,21 +239,13 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return this.runtimeBundleService.getRuntimeManifest();
 	}
 
-	/**
-	 * Ensures the optional React MDX loader exists before either config-time
-	 * manifest sealing or runtime setup needs it.
-	 */
-	private async ensureMdxLoaderPlugin(): Promise<void> {
-		if (!this.mdxEnabled || !this.mdxCompilerOptions || this.mdxLoaderPlugin) {
-			return;
-		}
-
+	private createMdxLoaderPlugin(compilerOptions: CompileOptions): EcoBuildPlugin {
 		if (!this.appConfig?.rootDir) {
 			throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
 		}
 
-		this.mdxLoaderPlugin = createReactMdxLoaderPlugin({
-			compilerOptions: this.mdxCompilerOptions,
+		return createReactMdxLoaderPlugin({
+			compilerOptions,
 			projectRoot: this.appConfig.rootDir,
 		});
 	}
@@ -262,7 +256,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 */
 	override async prepareBuildContributions(): Promise<void> {
 		this.ensureRuntimeDependencies();
-		await this.ensureMdxLoaderPlugin();
+		this.getMdxLoaderPlugin?.();
 	}
 
 	/**
@@ -271,7 +265,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 */
 	override async setup(): Promise<void> {
 		this.ensureRuntimeDependencies();
-		await this.ensureMdxLoaderPlugin();
+		this.getMdxLoaderPlugin?.();
 		await super.setup();
 	}
 
@@ -308,7 +302,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 				projectRoot: this.appConfig.rootDir,
 				pageMetadataCache: this.hmrPageMetadataCache,
 				runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
-				mdxCompilerOptions: this.mdxCompilerOptions,
+				getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 				ownedTemplateExtensions: this.extensions,
 				allTemplateExtensions: this.appConfig.templatesExt,
 				clientGraphBoundaryCache: this.clientGraphBoundaryCache,

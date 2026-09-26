@@ -32,7 +32,6 @@ import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
-import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactNode } from 'react';
 import { REACT_PLUGIN_NAME } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
@@ -87,7 +86,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	componentDirectory = RESOLVED_ASSETS_DIR;
 	private reactRuntimeModules?: ReactRuntimeModules;
 	private readonly routerAdapter?: ReactRouterAdapter;
-	private readonly mdxCompilerOptions?: CompileOptions;
 	private readonly mdxExtensions: string[];
 	private readonly hmrPageMetadataCache?: HmrPageMetadataCache;
 	/**
@@ -114,7 +112,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		super(rendererOptions);
 
 		this.routerAdapter = reactConfig?.routerAdapter;
-		this.mdxCompilerOptions = reactConfig?.mdxCompilerOptions;
 		this.mdxExtensions = reactConfig?.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = reactConfig?.hmrPageMetadataCache;
 		this.forceBrowserGraph = reactConfig?.forceBrowserGraph ?? false;
@@ -125,7 +122,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			hostIntegrationName: this.name,
 			routerAdapter: this.routerAdapter,
 			runtimeModules: reactConfig?.runtimeModules,
-			mdxCompilerOptions: this.mdxCompilerOptions,
+			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 			clientGraphBoundaryCache: reactConfig?.clientGraphBoundaryCache,
 		});
 

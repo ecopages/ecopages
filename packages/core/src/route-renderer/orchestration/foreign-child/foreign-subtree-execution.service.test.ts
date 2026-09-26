@@ -29,31 +29,6 @@ function createAsset(content: string): ProcessedAsset {
 	};
 }
 
-function dedupeAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
-	const seen = new Set<string>();
-	const deduped: ProcessedAsset[] = [];
-
-	for (const asset of assets) {
-		const key = JSON.stringify(asset);
-		if (seen.has(key)) {
-			continue;
-		}
-
-		seen.add(key);
-		deduped.push(asset);
-	}
-
-	return deduped;
-}
-
-function applyAttributesToFirstElement(html: string, attributes: Record<string, string>): string {
-	const serializedAttributes = Object.entries(attributes)
-		.map(([name, value]) => ` ${name}="${value}"`)
-		.join('');
-
-	return html.replace(/^<([a-zA-Z][a-zA-Z0-9:-]*)/, `<$1${serializedAttributes}`);
-}
-
 describe('ForeignSubtreeExecutionService queue resolution', () => {
 	it('creates scoped queue tokens and stores runtime state on the render input', () => {
 		const service = new ForeignSubtreeExecutionService();
@@ -275,8 +250,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 				return { html };
 			},
 			resolveForeignSubtree,
-			applyAttributesToFirstElement,
-			dedupeProcessedAssets: dedupeAssets,
 		});
 
 		expect(result.html).toBe(
@@ -343,8 +316,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 					rootTag: 'section',
 					integrationName: 'deferred',
 				}),
-				applyAttributesToFirstElement,
-				dedupeProcessedAssets: dedupeAssets,
 			}),
 		).rejects.toThrow('contains a cycle or unresolved dependency links');
 	});
@@ -383,8 +354,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			queueLabel: 'Test',
 			renderQueuedChildren: async (children) => ({ children }),
 			resolveForeignSubtree,
-			applyAttributesToFirstElement,
-			dedupeProcessedAssets: dedupeAssets,
 		});
 
 		expect(result.html).toBe('<article><section>{"kind":"structured-child"}</section></article>');
@@ -449,8 +418,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			queueLabel: 'Test',
 			renderQueuedChildren: async () => ({}),
 			resolveForeignSubtree,
-			applyAttributesToFirstElement,
-			dedupeProcessedAssets: dedupeAssets,
 		});
 
 		expect(result.html).toBe('<article><section><strong>child</strong></section></article>');

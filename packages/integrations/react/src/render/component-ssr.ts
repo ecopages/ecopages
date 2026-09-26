@@ -321,21 +321,3 @@ export async function renderReactManagedComponent(options: {
 		assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 	};
 }
-
-/**
- * Creates the per-render state used to resolve foreign child subtrees without
- * leaking renderer caches or instance identity into another render.
- */
-export function createForeignSubtreeRuntimeContext(options: {
-	rendererCache: Map<string, IntegrationRenderer<any>>;
-	componentInstanceScope?: string;
-}): ReactForeignSubtreeResolutionContext {
-	return {
-		rendererCache: options.rendererCache,
-		componentInstanceScope: options.componentInstanceScope,
-		nextForeignSubtreeId: 0,
-		queuedResolutions: [],
-		rawChildrenToken: undefined,
-		rawChildrenHtml: undefined,
-	};
-}

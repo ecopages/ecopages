@@ -29,13 +29,11 @@ The image showcase keeps the shared-element transition between `/image` and `/im
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) first. This template ships all three packs:
+[AGENTS.md](./AGENTS.md). Packs in this template:
 
 - [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
 - [Building with Radiant UI](.agents/skills/radiant-ui/SKILL.md) ([hosted](https://radiant-ui.ecopages.app/skill/SKILL.md))
 - [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) ([hosted](https://radiant.ecopages.app/skill/SKILL.md))
-
-Load a theme and `styles.css` in the app shell. Import `@ecopages/radiant-ui/<slug>` per component; do not pull the root barrel. Style against semantic tokens, not raw palette steps. Author new hosts with the Radiant pack, not by copying React patterns.
 
 Index: [`.agents/README.md`](.agents/README.md). Docs indexes: [ecopages.app/llms.txt](https://ecopages.app/llms.txt), [radiant-ui.ecopages.app/llms.txt](https://radiant-ui.ecopages.app/llms.txt), [radiant.ecopages.app/llms.txt](https://radiant.ecopages.app/llms.txt).
 

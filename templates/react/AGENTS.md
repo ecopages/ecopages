@@ -1,7 +1,9 @@
 # Agent instructions
 
-This is an Ecopages React app. Read [`.agents/skills/ecopages/SKILL.md`](.agents/skills/ecopages/SKILL.md) before changing Pages, Layouts, Components, Integrations, Processors, or `eco.config.ts`. Then open one reference module for the task.
+Ecopages React app.
 
-Press `d` to toggle light/dark (`src/lib/theme.ts`). Do not add a separate theme-toggle Component unless the app needs a visible control.
+- [Building with Ecopages](.agents/skills/ecopages/SKILL.md)
+
+`src/lib/theme.ts` toggles light/dark when `d` is pressed.
 
 Hosted copy: [Building with Ecopages](https://ecopages.app/skill/SKILL.md).

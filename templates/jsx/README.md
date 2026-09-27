@@ -19,18 +19,18 @@ Open [http://localhost:3000](http://localhost:3000).
 - `src/layouts` — Layout shell and navigation
 - `.agents/skills` — agent skill packs for this app
 
-Start customization in `src/pages/index.tsx` and `eco.config.ts`. Interactive islands use Radiant custom elements so they stay portable across Integrations.
+Start customization in `src/pages/index.tsx` and `eco.config.ts`. Interactive islands are Radiant custom elements.
 
 The image showcase keeps the shared-element transition between `/image` and `/image-detail`; returning from `/image` to `/` uses a full-page navigation.
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) and the local skill packs before changing the app:
+[AGENTS.md](./AGENTS.md). Packs in this template:
 
 - [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
 - [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) ([hosted](https://radiant.ecopages.app/skill/SKILL.md))
 
-Index of every pack in this template: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
 
 ## Documentation
 

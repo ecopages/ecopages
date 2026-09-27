@@ -17,10 +17,10 @@ To customize the site, start with `src/pages/index.tsx`, the dynamic post Page i
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) first. This template ships Ecopages, Radiant UI, and Radiant host packs:
+[AGENTS.md](./AGENTS.md). Packs in this template:
 
 - [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
 - [Building with Radiant UI](.agents/skills/radiant-ui/SKILL.md) ([hosted](https://radiant-ui.ecopages.app/skill/SKILL.md))
 - [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) ([hosted](https://radiant.ecopages.app/skill/SKILL.md))
 
-Index: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).

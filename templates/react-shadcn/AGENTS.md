@@ -1,7 +1,9 @@
 # Agent instructions
 
-This is an Ecopages React app configured for shadcn/ui on the React Aria base. Read [`.agents/skills/ecopages/SKILL.md`](.agents/skills/ecopages/SKILL.md) before changing Pages, Layouts, Components, Integrations, Processors, or `eco.config.ts`. Then open one reference module for the task.
+Ecopages React app with shadcn/ui on React Aria.
 
-Keep `components.json` on the `aria-vega` style so `shadcn add` installs React Aria components. Theme tokens live in `src/styles/tailwind.css`. Press `d` to toggle light/dark (`src/lib/theme.ts`); do not add a separate theme-toggle Component unless the app needs a visible control.
+- [Building with Ecopages](.agents/skills/ecopages/SKILL.md)
+
+`components.json` is the shadcn CLI config. Tokens live in `src/styles/tailwind.css`. `src/lib/theme.ts` toggles light/dark when `d` is pressed.
 
 Hosted copy: [Building with Ecopages](https://ecopages.app/skill/SKILL.md).

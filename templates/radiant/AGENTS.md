@@ -1,9 +1,9 @@
 # Agent instructions
 
-This is an Ecopages app built with Radiant UI. Read these skill entries before changing the app, then open one reference module for the task:
+Ecopages JSX app with Radiant UI.
 
-- [`.agents/skills/ecopages/SKILL.md`](.agents/skills/ecopages/SKILL.md) — Pages, Layouts, Components, Integrations, Processors, `eco.config.ts`
-- [`.agents/skills/radiant-ui/SKILL.md`](.agents/skills/radiant-ui/SKILL.md) — `Rui*` components, themes, semantic tokens
-- [`.agents/skills/radiant/SKILL.md`](.agents/skills/radiant/SKILL.md) — `RadiantElement`, `RadiantController`, `@prop`, bindings, SSR
+- [Building with Ecopages](.agents/skills/ecopages/SKILL.md) — Pages, Layouts, Components, Integrations, Processors, `eco.config.ts`
+- [Radiant UI](.agents/skills/radiant-ui/SKILL.md) — `Rui*` components, themes, semantic tokens
+- [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) — `RadiantElement`, `RadiantController`, `@prop`, bindings, SSR
 
 Hosted copies: [Ecopages](https://ecopages.app/skill/SKILL.md), [Radiant UI](https://radiant-ui.ecopages.app/skill/SKILL.md), [Radiant](https://radiant.ecopages.app/skill/SKILL.md).

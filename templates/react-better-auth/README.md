@@ -4,9 +4,9 @@ An Ecopages React app with Better Auth and Drizzle ORM. Pages are static-first; 
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) and [Building with Ecopages](.agents/skills/ecopages/SKILL.md) before changing Pages or config. For handlers, auth, and the database, continue into `reference/full-stack.md` and `reference/server.md` in that pack.
+[AGENTS.md](./AGENTS.md). Pack in this template: [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md)). Handlers, auth, and the database: `.agents/skills/ecopages/reference/full-stack.md` and `.agents/skills/ecopages/reference/server.md`.
 
-Hosted copy: [ecopages.app/skill/SKILL.md](https://ecopages.app/skill/SKILL.md). Index: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
 
 ## Features
 

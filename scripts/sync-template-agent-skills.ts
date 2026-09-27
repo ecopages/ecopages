@@ -107,13 +107,11 @@ function writeAgentsIndex(templateRoot: string, packs: TemplateSkillPackId[]): v
 		path.join(agentsRoot(templateRoot), 'README.md'),
 		`# Agent skills
 
-This app ships progressive skill packs for coding agents. Read the \`SKILL.md\` for the task, then one file in that pack's \`reference/\` directory.
+Skill packs for coding agents. Start at a pack's \`SKILL.md\`, then one file in \`reference/\`.
 
 | Pack | Local entry | Read when | Hosted copy |
 | --- | --- | --- | --- |
 ${rows}
-
-Do not edit files under \`skills/\` by hand. In the Ecopages monorepo they are synced by \`pnpm sync:template-skills\`.
 `,
 	);
 }

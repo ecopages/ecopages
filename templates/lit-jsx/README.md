@@ -30,9 +30,9 @@ The image showcase keeps the shared-element transition between `/image` and `/im
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) and [Building with Ecopages](.agents/skills/ecopages/SKILL.md) before changing Pages or config. Use `reference/integrations.md` for mixing KitaJS and Lit. Hosted copy: [ecopages.app/skill/SKILL.md](https://ecopages.app/skill/SKILL.md).
+[AGENTS.md](./AGENTS.md). Pack in this template: [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md)). KitaJS and Lit: `.agents/skills/ecopages/reference/integrations.md`.
 
-Index: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
 
 ## Documentation
 

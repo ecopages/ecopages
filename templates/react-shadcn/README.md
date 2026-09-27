@@ -18,7 +18,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## shadcn/ui
 
-`components.json` uses the `aria-vega` style, so the shadcn CLI installs React Aria components. Button, Card, and Input are already in `src/components/ui` and composed on the home Page.
+`components.json` is the shadcn CLI config (`style: aria-vega`), so `shadcn add` installs React Aria components. Button, Card, and Input are in `src/components/ui` and composed on the home Page.
 
 Add another component from the template directory:
 
@@ -26,15 +26,15 @@ Add another component from the template directory:
 pnpm dlx shadcn@latest add dialog
 ```
 
-The CLI reads `components.json` and writes into `src/components/ui`. Shared class names come from the `cn` package, re-exported at `src/lib/utils.ts`. Theme tokens live in `src/styles/tailwind.css`, and `eco.config.ts` compiles that file with the Tailwind v4 PostCSS Processor. Press `d` to toggle the `dark` class (and `data-theme`) used by those tokens. The default is `system` until that shortcut runs.
+The CLI writes into `src/components/ui`. Class names use the `cn` package, re-exported at `src/lib/utils.ts`. Tokens live in `src/styles/tailwind.css`; `eco.config.ts` compiles that file with the Tailwind v4 PostCSS Processor. `d` toggles the `dark` class and `data-theme` (`src/lib/theme.ts`). Until then the preference is `system`.
 
 ## Structure
 
-- `components.json` — shadcn CLI config (`aria-vega`, React Aria)
+- `components.json` — shadcn CLI config
 - `src/components/ui` — installed shadcn components
 - `src/pages` — Filesystem Routes, the shared showcase, and MDX content
 - `src/components` — React islands
-- `src/lib` — `cn` re-export and the `d` theme hotkey
+- `src/lib` — `cn` re-export and theme hotkey
 - `src/layouts` — Layout shell and navigation
 - `src/styles/tailwind.css` — Tailwind v4 theme and shadcn tokens
 - `.agents/skills` — agent skill packs for this app
@@ -45,9 +45,9 @@ The image showcase keeps the shared-element transition between `/image` and `/im
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) and [Building with Ecopages](.agents/skills/ecopages/SKILL.md) before changing Pages or config. Hosted copy: [ecopages.app/skill/SKILL.md](https://ecopages.app/skill/SKILL.md).
+[AGENTS.md](./AGENTS.md). Pack in this template: [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md)).
 
-Index: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
+Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
 
 ## Documentation
 

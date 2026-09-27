@@ -4,7 +4,7 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 
 ## Agent skills
 
-Read [AGENTS.md](./AGENTS.md) first. This template ships Ecopages, Radiant UI, and Radiant host packs:
+[AGENTS.md](./AGENTS.md). Packs in this template:
 
 - [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
 - [Building with Radiant UI](.agents/skills/radiant-ui/SKILL.md) ([hosted](https://radiant-ui.ecopages.app/skill/SKILL.md))

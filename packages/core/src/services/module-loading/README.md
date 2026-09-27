@@ -30,8 +30,8 @@ Call site (route scan, renderer, SSG, API)
 ## Caching layers
 
 1. **In-memory promise cache** (`PageModuleImportService.importCache`) — keyed by runtime, file path, content-derived reuse identity (`createRouteModuleReuseIdentity`), and source hash. Cleared by `invalidateDevelopmentGraph()`.
-2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. Manifest field `corePackageVersion` invalidates entries when the framework package changes. An entry is also reused only while every local file its compiled output imports still exists.
-3. **Unified graph manifest** — production static export fast path only; see build layer docs.
+2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. Manifest field `corePackageVersion` invalidates entries when the framework package changes. An entry is also reused only while every local file its compiled output imports still exists. Rebuilding a route module (`recordBuild()`) drops `renderedOutputs` so incremental static generation re-renders HTML instead of serving stale output after dependency or template edits.
+3. **Unified graph manifest** — production static export fast path only; see build layer docs. Reuse also requires matching source-file hashes and an exact match against the active template route set, so a deleted or edited layout or component cannot keep serving its compiled chunk.
 
 Development import URLs use `sourceHash` plus a per-service import generation counter. Node uses that value in its `?update=` query. Bun also receives a generation-specific compiled output filename because it retains a previously imported file when only its query changes. Both paths advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
@@ -39,16 +39,20 @@ Compiled collection server modules also include the app-owned server invalidatio
 
 ## Files
 
-| File                                      | Role                                                             |
-| ----------------------------------------- | ---------------------------------------------------------------- |
-| `page-module-import.service.ts`           | Core import/cache/build orchestration                            |
-| `route-module-build-manifest.ts`          | Content-derived reuse identity and disk cache manifest           |
-| `app-module-loader.service.ts`            | App-facing loader interface                                      |
-| `app-server-module-transpiler.service.ts` | Factory for app-scoped loader + transpiler                       |
-| `server-module-transpiler.service.ts`     | Injectable transpiler boundary for tests and bootstrap           |
-| `view-module-loader.ts`                   | Normalizes string/URL view registrations into transpiler loaders |
-| `host-module-loader-registry.ts`          | Process-global host loader fallback for embedded runtimes        |
-| `source-module-support.ts`                | Extension allowlist for host direct loading                      |
+| File                                        | Role                                                             |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| `page-module-import.service.ts`             | Core import/cache/build orchestration                            |
+| `route-module-build-manifest.ts`            | Content-derived reuse identity and disk cache manifest           |
+| `route-module-build-cache.store.ts`         | Persisted route-module transpile and static-render cache store   |
+| `route-module-build-cache-registry.ts`      | Shared cache instance registry per `(appConfig, outdir)` pair    |
+| `route-module-dependency-hasher.ts`         | Dependency graph source file hashing and staleness validation    |
+| `collection-server-module-build.service.ts` | Compiles collection server modules with invalidation stamping    |
+| `app-module-loader.service.ts`              | App-facing loader interface                                      |
+| `app-server-module-transpiler.service.ts`   | Factory for app-scoped loader + transpiler                       |
+| `server-module-transpiler.service.ts`       | Injectable transpiler boundary for tests and bootstrap           |
+| `view-module-loader.ts`                     | Normalizes string/URL view registrations into transpiler loaders |
+| `host-module-loader-registry.ts`            | Process-global host loader fallback for embedded runtimes        |
+| `source-module-support.ts`                  | Extension allowlist for host direct loading                      |
 
 ## Development invalidation
 

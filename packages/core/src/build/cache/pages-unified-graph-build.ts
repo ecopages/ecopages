@@ -30,7 +30,11 @@ import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
 } from '../../services/module-loading/route-module-build-cache-registry.ts';
-import { resolveRouteModuleDependencyPaths } from '../../services/module-loading/route-module-dependency-hasher.ts';
+import {
+	RouteModuleDependencyHasher,
+	resolveRouteModuleDependencyPaths,
+	type RouteModuleDependencyHashes,
+} from '../../services/module-loading/route-module-dependency-hasher.ts';
 
 export const PAGES_UNIFIED_GRAPH_CACHE_DIR = '.server-pages-graph';
 export const PAGES_UNIFIED_GRAPH_CACHE_FILENAME = '.build-cache.json';
@@ -46,6 +50,14 @@ export interface PagesUnifiedGraphCacheManifest {
 	 * shared chunks. The graph is reused only while all of them exist.
 	 */
 	outputImports: string[];
+	/**
+	 * Content hashes for every trackable source file in the graph.
+	 *
+	 * @remarks
+	 * Compiled chunks can outlive a deleted layout or component. Reuse also
+	 * requires these hashes so a source edit or deletion rebuilds the graph.
+	 */
+	dependencyHashes: RouteModuleDependencyHashes;
 }
 
 export function isPagesUnifiedGraphEnabled(): boolean {
@@ -97,17 +109,26 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 
 /**
  * @remarks
- * Manifests without `outputImports` predate import validation and cannot show
- * that their chunks still exist, so they are treated as absent.
+ * Manifests without `outputImports` or `dependencyHashes` predate those
+ * checks, so they cannot prove their chunks and sources are still current.
  */
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
 	const manifest = readProductionCacheManifest<PagesUnifiedGraphCacheManifest>(
 		getPagesUnifiedGraphCachePath(appConfig),
 	);
-	if (!manifest?.outputs || !Array.isArray(manifest.outputImports)) {
+	if (
+		!manifest?.outputs ||
+		!Array.isArray(manifest.outputImports) ||
+		!manifest.dependencyHashes ||
+		Object.keys(manifest.dependencyHashes).length === 0
+	) {
 		return undefined;
 	}
 	return manifest;
+}
+
+function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest): boolean {
+	return new RouteModuleDependencyHasher().matchesStoredHashes(manifest.dependencyHashes);
 }
 
 function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: PagesUnifiedGraphCacheManifest): void {
@@ -149,7 +170,7 @@ function resolveOutputForEntrypoint(entryPath: string, entryKey: string, buildRe
 
 /**
  * Whether `manifest` was written by the current core version, build inputs and graph
- * setup, and every file its outputs import still exists.
+ * setup, every file its outputs import still exists, and source hashes still match.
  */
 function isGraphManifestCurrent(
 	manifest: PagesUnifiedGraphCacheManifest,
@@ -160,10 +181,17 @@ function isGraphManifestCurrent(
 		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
 		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
 		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
-		manifest.outputImports.every((filePath) => fileSystem.exists(filePath))
+		manifest.outputImports.every((filePath) => fileSystem.exists(filePath)) &&
+		sourceDependenciesAreCurrent(manifest)
 	);
 }
 
+/**
+ * @remarks
+ * In addition to graph freshness and chunk existence on disk, the manifest must
+ * match the exact count of active template entries so removing or adding a page
+ * invalidates the graph.
+ */
 function isManifestValidForEntries(
 	manifest: PagesUnifiedGraphCacheManifest,
 	appConfig: EcoPagesAppConfig,
@@ -172,6 +200,7 @@ function isManifestValidForEntries(
 ): boolean {
 	return (
 		isGraphManifestCurrent(manifest, appConfig, outdir) &&
+		entryPaths.length === Object.keys(manifest.outputs).length &&
 		entryPaths.every((entryPath) => {
 			const outputPath = manifest.outputs[path.resolve(entryPath)];
 			return outputPath ? fileSystem.exists(outputPath) : false;
@@ -211,9 +240,13 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		return undefined;
 	}
 
-	const eligibleEntryPaths = options.entryPaths
-		.map((entryPath) => path.resolve(entryPath))
-		.filter((entryPath) => isPagesUnifiedGraphPage(entryPath, options.appConfig));
+	const eligibleEntryPaths = Array.from(
+		new Set(
+			options.entryPaths
+				.map((entryPath) => path.resolve(entryPath))
+				.filter((entryPath) => isPagesUnifiedGraphPage(entryPath, options.appConfig)),
+		),
+	);
 
 	if (eligibleEntryPaths.length === 0) {
 		return undefined;
@@ -259,6 +292,8 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();
 	const directImportsCache = new Map<string, string[]>();
+	const dependencyHasher = new RouteModuleDependencyHasher();
+	const dependencyHashes: RouteModuleDependencyHashes = {};
 
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
@@ -272,13 +307,21 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		const compiledOutputImports = collectReachableLocalImports(compiledOutput, { directImportsCache });
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
+		const dependencyModulePaths = resolveRouteModuleDependencyPaths(
+			buildResult,
+			entryPath,
+			options.appConfig.rootDir,
+		);
+		Object.assign(dependencyHashes, dependencyHasher.createDependencyHashes(dependencyModulePaths));
+		dependencyHashes[path.normalize(entryPath)] = fileHash;
+
 		routeModuleBuildCache.recordBuild({
 			filePath: entryPath,
 			rootDir: options.appConfig.rootDir,
 			outdir,
 			fileHash,
 			outputPath: compiledOutput,
-			dependencyModulePaths: resolveRouteModuleDependencyPaths(buildResult, entryPath, options.appConfig.rootDir),
+			dependencyModulePaths,
 			externalPackages: true,
 			plugins,
 			outputImports: compiledOutputImports,
@@ -292,6 +335,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		builtAt: Date.now(),
 		outputs,
 		outputImports: [...outputImports],
+		dependencyHashes,
 	};
 
 	writePagesUnifiedGraphManifest(options.appConfig, manifest);

@@ -91,6 +91,11 @@ export class RouteModuleBuildCache {
 		return { outputPath, entry };
 	}
 
+	/**
+	 * @remarks
+	 * Replaces the transpile entry and drops `renderedOutputs`. Rebuilt modules
+	 * must re-render HTML; otherwise a layout edit can keep the previous page.
+	 */
 	recordBuild(
 		options: PageModuleBuildImportOptions & {
 			fileHash: string;
@@ -114,7 +119,6 @@ export class RouteModuleBuildCache {
 
 		const outputPath = resolveOutputPath(options.outputPath, options.outdir);
 		const manifest = this.loadManifest();
-		const existingEntry = manifest.entries[cacheFilePath];
 		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.entries[cacheFilePath] = {
 			sourceHash: options.fileHash,
@@ -130,7 +134,6 @@ export class RouteModuleBuildCache {
 						readFile: (filePath) => this.dependencies.readFile(filePath),
 					},
 				}),
-			renderedOutputs: existingEntry?.renderedOutputs,
 		};
 
 		this.persistManifest(manifest);

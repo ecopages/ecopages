@@ -166,14 +166,15 @@ Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during
 
 ## Production build caches
 
-Two persisted cache layers accelerate production builds. Both use `.build-cache.json` manifests keyed by dependency hashes and a build-inputs fingerprint.
+Three persisted cache layers accelerate production builds. All use `.build-cache.json` manifests keyed by dependency hashes and build-input fingerprints.
 
 | Cache                                  | On-disk location                                    | Module                                               |
 | -------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
 | Server-entry bundle                    | `.eco/.server-entry/.build-cache.json`              | `cache/server-entry-build-cache.ts`                  |
 | Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` (module-loading) |
+| Unified pages graph                    | `.eco/.server-pages-graph/.build-cache.json`        | `cache/pages-unified-graph-build.ts`                 |
 
-`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes both manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
+`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes all three manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
 
 Server-entry cache hits require every recorded runtime artifact. Cache misses build the server entry and emitted config in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
@@ -190,7 +191,7 @@ Production static exports compile all template pages in one Rolldown invocation 
 
 `StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
 
-A persisted graph is reused only when it matches the core package version, the build inputs and the build key, and every local file reachable from its outputs still exists. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+A persisted graph is reused only when it matches the core package version, the build inputs and the build key, every local file reachable from its outputs still exists, every recorded source-file hash still matches, and the exact active template route set matches recorded outputs. Manifests without `dependencyHashes` are treated as absent, so a deleted layout or component cannot keep serving its compiled chunk. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 

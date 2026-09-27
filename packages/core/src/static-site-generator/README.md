@@ -30,13 +30,14 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 ## Files
 
-| File                           | Role                                                                         |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| `static-site-generator.ts`     | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
-| `static-export-context.ts`     | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
-| `sitemap.ts`                   | Pure sitemap.xml renderer                                                    |
-| `sitemap-routes.ts`            | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
-| `static-build-invalidation.ts` | `dist/` reset policy, production cache clearing, static-render cache context |
+| File                                        | Role                                                                         |
+| ------------------------------------------- | ---------------------------------------------------------------------------- |
+| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
+| `static-export-context.ts`                  | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
+| `sitemap.ts`                                | Pure sitemap.xml renderer                                                    |
+| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
+| `static-build-invalidation.ts`              | `dist/` reset policy, production cache clearing, static-render cache context |
+| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
 
 Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
 
@@ -50,7 +51,7 @@ Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`)
 
 When `dist/` is preserved (`preserveExportDirectory: true`), `StaticSiteGenerator.run()` prunes HTML files no longer in the active route set.
 
-Rendered HTML reuse is tracked in `.eco/.server-modules/.build-cache.json` under each route module's `renderedOutputs`. `canReuseStaticRender()` skips re-rendering when the source file, dependency hashes, and output path are unchanged.
+Rendered HTML reuse is tracked in `.eco/.server-modules/.build-cache.json` under each route module's `renderedOutputs`. `canReuseStaticRender()` skips re-rendering when the source file, dependency hashes, and output path are unchanged. Rebuilding a route module (`recordBuild()`) drops `renderedOutputs` so a layout or component edit cannot keep the previous HTML.
 
 `clearProductionBuildCaches()` runs on `force` builds and removes all persisted `.eco` build manifests (route modules, server entry, unified pages graph).
 

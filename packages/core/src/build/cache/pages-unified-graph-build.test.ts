@@ -200,6 +200,9 @@ describe('pages-unified-graph-build', () => {
 
 		rewrite({ builtAt: manifest.builtAt + 3, outputImports: undefined });
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
+
+		rewrite({ builtAt: manifest.builtAt + 4, dependencyHashes: undefined });
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 	});
 
 	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {
@@ -268,5 +271,194 @@ describe('pages-unified-graph-build', () => {
 		});
 
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
+	});
+
+	it('rebuilds the graph when a reachable source file changes', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+
+		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts')];
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+		const layoutPath = path.join(FIXTURE_APP_PROJECT_DIR, 'src/layouts/base-layout/base-layout.ts');
+		const originalLayout = fileSystem.readFileSync(layoutPath);
+
+		resetRolldownBuildInvocationCounts();
+		const manifest = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths,
+			outdir,
+			force: true,
+		});
+		assert.ok(manifest);
+		assert.ok(
+			Object.keys(manifest.dependencyHashes).some((filePath) => filePath.endsWith('base-layout.ts')),
+			'graph records the imported layout source hash',
+		);
+		assert.equal(getTotalRolldownBuildInvocations(), 1);
+
+		try {
+			fileSystem.write(layoutPath, `${originalLayout}\nexport const cacheBust = 1;\n`);
+			resetRolldownBuildInvocationCounts();
+			await ensurePagesUnifiedGraphBuilt({
+				appConfig,
+				entryPaths,
+				outdir,
+			});
+			assert.equal(getTotalRolldownBuildInvocations(), 1);
+		} finally {
+			fileSystem.write(layoutPath, originalLayout);
+		}
+	});
+
+	it('rebuilds the graph and rejects module import when a reachable source file is deleted', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+
+		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts')];
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+		const layoutPath = path.join(FIXTURE_APP_PROJECT_DIR, 'src/layouts/base-layout/base-layout.ts');
+		const helperPath = path.join(FIXTURE_APP_PROJECT_DIR, 'src/layouts/base-layout/temp-helper.ts');
+		const originalLayout = fileSystem.readFileSync(layoutPath);
+
+		try {
+			fileSystem.write(helperPath, 'export const tempHelper = "temp-value";\n');
+			fileSystem.write(
+				layoutPath,
+				`import { eco } from '@ecopages/core';\nimport { tempHelper } from './temp-helper.ts';\n\nexport const BaseLayout = eco.component<{ children?: string }>({\n\trender: ({ children }) => \`<body>\${children} \${tempHelper}</body>\`,\n});\n`,
+			);
+
+			resetRolldownBuildInvocationCounts();
+			const manifest = await ensurePagesUnifiedGraphBuilt({
+				appConfig,
+				entryPaths,
+				outdir,
+				force: true,
+			});
+			assert.ok(manifest);
+			assert.ok(
+				Object.keys(manifest.dependencyHashes).some((filePath) => filePath.endsWith('temp-helper.ts')),
+				'graph records the imported helper source hash',
+			);
+			assert.equal(getTotalRolldownBuildInvocations(), 1);
+
+			fileSystem.remove(helperPath);
+			fileSystem.write(layoutPath, originalLayout);
+
+			assert.equal(
+				await importPagesUnifiedGraphModule(appConfig, entryPaths[0]),
+				undefined,
+				'rejects stale graph import when dependency source is deleted',
+			);
+
+			resetRolldownBuildInvocationCounts();
+			const rebuiltManifest = await ensurePagesUnifiedGraphBuilt({
+				appConfig,
+				entryPaths,
+				outdir,
+			});
+			assert.ok(rebuiltManifest);
+			assert.equal(getTotalRolldownBuildInvocations(), 1);
+			assert.equal(
+				Object.keys(rebuiltManifest.dependencyHashes).some((filePath) => filePath.endsWith('temp-helper.ts')),
+				false,
+				'rebuilt manifest no longer references the deleted helper',
+			);
+		} finally {
+			if (fileSystem.exists(helperPath)) {
+				fileSystem.remove(helperPath);
+			}
+			fileSystem.write(layoutPath, originalLayout);
+		}
+	});
+
+	it('invalidates cache when route entries are added or removed (exact route set match)', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+
+		const indexEntry = path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts');
+		const notFoundEntry = path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/404.ts');
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+
+		resetRolldownBuildInvocationCounts();
+		const manifestTwoEntries = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry, notFoundEntry],
+			outdir,
+			force: true,
+		});
+		assert.ok(manifestTwoEntries);
+		assert.equal(Object.keys(manifestTwoEntries.outputs).length, 2);
+		assert.equal(getTotalRolldownBuildInvocations(), 1);
+
+		resetRolldownBuildInvocationCounts();
+		const manifestOneEntry = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry],
+			outdir,
+		});
+		assert.ok(manifestOneEntry);
+		assert.equal(Object.keys(manifestOneEntry.outputs).length, 1);
+		assert.equal(getTotalRolldownBuildInvocations(), 1, 'rebuilds when an entry is removed from active routes');
+
+		resetRolldownBuildInvocationCounts();
+		await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry],
+			outdir,
+		});
+		assert.equal(getTotalRolldownBuildInvocations(), 0, 'reuses cache when entry set is identical');
+
+		resetRolldownBuildInvocationCounts();
+		const manifestRestored = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry, notFoundEntry],
+			outdir,
+		});
+		assert.ok(manifestRestored);
+		assert.equal(Object.keys(manifestRestored.outputs).length, 2);
+		assert.equal(getTotalRolldownBuildInvocations(), 1, 'rebuilds when an entry is re-added');
+	});
+
+	it('deduplicates duplicate entry paths caused by dynamic routes', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+
+		const appConfig = await createFixtureAppConfig();
+		installBuildRuntime(appConfig);
+
+		const indexEntry = path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts');
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+
+		resetRolldownBuildInvocationCounts();
+		const manifest = await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry, indexEntry, indexEntry],
+			outdir,
+			force: true,
+		});
+		assert.ok(manifest);
+		assert.equal(Object.keys(manifest.outputs).length, 1);
+		assert.equal(getTotalRolldownBuildInvocations(), 1);
+
+		resetRolldownBuildInvocationCounts();
+		await ensurePagesUnifiedGraphBuilt({
+			appConfig,
+			entryPaths: [indexEntry, indexEntry],
+			outdir,
+		});
+		assert.equal(getTotalRolldownBuildInvocations(), 0, 'reuses cache despite duplicate entry references');
 	});
 });

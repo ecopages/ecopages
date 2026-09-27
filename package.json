@@ -17,6 +17,7 @@
 		"clean": "clear && pnpx npkill -D -y && rm -rf pnpm-lock.yaml node_modules .templates && pnpm install",
 		"check:portability": "node scripts/check-portability.ts",
 		"check:templates": "node --experimental-strip-types scripts/check-templates.ts",
+		"sync:template-skills": "node --experimental-strip-types scripts/sync-template-agent-skills.ts",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "oxlint . --fix",

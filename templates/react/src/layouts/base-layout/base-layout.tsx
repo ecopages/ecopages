@@ -1,8 +1,8 @@
 import { eco } from '@ecopages/core';
 import type { ReactNode } from 'react';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo';
 import { cx } from '@/lib/cx';
+import { useThemeHotkey } from '@/lib/theme';
 import './base-layout.css';
 
 export type BaseLayoutProps = {
@@ -12,6 +12,11 @@ export type BaseLayoutProps = {
 	prose?: boolean;
 };
 
+function ThemeHotkey(): null {
+	useThemeHotkey();
+	return null;
+}
+
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		scripts: ['./base-layout.script.ts'],
@@ -19,9 +24,9 @@ export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	render: ({ children, class: className, prose = false }) => {
 		return (
 			<body>
+				<ThemeHotkey />
 				<header className="site-header">
 					<Logo href="/" title="Ecopages" />
-					<ThemeToggle />
 				</header>
 				<main className={cx('layout-main', prose && 'prose', className)}>{children}</main>
 			</body>

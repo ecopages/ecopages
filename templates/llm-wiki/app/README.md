@@ -2,6 +2,8 @@
 
 Self-contained Ecopages app that renders the parent [`../wiki`](../wiki) vault as browsable docs at `/wiki`. Run package commands from this directory; the CLI manifest marks it as the runnable package directory.
 
+Framework skill packs live in the vault root at [`../.agents`](../.agents). See [`../AGENTS.md`](../AGENTS.md).
+
 ## Content pipeline
 
 - Source of truth: `../wiki/`. The default auto mode accepts either category

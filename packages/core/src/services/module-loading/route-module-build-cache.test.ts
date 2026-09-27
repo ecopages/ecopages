@@ -408,6 +408,78 @@ describe('RouteModuleBuildCache', () => {
 		);
 	});
 
+	it('drops rendered outputs when the route module is rebuilt', () => {
+		process.env.NODE_ENV = 'production';
+		const cache = createCache((filePath) => filePath.endsWith('.mjs') || filePath.endsWith('.html'));
+		const context = {
+			configHash: 'config-1',
+			buildInputsFingerprint: 'stable',
+		};
+		const filePath = '/app/pages/about.tsx';
+		const pathname = '/about';
+		const renderedOutputPath = join(tempDir, 'dist', 'about.html');
+		const outputPath = join(tempDir, 'about-abc123.mjs');
+
+		cache.recordBuild({
+			filePath,
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+			outputPath,
+			dependencyModulePaths: [filePath],
+		});
+		cache.ensureIncrementalStaticGenerationContext(context);
+		cache.recordStaticRender({
+			filePath,
+			pathname,
+			sourceHash: 'abc123',
+			renderedOutputPath,
+			context,
+		});
+
+		const otherFilePath = '/app/pages/contact.tsx';
+		cache.recordBuild({
+			filePath: otherFilePath,
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'xyz789',
+			outputPath: join(tempDir, 'contact-xyz789.mjs'),
+			dependencyModulePaths: [otherFilePath],
+		});
+
+		assert.equal(
+			cache.lookupStaticRender({
+				filePath,
+				pathname,
+				sourceHash: 'abc123',
+				renderedOutputPath,
+				context,
+			}),
+			true,
+			'unrelated route build preserves about static render output',
+		);
+
+		cache.recordBuild({
+			filePath,
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+			outputPath,
+			dependencyModulePaths: [filePath],
+		});
+
+		assert.equal(
+			cache.lookupStaticRender({
+				filePath,
+				pathname,
+				sourceHash: 'abc123',
+				renderedOutputPath,
+				context,
+			}),
+			false,
+		);
+	});
+
 	it('records and reuses static render outputs by pathname when the import graph is fresh', () => {
 		process.env.NODE_ENV = 'production';
 		const cache = new RouteModuleBuildCache(tempDir, {

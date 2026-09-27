@@ -1,6 +1,16 @@
 # Docs starter template
 
-An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs route. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button.
+An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MDX, and a catch-all docs Page. Chrome uses `@ecopages/radiant-ui` (sidebar, TOC, breadcrumb, cycle theme toggle, alerts). Fenced MDX code blocks are highlighted with `rehype-pretty-code` and include a Copy button.
+
+## Agent skills
+
+Read [AGENTS.md](./AGENTS.md) first. This template ships Ecopages, Radiant UI, and Radiant host packs:
+
+- [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
+- [Building with Radiant UI](.agents/skills/radiant-ui/SKILL.md) ([hosted](https://radiant-ui.ecopages.app/skill/SKILL.md))
+- [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) ([hosted](https://radiant.ecopages.app/skill/SKILL.md))
+
+Index: [`.agents/README.md`](.agents/README.md). Those packs describe the framework. Generated docs for _this_ site are `/llms.txt` and `/docs-llm/<section>/<slug>.md` (see [LLM exports](#llm-exports)).
 
 ## Structure
 
@@ -13,6 +23,7 @@ An Ecopages docs site using `@ecopages/content-processor`, frontmatter-driven MD
 - `src/pages/docs/[...slug]/index.tsx` — catch-all route using `entries` and `getComponent`
 - `src/styles/components/prose.css` — markdown typography (skips `.unstyled`; tables scroll with `overflow-x: auto`)
 - `src/styles/vendor/shiki.css` — pretty-code figure chrome and copy-button layout
+- `.agents/skills` — Ecopages, Radiant, and Radiant UI skill packs
 
 ## Configuration
 

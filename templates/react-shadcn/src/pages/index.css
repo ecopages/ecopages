@@ -1,0 +1,100 @@
+.showcase {
+	@apply grid w-full gap-5;
+}
+.showcase {
+	--showcase-border: color-mix(in oklab, var(--color-border) 25%, var(--color-background));
+}
+[data-theme='dark'] .showcase {
+	--showcase-border: color-mix(in oklab, var(--color-border) 75%, var(--color-background));
+}
+.welcome-alert {
+	@apply relative flex flex-col rounded-sm border p-3;
+	border-color: var(--showcase-border);
+	background: color-mix(in oklab, var(--color-primary) 6%, var(--color-muted));
+}
+.welcome-alert::before {
+	content: '';
+	@apply absolute top-2 bottom-2 left-2 w-1 rounded-full;
+	background: var(--color-primary);
+}
+.welcome-alert__title {
+	@apply m-0 pl-4 text-sm font-semibold;
+	color: var(--color-foreground);
+}
+.welcome-alert__desc {
+	@apply m-0 pl-4 text-xs leading-snug;
+	color: var(--color-muted-foreground);
+}
+.showcase-grid {
+	@apply grid gap-4 md:grid-cols-2;
+}
+.showcase-card {
+	@apply flex flex-col rounded-sm border;
+	border-color: var(--showcase-border);
+	background: var(--color-muted);
+	transition:
+		background-color 0.2s ease-out,
+		box-shadow 0.2s ease-out,
+		border-color 0.2s ease-out;
+}
+.showcase-card:hover,
+.showcase-card:focus-within {
+	background: color-mix(in oklab, var(--color-muted) 70%, var(--color-background));
+	border-color: color-mix(in oklab, var(--color-border) 35%, var(--color-background));
+	box-shadow: var(--shadow-control, 0 1px 3px 0 rgb(0 0 0 / 0.1));
+}
+.showcase-card:focus-visible {
+	@apply outline-none;
+	outline: 2px solid var(--color-ring);
+	outline-offset: 2px;
+}
+.card-body {
+	@apply flex flex-col gap-2 p-4;
+}
+.section-title {
+	@apply m-0 text-base font-semibold tracking-tight;
+	color: var(--color-foreground);
+}
+.section-desc {
+	@apply m-0 text-sm leading-relaxed;
+	color: var(--color-muted-foreground);
+}
+.card-demo {
+	@apply mt-1;
+}
+.mdx-preview {
+	@apply rounded border p-2;
+	border-color: var(--showcase-border);
+	background: var(--color-background);
+}
+.mdx-preview > :first-child {
+	@apply mt-0;
+}
+.mdx-preview > :last-child {
+	@apply mb-0;
+}
+.image-demo {
+	@apply grid grid-cols-3 gap-1 rounded-sm;
+}
+.image-demo span {
+	@apply rounded border px-2 py-3 text-center text-[0.625rem] font-medium;
+	border-color: var(--showcase-border);
+	color: var(--color-muted-foreground);
+}
+.card-actions {
+	@apply mt-auto flex items-center border-t px-4 py-3;
+	border-color: var(--showcase-border);
+}
+.card-link {
+	@apply text-xs font-medium no-underline;
+	color: var(--color-primary);
+}
+.card-link:hover {
+	@apply underline;
+}
+@media (prefers-reduced-motion: reduce) {
+	.showcase-card,
+	.card-link {
+		transition: none;
+	}
+}

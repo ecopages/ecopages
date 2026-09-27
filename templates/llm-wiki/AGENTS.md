@@ -8,3 +8,4 @@ This is an LLM Wiki. Follow [SCHEMA.md](./SCHEMA.md) for ingest, query, and lint
 - `index.md` is generated on ingest from page `summary` fields. Never edit it by hand.
 - File useful answers back into `wiki/` (set `summary`) and append `log.md`.
 - The browsable site lives in [`app/`](./app). Prefer markdown URLs when reading pages (`Accept: text/markdown` or `/wiki/<slug>.md`).
+- The site is an Ecopages JSX app with Radiant UI. Before changing Pages or `app/eco.config.ts`, read [`.agents/skills/ecopages/SKILL.md`](.agents/skills/ecopages/SKILL.md), [`.agents/skills/radiant-ui/SKILL.md`](.agents/skills/radiant-ui/SKILL.md), and [`.agents/skills/radiant/SKILL.md`](.agents/skills/radiant/SKILL.md).

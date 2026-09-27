@@ -1,6 +1,12 @@
 # React Better Auth template
 
-A modern web application built with Ecopages, Better Auth, and Drizzle ORM.
+An Ecopages React app with Better Auth and Drizzle ORM. Pages are static-first; handlers and protected routes use request-time rendering where auth requires it.
+
+## Agent skills
+
+Read [AGENTS.md](./AGENTS.md) and [Building with Ecopages](.agents/skills/ecopages/SKILL.md) before changing Pages or config. For handlers, auth, and the database, continue into `reference/full-stack.md` and `reference/server.md` in that pack.
+
+Hosted copy: [ecopages.app/skill/SKILL.md](https://ecopages.app/skill/SKILL.md). Index: [`.agents/README.md`](.agents/README.md). Full docs index: [ecopages.app/llms.txt](https://ecopages.app/llms.txt).
 
 ## Features
 
@@ -96,10 +102,11 @@ src/
 ├── components/     # React components
 ├── handlers/       # API handlers (defineApiHandler, defineGroupHandler)
 ├── includes/        # HTML templates (head, html, seo)
-├── layouts/         # Page layouts
+├── layouts/         # Layouts
 ├── lib/            # Utilities (auth, db, schema)
-├── pages/           # Page components (eco.page)
+├── pages/           # Pages (eco.page)
 └── styles/          # CSS files (Tailwind v4)
+.agents/skills/      # Ecopages agent skill pack
 ```
 
 ## Authentication

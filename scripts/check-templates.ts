@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { assertTemplateAgentSkills } from './sync-template-agent-skills.ts';
 
 type PackageJson = {
 	name?: string;
@@ -41,7 +42,7 @@ function readJson<T>(filePath: string): T {
 function collectPackageJsonPaths(root: string): string[] {
 	const paths: string[] = [];
 	for (const entry of readdirSync(root, { withFileTypes: true })) {
-		if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+		if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.agents') continue;
 		const entryPath = path.join(root, entry.name);
 		if (entry.isDirectory()) {
 			paths.push(...collectPackageJsonPaths(entryPath));
@@ -135,3 +136,9 @@ for (const template of manifest.templates) {
 }
 
 console.log(`Validated ${manifest.templates.length} official templates.`);
+assertTemplateAgentSkills(
+	repoRoot,
+	templatesRoot,
+	manifest.templates.map((template) => template.id),
+);
+console.log('Validated template agent skill packs.');

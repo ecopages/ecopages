@@ -6,6 +6,8 @@ Repo-root utilities for packaging, release, and **debugging consumer apps** agai
 
 Public packages are versioned with Changesets. `pnpm changeset` records a change; [`.changeset/README.md`](../.changeset/README.md) is the pipeline contract. `build-npm-packages.ts` compiles public packages into `dist` at publish time and rewrites `workspace:*` to the package version.
 
+Official templates ship agent skill packs under `.agents/skills`. After changing `apps/docs/src/public/skill` or `scripts/agent-skills`, run `pnpm sync:template-skills`. `pnpm check:templates` fails if those copies drift.
+
 ## External app debug / bottleneck bench
 
 Use [`debug-app.bench.mjs`](./debug-app.bench.mjs) to measure an app that lives **outside** this repository (for example a product monorepo). Do not commit app-specific harnesses here — pass the app path and routes as CLI args.

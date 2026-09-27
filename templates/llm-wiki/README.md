@@ -29,6 +29,7 @@ llm-wiki/
   SCHEMA.md          # conventions and workflows
   AGENTS.md          # agent contract
   SELF_DESTRUCT.md   # one-time bootstrap script, deletes itself after setup
+  .agents/           # Ecopages, Radiant, and Radiant UI skill packs
   app/               # optional Ecopages site (self-contained Node package)
 ```
 
@@ -70,3 +71,13 @@ curl -s 'http://localhost:3333/api/search?q=demo'
 The static `preview` server supports the generated `.md` files and browser search index, but it does not serve `/api/search`, `/api/wiki/...`, or request-header negotiation. Use `dev` or `start` for those server features.
 
 See [SCHEMA.md](./SCHEMA.md) for page categories, frontmatter, ordering, and maintenance. Site architecture: [app/README.md](./app/README.md).
+
+## Agent skills
+
+The vault contract is [AGENTS.md](./AGENTS.md). The Ecopages site in `app/` also ships framework skill packs at the vault root:
+
+- [Building with Ecopages](.agents/skills/ecopages/SKILL.md) ([hosted](https://ecopages.app/skill/SKILL.md))
+- [Building with Radiant UI](.agents/skills/radiant-ui/SKILL.md) ([hosted](https://radiant-ui.ecopages.app/skill/SKILL.md))
+- [Radiant reactive hosts](.agents/skills/radiant/SKILL.md) ([hosted](https://radiant.ecopages.app/skill/SKILL.md))
+
+Index: [`.agents/README.md`](.agents/README.md).

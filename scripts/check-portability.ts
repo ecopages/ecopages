@@ -47,7 +47,8 @@ async function listFiles(dirPath: string): Promise<string[]> {
 					entry.name === 'node_modules' ||
 					entry.name === '.git' ||
 					entry.name === 'dist' ||
-					entry.name === '.eco'
+					entry.name === '.eco' ||
+					entry.name === '.agents'
 				) {
 					return [];
 				}

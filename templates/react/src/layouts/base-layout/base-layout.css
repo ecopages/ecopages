@@ -1,6 +1,6 @@
 @layer components {
 	.site-header {
-		@apply w-full max-w-5xl mx-auto py-3 px-4 flex items-center justify-between;
+		@apply mx-auto flex w-full max-w-5xl items-center px-4 py-3;
 	}
 
 	.site-logo {

@@ -22,6 +22,16 @@
 			"integrations": ["react"]
 		},
 		{
+			"id": "react-shadcn",
+			"displayName": "React shadcn",
+			"description": "A React application styled with shadcn/ui on React Aria.",
+			"category": "integration",
+			"order": 25,
+			"source": "react-shadcn",
+			"packageDirectory": ".",
+			"integrations": ["react"]
+		},
+		{
 			"id": "lit-jsx",
 			"displayName": "Lit JSX",
 			"description": "A KitaJS and Lit Ecopages application.",

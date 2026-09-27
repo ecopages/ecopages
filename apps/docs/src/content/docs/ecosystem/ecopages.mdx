@@ -166,6 +166,30 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
+**React with shadcn/ui** - Creates the React template configured for shadcn/ui on the React Aria base, with Button, Card, and Input already installed. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-shadcn" target="_blank">react-shadcn</a>.
+
+<CodeTabs
+	name="ecopages-react-shadcn"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
 **React app with Better Auth + Drizzle** - Creates a full app template with auth and database workflow included. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-better-auth" target="_blank">react-better-auth</a>.
 
 <CodeTabs

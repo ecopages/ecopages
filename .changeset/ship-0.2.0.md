@@ -16,13 +16,10 @@ The 0.2.0 changelog is the `stable-0.2.0-*.md` files in this folder. RC notes we
 
 ## Sequence
 
-1. Commit and push the pre-exit prep on `release/v0.2.0` (`pre.json` `mode` is `exit`). Direct push is fine; this branch is the RC line.
-2. Wait for the Version Packages PR. Review `## 0.2.0` only. Merge it with a merge commit. Publish runs `test:all` and publishes to npm `latest`.
-3. Confirm `npm view @ecopages/core dist-tags` shows `latest: 0.2.0`, and that git tag `v0.2.0` exists (`ecopages init` needs it).
-4. Point production at `main`:
-    - Set `config.json` `baseBranch` to `main`.
-    - Remove `release/v0.2.0` from `.github/workflows/publish.yml`.
-    - Open a PR from `release/v0.2.0` into `main` and merge it with a merge commit.
+1. Commit and push the pre-exit prep on `release/v0.2.0` (`pre.json` `mode` is `exit`). Direct push is fine; this branch is the RC line. The in-flight Publish run on that push opens the Version Packages PR.
+2. Review the Version Packages PR (`## 0.2.0` only). Merge it with a merge commit. That commit versions packages on `release/v0.2.0`. It does not publish; Publish no longer runs on `release/*`.
+3. Set `config.json` `baseBranch` to `main`. Open a PR from `release/v0.2.0` into `main` and merge it with a merge commit. That push to `main` runs `test:all` and `changeset publish`.
+4. Confirm `npm view @ecopages/core dist-tags` shows `latest: 0.2.0`, and that git tag `v0.2.0` exists (`ecopages init` needs it).
 5. Create the default integration branch:
 
     ```bash

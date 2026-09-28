@@ -4,8 +4,11 @@ on:
     push:
         branches:
             - main
-            # Drop after 0.2.0 is on main. Later cuts merge develop into main.
-            - release/v0.2.0
+            # Production publishes from main only. To cut a prerelease train,
+            # uncomment the next line and set .changeset/config.json baseBranch
+            # to that branch (e.g. release/v0.3.0). Comment it again when the
+            # stable version has been merged to main.
+            # - release/v0.3.0
     workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}

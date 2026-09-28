@@ -22,7 +22,7 @@
 	],
 	"linked": [],
 	"access": "public",
-	"baseBranch": "release/v0.2.0",
+	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
 	"ignore": [],
 	"privatePackages": false

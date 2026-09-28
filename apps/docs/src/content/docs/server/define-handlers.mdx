@@ -1,0 +1,424 @@
+---
+title: "Define Handlers"
+description: "Use defineApiHandler, defineGet, and defineGroupHandler for type-safe individual and grouped API routes."
+order: 3
+---
+
+# Define Handlers
+
+Ecopages provides helpers for defining type-safe API handlers outside your main app file: `defineApiHandler` for individual routes, method-specific helpers such as `defineGet` and `definePost`, and `defineGroupHandler` for related routes that share a prefix and middleware.
+
+These helpers preserve full TypeScript inference for path parameters, middleware context, and request schemas.
+
+## Why Use Define Helpers
+
+When defining handlers inline, TypeScript can infer types from context:
+
+```typescript
+app.get('/api/posts/:id', async ({ params }) => {
+  const { id } = params; // TypeScript knows id exists
+  return Response.json({ id });
+});
+```
+
+However, when you extract handlers to separate files, you lose that inference:
+
+```typescript
+// handlers/blog.ts - Type inference is lost
+export const getPost = async ({ params }) => {
+  const { id } = params; // Error: params is { [x: string]: string }
+};
+```
+
+The `defineApiHandler`, method helpers, and `defineGroupHandler` solve this by capturing the path literal type and middleware context at definition time.
+
+## Method helpers
+
+For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, or `defineHead`. Each one is equivalent to `defineApiHandler` with the matching `method` field.
+
+```typescript
+import { defineGet, definePost } from '@ecopages/core';
+
+export const list = defineGet({
+  path: '/api/posts',
+  handler: async ({ response }) => {
+    return response.json(await getPosts());
+  },
+});
+
+export const create = definePost({
+  path: '/api/posts',
+  handler: async ({ request, response }) => {
+    const body = await request.json();
+    return response.status(201).json(await createPost(body));
+  },
+});
+```
+
+Use `defineApiHandler` when you want an explicit `method` field or an uncommon registration shape.
+
+## defineApiHandler
+
+Use `defineApiHandler` to create a self-contained handler with its path, method, and optional middleware or schema.
+
+### Basic Usage
+
+```typescript
+// handlers/blog.ts
+import { defineGet, defineApiHandler } from '@ecopages/core';
+
+export const list = defineGet({
+  path: '/api/posts',
+  handler: async ({ response }) => {
+    const posts = await getPosts();
+    return response.json(posts);
+  },
+});
+
+export const detail = defineApiHandler({
+  path: '/api/posts/:id',
+  method: 'GET',
+  handler: async ({ params, response }) => {
+    const post = await getPost(params.id);
+    return response.json(post);
+  },
+});
+```
+
+### Registration
+
+Register prebuilt handlers with `app.add()`. Use `app.get(path, handler)` only for inline routes in `app.ts`.
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+import * as blog from './handlers/blog';
+
+const app = await createApp();
+
+app.add(blog.list);
+app.add(blog.detail);
+
+await app.start();
+```
+
+### With Request Schema
+
+Define a schema to get typed access to request body, query parameters, and headers:
+
+```typescript
+import { definePost } from '@ecopages/core';
+import { z } from 'zod';
+
+const createPostSchema = {
+  body: z.object({
+    title: z.string().min(1),
+    content: z.string(),
+  }),
+  query: z.object({
+    draft: z.string().optional(),
+  }),
+};
+
+export const createPost = definePost({
+  path: '/api/posts',
+  schema: createPostSchema,
+  handler: async ({ body, query, response }) => {
+    const post = await createPost(body, query.draft === 'true');
+    return response.status(201).json(post);
+  },
+});
+```
+
+### With Middleware
+
+Attach route-specific middleware that extends the handler context:
+
+```typescript
+import { defineApiHandler } from '@ecopages/core';
+import { rateLimitMiddleware } from './middleware/rate-limit';
+
+export const sensitiveEndpoint = defineApiHandler({
+  path: '/api/sensitive',
+  method: 'POST',
+  middleware: [rateLimitMiddleware],
+  handler: async ({ response, rateLimitRemaining }) => {
+    // rateLimitRemaining is typed from the middleware
+    return response.json({ remaining: rateLimitRemaining });
+  },
+});
+```
+
+## defineGroupHandler
+
+Use `defineGroupHandler` when you have multiple routes that share a URL prefix and middleware. This is ideal for authenticated sections or resource-based APIs.
+
+### Basic Usage
+
+```typescript
+// handlers/admin.ts
+import { defineGroupHandler } from '@ecopages/core';
+import { authMiddleware } from './middleware/auth';
+import type { AuthenticatedContext } from './middleware/auth';
+
+export const adminGroup = defineGroupHandler({
+  prefix: '/admin',
+  middleware: [authMiddleware],
+  routes: (api) => [
+    api.get({
+      path: '/',
+      handler: async (ctx) => {
+        return ctx.response.json({ user: ctx.session.user });
+      },
+    }),
+    api.get({
+      path: '/posts/:id',
+      handler: async (ctx) => {
+        const post = await getPost(ctx.params.id);
+        return ctx.response.json(post);
+      },
+    }),
+    api.delete({
+      path: '/posts/:id',
+      handler: async (ctx) => {
+        await deletePost(ctx.params.id);
+        return ctx.response.status(204).text('');
+      },
+    }),
+  ],
+});
+```
+
+The `routes` callback also accepts the callable form `api({ path, method, handler })` when you need an uncommon method shape. Prefer `api.get` and `api.post` for standard verbs.
+
+### Registration
+
+Register the entire group with `app.group()`:
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+import { adminGroup } from './handlers/admin';
+
+const app = await createApp();
+
+app.group(adminGroup);
+
+await app.start();
+```
+
+The group registration:
+
+1. Prepends the prefix to each route path (`/` becomes `/admin`, `/posts/:id` becomes `/admin/posts/:id`)
+2. Applies group middleware before route-specific middleware
+3. Preserves all type inference
+
+### With Route-Level Schema
+
+Individual routes within a group can define their own schema:
+
+```typescript
+import { z } from 'zod';
+
+const createPostSchema = {
+  body: z.object({
+    title: z.string().min(1),
+    content: z.string(),
+  }),
+};
+
+export const adminGroup = defineGroupHandler({
+  prefix: '/admin',
+  middleware: [authMiddleware],
+  routes: (api) => [
+    api.post({
+      path: '/posts',
+      schema: createPostSchema,
+      handler: async (ctx) => {
+        const post = await createPost(ctx.body, ctx.session.user.id);
+        return ctx.response.status(201).json(post);
+      },
+    }),
+  ],
+});
+```
+
+## json / html / redirect
+
+Import `json`, `html`, and `redirect` from `@ecopages/core` when a handler returns a body without using `context.response`:
+
+```typescript
+import { defineGet, json, html, redirect } from '@ecopages/core';
+
+export const health = defineGet({
+  path: '/api/health',
+  handler: async () => json({ ok: true }),
+});
+
+export const landing = defineGet({
+  path: '/landing',
+  handler: async () => html('<p>hi</p>'),
+});
+
+export const loginRedirect = defineGet({
+  path: '/login',
+  handler: async () => redirect('/sign-in', 303),
+});
+```
+
+These helpers share the same body emission path as `context.response.json()` and `context.response.html()`.
+
+## Type Inference Details
+
+### Path Parameters
+
+Path parameters are inferred from the literal path string:
+
+```typescript
+defineApiHandler({
+  path: '/api/users/:userId/posts/:postId',
+  method: 'GET',
+  handler: async ({ params }) => {
+    // params is typed as { userId: string; postId: string }
+    const { userId, postId } = params;
+  },
+});
+```
+
+### Middleware Context
+
+Middleware can extend the handler context with additional properties:
+
+```typescript
+// middleware/auth.ts
+import type { EcoMiddleware } from '@ecopages/core';
+
+export type AuthenticatedContext = {
+  session: { user: User; token: string };
+};
+
+export const authMiddleware: EcoMiddleware<AuthenticatedContext> = async (ctx, next) => {
+  const token = ctx.request.headers.get('Authorization');
+  const user = await validateToken(token);
+  
+  if (!user) {
+    return ctx.response.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  ctx.session = { user, token };
+  return next();
+};
+```
+
+When used with `defineGroupHandler`, all routes receive the extended context automatically.
+
+## Complete Example
+
+```typescript
+// handlers/blog.ts
+import { defineApiHandler, defineGroupHandler } from '@ecopages/core';
+import { authMiddleware, type AuthenticatedContext } from '../middleware/auth';
+import { z } from 'zod';
+
+const createPostSchema = {
+  body: z.object({
+    title: z.string().min(1),
+    content: z.string(),
+  }),
+};
+
+const updatePostSchema = {
+  body: z.object({
+    title: z.string().min(1).optional(),
+    content: z.string().optional(),
+  }),
+};
+
+// Public routes
+export const list = defineGet({
+  path: '/api/posts',
+  handler: async ({ response }) => {
+    const posts = await getPublicPosts();
+    return response.json(posts);
+  },
+});
+
+export const detail = defineGet({
+  path: '/api/posts/:id',
+  handler: async ({ params, response }) => {
+    const post = await getPost(params.id);
+    if (!post) return response.status(404).json({ error: 'Not found' });
+    return response.json(post);
+  },
+});
+
+// Protected routes
+export const protectedGroup = defineGroupHandler({
+  prefix: '/api/posts',
+  middleware: [authMiddleware],
+  routes: (api) => [
+    api.post({
+      path: '/',
+      schema: createPostSchema,
+      handler: async (ctx) => {
+        const post = await createPost(ctx.body, ctx.session.user.id);
+        return ctx.response.status(201).json(post);
+      },
+    }),
+    api.put({
+      path: '/:id',
+      schema: updatePostSchema,
+      handler: async (ctx) => {
+        const post = await updatePost(ctx.params.id, ctx.body, ctx.session.user.id);
+        return ctx.response.json(post);
+      },
+    }),
+    api.delete({
+      path: '/:id',
+      handler: async (ctx) => {
+        await deletePost(ctx.params.id, ctx.session.user.id);
+        return ctx.response.status(204).text('');
+      },
+    }),
+  ],
+});
+```
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+import * as blog from './handlers/blog';
+
+const app = await createApp();
+
+// Public
+app.add(blog.list);
+app.add(blog.detail);
+
+// Protected
+app.group(blog.protectedGroup);
+
+await app.start();
+```
+
+## Handler Object Shape
+
+For reference, here is the shape of objects produced by the define helpers:
+
+```typescript
+interface ApiHandler<TPath, TRequest, TServer> {
+  path: TPath;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
+  middleware?: Middleware[];
+  schema?: RouteSchema;
+}
+
+interface GroupHandler<TPrefix> {
+  prefix: TPrefix;
+  middleware?: Middleware[];
+  routes: ApiHandler[];
+}
+```
+
+Both can be passed to `app.add()` for individual handlers or `app.group()` for grouped routes.

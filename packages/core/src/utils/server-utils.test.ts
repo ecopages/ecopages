@@ -1,9 +1,8 @@
-import { describe, expect, test } from 'bun:test';
-import { FIXTURE_APP_PROJECT_DIR } from '../../__fixtures__/constants.js';
-import { ConfigBuilder } from '../config/config-builder.ts';
+import { describe, expect, test } from 'vitest';
+import { createFixtureAppConfig } from '../../__fixtures__/app/test-app-config.ts';
 import { ServerUtils } from './server-utils.module.ts';
 
-await new ConfigBuilder().setRootDir(FIXTURE_APP_PROJECT_DIR).build();
+await createFixtureAppConfig();
 
 describe('ServerUtils', () => {
 	test.each([
@@ -18,6 +17,7 @@ describe('ServerUtils', () => {
 		['/my-file.gif', 'image/gif'],
 		['/my-file.ico', 'image/x-icon'],
 		['/my-file', 'text/plain'],
+		['/my-file.md', 'text/markdown'],
 	])('getContentType(%p) should return %p', (filePath, expected) => {
 		expect(ServerUtils.getContentType(filePath)).toBe(expected);
 	});
@@ -27,12 +27,13 @@ describe('ServerUtils', () => {
 		['/file.js', true],
 		['/file.html', true],
 		['/file.txt', true],
+		['/file.md', true],
 		['/file.png', true],
 		['/page', false],
 		['/page.', false],
 		['/page.xyz', false],
 		['/page.dd', false],
-	])('hasKnownExtension(%p) should return %p', (filePath, expected) => {
-		expect(ServerUtils.hasKnownExtension(filePath)).toBe(expected);
+	])('hasKnownStaticExtension(%p) should return %p', (filePath, expected) => {
+		expect(ServerUtils.hasKnownStaticExtension(filePath)).toBe(expected);
 	});
 });

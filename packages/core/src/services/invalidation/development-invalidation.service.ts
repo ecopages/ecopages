@@ -1,0 +1,321 @@
+import path from 'node:path';
+import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
+import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
+
+export type DevelopmentInvalidationCategory =
+	| 'public-asset'
+	| 'additional-watch'
+	| 'include-source'
+	| 'explicit-server-view'
+	| 'route-source'
+	| 'processor-owned-asset'
+	| 'server-source'
+	| 'runtime-restart'
+	| 'other';
+
+/**
+ * Framework-owned invalidation plan for one changed file.
+ *
+ * @remarks
+ * This is the explicit invalidation matrix Workstream 4 needs. Watchers and
+ * runtime adapters consume this plan instead of encoding file-category rules in
+ * host-specific control flow.
+ */
+export interface DevelopmentInvalidationPlan {
+	category: DevelopmentInvalidationCategory;
+	invalidateServerModules: boolean;
+	refreshRoutes: boolean;
+	reloadBrowser: boolean;
+	delegateToHmr: boolean;
+	processorHandledAsset: boolean;
+}
+
+/**
+ * Framework-owned development invalidation service.
+ *
+ * @remarks
+ * This service centralizes two responsibilities:
+ * - file-change classification for watcher behavior
+ * - app-owned server-module invalidation
+ *
+ * Hosts and watchers should ask this service what a file change means instead
+ * of deciding invalidation semantics inline.
+ */
+export class DevelopmentInvalidationService {
+	private readonly appConfig: EcoPagesAppConfig;
+
+	constructor(appConfig: EcoPagesAppConfig) {
+		this.appConfig = appConfig;
+	}
+
+	/**
+	 * Invalidates the app-owned server-module graph.
+	 */
+	invalidateServerModules(changedFiles?: string[]): void {
+		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
+		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
+		clearCollectionServerBuildArtifacts(this.appConfig);
+
+		for (const processor of this.appConfig.processors.values()) {
+			processor.invalidateServerArtifacts?.();
+		}
+	}
+
+	/**
+	 * Classifies one changed file into an explicit framework invalidation plan.
+	 */
+	planFileChange(filePath: string): DevelopmentInvalidationPlan {
+		if (this.isRuntimeRestartFile(filePath)) {
+			return {
+				category: 'runtime-restart',
+				invalidateServerModules: false,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: false,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isPublicDirFile(filePath)) {
+			return {
+				category: 'public-asset',
+				invalidateServerModules: false,
+				refreshRoutes: false,
+				reloadBrowser: true,
+				delegateToHmr: false,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.matchesAdditionalWatchPaths(filePath)) {
+			return {
+				category: 'additional-watch',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: true,
+				delegateToHmr: false,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isIncludeSourceFile(filePath)) {
+			return {
+				category: 'include-source',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isExplicitServerViewFile(filePath)) {
+			return {
+				category: 'explicit-server-view',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isRouteSourceFile(filePath)) {
+			return {
+				category: 'route-source',
+				invalidateServerModules: true,
+				refreshRoutes: true,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (this.isProcessorOwnedAsset(filePath)) {
+			return {
+				category: 'processor-owned-asset',
+				invalidateServerModules: false,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: false,
+				processorHandledAsset: true,
+			};
+		}
+
+		if (this.isServerModuleSourceFile(filePath)) {
+			return {
+				category: 'server-source',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		return {
+			category: 'other',
+			invalidateServerModules: false,
+			refreshRoutes: false,
+			reloadBrowser: false,
+			delegateToHmr: true,
+			processorHandledAsset: false,
+		};
+	}
+
+	/**
+	 * Returns whether a config or dotenv edit should restart the development process.
+	 */
+	isRuntimeRestartFile(filePath: string): boolean {
+		return this.isConfigModuleFile(filePath) || isDevEnvFilePath(filePath, this.appConfig.rootDir);
+	}
+
+	/** Returns whether `filePath` is the resolved application config module. */
+	isConfigModuleFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const configPath = this.appConfig.absolutePaths?.config
+			? path.resolve(this.appConfig.absolutePaths.config)
+			: undefined;
+
+		return configPath !== undefined && resolvedPath === configPath;
+	}
+
+	/**
+	 * Returns whether the file lives under the public directory.
+	 */
+	isPublicDirFile(filePath: string): boolean {
+		return path.resolve(filePath).startsWith(this.appConfig.absolutePaths.publicDir);
+	}
+
+	/**
+	 * Returns whether the file matches `additionalWatchPaths`.
+	 */
+	matchesAdditionalWatchPaths(filePath: string): boolean {
+		const normalizedPath = path.resolve(filePath);
+		const patterns = this.appConfig.additionalWatchPaths;
+		if (!patterns.length) return false;
+
+		for (const pattern of patterns) {
+			if (pattern.includes('*')) {
+				const ext = pattern.replace(/\*\*?\/\*|\*+/g, '');
+				if (normalizedPath.endsWith(ext)) return true;
+				continue;
+			}
+
+			const resolvedPattern = path.isAbsolute(pattern) ? pattern : path.resolve(this.appConfig.rootDir, pattern);
+
+			if (normalizedPath === resolvedPattern || normalizedPath.startsWith(`${resolvedPattern}${path.sep}`)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns whether the file is a route source file.
+	 */
+	isRouteSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+
+		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
+	/**
+	 * Returns whether the file is an include/template source file.
+	 */
+	isIncludeSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+
+		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.includesDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
+	/**
+	 * Returns whether the file is an explicit server-rendered view module.
+	 *
+	 * @remarks
+	 * These modules are typically registered through `renderServerModule` in
+	 * `app.ts` rather than the filesystem router. They need a full browser reload
+	 * because their HTML is produced on the server, not through client HMR entrypoints.
+	 */
+	isExplicitServerViewFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
+
+		if (resolvedPath !== viewsDir && !resolvedPath.startsWith(`${viewsDir}${path.sep}`)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
+	/**
+	 * Returns whether the file is a server-executed source module outside the
+	 * special route/include buckets.
+	 */
+	isServerModuleSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.srcDir)) {
+			return false;
+		}
+
+		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
+			return true;
+		}
+
+		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	}
+
+	/**
+	 * Returns whether a processor owns the changed file as an asset input.
+	 *
+	 * @remarks
+	 * Watch config drives processor notifications only. Asset ownership requires
+	 * declared capabilities so dependency-only watches (for example content
+	 * collection MDX scans) do not skip server invalidation and HMR.
+	 */
+	isProcessorOwnedAsset(filePath: string): boolean {
+		for (const processor of this.appConfig.processors.values()) {
+			const capabilities = processor.getAssetCapabilities?.() ?? [];
+			if (capabilities.length === 0) {
+				continue;
+			}
+
+			const matchesConfiguredAsset =
+				typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
+
+			if (
+				matchesConfiguredAsset &&
+				capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+}

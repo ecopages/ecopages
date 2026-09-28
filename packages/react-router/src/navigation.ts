@@ -5,125 +5,111 @@
 
 /// <reference types="@ecopages/core/declarations" />
 
-import { type ComponentType } from 'react';
-import type { EcoRouterOptions } from './types.ts';
+import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
+import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
+import type { EcoComponentConfig } from '@ecopages/core';
+import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
+import type { ComponentType } from 'react';
+import { adaptPageModule } from './page-module-adapter.ts';
+
+const ROUTER_PROPS_SCRIPT_ID = '__ECO_PAGE_DATA__';
+const PAGE_BOOTSTRAP_SELECTOR = 'script[data-eco-page-bootstrap="react-router"]';
+
+type PageProps = Record<string, unknown>;
+type NavigablePageComponent = ComponentType<PageProps> & { config?: EcoComponentConfig };
 
 export type PageState = {
-	Component: ComponentType<any>;
-	props: Record<string, any>;
+	Component: NavigablePageComponent;
+	props: PageProps;
 };
 
-export type InterceptDecision =
-	| { shouldIntercept: true }
-	| {
-			shouldIntercept: false;
-			reason:
-				| 'modified-click'
-				| 'non-left-click'
-				| 'external-target'
-				| 'explicit-reload'
-				| 'download'
-				| 'invalid-href'
-				| 'cross-origin';
-	  };
-
 /**
- * Determines whether a link click should be intercepted for client-side navigation.
+ * Fully resolved page module ready for SPA commit.
  *
- * Standard SPA navigation rules:
- * - Modified clicks (Cmd/Ctrl/Shift/Alt) open in new tab
- * - Non-left clicks use default browser behavior
- * - External targets, downloads, and cross-origin links navigate normally
- *
- * @returns Object indicating whether to intercept and the reason if not
+ * @remarks
+ * `config` is carried explicitly so layout composition does not depend on
+ * mutating the imported module namespace. `Component` may be a thin wrapper
+ * that exposes the resolved config for {@link PageContent}.
  */
-export function getInterceptDecision(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): InterceptDecision {
-	if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-		return { shouldIntercept: false, reason: 'modified-click' };
-	}
-	if (event.button !== 0) return { shouldIntercept: false, reason: 'non-left-click' };
+export type LoadedPageModule = {
+	Component: NavigablePageComponent;
+	config?: EcoComponentConfig;
+	/** Completes before the router commits this Page to the existing React root. */
+	preload?: (props: PageProps) => Promise<void>;
+	props: PageProps;
+	doc: Document;
+	finalPath: string;
+	moduleUrl: string;
+};
 
-	const target = link.getAttribute('target');
-	if (target && target !== '_self') return { shouldIntercept: false, reason: 'external-target' };
+export type FetchedPageDocument = {
+	doc: Document;
+	finalPath: string;
+	html: string;
+};
 
-	if (link.hasAttribute(options.reloadAttribute)) return { shouldIntercept: false, reason: 'explicit-reload' };
-	if (link.hasAttribute('download')) return { shouldIntercept: false, reason: 'download' };
+type LoadPageModuleOptions = {
+	signal?: AbortSignal;
+};
 
-	const href = link.getAttribute('href');
-	if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
-		return { shouldIntercept: false, reason: 'invalid-href' };
-	}
-
-	const url = new URL(href, window.location.origin);
-	if (url.origin !== window.location.origin) return { shouldIntercept: false, reason: 'cross-origin' };
-
-	return { shouldIntercept: true };
-}
+type LoadPageModuleFromDocumentOptions = {
+	/**
+	 * Explicit page module URL to import instead of extracting one from the
+	 * document page-data payload.
+	 *
+	 * React Router uses this during HMR-driven reloads so the active hot module
+	 * entry wins over any static bootstrap asset references embedded in the HTML.
+	 */
+	moduleUrlOverride?: string;
+};
 
 /**
- * Extracts component module URL from window.__ECO_PAGE__.
- * For current document, returns the module path set by hydration script.
- * For fetched documents, parses the hydration script to extract the module path.
+ * Reads the runtime page-module marker set by hydration for the current document.
  */
 function extractComponentUrlFromMarker(doc: Document): string | null {
-	if (doc === document && window.__ECO_PAGE__?.module) {
-		return window.__ECO_PAGE__.module;
+	if (doc === document && window.__ECO_PAGES__?.page?.module) {
+		return window.__ECO_PAGES__.page.module;
 	}
 	return null;
 }
 
-/**
- * Matches default import: `import Content from './Content'`
- * Used to extract module path from hydration script for fetched documents.
- */
-const DEFAULT_IMPORT_REGEX = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"]/;
+function parsePageDataPayload(doc: Document): unknown {
+	const propsScript = doc.getElementById(ROUTER_PROPS_SCRIPT_ID);
+	if (!propsScript?.textContent) {
+		return undefined;
+	}
 
-/**
- * Matches namespace import: `import * as Content from './Content'`
- * Used for MDX components. Also handles minified: `import*as Content from'./Content'`
- */
-const NAMESPACE_IMPORT_REGEX = /import\s*\*\s*as\s*(\w+)\s*from\s*['"]([^'"]+)['"]/;
-
-/**
- * Extracts import path from hydration script code using regex.
- * Used for fetched documents. Less reliable due to minification.
- */
-function extractModulePathFromCode(code: string): string | null {
-	const defaultMatch = code.match(DEFAULT_IMPORT_REGEX);
-	const namespaceMatch = code.match(NAMESPACE_IMPORT_REGEX);
-	return (defaultMatch || namespaceMatch)?.[2] ?? null;
+	try {
+		return JSON.parse(propsScript.textContent) as unknown;
+	} catch (error) {
+		console.error('[EcoRouter] Failed to parse props:', error);
+		return undefined;
+	}
 }
 
 /**
- * Extracts serialized page props from window.__ECO_PAGE__ or fetched document.
- * For current document, returns props set by hydration script.
- * For fetched documents, parses the JSON script tag directly.
+ * Extracts serialized page props from window.__ECO_PAGES__.page or fetched document.
+ *
+ * @remarks
+ * For the current document, returns props set by the hydration script.
+ * For fetched documents, parses `#__ECO_PAGE_DATA__` directly.
  */
-export function extractProps(doc: Document): Record<string, any> {
-	if (doc === document && window.__ECO_PAGE__?.props) {
-		return window.__ECO_PAGE__.props;
+export function extractProps(doc: Document): PageProps {
+	if (doc === document && window.__ECO_PAGES__?.page?.props) {
+		return resolveEcoPageDataProps(window.__ECO_PAGES__.page.props);
 	}
 
-	const propsScript = doc.getElementById('__ECO_PAGE_DATA__');
-	if (propsScript?.textContent) {
-		try {
-			return JSON.parse(propsScript.textContent);
-		} catch (e) {
-			console.error('[EcoRouter] Failed to parse props:', e);
-			return {};
-		}
-	}
+	return resolveEcoPageDataProps(parsePageDataPayload(doc));
+}
 
-	return {};
+function isReactRouteDocument(doc: Document): boolean {
+	return getEcoDocumentOwner(doc) === 'react-router';
 }
 
 /**
  * Adds cache-busting timestamp for HMR in development.
  *
+ * @remarks
  * Prevents loading stale cached modules when navigating to previously visited pages.
  * Disabled in production where filenames have content hashes.
  */
@@ -136,62 +122,66 @@ function addCacheBuster(url: string): string {
 }
 
 /**
- * Extracts component module URL using multi-tier strategy.
+ * Extracts the browser-importable page module URL from a document.
  *
- * 1. Read from window.__ECO_PAGE__.module (for current document)
- * 2. Parse inline hydration script with regex (for fetched documents)
- * 3. Fetch and parse external hydration script (final fallback)
+ * @remarks
+ * Discovery order:
+ * 1. `#__ECO_PAGE_DATA__` envelope (`schemaVersion` + `moduleUrl`)
+ * 2. `window.__ECO_PAGES__.page.module` on the current document
+ * 3. `script[data-eco-page-bootstrap="react-router"]` `src` (the page entry asset)
  *
- * Regex parsing is less reliable due to minification.
+ * Hydration JavaScript is never parsed. Documents without an explicit module
+ * source return `null`.
  */
-export async function extractComponentUrl(doc: Document): Promise<string | null> {
+export function extractComponentUrl(doc: Document): string | null {
+	const manifestUrl = resolveEcoPageDataModuleUrl(parsePageDataPayload(doc));
+	if (manifestUrl) {
+		return manifestUrl;
+	}
+
 	const markerUrl = extractComponentUrlFromMarker(doc);
-	if (markerUrl) return markerUrl;
-
-	const scripts = Array.from(doc.querySelectorAll('script'));
-
-	const inlineHydrationScript = scripts.find(
-		(s) =>
-			!s.src &&
-			!!s.textContent &&
-			s.textContent.includes('__ECO_PAGE__') &&
-			s.textContent.includes('hydrateRoot') &&
-			s.textContent.includes('import'),
-	);
-
-	if (inlineHydrationScript?.textContent) {
-		return extractModulePathFromCode(inlineHydrationScript.textContent);
+	if (markerUrl) {
+		return markerUrl;
 	}
 
-	const hydrationScript = scripts.find((s) => s.src?.includes('hydration.js') && s.src?.includes('ecopages-react'));
-	if (!hydrationScript?.src) return null;
-
-	try {
-		const scriptUrl = addCacheBuster(hydrationScript.src);
-		const res = await fetch(scriptUrl);
-		const code = await res.text();
-		return extractModulePathFromCode(code);
-	} catch {
-		return null;
-	}
+	const bootstrapScript = doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR);
+	return bootstrapScript?.src || null;
 }
 
 /**
  * Fetches and parses a page, returning its component, props, and document.
  *
- * Flow: Fetch HTML → Parse → Extract props → Extract component URL → Import module
- *
- * Handles multiple export patterns (Content, default.Content, default) for different
- * integration setups. Does NOT update DOM - caller applies changes.
- *
- * @param url - The URL to load
- * @returns Object with Component, props, doc, and finalPath, or null on error
+ * @remarks
+ * Flow: fetch HTML → parse → extract props → extract module URL → import module.
+ * The Page's optional preload completes before this returns. This function does
+ * not update the DOM; the caller applies changes.
  */
 export async function loadPageModule(
 	url: string,
-): Promise<{ Component: ComponentType<any>; props: Record<string, any>; doc: Document; finalPath: string } | null> {
+	options: LoadPageModuleOptions = {},
+): Promise<LoadedPageModule | null> {
+	const fetchedPage = await fetchPageDocument(url, options);
+	if (!fetchedPage) {
+		return null;
+	}
+
+	return loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath);
+}
+
+export async function fetchPageDocument(
+	url: string,
+	options: LoadPageModuleOptions = {},
+): Promise<FetchedPageDocument | null> {
 	try {
-		const res = await fetch(url);
+		const res = await fetch(url, {
+			signal: options.signal,
+			headers: {
+				Accept: 'text/html',
+			},
+		});
+		if (!isHtmlPageResponse(res)) {
+			return null;
+		}
 		const html = await res.text();
 
 		const finalUrl = new URL(res.url || url, window.location.origin);
@@ -199,49 +189,58 @@ export async function loadPageModule(
 
 		const doc = new DOMParser().parseFromString(html, 'text/html');
 
-		const props = extractProps(doc);
-		const componentUrl = await extractComponentUrl(doc);
-
-		if (!componentUrl) {
-			console.error('[EcoRouter] Could not find component URL');
-			return null;
-		}
-
-		const moduleUrl = addCacheBuster(componentUrl);
-		const module = await import(/* @vite-ignore */ moduleUrl);
-		const rawComponent = module.Content || module.default?.Content || module.default;
-
-		const config = module.config || rawComponent?.config;
-
-		if (!rawComponent) {
-			console.error('[EcoRouter] No component found in module');
-			return null;
-		}
-
-		if (config && !rawComponent.config) {
-			rawComponent.config = config;
-		}
-
-		window.__ECO_PAGE__ = {
-			module: componentUrl,
-			props,
-		};
-
-		return { Component: rawComponent, props, doc, finalPath };
+		return { doc, finalPath, html };
 	} catch (e) {
+		if (e instanceof DOMException && e.name === 'AbortError') {
+			return null;
+		}
 		console.error('[EcoRouter] Navigation failed:', e);
 		return null;
 	}
 }
 
 /**
- * Convenience wrapper around getInterceptDecision that returns a boolean.
- * Use getInterceptDecision directly when you need the reason for debugging.
+ * Loads the page module for a fetched or current document.
+ *
+ * @remarks
+ * The router extracts the page module URL from the document page-data payload or
+ * bootstrap marker. Callers can provide `options.moduleUrlOverride` when the
+ * document is stale with respect to the active runtime module identity, such as
+ * during HMR-driven current-page reloads. The optional Page preload is awaited
+ * before the module is returned for rendering.
  */
-export function shouldInterceptClick(
-	event: MouseEvent,
-	link: HTMLAnchorElement,
-	options: Required<EcoRouterOptions>,
-): boolean {
-	return getInterceptDecision(event, link, options).shouldIntercept;
+export async function loadPageModuleFromDocument(
+	doc: Document,
+	finalPath: string,
+	options: LoadPageModuleFromDocumentOptions = {},
+): Promise<LoadedPageModule | null> {
+	const props = extractProps(doc);
+	const componentUrl = options.moduleUrlOverride ?? extractComponentUrl(doc);
+
+	if (!componentUrl) {
+		if (isReactRouteDocument(doc)) {
+			console.error('[EcoRouter] Could not find component URL');
+		}
+		return null;
+	}
+
+	const moduleUrl = addCacheBuster(componentUrl);
+	const module = (await import(/* @vite-ignore */ moduleUrl)) as unknown;
+	const adapted = adaptPageModule(module);
+	if (!adapted) {
+		console.error('[EcoRouter] No component found in module');
+		return null;
+	}
+
+	await adapted.preload?.(props);
+
+	return {
+		Component: adapted.Component,
+		config: adapted.config,
+		preload: adapted.preload,
+		props,
+		doc,
+		finalPath,
+		moduleUrl: componentUrl,
+	};
 }

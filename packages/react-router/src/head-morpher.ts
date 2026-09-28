@@ -4,167 +4,68 @@
  * @module
  */
 
-const PRESERVE_SELECTORS = ['script[type="importmap"]', 'meta[charset]', '[data-eco-persist]'];
+import { collectRerunScripts, flushPendingRerunScripts } from '@ecopages/core/client/navigation-scripts';
+import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
+import {
+	appendAnonymousHeadElements,
+	collectRemovableHeadElements,
+	indexHeadChildrenByKey,
+	mergeIncomingHeadElements,
+} from './head-morpher-sync.ts';
 
-/**
- * Computes a unique key for a head element to enable diffing.
- * Elements with the same key are considered the same across navigations.
- */
-function getHeadElementKey(el: Element): string | null {
-	const tag = el.tagName.toLowerCase();
+export type HeadMorphResult = {
+	cleanup: () => void;
+	flushRerunScripts: () => void;
+};
 
-	switch (tag) {
-		case 'title':
-			return 'title';
+function isReactRouterPageBootstrapScriptId(scriptId: string | null): boolean {
+	return !!scriptId && scriptId.startsWith('ecopages-react-') && !scriptId.startsWith('ecopages-react-island-');
+}
 
-		case 'meta': {
-			const name = el.getAttribute('name') || el.getAttribute('property') || el.getAttribute('http-equiv');
-			return name ? `meta:${name}` : null;
-		}
-
-		case 'link': {
-			const rel = el.getAttribute('rel');
-			const href = el.getAttribute('href');
-			if (rel === 'stylesheet' && href) return `stylesheet:${href}`;
-			if (rel === 'icon' || rel === 'shortcut icon') return 'favicon';
-			if (rel === 'canonical') return 'canonical';
-			return href ? `link:${href}` : null;
-		}
-
-		case 'script': {
-			if (el.getAttribute('type') === 'importmap') return 'importmap';
-			const src = (el as HTMLScriptElement).src;
-			return src ? `script:${src}` : null;
-		}
-
-		case 'style': {
-			const dataId = el.getAttribute('data-eco-style');
-			return dataId ? `style:${dataId}` : null;
-		}
-
-		default:
-			return null;
-	}
+function isHydrationScript(el: HTMLScriptElement): boolean {
+	const src = el.getAttribute('src');
+	const scriptId = el.getAttribute('data-eco-script-id');
+	return isReactRouterPageBootstrapScriptId(scriptId) || (!!src && isReactRouterPageBootstrapAssetSrc(src));
 }
 
 /**
  * Morphs the current document head to match the new document's head.
- * Now splits the process into adding new elements and returning a cleanup function
- * to remove old ones. This is crucial for View Transitions to ensure styles
- * don't disappear before the "old" snapshot is taken.
  *
- * @param newDocument - The parsed document from the navigation target
- * @returns Promise that resolves to a cleanup function when new stylesheets have loaded
+ * @remarks
+ * Returns cleanup and rerun hooks separately so callers can defer head removal
+ * until after a view-transition snapshot captures the old styles.
  */
-export async function morphHead(newDocument: Document): Promise<() => void> {
+export async function morphHead(newDocument: Document): Promise<HeadMorphResult> {
 	const currentHead = document.head;
 	const newHead = newDocument.head;
-
-	const currentElements = new Map<string, Element>();
-	const newElements = new Map<string, Element>();
+	const currentElements = indexHeadChildrenByKey(currentHead);
+	const newElements = indexHeadChildrenByKey(newHead);
 	const stylesheetPromises: Promise<void>[] = [];
-	const elementsToRemove: Element[] = [];
+	const pendingRerunScripts = collectRerunScripts(newDocument, (script) => !isHydrationScript(script));
 
-	/**
-	 * First, map existing head elements by their keys
-	 * to enable efficient diffing.
-	 */
-	for (const el of Array.from(currentHead.children)) {
-		const key = getHeadElementKey(el);
-		if (key) currentElements.set(key, el);
-	}
+	mergeIncomingHeadElements({
+		currentHead,
+		newElements,
+		currentElements,
+		shouldSkipNewScript: isHydrationScript,
+		stylesheetPromises,
+	});
+	appendAnonymousHeadElements(currentHead, newHead);
 
-	/**
-	 * Next, map new head elements by their keys.
-	 * This allows us to see which elements are new, updated, or removed.
-	 */
-	for (const el of Array.from(newHead.children)) {
-		const key = getHeadElementKey(el);
-		if (key) newElements.set(key, el);
-	}
-
-	/**
-	 * Now, iterate over new elements to add or update them in the current head.
-	 */
-	for (const [key, newEl] of newElements) {
-		const currentEl = currentElements.get(key);
-
-		if (!currentEl) {
-			const src = newEl.getAttribute('src');
-			/**
-			 * Skip hydration scripts during SPA navigation to prevent re-mounting
-			 *
-			 * In an SPA transition, the EcoRouter is already running and handling the page update.
-			 * The new page's HTML includes a hydration script (for initial load support), but
-			 * if we let it execute now, it would re-bootstrap the React app from scratch,
-			 * causing a full re-mount, state loss, and a visual flash.
-			 *
-			 * By blocking this script, we ensure the router maintains control and state.
-			 */
-			if (newEl.tagName === 'SCRIPT' && src && src.includes('hydration.js') && src.includes('ecopages-react')) {
-				continue;
-			}
-
-			const cloned = newEl.cloneNode(true) as Element;
-
-			/**
-			 * If the new element is a stylesheet, we need to wait for it to load
-			 * before considering the head morph complete. This prevents FOUC.
-			 */
-			if (cloned.tagName === 'LINK' && (cloned as HTMLLinkElement).rel === 'stylesheet') {
-				const loadPromise = new Promise<void>((resolve) => {
-					(cloned as HTMLLinkElement).onload = () => resolve();
-					(cloned as HTMLLinkElement).onerror = () => resolve();
-				});
-				stylesheetPromises.push(loadPromise);
-			}
-
-			currentHead.appendChild(cloned);
-		} else if (key === 'title' && currentEl.textContent !== newEl.textContent) {
-			currentEl.textContent = newEl.textContent;
-		} else if (key.startsWith('style:') && currentEl.textContent !== newEl.textContent) {
-			currentEl.textContent = newEl.textContent;
-		}
-	}
-
-	/**
-	 * Finally, handle any new elements without keys (e.g., inline scripts/styles)
-	 */
-	for (const newEl of Array.from(newHead.children)) {
-		const key = getHeadElementKey(newEl);
-		if (!key) {
-			currentHead.appendChild(newEl.cloneNode(true));
-		}
-	}
-
-	/**
-	 * Wait for all new stylesheets to load before proceeding.
-	 */
 	if (stylesheetPromises.length > 0) {
 		await Promise.all(stylesheetPromises);
 	}
 
-	/**
-	 * Identify and prepare to remove any old elements
-	 * that are no longer present in the new head.
-	 */
-	for (const [key, el] of currentElements) {
-		if (!newElements.has(key)) {
-			const shouldPreserve = PRESERVE_SELECTORS.some((sel) => el.matches(sel));
-			if (!shouldPreserve) {
-				elementsToRemove.push(el);
-			}
-		}
-	}
+	const elementsToRemove = collectRemovableHeadElements(currentElements, newElements);
 
-	/**
-	 * Return a cleanup function to remove old elements.
-	 * This allows the caller to control when the removal happens,
-	 * which is important for View Transitions.
-	 */
-	return () => {
-		for (const el of elementsToRemove) {
-			el.remove();
-		}
+	return {
+		cleanup: () => {
+			for (const element of elementsToRemove) {
+				element.remove();
+			}
+		},
+		flushRerunScripts: () => {
+			flushPendingRerunScripts(pendingRerunScripts);
+		},
 	};
 }

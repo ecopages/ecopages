@@ -3,7 +3,17 @@
  * @module
  */
 
-import { applyViewTransitionNames, clearViewTransitionNames } from '../view-transition-utils.ts';
+import {
+	applyViewTransitionNames,
+	clearViewTransitionNames,
+	ensureRootViewTransitionStyles,
+	navigationHasNamedViewTransitions,
+} from '@ecopages/core/client/view-transitions';
+
+export type ViewTransitionNavigationOptions = {
+	/** Incoming document for the navigation (used to detect named transitions on the next page). */
+	incomingDocument?: Document;
+};
 
 /**
  * Service for handling View Transition API during page transitions.
@@ -12,8 +22,12 @@ import { applyViewTransitionNames, clearViewTransitionNames } from '../view-tran
 export class ViewTransitionManager {
 	private enabled: boolean;
 
-	constructor(enabled: boolean) {
+	constructor(enabled = true) {
 		this.enabled = enabled;
+
+		if (this.enabled) {
+			ensureRootViewTransitionStyles();
+		}
 	}
 
 	/**
@@ -26,11 +40,24 @@ export class ViewTransitionManager {
 	/**
 	 * Execute a callback with view transition if available and enabled.
 	 * Falls back to direct execution if not supported.
+	 *
+	 * Navigation correctness depends on the DOM update callback completing, not on
+	 * the browser finishing the visual transition animation. Awaiting
+	 * `finished` here can leave router transactions artificially in-flight and
+	 * block later navigations during rapid repeated clicks, so the router waits
+	 * for `updateCallbackDone` and lets the animation finish in the background.
 	 * @param callback - The DOM update callback to execute
-	 * @returns Promise that resolves when the transition completes
+	 * @returns Promise that resolves when the DOM update has committed
 	 */
-	async transition(callback: () => void | Promise<void>): Promise<void> {
-		if (!this.enabled || !this.isSupported()) {
+	async transition(
+		callback: () => void | Promise<void>,
+		options: ViewTransitionNavigationOptions = {},
+	): Promise<void> {
+		const incoming = options.incomingDocument;
+		const useNamedTransition =
+			this.enabled && this.isSupported() && navigationHasNamedViewTransitions(document, incoming ?? document);
+
+		if (!useNamedTransition) {
 			await callback();
 			return;
 		}
@@ -52,15 +79,31 @@ export class ViewTransitionManager {
 			applyViewTransitionNames();
 		});
 
-		try {
-			await transition.finished;
-		} finally {
-			/**
-			 * Cleanup view transition names and dynamic styles after transition completes.
-			 * This prevents style pollution.
-			 */
-			clearViewTransitionNames();
-		}
+		void transition.ready.catch((error: unknown) => {
+			if (error instanceof Error && error.name === 'AbortError') {
+				return;
+			}
+
+			console.error('[ecopages] View transition failed to start:', error);
+		});
+
+		void transition.finished
+			.catch((error: unknown) => {
+				if (error instanceof Error && error.name === 'AbortError') {
+					return;
+				}
+
+				console.error('[ecopages] View transition lifecycle failed:', error);
+			})
+			.finally(() => {
+				/**
+				 * Cleanup view transition names and dynamic styles after the browser's
+				 * animation lifecycle completes.
+				 */
+				clearViewTransitionNames();
+			});
+
+		await transition.updateCallbackDone;
 	}
 }
 

@@ -1,16 +1,24 @@
 # dependencies
-/node_modules
+node_modules
+
+# pnpm
+.pnpm-store/
 
 # ecopages
 .eco
+.eco-*
+.templates/
 
 # build
 public/js
+**/dist
+**/dist-*
 
 # misc
 .DS_Store
 *.pem
 .agent
+.cursor/
 
 # local env files
 .env
@@ -27,9 +35,12 @@ public/js
 **/*.bun
 **/__screenshots__
 
-# Playwright
+# Testing
 test-results/
 playwright-report/
+.vitest-attachments/
+.e2e-tmp/
 
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/
+.audit/

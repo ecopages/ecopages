@@ -1,0 +1,372 @@
+---
+title: 'Ecopages CLI'
+description: 'Scaffold, develop, build, and serve Ecopages apps with the ecopages CLI.'
+order: 1
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
+
+# ecopages CLI
+
+The `ecopages` npm package is the official and preferred command-line tool for scaffolding and running Ecopages projects.
+
+It is best when you want:
+
+- **Fast project creation** from templates
+- **Consistent app lifecycle commands** (`dev`, `build`, `preview`, `start`)
+- **A single entrypoint** for common local workflows
+
+<RuiAlert variant="warning" layout="banner" class="unstyled">
+	<RuiAlertTitle>Draft / Experimental</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>The CLI is currently evolving. Keep versions pinned in team projects to ensure stable team workflows.</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+## Install
+
+You can run the CLI directly with `bunx` (no global install required):
+
+<CodeTabs
+	name="ecopages-cli-run"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npx ecopages --help' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages --help' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages --help' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+Or install it in a project:
+
+<CodeTabs
+	name="ecopages-cli-install"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install ecopages' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add ecopages' },
+		{ id: 'bun', label: 'bun', code: 'bun add ecopages' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Initialize Projects
+
+### Init Command
+
+Use the init command with a target directory, then optionally select a template:
+
+<CodeTabs
+	name="ecopages-init-command"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npx ecopages init my-app' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm dlx ecopages init my-app' },
+		{ id: 'bun', label: 'bun', code: 'bunx ecopages init my-app' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+### One-Shot Commands (Complete)
+
+Use these when you want a full bootstrap in one command chain.
+
+**JSX template** - Creates a minimal Ecopages app with default setup. <a href="https://github.com/ecopages/ecopages/tree/main/templates/jsx" target="_blank">jsx</a>.
+
+<CodeTabs
+	name="ecopages-basic-starter"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init ecopages-app && cd ecopages-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init ecopages-app && cd ecopages-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init ecopages-app && cd ecopages-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**Radiant UI template** - Creates an Ecopages JSX app using Radiant UI components and the docs theme preference control. <a href="https://github.com/ecopages/ecopages/tree/main/templates/radiant" target="_blank">radiant</a>.
+
+<CodeTabs
+	name="ecopages-radiant"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init radiant-app --template radiant && cd radiant-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init radiant-app --template radiant && cd radiant-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init radiant-app --template radiant && cd radiant-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**Blog with Ecopages JSX** - Creates a content-focused blog using the `blog-jsx` template. <a href="https://github.com/ecopages/ecopages/tree/main/templates/blog-jsx" target="_blank">blog-jsx</a>.
+
+<CodeTabs
+	name="ecopages-blog-jsx"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init blog-jsx --template blog-jsx && cd blog-jsx && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**Blog with React** - Creates a React-powered blog with routing preconfigured. <a href="https://github.com/ecopages/ecopages/tree/main/templates/blog-react" target="_blank">blog-react</a>.
+
+<CodeTabs
+	name="ecopages-blog-react"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init blog-react --template blog-react && cd blog-react && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init blog-react --template blog-react && cd blog-react && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init blog-react --template blog-react && cd blog-react && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**React with shadcn/ui** - Creates the React template configured for shadcn/ui on the React Aria base, with Button, Card, and Input already installed. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-shadcn" target="_blank">react-shadcn</a>.
+
+<CodeTabs
+	name="ecopages-react-shadcn"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init react-shadcn --template react-shadcn && cd react-shadcn && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+**React app with Better Auth + Drizzle** - Creates a full app template with auth and database workflow included. <a href="https://github.com/ecopages/ecopages/tree/main/templates/react-better-auth" target="_blank">react-better-auth</a>.
+
+<CodeTabs
+	name="ecopages-better-auth"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && npm install && npm run db:generate && npm run db:migrate && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && pnpm install && pnpm run db:generate && pnpm run db:migrate && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init react-better-auth --template react-better-auth && cd react-better-auth && bun install && bun db:generate && bun db:migrate && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+### Step-by-Step (Individual)
+
+#### 1) Basic starter
+
+<CodeTabs
+	name="ecopages-basic-starter-steps"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: `npx ecopages init ecopages-app
+cd ecopages-app
+npm install
+npm run dev`,
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: `pnpm dlx ecopages init ecopages-app
+cd ecopages-app
+pnpm install
+pnpm run dev`,
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: `bunx ecopages init ecopages-app
+cd ecopages-app
+bun install
+bun dev`,
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+#### 2) Blog with KitaJS
+
+<CodeTabs
+	name="ecopages-blog-jsx-steps"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: `npx ecopages init blog-jsx --template blog-jsx
+cd blog-jsx
+npm install
+npm run dev`,
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: `pnpm dlx ecopages init blog-jsx --template blog-jsx
+cd blog-jsx
+pnpm install
+pnpm run dev`,
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: `bunx ecopages init blog-jsx --template blog-jsx
+cd blog-jsx
+bun install
+bun dev`,
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+#### 3) Blog with React
+
+<CodeTabs
+	name="ecopages-blog-react-steps"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: `npx ecopages init blog-react --template blog-react
+cd blog-react
+npm install
+npm run dev`,
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: `pnpm dlx ecopages init blog-react --template blog-react
+cd blog-react
+pnpm install
+pnpm run dev`,
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: `bunx ecopages init blog-react --template blog-react
+cd blog-react
+bun install
+bun dev`,
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+#### 4) React app with Better Auth + Drizzle
+
+<CodeTabs
+	name="ecopages-better-auth-steps"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: `npx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
+npm install
+npm run db:generate
+npm run db:migrate
+npm run dev`,
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: `pnpm dlx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
+pnpm install
+pnpm run db:generate
+pnpm run db:migrate
+pnpm run dev`,
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: `bunx ecopages init react-better-auth --template react-better-auth
+cd react-better-auth
+bun install
+bun db:generate
+bun db:migrate
+bun dev`,
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Runtime Notes
+
+The CLI runs your app on Bun when you launch the command through Bun (`bun dev`, `bun run dev`, `bunx ecopages …`) and on Node with any other launcher. Override it with `--runtime bun` or `--runtime node` on the lifecycle commands.
+
+## Command Details
+
+This page focuses on setup and project bootstrapping.
+
+For the complete command, flag, and environment variable reference, see [CLI Reference](/docs/reference/cli-reference).
+
+## When To Use `ecopages` vs `@ecopages/*` Packages
+
+- Use **`ecopages` CLI** for scaffolding and local app lifecycle commands.
+- Use **`@ecopages/*` packages** from npm for framework APIs in app code.
+
+For the complete package map, see [Ecosystem Packages](/docs/ecosystem/packages).

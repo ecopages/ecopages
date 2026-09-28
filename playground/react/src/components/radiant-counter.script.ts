@@ -1,34 +1,58 @@
-import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
-import { customElement } from '@ecopages/radiant/decorators/custom-element';
-import { onEvent } from '@ecopages/radiant/decorators/on-event';
-import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
-import { query } from '@ecopages/radiant/decorators/query';
-import { reactiveProp } from '@ecopages/radiant/decorators/reactive-prop';
-
 export type RadiantCounterProps = {
-	value?: number;
+	count?: number;
 	class?: string;
 };
 
-@customElement('radiant-counter')
-export class RadiantCounter extends RadiantElement {
-	@reactiveProp({ type: Number, reflect: true, defaultValue: 0 }) value!: number;
-	@query({ ref: 'count' }) countText!: HTMLElement;
+export class RadiantCounter extends HTMLElement {
+	static observedAttributes = ['count'];
 
-	@onEvent({ ref: 'decrement', type: 'click' })
-	decrement() {
-		if (this.value > 0) this.value--;
+	connectedCallback() {
+		this.querySelector('[data-ref="decrement"]')?.addEventListener('click', this.decrement);
+		this.querySelector('[data-ref="increment"]')?.addEventListener('click', this.increment);
+		this.updateCount();
 	}
 
-	@onEvent({ ref: 'increment', type: 'click' })
-	increment() {
-		this.value++;
+	disconnectedCallback() {
+		this.querySelector('[data-ref="decrement"]')?.removeEventListener('click', this.decrement);
+		this.querySelector('[data-ref="increment"]')?.removeEventListener('click', this.increment);
 	}
 
-	@onUpdated('value')
-	updateCount() {
-		this.countText.textContent = this.value.toString();
+	attributeChangedCallback(name: string) {
+		if (name === 'count') {
+			this.updateCount();
+		}
 	}
+
+	get count(): number {
+		return Number(this.getAttribute('count') ?? 0);
+	}
+
+	set count(value: number) {
+		this.setAttribute('count', String(value));
+	}
+
+	private decrement = () => {
+		if (this.count > 0) {
+			this.count -= 1;
+		}
+	};
+
+	private increment = () => {
+		this.count += 1;
+	};
+
+	private updateCount() {
+		const countText = this.querySelector('[data-ref="count"]');
+		if (!countText) {
+			return;
+		}
+
+		countText.textContent = String(this.count);
+	}
+}
+
+if (!customElements.get('radiant-counter')) {
+	customElements.define('radiant-counter', RadiantCounter);
 }
 
 declare module 'react' {

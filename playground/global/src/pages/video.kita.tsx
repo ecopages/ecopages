@@ -34,6 +34,7 @@ export default eco.page({
 								autoplay
 								muted
 								loop
+								// @ts-ignore
 								playsInline
 							/>
 						</div>

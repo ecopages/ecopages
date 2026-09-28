@@ -1,12 +1,13 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
-import type { EcoPagesAppConfig } from '../internal-types';
+import type { EcoPagesAppConfig } from '../types/internal-types';
 import { ConfigBuilder } from '../config/config-builder';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
-const TEST_ROOT = path.join(import.meta.dir, '__test-temp__');
+const TEST_ROOT = path.join(os.tmpdir(), 'ecopages-integration-test-temp');
 
 const createTestDir = (subpath: string): string => {
 	const fullPath = path.join(TEST_ROOT, subpath);
@@ -39,7 +40,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 		if (existsSync(TEST_ROOT)) {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
 		}
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	describe('Public Directory File Operations', () => {
@@ -54,7 +55,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -81,7 +82,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -109,7 +110,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -142,7 +143,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -170,7 +171,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -194,7 +195,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -219,9 +220,10 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
+				changeDebounceMs: 0,
 			});
 
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'sitemap.xml');
@@ -247,9 +249,10 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
+				changeDebounceMs: 0,
 			});
 
 			const sourceFile = path.join(config.absolutePaths.srcDir, 'components', 'Button.tsx');
@@ -276,7 +279,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -309,7 +312,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const watcher = new ProjectWatcher({
 				config,
-				refreshRouterRoutesCallback: mock(() => {}),
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
 				bridge,
 			});
@@ -331,6 +334,44 @@ describe('ProjectWatcher - Integration Tests', () => {
 				expect(existsSync(destFile)).toBe(true);
 				expect(readFileSync(destFile, 'utf-8')).toBe(content);
 			}
+		});
+	});
+
+	describe('Content collection MDX changes', () => {
+		test('should notify watch-only processors and still delegate MDX to HMR', async () => {
+			const testId = 'content-mdx-hmr';
+			const config = await createIntegrationConfig(testId);
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const onChange = vi.fn(async () => {});
+
+			config.processors.set('content', {
+				getAssetCapabilities: vi.fn(() => []),
+				getWatchConfig: vi.fn(() => ({
+					paths: [path.join(config.absolutePaths.srcDir, 'content', 'docs')],
+					extensions: ['mdx'],
+					onChange,
+				})),
+			} as never);
+
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 0,
+			});
+
+			const mdxPath = path.join(config.absolutePaths.srcDir, 'content', 'docs', 'intro.mdx');
+			writeTestFile(mdxPath, '---\ntitle: Intro\n---\n# Intro\n');
+
+			await (watcher as any).processFileChange(mdxPath, 'change');
+
+			expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ path: path.resolve(mdxPath), bridge }));
+			expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
+				path.resolve(mdxPath),
+				expect.objectContaining({ graphIdentities: expect.anything() }),
+			);
 		});
 	});
 });

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/image-processor",
-	"version": "0.1.105",
+	"version": "0.2.0",
 	"description": "Image processor, transform and optimize images for web",
 	"keywords": [
 		"image",
@@ -9,31 +9,41 @@
 	"license": "MIT",
 	"main": "./src/image-processor.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
 		"directory": "packages/processors/image-processor"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/jsx": "^0.3.0-rc.9"
+	},
+	"peerDependenciesMeta": {
+		"@ecopages/jsx": {
+			"optional": true
+		}
 	},
 	"dependencies": {
 		"@ecopages/file-system": "workspace:*",
-		"@ecopages/logger": "latest",
-		"react": "^19",
-		"react-dom": "^19",
-		"sharp": "^0.33.5"
+		"@ecopages/logger": "^0.2.3",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6",
+		"sharp": "^0.35.3"
 	},
 	"devDependencies": {
-		"@types/react": "^19",
-		"@types/react-dom": "^19"
+		"@ecopages/core": "workspace:*",
+		"@ecopages/jsx": "^0.3.0-rc.9",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3"
 	},
 	"exports": {
 		".": {
@@ -41,22 +51,19 @@
 			"types": "./src/index.ts"
 		},
 		"./types": {
-			"types": "./src/types.ts"
+			"types": "./src/image-types.d.ts"
 		},
 		"./component/html": {
 			"default": "./src/component/html.ts",
 			"types": "./src/component/html.ts"
 		},
+		"./component/jsx": {
+			"default": "./src/component/jsx.ts",
+			"types": "./src/component/jsx.ts"
+		},
 		"./component/react": {
 			"default": "./src/component/react.ts",
 			"types": "./src/component/react.ts"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"ecopages:images": [
-				"./virtual-module.d.ts"
-			]
 		}
 	}
 }

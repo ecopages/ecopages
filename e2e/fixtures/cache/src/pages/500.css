@@ -1,0 +1,15 @@
+.error500 {
+	text-align: center;
+	margin-top: 50px;
+}
+
+.error500__stack {
+	text-align: left;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.75rem;
+	white-space: pre-wrap;
+	overflow-x: auto;
+	max-height: 20rem;
+	padding: 1rem;
+	margin-top: 1rem;
+}

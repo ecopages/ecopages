@@ -1,0 +1,8 @@
+node_modules
+.eco
+dist
+.env
+*.db
+.DS_Store
+sqlite.db
+drizzle

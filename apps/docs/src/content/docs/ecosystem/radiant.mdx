@@ -1,0 +1,98 @@
+---
+title: "Radiant"
+description: "Build reactive web components with the Radiant library in Ecopages apps."
+order: 4
+---
+
+# Radiant
+
+**@ecopages/radiant** is an ultra-minimalist library for building reactive Web Components. It is designed to play perfectly with Ecopages' dependency management and SSR capabilities.
+
+## Introduction
+
+Radiant uses standard CUSTOM Elements with a thin layer of decorators to handle reactivity and DOM queries. Use it when you need interactivity without the overhead of a full framework.
+
+## Component Example
+
+```typescript
+import { customElement, reactiveProp, onEvent, query } from '@ecopages/radiant';
+
+@customElement('radiant-counter')
+export class RadiantCounter extends HTMLElement {
+    @reactiveProp() 
+    value = 0;
+
+    @query('span') 
+    display!: HTMLSpanElement;
+
+    @onEvent('click', 'button.increment')
+    inc() {
+        this.value++;
+    }
+
+    render() {
+        this.display.textContent = this.value.toString();
+    }
+}
+```
+
+## Decorators
+
+### `@customElement(tag: string)`
+Registers the class as a custom element with the given tag name.
+
+### `@reactiveProp()`
+Marks a property as reactive. When the property changes, it automatically triggers a re-render or a specific update logic.
+
+### `@onEvent(type: string, selector?: string)`
+Declaratively attaches an event listener. If a selector is provided, it uses event delegation.
+
+### `@query(selector: string)`
+A shorthand for `this.querySelector(selector)`. Returns the element every time it is accessed.
+
+## Using with Ecopages
+
+Radiant hosts in JSX apps use [Ecopages JSX](/docs/integrations/ecopages-jsx) (`ecopagesJsxPlugin()` enables Radiant SSR by default). See [Creating Components](/docs/core/components) for the full `eco.component()` pattern.
+
+1. Put element registration in a `*.script.ts` file (call `customElements.define` or use `@customElement`).
+2. Wrap the host in `eco.component()` and declare the script with `ssr: true` so Ecopages evaluates it on the server before SSR. Use `import type` from the script module when you only need props—no separate value import in the wrapper file.
+3. Import the wrapper from pages; Ecopages discovers local `eco.component()` imports automatically.
+
+`counter.script.ts`:
+
+```typescript
+export type CounterProps = { count?: number };
+
+export class CounterElement extends HTMLElement {
+	static observedAttributes = ['count'];
+
+	connectedCallback() {
+		this.textContent = String(this.getAttribute('count') ?? 0);
+	}
+
+	attributeChangedCallback() {
+		this.textContent = String(this.getAttribute('count') ?? 0);
+	}
+}
+
+if (!customElements.get('radiant-counter')) {
+	customElements.define('radiant-counter', CounterElement);
+}
+```
+
+`counter.tsx`:
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import type { CounterProps } from './counter.script';
+
+export const Counter = eco.component<CounterProps, JsxRenderable>({
+	dependencies: {
+		scripts: [{ src: './counter.script.ts', ssr: true }],
+	},
+	render: ({ count = 0 }) => <radiant-counter count={count} />,
+});
+```
+
+Add `lazy` on the script entry when browser delivery should wait for idle, interaction, or visibility. `lazy` does not skip server registration when `ssr: true` is set.

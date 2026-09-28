@@ -1,0 +1,86 @@
+---
+title: "Components"
+description: "Build reusable UI with eco.component, dependencies, and framework integrations."
+order: 9
+---
+
+# Creating Components in Ecopages
+
+Components are reusable UI units composed into Pages and Layouts. The default JSX template uses Ecopages JSX, so these examples use `.tsx` files and JSX in `render`.
+
+## A component with browser behavior
+
+Declare the styles, browser scripts, and child Components a Component needs. Ecopages uses that declaration to collect assets and preserve Integration ownership.
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import './radiant-counter.css';
+
+type RadiantCounterProps = { count: number };
+
+export const RadiantCounter = eco.component<RadiantCounterProps, JsxRenderable>({
+	dependencies: {
+		scripts: [{ src: './radiant-counter.script.ts', ssr: true, lazy: { 'on:interaction': 'mouseenter,focusin' } }],
+	},
+	render: ({ count }) => (
+		<radiant-counter count={count}>
+			<button type="button" data-ref="decrement" aria-label="Decrement">-</button>
+			<span data-ref="count">{count}</span>
+			<button type="button" data-ref="increment" aria-label="Increment">+</button>
+		</radiant-counter>
+	),
+});
+```
+
+Radiant support is enabled by default when you configure `ecopagesJsxPlugin()`. Its SSR output becomes an island only when the Component brings browser behavior.
+
+## Use a component in a Page
+
+Pass route wrappers through `layout`. Import nested components directly — Ecopages discovers local `eco.component()` imports automatically.
+
+```tsx
+import { RadiantCounter } from '@/components/radiant-counter';
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	layout: BaseLayout,
+	metadata: () => ({
+		title: 'Home page',
+		description: 'This is the homepage of the website',
+	}),
+	render: () => (
+		<>
+			<h1>Ecopages</h1>
+			<RadiantCounter count={5} />
+		</>
+	),
+});
+```
+
+## Lazy browser scripts
+
+Use a lazy declaration when a script should wait for an interaction or visibility trigger. Add `ssr: true` when the script registers a custom element that must render on the server (Radiant hosts and Lit elements).
+
+```ts
+dependencies: {
+	scripts: [{ src: './search.script.ts', ssr: true, lazy: { 'on:interaction': 'focusin' } }],
+}
+```
+
+`lazy` controls browser delivery only; `ssr: true` still evaluates the script on the server so `customElements.define` runs before SSR. String-form `scripts: ['./browser-only.ts']` stays browser-only.
+
+### Troubleshooting custom element SSR
+
+- **Host renders empty or never upgrades on the server:** Add `ssr: true` on the registration script in the owning `eco.component()` `dependencies.scripts` entry. Lit and Ecopages JSX preload those entries; a side-effect `import './my.script.ts'` in the wrapper is not required (and duplicates ownership).
+- **Props only from the script module:** Use `import type` from the `.script.ts` file; keep registration on `dependencies.scripts`.
+- **Server errors or skipped preload:** Do not set `ssr: true` on browser-only scripts that touch `window` or `document` without guards.
+
+Ecopages stamps [island host attributes](/docs/core/island-hosts) on hydratable Component SSR roots so developer tools and client runtimes can discover them.
+
+## Related guides
+
+- [Ecopages JSX](/docs/integrations/ecopages-jsx) — install and configure the default template integration
+- [Layouts](/docs/core/layouts) — route-level shared chrome
+- [Island Hosts](/docs/core/island-hosts) — the SSR island contract

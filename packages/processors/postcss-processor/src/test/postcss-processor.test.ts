@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import path from 'node:path';
 import postCssSimpleVars from 'postcss-simple-vars';
 import { PostCssProcessor } from '../postcss-processor';
@@ -23,12 +23,12 @@ describe('PostCssProcessor', () => {
 
 	test('processPath should throw when the file does not exist', async () => {
 		const filePath = 'fake-path.css';
-		expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
+		await expect(PostCssProcessor.processPath(filePath)).rejects.toThrow();
 	});
 
 	test('processPath should use the custom plugins', async () => {
 		const filePath = path.resolve(__dirname, './css/external-plugins.css');
-		const expected = '.menu_link{background:#056ef0;width:200px}.menu{margin-top:10px;width:800px}';
+		const expected = '.menu_link{background:#056ef0;width:200px}.menu{width:800px;margin-top:10px}';
 		const result = await PostCssProcessor.processPath(filePath, {
 			plugins: [...Object.values(tailwindV3Preset().plugins ?? {}), postCssSimpleVars()],
 		});

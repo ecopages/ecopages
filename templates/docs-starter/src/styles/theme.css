@@ -1,0 +1,27 @@
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, .dark, .dark *));
+
+@theme {
+	--font-heading: ui-sans-serif, system-ui, sans-serif;
+	--color-background-accent: var(--surface);
+	--color-on-background-accent: var(--on-surface);
+	--color-muted: var(--surface-container-low);
+}
+
+html {
+	@apply bg-background;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		scroll-behavior: smooth;
+	}
+}
+
+body {
+	@apply relative z-0 min-h-svh font-sans text-on-background antialiased;
+}
+
+::selection {
+	background: color-mix(in oklab, var(--color-primary) 18%, transparent);
+	color: var(--color-on-background);
+}

@@ -1,18 +1,21 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
-		"baseUrl": ".",
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ES2021",
+		"types": ["node"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
-	}
+	},
+	"include": ["scripts/**/*.ts"]
 }

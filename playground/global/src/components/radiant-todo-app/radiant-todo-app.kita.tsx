@@ -56,7 +56,7 @@ const TodoForm = () => {
 
 export const RadiantTodoApp = eco.component({
 	dependencies: {
-		scripts: ['./radiant-todo-app.script.tsx'],
+		scripts: [{ src: './radiant-todo-app.script.tsx', lazy: { 'on:idle': true }, ssr: true }],
 		stylesheets: ['./radiant-todo-app.css'],
 	},
 

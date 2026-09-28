@@ -1,0 +1,4 @@
+[data-radiant-counter] {
+	--integration-counter-accent: oklch(0.73 0.18 300);
+	@apply inline-flex;
+}

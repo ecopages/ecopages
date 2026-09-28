@@ -1,32 +1,38 @@
 # @ecopages/browser-router
 
-Client-side navigation and view transitions for Ecopages. Intercepts same-origin link clicks to provide smooth page transitions without full page reloads.
+Client-side navigation and view transitions for Ecopages. It intercepts same-origin link clicks to provide smooth page transitions without full page reloads.
 
 ## Features
 
-- **Client-side navigation** - Intercepts `<a>` clicks for fast navigation
-- **Efficient DOM diffing** - Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state
-- **State persistence** - Elements with `data-eco-persist` are never recreated, preserving internal state
-- **View Transitions** - Optional integration with the View Transition API
-- **Lifecycle events** - Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`
+- **Client-side navigation**: Intercepts `<a>` clicks for robust, fast navigation.
+- **Efficient DOM diffing**: Uses [morphdom](https://github.com/patrick-steele-idem/morphdom) to update only what changed, preserving scroll positions and internal state.
+- **State persistence**: Elements with `data-eco-persist` are never recreated, preserving Web Component state, event listeners, and form values.
+- **View Transitions**: Optional integration with the View Transition API.
+- **Lifecycle events**: Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`.
 
 ## Compatibility
 
-This package works with MPA-style rendering (KitaJS, Lit, vanilla JS) where the server returns full HTML pages.
+This package is designed for MPA-style rendering where the server returns full HTML pages (e.g., KitaJS, Lit, vanilla JS, or component-level React islands).
 
-**Not compatible with React/Preact** - These frameworks manage their own virtual DOM and component trees. Replacing the DOM breaks hydration, state, and event handlers. For React apps, use a framework-specific routing solution.
+> [!WARNING]
+> **Not compatible with full React applications.**
+> If you are building a React application, use [@ecopages/react-router](../react-router/README.md) instead, as React manages its own virtual DOM and hydration lifecycle.
+
+> [!NOTE]
+> `@ecopages/browser-router` can still participate in mixed sites that contain both React-router pages and non-React pages. In that setup, browser-router remains responsible for DOM-swapping non-React documents, and React-router can hand off already-fetched non-React pages to it through the shared navigation coordinator.
 
 ## Installation
 
 ```bash
-bunx jsr add @ecopages/browser-router
+bun add @ecopages/browser-router
 ```
 
 ## Usage
 
 Create and start the router in a **global** client-side script (e.g., `src/layouts/base-layout.script.ts`).
 
-> **Important**: Ensure the router script is injected in a **consistent order** within the `<head>` across all pages. Inconsistent ordering (e.g. script between styles on one page but after on another) causes `morphdom` to reload styles, leading to a "Flash of Unstyled Content" (FOUC).
+> [!IMPORTANT]
+> Ensure the router script is injected in a **consistent order** within the `<head>` across all pages. Inconsistent ordering causes `morphdom` to reload styles, leading to a "Flash of Unstyled Content" (FOUC).
 
 ```ts
 import { createRouter } from '@ecopages/browser-router/client';
@@ -43,44 +49,79 @@ import { createRouter } from '@ecopages/browser-router/client';
 const router = createRouter({
 	viewTransitions: true,
 	scrollBehavior: 'auto',
+	documentElementAttributesToSync: ['lang', 'dir', 'data-theme'],
 });
 ```
 
+By default, when view transitions are enabled, the router opts the document out of the UA root group (no lighter flash on dark themes) and only calls `startViewTransition` when a page uses `data-view-transition` shared-element morphs. Set `viewTransitions: false` to disable.
+
+By default, browser-router only syncs root `<html>` metadata it owns. Client-managed attributes and classes such as theme state are preserved unless you explicitly include them in `documentElementAttributesToSync`.
+
+For advanced cases, browser-router also exports low-level document sync tooling without changing the router instance API:
+
+```ts
+import {
+	createRouter,
+	DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
+	syncDocumentElementAttributes,
+} from '@ecopages/browser-router';
+
+const router = createRouter();
+
+document.addEventListener('eco:before-swap', (event) => {
+	syncDocumentElementAttributes(document, event.detail.newDocument, [
+		...DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
+		'data-theme',
+	]);
+});
+```
+
+Loading the router script is the opt-in point for browser-router-managed navigation on that page shell. Pages without the router script continue to use normal document navigation.
+
+## Router singleton
+
+`createRouter()` returns a single active router per browser tab. The first call creates, starts, and stores the instance on `window.__ecopages_browser_router__`. Later calls return that same instance and ignore new options.
+
+Call `router.stop()` before replacing the router script in long-lived sessions (for example after `data-eco-rerun` layout reloads) if you need a fresh instance with different options.
+
 ## Configuration
 
-| Option             |              Type               |       Default        | Description                                    |
-| :----------------- | :-----------------------------: | :------------------: | :--------------------------------------------- |
-| `linkSelector`     |            `string`             |     `'a[href]'`      | Selector for links to intercept                |
-| `persistAttribute` |            `string`             | `'data-eco-persist'` | Attribute to mark elements for DOM persistence |
-| `reloadAttribute`  |            `string`             | `'data-eco-reload'`  | Attribute to force full page reload            |
-| `updateHistory`    |            `boolean`            |        `true`        | Whether to update browser history              |
-| `scrollBehavior`   | `'top' \| 'preserve' \| 'auto'` |       `'top'`        | Scroll behavior after navigation               |
-| `viewTransitions`  |            `boolean`            |       `false`        | Use View Transition API for animations         |
-| `smoothScroll`     |            `boolean`            |       `false`        | Use smooth scrolling during navigation         |
+| Option                            | Type                            | Default                                      | Description                                                                                 |
+| :-------------------------------- | :------------------------------ | :------------------------------------------- | :------------------------------------------------------------------------------------------ |
+| `linkSelector`                    | `string`                        | `'a[href]'`                                  | Selector for links to intercept                                                             |
+| `documentElementAttributesToSync` | `string[]`                      | `['lang', 'dir', 'data-eco-document-owner']` | `<html>` attributes to sync from the incoming document; other root attributes are preserved |
+| `persistAttribute`                | `string`                        | `'data-eco-persist'`                         | Attribute to mark elements for DOM persistence                                              |
+| `reloadAttribute`                 | `string`                        | `'data-eco-reload'`                          | Attribute to force full page reload                                                         |
+| `updateHistory`                   | `boolean`                       | `true`                                       | Whether to update browser history                                                           |
+| `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Scroll behavior after navigation                                                            |
+| `viewTransitions`                 | `boolean`                       | `true`                                       | View Transition API; disables UA root crossfade by default. `false` disables.               |
+| `smoothScroll`                    | `boolean`                       | `false`                                      | Use smooth scrolling during navigation                                                      |
 
 ## Persistence
 
-Mark elements to preserve across navigations. These elements are never recreated during navigation, morphdom skips them entirely, preserving their internal state (event listeners, web component state, form values, etc.):
+Mark elements to preserve across navigations. These elements are never recreated during navigation; morphdom skips them entirely.
 
 ```html
-<!-- This counter keeps its state across all navigations -->
+<!-- This counter keeps its internal state across all navigations -->
 <radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
 
 ## Script Re-execution
 
-To force a script to re-execute on every navigation (e.g. analytics, hydration), add `data-eco-rerun` and `data-eco-script-id`:
+To force a script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun`:
 
 ```html
-<script data-eco-rerun="true" data-eco-script-id="analytics">
-	// This runs on every navigation
+<script data-eco-rerun="true">
 	trackPageview();
 </script>
 ```
 
+> [!NOTE]
+> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Otherwise the router falls back to matching by original `src` and inline content.
+
 ## Force Full Reload
 
-Use `data-eco-reload` to force a full page reload:
+Use `data-eco-reload` on an anchor tag to bypass the router and force a full page reload:
 
 ```html
 <a href="/logout" data-eco-reload>Logout</a>
@@ -88,12 +129,12 @@ Use `data-eco-reload` to force a full page reload:
 
 ## Events
 
-Listen to navigation lifecycle events:
+Listen to navigation lifecycle events on the `document`. Event detail types live in `@ecopages/core/router/navigation-lifecycle`.
 
 ```ts
 document.addEventListener('eco:before-swap', (e) => {
 	console.log('Navigating to:', e.detail.url);
-	// Call e.detail.reload() to abort and do full reload
+	// Call e.detail.reload() to abort client-side navigation and do a full reload
 });
 
 document.addEventListener('eco:after-swap', (e) => {
@@ -106,6 +147,8 @@ document.addEventListener('eco:page-load', (e) => {
 ```
 
 ## Programmatic Navigation
+
+Use the router instance to navigate programmatically:
 
 ```ts
 import { createRouter } from '@ecopages/browser-router/client';

@@ -8,161 +8,36 @@
  * @module EcopagesApp
  */
 
-import type { BunRequest, Server } from 'bun';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import type { Server } from 'bun';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type {
-	ApiHandler,
-	Middleware,
-	RouteOptions,
-	RouteSchema,
-	ApiHandlerContext,
-	TypedGroupHandlerContext,
-} from '../../public-types.ts';
-import {
-	AbstractApplicationAdapter,
-	type ApplicationAdapterOptions,
-	type RouteHandler,
-} from '../abstract/application-adapter.ts';
+import type { ApiHandlerContext, EcopagesRouteInfo, RouteGroupBuilder } from '../../types/public-types.ts';
+import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
+import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
+import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
-
-/**
- * Helper type for Bun middleware that only requires extension properties.
- * Automatically applies the BunRequest and Server types.
- *
- * @typeParam TExtension - Additional properties to add to the context
- * @typeParam WebSocketData - WebSocket data type for the server (defaults to undefined)
- *
- * @example
- * ```typescript
- * const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
- *   ctx.session = await getSession(ctx.request);
- *   return next();
- * };
- * ```
- */
-export type BunMiddleware<TExtension extends Record<string, any> = {}, WebSocketData = undefined> = Middleware<
-	BunRequest<string>,
-	Server<WebSocketData>,
-	ApiHandlerContext<BunRequest<string>, Server<WebSocketData>> & TExtension
->;
-
-/**
- * Helper type for Bun handler context that only requires extension properties.
- * Automatically applies the BunRequest and Server types.
- *
- * @typeParam TExtension - Additional properties to add to the context
- * @typeParam P - Path pattern for route params inference (defaults to string)
- * @typeParam WebSocketData - WebSocket data type for the server (defaults to undefined)
- *
- * @example
- * ```typescript
- * type AuthenticatedContext = BunHandlerContext<{ session: Session }>;
- *
- * export async function createPost(ctx: AuthenticatedContext) {
- *   const userId = ctx.session.user.id;
- *   return ctx.json({ userId });
- * }
- * ```
- */
-export type BunHandlerContext<
-	TExtension extends Record<string, any> = {},
-	P extends string = string,
-	WebSocketData = undefined,
-> = ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> & TExtension;
-
-/**
- * Configuration options for the Bun application adapter
- */
-export interface EcopagesAppOptions extends ApplicationAdapterOptions {
-	appConfig: EcoPagesAppConfig;
-	serverOptions?: Record<string, any>;
-}
-
-type BunMiddlewareArray<
-	WebSocketData,
-	TContext extends ApiHandlerContext<BunRequest<string>, Server<WebSocketData>> = ApiHandlerContext<
-		BunRequest<string>,
-		Server<WebSocketData>
-	>,
-> = Middleware<BunRequest<string>, Server<WebSocketData>, TContext>[];
-
-type BunHandler<
-	WebSocketData,
-	P extends string = string,
-	TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-		BunRequest<P>,
-		Server<WebSocketData>
-	>,
-> = RouteHandler<BunRequest<P>, Server<WebSocketData>, TContext>;
-
-type BunRouteOptions<
-	WebSocketData,
-	P extends string = string,
-	TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-		BunRequest<P>,
-		Server<WebSocketData>
-	>,
-> = RouteOptions<BunRequest<P>, Server<WebSocketData>, TContext>;
+import { BunRuntimeHost } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
+import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 /**
  * Bun-specific route group builder that properly infers route params from path patterns.
  * When you define a route like `/posts/:slug`, the handler context will have
- * `ctx.request.params.slug` typed as `string`.
+ * `ctx.params.slug` typed as `string`.
  *
  * @typeParam WebSocketData - WebSocket data type for the server
  * @typeParam TContext - Extended context type from middleware (e.g., `{ user: User }`)
  */
-export interface BunRouteGroupBuilder<
+export type BunRouteGroupBuilder<
 	WebSocketData = undefined,
-	TContext extends ApiHandlerContext<BunRequest<string>, Server<WebSocketData>> = ApiHandlerContext<
-		BunRequest<string>,
+	TContext extends ApiHandlerContext<Request, Server<WebSocketData>> = ApiHandlerContext<
+		Request,
 		Server<WebSocketData>
 	>,
-> {
-	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-
-	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext, BunRequest<P>>) => Promise<Response> | Response,
-		options?: RouteOptions<BunRequest<string>, Server<WebSocketData>, TContext> & { schema?: TSchema },
-	): BunRouteGroupBuilder<WebSocketData, TContext>;
-}
+> = RouteGroupBuilder<Request, Server<WebSocketData>, TContext>;
 
 /**
  * Bun-specific application adapter implementation
@@ -170,441 +45,178 @@ export interface BunRouteGroupBuilder<
  * and provides methods for handling HTTP requests and managing the server.
  */
 
-export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationAdapter<
-	EcopagesAppOptions,
+export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplicationAdapter<
+	ResolvedEcopagesAppOptions,
 	Server<WebSocketData>,
-	BunRequest<string>
+	Request
 > {
 	serverAdapter: BunServerAdapterResult | undefined;
 	private server: Server<WebSocketData> | null = null;
+	private stopped = false;
+	private readonly runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 
-	private register<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		path: P,
-		method: ApiHandler['method'],
-		handler: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		return this.addRouteHandler(
-			path,
-			method,
-			handler as BunHandler<WebSocketData>,
-			options?.middleware as BunMiddlewareArray<WebSocketData>,
-			options?.schema,
-		);
-	}
-
-	get<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'GET', handler!, options);
-	}
-
-	post<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'POST', handler!, options);
-	}
-
-	put<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'PUT', handler!, options);
-	}
-
-	delete<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'DELETE', handler!, options);
-	}
-
-	patch<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'PATCH', handler!, options);
-	}
-
-	options<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		routeOptions?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'OPTIONS', handler!, routeOptions);
-	}
-
-	head<
-		P extends string,
-		TContext extends ApiHandlerContext<BunRequest<P>, Server<WebSocketData>> = ApiHandlerContext<
-			BunRequest<P>,
-			Server<WebSocketData>
-		>,
-	>(
-		pathOrHandler: P | ApiHandler<any, any, Server<WebSocketData>>,
-		handler?: BunHandler<WebSocketData, P, TContext>,
-		options?: BunRouteOptions<WebSocketData, P, TContext>,
-	): this {
-		if (typeof pathOrHandler === 'object') {
-			this.addRouteHandler(
-				pathOrHandler.path,
-				pathOrHandler.method,
-				pathOrHandler.handler as BunHandler<WebSocketData>,
-				pathOrHandler.middleware as BunMiddlewareArray<WebSocketData> | undefined,
-				pathOrHandler.schema,
-			);
-			return this;
-		}
-		return this.register(pathOrHandler, 'HEAD', handler!, options);
-	}
-
-	route<P extends string>(
-		path: P,
-		method: ApiHandler['method'],
-		handler: BunHandler<WebSocketData, P>,
-		options?: BunRouteOptions<WebSocketData, P>,
-	): this {
-		return this.register(path, method, handler, options);
-	}
-
-	/**
-	 * Create a route group with shared prefix and middleware.
-	 * Routes defined within the group inherit the prefix and middleware.
-	 * Context type is automatically inferred from middleware.
-	 *
-	 * @example With context extension from middleware
-	 * ```typescript
-	 * const authMiddleware: BunMiddleware<{ session: Session }> = async (ctx, next) => {
-	 *   ctx.session = await getSession();
-	 *   return next();
-	 * };
-	 *
-	 * app.group('/api', (r) => {
-	 *   r.get('/profile', async (ctx) => {
-	 *     // ctx.session is automatically typed!
-	 *     return ctx.json({ userId: ctx.session.userId });
-	 *   });
-	 * }, { middleware: [authMiddleware] });
-	 * ```
-	 */
-	group<TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[] = []>(
-		prefixOrGroup:
-			| string
-			| {
-					prefix: string;
-					middleware?: readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[];
-					routes: readonly ApiHandler<any, any, Server<WebSocketData>>[];
-			  },
-		callback?: (
-			builder: BunRouteGroupBuilder<
-				WebSocketData,
-				TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, infer TContext>[]
-					? TContext
-					: ApiHandlerContext<BunRequest<string>, Server<WebSocketData>>
-			>,
-		) => void,
-		options?: {
-			middleware?: TMiddleware;
+	constructor(
+		options: ResolvedEcopagesAppOptions,
+		dependencies: {
+			runtimeHost: RuntimeHost<Server<WebSocketData>, Bun.Serve.Options<WebSocketData>>;
 		},
-	): this {
-		if (typeof prefixOrGroup === 'object') {
-			return this.registerGroup(prefixOrGroup);
-		}
-
-		type TContext = TMiddleware extends readonly Middleware<BunRequest<string>, Server<WebSocketData>, infer TCtx>[]
-			? TCtx
-			: ApiHandlerContext<BunRequest<string>, Server<WebSocketData>>;
-		const normalizedPrefix = prefixOrGroup.endsWith('/') ? prefixOrGroup.slice(0, -1) : prefixOrGroup;
-		const groupMiddleware = (options?.middleware ?? []) as Middleware<
-			BunRequest<string>,
-			Server<WebSocketData>,
-			TContext
-		>[];
-
-		const createHandler = (
-			method: ApiHandler['method'],
-		): BunRouteGroupBuilder<WebSocketData, TContext>[Lowercase<typeof method>] => {
-			return ((
-				path: string,
-				handler: (context: TContext) => Promise<Response> | Response,
-				routeOptions?: {
-					middleware?: Middleware<BunRequest<string>, Server<WebSocketData>, TContext>[];
-					schema?: RouteSchema;
-				},
-			) => {
-				const combinedMiddleware: Middleware<BunRequest<string>, Server<WebSocketData>, TContext>[] = [
-					...groupMiddleware,
-					...(routeOptions?.middleware ?? []),
-				];
-				const fullPath = path === '/' ? normalizedPrefix : `${normalizedPrefix}${path}`;
-				this.addRouteHandler(
-					fullPath,
-					method,
-					handler as (
-						context: ApiHandlerContext<BunRequest<string>, Server<WebSocketData>>,
-					) => Promise<Response> | Response,
-					combinedMiddleware.length > 0
-						? (combinedMiddleware as Middleware<BunRequest<string>, Server<WebSocketData>>[])
-						: undefined,
-					routeOptions?.schema,
-				);
-				return builder;
-			}) as BunRouteGroupBuilder<WebSocketData, TContext>[Lowercase<typeof method>];
-		};
-
-		const builder: BunRouteGroupBuilder<WebSocketData, TContext> = {
-			get: createHandler('GET'),
-			post: createHandler('POST'),
-			put: createHandler('PUT'),
-			delete: createHandler('DELETE'),
-			patch: createHandler('PATCH'),
-			options: createHandler('OPTIONS'),
-			head: createHandler('HEAD'),
-		};
-
-		callback!(builder);
-		return this;
+	) {
+		super(options, 'Bun');
+		this.runtimeHost = dependencies.runtimeHost;
 	}
 
-	private registerGroup(group: {
-		prefix: string;
-		middleware?: readonly Middleware<BunRequest<string>, Server<WebSocketData>, any>[];
-		routes: readonly ApiHandler<string, BunRequest<string>, Server<WebSocketData>>[];
-	}): this {
-		const normalizedPrefix = group.prefix.endsWith('/') ? group.prefix.slice(0, -1) : group.prefix;
-		const groupMiddleware = group.middleware ?? [];
-
-		for (const route of group.routes) {
-			const normalizedPath = route.path.startsWith('/') ? route.path : `/${route.path}`;
-			const fullPath = route.path === '/' ? normalizedPrefix : `${normalizedPrefix}${normalizedPath}`;
-			const combinedMiddleware = [...groupMiddleware, ...(route.middleware ?? [])];
-
-			this.addRouteHandler(
-				fullPath,
-				route.method,
-				route.handler as BunHandler<WebSocketData>,
-				combinedMiddleware.length > 0 ? (combinedMiddleware as BunMiddlewareArray<WebSocketData>) : undefined,
-				route.schema,
-			);
-		}
-
-		return this;
-	}
-
-	/**
-	 * Makes a request to the running server using real HTTP fetch.
-	 * This is useful for testing API endpoints.
-	 * @param request - URL string or Request object
-	 * @returns Promise<Response>
-	 */
-	public async request(request: string | Request): Promise<Response> {
-		const server = this.server;
-
-		if (!server) throw new Error('Server not started. Call start() first.');
-
-		const url = typeof request === 'string' ? `http://${server.hostname}:${server.port}${request}` : request;
-
-		return fetch(url);
-	}
-
-	/**
-	 * Complete the initialization of the server adapter by processing dynamic routes
-	 * @param server The Bun server instance
-	 */
-	public async completeInitialization(server: Server<WebSocketData>): Promise<void> {
+	public async fetch(request: Request): Promise<Response> {
 		if (!this.serverAdapter) {
-			throw new Error('Server adapter not initialized. Call start() first.');
+			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
-		await this.serverAdapter.completeInitialization(server);
+		await this.serverAdapter.completeInitialization(this.server);
+		return this.serverAdapter.handleRequest(request);
+	}
+
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: WebSocketUpgradeOptions,
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
 	}
 
 	/**
 	 * Initialize the Bun server adapter
 	 */
 	protected async initializeServerAdapter(): Promise<BunServerAdapterResult> {
-		const { dev } = this.cliArgs;
-		const { port: cliPort, hostname: cliHostname } = this.cliArgs;
-
-		const envPort = import.meta.env.ECOPAGES_PORT ? import.meta.env.ECOPAGES_PORT : undefined;
-		const envHostname = import.meta.env.ECOPAGES_HOSTNAME;
-
-		const preferredPort = cliPort ?? envPort ?? DEFAULT_ECOPAGES_PORT;
-		const preferredHostname = cliHostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
-
-		appLogger.debug('initializeServerAdapter', {
-			dev,
-			cliPort,
-			cliHostname,
-			envPort,
-			envHostname,
-			preferredPort,
-			preferredHostname,
-			composedUrl: `http://${preferredHostname}:${preferredPort}`,
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
 		});
-
-		return await createBunServerAdapter({
-			runtimeOrigin: `http://${preferredHostname}:${preferredPort}`,
+		return createBunServerAdapter({
+			runtimeOrigin: binding.runtimeOrigin,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
+			errorPageLoaders: this.getErrorPageLoaders(),
 			errorHandler: this.errorHandler,
-			options: { watch: dev },
-			serveOptions: {
-				port: preferredPort,
-				hostname: preferredHostname,
-				...this.serverOptions,
-			},
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
+			options: { watch: binding.watch },
+			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
+			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
+			allowPortFallback: binding.allowPortFallback,
+			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
 	}
 
-	/**
-	 * Start the Bun application server
-	 * @param options Optional settings
-	 * @param options.autoCompleteInitialization Whether to automatically complete initialization with dynamic routes after server start (defaults to true)
-	 */
-	public async start(): Promise<Server<WebSocketData> | void> {
+	private async ensureServerAdapterReady(): Promise<BunServerAdapterResult> {
+		if (this.stopped) {
+			this.serverAdapter = undefined;
+			this.stopped = false;
+		}
 		if (!this.serverAdapter) {
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
+		return this.serverAdapter;
+	}
 
-		const { dev, preview, build } = this.cliArgs;
-		const enableHmr = dev || (!preview && !build);
-		const serverOptions = this.serverAdapter.getServerOptions({ enableHmr });
+	private async bootPreviewServeOnly(serverAdapter: BunServerAdapterResult): Promise<void> {
+		const previewOrigin = await serverAdapter.servePreviewOnly();
+		if (previewOrigin) {
+			await this.notifyListening(previewOrigin);
+		}
+	}
 
-		const bunServer = Bun.serve(serverOptions as Bun.Serve.Options<WebSocketData>);
-		this.server = bunServer as Server<WebSocketData>;
+	private async bootStaticWithoutRuntimeServer(
+		serverAdapter: BunServerAdapterResult,
+		preview: boolean,
+		build: boolean,
+		force: boolean,
+	): Promise<void> {
+		appLogger.debugTime('Building static pages');
+		const previewOrigin = await serverAdapter.buildStatic({ preview, force });
+		appLogger.debugTimeEnd('Building static pages');
 
-		await this.serverAdapter.completeInitialization(this.server).catch((error) => {
+		if (preview && previewOrigin) {
+			await this.notifyListening(previewOrigin);
+		}
+		if (build) {
+			process.exit(0);
+		}
+	}
+
+	/**
+	 * Starts the Bun application server, or runs the preview/build flow when the
+	 * CLI requested one.
+	 *
+	 * @remarks
+	 * HMR endpoints and Bun's `development` serve mode follow the `dev` flag only,
+	 * matching the options `completeInitialization()` reloads the server with.
+	 */
+	protected async bootServer(): Promise<Server<WebSocketData> | void> {
+		const serverAdapter = await this.ensureServerAdapterReady();
+		const { dev, preview, build, force, serveOnly } = this.cliArgs;
+
+		if (preview && serveOnly) {
+			await this.bootPreviewServeOnly(serverAdapter);
+			return;
+		}
+
+		if (build || preview) {
+			await this.bootStaticWithoutRuntimeServer(serverAdapter, preview, build, force);
+			return;
+		}
+
+		const runtimeServerOptions = serverAdapter.getServerOptions({ enableHmr: dev });
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
+		});
+		startupTrace.beginServerListen();
+		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
+			startOptions: { serveOptions: runtimeServerOptions as Bun.Serve.Options<WebSocketData> },
+			allowPortFallback: binding.allowPortFallback,
+			usePortManager: dev,
+		});
+		this.server = bindingResult.server;
+		serverAdapter.applyBoundPort(bindingResult);
+
+		await serverAdapter.completeInitialization(this.server).catch((error: Error) => {
 			appLogger.error(`Failed to complete initialization: ${error}`);
 		});
 
 		if (!this.server) {
 			throw new Error('Server failed to start');
 		}
-		appLogger.info(`Server running at http://${this.server.hostname}:${this.server.port}`);
 
-		if (build || preview) {
-			appLogger.debugTime('Building static pages');
-			await this.serverAdapter.buildStatic({ preview });
-			this.server.stop(true);
-			appLogger.debugTimeEnd('Building static pages');
+		await this.notifyListening(bindingResult.runtimeOrigin);
+		return this.server;
+	}
 
-			if (build) {
-				process.exit(0);
-			}
+	public override async stop(force = true): Promise<void> {
+		if (this.stopped) {
+			return;
 		}
 
-		return this.server;
+		if (this.server) {
+			const activeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(activeServer, { force });
+		}
+
+		if (this.serverAdapter) {
+			await this.serverAdapter.dispose();
+		}
+
+		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		return resolveAppStartRoutes({
+			listStaticGenerationRoutes: this.serverAdapter?.listStaticGenerationRoutes,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
 	}
 }
 
@@ -612,7 +224,9 @@ export class EcopagesApp<WebSocketData = undefined> extends AbstractApplicationA
  * Factory function to create a Bun application
  */
 export async function createApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions,
-): Promise<EcopagesApp<WebSocketData>> {
-	return new EcopagesApp(options);
+	options: ResolvedEcopagesAppOptions,
+): Promise<BunEcopagesApp<WebSocketData>> {
+	return new BunEcopagesApp(options, {
+		runtimeHost: new BunRuntimeHost<WebSocketData>(),
+	});
 }

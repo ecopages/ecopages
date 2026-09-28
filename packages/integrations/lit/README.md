@@ -1,19 +1,35 @@
-# Ecopages Lit Integration Plugin
+# @ecopages/lit
 
-The `@ecopages/lit` package enables the integration of [Lit](https://lit.dev/), a powerful library for building fast, lightweight web components. This integration is optimized for use alongside `@ecopages/kitajs`, facilitating the use of Lit within a proper HTML template engine context provided by Kita. This combination allows developers to leverage the best of both worlds: the component-based architecture of Lit and the JSX template capabilities of Kita, enhancing the development of dynamic and interactive web pages.
+Integration plugin for [Lit](https://lit.dev/) in Ecopages. Use it when Lit should own `.lit.tsx` routes or when another integration needs Lit to render nested custom-element boundaries.
 
-## Install
+## Installation
 
 ```bash
-bunx jsr add @ecopages/lit
+bun add @ecopages/lit lit @lit-labs/ssr @lit-labs/ssr-client
 ```
+
+`lit`, `@lit-labs/ssr`, and `@lit-labs/ssr-client` are required peer dependencies for this package.
 
 ## Usage
 
-For effective utilization of Lit in your Ecopages projects, it is recommended to use it in conjunction with Kita. This ensures a seamless development experience, allowing you to incorporate Lit components within JSX templates effortlessly. Configure your project to include both `@ecopages/lit` and `@ecopages/kitajs` as follows:
+Register `litPlugin()` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { litPlugin } from '@ecopages/lit';
+
+const config = await new ConfigBuilder()
+	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
+	.setIntegrations([litPlugin()])
+	.build();
+
+export default config;
+```
+
+Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
+
+```ts
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 
@@ -25,4 +41,35 @@ const config = await new ConfigBuilder()
 export default config;
 ```
 
-Adopting this setup empowers developers to fully exploit Lit's capabilities within the Ecopages framework, paving the way for the creation of rich, interactive web components.
+This setup lets Kita own the page shell while Lit owns the nested Lit component boundaries.
+
+## What This Integration Owns
+
+- `.lit.tsx` route files.
+- Nested Lit component boundaries rendered inside pages owned by other integrations.
+- The Lit hydration support script required for SSR custom elements and declarative shadow DOM. Injected synchronously into `document.head` so `globalThis.litElementHydrateSupport` is available before any custom element connects.
+
+## Hydration Architecture
+
+Lit component SSR reuses existing declarative shadow roots rather than replacing host nodes. When hydrated:
+
+1. The server renders declarative shadow roots (`<template shadowrootmode="open">`) and stamps `defer-hydration` on nodes needing client hydration.
+2. The global `lit-hydrate-support` script initializes `globalThis.litElementHydrateSupport` before custom element definitions execute.
+3. Custom elements register via their client scripts, remove `defer-hydration`, and perform in-place hydration against the preserved SSR shadow roots.
+
+## Mixed Rendering
+
+When a non-Lit render pass reaches a Lit-owned foreign child, Ecopages hands that foreign subtree to the Lit renderer. That keeps Lit SSR in charge of custom elements, declarative shadow DOM, and Lit-managed child content.
+
+Important:
+
+- Direct local imports of declared Eco Components contribute their Dependencies automatically, including Foreign Children and named `export { X } from` barrels. Use `dependencies.components` for `export *` barrels and package imports.
+- Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
+- Route-level dependency resolvers can supply Components at request time; Lit includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
+- Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+
+## Discovered assets and lazy custom elements
+
+A Lit Component can import a relative stylesheet with `import './counter.css'`; core extracts it into the shared asset pipeline. Direct local imports of that Component make its Dependencies available to the Lit SSR preloader, including through Foreign Child rendering.
+
+Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Lit-owned page routes preload those scripts in the static-render worker through the app module loader so `@lit-labs/ssr` sees the registered custom element.

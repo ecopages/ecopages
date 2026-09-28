@@ -1,0 +1,184 @@
+import { appLogger } from '../../global/app-logger.ts';
+import type { StaticRoute } from '../../types/public-types.ts';
+import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
+import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
+import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
+import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
+import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-adapter.ts';
+import { NodeHttpRequestBridge } from './http-request-bridge.ts';
+import type { NodeServerInstance } from './server-adapter.ts';
+import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
+import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
+
+export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
+	serverAdapter: NodeServerAdapterResult | undefined;
+	private server: NodeServerInstance | null = null;
+	private runtimeOrigin = '';
+	private stopped = false;
+	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
+
+	constructor(
+		options: ResolvedEcopagesAppOptions,
+		dependencies: {
+			runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
+		},
+	) {
+		super(options, 'Node');
+		this.runtimeHost = dependencies.runtimeHost;
+	}
+
+	protected createServerAdapter(
+		params: Parameters<typeof createNodeServerAdapter>[0],
+	): Promise<NodeServerAdapterResult> {
+		return createNodeServerAdapter(params);
+	}
+
+	public override async stop(force = true): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
+
+		if (this.server) {
+			const activeServer = this.server;
+			this.server = null;
+			await this.runtimeHost.stop(activeServer, { force });
+		}
+
+		if (this.serverAdapter) {
+			await this.serverAdapter.dispose();
+		}
+
+		this.stopped = true;
+	}
+
+	protected override async resolveAppRoutes() {
+		return resolveAppStartRoutes({
+			listStaticGenerationRoutes: this.serverAdapter?.listStaticGenerationRoutes,
+			runtimeOrigin: this.appConfig.baseUrl,
+		});
+	}
+
+	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
+		});
+		this.runtimeOrigin = binding.runtimeOrigin;
+
+		return this.createServerAdapter({
+			runtimeOrigin: this.runtimeOrigin,
+			appConfig: this.appConfig,
+			apiHandlers: this.apiHandlers,
+			staticRoutes: this.staticRoutes as StaticRoute[],
+			errorPageLoaders: this.getErrorPageLoaders(),
+			errorHandler: this.errorHandler,
+			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
+			options: { watch: binding.watch },
+			serveOptions: binding.serveOptions,
+			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
+			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
+			allowPortFallback: binding.allowPortFallback,
+			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
+		});
+	}
+
+	protected async bootServer(): Promise<NodeServerInstance | void> {
+		if (this.stopped) {
+			this.serverAdapter = undefined;
+			this.stopped = false;
+		}
+
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		if (this.server) {
+			return this.server;
+		}
+
+		const { build, preview, force, serveOnly } = this.cliArgs;
+
+		if (preview && serveOnly) {
+			const previewOrigin = await this.serverAdapter.servePreviewOnly();
+			if (previewOrigin) {
+				await this.notifyListening(previewOrigin);
+			}
+			return;
+		}
+
+		if (build || preview) {
+			appLogger.debugTime('Building static pages');
+			const previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
+			appLogger.debugTimeEnd('Building static pages');
+
+			if (preview && previewOrigin) {
+				await this.notifyListening(previewOrigin);
+			}
+
+			if (build) {
+				process.exit(0);
+			}
+			return;
+		}
+
+		const serveOptions = this.serverAdapter.getServerOptions();
+		const binding = resolveRuntimeBinding({
+			cliArgs: this.cliArgs,
+			serverOptions: this.serverOptions,
+		});
+		startupTrace.beginServerListen();
+		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
+			startOptions: {
+				serveOptions: {
+					...serveOptions,
+					handleRequest: async (request: Request) => await this.serverAdapter!.handleRequest(request),
+				},
+			},
+			allowPortFallback: binding.allowPortFallback,
+			usePortManager: this.cliArgs.dev,
+		});
+		this.server = bindingResult.server;
+		this.runtimeOrigin = bindingResult.runtimeOrigin;
+		this.serverAdapter.applyBoundPort(bindingResult);
+
+		await this.serverAdapter.completeInitialization(this.server);
+		await this.notifyListening(this.runtimeOrigin);
+
+		return this.server;
+	}
+
+	public async fetch(request: Request): Promise<Response> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		return this.serverAdapter.handleRequest(request);
+	}
+
+	public async attachWebSocketUpgrades(
+		httpServer: import('node:http').Server,
+		options?: WebSocketUpgradeOptions,
+	): Promise<void> {
+		if (!this.serverAdapter) {
+			this.serverAdapter = await this.initializeServerAdapter();
+		}
+
+		if (!this.server) {
+			this.server = httpServer;
+			await this.serverAdapter.completeInitialization(httpServer, options);
+			return;
+		}
+
+		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
+	}
+}
+
+export async function createNodeApp(options: ResolvedEcopagesAppOptions): Promise<NodeEcopagesApp> {
+	return new NodeEcopagesApp(options, {
+		runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+	});
+}

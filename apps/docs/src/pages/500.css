@@ -1,0 +1,19 @@
+.error500 {
+	@apply flex items-center justify-center p-8;
+
+	&__content {
+		@apply max-h-[calc(100vh-8rem)] max-w-2xl w-full overflow-y-auto text-center rounded-2xl border border-on-background/10 bg-background p-8 md:p-12;
+	}
+
+	&__heading {
+		@apply mx-auto max-w-lg;
+	}
+
+	&__actions {
+		@apply mt-8 flex flex-wrap justify-center gap-4;
+	}
+
+	&__hint {
+		@apply mt-8 text-sm text-on-background/50;
+	}
+}

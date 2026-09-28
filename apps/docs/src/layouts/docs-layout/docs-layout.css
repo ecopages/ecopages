@@ -1,48 +1,60 @@
+@import '@ecopages/radiant-ui/sidebar/docs.css';
+
+/**
+ * Keep `@reference` after the skin `@import` so postcss-import inlines the package
+ * CSS before Tailwind sees a leading `@reference` (which would drop the import).
+ */
+@reference '../../styles/tailwind.css';
+
 .docs-layout {
-	@apply md:grid md:grid-cols-[250px_1fr] min-h-screen relative;
+	@apply min-h-svh h-svh min-w-0;
+	--rui-sidebar-background: var(--color-background);
 
-	.docs-layout__aside {
-		@apply fixed inset-0 z-40 md:z-0 md:relative md:block;
-		@apply h-svh md:h-[calc(100svh_-_4rem)] md:sticky md:top-16 overflow-y-auto;
-		@apply bg-background border-r border-border;
+	.rui-sidebar-provider__site-header-inner {
+		@apply px-4 md:px-8;
+	}
 
-		nav {
-			@apply p-4 pt-20 md:pt-8;
-		}
-
-		ul {
-			@apply list-none p-0 m-0;
-		}
-
-		.docs-layout__nav-group {
-			@apply flex items-center mb-2 mt-6 first:mt-0 font-heading gap-2;
-			@apply text-[11px] font-bold uppercase tracking-wider text-on-background/70;
-
-			&-icon {
-				@apply text-on-background/50;
-			}
-		}
-
-		.docs-layout__nav-separator {
-			@apply h-px bg-border my-6 mx-3;
-		}
-
-		.docs-layout__nav-group-list {
-			@apply space-y-0.5 mb-4;
-
-			li a {
-				@apply block px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150 font-sans;
-				@apply text-on-background/80 hover:text-on-background hover:bg-background-accent;
-				@apply no-underline font-medium;
-
-				&.active {
-					@apply text-on-primary-container bg-primary-container font-semibold;
-				}
-			}
-		}
+	.rui-sidebar-provider__site-header-start {
+		@apply min-w-0 gap-2 md:gap-4;
 	}
 
 	.docs-layout__content {
-		@apply px-6 py-4 md:px-8 md:py-8 max-w-[800px] mx-auto w-full min-w-0 bg-background;
+		@apply min-w-0 flex-1 overflow-y-auto px-6 py-8 md:px-10 lg:px-12 md:py-10;
+	}
+
+	.docs-bar {
+		@apply mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2;
+	}
+
+	.docs-bar .unstyled {
+		@apply min-w-0 flex-1 basis-full sm:basis-auto;
+	}
+
+	.docs-layout__toc {
+		@apply hidden w-62 shrink-0 overflow-y-auto border-l border-border/60 px-6 py-8 xl:block;
+	}
+
+	.docs-layout__pagination {
+		@apply mt-16 flex flex-col justify-between gap-4 border-t border-border/40 pt-8 sm:flex-row;
+
+		a {
+			@apply flex flex-1 flex-col gap-1 rounded-lg border border-border/40 bg-background-accent/10 p-4 no-underline transition-all duration-200 hover:border-border/80 hover:bg-background-accent/40;
+
+			.pagination-label {
+				@apply font-mono text-[10px] uppercase tracking-widest text-on-background/75 transition-colors;
+			}
+
+			.pagination-title {
+				@apply text-sm font-medium text-on-background;
+			}
+
+			&.prev {
+				@apply items-start text-left;
+			}
+
+			&.next {
+				@apply items-end text-right;
+			}
+		}
 	}
 }

@@ -1,50 +1,27 @@
-import { RadiantElement } from '@ecopages/radiant/core/radiant-element';
-import { customElement } from '@ecopages/radiant/decorators/custom-element';
-import { onEvent } from '@ecopages/radiant/decorators/on-event';
-import { BurgerEvents } from '@/components/burger/burger.events';
-import '@ecopages/scripts-injector';
+/** Registers the Radiant UI custom elements rendered by the docs shell. */
+import { isServer } from '@ecopages/radiant/is-server';
+import '@ecopages/radiant-ui/alert';
+import '@ecopages/radiant-ui/breadcrumb';
+import '@ecopages/radiant-ui/button';
+import '@ecopages/radiant-ui/chip';
+import '@ecopages/radiant-ui/sidebar';
+import '@ecopages/radiant-ui/toc';
 
-@customElement('radiant-navigation')
-export class RadiantCounter extends RadiantElement {
-	override connectedCallback(): void {
-		super.connectedCallback();
-		this.highlightActiveLink();
-	}
+const docsContentSelector = '.docs-layout__content';
 
-	@onEvent({ document: true, type: 'eco:page-load' })
-	onPageLoad(): void {
-		this.highlightActiveLink();
-	}
+type DocsNavigationEvent = CustomEvent<{ url: URL }>;
 
-	highlightActiveLink(): void {
-		const links = this.querySelectorAll<HTMLAnchorElement>('[data-nav-link]');
-		const currentPath = window.location.pathname;
-
-		links.forEach((link) => {
-			if (link.pathname === currentPath) {
-				link.classList.add('active');
-				link.scrollIntoView({ block: 'nearest' });
-			} else {
-				link.classList.remove('active');
-			}
-		});
-	}
-
-	@onEvent({ window: true, type: BurgerEvents.TOGGLE_MENU })
-	toggleNavigation(): void {
-		this.classList.toggle('hidden');
-	}
-
-	@onEvent({ window: true, type: BurgerEvents.CLOSE_MENU })
-	closeNavigation(): void {
-		this.classList.add('hidden');
-	}
+function scrollDocsToTop(): void {
+	document.querySelector<HTMLElement>(docsContentSelector)?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'radiant-navigation': HtmlTag;
+if (!isServer) {
+	document.addEventListener('eco:after-swap', (event) => {
+		const { url } = (event as DocsNavigationEvent).detail;
+		if (url.hash) {
+			return;
 		}
-	}
+
+		scrollDocsToTop();
+	});
 }

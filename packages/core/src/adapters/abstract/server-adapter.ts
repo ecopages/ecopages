@@ -7,8 +7,9 @@
  * @module ServerAdapter
  */
 
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
-import type { ApiHandler } from '../../public-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { ApiHandler } from '../../types/public-types.ts';
+import type { StaticGenerationRoute } from '../../router/server/route-registry.ts';
 
 /**
  * Configuration options for all server adapters
@@ -30,7 +31,20 @@ export interface ServerAdapterOptions {
  */
 export interface ServerAdapterResult {
 	getServerOptions: (options?: { enableHmr?: boolean }) => any;
-	buildStatic: (options?: { preview?: boolean }) => Promise<void>;
+	buildStatic: (options?: { preview?: boolean; force?: boolean }) => Promise<string | undefined>;
+	servePreviewOnly: () => Promise<string | undefined>;
+	dispose(): Promise<void>;
+	/**
+	 * Updates listen metadata after the runtime binds its actual port.
+	 */
+	applyBoundPort: (input: { port: number; runtimeOrigin: string }) => void;
+	/**
+	 * Lists static-generation routes for app-start consumers.
+	 *
+	 * @remarks
+	 * Optional so lightweight adapter stubs in tests need not implement routing.
+	 */
+	listStaticGenerationRoutes?: (input: { runtimeOrigin: string }) => Promise<readonly StaticGenerationRoute[]>;
 }
 
 /**
@@ -53,6 +67,17 @@ export abstract class AbstractServerAdapter<
 	}
 
 	/**
+	 * Updates listen metadata after the runtime binds its actual port.
+	 */
+	public applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
+		this.runtimeOrigin = input.runtimeOrigin;
+		this.serveOptions = {
+			...this.serveOptions,
+			port: input.port,
+		};
+	}
+
+	/**
 	 * Initialize the server adapter
 	 */
 	public abstract initialize(): Promise<void>;
@@ -65,7 +90,7 @@ export abstract class AbstractServerAdapter<
 	/**
 	 * Build static files for the application
 	 */
-	public abstract buildStatic(options?: { preview?: boolean }): Promise<void>;
+	public abstract buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Factory method to create a server adapter with runtime-specific functionality

@@ -8,5 +8,5 @@ html {
 }
 
 main {
-	@apply container mx-auto;
+	@apply max-w-7xl w-full mx-auto;
 }

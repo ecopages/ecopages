@@ -2,10 +2,10 @@
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
 		"jsx": "react-jsx",
-		"baseUrl": ".",
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
+		"lib": ["es2022"],
 		"moduleResolution": "bundler",
 		"noImplicitOverride": true,
 		"paths": {

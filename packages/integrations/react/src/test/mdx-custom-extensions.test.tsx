@@ -1,50 +1,51 @@
-import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import { ReactRenderer } from '../react-renderer';
-import { ReactPlugin, reactPlugin } from '../react.plugin';
+import { ReactRenderer } from '../render/react-renderer.ts';
+import { reactPlugin } from '../plugin/react.plugin.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
 
+const fixtureAppRoot = path.resolve(__dirname, '../../../../core/__fixtures__/app');
 const testDir = path.join(__dirname, 'fixture/.eco-mdx');
 
-const mockConfig = await new ConfigBuilder()
+const Config = await new ConfigBuilder()
+	.setRootDir(fixtureAppRoot)
 	.setDistDir(testDir)
 	.setIntegrations([])
 	.setBaseUrl('http://localhost:3000')
 	.build();
 
 /** Helper to access private/protected properties for testing */
-const getExtensions = (plugin: ReactPlugin) => (plugin as any).extensions;
+const getExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).extensions;
+const getMdxExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).mdxExtensions;
 
 describe('ReactPlugin & ReactRenderer Extensions', () => {
-	const originalExtensions = ReactRenderer.mdxExtensions;
+	const originalNodeEnv = process.env.NODE_ENV;
+
+	afterEach(() => {
+		process.env.NODE_ENV = originalNodeEnv;
+	});
 
 	afterAll(() => {
 		if (fileSystem.exists(testDir)) {
 			fileSystem.remove(testDir);
 		}
-		ReactRenderer.mdxExtensions = originalExtensions;
 	});
 
 	it('should have default extensions when MDX is disabled', () => {
 		const plugin = reactPlugin({ mdx: { enabled: false } });
 		expect(getExtensions(plugin)).toEqual(['.tsx']);
-
-		/**
-		 * Even if MDX is disabled in the plugin, the renderer should still be configured with default extensions
-		 * as the plugin constructor initializes the static configuration.
-		 */
-		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
 	it('should include .mdx by default when MDX is enabled', () => {
 		const plugin = reactPlugin({ mdx: { enabled: true } });
 		expect(getExtensions(plugin)).toEqual(['.tsx', '.mdx']);
-		expect(ReactRenderer.mdxExtensions).toEqual(['.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
 	it('should include custom extensions when provided', () => {
@@ -57,24 +58,44 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		});
 
 		expect(getExtensions(plugin)).toEqual(['.tsx', '.md', '.custom']);
-		expect(ReactRenderer.mdxExtensions).toEqual(customExtensions);
+		expect(getMdxExtensions(plugin)).toEqual(customExtensions);
 	});
 
-	it('should warn when extensions are provided but MDX is disabled', () => {
-		const warnSpy = spyOn(Logger.prototype, 'warn');
-
-		reactPlugin({
+	it('should preserve custom React route extensions when MDX is enabled', () => {
+		const plugin = reactPlugin({
+			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: false,
-				extensions: ['.md'],
+				enabled: true,
+				extensions: ['.mdx'],
 			},
 		});
 
-		expect(warnSpy).toHaveBeenCalledWith(
-			'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-		);
+		expect(getExtensions(plugin)).toEqual(['.react.tsx', '.mdx']);
+		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
+	});
 
-		warnSpy.mockRestore();
+	it('should warn when extensions are provided but MDX is disabled', () => {
+		const originalWarn = Logger.prototype.warn;
+		const warnings: string[] = [];
+		Logger.prototype.warn = function warn(message: string) {
+			warnings.push(message);
+			return this;
+		};
+
+		try {
+			reactPlugin({
+				mdx: {
+					enabled: false,
+					extensions: ['.md'],
+				},
+			});
+
+			expect(warnings).toContain(
+				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
+			);
+		} finally {
+			Logger.prototype.warn = originalWarn;
+		}
 	});
 
 	it('should correctly identify MDX files in Renderer', () => {
@@ -87,18 +108,49 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		});
 
 		const renderer = new ReactRenderer({
-			appConfig: mockConfig,
+			appConfig: Config,
 			assetProcessingService: {
 				getHmrManager: () => null,
 				processDependencies: async (deps: any) => deps,
 			} as any,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
+			reactConfig: {
+				mdxExtensions: ['.md', '.story.mdx'],
+			},
 		});
 
 		expect(renderer.isMdxFile('file.md')).toBe(true);
 		expect(renderer.isMdxFile('component.story.mdx')).toBe(true);
 		expect(renderer.isMdxFile('component.tsx')).toBe(false);
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
+	});
+
+	it('should seal runtime vendor dependencies for the active NODE_ENV during setup preparation', async () => {
+		process.env.NODE_ENV = 'production';
+		const plugin = reactPlugin({});
+		plugin.setConfig(Config);
+
+		expect((plugin as any).integrationDependencies).toEqual([]);
+
+		await plugin.prepareBuildContributions();
+
+		expect((plugin as any).integrationDependencies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: 'react',
+					bundleOptions: expect.objectContaining({ naming: 'react.js' }),
+				}),
+				expect.objectContaining({
+					name: 'react-dom',
+					bundleOptions: expect.objectContaining({ naming: 'react-dom.js' }),
+				}),
+			]),
+		);
+		expect(
+			(plugin as any).integrationDependencies.some((dependency: { bundleOptions?: { naming?: string } }) =>
+				String(dependency.bundleOptions?.naming).includes('.development.'),
+			),
+		).toBe(false);
 	});
 });

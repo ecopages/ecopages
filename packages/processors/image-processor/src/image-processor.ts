@@ -1,14 +1,14 @@
 import path from 'node:path';
-import { deepMerge } from '@ecopages/core/utils/deep-merge';
+import { mergeProcessorOptions } from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
-import sharp from 'sharp';
-import { ImageUtils } from './image-utils';
-import type { ImageMap, ImageProcessorConfig } from './plugin';
-import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types';
+import sharp, { type Metadata } from 'sharp';
+import { ImageUtils } from './image-utils.ts';
+import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
+import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
-	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
 
 /**
@@ -30,12 +30,12 @@ export class ImageProcessor {
 			writeCache: <T>(key: string, data: T) => Promise<void>;
 		},
 	) {
-		this.config = deepMerge({ cacheEnabled: true }, config);
+		this.config = mergeProcessorOptions({ cacheEnabled: true }, config);
 		this.cacheManager = cacheManager;
 		fileSystem.ensureDir(this.config.outputDir);
 	}
 
-	private async calculateDimensions(metadata: sharp.Metadata, targetWidth: number) {
+	private async calculateDimensions(metadata: Metadata, targetWidth: number) {
 		const originalWidth = metadata.width || 0;
 		const originalHeight = metadata.height || 0;
 		const aspectRatio = originalHeight / originalWidth;
@@ -60,15 +60,10 @@ export class ImageProcessor {
 			if (this.config.cacheEnabled) {
 				const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
 				if (cached) {
-					/**
-					 * Verify that the files actually exist
-					 * We construct the absolute path relative to the process current working directory
-					 * since the src in attributes is relative from the root
-					 */
-					const mainFilePath = path.join(process.cwd(), cached.attributes.src);
+					const mainFilePath = path.join(this.config.outputDir, path.basename(cached.attributes.src));
 					const mainFileExists = fileSystem.exists(mainFilePath);
-					const variantsExist = cached.variants.every((v) =>
-						fileSystem.exists(path.join(process.cwd(), v.src)),
+					const variantsExist = cached.variants.every((variant) =>
+						fileSystem.exists(path.join(this.config.outputDir, path.basename(variant.src))),
 					);
 
 					if (mainFileExists && variantsExist) {
@@ -194,7 +189,11 @@ export class ImageProcessor {
 		).filter(Boolean) as [string, ImageSpecifications][];
 
 		appLogger.debugTimeEnd('Processing images');
-		appLogger.info(`Processed ${results.length} images`);
+		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+			appLogger.debug(`Processed ${results.length} images`);
+		} else {
+			appLogger.info(`Processed ${results.length} images`);
+		}
 
 		return Object.fromEntries(results);
 	}

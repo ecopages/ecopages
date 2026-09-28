@@ -1,13 +1,20 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { createElement } from 'react';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { EcoRouter, PageContent } from '../src/router';
+import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { useRouter } from '../src/context.ts';
+import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
-declare global {
-	interface Window {
-		__ecopages_router_active__?: boolean;
-		__ecopages_reload_current_page__?: () => Promise<void>;
-	}
+function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
+	return new Response(body, {
+		status: 200,
+		...init,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			...(init.headers ?? {}),
+		},
+	});
 }
 
 function createMockPageComponent(name: string) {
@@ -16,15 +23,153 @@ function createMockPageComponent(name: string) {
 	return Component;
 }
 
+function createLayoutAwarePage(name: string) {
+	const Layout = ({
+		children,
+		locals,
+	}: {
+		children: ReactNode;
+		locals?: { session?: { user?: { name?: string } } };
+	}) =>
+		createElement(
+			'div',
+			{ 'data-testid': `${name}-layout` },
+			`${locals?.session?.user?.name ?? 'anonymous'}`,
+			children,
+		);
+
+	const Page = ((_props: { locals?: { session?: { user?: { name?: string } } } }) =>
+		createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<typeof createMockPageComponent> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layouts: [Layout] };
+	return Page;
+}
+
+function createPageWithNamedLayout(name: string, layoutLabel: string, layoutKey: string) {
+	const Layout = ({ children }: { children: ReactNode }) =>
+		createElement('div', { 'data-testid': `${name}-layout` }, layoutLabel, children);
+
+	Layout.displayName = `${layoutKey}-layout`;
+	(Layout as typeof Layout & { config?: { identity?: { id: string } } }).config = {
+		identity: { id: layoutKey },
+	};
+
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layouts: [Layout] };
+	return Page;
+}
+
+function createPageWithCollidingDisplayNameLayout(name: string, layoutTestId: string, layoutLabel: string) {
+	const Layout = ({ children }: { children: ReactNode }) =>
+		createElement('section', { 'data-testid': layoutTestId }, layoutLabel, children);
+
+	Layout.displayName = 'layout';
+
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layouts: [Layout] };
+	return Page;
+}
+
+function createEcoComponentStyleLayout(layoutTestId: string, options: { file: string; stylesheets?: string[] }) {
+	const Layout = (({ children }: { children: ReactNode }) =>
+		createElement('div', { 'data-testid': layoutTestId, className: 'eco-layout' }, children)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: {
+			identity?: { id: string; file: string; integration: string };
+			dependencies?: {
+				stylesheets?: string[];
+			};
+		};
+	};
+
+	Layout.config = {
+		identity: { id: layoutTestId, file: options.file, integration: 'react' },
+		dependencies: {
+			stylesheets: options.stylesheets,
+		},
+	};
+
+	return Layout;
+}
+
+function createPageWithEcoComponentLayout(
+	name: string,
+	layoutTestId: string,
+	options: { file: string; stylesheets?: string[] },
+) {
+	const Layout = createEcoComponentStyleLayout(layoutTestId, options);
+	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
+		typeof createMockPageComponent
+	> & {
+		config?: { layout?: typeof Layout };
+	};
+
+	Page.displayName = name;
+	Page.config = { layouts: [Layout] };
+	return Page;
+}
+
+function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
+	const Component = () =>
+		createElement(
+			'div',
+			{ 'data-testid': `${name}-page` },
+			...links.map((link) =>
+				createElement(
+					'a',
+					{ key: link.href, href: link.href, 'data-testid': `${name}-${link.label}` },
+					link.label,
+				),
+			),
+		);
+	Component.displayName = name;
+	return Component;
+}
+
+function createNavigablePageHtml(moduleUrl: string, props: Record<string, unknown> = {}) {
+	return `<html data-eco-document-owner="react-router"><body>
+		<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+			schemaVersion: 1,
+			navigationOwner: 'react-router',
+			moduleUrl,
+			props,
+		})}</script>
+	</body></html>`;
+}
+
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((innerResolve) => {
+		resolve = innerResolve;
+	});
+	return { promise, resolve };
+}
+
 describe('EcoRouter HMR Integration', () => {
 	let container: HTMLDivElement;
 	let root: ReturnType<typeof createRoot>;
+	let user: ReturnType<typeof userEvent.setup>;
 
 	beforeEach(() => {
 		container = document.createElement('div');
 		document.body.appendChild(container);
-
-		delete window.__ecopages_reload_current_page__;
+		user = userEvent.setup();
 	});
 
 	afterEach(() => {
@@ -34,10 +179,35 @@ describe('EcoRouter HMR Integration', () => {
 		if (container && container.parentNode) {
 			container.parentNode.removeChild(container);
 		}
+		vi.restoreAllMocks();
+		clearLayoutCache();
+		delete window.__ECO_PAGES__;
+		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
+	});
+
+	it('sets and clears the router ownership flag', async () => {
+		const PageA = createMockPageComponent('PageA');
+
+		root = createRoot(container);
+		root.render(
+			createElement(EcoRouter, {
+				page: PageA,
+				pageProps: {},
+				// oxlint-disable-next-line no-children-prop
+				children: createElement(PageContent),
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
+
+		root.unmount();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('none');
 	});
 
 	describe('HMR reload hook registration', () => {
-		it('should register __ecopages_reload_current_page__ callback', async () => {
+		it('registers current-page reload through the navigation coordinator', async () => {
 			const PageA = createMockPageComponent('PageA');
 
 			root = createRoot(container);
@@ -52,11 +222,13 @@ describe('EcoRouter HMR Integration', () => {
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
-			expect(window.__ecopages_reload_current_page__).toBeDefined();
-			expect(typeof window.__ecopages_reload_current_page__).toBe('function');
+			expect(getEcoNavigationRuntime(window).getOwnerState()).toEqual({
+				owner: 'react-router',
+				canHandleSpaNavigation: true,
+			});
 		});
 
-		it('should clean up __ecopages_reload_current_page__ on unmount', async () => {
+		it('cleans up the registered current-page reload handler on unmount', async () => {
 			const PageA = createMockPageComponent('PageA');
 
 			root = createRoot(container);
@@ -70,16 +242,33 @@ describe('EcoRouter HMR Integration', () => {
 			);
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
-			expect(window.__ecopages_reload_current_page__).toBeDefined();
+			expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 
 			root.unmount();
 			await new Promise((resolve) => setTimeout(resolve, 50));
 
-			expect(window.__ecopages_reload_current_page__).toBeUndefined();
+			expect(getEcoNavigationRuntime(window).getOwnerState()).toEqual({
+				owner: 'none',
+				canHandleSpaNavigation: false,
+			});
 		});
 
-		it('should return a promise when called', async () => {
+		it('reloads the current page through the navigation coordinator', async () => {
 			const PageA = createMockPageComponent('PageA');
+			const moduleUrl = new URL('./fixtures/reloaded-page.tsx', import.meta.url).toString();
+			const mockHtml = `
+				<html data-eco-document-owner="react-router">
+					<body>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+							schemaVersion: 1,
+							navigationOwner: 'react-router',
+							moduleUrl,
+							props: {},
+						})}</script>
+					</body>
+				</html>
+			`;
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(mockHtml, { status: 200 }));
 
 			root = createRoot(container);
 
@@ -87,6 +276,82 @@ describe('EcoRouter HMR Integration', () => {
 				createElement(EcoRouter, {
 					page: PageA,
 					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const result = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
+
+			expect(result).toBeInstanceOf(Promise);
+			await expect(result).resolves.toBe(true);
+			await vi.waitFor(() => {
+				expect(container.textContent).toContain('Reloaded page');
+			});
+		});
+
+		it('ignores coordinator reloads while a navigation is still in flight', async () => {
+			const Page = createMultiLinkPage('BusyPage', [{ href: '/next', label: 'next-link' }]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			let resolveFetch!: (response: Response) => void;
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
+				() =>
+					new Promise<Response>((resolve) => {
+						resolveFetch = resolve;
+					}),
+			);
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const link = container.querySelector('[data-testid="BusyPage-next-link"]') as HTMLAnchorElement | null;
+			expect(link).not.toBeNull();
+			await user.click(link as HTMLAnchorElement);
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			const reloadResult = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
+
+			expect(reloadResult).toBe(false);
+			expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+			resolveFetch(
+				htmlPageResponse(
+					`<html data-eco-document-owner="react-router"><body>
+						<script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+							schemaVersion: 1,
+							navigationOwner: 'react-router',
+							moduleUrl,
+							props: { label: 'done' },
+						})}</script>
+					</body></html>`,
+					{ status: 200 },
+				),
+			);
+			await vi.waitFor(() => {
+				expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'done' });
+			});
+		});
+
+		it('passes locals to layouts when persistLayouts is disabled', async () => {
+			const Page = createLayoutAwarePage('PageWithLocals');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: { locals: { session: { user: { name: 'Andee' } } } },
+					options: { persistLayouts: false },
 					// oxlint-disable-next-line no-children-prop
 					children: createElement(PageContent),
 				}),
@@ -94,11 +359,686 @@ describe('EcoRouter HMR Integration', () => {
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
-			expect(window.__ecopages_reload_current_page__).toBeDefined();
+			expect(container.textContent).toContain('Andee');
+		});
 
-			const result = window.__ecopages_reload_current_page__?.();
+		it('passes locals to layouts when persistLayouts is enabled', async () => {
+			const Page = createLayoutAwarePage('PageWithPersistentLocals');
 
-			expect(result).toBeInstanceOf(Promise);
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: { locals: { session: { user: { name: 'Andee' } } } },
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(container.textContent).toContain('Andee');
+		});
+
+		it('applies layout entry prop factories when persistLayouts is enabled', async () => {
+			const Layout = ({ children, label }: { children: ReactNode; label?: string }) =>
+				createElement('section', { 'data-testid': 'factory-layout' }, label, children);
+			const Page = (() => createElement('div', null, 'Factory page')) as ReturnType<
+				typeof createMockPageComponent
+			> & {
+				config?: {
+					layouts: [typeof Layout];
+					layoutEntries: Array<{
+						component: typeof Layout;
+						props: (context: { query?: Record<string, string> }) => { label: string };
+					}>;
+				};
+			};
+			Page.config = {
+				layouts: [Layout],
+				layoutEntries: [
+					{
+						component: Layout,
+						props: ({ query }) => ({ label: `preview:${query?.preview ?? 'off'}` }),
+					},
+				],
+			};
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: { query: { preview: '1' } },
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('preview:1');
+		});
+
+		it('refreshes cached persisted layouts when HMR provides a new layout implementation', async () => {
+			const FirstPage = createPageWithNamedLayout('PersistentPageA', 'Layout v1', 'shared-docs-layout');
+			const UpdatedPage = createPageWithNamedLayout('PersistentPageB', 'Layout v2', 'shared-docs-layout');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: FirstPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v1');
+
+			root.render(
+				createElement(EcoRouter, {
+					page: UpdatedPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.textContent).toContain('Layout v2');
+			const layout = container.querySelector('[data-testid="PersistentPageB-layout"]') as HTMLDivElement | null;
+			expect(layout?.textContent).toContain('Layout v2');
+		});
+
+		it('does not refresh persisted layouts on the initial bootstrap prop sync', async () => {
+			let layoutMountCount = 0;
+			const Layout = ({ children }: { children: ReactNode }) => {
+				layoutMountCount += 1;
+				return createElement('div', { 'data-testid': 'bootstrap-layout' }, children);
+			};
+			(Layout as typeof Layout & { config?: { identity?: { id: string } } }).config = {
+				identity: { id: 'bootstrap-layout' },
+			};
+
+			const Page = (() => createElement('div', { 'data-testid': 'bootstrap-page' }, 'page')) as ReturnType<
+				typeof createMockPageComponent
+			> & {
+				config?: { layout?: typeof Layout };
+			};
+			Page.config = { layouts: [Layout] };
+
+			clearLayoutCache();
+			root = createRoot(container);
+			const routerProps = {
+				page: Page,
+				pageProps: {},
+				options: { persistLayouts: true },
+				children: createElement(PageContent),
+			};
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
+
+			root.render(createElement(EcoRouter, routerProps));
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(layoutMountCount).toBe(1);
+		});
+
+		it('does not reuse a persisted layout when plain layouts share the same display name', async () => {
+			const DocsPage = createPageWithCollidingDisplayNameLayout('DocsPage', 'docs-layout', 'Docs Layout');
+			const HomePage = createPageWithCollidingDisplayNameLayout('HomePage', 'base-layout', 'Base Layout');
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: DocsPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="docs-layout"]')?.textContent).toContain('Docs Layout');
+
+			root.render(
+				createElement(EcoRouter, {
+					page: HomePage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="base-layout"]')?.textContent).toContain('Base Layout');
+			expect(container.querySelector('[data-testid="docs-layout"]')).toBeNull();
+		});
+
+		it('switches between eco.component layouts with identical wrapper signatures', async () => {
+			const NotFoundPage = createPageWithEcoComponentLayout('NotFoundPage', 'minimal-layout-root', {
+				file: '/app/src/layouts/minimal-layout.tsx',
+				stylesheets: ['./minimal-layout.css'],
+			});
+			const HomePage = createPageWithEcoComponentLayout('HomePage', 'app-layout-root', {
+				file: '/app/src/layouts/app-layout.tsx',
+				stylesheets: ['./app-layout.css'],
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: NotFoundPage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="app-layout-root"]')).toBeNull();
+
+			root.render(
+				createElement(EcoRouter, {
+					page: HomePage,
+					pageProps: {},
+					options: { persistLayouts: true },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="app-layout-root"]')).not.toBeNull();
+			expect(container.querySelector('[data-testid="minimal-layout-root"]')).toBeNull();
+		});
+
+		it('delegates non-React documents to browser-router when it is registered', async () => {
+			const Page = createMultiLinkPage('LeaveReact', [{ href: '/outside-react', label: 'outside-link' }]);
+			const cleanupSpy = vi.fn();
+			const handoffSpy = vi.fn(async () => true);
+			window.__ECO_PAGES__ = {
+				...window.__ECO_PAGES__,
+				react: {
+					...window.__ECO_PAGES__?.react,
+					cleanupPageRoot: cleanupSpy,
+				},
+			};
+			const unregister = getEcoNavigationRuntime(window).register({
+				owner: 'browser-router',
+				handoffNavigation: handoffSpy,
+			});
+
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+				htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 }),
+			);
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const link = container.querySelector('[data-testid="LeaveReact-outside-link"]') as HTMLAnchorElement | null;
+			expect(link).not.toBeNull();
+			await user.click(link as HTMLAnchorElement);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(cleanupSpy).not.toHaveBeenCalled();
+			expect(handoffSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					href: '/outside-react',
+					finalHref: '/outside-react',
+					direction: 'forward',
+					source: 'react-router',
+					targetOwner: 'browser-router',
+					document: expect.any(Document),
+					html: '<html><body><main>Outside React</main></body></html>',
+				}),
+			);
+			unregister();
+		});
+
+		it('unregisters the react-router runtime during cleanup-before-handoff', async () => {
+			const Page = createMockPageComponent('PageA');
+			const events: Array<{ type: string; owner?: string; status?: string }> = [];
+			const runtime = getEcoNavigationRuntime(window);
+			const unsubscribe = runtime.subscribe((event) => {
+				events.push(event);
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await runtime.cleanupOwner('react-router');
+
+			expect(runtime.getOwnerState()).toEqual({
+				owner: 'none',
+				canHandleSpaNavigation: false,
+			});
+			expect(
+				events.some(
+					(event) =>
+						event.type === 'registration-change' &&
+						event.owner === 'react-router' &&
+						event.status === 'unregistered',
+				),
+			).toBe(true);
+
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse('<html></html>', { status: 200 }));
+			const handled = await runtime.requestNavigation({ href: '/still-registered', source: 'browser-router' });
+
+			expect(handled).toBe(false);
+			expect(fetchSpy).not.toHaveBeenCalled();
+			unsubscribe();
+		});
+
+		it('stops intercepting document clicks after cleanup-before-handoff releases the runtime', async () => {
+			const Page = createMultiLinkPage('ReleasedRuntime', [{ href: '/after-cleanup', label: 'after-cleanup' }]);
+			const runtime = getEcoNavigationRuntime(window);
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse('<html></html>', { status: 200 }));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await runtime.cleanupOwner('react-router');
+
+			const link = container.querySelector(
+				'[data-testid="ReleasedRuntime-after-cleanup"]',
+			) as HTMLAnchorElement | null;
+			expect(link).not.toBeNull();
+			link?.addEventListener('click', (event) => event.preventDefault(), { once: true });
+			await user.click(link as HTMLAnchorElement);
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(fetchSpy).not.toHaveBeenCalled();
+		});
+
+		it('intercepts clicks that originate from a text node inside the anchor', async () => {
+			const Page = createMultiLinkPage('TextNodeClick', [{ href: '/fast', label: 'fast-link' }]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
+
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createHtml('fast'), { status: 200 }));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const link = container.querySelector('[data-testid="TextNodeClick-fast-link"]') as HTMLAnchorElement | null;
+			const textNode = link?.firstChild;
+			expect(link).not.toBeNull();
+			expect(textNode).not.toBeNull();
+
+			textNode?.dispatchEvent(
+				new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, button: 0 }),
+			);
+
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
+			expect(container.textContent).toContain('fast');
+		});
+
+		it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
+			const Page = createMultiLinkPage('HoverRecovery', [
+				{ href: '/slow', label: 'slow-link' },
+				{ href: '/fast', label: 'fast-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
+			const slowFetch = createDeferred();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+				const url = input.toString();
+				if (url === '/slow') {
+					return new Promise<Response>((resolve, reject) => {
+						const abortSignal = init?.signal;
+						const handleAbort = () => {
+							reject(new DOMException('Aborted', 'AbortError'));
+						};
+
+						abortSignal?.addEventListener('abort', handleAbort, { once: true });
+						slowFetch.promise.then(() => {
+							abortSignal?.removeEventListener('abort', handleAbort);
+							resolve(htmlPageResponse(createHtml('slow'), { status: 200 }));
+						});
+					});
+				}
+				if (url === '/fast') {
+					return Promise.resolve(htmlPageResponse(createHtml('fast'), { status: 200 }));
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const slowLink = container.querySelector(
+				'[data-testid="HoverRecovery-slow-link"]',
+			) as HTMLAnchorElement | null;
+			const fastLink = container.querySelector(
+				'[data-testid="HoverRecovery-fast-link"]',
+			) as HTMLAnchorElement | null;
+			expect(slowLink).not.toBeNull();
+			expect(fastLink).not.toBeNull();
+
+			await user.click(slowLink as HTMLAnchorElement);
+			await user.hover(fastLink as HTMLAnchorElement);
+			fastLink?.remove();
+			await user.click(container);
+			slowFetch.resolve();
+
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' });
+				},
+				{ timeout: 2000 },
+			);
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).not.toContain('/fast');
+			expect(container.textContent).toContain('slow');
+			expect(container.textContent).not.toContain('fast');
+		});
+
+		it('does not swap the queued navigation href when the user merely hovers unrelated links during a slow navigation', async () => {
+			const Page = createMultiLinkPage('HoverQueueLeak', [
+				{ href: '/clicked', label: 'clicked-link' },
+				{ href: '/hovered-a', label: 'hovered-a-link' },
+				{ href: '/hovered-b', label: 'hovered-b-link' },
+				{ href: '/hovered-c', label: 'hovered-c-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
+			const slowFetch = createDeferred();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+				const url = input.toString();
+				if (url === '/clicked') {
+					return new Promise<Response>((resolve, reject) => {
+						const abortSignal = init?.signal;
+						const handleAbort = () => {
+							reject(new DOMException('Aborted', 'AbortError'));
+						};
+						abortSignal?.addEventListener('abort', handleAbort, { once: true });
+						slowFetch.promise.then(() => {
+							abortSignal?.removeEventListener('abort', handleAbort);
+							resolve(htmlPageResponse(createHtml('clicked'), { status: 200 }));
+						});
+					});
+				}
+				return Promise.resolve(htmlPageResponse(createHtml(url.slice(1)), { status: 200 }));
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const clickedLink = container.querySelector(
+				'[data-testid="HoverQueueLeak-clicked-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredA = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-a-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredB = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-b-link"]',
+			) as HTMLAnchorElement | null;
+			const hoveredC = container.querySelector(
+				'[data-testid="HoverQueueLeak-hovered-c-link"]',
+			) as HTMLAnchorElement | null;
+			expect(clickedLink).not.toBeNull();
+			expect(hoveredA).not.toBeNull();
+			expect(hoveredB).not.toBeNull();
+			expect(hoveredC).not.toBeNull();
+
+			await user.click(clickedLink as HTMLAnchorElement);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
+				hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }));
+				hovered.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }));
+				hovered.dispatchEvent(
+					new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }),
+				);
+				hovered.dispatchEvent(
+					new PointerEvent('pointermove', { bubbles: true, cancelable: true, composed: true }),
+				);
+			}
+
+			slowFetch.resolve();
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'clicked' });
+				},
+				{ timeout: 2000 },
+			);
+			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			expect(fetchUrls).toContain('/clicked');
+			expect(fetchUrls).not.toContain('/hovered-a');
+			expect(fetchUrls).not.toContain('/hovered-b');
+			expect(fetchUrls).not.toContain('/hovered-c');
+			expect(container.textContent).toContain('clicked');
+			expect(container.textContent).not.toContain('hovered-a');
+			expect(container.textContent).not.toContain('hovered-b');
+			expect(container.textContent).not.toContain('hovered-c');
+		});
+
+		it('ignores stale navigation results when a newer route finishes first', async () => {
+			const Page = createMultiLinkPage('RaceStart', [
+				{ href: '/slow', label: 'slow-link' },
+				{ href: '/fast', label: 'fast-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
+
+			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+				const url = input.toString();
+				if (url === '/slow') {
+					await new Promise((resolve) => setTimeout(resolve, 60));
+					return htmlPageResponse(createHtml('slow'), { status: 200 });
+				}
+				if (url === '/fast') {
+					return htmlPageResponse(createHtml('fast'), { status: 200 });
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const slowLink = container.querySelector('[data-testid="RaceStart-slow-link"]') as HTMLAnchorElement | null;
+			const fastLink = container.querySelector('[data-testid="RaceStart-fast-link"]') as HTMLAnchorElement | null;
+			expect(slowLink).not.toBeNull();
+			expect(fastLink).not.toBeNull();
+
+			await user.click(slowLink as HTMLAnchorElement);
+			await user.click(fastLink as HTMLAnchorElement);
+
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
+			expect(container.textContent).toContain('fast');
+			expect(container.textContent).not.toContain('slow');
+		});
+
+		it('ignores stale browser-router handoff when a newer React route finishes first', async () => {
+			const Page = createMultiLinkPage('FallbackRace', [
+				{ href: '/outside-react', label: 'outside-link' },
+				{ href: '/fast', label: 'fast-link' },
+			]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const cleanupSpy = vi.fn();
+			const handoffSpy = vi.fn(async () => true);
+			window.__ECO_PAGES__ = {
+				...window.__ECO_PAGES__,
+				react: {
+					...window.__ECO_PAGES__?.react,
+					cleanupPageRoot: cleanupSpy,
+				},
+			};
+			const unregister = getEcoNavigationRuntime(window).register({
+				owner: 'browser-router',
+				handoffNavigation: handoffSpy,
+			});
+			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
+
+			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+				const url = input.toString();
+				if (url === '/outside-react') {
+					await new Promise((resolve) => setTimeout(resolve, 60));
+					return htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 });
+				}
+				if (url === '/fast') {
+					return htmlPageResponse(createHtml('fast'), { status: 200 });
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const outsideLink = container.querySelector(
+				'[data-testid="FallbackRace-outside-link"]',
+			) as HTMLAnchorElement | null;
+			const fastLink = container.querySelector(
+				'[data-testid="FallbackRace-fast-link"]',
+			) as HTMLAnchorElement | null;
+			expect(outsideLink).not.toBeNull();
+			expect(fastLink).not.toBeNull();
+
+			await user.click(outsideLink as HTMLAnchorElement);
+			await user.click(fastLink as HTMLAnchorElement);
+
+			await vi.waitFor(
+				() => {
+					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
+				},
+				{ timeout: 2000 },
+			);
+			expect(cleanupSpy).not.toHaveBeenCalled();
+			expect(handoffSpy).not.toHaveBeenCalled();
+			expect(container.textContent).toContain('fast');
+			unregister();
+		});
+
+		it('clears isNavigating after a successful SPA navigation', async () => {
+			const Page = createMultiLinkPage('NavTerminal', [{ href: '/next', label: 'next-link' }]);
+			const NavigatingProbe = () => {
+				const { isNavigating } = useRouter();
+				return createElement('span', { 'data-testid': 'is-navigating' }, isNavigating ? 'yes' : 'no');
+			};
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+				htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'next' }), { status: 200 }),
+			);
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement('div', null, createElement(PageContent), createElement(NavigatingProbe)),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(container.querySelector('[data-testid="is-navigating"]')?.textContent).toBe('no');
+
+			const link = container.querySelector('[data-testid="NavTerminal-next-link"]') as HTMLAnchorElement | null;
+			expect(link).not.toBeNull();
+			await user.click(link as HTMLAnchorElement);
+
+			await vi.waitFor(() => {
+				expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'next' });
+				expect(container.querySelector('[data-testid="is-navigating"]')?.textContent).toBe('no');
+			});
 		});
 	});
 });

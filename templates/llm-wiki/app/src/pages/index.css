@@ -1,0 +1,11 @@
+.catalog-home {
+	@apply flex flex-col;
+}
+
+.catalog-hero h1 {
+	@apply mt-0;
+}
+
+.catalog-hero > p {
+	@apply mb-0;
+}

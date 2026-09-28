@@ -1,6 +1,6 @@
 # @ecopages/codemod
 
-Codemods for migrating ecopages to the latest patterns.
+Automated code transformations for upgrading older Ecopages project structures to the latest consolidated APIs (`eco.page()` and `eco.component()`).
 
 ## Installation
 
@@ -8,38 +8,14 @@ Codemods for migrating ecopages to the latest patterns.
 bun install
 ```
 
-## Usage
-
-### Migrate Pages to `eco.page()`
-
-Transforms pages from legacy separate exports pattern to consolidated API:
-
-```bash
-npx jscodeshift -t codemod/src/transforms/migrate-to-eco-page.ts \
-  --parser tsx \
-  --dry \
-  path/to/pages/
-```
-
-### Migrate Components to `eco.component()`
-
-Transforms components from legacy `.config` assignment to consolidated API:
-
-```bash
-npx jscodeshift -t codemod/src/transforms/migrate-to-eco-component.ts \
-  --parser tsx \
-  --dry \
-  path/to/components/
-```
-
 ## Complete Migration Script
 
-Run this to migrate your entire project structure (components, layouts, includes, and pages) at once:
+Run this from your project root to migrate your entire structure (components, layouts, includes, and pages) at once:
 
 ```bash
 # Migrate components, layouts, and includes
 npx jscodeshift \
-  -t ../../codemod/src/transforms/migrate-to-eco-component.ts \
+  -t node_modules/@ecopages/codemod/src/transforms/migrate-to-eco-component.ts \
   --parser tsx \
   ./src/components \
   ./src/layouts \
@@ -47,9 +23,27 @@ npx jscodeshift \
 
 # Migrate pages
 npx jscodeshift \
-  -t ../../codemod/src/transforms/migrate-to-eco-page.ts \
+  -t node_modules/@ecopages/codemod/src/transforms/migrate-to-eco-page.ts \
   --parser tsx \
   ./src/pages
+```
+
+## Individual Migrations
+
+### Migrate Pages to `eco.page()`
+
+Transforms pages from the legacy separate exports pattern to the consolidated API:
+
+```bash
+npx jscodeshift -t codemod/src/transforms/migrate-to-eco-page.ts --parser tsx path/to/pages/
+```
+
+### Migrate Components to `eco.component()`
+
+Transforms components from the legacy `.config` assignment to the consolidated API:
+
+```bash
+npx jscodeshift -t codemod/src/transforms/migrate-to-eco-component.ts --parser tsx path/to/components/
 ```
 
 ## Options
@@ -60,7 +54,7 @@ npx jscodeshift \
 | `--print` | Print transformed output to stdout       |
 | `-v 2`    | Verbose output showing all changes       |
 
-## What Gets Transformed
+## Transform Details
 
 ### Pages
 

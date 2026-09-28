@@ -4,10 +4,24 @@
 
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
-import type { EcoComponent, GetMetadataContext, StaticPath } from '../public-types.ts';
-import type { EcoPagesAppConfig } from 'src/internal-types.ts';
+import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import {
+	type ForeignChildRuntime,
+	getComponentRenderContext,
+	runWithComponentRenderContext,
+} from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
+
+function createResolvedForeignChildRuntime(targetIntegrations: string[], value: string): ForeignChildRuntime {
+	return {
+		interceptForeignChild: async ({ targetIntegration }: { targetIntegration?: string }) =>
+			targetIntegration !== undefined && targetIntegrations.includes(targetIntegration)
+				? ({ kind: 'resolved', value } as const)
+				: ({ kind: 'inline' } as const),
+	};
+}
 
 describe('eco namespace', () => {
 	describe('eco.component()', () => {
@@ -41,40 +55,36 @@ describe('eco namespace', () => {
 			const Counter = eco.component({
 				dependencies: {
 					stylesheets: ['./counter.css'],
-					lazy: {
-						'on:interaction': 'mouseenter,focusin',
-						scripts: ['./counter.script.ts'],
-					},
+					scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 				},
 				render: () => '<my-counter></my-counter>',
 			});
 
-			expect(Counter.config?.dependencies?.lazy).toBeDefined();
-			if (Counter.config?.dependencies?.lazy && 'on:interaction' in Counter.config.dependencies.lazy) {
-				expect(Counter.config.dependencies.lazy['on:interaction']).toBe('mouseenter,focusin');
-			}
+			expect(Counter.config?.dependencies?.scripts).toEqual([
+				{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } },
+			]);
 		});
 
 		test('should auto-wrap component with scripts-injector when lazy scripts are resolved', () => {
 			const Counter = eco.component({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'mouseenter,focusin',
-						scripts: ['./counter.script.ts'],
-					},
+					scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
 				},
 				render: () => '<my-counter></my-counter>',
 			});
 
-			// Simulate renderer setting _resolvedScripts
 			if (Counter.config) {
-				Counter.config._resolvedScripts = '/_assets/counter.js';
+				Counter.config._resolvedLazyScripts = [
+					{ lazy: { 'on:interaction': 'mouseenter,focusin' }, scripts: '/_assets/counter.js' },
+				];
 			}
 
 			const result = Counter({});
 			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('on:interaction="mouseenter,focusin"');
-			expect(result).toContain('scripts="/_assets/counter.js"');
+			expect(result).toContain('<script type="ecopages/injector-map">');
+			expect(result).toContain(
+				'"on:interaction":{"value":"mouseenter,focusin","scripts":["/_assets/counter.js"]}',
+			);
 			expect(result).toContain('<my-counter></my-counter>');
 			expect(result).toContain('</scripts-injector>');
 		});
@@ -82,69 +92,59 @@ describe('eco namespace', () => {
 		test('should handle on:idle trigger', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:idle': true,
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:idle': true } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [{ lazy: { 'on:idle': true }, scripts: '/_assets/script.js' }];
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:idle');
-			expect(result).not.toContain('on:idle="true"');
+			expect(result).toContain('"on:idle":{"scripts":["/_assets/script.js"]}');
 		});
 
 		test('should handle on:visible trigger with boolean', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:visible': true,
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:visible': true } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:visible': true }, scripts: '/_assets/script.js' },
+				];
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:visible');
-			expect(result).not.toContain('on:visible="true"');
+			expect(result).toContain('"on:visible":{"scripts":["/_assets/script.js"]}');
 		});
 
 		test('should handle on:visible trigger with threshold value', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:visible': '0.5',
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:visible': '0.5' } }],
 				},
 				render: () => '<div>Content</div>',
 			});
 
 			if (Component.config) {
-				Component.config._resolvedScripts = '/_assets/script.js';
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/script.js' },
+				];
 			}
 
 			const result = Component({});
-			expect(result).toContain('on:visible="0.5"');
+			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/script.js"]}');
 		});
 
-		test('should not wrap when lazy is defined but _resolvedScripts is not set', () => {
+		test('should not wrap when lazy script entries exist but _resolvedLazyScripts is not set', () => {
 			const Component = eco.component({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'mouseenter',
-						scripts: ['./script.ts'],
-					},
+					scripts: [{ src: './script.ts', lazy: { 'on:interaction': 'mouseenter' } }],
 				},
 				render: () => '<div>Content</div>',
 			});
@@ -162,6 +162,278 @@ describe('eco namespace', () => {
 
 			const result = Component({ name: 'Counter', count: 5 });
 			expect(result).toBe('<div>Counter: 5</div>');
+		});
+
+		test('should support multiple lazy triggers in dependencies.scripts', () => {
+			const Component = eco.component({
+				dependencies: {
+					scripts: [
+						{ src: './idle.ts', lazy: { 'on:idle': true } },
+						{ src: './visible.ts', lazy: { 'on:visible': '0.5' } },
+					],
+				},
+				render: () => '<section>Content</section>',
+			});
+
+			if (Component.config) {
+				Component.config._resolvedLazyScripts = [
+					{ lazy: { 'on:idle': true }, scripts: '/_assets/idle.js' },
+					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/visible.js' },
+				];
+			}
+
+			const result = Component({});
+			expect(result).toContain('"on:idle":{"scripts":["/_assets/idle.js"]}');
+			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/visible.js"]}');
+			expect(result).toContain('<section>Content</section>');
+			expect((result.match(/<scripts-injector/g) ?? []).length).toBe(1);
+		});
+
+		test('should set explicit integration on component config', () => {
+			const Component = eco.component({
+				integration: 'lit',
+				render: () => '<div>Content</div>',
+			});
+
+			expect(Component.config?.integration).toBe('lit');
+		});
+
+		test('should render inline when the foreign-child runtime returns inline for a React component', async () => {
+			const ReactButton = eco.component({
+				integration: 'react',
+				identity: {
+					id: 'react-button',
+					file: '/app/components/react-button.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button type="button">Click</button>',
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toBe('<button type="button">Click</button>');
+		});
+
+		test('should resolve foreign children immediately when the runtime returns resolved output', async () => {
+			const ReactButton = eco.component({
+				integration: 'react',
+				identity: {
+					id: 'react-button-resolved-runtime',
+					file: '/app/components/react-button-resolved-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: () => '<button type="button">Click</button>',
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					foreignChildRuntime: createResolvedForeignChildRuntime(
+						['react'],
+						'<aside>Resolved in owning renderer</aside>',
+					),
+				},
+				async () => ReactButton({}),
+			);
+
+			expect(execution.value).toBe('<aside>Resolved in owning renderer</aside>');
+		});
+
+		test('should render inline with runtime-normalized props', async () => {
+			const KitaShell = eco.component<{ children?: string }>({
+				integration: 'kitajs',
+				identity: {
+					id: 'kitajs-shell-inline-props',
+					file: '/app/components/kitajs-shell-inline-props.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<section>${children ?? ''}</section>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'ecopages-jsx',
+					foreignChildRuntime: {
+						interceptForeignChild: async ({ targetIntegration, props }) =>
+							targetIntegration === 'kitajs'
+								? {
+										kind: 'inline',
+										props: {
+											...props,
+											children: '<span data-serialized="true">Leaf</span>',
+										},
+									}
+								: { kind: 'inline' },
+					},
+				},
+				async () => KitaShell({ children: { nodeType: 1, outerHTML: '<span>Leaf</span>' } as never }),
+			);
+
+			expect(execution.value).toBe('<section><span data-serialized="true">Leaf</span></section>');
+		});
+
+		test('should share render context across duplicated module instances', async () => {
+			const duplicateModule = (await import(
+				'../route-renderer/orchestration/foreign-child/component-render-context.ts?duplicate-instance' as string
+			)) as typeof import('../route-renderer/orchestration/foreign-child/component-render-context.ts');
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'kitajs',
+				},
+				async () => {
+					expect(getComponentRenderContext()?.currentIntegration).toBe('kitajs');
+					expect(duplicateModule.getComponentRenderContext()?.currentIntegration).toBe('kitajs');
+					return 'shared-context';
+				},
+			);
+
+			expect(execution.value).toBe('shared-context');
+		});
+
+		test('should embed children through a third argument without manual prop merging', () => {
+			const Shell = eco.component<{ id: string; children?: string }>({
+				render: ({ id, children }) => `<section data-shell="${id}">${children ?? ''}</section>`,
+			});
+
+			const result = eco.embed(Shell, { id: 'kita' }, '<span>Leaf</span>');
+
+			expect(result).toBe('<section data-shell="kita"><span>Leaf</span></section>');
+		});
+
+		test('should accept foreign child values without constraining the authoring surface to the target children type', () => {
+			const Shell = eco.component<{ id: string; children?: string }>({
+				render: ({ id, children }) => `<section data-shell="${id}">${children ?? ''}</section>`,
+			});
+
+			const result = eco.embed(Shell, { id: 'kita' }, { foreign: true });
+
+			expect(result).toBe('<section data-shell="kita">[object Object]</section>');
+		});
+
+		test('should let the foreign-child runtime replace embedded output when the target integration is delegated', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				identity: {
+					id: 'react-button-embedded-runtime',
+					file: '/app/components/react-button-embedded-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					foreignChildRuntime: createResolvedForeignChildRuntime(
+						['react'],
+						'<aside>Resolved in owning renderer</aside>',
+					),
+				},
+				async () => eco.embed(ReactButton, { label: 'Click' }),
+			);
+
+			expect(execution.value).toBe('<aside>Resolved in owning renderer</aside>');
+		});
+
+		test('should render embedded component output inline when the foreign-child runtime does not delegate the target integration', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				identity: {
+					id: 'react-button-embedded-inline-runtime',
+					file: '/app/components/react-button-embedded-inline-runtime.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			const execution = await runWithComponentRenderContext(
+				{
+					currentIntegration: 'lit',
+					foreignChildRuntime: createResolvedForeignChildRuntime(
+						['kitajs'],
+						'<aside>Resolved elsewhere</aside>',
+					),
+				},
+				async () => eco.embed(ReactButton, { label: 'Click' }),
+			);
+
+			expect(execution.value).toBe('<button type="button">Click</button>');
+		});
+
+		test('should surface an eco.embed-specific error when the active integration misses foreign-child handoff', async () => {
+			const ReactButton = eco.component<{ label: string }>({
+				integration: 'react',
+				identity: {
+					id: 'react-button-missing-runtime-handoff',
+					file: '/app/components/react-button-missing-runtime-handoff.react.tsx',
+					integration: 'react',
+				},
+				render: ({ label }) => `<button type="button">${label}</button>`,
+			});
+
+			await expect(
+				runWithComponentRenderContext(
+					{
+						currentIntegration: 'lit',
+						foreignChildRuntime: {},
+					},
+					async () => eco.embed(ReactButton, { label: 'Click' }),
+				),
+			).rejects.toThrowError(
+				'[ecopages] eco.embed() could not hand off the Foreign Child from lit to react for /app/components/react-button-missing-runtime-handoff.react.tsx.',
+			);
+		});
+	});
+
+	describe('eco.html()', () => {
+		test('should create a document shell component with html props', () => {
+			const Html = eco.html({
+				render: ({ children, language = 'en' }: HtmlTemplateProps) =>
+					`<html lang="${language}"><body>${children}</body></html>`,
+			});
+
+			const result = Html({
+				children: '<main>Hello</main>',
+				metadata: { title: 'Home', description: 'Welcome' },
+				pageProps: {},
+			});
+
+			expect(typeof Html).toBe('function');
+			expect(result).toBe('<html lang="en"><body><main>Hello</main></body></html>');
+		});
+	});
+
+	describe('eco.layout()', () => {
+		test('should create a route layout component with layout props', () => {
+			const Layout = eco.layout({
+				render: ({ children, locals }: LayoutProps<string>) =>
+					`<main data-user="${locals?.user ?? 'guest'}">${children}</main>`,
+			});
+
+			const result = Layout({ children: '<h1>Page</h1>', locals: { user: '123' } });
+
+			expect(typeof Layout).toBe('function');
+			expect(result).toBe('<main data-user="123"><h1>Page</h1></main>');
+		});
+
+		test('should work when used as page layout', () => {
+			const Layout = eco.layout<string>({
+				render: ({ children }) => `<main>${children}</main>`,
+			});
+
+			const Page = eco.page({
+				layout: Layout,
+				render: () => '<h1>Page Content</h1>',
+			});
+
+			expect(Page.config?.layouts).toEqual([Layout]);
+			expect(Page.config?.dependencies?.components).toContain(Layout);
 		});
 	});
 
@@ -192,21 +464,20 @@ describe('eco namespace', () => {
 		test('should work with lazy dependencies on pages', () => {
 			const Page = eco.page({
 				dependencies: {
-					lazy: {
-						'on:interaction': 'click',
-						scripts: ['./page.script.ts'],
-					},
+					scripts: [{ src: './page.script.ts', lazy: { 'on:interaction': 'click' } }],
 				},
 				render: () => '<div>Page Content</div>',
 			});
 
 			if (Page.config) {
-				Page.config._resolvedScripts = '/_assets/page.js';
+				Page.config._resolvedLazyScripts = [
+					{ lazy: { 'on:interaction': 'click' }, scripts: '/_assets/page.js' },
+				];
 			}
 
 			const result = Page({});
 			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('on:interaction="click"');
+			expect(result).toContain('"on:interaction":{"value":"click","scripts":["/_assets/page.js"]}');
 		});
 
 		test('should store layout in config and include in dependencies', async () => {
@@ -219,7 +490,7 @@ describe('eco namespace', () => {
 				render: () => '<h1>Page Content</h1>',
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 			const result = await Page({});
 			expect(result).toBe('<h1>Page Content</h1>');
@@ -238,7 +509,7 @@ describe('eco namespace', () => {
 				},
 			});
 
-			expect(Page.config?.layout).toBe(Layout);
+			expect(Page.config?.layouts).toEqual([Layout]);
 			const result = await Page({});
 			expect(result).toBe('<h1>Async Content</h1>');
 		});
@@ -261,6 +532,15 @@ describe('eco namespace', () => {
 
 			expect(Page.config?.dependencies?.components).toContain(Layout);
 			expect(Page.config?.dependencies?.stylesheets).toEqual(['./page.css']);
+		});
+
+		test('should set explicit integration on page config', () => {
+			const Page = eco.page({
+				integration: 'react',
+				render: () => '<h1>Page</h1>',
+			});
+
+			expect(Page.config?.integration).toBe('react');
 		});
 	});
 
@@ -344,23 +624,71 @@ describe('eco namespace', () => {
 	describe('integration', () => {
 		test('should work with nested components', () => {
 			const Button = eco.component<{ label: string }>({
+				identity: {
+					id: 'button',
+					file: '/app/components/button.kita.tsx',
+					integration: 'kitajs',
+				},
 				dependencies: {
-					lazy: {
-						'on:interaction': 'click',
-						scripts: ['./button.script.ts'],
-					},
+					scripts: [
+						{
+							src: './button.script.ts',
+							lazy: {
+								'on:interaction': 'click',
+							},
+						},
+					],
 				},
 				render: ({ label }) => `<button>${label}</button>`,
 			});
 
 			const Card = eco.component<{ title: string; children: string }>({
+				identity: {
+					id: 'card',
+					file: '/app/components/card.kita.tsx',
+					integration: 'kitajs',
+				},
 				dependencies: {
-					components: [Button as EcoComponent],
+					components: [Button],
 				},
 				render: ({ title, children }) => `<div class="card"><h2>${title}</h2>${children}</div>`,
 			});
 
 			expect(Card.config?.dependencies?.components).toContain(Button);
+		});
+
+		test('should normalize nested page layouts onto config.layouts', () => {
+			const OuterLayout = eco.layout({
+				identity: {
+					id: 'outer',
+					file: '/app/layouts/outer.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<outer>${children}</outer>`,
+			});
+			const InnerLayout = eco.layout({
+				identity: {
+					id: 'inner',
+					file: '/app/layouts/inner.kita.tsx',
+					integration: 'kitajs',
+				},
+				render: ({ children }) => `<inner>${children}</inner>`,
+			});
+
+			const Page = eco.page({
+				layout: [OuterLayout, { component: InnerLayout, props: ({ params }) => ({ section: params?.slug }) }],
+				render: () => '<page />',
+			});
+
+			expect(Page.config?.layouts).toEqual([OuterLayout, InnerLayout]);
+			expect(Page.config?.layoutEntries).toEqual([
+				{ component: OuterLayout },
+				{
+					component: InnerLayout,
+					props: expect.any(Function),
+				},
+			]);
+			expect(Page.config?.dependencies?.components).toEqual([OuterLayout, InnerLayout]);
 		});
 	});
 

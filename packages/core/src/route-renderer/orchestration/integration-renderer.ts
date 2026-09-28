@@ -1,0 +1,1188 @@
+/**
+ * This module contains the abstract class for the Integration Renderer
+ * Every integration renderer should extend this class
+ * @module
+ */
+
+import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../types/internal-types.ts';
+import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
+	EcoComponent,
+	EcoFunctionComponent,
+	EcoPageFile,
+	EcoPagesElement,
+	BaseIntegrationContext,
+	HtmlTemplateProps,
+	IntegrationRendererRenderOptions,
+	PageBrowserGraphContribution,
+	PageBrowserGraphContributionContext,
+	PageBrowserGraphResult,
+	PageMetadataProps,
+	RouteRendererBody,
+	RouteRendererOptions,
+	RouteRenderResult,
+} from '../../types/public-types.ts';
+import {
+	type AssetProcessingService,
+	createPagePackage,
+	type ProcessedAsset,
+} from '../../services/assets/asset-processing-service/index.ts';
+import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
+import { invariant } from '../../utils/invariant.ts';
+import { HttpError } from '../../errors/http-error.ts';
+import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
+import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
+import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
+import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
+import {
+	RouteRenderOrchestrator,
+	type RouteRenderOrchestratorAdapter,
+	type RouteRenderOrchestratorResolvedInputs,
+} from './route-pipeline/route-render-orchestrator.ts';
+import { createIntegrationRouteRenderAdapter } from './route-pipeline/integration-route-render-adapter.ts';
+import { createPageDependencyInstanceKey } from './page-browser-graph/route-instance-key.ts';
+import { mergePageBrowserGraphContributions } from './page-browser-graph/page-browser-graph-contribution.merge.ts';
+import { collectDependencyWatchPaths } from '../page-loading/file-scoped-dependency-components.ts';
+import {
+	resolvePageDependenciesFromContext,
+	type ResolvedPageDependencies,
+} from '../page-loading/resolved-page-dependencies.ts';
+import {
+	createGroupedGraphBuildPlanKey,
+	type GroupedGraphBuildPlan,
+} from './page-browser-graph/grouped-graph-build-plan.ts';
+import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
+import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
+import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
+import {
+	getForeignSubtreeResolutionContextKey,
+	getForeignSubtreeTokenPrefix,
+	resolveOwningIntegrationRenderer,
+} from './foreign-child/owning-renderer-resolution.ts';
+import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
+import {
+	ForeignSubtreeExecutionService,
+	type ForeignSubtreeExecutionOwningRenderer,
+	type QueuedForeignSubtreeResolutionContext,
+	type RenderQueuedForeignSubtreeChildren,
+} from './foreign-child/foreign-subtree-execution.service.ts';
+import {
+	composeDocumentShell,
+	finalizeDocumentShellHtml,
+	renderPageDocumentShell,
+	type DocumentShellLayoutInput,
+} from './document-shell/document-shell-render.service.ts';
+import {
+	resolveInnermostPageLayout,
+	resolvePageLayoutComponents,
+} from './document-shell/layout-shell-props.service.ts';
+import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+
+/**
+ * Controls how one route module is loaded outside the normal render path.
+ */
+export type RouteModuleLoadOptions = {
+	bypassCache?: boolean;
+};
+
+/**
+ * Context for renderToResponse method.
+ */
+export interface RenderToResponseContext {
+	partial?: boolean;
+	status?: number;
+	headers?: HeadersInit;
+}
+
+export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
+	renderOptions?: IntegrationRendererRenderOptions<C>;
+	partial?: boolean;
+};
+
+export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
+export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
+
+/**
+ * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
+ * It handles the import of page files, collection of dependencies, and preparation of render options.
+ * The class is designed to be extended by specific integration renderers.
+ */
+export abstract class IntegrationRenderer<C = EcoPagesElement> {
+	abstract name: string;
+	protected appConfig: EcoPagesAppConfig;
+	protected assetProcessingService: AssetProcessingService;
+	protected htmlTransformer: HtmlTransformerService;
+	protected hmrManager?: IHmrManager;
+	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
+	protected rendererModules?: unknown;
+	declare protected options: Required<IntegrationRendererRenderOptions>;
+	protected runtimeOrigin: string;
+	protected dependencyResolverService: DependencyResolverService;
+	protected pageModuleLoaderService: PageModuleLoaderService;
+	protected routeRenderOrchestrator: RouteRenderOrchestrator;
+	protected readonly foreignSubtreeExecutionService: ForeignSubtreeExecutionService =
+		new ForeignSubtreeExecutionService();
+	/**
+	 * Serializes route and view renders that mutate `htmlTransformer` state.
+	 *
+	 * Integration renderers are cached per integration, so concurrent static builds
+	 * and overlapping SSR requests must not share one transformer page package.
+	 */
+	private renderExclusiveChain: Promise<void> = Promise.resolve();
+
+	protected DOC_TYPE = '<!DOCTYPE html>';
+
+	private runRenderExclusive<T>(operation: () => Promise<T>): Promise<T> {
+		const run = this.renderExclusiveChain.then(async () => {
+			await this.ensureIntegrationRuntimeActivated();
+			return operation();
+		});
+		this.renderExclusiveChain = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	}
+
+	/**
+	 * Activates the owning integration runtime on first render or graph use.
+	 */
+	protected async ensureIntegrationRuntimeActivated(): Promise<void> {
+		await ensureIntegrationRuntimeReady({
+			appConfig: this.appConfig,
+			integrationName: this.name,
+			runtimeOrigin: this.runtimeOrigin,
+		});
+		const integration = this.appConfig.integrations?.find((entry) => entry.name === this.name);
+		if (integration?.getResolvedIntegrationDependencies) {
+			this.resolvedIntegrationDependencies = integration.getResolvedIntegrationDependencies();
+		}
+	}
+
+	/**
+	 * Prebuilds the production Page Browser Graph for one route file and optional params.
+	 */
+	public async prebuildProductionPageBrowserGraph(
+		routeFile: string,
+		options?: Pick<RouteRendererOptions, 'params' | 'query'> & {
+			groupedBuildPlan?: GroupedGraphBuildPlan;
+		},
+	): Promise<void> {
+		await this.ensureIntegrationRuntimeActivated();
+		await this.resolvePageBrowserGraphForRoute(routeFile, options, options?.groupedBuildPlan);
+	}
+
+	/**
+	 * Builds one production grouped graph plan for the supplied static route instances.
+	 */
+	public async buildGroupedGraphBuildPlan(
+		instances: ReadonlyArray<{
+			routeFile: string;
+			params?: RouteRendererOptions['params'];
+			query?: RouteRendererOptions['query'];
+		}>,
+	): Promise<GroupedGraphBuildPlan> {
+		const builtInstances = await Promise.all(
+			instances.map(async (routeInstance) => {
+				const context = await this.buildPageBrowserGraphContributionContext(
+					routeInstance.routeFile,
+					routeInstance,
+				);
+				const resolvedPageDependencies = await this.resolvePageDependencies(context);
+				return {
+					routeFile: routeInstance.routeFile,
+					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
+					contribution: mergePageBrowserGraphContributions(
+						await this.collectPageBrowserGraphContribution(context),
+						resolvedPageDependencies?.contribution,
+					),
+				};
+			}),
+		);
+
+		return {
+			integrationName: this.name,
+			planKey: createGroupedGraphBuildPlanKey(this.name, builtInstances),
+			instances: builtInstances,
+		};
+	}
+
+	/**
+	 * Loads one route module through the owning renderer's import path.
+	 *
+	 * Request-time infrastructure may need page metadata such as cache strategy or
+	 * middleware before full rendering starts. Exposing this narrow entrypoint lets
+	 * those callers reuse integration-specific import setup instead of bypassing it
+	 * with raw transpiler access.
+	 */
+	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		return this.importPageFile(file, options);
+	}
+
+	protected getRendererModuleValue(key: string): unknown {
+		if (!this.rendererModules || typeof this.rendererModules !== 'object') {
+			return undefined;
+		}
+
+		return (this.rendererModules as Record<string, unknown>)[key];
+	}
+
+	protected getRendererModuleString(key: string): string | undefined {
+		const value = this.getRendererModuleValue(key);
+		return typeof value === 'string' && value.length > 0 ? value : undefined;
+	}
+
+	protected getRendererBootstrapDependencies(partial = false): ProcessedAsset[] {
+		if (partial) {
+			return [];
+		}
+
+		const islandClientModuleId = this.getRendererModuleString('islandClientModuleId');
+		if (!islandClientModuleId) {
+			return [];
+		}
+
+		return [
+			{
+				attributes: {
+					crossorigin: 'anonymous',
+					'data-ecopages-runtime': 'islands',
+					type: 'module',
+				},
+				content: `import ${JSON.stringify(islandClientModuleId)};`,
+				inline: true,
+				kind: 'script',
+				packageRole: 'keep-separate',
+				position: 'body',
+			},
+		];
+	}
+
+	public setHmrManager(hmrManager: IHmrManager) {
+		this.hmrManager = hmrManager;
+		if (this.assetProcessingService) {
+			this.assetProcessingService.setHmrManager(hmrManager);
+		}
+	}
+
+	/**
+	 * Build response headers with optional custom headers.
+	 * @param contentType - The Content-Type header value
+	 * @param customHeaders - Optional custom headers to merge
+	 * @returns Headers object
+	 */
+	protected buildHeaders(contentType: string, customHeaders?: HeadersInit): Headers {
+		const headers = new Headers({ 'Content-Type': contentType });
+		if (customHeaders) {
+			const incoming = new Headers(customHeaders);
+			incoming.forEach((value, key) => headers.set(key, value));
+		}
+		return headers;
+	}
+
+	/**
+	 * Create an HTML Response.
+	 * @param body - Response body (string or ReadableStream)
+	 * @param ctx - Render context with status and headers
+	 * @returns Response object
+	 */
+	protected createHtmlResponse(body: BodyInit, ctx: RenderToResponseContext): Response {
+		return new Response(body, {
+			status: ctx.status ?? 200,
+			headers: this.buildHeaders('text/html; charset=utf-8', ctx.headers),
+		});
+	}
+
+	/**
+	 * Create an HttpError for unexpected render failures.
+	 * @param message - Error message
+	 * @param cause - Original error if available
+	 * @returns The original HttpError when the cause is already one, otherwise a 500 HttpError
+	 * @remarks HttpError from pages (for example NotFound from content lookup) must keep its
+	 * status so the request matcher can serve a 404 instead of a 500.
+	 */
+	protected createRenderError(message: string, cause?: unknown): HttpError {
+		if (HttpError.isHttpError(cause)) {
+			return cause;
+		}
+		const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
+		return HttpError.InternalServerError(errorMessage);
+	}
+
+	/**
+	 * Prepares dependencies for renderToResponse by resolving component dependencies
+	 * and configuring the HTML transformer.
+	 * @param view - The view component being rendered
+	 * @param layout - Optional layout component
+	 * @returns Resolved processed assets
+	 */
+	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
+		const resolvedDependencies = this.htmlTransformer.dedupeProcessedAssets(
+			await this.resolveDependencies(componentsToResolve),
+		);
+		this.htmlTransformer.setPagePackage(createPagePackage(resolvedDependencies));
+		return resolvedDependencies;
+	}
+
+	protected async resolvePageBrowserGraphForFile(filePath: string): Promise<PageBrowserGraphResult | undefined> {
+		/**
+		 * @remarks
+		 * Integration renderers such as React still call this file-only entry point
+		 * during explicit view rendering. Route-instance-aware callers should prefer
+		 * `resolvePageBrowserGraphForRoute`.
+		 */
+		return this.resolvePageBrowserGraphForRoute(filePath);
+	}
+
+	protected async resolvePageBrowserGraphForRoute(
+		filePath: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		groupedBuildPlan?: GroupedGraphBuildPlan,
+	): Promise<PageBrowserGraphResult | undefined> {
+		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
+		const resolvedPageDependencies = await this.resolvePageDependencies(graphContext);
+
+		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
+			routeFile: filePath,
+			dependencyInstanceKey: graphContext.dependencyInstanceKey,
+			integrationName: this.name,
+			groupedBuildPlan,
+			collectContribution: async () =>
+				mergePageBrowserGraphContributions(
+					await this.collectPageBrowserGraphContribution(graphContext),
+					resolvedPageDependencies?.contribution,
+				),
+		});
+	}
+
+	/**
+	 * Merges component-scoped assets into the active HTML transformer state.
+	 *
+	 * Explicit page, layout, and document shell composition can produce assets at
+	 * each foreign subtree. This helper deduplicates those groups and folds them back into
+	 * the transformer so downstream HTML finalization sees one canonical asset set.
+	 *
+	 * @param assetGroups - Optional groups of processed assets to merge.
+	 * @returns The deduplicated asset subset contributed by this merge operation.
+	 */
+	protected appendProcessedDependencies(
+		...assetGroups: Array<readonly ProcessedAsset[] | undefined>
+	): ProcessedAsset[] {
+		const nextDependencies = this.htmlTransformer.dedupeProcessedAssets(
+			assetGroups.flatMap((assets) => assets ?? []),
+		);
+
+		if (nextDependencies.length === 0) {
+			return nextDependencies;
+		}
+
+		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
+			...this.htmlTransformer.getProcessedDependencies(),
+			...nextDependencies,
+		]);
+		const currentPageBrowserGraph = this.htmlTransformer.getPagePackage()?.pageBrowserGraph;
+
+		this.htmlTransformer.setPagePackage(
+			createPagePackage(mergedDependencies, {
+				pageBrowserGraph: currentPageBrowserGraph,
+			}),
+		);
+
+		return nextDependencies;
+	}
+
+	/**
+	 * Resolves metadata for explicit view rendering.
+	 *
+	 * When a view declares a `metadata()` function, that contract owns the final
+	 * metadata for the explicit render. Otherwise the app-level default metadata is
+	 * reused so explicit routes and page-module routes share the same fallback.
+	 *
+	 * @param view - View component being rendered.
+	 * @param props - Props passed to the view.
+	 * @returns Resolved metadata for the final document shell.
+	 */
+	protected async resolveViewMetadata<P>(view: EcoComponent<P>, props: P): Promise<PageMetadataProps> {
+		return view.metadata
+			? await view.metadata({
+					params: {},
+					query: {},
+					props,
+					appConfig: this.appConfig,
+				})
+			: this.appConfig.defaultMetadata;
+	}
+
+	/**
+	 * Renders one explicit view response in partial mode.
+	 *
+	 * Same-integration views can optionally stream or render inline via the caller's
+	 * `renderInline()` hook. Once a view may cross integration boundaries, this
+	 * helper routes the render through `renderComponentWithForeignChildren()` instead so mixed
+	 * shells can reuse the execution-scoped renderer cache and resolve nested
+	 * foreign ownership before the partial response is returned.
+	 *
+	 * @param input - View render options for the partial response.
+	 * @returns HTML response for the partial render.
+	 */
+	protected async renderPartialViewResponse<P>(input: {
+		view: EcoComponent<P>;
+		props: P;
+		ctx: RenderToResponseContext;
+		renderInline?: () => Promise<BodyInit>;
+		transformHtml?: (html: string) => string;
+	}): Promise<Response> {
+		if (input.renderInline && !this.hasForeignChildDescendants(input.view as EcoComponent)) {
+			return this.createHtmlResponse(await input.renderInline(), input.ctx);
+		}
+
+		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+		const viewRender = await this.renderComponentWithForeignChildren({
+			component: input.view as EcoComponent,
+			props: (input.props ?? {}) as Record<string, unknown>,
+			integrationContext: { rendererCache },
+		});
+		const html = input.transformHtml ? input.transformHtml(viewRender.html) : viewRender.html;
+
+		return this.createHtmlResponse(html, input.ctx);
+	}
+
+	/**
+	 * Renders an explicit view through optional layout and document shells.
+	 *
+	 * This helper is the shared explicit-route path for string-oriented and mixed
+	 * integrations. It prepares view dependencies, resolves metadata, and composes
+	 * view, layout, and html template boundaries with one execution-scoped renderer
+	 * cache so repeated foreign shell delegation can reuse initialized renderers
+	 * during the same render flow.
+	 *
+	 * @param input - View, props, and optional layout metadata for the render.
+	 * @returns HTML response for the explicit view render.
+	 */
+	protected async renderViewWithDocumentShell<P>(input: {
+		view: EcoComponent<P>;
+		props: P;
+		ctx: RenderToResponseContext;
+		layout?: EcoComponent;
+		transformDocumentHtml?: (html: string) => string;
+	}): Promise<Response> {
+		await this.ensureIntegrationRuntimeActivated();
+		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
+
+		if (input.ctx.partial) {
+			return this.renderPartialViewResponse({
+				...input,
+				transformHtml: input.transformDocumentHtml,
+			});
+		}
+
+		await this.prepareViewDependencies(input.view, input.layout);
+
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const metadata = await this.resolveViewMetadata(input.view, input.props);
+		const { documentHtml } = await composeDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			},
+			{
+				primaryComponent: input.view as EcoComponent,
+				primaryProps: normalizedProps,
+				layout: input.layout
+					? {
+							component: input.layout,
+							props: {},
+						}
+					: undefined,
+				htmlTemplate: HtmlTemplate as EcoComponent,
+				documentProps: {
+					metadata,
+					pageProps: normalizedProps,
+				},
+			},
+		);
+
+		const transformedDocumentHtml = input.transformDocumentHtml
+			? input.transformDocumentHtml(documentHtml)
+			: documentHtml;
+		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(false));
+		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
+			html: `${this.DOC_TYPE}${transformedDocumentHtml}`,
+			partial: false,
+			htmlContributions: this.getHtmlDocumentContributions({ partial: false }),
+		});
+
+		return this.createHtmlResponse(html, input.ctx);
+	}
+
+	/**
+	 * Renders a route page through optional layout and document shells.
+	 *
+	 * Route rendering and explicit view rendering now share the same renderer-owned
+	 * shell composition model. This helper composes page, layout, and html template
+	 * renders while threading one execution-scoped renderer cache through every
+	 * delegated foreign subtree so foreign shell ownership remains stable and renderer
+	 * initialization is reused inside the current request.
+	 *
+	 * @param input - Page, layout, document, and metadata inputs for the route render.
+	 * @returns Final serialized document HTML including the doctype prefix.
+	 */
+	protected async renderPageWithDocumentShell(input: {
+		page: {
+			component: EcoComponent;
+			props: Record<string, unknown>;
+		};
+		layout?: {
+			component: EcoComponent;
+			props?: Record<string, unknown>;
+		};
+		layouts?: DocumentShellLayoutInput[];
+		htmlTemplate: EcoComponent;
+		metadata: PageMetadataProps;
+		pageProps: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+		transformDocumentHtml?: (html: string) => string;
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	}): Promise<string> {
+		return renderPageDocumentShell(
+			{
+				renderComponentWithForeignChildren: (renderInput) =>
+					this.renderComponentWithForeignChildren(renderInput),
+				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
+			},
+			input,
+			this.DOC_TYPE,
+		);
+	}
+
+	private serializeStringRenderChildren(children: ComponentRenderInput['children']): string | undefined {
+		if (children === undefined) {
+			return undefined;
+		}
+
+		if (typeof children === 'string') {
+			return children;
+		}
+
+		if (isMarkupNodeLike(children) && typeof children.outerHTML === 'string') {
+			return children.outerHTML;
+		}
+
+		return undefined;
+	}
+
+	private assertStringRenderChildren(input: ComponentRenderInput, serializedChildren: string | undefined): void {
+		if (input.children === undefined || serializedChildren !== undefined) {
+			return;
+		}
+
+		const componentFile = input.component.config?.identity?.file ?? 'unknown component';
+		const childTag = Object.prototype.toString.call(input.children);
+
+		throw new TypeError(
+			`[ecopages] ${this.name} renderer expected serialized children for ${componentFile}, received ${childTag}.`,
+		);
+	}
+
+	private assertStringRenderContent(input: ComponentRenderInput, content: EcoPagesElement): void {
+		if (typeof content === 'string') {
+			return;
+		}
+
+		const componentFile = input.component.config?.identity?.file ?? 'unknown component';
+		const contentTag = Object.prototype.toString.call(content);
+
+		throw new TypeError(
+			`[ecopages] ${this.name} renderer expected a string render result for ${componentFile}, received ${contentTag}.`,
+		);
+	}
+
+	protected async renderStringComponentWithSerializedChildren(
+		input: ComponentRenderInput,
+		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+	): Promise<ComponentRenderResult> {
+		const serializedChildren = this.serializeStringRenderChildren(input.children);
+		this.assertStringRenderChildren(input, serializedChildren);
+
+		const props = serializedChildren === undefined ? input.props : { ...input.props, children: serializedChildren };
+		const content = await component(props);
+		this.assertStringRenderContent(input, content);
+		const html = content as string;
+		const assets =
+			input.component.config?.dependencies &&
+			typeof this.assetProcessingService?.processDependencies === 'function'
+				? await this.processComponentDependencies([input.component])
+				: undefined;
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+			assets,
+		};
+	}
+
+	/**
+	 * Renders a string-first component, then resolves any queued foreign
+	 * boundaries before returning final component HTML.
+	 */
+	protected async renderStringComponentWithQueuedForeignSubtrees(
+		input: ComponentRenderInput,
+		component: (props: Record<string, unknown>) => Promise<EcoPagesElement> | EcoPagesElement,
+	): Promise<ComponentRenderResult> {
+		const componentRender = await this.renderStringComponentWithSerializedChildren(input, component);
+		const queuedForeignSubtreeResolution = await this.foreignSubtreeExecutionService.resolveStringQueuedHtml({
+			currentIntegrationName: this.name,
+			html: componentRender.html,
+			runtimeContext: this.getQueuedForeignSubtreeContext(input),
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.resolveOwningRenderer(integrationName, rendererCache),
+		});
+		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
+			...(componentRender.assets ?? []),
+			...queuedForeignSubtreeResolution.assets,
+		]);
+
+		return this.finalizeIslandComponentRender(input, {
+			...componentRender,
+			html: queuedForeignSubtreeResolution.html,
+			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
+			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
+		});
+	}
+
+	constructor({
+		appConfig,
+		assetProcessingService,
+		resolvedIntegrationDependencies,
+		rendererModules,
+		runtimeOrigin,
+	}: {
+		appConfig: EcoPagesAppConfig;
+		assetProcessingService: AssetProcessingService;
+		resolvedIntegrationDependencies?: ProcessedAsset[];
+		rendererModules?: unknown;
+		runtimeOrigin: string;
+	}) {
+		this.appConfig = appConfig;
+		this.assetProcessingService = assetProcessingService;
+		this.htmlTransformer = new HtmlTransformerService();
+		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
+		this.rendererModules = rendererModules ?? appConfig.runtime?.rendererModuleContext;
+		this.runtimeOrigin = runtimeOrigin;
+		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
+		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
+		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
+			ownershipValidationService: new OwnershipValidationService(appConfig),
+		});
+	}
+
+	/**
+	 * Returns the HTML template component.
+	 * It imports the HTML template from the specified path in the app configuration.
+	 *
+	 * @returns The HTML template component.
+	 */
+	protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+		const htmlTemplatePath =
+			this.getRendererModuleString('htmlTemplateModulePath') ?? this.appConfig.absolutePaths.htmlTemplatePath;
+		try {
+			const { default: HtmlTemplate } = await this.importPageFile(htmlTemplatePath);
+			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
+		} catch (error) {
+			invariant(false, `Error importing HtmlTemplate: ${error}`);
+		}
+	}
+
+	protected normalizeImportedPageFile<TPageModule extends EcoPageFile>(
+		_file: string,
+		pageModule: TPageModule,
+	): TPageModule {
+		return pageModule;
+	}
+
+	/**
+	 * Imports the page file from the specified path.
+	 *
+	 * @param file - The file path to import.
+	 * @returns The imported module.
+	 */
+	protected async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		const pageModule = await this.pageModuleLoaderService.importPageFile(file, {
+			bypassCache: options?.bypassCache,
+		});
+
+		return this.normalizeImportedPageFile(file, pageModule);
+	}
+
+	/**
+	 * Resolves the dependency path based on the component directory.
+	 * It combines the component directory with the provided path URL.
+	 *
+	 * @param componentDir - The component directory path.
+	 * @param pathUrl - The path URL to resolve.
+	 * @returns The resolved dependency path.
+	 */
+	protected resolveDependencyPath(componentDir: string, pathUrl: string): string {
+		return this.dependencyResolverService.resolveDependencyPath(componentDir, pathUrl);
+	}
+
+	/**
+	 * Collects the dependencies for the provided components.
+	 * Combines component-specific dependencies with global integration dependencies.
+	 *
+	 * @param components - The components to collect dependencies from.
+	 */
+	protected async resolveDependencies(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+	): Promise<ProcessedAsset[]> {
+		const componentDeps = await this.processComponentDependencies(components);
+		return this.resolvedIntegrationDependencies.concat(componentDeps);
+	}
+
+	/**
+	 * Processes component-specific dependencies WITHOUT prepending global integration dependencies.
+	 * Use this method when you need only the component's own assets.
+	 *
+	 * @param components - The components to collect dependencies from.
+	 */
+	protected async processComponentDependencies(
+		components: (EcoComponent | Partial<EcoComponent>)[],
+	): Promise<ProcessedAsset[]> {
+		return this.dependencyResolverService.processComponentDependencies(components, this.name);
+	}
+
+	/**
+	 * Builds the internal route-render adapter consumed by `RouteRenderOrchestrator`.
+	 *
+	 * The route orchestrator needs a narrow orchestration contract, but those hooks should
+	 * not become public API on the renderer base class. Keeping the adapter object
+	 * local to the execution path lets the orchestrator depend on one explicit seam while
+	 * subclasses continue to override protected renderer behavior directly.
+	 */
+	protected createRouteRenderOrchestratorAdapter(): RouteRenderOrchestratorAdapter<C> {
+		return createIntegrationRouteRenderAdapter({
+			name: this.name,
+			appConfig: this.appConfig,
+			watch: this.hmrManager?.isEnabled() === true,
+			hostOwnsDevClient: this.appConfig.runtime?.devClientOwner === 'host',
+			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
+			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
+			importPageFile: (file) => this.importPageFile(file),
+			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
+			resolvePageDependencies: (context) => this.resolvePageDependencies(context),
+			buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
+				this.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
+			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
+			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
+			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
+			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
+			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
+				const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
+				const transformedResponse = this.htmlTransformer.transform(
+					response,
+					htmlContributions,
+					resolvedPagePackage,
+				);
+				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
+			},
+		});
+	}
+
+	protected async resolveRouteRenderInputs(
+		routeOptions: RouteRendererOptions,
+	): Promise<RouteRenderOrchestratorResolvedInputs> {
+		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
+			file: routeOptions.file,
+			pageModule: routeOptions.pageModule,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
+		const { Page, integrationSpecificProps, module: pageModule } = resolvedPageModule;
+		const HtmlTemplate = await this.getHtmlTemplate();
+		const Layouts = resolvePageLayoutComponents(Page.config?.layouts);
+		const Layout = resolveInnermostPageLayout(Layouts);
+		const { props, metadata } = await this.pageModuleLoaderService.resolvePageData({
+			pageModule: resolvedPageModule,
+			routeOptions,
+		});
+
+		return {
+			Page,
+			pageModule,
+			HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps>,
+			Layouts,
+			Layout,
+			layoutEntries: Page.config?.layoutEntries,
+			props,
+			metadata,
+			integrationSpecificProps,
+		};
+	}
+
+	protected async buildPageBrowserGraphContributionContext(
+		routeFile: string,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+	): Promise<PageBrowserGraphContributionContext> {
+		const { module: pageModule, ...resolvedPageModule } = await this.pageModuleLoaderService.resolvePageModule({
+			file: routeFile,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
+		const { props } = await this.pageModuleLoaderService.resolvePageData({
+			pageModule: resolvedPageModule,
+			routeOptions: {
+				file: routeFile,
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			},
+		});
+
+		return {
+			file: routeFile,
+			pageModule,
+			props,
+			params: routeOptions?.params,
+			query: routeOptions?.query,
+			dependencyInstanceKey: createPageDependencyInstanceKey({
+				params: routeOptions?.params,
+				query: routeOptions?.query,
+			}),
+		};
+	}
+
+	protected async resolvePageDependencies(
+		context: PageBrowserGraphContributionContext,
+	): Promise<ResolvedPageDependencies | undefined> {
+		return resolvePageDependenciesFromContext(context, this.name, (components, ownerFile) =>
+			this.resolvePageBrowserGraphContributionFromComponents(components, ownerFile),
+		);
+	}
+
+	protected async resolvePageBrowserGraphContributionFromComponents(
+		components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+		ownerFile: string,
+	): Promise<PageBrowserGraphContribution | undefined> {
+		if (components.length === 0) {
+			return undefined;
+		}
+
+		return {
+			assets: await this.processComponentDependencies([...components]),
+			watchPaths: collectDependencyWatchPaths(ownerFile, components),
+		};
+	}
+
+	protected async resolveRouteDependencies(input: {
+		components: (EcoComponent | Partial<EcoComponent>)[];
+	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
+		return {
+			resolvedDependencies: await this.resolveDependencies(input.components),
+		};
+	}
+
+	protected async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+		return this.render(renderOptions);
+	}
+
+	/**
+	 * Prepares the render options for the integration renderer.
+	 * It imports the page file, collects dependencies, and prepares the render options.
+	 *
+	 * @param options - The route renderer options.
+	 * @returns The prepared render options.
+	 */
+	protected async prepareRenderOptions(
+		options: RouteRendererOptions,
+		adapter: RouteRenderOrchestratorAdapter<C> = this.createRouteRenderOrchestratorAdapter(),
+	): Promise<IntegrationRendererRenderOptions<C>> {
+		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, adapter);
+		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
+		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
+		return renderOptions;
+	}
+
+	/**
+	 * Executes the integration renderer with the provided options.
+	 *
+	 * Execution flow:
+	 * 1. Build normalized render options (`prepareRenderOptions`).
+	 * 2. Render the route body once.
+	 * 3. Reject unresolved route-level eco-marker artifacts.
+	 * 4. Optionally apply document attributes for integration-owned document boundaries.
+	 * 5. Run HTML transformer with final dependency set.
+	 *
+	 * Stream-safety note: the first render result is normalized to a string once,
+	 * then the pipeline continues with that immutable HTML value to avoid disturbed
+	 * response-body errors.
+	 *
+	 * @param options Route renderer options.
+	 * @returns Rendered route body plus effective cache strategy.
+	 */
+	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
+		return this.runRenderExclusive(async () => {
+			this.htmlTransformer.setProcessedDependencies([]);
+
+			const adapter = this.createRouteRenderOrchestratorAdapter();
+			const renderOptions = await this.prepareRenderOptions(options, adapter);
+			return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+		});
+	}
+
+	/**
+	 * Returns document-level attributes to stamp onto the rendered `<html>` tag.
+	 *
+	 * Integrations can override this to expose explicit document ownership or
+	 * other runtime coordination markers without relying on script sniffing.
+	 */
+	protected getDocumentAttributes(
+		_renderOptions: IntegrationRendererRenderOptions<C>,
+	): Record<string, string> | undefined {
+		return undefined;
+	}
+
+	protected applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string {
+		return this.htmlTransformer.applyAttributesToHtmlElement(html, attributes);
+	}
+
+	/**
+	 * Returns declarative HTML fragments that core should inject into the final document.
+	 *
+	 * @remarks
+	 * Integrations may contribute document markup here, but core retains ownership
+	 * of the final HTML rewrite pipeline and placement semantics. This is the
+	 * supported document-markup extension point for integrations instead of custom
+	 * response finalization logic.
+	 */
+	protected getHtmlDocumentContributions(
+		_options: HtmlDocumentContributionContext<C>,
+	): HtmlDocumentContribution[] | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Abstract method to render the integration-specific component.
+	 * This method should be implemented by the specific integration renderer.
+	 *
+	 * @param options - The integration renderer render options.
+	 * @returns The rendered body.
+	 */
+	abstract render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+
+	/**
+	 * Renders one component under this integration's foreign-child runtime and resolves
+	 * any nested foreign children captured during that render.
+	 *
+	 * Without this wrapper, a component tree with foreign-owned descendants would
+	 * render them with no active foreign-child runtime, which bypasses the owning
+	 * renderer's nested foreign-child handoff.
+	 */
+	async renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult> {
+		return await this.foreignSubtreeExecutionService.executeComponentRender({
+			currentIntegrationName: this.name,
+			input,
+			renderComponent: (renderInput) => this.renderComponent(renderInput),
+			normalizeComponentRenderOutput: (result) => this.normalizeComponentRenderOutput(result),
+			hasForeignChildDescendants: (component, foreignChildRoots) =>
+				this.hasForeignChildDescendants(component, foreignChildRoots),
+			createForeignChildRuntime: ({ renderInput, rendererCache }) =>
+				this.createForeignChildRuntime({
+					renderInput,
+					rendererCache: rendererCache as Map<string, IntegrationRenderer<any>>,
+				}),
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.resolveOwningRenderer(integrationName, rendererCache),
+		});
+	}
+
+	/**
+	 * Returns the renderer that owns `integrationName`, reusing `rendererCache`
+	 * for the current render.
+	 */
+	protected resolveOwningRenderer(
+		integrationName: string,
+		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
+	): Promise<ForeignSubtreeExecutionOwningRenderer> {
+		return resolveOwningIntegrationRenderer({
+			appConfig: this.appConfig,
+			runtimeOrigin: this.runtimeOrigin,
+			currentIntegrationName: this.name,
+			currentRenderer: this,
+			integrationName,
+			cache: rendererCache,
+		});
+	}
+
+	/**
+	 * Returns the queued foreign-subtree state this renderer keeps on `input`, or
+	 * `undefined` when nothing was queued for it.
+	 */
+	protected getQueuedForeignSubtreeContext<
+		TContext extends QueuedForeignSubtreeResolutionContext = QueuedForeignSubtreeResolutionContext,
+	>(input: ComponentRenderInput): TContext | undefined {
+		return this.foreignSubtreeExecutionService.getQueuedRuntimeContext<TContext>(
+			input,
+			getForeignSubtreeResolutionContextKey(this.name),
+		);
+	}
+
+	/**
+	 * Replaces the foreign-subtree tokens queued while rendering `html` with the
+	 * HTML each owning renderer produces.
+	 *
+	 * @remarks
+	 * `renderQueuedChildren` renders a subtree's children inside this renderer
+	 * before the owning renderer renders the subtree around them. The returned
+	 * assets are the owning renderers' assets, deduplicated.
+	 */
+	protected resolveQueuedForeignSubtrees<TContext extends QueuedForeignSubtreeResolutionContext>(
+		html: string,
+		runtimeContext: TContext | undefined,
+		renderQueuedChildren: RenderQueuedForeignSubtreeChildren<TContext>,
+	): Promise<{ assets: ProcessedAsset[]; html: string }> {
+		return this.foreignSubtreeExecutionService.resolveQueuedHtml({
+			currentIntegrationName: this.name,
+			html,
+			runtimeContext,
+			renderQueuedChildren,
+			getOwningRenderer: (integrationName, rendererCache) =>
+				this.resolveOwningRenderer(integrationName, rendererCache),
+		});
+	}
+
+	protected finalizeIslandComponentRender(
+		input: ComponentRenderInput,
+		result: ComponentRenderResult,
+	): ComponentRenderResult {
+		return finalizeIslandComponentRender(input, result);
+	}
+
+	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {
+		const normalizedHtml = this.normalizeUnresolvedMarkerArtifactHtml(result.html);
+
+		return normalizedHtml === result.html
+			? result
+			: {
+					...result,
+					html: normalizedHtml,
+				};
+	}
+
+	protected normalizeUnresolvedMarkerArtifactHtml(html: string): string {
+		return normalizeUnresolvedMarkerArtifactHtml(html);
+	}
+
+	/**
+	 * Returns whether the component dependency tree crosses into another
+	 * integration.
+	 *
+	 * This keeps foreign-child runtime setup narrow: same-integration trees can render
+	 * directly without paying the queue orchestration cost.
+	 */
+	protected hasForeignChildDescendants(
+		component: EcoComponent,
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+	): boolean {
+		return hasForeignChildDescendantsInGraph(component, this.name, foreignChildRoots);
+	}
+
+	/**
+	 * Render a view directly to a Response object.
+	 * Used for explicit routing where views are rendered from route handlers.
+	 *
+	 * @param view - The eco.page component to render
+	 * @param props - Props to pass to the view
+	 * @param ctx - Render context with partial flag and response options
+	 * @returns A Response object with the rendered content
+	 */
+	abstract renderToResponse<P = Record<string, unknown>>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext,
+	): Promise<Response>;
+
+	/**
+	 * Render a single component and return structured output for orchestration paths.
+	 *
+	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
+	 * the resulting HTML into the `ComponentRenderResult` contract.
+	 *
+	 * In foreign-subtree resolution, this method is the integration-owned step that turns an
+	 * already-resolved deferred foreign subtree into concrete HTML, assets, and optional
+	 * root attributes.
+	 *
+	 * Integrations can override this for richer behavior (asset emission,
+	 * root attributes, integration-specific hydration metadata).
+	 *
+	 * @param input Component render request.
+	 * @returns Structured render result used by component/page orchestration.
+	 */
+	async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
+		const response = await this.renderToResponse(
+			input.component as EcoFunctionComponent<Record<string, unknown>, EcoPagesElement>,
+			input.props,
+			{ partial: true },
+		);
+		const html = await response.text();
+
+		return {
+			html,
+			canAttachAttributes: true,
+			rootTag: this.getRootTagName(html),
+			integrationName: this.name,
+		};
+	}
+
+	/**
+	 * Extracts the first root element tag name from HTML output.
+	 *
+	 * @param html HTML fragment.
+	 * @returns Root tag name when present; otherwise `undefined`.
+	 */
+	protected getRootTagName(html: string): string | undefined {
+		const rootTag = html.match(/^(?:\s|<!--[\s\S]*?-->)*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
+		return rootTag?.[1];
+	}
+
+	/**
+	 * Collects declarative Page Browser Graph contributions for one Page.
+	 *
+	 * @remarks
+	 * Integrations may describe page-scoped browser requirements here, while core
+	 * retains ownership of dependency processing and final graph assembly. This is
+	 * the supported page-browser extension point for integrations.
+	 *
+	 * @param context - The route file path and already imported page module.
+	 * @returns Declarative dependencies or pre-resolved assets for the Page.
+	 */
+	protected async collectPageBrowserGraphContribution(
+		_context: PageBrowserGraphContributionContext,
+	): Promise<PageBrowserGraphContribution | undefined> {
+		return undefined;
+	}
+
+	/**
+	 * Creates the per-render foreign-child runtime adopted by the shared component
+	 * render context.
+	 *
+	 * The default runtime queues delegated foreign subtrees inside the owning
+	 * renderer so string and markup renderers do not need to re-declare the same
+	 * handoff boilerplate. Override only when a renderer needs custom runtime
+	 * context or a different foreign-child execution strategy.
+	 */
+	protected createForeignChildRuntime(options: {
+		renderInput: ComponentRenderInput;
+		rendererCache: Map<string, IntegrationRenderer<any>>;
+	}): ForeignChildRuntime {
+		return this.foreignSubtreeExecutionService.createQueuedRuntime({
+			renderInput: options.renderInput,
+			rendererCache: options.rendererCache,
+			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
+			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
+		});
+	}
+}

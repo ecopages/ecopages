@@ -1,0 +1,61 @@
+/**
+ * Pretty-code figures own their chrome. Background, border, and padding live on
+ * the same box so prose `pre` padding cannot show the page color around `code`.
+ */
+figure[data-rehype-pretty-code-figure] {
+	@apply my-8 overflow-hidden rounded-md border border-border shadow-sm;
+	background-color: var(--shiki-light-bg);
+}
+
+figure[data-rehype-pretty-code-figure] pre {
+	@apply relative m-0 overflow-x-auto rounded-none border-0 p-4 shadow-none;
+	background-color: var(--shiki-light-bg);
+}
+
+figure[data-rehype-pretty-code-figure] pre:has([data-rehype-pretty-copy]) {
+	@apply pr-16;
+}
+
+figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy] {
+	@apply absolute top-2 right-2 z-1 cursor-pointer rounded-sm border border-border bg-background/80 px-2 py-0.5 font-sans text-xs font-medium text-on-background opacity-0 backdrop-blur-sm transition-opacity;
+}
+
+figure[data-rehype-pretty-code-figure]:hover [data-rehype-pretty-copy],
+figure[data-rehype-pretty-code-figure]:focus-within [data-rehype-pretty-copy] {
+	@apply opacity-100;
+}
+
+figure[data-rehype-pretty-code-figure] [data-rehype-pretty-copy][data-copy-error='true'] {
+	@apply border-secondary/60 text-secondary;
+}
+
+figure[data-rehype-pretty-code-figure] pre > code {
+	display: grid;
+	@apply rounded-none border-none bg-transparent p-0 font-mono text-[0.875em] leading-relaxed;
+}
+
+figure[data-rehype-pretty-code-figure] pre > code,
+figure[data-rehype-pretty-code-figure] pre > code span {
+	color: var(--shiki-light);
+}
+
+figure[data-rehype-pretty-code-figure] pre > code span {
+	background-color: var(--shiki-light-bg);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] {
+	background-color: var(--shiki-dark-bg);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre {
+	background-color: var(--shiki-dark-bg);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code,
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code span {
+	color: var(--shiki-dark);
+}
+
+[data-theme='dark'] figure[data-rehype-pretty-code-figure] pre > code span {
+	background-color: var(--shiki-dark-bg);
+}

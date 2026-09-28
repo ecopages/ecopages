@@ -1,2 +1,2 @@
-export * from './plugin';
-export * from './postcss-processor';
+export * from './plugin.ts';
+export * from './postcss-processor.ts';

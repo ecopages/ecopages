@@ -1,5 +1,4 @@
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '../../src/config/define-config.ts';
+import { createFixtureUserConfig } from './fixture-user-config.ts';
 
-const config = await new ConfigBuilder().setRootDir(import.meta.dir).build();
-
-export default config;
+export default defineConfig(createFixtureUserConfig());

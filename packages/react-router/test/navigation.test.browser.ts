@@ -1,6 +1,32 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { extractProps, extractComponentUrl, loadPageModule, shouldInterceptClick } from '../src/navigation';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
+import {
+	extractProps,
+	extractComponentUrl,
+	fetchPageDocument,
+	loadPageModule,
+	loadPageModuleFromDocument,
+} from '../src/navigation';
 import { DEFAULT_OPTIONS } from '../src/types';
+
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
+const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
+
+function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
+	return { reloadAttribute: options.reloadAttribute };
+}
+
+function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
+	return new Response(body, {
+		status: 200,
+		...init,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			...(init.headers ?? {}),
+		},
+	});
+}
 
 function createMockDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -28,16 +54,19 @@ function createMouseEvent(overrides: Partial<MouseEventInit> = {}): MouseEvent {
 describe('extractProps', () => {
 	beforeEach(() => {
 		if (typeof window !== 'undefined') {
-			delete window.__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
-	it('should extract props from window.__ECO_PAGE__ for current document', () => {
+	it('should extract props from window.__ECO_PAGES__.page for current document', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: { title: 'Test Page', count: 42 },
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: { title: 'Test Page', count: 42 },
+			},
 		};
 
 		const props = extractProps(document);
@@ -47,12 +76,15 @@ describe('extractProps', () => {
 	it('should handle nested props correctly', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: {
-				user: { name: 'John', age: 30 },
-				items: [1, 2, 3],
-				metadata: { tags: ['a', 'b'] },
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: {
+					user: { name: 'John', age: 30 },
+					items: [1, 2, 3],
+					metadata: { tags: ['a', 'b'] },
+				},
 			},
 		};
 
@@ -64,19 +96,22 @@ describe('extractProps', () => {
 		});
 	});
 
-	it('should return empty object when window.__ECO_PAGE__ is undefined', () => {
+	it('should return empty object when window.__ECO_PAGES__.page is undefined', () => {
 		if (typeof window === 'undefined') return;
 
 		const props = extractProps(document);
 		expect(props).toEqual({});
 	});
 
-	it('should return empty object when window.__ECO_PAGE__.props is undefined', () => {
+	it('should return empty object when window.__ECO_PAGES__.page.props is undefined', () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/page.js',
-			props: undefined as any,
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: '/page.js',
+				props: undefined as any,
+			},
 		};
 
 		const props = extractProps(document);
@@ -101,6 +136,31 @@ describe('extractProps', () => {
 		const doc = createMockDocument(html);
 		const props = extractProps(doc);
 		expect(props).toEqual({ params: { slug: 'test-post' }, query: {} });
+	});
+
+	it('should extract props from a v1 page-data envelope', () => {
+		const doc = createMockDocument(`
+			<html><body>
+				<script id="__ECO_PAGE_DATA__" type="application/json">
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/docs.js","props":{"slug":"intro"}}
+				</script>
+			</body></html>
+		`);
+
+		expect(extractProps(doc)).toEqual({ slug: 'intro' });
+	});
+
+	it('should ignore legacy fallback props scripts for fetched documents', () => {
+		const html = `
+			<html>
+				<body>
+					<script id="__ECO_PAGE_DATA_FALLBACK__" type="application/json">{"params":{"slug":"legacy"}}</script>
+				</body>
+			</html>
+		`;
+		const doc = createMockDocument(html);
+		const props = extractProps(doc);
+		expect(props).toEqual({});
 	});
 
 	it('should handle complex nested props from JSON script', () => {
@@ -136,47 +196,60 @@ describe('extractProps', () => {
 describe('extractComponentUrl', () => {
 	beforeEach(() => {
 		if (typeof window !== 'undefined') {
-			delete (window as any).__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
-	it('should extract component URL from window.__ECO_PAGE__ for current document', async () => {
+	it('should extract component URL from window.__ECO_PAGES__.page for current document', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/_hmr/pages/about.js',
-			props: {},
+		const pageModuleUrl = `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js`;
+
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: pageModuleUrl,
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
-		expect(url).toBe('/_hmr/pages/about.js');
+		expect(url).toBe(pageModuleUrl);
 	});
 
 	it('should handle component URLs with query parameters', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: '/_hmr/pages/about.js?version=1',
-			props: {},
+		const pageModuleUrl = `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js?version=1`;
+
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: pageModuleUrl,
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
-		expect(url).toBe('/_hmr/pages/about.js?version=1');
+		expect(url).toBe(pageModuleUrl);
 	});
 
-	it('should return null when window.__ECO_PAGE__ is missing', async () => {
+	it('should return null when window.__ECO_PAGES__.page is missing', async () => {
 		if (typeof window === 'undefined') return;
 
 		const url = await extractComponentUrl(document);
 		expect(url).toBeNull();
 	});
 
-	it('should return null when window.__ECO_PAGE__.module is missing', async () => {
+	it('should return null when window.__ECO_PAGES__.page.module is missing', async () => {
 		if (typeof window === 'undefined') return;
 
-		window.__ECO_PAGE__ = {
-			module: undefined as any,
-			props: {},
+		window.__ECO_PAGES__ = {
+			...window.__ECO_PAGES__,
+			page: {
+				module: undefined as any,
+				props: {},
+			},
 		};
 
 		const url = await extractComponentUrl(document);
@@ -190,25 +263,52 @@ describe('extractComponentUrl', () => {
 		expect(url).toBeNull();
 	});
 
-	it('should extract from inline hydration script in fetched document', async () => {
+	it('should discover the page module from a v1 page-data envelope', async () => {
+		const doc = createMockDocument(`
+			<html><body>
+				<script id="__ECO_PAGE_DATA__" type="application/json">
+					{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"/assets/pages/docs.js","props":{}}
+				</script>
+			</body></html>
+		`);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		expect(extractComponentUrl(doc)).toBe('/assets/pages/docs.js');
+		expect(fetchSpy).not.toHaveBeenCalled();
+		fetchSpy.mockRestore();
+	});
+
+	it('should use the explicit page bootstrap script src when the envelope is absent', async () => {
+		const doc = createMockDocument(`
+			<html>
+				<body>
+					<script src="/assets/grouped/react-pages-dashboard.js" type="module" data-eco-page-bootstrap="react-router"></script>
+				</body>
+			</html>
+		`);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		const url = await extractComponentUrl(doc);
+		expect(url).toBe(`${window.location.origin}/assets/grouped/react-pages-dashboard.js`);
+		expect(fetchSpy).not.toHaveBeenCalled();
+		fetchSpy.mockRestore();
+	});
+
+	it('should ignore hydration scripts that are not the page bootstrap entry', async () => {
 		const html = `
 			<html>
 				<body>
-					<script type="module" src="/ecopages-react/hydration.js">
-						import Content from './pages/about.js';
-					</script>
+					<script src="/assets/scripts/ecopages-react-123-hydration.js" type="module"></script>
+					<script src="/assets/scripts/ecopages-react-island-123-hydration.js" type="module"></script>
 				</body>
 			</html>
 		`;
 		const doc = createMockDocument(html);
-
-		const fetchSpy = vi
-			.spyOn(globalThis, 'fetch')
-			.mockResolvedValue(new Response("import Content from './pages/about.js';", { status: 200 }));
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 		const url = await extractComponentUrl(doc);
-		expect(url).toBe('./pages/about.js');
-
+		expect(url).toBeNull();
+		expect(fetchSpy).not.toHaveBeenCalled();
 		fetchSpy.mockRestore();
 	});
 });
@@ -221,7 +321,7 @@ describe('loadPageModule', () => {
 		fetchSpy = vi.spyOn(globalThis, 'fetch');
 		consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		if (typeof window !== 'undefined') {
-			delete window.__ECO_PAGE__;
+			delete window.__ECO_PAGES__;
 		}
 	});
 
@@ -231,12 +331,22 @@ describe('loadPageModule', () => {
 
 	it('should return null when component URL cannot be extracted', async () => {
 		const mockHtml = '<html><body>No scripts</body></html>';
-		fetchSpy.mockResolvedValueOnce(new Response(mockHtml, { status: 200 }));
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
 
 		const result = await loadPageModule('/test');
 
 		expect(result).toBeNull();
-		expect(consoleErrorSpy).toHaveBeenCalled();
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+	});
+
+	it('should log when a marked react-router document is missing a component URL', async () => {
+		const mockHtml = `<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`;
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
+
+		const result = await loadPageModule('/test');
+
+		expect(result).toBeNull();
+		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Could not find component URL');
 	});
 
 	it('should handle fetch errors gracefully', async () => {
@@ -247,9 +357,130 @@ describe('loadPageModule', () => {
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Navigation failed:', expect.any(Error));
 	});
+
+	it('should return null without logging when the navigation fetch is aborted', async () => {
+		const abortController = new AbortController();
+		fetchSpy.mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'));
+
+		const result = await loadPageModule('/test', { signal: abortController.signal });
+
+		expect(result).toBeNull();
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+	});
+
+	it('should fetch and parse a navigation document without loading a module', async () => {
+		const mockHtml = '<html><body><main>Outside React</main></body></html>';
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
+
+		const result = await fetchPageDocument('/docs');
+
+		expect(result).toEqual({
+			doc: expect.any(Document),
+			finalPath: '/docs',
+			html: mockHtml,
+		});
+		expect(result?.doc.body.innerHTML).toContain('Outside React');
+	});
+
+	it('should request navigation documents as HTML', async () => {
+		const mockHtml = '<html><body><main>Docs</main></body></html>';
+		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
+
+		await fetchPageDocument('/docs');
+
+		expect(fetchSpy).toHaveBeenCalledWith('/docs', {
+			signal: undefined,
+			headers: {
+				Accept: 'text/html',
+			},
+		});
+	});
+
+	it('should load a react page module from an already-fetched document', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/test-page-module.ts';
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				`<script id="__ECO_PAGE_DATA__" type="application/json">{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"${moduleUrl}","props":{"message":"hello"}}</script>`,
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const result = await loadPageModuleFromDocument(doc, '/test');
+
+		expect(result?.props).toEqual({ message: 'hello' });
+		expect(result?.doc).toBe(doc);
+		expect(result?.finalPath).toBe('/test');
+		expect(result?.moduleUrl).toBe(moduleUrl);
+		expect(typeof result?.Component).toBe('function');
+	});
+
+	it('should prefer a provided module URL override when loading a fetched document', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/test-page-module.ts';
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				'<script id="__ECO_PAGE_DATA__" type="application/json">{"message":"override"}</script>',
+				'<script src="/assets/ecopages-react-stale.js" type="module"></script>',
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const result = await loadPageModuleFromDocument(doc, '/test', {
+			moduleUrlOverride: moduleUrl,
+		});
+
+		expect(result?.props).toEqual({ message: 'override' });
+		expect(result?.moduleUrl).toBe(moduleUrl);
+		expect(typeof result?.Component).toBe('function');
+	});
+
+	it('awaits the Page preload export before returning the loaded module', async () => {
+		const moduleUrl = '/packages/react-router/test/fixtures/preload-page-module.ts';
+		const { getPreloadFixtureState, resetPreloadFixture } = await import('./fixtures/preload-page-module.ts');
+		resetPreloadFixture();
+
+		const doc = createMockDocument(
+			[
+				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
+				'<body>',
+				`<script id="__ECO_PAGE_DATA__" type="application/json">{"schemaVersion":1,"navigationOwner":"react-router","moduleUrl":"${moduleUrl}","props":{"slug":"hello-world"}}</script>`,
+				'</body>',
+				'</html>',
+			].join(''),
+		);
+
+		const loadPromise = loadPageModuleFromDocument(doc, '/posts/hello-world');
+		const state = getPreloadFixtureState();
+
+		await vi.waitFor(() => {
+			expect(state.started).toBe(true);
+		});
+		expect(state.completed).toBe(false);
+		expect(state.props).toEqual({ slug: 'hello-world' });
+
+		const settledEarly = await Promise.race([
+			loadPromise.then(() => true),
+			new Promise<false>((resolve) => {
+				setTimeout(() => resolve(false), 20);
+			}),
+		]);
+		expect(settledEarly).toBe(false);
+
+		state.release?.();
+		const result = await loadPromise;
+
+		expect(state.completed).toBe(true);
+		expect(typeof result?.preload).toBe('function');
+		expect(typeof result?.Component).toBe('function');
+	});
 });
 
-describe('shouldInterceptClick', () => {
+describe('getLinkNavigationDecision', () => {
 	const options = DEFAULT_OPTIONS;
 	let links: HTMLAnchorElement[] = [];
 
@@ -267,7 +498,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(true);
 	});
@@ -276,7 +507,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ ctrlKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ ctrlKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -284,7 +519,11 @@ describe('shouldInterceptClick', () => {
 		const link = createLink('/about');
 		links.push(link);
 
-		const result = shouldInterceptClick(createMouseEvent({ metaKey: true }), link, options);
+		const result = getLinkNavigationDecision(
+			createMouseEvent({ metaKey: true }),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
 		expect(result).toBe(false);
 	});
 
@@ -293,7 +532,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent({ button: 1 });
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -303,7 +542,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -313,7 +552,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -323,9 +562,25 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
+	});
+
+	it('should not intercept links to static asset files', () => {
+		for (const href of ['/skill.txt', '/skill/reference/full-stack.md']) {
+			const link = createLink(href);
+			links.push(link);
+			const event = createMouseEvent();
+
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept).toBe(
+				false,
+			);
+			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options))).toEqual({
+				shouldIntercept: false,
+				reason: 'static-asset',
+			});
+		}
 	});
 
 	it('should not intercept links with reload attribute', () => {
@@ -333,7 +588,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -343,9 +598,24 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
+	});
+
+	it('should not intercept same-page links that only add a hash fragment', () => {
+		window.history.replaceState({}, '', `${window.location.origin}/docs/ecosystem/browser-router`);
+		const link = createLink('/docs/ecosystem/browser-router#setup');
+		links.push(link);
+
+		const result = getLinkNavigationDecision(
+			createMouseEvent(),
+			link,
+			linkNavigationPolicyOptions(options),
+		).shouldIntercept;
+
+		expect(result).toBe(false);
+		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
 	});
 
 	it('should not intercept mailto links', () => {
@@ -353,7 +623,7 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
 	});
@@ -363,44 +633,8 @@ describe('shouldInterceptClick', () => {
 		links.push(link);
 		const event = createMouseEvent();
 
-		const result = shouldInterceptClick(event, link, options);
+		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
 
 		expect(result).toBe(false);
-	});
-});
-
-describe('Cache busting in development', () => {
-	let fetchSpy: ReturnType<typeof vi.spyOn>;
-
-	beforeEach(() => {
-		fetchSpy = vi.spyOn(globalThis, 'fetch');
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it('should add cache buster timestamp to hydration script URL in development', async () => {
-		const mockHtml = `
-			<html>
-				<body>
-					<script type="module" src="/ecopages-react/hydration.js">
-						import Content from './page.js';
-					</script>
-				</body>
-			</html>
-		`;
-
-		fetchSpy.mockResolvedValue(new Response("import Content from './page.js';", { status: 200 }));
-
-		const doc = createMockDocument(mockHtml);
-		await extractComponentUrl(doc);
-
-		const hydrationCalls = fetchSpy.mock.calls.filter((call: [RequestInfo | URL, RequestInit?]) =>
-			call[0].toString().includes('hydration.js'),
-		);
-
-		expect(hydrationCalls.length).toBe(1);
-		expect(hydrationCalls[0][0].toString()).toMatch(/hydration\.js\?t=\d+/);
 	});
 });

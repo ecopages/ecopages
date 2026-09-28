@@ -5,97 +5,179 @@
 
 import type {
 	EcoComponent,
+	EcoDeclaredComponent,
+	EcoHtmlComponent,
+	EcoLayoutComponent,
 	EcoPagesElement,
+	EcoPageComponent,
+	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
-	Middleware,
 	RequestLocals,
 	RequestPageContext,
-} from '../public-types.ts';
+} from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
-	EcoPageComponent,
-	LazyTrigger,
+	HtmlOptions,
+	LayoutOptions,
 	PageOptions,
 	PageOptionsBase,
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
 } from './eco.types.ts';
+import {
+	finalizeComponentRender,
+	getComponentRenderContext,
+	interceptForeignChild,
+} from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
+import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
+import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
+import { getComponentIdentity } from './component-identity.ts';
+import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 
 /**
- * Builds scripts-injector HTML attributes from lazy config
+ * Creates a component factory with lazy-trigger support and foreign-child-runtime
+ * interception.
+ *
+ * Behavior:
+ * - In normal render flow, returns `options.render(props)` with optional lazy
+ *   trigger/script wrapping.
+ * - When rendering under an active foreign-child runtime and the current
+ *   renderer-owned foreign-child runtime resolves the foreign child immediately, returns
+ *   that resolved output instead of rendering the component inline.
+ *
+ * @param options Component options for rendering and dependency declaration.
+ * @returns Configured eco component.
  */
-function buildInjectorAttrs(lazy: LazyTrigger, scripts: string): string {
-	let triggerAttr: string;
+function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
+	const integrationName = options.integration ?? options.identity?.integration;
+	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
+		const componentProps = (props ?? {}) as Record<string, unknown>;
+		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
+		const activeRenderContext = getComponentRenderContext();
+		const foreignChildRender = interceptForeignChild({
+			component: comp,
+			props: componentProps,
+			targetIntegration: integrationName,
+		});
 
-	if ('on:idle' in lazy) {
-		triggerAttr = 'on:idle';
-	} else if ('on:interaction' in lazy) {
-		triggerAttr = `on:interaction="${lazy['on:interaction']}"`;
-	} else if ('on:visible' in lazy) {
-		const value = lazy['on:visible'];
-		triggerAttr = value === true ? 'on:visible' : `on:visible="${value}"`;
-	} else {
-		throw new Error(
-			`Invalid lazy options: must specify on:idle, on:interaction, or on:visible. Received: ${JSON.stringify(lazy)}`,
-		);
-	}
+		if (isThenable<unknown | undefined>(foreignChildRender)) {
+			return foreignChildRender.then((resolvedForeignChildRender) => {
+				if (resolvedForeignChildRender?.kind === 'resolved') {
+					return resolvedForeignChildRender.value as E;
+				}
 
-	return `${triggerAttr} scripts="${scripts}"`;
-}
-
-/**
- * Creates a component factory that auto-wraps lazy dependencies.
- * For React integration, returns the render function directly to preserve hook semantics.
- * For other integrations, wraps render to support lazy script injection.
- */
-function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
-	const lazy = options.dependencies?.lazy;
-	const isReact = options.__eco?.integration === 'react';
-
-	// For React, use render directly to preserve React hooks semantics
-	if (isReact) {
-		const comp = options.render as EcoComponent<P, E>;
-		comp.config = {
-			__eco: options.__eco,
-			dependencies: options.dependencies,
-		};
-		return comp;
-	}
-
-	// For non-React integrations, wrap to support lazy script injection
-	const comp: EcoComponent<P, E> = ((props: P) => {
-		const content = options.render(props);
-
-		if (lazy && comp.config?._resolvedScripts) {
-			const attrs = buildInjectorAttrs(lazy, comp.config._resolvedScripts);
-			return `<scripts-injector ${attrs}>${content}</scripts-injector>`;
+				return renderInline((resolvedForeignChildRender?.props ?? props) as P);
+			}) as E;
 		}
 
-		return content;
-	}) as EcoComponent<P, E>;
+		if (foreignChildRender?.kind === 'resolved') {
+			return foreignChildRender.value as E;
+		}
+
+		if (foreignChildRender?.kind === 'inline') {
+			return renderInline((foreignChildRender.props ?? props) as P);
+		}
+
+		if (
+			activeRenderContext &&
+			activeRenderContext.foreignChildRuntime &&
+			integrationName &&
+			integrationName !== activeRenderContext.currentIntegration
+		) {
+			throw new Error(
+				`[ecopages] Missing foreign-child interception from ${activeRenderContext.currentIntegration} to ${integrationName} for ${options.identity?.file ?? 'unknown component'}.`,
+			);
+		}
+
+		return renderInline();
+	}) as EcoDeclaredComponent<P, E>;
 
 	comp.config = {
-		__eco: options.__eco,
+		identity: options.identity,
+		integration: options.integration,
 		dependencies: options.dependencies,
 	};
+	attachDiscoveredDependencies(comp.config);
 
 	return comp;
 }
 
 /**
- * Create a reusable component with dependencies and optional lazy-loading
+ * Creates a reusable component with optional dependencies.
+ *
+ * @param options Component definition options.
+ * @returns Eco component function.
  */
-function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
+function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
 	return createComponentFactory(options);
 }
 
+type CallableEcoComponent<P = Record<string, unknown>, R = unknown> = (props: P, ...args: any[]) => R;
+
+function isMissingForeignChildInterceptionError(error: unknown): error is Error {
+	return error instanceof Error && error.message.startsWith('[ecopages] Missing foreign-child interception from ');
+}
+
+function embed<P, R>(component: CallableEcoComponent<P, R>, props: P): R;
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children: unknown,
+): R;
+
 /**
- * Create a page component with type-safe props from getStaticProps
+ * Renders a component explicitly and optionally injects `children` into the
+ * props bag before invocation.
+ */
+function embed<P extends Record<string, unknown>, R>(
+	component: CallableEcoComponent<P, R>,
+	props: P,
+	children?: unknown,
+): R {
+	const activeRenderContext = getComponentRenderContext();
+	const ecoComponent = component as unknown as EcoComponent<P, R>;
+	const targetIntegration = ecoComponent.config?.integration ?? getComponentIdentity(ecoComponent)?.integration;
+	const componentFile = getComponentIdentity(ecoComponent)?.file ?? 'unknown component';
+	const nextProps = (children === undefined ? props : { ...props, children }) as P;
+
+	try {
+		return component(nextProps);
+	} catch (error) {
+		if (!isMissingForeignChildInterceptionError(error)) {
+			throw error;
+		}
+
+		throw new Error(
+			`[ecopages] eco.embed() could not hand off the Foreign Child from ${activeRenderContext?.currentIntegration ?? 'unknown integration'} to ${targetIntegration ?? 'unknown integration'} for ${componentFile}. The active Integration renderer exposed a foreign-child runtime, but it did not intercept this cross-integration render. Ensure mixed-integration Page, Layout, Html, or Component renders install foreign-child handoff before calling eco.embed().`,
+		);
+	}
+}
+
+/**
+ * Creates a document shell component.
+ *
+ * @remarks
+ * Pass one generic for the renderable (`eco.html<JsxRenderable>()`,
+ * `eco.html<ReactNode>()`). Props are {@link HtmlTemplateProps}.
+ */
+function html<E = EcoPagesElement>(options: HtmlOptions<E>): EcoHtmlComponent<E> {
+	return createComponentFactory(options) as EcoHtmlComponent<E>;
+}
+
+/**
+ * Creates a route layout component.
+ */
+function layout<E = EcoPagesElement>(options: LayoutOptions<E>): EcoLayoutComponent<E> {
+	return createComponentFactory(options) as EcoLayoutComponent<E>;
+}
+
+/**
+ * Creates a page component with typed props and optional static helpers.
  */
 function page<T = {}, E = EcoPagesElement>(options: PageOptions<T, E> & { requires?: undefined }): EcoPageComponent<T>;
 function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals = keyof RequestLocals>(
@@ -104,31 +186,52 @@ function page<T = {}, E = EcoPagesElement, const K extends keyof RequestLocals =
 		render: (props: PagePropsForWithLocals<T, K>) => E | Promise<E>;
 	},
 ): EcoPageComponent<T>;
+
+/**
+ * Creates a page component and attaches optional static APIs.
+ *
+ * @param options Page options.
+ * @returns Eco page component.
+ */
 function page<T, E>(
-	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: Middleware[] },
+	options: PageOptionsBase<T, E> & { cache?: CacheStrategy; middleware?: FileRouteMiddleware[] },
 ): EcoPageComponent<T> {
-	const { layout, dependencies, render, staticPaths, staticProps, metadata, cache, requires, middleware } = options;
+	const {
+		layout,
+		dependencies: dependenciesInput,
+		render,
+		staticPaths,
+		staticProps,
+		metadata,
+		cache,
+		requires,
+		middleware,
+	} = options;
+
+	const layoutEntries = normalizePageLayouts(layout);
+	const resolveDependencies = typeof dependenciesInput === 'function' ? dependenciesInput : undefined;
+	const staticDependencies =
+		typeof dependenciesInput === 'function'
+			? mergeLayoutDependencies(undefined, layoutEntries)
+			: mergeLayoutDependencies(dependenciesInput, layoutEntries);
 
 	const componentOptions: ComponentOptions<PagePropsFor<T> & Partial<RequestPageContext>, E> = {
-		__eco: options.__eco,
-		dependencies: layout
-			? {
-					...dependencies,
-					components: [...(dependencies?.components || []), layout],
-				}
-			: dependencies,
+		identity: options.identity,
+		integration: options.integration,
+		dependencies: staticDependencies,
 		render,
 	};
 
 	const pageComponent = createComponentFactory(componentOptions) as EcoPageComponent<T>;
 
-	if (layout && pageComponent.config) {
-		pageComponent.config.layout = layout;
+	if (pageComponent.config) {
+		applyPageLayoutConfig(pageComponent.config, layoutEntries);
 	}
 
 	if (staticPaths) pageComponent.staticPaths = staticPaths;
 	if (staticProps) pageComponent.staticProps = staticProps;
 	if (metadata) pageComponent.metadata = metadata;
+	if (resolveDependencies) pageComponent.resolveDependencies = resolveDependencies;
 	if (cache) pageComponent.cache = cache;
 	if (requires) pageComponent.requires = requires;
 	if (middleware) pageComponent.middleware = middleware;
@@ -137,21 +240,30 @@ function page<T, E>(
 }
 
 /**
- * Type-safe wrapper for page metadata (identity function)
+ * Type-safe wrapper for metadata functions.
+ *
+ * @param fn Metadata factory function.
+ * @returns The same function.
  */
 function metadata<P = {}>(fn: GetMetadata<P>): GetMetadata<P> {
 	return fn;
 }
 
 /**
- * Type-safe wrapper for static paths (identity function)
+ * Type-safe wrapper for static paths functions.
+ *
+ * @param fn Static paths function.
+ * @returns The same function.
  */
 function staticPaths(fn: GetStaticPaths): GetStaticPaths {
 	return fn;
 }
 
 /**
- * Type-safe wrapper for static props (identity function)
+ * Type-safe wrapper for static props functions.
+ *
+ * @param fn Static props function.
+ * @returns The same function.
  */
 function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
 	return fn;
@@ -162,6 +274,9 @@ function staticProps<P>(fn: GetStaticProps<P>): GetStaticProps<P> {
  */
 export const eco: Eco = {
 	component,
+	embed,
+	html,
+	layout,
 	page,
 	metadata,
 	staticPaths,

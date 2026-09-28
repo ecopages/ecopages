@@ -1,6 +1,24 @@
 # @ecopages/react-router
 
-Client-side SPA router for EcoPages React applications. Enables single-page application navigation while preserving full SSR benefits.
+Client-side SPA router for Ecopages React applications. Features single-page application navigation while preserving all the benefits of Server-Side Rendering (SSR).
+
+## Features
+
+- **SSR preserved**: Initial loads are fully server-rendered.
+- **Opt-in via config**: A single line in your config enables SPA navigation across all pages.
+- **Layout persistence**: Shared layouts stay mounted while page content swaps.
+- **Standard links**: Works with regular `<a>` tags.
+- **Head sync**: Automatically updates document metadata `<head>` during navigation.
+- **View Transitions**: Built-in support for the browser View Transitions API.
+
+## Cross-Runtime Handoff
+
+`@ecopages/react-router` only performs SPA updates for React-managed documents. When a navigation resolves to a non-React document, it will:
+
+- hand the already-fetched HTML document to `@ecopages/browser-router` when browser-router is registered on the page
+- fall back to a normal document navigation when browser-router is not present
+
+This keeps React-router focused on React rendering while still allowing mixed React and non-React pages to transition without a second fetch when browser-router is active.
 
 ## Installation
 
@@ -10,60 +28,86 @@ bun add @ecopages/react-router
 
 ## Quick Start
 
-Add the router adapter to your `eco.config.ts`:
+Pass the router adapter to the React plugin in your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
 const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
+	.setRootDir(import.meta.dirname)
 	.setIntegrations([reactPlugin({ router: ecoRouter() })])
 	.build();
 
 export default config;
 ```
 
-That's it! All pages now have SPA navigation enabled.
+SPA navigation is now enabled for all React pages in your project.
 
-## Features
-
-- **Opt-in via config** - Single line enables SPA for all pages
-- **SSR preserved** - Full server-side rendering on initial load
-- **Layout persistence** - Layouts stay mounted, only page content swaps
-- **Standard links** - Works with regular `<a>` tags
-- **Head sync** - Automatically updates title, meta, and stylesheets
-- **Pluggable** - Extensible adapter pattern
+If your site mixes React pages with non-React pages, you can also run `@ecopages/browser-router` on the non-React shell. React-router will hand off non-React navigations to browser-router when it is available.
 
 ## Usage
 
 ### Layouts (Optional)
 
-Use `config.layout` for persistent UI across navigations:
+Configure your page with a declared layout to keep UI (headers, navs, sidebars) mounted across navigations:
 
 ```tsx
 // src/layouts/base-layout.tsx
-export const BaseLayout = ({ children }) => (
-	<html>
-		<body>
+import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
+
+export const BaseLayout = eco.layout<{ children: ReactNode }>({
+	render: ({ children }) => (
+		<>
 			<header>My Site</header>
 			<main>{children}</main>
-		</body>
-	</html>
-);
+		</>
+	),
+});
 
 // src/pages/index.tsx
+import { eco } from '@ecopages/core';
 import { BaseLayout } from '../layouts/base-layout';
 
-const HomePage = () => <h1>Welcome</h1>;
+export default eco.page({
+	layout: BaseLayout,
+	render: () => <h1>Welcome</h1>,
+});
+```
 
-HomePage.config = { layout: BaseLayout };
+#### Nested layouts and shared parents
 
-export default HomePage;
+Pages declare an outer→inner stack with `layout: [Outer, Inner]` on `eco.page()`. Each tier is cached independently by component identity (`config.identity.file` or `id`). Two routes such as `[AppShell, DocsSection]` and `[AppShell, SettingsSection]` share one mounted **AppShell** instance when `persistLayouts` is enabled (the default with `ecoRouter()`): React state in the shell survives SPA navigation while the inner tier swaps.
+
+A full document reload, HMR, or bootstrap that sets `refreshPersistedLayout` may replace a cached tier when the imported layout function reference changes, even when the cache key is unchanged.
+
+```tsx
+// src/pages/docs/index.tsx
+import { eco } from '@ecopages/core';
+import { AppShell } from '../../layouts/app-shell';
+import { DocsSection } from '../../layouts/docs-section';
+
+export default eco.page({
+	layout: [AppShell, DocsSection],
+	render: () => <h1>Docs</h1>,
+});
+
+// src/pages/settings/index.tsx — reuses the same AppShell cache key
+import { eco } from '@ecopages/core';
+import { AppShell } from '../../layouts/app-shell';
+import { SettingsSection } from '../../layouts/settings-section';
+
+export default eco.page({
+	layout: [AppShell, SettingsSection],
+	render: () => <h1>Settings</h1>,
+});
 ```
 
 ### Links
+
+Standard relative links are intercepted natively. To bypass the router and force a hard reload, use the `data-eco-reload` attribute.
 
 ```tsx
 // SPA navigation (intercepted)
@@ -79,49 +123,35 @@ export default HomePage;
 import { useRouter } from '@ecopages/react-router';
 
 const MyComponent = () => {
-	const { navigate, isPending } = useRouter();
+	const { navigate, isNavigating } = useRouter();
 
 	return (
-		<button onClick={() => navigate('/about')} disabled={isPending}>
+		<button onClick={() => navigate('/about')} disabled={isNavigating}>
 			Go to About
 		</button>
 	);
 };
 ```
 
-### View Transitions
+## View Transitions
 
-The router automatically supports the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API) for smooth page transitions.
+The router automatically integrates with the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API).
 
-#### Lifecycle
+When enabled (default), the router opts the document out of the UA root view-transition group and only runs `startViewTransition` for `data-view-transition` shared-element morphs. Set `viewTransitions: false` to disable entirely.
 
-When a navigation occurs with View Transitions enabled:
+**Visual regression check:** dark background page → SPA navigate → no lighter flash with defaults.
 
-1.  **Snapshot**: The browser captures the current state (screenshot) of the page.
-2.  **Update**: React processes the state change and renders the new page.
-3.  **Animate**: The browser animates from the old snapshot to the new live state.
-
-The router uses a deferred promise mechanism to ensure React has fully finished rendering the new content before telling the browser to start the animation phase.
-
-#### Shared Element Transitions
-
-To animate elements between pages (e.g., a thumbnail becoming a hero image), use the `data-view-transition` attribute. Ensure the value is unique to the specific element being transitioned and matches on both pages.
+To animate elements between pages using Shared Element Transitions, mark them with a unique `data-view-transition` id that matches across both pages:
 
 ```tsx
-// List Page (Source)
-<img
-  src={post.image}
-  data-view-transition={`hero-${post.id}`}
-/>
+// List Page
+<img src={post.image} data-view-transition={`hero-${post.id}`} />
 
-// Detail Page (Destination)
-<img
-  src={post.image}
-  data-view-transition={`hero-${post.id}`}
-/>
+// Detail Page
+<img src={post.image} data-view-transition={`hero-${post.id}`} />
 ```
 
-By default, the router applies a **clean morph** animation (disabling the default cross-fade ghosting). If you prefer the standard browser cross-fade, you can opt-out:
+By default, we impose a "clean morph", disabling default cross-fade ghosting. To use standard crossfades on elements, opt-out:
 
 ```tsx
 <div data-view-transition="my-hero" data-view-transition-animate="fade">
@@ -129,84 +159,54 @@ By default, the router applies a **clean morph** animation (disabling the defaul
 </div>
 ```
 
-#### Cross-Fade
+## Page data protocol
 
-By default, the router provides a smooth cross-fade for the root content. You can customize this by overriding the default view transition CSS:
+Router-enabled documents emit a JSON script that SPA navigation reads without parsing hydration JavaScript:
 
-```css
-::view-transition-old(root),
-::view-transition-new(root) {
-	animation-duration: 0.5s;
-}
+```html
+<script id="__ECO_PAGE_DATA__" type="application/json">
+	{
+		"schemaVersion": 1,
+		"navigationOwner": "react-router",
+		"moduleUrl": "/assets/pages/about.js",
+		"props": { "params": {}, "query": {} }
+	}
+</script>
 ```
+
+In a React HTML shell, pass the transport field explicitly:
+
+```tsx
+import { EcoPropsScript } from '@ecopages/react-router';
+
+render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => (
+	<html lang={language}>
+		<head>
+			{/* … */}
+			<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
+		</head>
+		<body>{children}</body>
+	</html>
+);
+```
+
+Important:
+
+- Hydration uses envelope `props` only. Envelope `moduleUrl` is for navigation module discovery.
+- Pass `HtmlTemplateProps.pageModuleUrl` into `<EcoPropsScript moduleUrl={...} />`.
+- `pageModuleUrl` is transport-only; it is not page component state.
+- When `#__ECO_PAGE_DATA__` yields no valid envelope `moduleUrl`, discovery falls back to `window.__ECO_PAGES__.page.module`, then `script[data-eco-page-bootstrap="react-router"]` `src`.
+- HMR reloads can pass an explicit `moduleUrlOverride` and bypass document discovery.
 
 ## How It Works
 
-The router uses an **HTML-First** navigation strategy to ensure consistency with Server-Side Rendering (SSR).
+The router relies on **HTML-First** navigation to sync perfectly with SSR:
 
-1.  **SSR**: Server renders full HTML for the initial page load.
-2.  **Hydration**: Client hydrates, router attaches to the document.
-3.  **Navigation**: On link click:
-    - **Fetch**: Requests the full HTML of the target page (just like a standard browser navigation).
-    - **Parse**: Extracts the page component URL and serialized props from the HTML.
-    - **Preload**: Dynamically imports the new page component.
-    - **Transition**:
-        - Calls `document.startViewTransition()`.
-        - Updates the document head (title, meta, styles).
-        - Updates the React state to render the new page component.
-        - Waits for React commit (useEffect).
-    - **Resolve**: View Transition finishes, browser plays the animation.
-
-## API
-
-### `ecoRouter()`
-
-Creates a router adapter for the React plugin.
-
-```typescript
-reactPlugin({ router: ecoRouter() });
-```
-
-### `useRouter()`
-
-Hook for programmatic navigation.
-
-```typescript
-const { navigate, isPending } = useRouter();
-```
-
-### Link Behavior
-
-Links are **not** intercepted when:
-
-- Modifier keys held (Ctrl, Cmd, Shift, Alt)
-- Has `target="_blank"` or `download` attribute
-- Has `data-eco-reload` attribute
-- Points to different origin
-- Starts with `#` or `javascript:`
-
-## Architecture
-
-The router uses a pluggable adapter pattern:
-
-```typescript
-interface ReactRouterAdapter {
-	name: string;
-	bundle: { importPath; outputName; externals };
-	importMapKey: string;
-	components: { router; pageContent };
-	getRouterProps(page, props): string;
-}
-```
-
-This allows custom router implementations while keeping integration simple.
-
-## Compatibility
-
-- React 18.x or 19.x
-- Modern browsers with ES modules
-- EcoPages with React integration
-
-## License
-
-MIT
+1. **SSR**: Initial page arrives completely rendered.
+2. **Hydration**: Client hydrates and the router attaches.
+3. **Navigation**: On click, `resolveReactNavigation` returns an explicit outcome:
+    - `spa`: fetch HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → morph `<head>`, update history, commit React state (optional `startViewTransition`).
+    - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
+    - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
+    - `stale`: a newer navigation superseded this attempt.
+    - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.

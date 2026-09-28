@@ -3,14 +3,14 @@
  * @module @ecopages/image-processor/bun-plugins
  */
 
-import type { BunPlugin, OnLoadResult } from 'bun';
-import type { ImageMap } from './plugin';
-import { anyCaseToCamelCase } from './utils';
+import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/plugins/processor';
+import type { ImageMap } from './plugin.ts';
+import { anyCaseToCamelCase } from './utils.ts';
 
 /**
  * This function creates the plugin result for the image specifications.
  */
-function createPluginResult(exports: ImageMap): OnLoadResult {
+function createPluginResult(exports: ImageMap): EcoBuildOnLoadResult {
 	return {
 		contents: `${Object.entries(exports)
 			.map(([key, value]) => `export const ${anyCaseToCamelCase(key)} = ${JSON.stringify(value)};`)
@@ -25,7 +25,7 @@ function createPluginResult(exports: ImageMap): OnLoadResult {
  * @param exports
  * @returns
  */
-export function createImagePlugin(exports: ImageMap): BunPlugin {
+export function createImagePlugin(exports: ImageMap): EcoBuildPlugin {
 	return {
 		name: 'ecopages:images',
 		setup(build) {
@@ -42,7 +42,7 @@ export function createImagePlugin(exports: ImageMap): BunPlugin {
  * @param exports
  * @returns
  */
-export function createImagePluginBundler(exports: ImageMap): BunPlugin {
+export function createImagePluginBundler(exports: ImageMap): EcoBuildPlugin {
 	return {
 		name: 'ecopages:images',
 		setup(build) {

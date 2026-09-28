@@ -1,0 +1,54 @@
+/**
+ * This file contains constants used throughout the project.
+ * @module constants
+ **/
+
+/**
+ * Collection of status messages used in the application.
+ */
+export const STATUS_MESSAGE = {
+	400: 'Bad Request',
+	401: 'Unauthorized',
+	403: 'Forbidden',
+	404: '404 Not Found',
+	409: 'Conflict',
+	500: 'Internal Server Error',
+};
+
+/**
+ * Directory used for storing assets.
+ */
+export const RESOLVED_ASSETS_DIR = 'assets';
+
+/**
+ * Directory used for storing vendor assets.
+ * This is a subdirectory of the assets directory.
+ */
+export const RESOLVED_ASSETS_VENDORS_DIR: string = `${RESOLVED_ASSETS_DIR}/vendors`;
+
+/**
+ * Base paths for generated project files.
+ */
+export const GENERATED_BASE_PATHS = {
+	types: 'node_modules/@types',
+	cache: 'cache',
+} as const;
+
+export const DEFAULT_ECOPAGES_PORT = 3000;
+
+export const DEFAULT_ECOPAGES_HOSTNAME = 'localhost';
+
+/**
+ * Default directory used for deployable output.
+ */
+export const DEFAULT_ECOPAGES_DIST_DIR = 'dist';
+
+/**
+ * Default internal working directory used for runtime-only artifacts.
+ *
+ * @remarks
+ * This directory is a local tool workspace and is not intended for deployment.
+ * It owns transpiled server modules, runtime manifests, and processor caches
+ * so the export directory can remain a clean deployable tree.
+ */
+export const DEFAULT_ECOPAGES_WORK_DIR = '.eco';

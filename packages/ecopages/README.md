@@ -1,0 +1,141 @@
+# ecopages
+
+The official CLI for the Ecopages framework.
+
+It provides scaffolding and development commands to streamline your workflow. It runs your app on Bun when you launch it through Bun, on Node otherwise, and applies runtime-specific launch behavior for each engine.
+
+## Quick Start
+
+Initialize a new project from the interactive template picker:
+
+```bash
+bunx ecopages init
+```
+
+For a deterministic invocation, select a template explicitly:
+
+```bash
+bunx ecopages init my-app --template react
+cd my-app
+bun install
+bun dev
+```
+
+## Commands
+
+| Command               | Description                                             | Equivalent (Bun)                                             |
+| :-------------------- | :------------------------------------------------------ | :----------------------------------------------------------- |
+| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                          |
+| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
+| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                     | `bun --hot run [entry] --dev`                                |
+| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
+| `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
+| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
+
+> [!NOTE]
+> The entry file defaults to `app.ts`. Override it with `--entry-file`.
+
+### Templates
+
+Official templates are versioned with the CLI release. Use `--template <id>` for an official template or `--from <source>` for a community Git template. Community sources support giget provider notation and GitHub, GitLab, Bitbucket, and SourceHut repository URLs.
+
+```bash
+ecopages init my-site --template jsx
+ecopages init my-site --from github:acme/my-template#v1.0.0
+```
+
+The official template IDs are `jsx`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
+
+## Environment & Runtime Options
+
+Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
+
+| Option                     | Env Var                 | Description                                               |
+| :------------------------- | :---------------------- | :-------------------------------------------------------- |
+| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)                                |
+| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
+| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                                           |
+| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below) |
+| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh                                |
+| `--runtime <runtime>`      |                         | Force execution via `bun` or `node`                       |
+
+### Runtime Detection
+
+The CLI runs your app on Bun when you launch the command through Bun (`bun dev`, `bun run dev`, `bunx ecopages …`) or pass `--runtime bun`. Any other launcher (`pnpm`, `npm`, `npx`, `node`) runs it on Node.
+
+You can explicitly force the engine using the `--runtime` flag:
+
+```bash
+ecopages build --runtime bun
+```
+
+### Example Usage
+
+```bash
+# Debug dev server on custom port
+ecopages dev --port 8080 --debug
+
+# Dev server with React Fast Refresh enabled
+ecopages dev -r
+```
+
+During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
+
+### Debug logging and startup trace
+
+Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
+
+| Env var                       | CLI                    | What you get                                                                                   |
+| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+
+Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
+
+```text
+[ecopages:startup-trace] phase=config-ready wallMs=1271
+[ecopages:startup-trace] phase=setupAppRuntimePlugins durationMs=714 wallMs=1999
+[ecopages:startup-trace] phase=route-registry durationMs=1 wallMs=2000
+[ecopages:startup-trace] phase=server-listen durationMs=45 wallMs=2046
+[ecopages:startup-trace] phase=dev-client-transform durationMs=42 wallMs=2100
+[ecopages:startup-trace] phase=first-request-ssr durationMs=5296 wallMs=12495
+[ecopages:startup-trace] summary path=/docs/getting-started/introduction bundleCount=13 clientBundleBytes=858396 wallMs=12496
+```
+
+Phases: config ready → runtime plugins → route registry → server listening → first request SSR (with per-module `dev-client-transform` on demand for `/assets/__eco_dev__/` modules). The summary includes bundle count and total client JS bytes for that first request.
+
+```bash
+# Focused perf trace only
+ECOPAGES_STARTUP_TRACE=true pnpm dev
+
+# Full debug + trace
+ecopages dev --debug
+```
+
+## Ecosystem & Plugins
+
+Ecopages relies on a modular architecture. Core logic and framework integrations are published as `@ecopages/*` packages on [npm](https://www.npmjs.com/org/ecopages).
+
+### Official Packages
+
+| Package                       | Description                                |
+| :---------------------------- | :----------------------------------------- |
+| `@ecopages/browser-router`    | Client-side navigation & view transitions. |
+| `@ecopages/codemod`           | AST migrations for codebase upgrades.      |
+| `@ecopages/core`              | The foundational SSG engine.               |
+| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.   |
+| `@ecopages/file-system`       | Runtime-agnostic file system utilities.    |
+| `@ecopages/image-processor`   | Asset pipeline for responsive images.      |
+| `@ecopages/kitajs`            | Integration for KitaJS.                    |
+| `@ecopages/lit`               | Integration for Lit SSR/Islands.           |
+| `@ecopages/mdx`               | Integration for standalone MDX routes.     |
+| `@ecopages/postcss-processor` | CSS processing pipeline using PostCSS.     |
+| `@ecopages/react`             | Integration for React 19 SSR/Islands.      |
+| `@ecopages/react-router`      | SPA routing for React.                     |
+
+Explore all packages at [npmjs.com/org/ecopages](https://www.npmjs.com/org/ecopages).
+
+## License
+
+MIT

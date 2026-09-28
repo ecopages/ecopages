@@ -1,126 +1,174 @@
-import { describe, expect, it, mock, beforeEach, afterAll, beforeAll } from 'bun:test';
-import { HmrManager } from './hmr-manager';
-import type { EcoPagesAppConfig } from '../../internal-types';
-import type { ClientBridge } from './client-bridge';
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../hmr/hmr-strategy';
-import type { ClientBridgeEvent } from '../../public-types';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+import { afterEach, test, vi } from 'vitest';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
+import { ConfigBuilder } from '../../config/config-builder.ts';
+import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
+import { HmrManager } from './hmr-manager.ts';
 
-type MockConfig = Partial<EcoPagesAppConfig>;
-type MockClientBridge = Partial<ClientBridge> & {
-	subscribe: ReturnType<typeof mock>;
-	unsubscribe: ReturnType<typeof mock>;
-	broadcast: ReturnType<typeof mock>;
-};
+const tempRoots: string[] = [];
 
-const TMP_DIR = path.join(os.tmpdir(), 'hmr-manager-test');
-
-const mockConfig: MockConfig = {
-	absolutePaths: {
-		distDir: TMP_DIR,
-		srcDir: TMP_DIR,
-	} as any,
-};
-
-const mockBridge: MockClientBridge = {
-	subscribe: mock(),
-	unsubscribe: mock(),
-	broadcast: mock(),
-	subscriberCount: 0,
-};
-
-class MockStrategy extends HmrStrategy {
-	readonly type = HmrStrategyType.INTEGRATION;
-	matches(path: string): boolean {
-		return path.endsWith('.mock');
-	}
-	async process(path: string): Promise<HmrAction> {
-		return {
-			type: 'broadcast',
-			events: [{ type: 'update', path, timestamp: 123 }],
-		};
-	}
+function createTempRoot(prefix: string): string {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+	tempRoots.push(root);
+	return root;
 }
 
-describe('HmrManager', () => {
-	let manager: HmrManager;
+afterEach(() => {
+	for (const root of tempRoots.splice(0)) {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+	vi.restoreAllMocks();
+});
 
-	beforeAll(() => {
-		fs.mkdirSync(TMP_DIR, { recursive: true });
+test('HmrManager shares one in-flight entrypoint registration across concurrent callers', async () => {
+	const rootDir = createTempRoot('ecopages-bun-hmr-register');
+	const srcDir = path.join(rootDir, 'src');
+	const pagesDir = path.join(srcDir, 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+
+	const entrypointPath = path.join(pagesDir, 'react-lab.tsx');
+	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
+
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	using manager = new HmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		} as any,
 	});
 
-	afterAll(() => {
-		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+	const [firstUrl, secondUrl] = await Promise.all([
+		manager.registerEntrypoint(entrypointPath),
+		manager.registerEntrypoint(entrypointPath),
+	]);
+
+	assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
+	assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-lab.js`);
+});
+
+test('HmrManager registers unowned page entrypoints with dev transform URLs', async () => {
+	const rootDir = createTempRoot('ecopages-bun-hmr-strict-fail');
+	const srcDir = path.join(rootDir, 'src');
+	const pagesDir = path.join(srcDir, 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+
+	const entrypointPath = path.join(pagesDir, 'react-content.mdx');
+	fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
+
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	using manager = new HmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		} as any,
 	});
 
-	beforeEach(() => {
-		mockBridge.broadcast = mock();
-		manager = new HmrManager({
-			appConfig: mockConfig as EcoPagesAppConfig,
-			bridge: mockBridge as unknown as ClientBridge,
-		});
+	const outputUrl = await manager.registerEntrypoint(entrypointPath);
+
+	assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/react-content.js`);
+	assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), true);
+});
+
+test('HmrManager registers script entrypoints with dev transform URLs without blocking builds', async () => {
+	const rootDir = createTempRoot('ecopages-bun-hmr-script-fallback');
+	const srcDir = path.join(rootDir, 'src');
+	fs.mkdirSync(srcDir, { recursive: true });
+
+	const entrypointPath = path.join(srcDir, 'script.ts');
+	fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
+
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	using manager = new HmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		} as any,
 	});
 
-	it('should initialize with default strategies', async () => {
-		await manager.handleFileChange('unknown.file');
-		expect(mockBridge.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'reload',
-				path: 'unknown.file',
-			}),
-		);
+	installBuildRuntime(config);
+	const buildCalls: string[] = [];
+	config.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildCalls.push(options.entrypoints[0] as string);
+		return {
+			success: true,
+			logs: [],
+			outputs: [{ path: '/tmp/unused.js' }],
+		};
 	});
 
-	it('should allow registering custom strategies', async () => {
-		const strategy = new MockStrategy();
-		manager.registerStrategy(strategy);
+	vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {});
 
-		await manager.handleFileChange('test.mock');
+	const resolved = await manager.registerScriptEntrypoint(entrypointPath);
 
-		expect(mockBridge.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'update',
-				path: 'test.mock',
-			}),
-		);
+	assert.equal(resolved.outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/script.js`);
+	assert.equal(resolved.outputPath, path.resolve(entrypointPath));
+	assert.deepEqual(buildCalls, []);
+});
+
+test('HmrManager stop clears retained registration state', async () => {
+	const rootDir = createTempRoot('ecopages-bun-hmr-stop-cleanup');
+	const srcDir = path.join(rootDir, 'src');
+	const pagesDir = path.join(srcDir, 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+
+	const entrypointPath = path.join(pagesDir, 'react-content.tsx');
+	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
+
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	using manager = new HmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		} as any,
 	});
 
-	it('should respect strategy priority', async () => {
-		const strategy = new MockStrategy();
-		manager.registerStrategy(strategy);
+	await manager.registerEntrypoint(entrypointPath);
 
-		await manager.handleFileChange('test.mock');
+	manager.stop();
 
-		expect(mockBridge.broadcast).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: 'update',
-				path: 'test.mock',
-			}),
-		);
+	assert.equal(manager.getWatchedFiles().size, 0);
+});
+
+test('HmrManager keeps internal browser and server-module outputs out of distDir', async () => {
+	const rootDir = createTempRoot('ecopages-bun-hmr-internal-paths');
+	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	using manager = new HmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		} as any,
 	});
 
-	it('should broadcast events correctly', () => {
-		const event: ClientBridgeEvent = { type: 'reload' };
-		manager.broadcast(event);
-		expect(mockBridge.broadcast).toHaveBeenCalledWith(event);
-	});
+	assert.equal(manager.getRuntimeWorkDir(), path.join(resolveInternalWorkDir(config), 'assets', 'hmr-runtime'));
 
-	it('should manage WebSocket connections', () => {
-		const handler = manager.getWebSocketHandler();
-		const ws = {} as any;
+	const importModule = vi.fn(async (_options: { outdir: string }) => ({}));
+	(manager as unknown as { serverModuleTranspiler: { importModule: typeof importModule } }).serverModuleTranspiler = {
+		importModule,
+	};
 
-		handler?.open?.(ws);
-		expect(mockBridge.subscribe).toHaveBeenCalledWith(ws);
+	await manager.getDefaultContext().importServerModule(path.join(config.absolutePaths.srcDir, 'pages', 'index.tsx'));
 
-		handler?.close?.(ws, 1000, 'Test close');
-		expect(mockBridge.unsubscribe).toHaveBeenCalledWith(ws);
-	});
-
-	it('should enabled/disable HMR', () => {
-		expect(manager.isEnabled()).toBe(true);
-		manager.setEnabled(false);
-		expect(manager.isEnabled()).toBe(false);
-	});
+	assert.equal(
+		importModule.mock.calls[0]?.[0]?.outdir,
+		path.join(resolveInternalExecutionDir(config), '.server-modules'),
+	);
 });

@@ -17,6 +17,7 @@ const AdminPostEditor = eco.page<PostEditorProps>({
 	dependencies: {
 		components: [RadiantEditor, RadiantInput],
 		stylesheets: ['./post-editor.css'],
+		scripts: ['./post-editor.script.ts'],
 	},
 	render: ({ post }) => {
 		return (

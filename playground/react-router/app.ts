@@ -1,6 +1,4 @@
-import { EcopagesApp } from '@ecopages/core/adapters/bun/create-app';
-import appConfig from './eco.config';
+import { createApp } from '@ecopages/core/create-app';
 
-const app = new EcopagesApp({ appConfig });
-
+const app = await createApp();
 await app.start();

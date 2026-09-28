@@ -21,7 +21,7 @@ import { CodeTabs } from '@/components/code-tabs';
 import { ThemeToggle } from '@/components/theme-toggle/theme-toggle';
 import { docsNav } from '@/lib/content-nav';
 import { BaseLayout } from '@/layouts/base-layout';
-import rootJson from '../../../../../package.json';
+import { frameworkVersion } from '@/lib/framework-version';
 import { DocsPagination } from './components/docs-pagination';
 
 const paginationData = JSON.stringify({
@@ -80,7 +80,7 @@ const DocsSiteHeader = () => (
 			/>
 			<Logo href="/" target="_self" title="Ecopages" />
 			<RuiChip variant="default" class="max-md:hidden">
-				{rootJson.version}
+				{frameworkVersion}
 			</RuiChip>
 		</div>
 		<nav class="rui-sidebar-provider__site-header-nav" aria-label="Site">

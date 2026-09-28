@@ -4,7 +4,7 @@ on:
     push:
         branches:
             - main
-            # Add the current RC line here, e.g. release/v0.3.0
+            # Drop after 0.2.0 is on main. Later cuts merge develop into main.
             - release/v0.2.0
     workflow_dispatch:
 
@@ -53,8 +53,26 @@ jobs:
               run: npm config delete //registry.npmjs.org/:_authToken --location=user || true
 
             - name: Create Release Pull Request or Publish
+              id: changesets
               uses: changesets/action@v2
               with:
                   publish-script: pnpm run release
               env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_CONFIG_PROVENANCE: true
+
+            - name: Tag CLI version for official templates
+              if: steps.changesets.outputs.published == 'true'
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  VERSION="$(node -p "require('./packages/ecopages/package.json').version")"
+                  TAG="v${VERSION}"
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    echo "Tag ${TAG} already exists"
+                    exit 0
+                  fi
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git tag "$TAG"
+                  git push origin "$TAG"

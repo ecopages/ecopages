@@ -2,34 +2,44 @@
 
 Versioning, changelogs, and npm publishing for public Ecopages packages. [Changesets documentation](https://github.com/changesets/changesets).
 
-## What to do after a change
+PRs that change user-facing package behavior add a changeset. Merging into `main` versions and publishes. Do not edit package versions or `CHANGELOG.md` for release notes.
 
-1. Run `pnpm changeset` and describe the **final** user-facing behavior. Commit the markdown file this folder creates.
-2. Merge into a branch listed in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml). The Publish workflow runs `test:all`, then opens a Version Packages pull request: it bumps versions and writes each package `CHANGELOG.md`.
-3. Merge that pull request. The same workflow runs `test:all` again, then builds `dist` and runs `changeset publish`.
+## Mental model
 
-Do not edit package versions or `CHANGELOG.md` for release notes. Changesets owns those files.
+`develop` is the default integration branch. Feature work lands there. `main` is production.
 
-Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are ignored.
+A changeset describes the **final** author-facing behavior, not the implementation steps that got there. Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are not published.
+
+Until 0.2.0 is on npm `latest`, versioning still runs from `release/v0.2.0`. The cut checklist is [`ship-0.2.0.md`](./ship-0.2.0.md). After that cut the remote has only `main` and `develop`.
+
+## After a change
+
+1. Open the PR against `develop`. Run `pnpm changeset` and commit the file this folder creates.
+2. When you are ready to release, open a PR that merges `develop` into `main`. Publish runs `test:all`, then opens a Version Packages PR against `main` that bumps versions and writes each package `CHANGELOG.md`.
+3. Merge the Version Packages PR with a merge commit (`gh pr merge --merge`). Publish runs `test:all` again, builds `dist`, and runs `changeset publish`.
+
+Feature PRs into `develop` may squash. Merging into `main` uses a merge commit so production history stays intact.
 
 ## Files of record
 
-| File                                                                                   | Role                                                                                                                                     |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| [`pre.json`](./pre.json)                                                               | Present while Changesets is in pre mode. `tag` is the prerelease identifier and the npm dist-tag (`rc` → `1.2.3-rc.0` on dist-tag `rc`). |
-| [`config.json`](./config.json) `baseBranch`                                            | Branch Changesets diffs against when assembling a release.                                                                               |
-| [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) `on.push.branches` | Pushes that run versioning and publish.                                                                                                  |
+These two must name the same production line. Editing only this README does not retarget a release.
 
-Keep `baseBranch` and the Publish branch list pointed at the line you are actually cutting. Adding or removing a prerelease branch is a workflow and `baseBranch` edit, not a README edit.
+| File                                                                                   | Role                                                                                                 |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`config.json`](./config.json) `baseBranch`                                            | Branch Changesets diffs against when assembling a release.                                           |
+| [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) `on.push.branches` | Pushes that run versioning and publish.                                                              |
+| [`pre.json`](./pre.json)                                                               | Present in pre mode (`mode: pre`) or while exiting it (`mode: exit`). Delete after a stable version. |
 
 ## Pre mode
 
-`pnpm changeset pre enter <tag>` writes `pre.json`. While that file exists with `"mode": "pre"`, Version Packages PRs append `-<tag>.N` and npm publish uses that dist-tag instead of `latest`.
+`pnpm changeset pre enter <tag>` writes `pre.json`. While `mode` is `pre`, Version Packages PRs append `-<tag>.N` and npm publish uses that dist-tag (`rc` → `0.2.0-rc.14` on dist-tag `rc`).
 
-New changesets belong in `.changeset/*.md`. After a version is cut, pre mode moves that file into `.changeset/pre/`. Files already in `pre/` are an archive and are not versioned again.
+New changesets belong in `.changeset/*.md`. After a version, pre mode moves that file into `.changeset/pre/`. Files already in `pre/` are consumed again on the next **stable** version unless you delete or rewrite them first. That is how RC iteration would leak into `## 0.2.0`.
 
-`pnpm changeset pre exit` marks the intent to leave pre mode. The next Version Packages PR promotes to a stable version and publishes to `latest`.
+`pnpm changeset pre exit` sets `mode` to `exit`. The next Version Packages PR promotes to a stable version and publishes to `latest`.
 
 ## What gets published
 
-The npm tarball is the compiled `dist` directory of each public package, not the TypeScript source used in the workspace. Committed manifests omit `publishConfig.directory` so workspace installs keep linking to source. The Publish workflow compiles `dist` and stamps `directory` only at publish time. Already-published versions are skipped. A brand-new package name still needs a one-time npm trusted-publishing setup.
+The npm tarball is the compiled `dist` of each public package, not the TypeScript source used in the workspace. Committed manifests omit `publishConfig.directory` so workspace installs keep linking to source. Publish compiles `dist` and stamps `directory` only at publish time. Already-published versions are skipped. A new package name still needs a one-time npm trusted-publishing setup.
+
+`ecopages init` fetches official templates from git tag `v${cliVersion}`. Publish creates that tag after a successful `changeset publish`.

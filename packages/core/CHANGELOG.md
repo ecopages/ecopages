@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0-rc.14
+
+### Patch Changes
+
+- [#349](https://github.com/ecopages/ecopages/pull/349) [`5792dfa`](https://github.com/ecopages/ecopages/commit/5792dfa05f80d94cd466955309933db6f2f82ed2) Thanks [@andeeplus](https://github.com/andeeplus)! - Production page-graph cache now rebuilds when a layout or component source file changes or is deleted. Incremental HTML reuse is also dropped when that module is rebuilt, so a removed island cannot keep showing up in `dist/`.
+- Updated dependencies []:
+    - @ecopages/dev-toolbar@0.2.0-rc.14
+    - @ecopages/file-system@0.2.0-rc.14
+
 ## 0.2.0-rc.13
 
 ### Patch Changes

@@ -1,14 +1,59 @@
-import { defineConfig } from 'vitest/config';
-import { playwright } from '@vitest/browser-playwright';
+/**
+ * Root Vitest config: `shared-core` (node), `browser`, optional `bun-adapter`,
+ * and optional `bun-adapter`.
+ *
+ * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
+ */
+import { defineConfig, configDefaults } from 'vitest/config';
+import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes.ts';
+
+const isBunRuntime = typeof process.versions.bun === 'string';
 
 export default defineConfig({
 	test: {
-		include: ['packages/**/*.test.browser.ts'],
-		browser: {
-			enabled: true,
-			provider: playwright(),
-			headless: true,
-			instances: [{ browser: 'chromium' }],
-		},
+		silent: 'passed-only',
+		projects: [
+			'vitest.browser.config.ts',
+			{
+				test: {
+					name: 'shared-core',
+					environment: 'node',
+					include: [
+						'packages/codemod/**/*.test.ts',
+						'packages/core/src/**/*.test.ts',
+						'packages/core/src/**/*.test.tsx',
+						'packages/__internals/**/*.test.ts',
+						'packages/__internals/**/*.test.tsx',
+						'packages/ecopages/**/*.test.ts',
+						'packages/ecopages/**/*.test.js',
+						'packages/plugins/**/*.test.ts',
+						'packages/processors/**/*.test.ts',
+						'packages/integrations/**/*.test.ts',
+						'packages/integrations/**/*.test.tsx',
+						'packages/loaders/**/*.test.ts',
+						'packages/file-system/**/*.test.ts',
+						'packages/vite-plugin/**/*.test.ts',
+						'packages/react-router/**/*.test.ts',
+						'packages/dev-toolbar/**/*.test.ts',
+						'e2e/scripts/**/*.test.ts',
+						'scripts/**/*.test.ts',
+						'playground/kitchen-sink/bench/lib/**/*.test.ts',
+						...getOptionalVitestIncludes(),
+					],
+					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
+				},
+			},
+			...(isBunRuntime
+				? [
+						{
+							test: {
+								name: 'bun-adapter',
+								environment: 'node',
+								include: ['packages/**/*.test.bun.ts'],
+							},
+						},
+					]
+				: []),
+		],
 	},
 });

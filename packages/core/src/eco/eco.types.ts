@@ -4,18 +4,83 @@
  */
 
 import type {
+	DependencyLazyTrigger,
 	EcoComponent,
 	EcoComponentDependencies,
-	EcoInjectedMeta,
+	EcoHtmlComponent,
+	EcoLayoutComponent,
+	EcoPageLayouts,
 	EcoPagesElement,
+	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
 	GetStaticProps,
-	Middleware,
+	HtmlTemplateProps,
+	LayoutProps,
 	RequestLocals,
 	RequestPageContext,
-} from '../public-types.ts';
+	PageParams,
+	PageQuery,
+} from '../types/public-types.ts';
 import type { CacheStrategy } from '../services/cache/cache.types.ts';
+import type { ComponentIdentity } from './component-identity.ts';
+
+/**
+ * Extracts the props type from one eco component.
+ */
+export type PropsOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<infer P, any> ? P : never;
+
+/**
+ * Extracts the render result type from one eco component.
+ */
+export type ResultOf<TComponent extends EcoComponent> = TComponent extends EcoComponent<any, infer R> ? R : never;
+
+/**
+ * Narrows an eco component to its callable function signature.
+ *
+ * This is useful for helper modules such as `EcoEmbed` that invoke a component
+ * directly and need to exclude the non-callable metadata shape from the public
+ * type surface.
+ */
+export type CallableComponentOf<TComponent extends EcoComponent> = Extract<
+	TComponent,
+	(props: any, ...args: any[]) => any
+>;
+
+/**
+ * Extracts the declared `children` type from one eco component when present.
+ */
+export type ChildrenOf<TComponent extends EcoComponent> =
+	PropsOf<TComponent> extends { children?: infer T }
+		? T
+		: PropsOf<TComponent> extends { children: infer T }
+			? T
+			: never;
+
+/**
+ * Extracts the props accepted by `eco.embed()` before optional `children`
+ * injection.
+ *
+ * When the target component already declares `children`, callers pass the rest
+ * of the props bag here and provide `children` as the third `eco.embed()`
+ * argument or the `EcoEmbed` wrapper children slot.
+ */
+export type EmbedPropsOf<TComponent extends EcoComponent> = 'children' extends keyof PropsOf<TComponent>
+	? Omit<PropsOf<TComponent>, 'children'>
+	: PropsOf<TComponent>;
+
+/**
+ * Props accepted by integration-owned `EcoEmbed` adapters.
+ *
+ * The `component` field is narrowed to the callable portion of the target eco
+ * component so JSX wrappers can invoke `eco.embed()` without repeating local
+ * callable-component extraction logic.
+ */
+export type EcoEmbedProps<TComponent extends EcoComponent> = {
+	component: CallableComponentOf<TComponent>;
+	props: EmbedPropsOf<TComponent>;
+	children?: unknown;
+};
 
 type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {
 	[P in K]-?: Exclude<RequestLocals[P], null | undefined>;
@@ -26,25 +91,55 @@ type RequiresKeys = keyof RequestLocals;
 export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
 
 /**
+ * Context passed to a page `dependencies` resolver for one concrete route render.
+ */
+export type GetPageDependenciesContext<T = Record<string, unknown>> = {
+	props: PagePropsFor<T>;
+	params?: PageParams;
+	query?: PageQuery;
+};
+
+/**
+ * Explicit dependency declarations owned by one file.
+ *
+ * @remarks
+ * Relative `scripts`, `stylesheets`, and `modules` resolve against `ownerFile`
+ * when present. Component entries keep their own identity files. Inferred
+ * stylesheets are not stored here; the collector reads them from identity.
+ */
+export type FileOwnedDependencyContribution = EcoComponentDependencies & {
+	ownerFile?: string;
+};
+
+/**
+ * Page dependency bag made of one or more file-owned contributions.
+ *
+ * @remarks
+ * A single bag with `ownerFile` is one contribution. `contributions` keeps
+ * assets from different files separate until collection, so merging a Page and
+ * a content entry cannot re-home relative paths.
+ */
+export type PageDependenciesResult = FileOwnedDependencyContribution & {
+	contributions?: FileOwnedDependencyContribution[];
+};
+
+/**
+ * Resolves request-specific page dependencies for one route render.
+ */
+export type GetPageDependencies<T = Record<string, unknown>> = (
+	context: GetPageDependenciesContext<T>,
+) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
+
+/**
+ * Static page dependencies or a per-render resolver.
+ */
+export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
+
+/**
  * Lazy trigger options map directly to scripts-injector attributes.
  * Only one trigger type can be active at a time.
  */
-export type LazyTrigger = { 'on:idle': true } | { 'on:interaction': string } | { 'on:visible': true | string };
-
-/**
- * Lazy dependencies - scripts/stylesheets loaded on trigger.
- */
-export type LazyDependencies = LazyTrigger & {
-	scripts?: string[];
-	stylesheets?: string[];
-};
-
-/**
- * Extended component dependencies that include lazy loading support.
- */
-export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
-	lazy?: LazyDependencies;
-};
+export type LazyTrigger = DependencyLazyTrigger;
 
 /**
  * Options for creating a component with eco.component()
@@ -52,20 +147,41 @@ export type EcoComponentDependenciesWithLazy = EcoComponentDependencies & {
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface ComponentOptions<P, E = EcoPagesElement> {
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
-	dependencies?: EcoComponentDependenciesWithLazy;
+	/** @internal Bound by the component identity attribution transform. */
+	identity?: ComponentIdentity;
+	integration?: string;
+	dependencies?: EcoComponentDependencies;
 	render: (props: P) => E | Promise<E>;
 }
+
+export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
+
+export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E> & {
+	/**
+	 * Marks this layout as mounting shared client runtime state such as React context
+	 * providers or query clients.
+	 *
+	 * @remarks
+	 * When any layout in the app sets this flag, only flagged layouts participate in
+	 * React auto-vendoring discovery. This keeps shell-only layouts out of provider
+	 * scans while persisted SPA navigation stays on one shared vendor instance.
+	 */
+	runtimeProvider?: boolean;
+};
 
 /**
  * Base options shared by all page variants
  */
 export interface PageOptionsBase<T, E = EcoPagesElement> {
-	/** @internal Injected by eco-component-meta-plugin */
-	__eco?: EcoInjectedMeta;
-	dependencies?: EcoComponentDependenciesWithLazy;
-	layout?: EcoComponent<{ children: E } & Partial<RequestPageContext>>;
+	/** @internal Bound by the component identity attribution transform. */
+	identity?: ComponentIdentity;
+	integration?: string;
+	/**
+	 * Declares browser dependencies for the page, or resolves them per render after
+	 * `staticProps` are available.
+	 */
+	dependencies?: PageDependenciesInput<T>;
+	layout?: EcoPageLayouts<E>;
 
 	/**
 	 * Define static paths for dynamic routes (e.g., [slug].tsx).
@@ -122,17 +238,14 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
 	 * Request-time middleware for file-based routes.
 	 * Runs before rendering and can short-circuit by returning a Response.
 	 */
-	middleware: Middleware[];
+	middleware: FileRouteMiddleware[];
 }
 
 /**
  * Options for creating a page with eco.page()
  *
- * Supports two patterns:
- * 1. **Consolidated API** (recommended): Define staticPaths, staticProps, and metadata inline
- * 2. **Separate exports** (legacy): Export getStaticPaths, getStaticProps, getMetadata separately
- *
- * When using `middleware`, `cache` must be set to `'dynamic'` because middleware
+ * Define staticPaths, staticProps, and metadata inline. When using
+ * `middleware`, `cache` must be set to `'dynamic'` because middleware
  * runs on every request and caching would bypass middleware effects.
  *
  * @template T - The props type for the page
@@ -165,9 +278,10 @@ export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<Request
 	staticPaths?: GetStaticPaths;
 	staticProps?: GetStaticProps<T>;
 	metadata?: GetMetadata<T>;
+	resolveDependencies?: GetPageDependencies<T>;
 	cache?: CacheStrategy;
 	requires?: PageRequires;
-	middleware?: Middleware[];
+	middleware?: FileRouteMiddleware[];
 };
 
 /**
@@ -180,6 +294,34 @@ export interface Eco {
 	 * @template E - Element/return type (EcoPagesElement for Kita, ReactNode for React)
 	 */
 	component: <P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>) => EcoComponent<P, E>;
+
+	/**
+	 * Render a component explicitly, with an optional `children` argument.
+	 *
+	 * This is useful when authoring crosses integration boundaries and inline JSX
+	 * would otherwise force one file to model multiple JSX namespaces.
+	 */
+	embed: {
+		<TComponent extends EcoComponent>(
+			component: CallableComponentOf<TComponent>,
+			props: PropsOf<TComponent>,
+		): ResultOf<TComponent>;
+		<TComponent extends EcoComponent>(
+			component: CallableComponentOf<TComponent>,
+			props: EmbedPropsOf<TComponent>,
+			children: ChildrenOf<TComponent> | unknown,
+		): ResultOf<TComponent>;
+	};
+
+	/**
+	 * Create a document shell component for the HTML wrapper.
+	 */
+	html: <E = EcoPagesElement>(options: HtmlOptions<E>) => EcoHtmlComponent<E>;
+
+	/**
+	 * Create a route layout component.
+	 */
+	layout: <E = EcoPagesElement>(options: LayoutOptions<E>) => EcoLayoutComponent<E>;
 
 	/**
 	 * Create a page component with type-safe props from getStaticProps.

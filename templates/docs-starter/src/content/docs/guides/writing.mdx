@@ -1,0 +1,73 @@
+---
+title: 'Writing content'
+description: 'Author MDX with headings, lists, tables, code, and alerts that respect prose styles.'
+order: 1
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
+# Writing content
+
+Docs pages are MDX. Headings, lists, tables, and fenced code pick up styles from `.prose`. Interactive chrome (alerts, buttons) should use the `unstyled` class so those rules do not leak.
+
+## Headings drive the TOC
+
+`h2` and `h3` headings appear in the **On this page** sidebar. Keep titles short; nest `h3` under the `h2` they belong to.
+
+### A nested heading
+
+This `h3` is a child of **Headings drive the TOC**. Click it in the TOC to jump here.
+
+## Lists and emphasis
+
+Use **bold** for UI labels and `inline code` for file paths and APIs.
+
+- Sidebar items come from frontmatter `title`
+- Order within a section comes from `order`
+- Section order comes from `DOCS_SECTION_ORDER`
+
+1. Write the MDX.
+2. Reload the catch-all route.
+3. Confirm the TOC and pagination.
+
+> Keep callouts in `RuiAlert` with `class="unstyled"`. Blockquotes are for quotations, not warnings.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Prose exclusions</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			`.prose` skips `.unstyled` and `.unstyled *` so alerts, tabs, and other chrome keep their own styles.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+## Code
+
+Fence a block when the example is more than one line:
+
+```ts
+export const docsFrontmatterSchema = z.object({
+	title: z.string(),
+	description: z.string(),
+	order: z.coerce.number().optional(),
+});
+```
+
+## Tables
+
+GitHub-flavored markdown tables work via `remark-gfm`.
+
+| Field | Required | Used for |
+| --- | --- | --- |
+| `title` | yes | Sidebar, pagination, `<title>` |
+| `description` | yes | SEO and homepage cards |
+| `order` | no | Sort within a section |
+| `llms` | no | Set `false` to skip LLM export |
+
+## Horizontal rule
+
+Use a rule between major topics when a heading would be too heavy.
+
+---
+
+That is enough to start. Add pages under `src/content/docs` and they show up in the sidebar automatically.

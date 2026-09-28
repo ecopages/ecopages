@@ -1,5 +1,5 @@
-import { eco } from '@ecopages/core/eco';
-import type { ApiHandlerContext } from '@ecopages/core';
+import { eco } from '@ecopages/core';
+import type { FileRouteMiddlewareContext } from '@ecopages/core';
 
 declare module '@ecopages/core' {
 	interface RequestLocals {
@@ -14,7 +14,7 @@ eco.page({
 		props.locals?.session?.userId;
 
 		// @ts-expect-error locals can be undefined without requires
-		props.locals.session;
+		void props.locals.session;
 
 		return '';
 	},
@@ -33,7 +33,7 @@ eco.page({
 		props.locals.featureFlag?.valueOf();
 
 		// @ts-expect-error unknown key should not exist
-		props.locals.notARealKey;
+		void props.locals.notARealKey;
 
 		return '';
 	},
@@ -51,7 +51,7 @@ eco.page({
 eco.page({
 	cache: 'dynamic',
 	middleware: [
-		async (ctx: ApiHandlerContext, next) => {
+		async (ctx: FileRouteMiddlewareContext, next) => {
 			// Without requires, locals properties can be undefined
 			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 			ctx.locals?.session?.userId;
@@ -64,7 +64,7 @@ eco.page({
 		props.locals?.session?.userId;
 
 		// @ts-expect-error locals can be undefined without requires in render too
-		props.locals.session;
+		void props.locals.session;
 
 		return '';
 	},
@@ -178,7 +178,7 @@ eco.page({
 // @ts-expect-error middleware without cache: 'dynamic' should error
 eco.page({
 	middleware: [
-		async (ctx: ApiHandlerContext, next: () => Promise<Response>) => {
+		async (ctx: FileRouteMiddlewareContext, next: () => Promise<Response>) => {
 			return next();
 		},
 	],
@@ -189,11 +189,9 @@ eco.page({
 eco.page({
 	cache: 'static',
 	middleware: [
-		async (ctx: ApiHandlerContext, next: () => Promise<Response>) => {
+		async (ctx: FileRouteMiddlewareContext, next: () => Promise<Response>) => {
 			return next();
 		},
 	],
 	render: () => '',
 });
-
-export {};

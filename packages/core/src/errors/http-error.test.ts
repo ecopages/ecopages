@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { HttpError } from './http-error.ts';
 
 describe('HttpError', () => {
@@ -129,6 +129,26 @@ describe('HttpError', () => {
 		test('InternalServerError accepts custom message', () => {
 			const error = HttpError.InternalServerError('Database connection failed');
 			expect(error.message).toBe('Database connection failed');
+		});
+	});
+
+	describe('isHttpError', () => {
+		test('returns true for HttpError instances', () => {
+			expect(HttpError.isHttpError(HttpError.NotFound())).toBe(true);
+		});
+
+		test('returns true for duck-typed HttpError-shaped objects', () => {
+			const foreign = Object.assign(new Error('Unknown docs entry'), {
+				name: 'HttpError',
+				status: 404,
+			});
+
+			expect(HttpError.isHttpError(foreign)).toBe(true);
+		});
+
+		test('returns false for plain errors', () => {
+			expect(HttpError.isHttpError(new Error('boom'))).toBe(false);
+			expect(HttpError.isHttpError(null)).toBe(false);
 		});
 	});
 });

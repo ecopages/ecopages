@@ -10,10 +10,10 @@ import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import type postcss from 'postcss';
-import postcssImport from 'postcss-import';
+import { createAppAwarePostcssImport } from '../postcss-import-app-aware.ts';
 import tailwindcss from 'tailwindcss';
 import tailwindcssNesting from 'tailwindcss/nesting/index.js';
-import type { PostCssProcessorPluginConfig } from '../plugin.ts';
+import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
 
@@ -23,6 +23,8 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * Features:
  * - Uses classic Tailwind v3 plugin stack
  * - Includes postcss-import, tailwindcss/nesting, tailwindcss, autoprefixer, cssnano
+ * - Returns both `plugins` for immediate use and `pluginFactories` so Ecopages
+ *   can recreate fresh Tailwind/PostCSS plugin instances on dependency-driven rebuilds
  *
  * @example
  * ```typescript
@@ -41,6 +43,8 @@ type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
  * ```
  */
 export function tailwindV3Preset(): PostCssProcessorPluginConfig {
+	const appRoot = process.cwd();
+
 	// Check if browserslist config exists
 	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
 	const autoprefixerOptions = browserslistConfig
@@ -49,13 +53,22 @@ export function tailwindV3Preset(): PostCssProcessorPluginConfig {
 				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
 			};
 
-	const plugins: PluginsRecord = {
-		'postcss-import': postcssImport(),
-		'tailwindcss/nesting': tailwindcssNesting(),
-		tailwindcss: tailwindcss(),
-		autoprefixer: autoprefixer(autoprefixerOptions),
-		cssnano: cssnano(),
+	const pluginFactories: PluginFactoryRecord = {
+		'postcss-import': () => createAppAwarePostcssImport(appRoot),
+		'tailwindcss/nesting': () => tailwindcssNesting(),
+		tailwindcss: () => tailwindcss(),
+		autoprefixer: () => autoprefixer(autoprefixerOptions),
+		cssnano: () => cssnano(),
 	};
 
-	return { plugins };
+	const plugins: PluginsRecord = Object.fromEntries(
+		Object.entries(pluginFactories).map(([name, factory]) => [name, factory()]),
+	) as PluginsRecord;
+
+	/**
+	 * Keep both forms:
+	 * - `plugins` are used immediately by the processor
+	 * - `pluginFactories` let the processor recreate fresh plugin instances later
+	 */
+	return { plugins, pluginFactories };
 }

@@ -1,0 +1,125 @@
+---
+title: 'Kitajs'
+description: 'Integrate KitaJS HTML templating into Ecopages pages and components.'
+order: 3
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+import { CodeTabs } from '@/components/code-tabs';
+
+# KitaJS Integration
+
+The `@ecopages/kitajs` package integrates [KitaJS HTML](https://kitajs.org/html/) so Ecopages can own `.kita.tsx` Pages.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Default Integration</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			<a href="/docs/integrations/ecopages-jsx">Ecopages JSX</a> is the default Integration:{' '}
+			<code>ecopagesJsxPlugin()</code>, <code>.tsx</code> Pages, optional Radiant and MDX. Use this page when
+			Pages should be <code>.kita.tsx</code> compiled with <code>@kitajs/html</code>.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+## Installation
+
+Install the integration package:
+
+<CodeTabs
+	name="kitajs-install"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/kitajs' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/kitajs' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/kitajs' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+Also install Kita's required peer packages in your app: `@kitajs/html` and `@kitajs/ts-html-plugin`.
+
+## Usage
+
+Register the `kitajsPlugin` in your Ecopages configuration:
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { kitajsPlugin } from '@ecopages/kitajs';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [kitajsPlugin()],
+});
+```
+
+By default, KitaJS owns `.kita.tsx` route files and renders them through `@kitajs/html`.
+
+## Creating Pages with KitaJS
+
+Create routes with a `.kita.tsx` suffix so the Kita integration can claim them. For example, `src/pages/index.kita.tsx`:
+
+```tsx
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	layout: BaseLayout,
+	render: () => (
+		<>
+			<h1>Welcome to Ecopages</h1>
+		</>
+	),
+});
+```
+
+## Key Features
+
+- **HTML-first JSX**: Kita renders JSX to HTML strings through `@kitajs/html`.
+- **Owned route suffixes**: Kita owns `.kita.tsx` routes rather than generic `.tsx` files.
+- **Outer-shell friendly**: Kita works well as the HTML-first shell in mixed-renderer apps.
+- **Dependency-driven rendering**: Declare nested component dependencies so Ecopages can preserve renderer ownership correctly.
+
+Interactive Kita components with client scripts stamp [island host attributes](/docs/core/island-hosts) on their SSR root.
+
+## Best Practices
+
+1. **Layouts**: Create layout components (like `BaseLayout` in the example) to maintain consistent page structures.
+2. **Route naming**: Use `.kita.tsx` for Kita-owned route files.
+3. **Dependency declarations**: In mixed-integration apps, foreign children must appear in the dependency graph. Direct local imports are discovered automatically; use explicit `dependencies.components` for `export *` barrels, packages, or other imports discovery cannot follow.
+4. **Cross-integration shells**: Use [`EcoEmbed`](/docs/reference/eco-namespace#ecoembed) from `@ecopages/kitajs/eco-embed` when a Kita page nests foreign-integration shells or passes children across integration boundaries. Plain opaque objects fail fast at core foreign-subtree queue boundaries — use `EcoEmbed` or already-serialized HTML instead. See [Ecopages JSX — Mixed Rendering](/docs/integrations/ecopages-jsx#cross-integration-children).
+
+## Integration with Other Plugins
+
+KitaJS works well with other Ecopages plugins. For example, you can pair it with the standalone MDX integration when MDX should compile against the same non-React JSX runtime:
+
+<RuiAlert variant="info" layout="banner" class="my-8 unstyled">
+	<RuiAlertTitle>MDX Support</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			For using JSX within Markdown/MDX, please see the <a href="/docs/integrations/mdx">MDX Integration</a>. The
+			KitaJS plugin works seamlessly with MDX!
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { kitajsPlugin } from '@ecopages/kitajs';
+import { mdxPlugin } from '@ecopages/mdx';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
+		kitajsPlugin(),
+		mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		}),
+	],
+});
+```
+
+This setup allows both KitaJS and MDX in the same project, giving flexibility in how pages and components are authored. Pair standalone `mdxPlugin()` with `compilerOptions.jsxImportSource: '@kitajs/html'` when MDX should compile against the KitaJS runtime.

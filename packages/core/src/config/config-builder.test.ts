@@ -1,12 +1,26 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
+import {
+	defaultBuildAdapter,
+	getAppBuildAdapter,
+	getAppBuildOwnership,
+	getAppBuildManifest,
+	ViteHostBuildAdapter,
+} from '../build/build-adapter.ts';
+import { createBrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
+import { createVitePluginsFromAppSourceTransforms } from '../plugins/source-transform.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
+import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import { ConfigBuilder } from './config-builder.ts';
+import { Processor } from '../plugins/processor.ts';
+import { CONFIG_BUILDER_ERRORS, ConfigBuilder } from './config-builder.ts';
+import { fileSystem } from '@ecopages/file-system';
 
 const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
-		renderer = mock() as any;
+		renderer = vi.fn() as any;
 		override extensions: string[];
 		constructor() {
 			super({ name, extensions });
@@ -19,7 +33,9 @@ describe('EcoConfigBuilder', () => {
 	let builder: ConfigBuilder;
 
 	beforeEach(() => {
-		builder = new ConfigBuilder();
+		builder = new ConfigBuilder().setIntegrations([createMockIntegration('test', ['.test.ts'])]);
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 	});
 
 	test('should set baseUrl and rootDir', async () => {
@@ -32,6 +48,215 @@ describe('EcoConfigBuilder', () => {
 	test('should set default baseUrl it is not set', async () => {
 		const config = await builder.setRootDir('/project').build();
 		expect(config.baseUrl).toBe(`http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`);
+		expect(config.distDir).toBe('dist');
+		expect(config.workDir).toBe('.eco');
+		expect(config.absolutePaths.distDir).toBe(path.join('/project', 'dist'));
+		expect(config.absolutePaths.workDir).toBe(path.join('/project', '.eco'));
+	});
+
+	test('should honor setConfigModulePath for absolutePaths.config', async () => {
+		const config = await builder
+			.setRootDir('/project')
+			.setConfigModulePath('/project/config/eco.staging.ts')
+			.build();
+
+		expect(config.absolutePaths.config).toBe('/project/config/eco.staging.ts');
+	});
+
+	test('should configure static development prewarm paths', async () => {
+		const config = await builder.setDevPrewarmPaths(['/']).build();
+
+		expect(config.devPrewarmPaths).toEqual(['/']);
+	});
+
+	test('should configure critical development prewarm paths', async () => {
+		const config = await builder.setDevPrewarmBeforeReadyPaths(['/']).build();
+
+		expect(config.devPrewarmBeforeReadyPaths).toEqual(['/']);
+	});
+
+	test('should create a dedicated build adapter per app config', async () => {
+		const config = await builder.setRootDir('/project').build();
+
+		expect(getAppBuildOwnership(config)).toBe('rolldown');
+		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
+		expect(getAppBuildManifest(config).loaderPlugins).toHaveLength(0);
+		expect(config.sourceTransforms.size).toBeGreaterThan(0);
+		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
+		expect(config.runtime?.serverInvalidationState).toBeDefined();
+		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
+	});
+
+	test('should allow explicit Vite-host build ownership during config build', async () => {
+		const config = await builder.setRootDir('/project').setBuildOwnership('vite-host').build();
+
+		expect(getAppBuildOwnership(config)).toBe('vite-host');
+		expect(getAppBuildAdapter(config)).toBeInstanceOf(ViteHostBuildAdapter);
+	});
+
+	test('should allow explicit app-owned source transforms for Vite-oriented bundlers', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setSourceTransforms([
+				{
+					name: 'test-source-transform',
+					filter: /entry\.tsx$/,
+					transform(code) {
+						return { code: `/* source transform */\n${code}` };
+					},
+				},
+			])
+			.build();
+
+		expect(config.sourceTransforms.has('test-source-transform')).toBe(true);
+		expect(
+			createVitePluginsFromAppSourceTransforms(config).some((plugin) => plugin.name === 'test-source-transform'),
+		).toBe(true);
+	});
+
+	test('should finalize processor and integration manifest contributions during config build', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-config-builder-'));
+		const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
+		const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
+		const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
+		const integrationBrowserPlugin = { name: 'integration-browser-plugin', setup() {} };
+
+		const processor = new (class extends Processor {
+			buildPlugins = [processorBrowserPlugin];
+			plugins = [processorRuntimePlugin];
+			override async prepareBuildContributions(): Promise<void> {}
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {}
+			override async process(): Promise<unknown> {
+				return undefined;
+			}
+		})({ name: 'test-processor' });
+
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+			override get plugins() {
+				return [integrationRuntimePlugin];
+			}
+			override get browserBuildPlugins() {
+				return [integrationBrowserPlugin];
+			}
+			override get browserRuntimeManifest() {
+				return createBrowserRuntimeManifest([
+					{
+						specifier: 'react',
+						owner: '@ecopages/react',
+						importPath: 'react',
+						publicPath: '/assets/vendors/react.js',
+					},
+				]);
+			}
+			override async prepareBuildContributions(): Promise<void> {}
+		})({ name: 'test-integration', extensions: ['.test'] });
+
+		try {
+			const config = await builder
+				.setBaseUrl('https://example.com')
+				.setRootDir(rootDir)
+				.setProcessors([processor])
+				.setIntegrations([integration])
+				.build();
+
+			expect(getAppBuildManifest(config).runtimePlugins).toEqual([
+				processorRuntimePlugin,
+				integrationRuntimePlugin,
+			]);
+			expect(getAppBuildManifest(config).browserBundlePlugins).toEqual([
+				processorBrowserPlugin,
+				integrationBrowserPlugin,
+			]);
+			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
+				'/assets/vendors/react.js',
+			);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('should reject integrations that require Bun on Node runtime', async () => {
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'bun-only-integration',
+			extensions: ['.bun'],
+			runtimeCapability: {
+				tags: ['bun-only'],
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).rejects.toThrow('Cannot enable integration "bun-only-integration" on node: it is Bun-only');
+	});
+
+	test('should reject processors with incompatible minimum runtime version', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-capability-'));
+		const processor = new (class extends Processor {
+			buildPlugins = [];
+			plugins = [];
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {}
+			override async process(): Promise<unknown> {
+				return undefined;
+			}
+		})({
+			name: 'future-node-processor',
+			runtimeCapability: {
+				tags: ['node-compatible'],
+				minRuntimeVersion: '999.0.0',
+			},
+		});
+
+		try {
+			await expect(
+				builder.setBaseUrl('https://example.com').setRootDir(rootDir).setProcessors([processor]).build(),
+			).rejects.toThrow('Cannot enable processor "future-node-processor" on node');
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('should reject invalid minimum runtime version declarations', async () => {
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'invalid-version-integration',
+			extensions: ['.test'],
+			runtimeCapability: {
+				tags: ['node-compatible'],
+				minRuntimeVersion: '18.x',
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).rejects.toThrow(
+			'Cannot validate integration "invalid-version-integration" runtimeCapability.minRuntimeVersion "18.x"',
+		);
+	});
+
+	test('should allow Bun-only integrations when Bun runtime is available', async () => {
+		vi.stubGlobal('Bun', { version: '1.3.0' });
+
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+		})({
+			name: 'bun-runtime-integration',
+			extensions: ['.bun'],
+			runtimeCapability: {
+				tags: ['bun-only'],
+				minRuntimeVersion: '1.0.0',
+			},
+		});
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations([integration]).build(),
+		).resolves.toBeDefined();
 	});
 
 	test('should set custom directories', async () => {
@@ -45,6 +270,7 @@ describe('EcoConfigBuilder', () => {
 			.setLayoutsDir('custom-layouts')
 			.setPublicDir('custom-public')
 			.setDistDir('custom-dist')
+			.setWorkDir('custom-work')
 			.build();
 
 		expect(config.srcDir).toBe('custom-src');
@@ -54,31 +280,44 @@ describe('EcoConfigBuilder', () => {
 		expect(config.layoutsDir).toBe('custom-layouts');
 		expect(config.publicDir).toBe('custom-public');
 		expect(config.distDir).toBe('custom-dist');
+		expect(config.workDir).toBe('custom-work');
+		expect(config.absolutePaths.workDir).toBe(path.join('/project', 'custom-work'));
 	});
 
-	test('should set includesTemplates', async () => {
-		const includesTemplates = {
-			head: 'custom-head.ghtml.ts',
-			html: 'custom-html.ghtml.ts',
-			seo: 'custom-seo.ghtml.ts',
-		};
+	test('should derive semantic html, 404, and 500 template paths', async () => {
+		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
+			return (
+				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.join('/project', 'src', 'pages', '404.test2') ||
+				candidate === path.join('/project', 'src', 'pages', '500.test2')
+			);
+		});
+
+		const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test1', '.test2'])];
 		const config = await builder
 			.setBaseUrl('https://example.com')
 			.setRootDir('/project')
-			.setIncludesTemplates(includesTemplates)
+			.setIntegrations(integrations)
 			.build();
 
-		expect(config.includesTemplates).toEqual(includesTemplates);
+		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.test1'));
+		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.test2'));
+		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.test2'));
 	});
 
-	test('should set error404Template', async () => {
-		const config = await builder
-			.setBaseUrl('https://example.com')
-			.setRootDir('/project')
-			.setError404Template('custom-404.ghtml.ts')
-			.build();
+	test('should throw for duplicate semantic html templates', async () => {
+		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => {
+			return (
+				candidate === path.join('/project', 'src', 'includes', 'html.test1') ||
+				candidate === path.join('/project', 'src', 'includes', 'html.test2')
+			);
+		});
 
-		expect(config.error404Template).toBe('custom-404.ghtml.ts');
+		const integrations: IntegrationPlugin[] = [createMockIntegration('test-integration', ['.test1', '.test2'])];
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).rejects.toThrow('Multiple html templates found');
 	});
 
 	test('should set robotsTxt', async () => {
@@ -95,6 +334,31 @@ describe('EcoConfigBuilder', () => {
 			.build();
 
 		expect(config.robotsTxt).toEqual(robotsTxt);
+	});
+
+	test('should set sitemap with defaults merged', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setSitemap({ enabled: true, extraUrls: ['/rss.xml'] })
+			.build();
+
+		expect(config.sitemap).toEqual({
+			enabled: true,
+			fileName: 'sitemap.xml',
+			extraUrls: ['/rss.xml'],
+			exclude: [],
+		});
+	});
+
+	test('should default sitemap to disabled', async () => {
+		const config = await builder.setBaseUrl('https://example.com').setRootDir('/project').build();
+		expect(config.sitemap).toEqual({
+			enabled: false,
+			fileName: 'sitemap.xml',
+			extraUrls: [],
+			exclude: [],
+		});
 	});
 
 	test('should set integrations', async () => {
@@ -145,7 +409,17 @@ describe('EcoConfigBuilder', () => {
 			.setIntegrations(integrations)
 			.build();
 
-		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3', '.ghtml.ts', '.ghtml.tsx', '.ghtml']);
+		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3']);
+	});
+
+	test('allows a configuration without an Integration for non-rendering apps', async () => {
+		const config = await new ConfigBuilder().setBaseUrl('https://example.com').setRootDir('/project').build();
+
+		expect(config.integrations).toEqual([]);
+		expect(config.templatesExt).toEqual([]);
+		expect(config.absolutePaths.htmlTemplatePath).toBe('');
+		expect(config.absolutePaths.error404TemplatePath).toBe('');
+		expect(config.absolutePaths.error500TemplatePath).toBe('');
 	});
 
 	test('should throw error for duplicate integration names', async () => {
@@ -153,14 +427,9 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('test-integration', ['.test1']),
 			createMockIntegration('test-integration', ['.test2']),
 		];
-		expect(
-			async () =>
-				await builder
-					.setBaseUrl('https://example.com')
-					.setRootDir('/project')
-					.setIntegrations(integrations)
-					.build(),
-		).toThrow('Integrations names must be unique');
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_NAMES);
 	});
 
 	test('should throw error for duplicate integration extensions', async () => {
@@ -168,9 +437,24 @@ describe('EcoConfigBuilder', () => {
 			createMockIntegration('test-integration-1', ['.test']),
 			createMockIntegration('test-integration-2', ['.test']),
 		];
-		expect(async () =>
+		await expect(
 			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
-		).toThrow('Integrations extensions must be unique');
+		).rejects.toThrow(CONFIG_BUILDER_ERRORS.DUPLICATE_INTEGRATION_EXTENSIONS);
+	});
+
+	test('should only log mixed JSX engine guidance at debug level when both kitajs and react are enabled', async () => {
+		const integrations: IntegrationPlugin[] = [
+			createMockIntegration('kitajs', ['.kita.tsx']),
+			createMockIntegration('react', ['.tsx']),
+		];
+		const debugSpy = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
+
+		await expect(
+			builder.setBaseUrl('https://example.com').setRootDir('/project').setIntegrations(integrations).build(),
+		).resolves.toBeDefined();
+
+		expect(debugSpy).toHaveBeenCalledWith(CONFIG_BUILDER_ERRORS.MIXED_JSX_ENGINES);
+		debugSpy.mockRestore();
 	});
 
 	test('should add additionalWatchPaths', async () => {
@@ -211,5 +495,15 @@ describe('EcoConfigBuilder', () => {
 			.build();
 
 		expect(config.cache?.defaultStrategy).toEqual({ revalidate: 3600, tags: ['default'] });
+	});
+
+	test('should set experimental unsafe config', async () => {
+		const config = await builder
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setExperimental({ unsafe: { featureFlag: true } })
+			.build();
+
+		expect(config.experimental?.unsafe).toEqual({ featureFlag: true });
 	});
 });

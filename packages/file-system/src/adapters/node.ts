@@ -1,19 +1,32 @@
 /**
  * @module @ecopages/file-system/adapters/node
- * @description Node.js file system adapter using fast-glob, crypto, and node:fs.
+ * @description Node.js file system adapter using node:fs/promises.glob(), crypto, and node:fs.
  */
 
 import crypto from 'node:crypto';
 import {
 	access as accessAsync,
 	cp as cpAsync,
+	glob as globAsync,
 	readFile as readFileAsync,
 	writeFile as writeFileAsync,
 } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import fg from 'fast-glob';
 import type { FileSystem, GlobOptions } from '../types.ts';
 import { BaseFileSystem } from '../utils/common.ts';
+
+async function collectGlobMatches(pattern: string, options: GlobOptions): Promise<string[]> {
+	const matches: string[] = [];
+
+	for await (const entry of globAsync(pattern, {
+		cwd: options.cwd ?? process.cwd(),
+		exclude: options.ignore,
+	})) {
+		matches.push(entry);
+	}
+
+	return matches;
+}
 
 /**
  * Node.js implementation of the FileSystem interface.
@@ -53,11 +66,8 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 	}
 
 	async glob(patterns: string[], options: GlobOptions = {}): Promise<string[]> {
-		return fg(patterns, {
-			cwd: options.cwd ?? process.cwd(),
-			ignore: options.ignore,
-			...options,
-		});
+		const files = await Promise.all(patterns.map((pattern) => collectGlobMatches(pattern, options)));
+		return Array.from(new Set(files.flat()));
 	}
 
 	hash(path: string): string {

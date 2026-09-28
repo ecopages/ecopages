@@ -1,4 +1,4 @@
-import type { ClientBridgeEvent } from '../public-types';
+import type { ClientBridgeEvent } from '../types/public-types.ts';
 
 /**
  * HMR Strategy Pattern
@@ -19,43 +19,42 @@ import type { ClientBridgeEvent } from '../public-types';
  *   async process(filePath: string): Promise<HmrAction> {
  *     return {
  *       type: 'broadcast',
- *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }]
+ *       events: [{ type: 'update', path: filePath, timestamp: Date.now() }],
  *     };
  *   }
  * }
+ * ```
+ */
 
+/**
  * Defines the category of an HMR strategy, which determines its execution priority.
- * Strategies are evaluated in descending order: INTEGRATION → ASSET → SCRIPT → FALLBACK.
+ * Strategies are evaluated in descending order: INTEGRATION → SCRIPT → FALLBACK.
  *
  * @remarks
  * The numeric values represent base priorities. Strategies can fine-tune their priority
  * using the `priorityOffset` property.
  */
-export enum HmrStrategyType {
+export const HmrStrategyType = {
 	/**
 	 * Integration-specific strategies (React, Lit, etc.)
 	 * Highest priority to allow framework-specific HMR handling.
 	 */
-	INTEGRATION = 100,
-
-	/**
-	 * Asset processing strategies (CSS, images, etc.)
-	 * High priority for specialized asset handling.
-	 */
-	ASSET = 50,
+	INTEGRATION: 100,
 
 	/**
 	 * Generic script bundling strategies (JS/TS)
 	 * Medium priority for standard script processing.
 	 */
-	SCRIPT = 25,
+	SCRIPT: 25,
 
 	/**
 	 * Fallback strategy for unhandled file types.
 	 * Lowest priority, triggers full page reload.
 	 */
-	FALLBACK = 0,
-}
+	FALLBACK: 0,
+} as const;
+
+export type HmrStrategyType = (typeof HmrStrategyType)[keyof typeof HmrStrategyType];
 
 /**
  * Represents an action to be taken after processing a file change.
@@ -68,7 +67,7 @@ export interface HmrAction {
 
 	/**
 	 * The HMR events to broadcast, if type is 'broadcast'.
-	 * capable of broadcasting multiple events at once.
+	 * Multiple events may be broadcast in one action.
 	 */
 	events?: ClientBridgeEvent[];
 }
@@ -81,13 +80,13 @@ export interface HmrAction {
  * whether they match the changed file path.
  *
  * @remarks
- * Strategies should be stateless and idempotent. The same file change should always
- * produce the same result when processed by the same strategy.
+ * Strategies are expected to be stateless and idempotent. The same file change
+ * should produce the same result when processed by the same strategy.
  *
  * @example
  * ```typescript
- * class MyAssetStrategy extends HmrStrategy {
- *   readonly type = HmrStrategyType.ASSET;
+ * class MyImageStrategy extends HmrStrategy {
+ *   readonly type = HmrStrategyType.INTEGRATION;
  *   readonly priorityOffset = 5;
  *
  *   matches(filePath: string): boolean {
@@ -132,7 +131,7 @@ export abstract class HmrStrategy {
 	 * Determines if this strategy can handle the given file path.
 	 *
 	 * @param filePath - Absolute path to the changed file
-	 * @returns True if this strategy should process the file
+	 * @returns `true` when this strategy should process the file
 	 *
 	 * @example
 	 * ```typescript
@@ -142,6 +141,18 @@ export abstract class HmrStrategy {
 	 * ```
 	 */
 	abstract matches(filePath: string): boolean;
+
+	/**
+	 * Returns whether this strategy supplies dev-transform plugins for a source module.
+	 *
+	 * @remarks
+	 * Used by {@link DevTransformBundler} to select integration-owned plugins for any
+	 * module in the per-file ESM graph (pages and imported children). File-change
+	 * dispatch continues to use {@link matches}.
+	 */
+	ownsDevTransformEntrypoint(_sourcePath: string): boolean {
+		return false;
+	}
 
 	/**
 	 * Processes a file change and returns the action to take.

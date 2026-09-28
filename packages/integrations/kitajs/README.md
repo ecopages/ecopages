@@ -1,19 +1,21 @@
-# Ecopages KitaJs Integration Plugin
+# @ecopages/kitajs
 
-The `@ecopages/kitajs` package provides seamless integration with [Kita](https://kitajs.org/html/), enabling effortless rendering of JSX templates. This integration represents a minimalistic layer within the broader Ecopages integration plugin system, designed to enhance the platform's flexibility and ease of use.
+Integration plugin for [KitaJS](https://kitajs.org/html/) HTML in Ecopages. Use it when Kita should own `.kita.tsx` routes, page shells, and document shells in HTML-first apps.
 
-## Install
+## Installation
 
 ```bash
-bunx jsr add @ecopages/kitajs
+bun add @ecopages/kitajs @kitajs/html @kitajs/ts-html-plugin
 ```
+
+`@kitajs/html` and `@kitajs/ts-html-plugin` are required peer dependencies for this package.
 
 ## Usage
 
-Incorporating this integration into your project is straightforward. Simply import and include the `kitajsPlugin` in your Ecopages configuration as shown below:
+Import and register the `kitajsPlugin` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
 const config = await new ConfigBuilder()
@@ -23,3 +25,20 @@ const config = await new ConfigBuilder()
 
 export default config;
 ```
+
+## What This Integration Owns
+
+- `.kita.tsx` route files.
+- Page, layout, and document shells rendered by `@kitajs/html`.
+- HTML-first outer shells that host nested foreign subtrees from other integrations.
+
+## Mixed Rendering
+
+Kita works well as the outer renderer in mixed apps. When a Kita-owned page encounters a nested foreign child from another integration, Ecopages resolves that foreign subtree with its owning renderer and inserts the resulting HTML back into the Kita shell.
+
+Important:
+
+- Components that may render foreign children must declare those children in `config.dependencies.components`.
+- Ecopages validates mixed-renderer ownership from declared dependencies during render preparation instead of inferring every foreign child from rendered HTML.
+- Route-level dependency resolvers can supply Components at request time; Kita includes those resolved roots through the shared string renderer when deciding whether a Foreign Subtree needs handoff.
+- Kita remains an HTML-first outer shell. Same-integration Kita children do not go through a separate universal child serialization contract.

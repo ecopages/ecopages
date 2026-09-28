@@ -1,0 +1,283 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, it, vi } from 'vitest';
+import { appLogger } from '../../global/app-logger.ts';
+import {
+	AbstractApplicationAdapter,
+	type ApplicationAdapterOptions,
+	type RouteHandler,
+	type RouteGroupDefinition,
+} from './application-adapter.ts';
+import type { ApiHandlerContext, ViewLoader } from '../../types/public-types.ts';
+import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
+
+const hostModuleLoaderRegistry = vi.hoisted(() => ({ loader: undefined as SourceModuleLoader | undefined }));
+
+vi.mock('../../services/module-loading/host-module-loader-registry.ts', () => ({
+	getHostModuleLoader: () => hostModuleLoaderRegistry.loader,
+}));
+
+class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapterOptions, unknown, Request> {
+	constructor(options: ApplicationAdapterOptions) {
+		super(options, 'Node');
+	}
+
+	public getCliArgsSnapshot() {
+		return this.cliArgs;
+	}
+
+	public getAppModuleLoader() {
+		return this.appConfig.runtime?.appModuleLoader;
+	}
+
+	public getHostModuleLoader() {
+		return this.appConfig.runtime?.hostModuleLoader;
+	}
+
+	get<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	post<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	put<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	delete<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	patch<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	options<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	head<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
+		_path: P,
+		_handler: RouteHandler<Request, unknown, TContext>,
+	): this {
+		return this;
+	}
+
+	route<P extends string>(_path: P, _method: 'GET', _handler: RouteHandler<Request, unknown>): this {
+		return this;
+	}
+
+	add(): this {
+		return this;
+	}
+
+	group(_prefix: string, _callback: (builder: unknown) => void): this;
+	group(_group: RouteGroupDefinition<Request, unknown>): this;
+	group(): this {
+		return this;
+	}
+
+	override static<P>(_path: string, _loader: ViewLoader<P> | string | URL): this {
+		return this;
+	}
+
+	protected async initializeServerAdapter(): Promise<void> {
+		return;
+	}
+
+	async fetch(_request: Request): Promise<Response> {
+		return new Response(null, { status: 204 });
+	}
+
+	protected async bootServer(): Promise<void> {
+		return;
+	}
+}
+
+afterEach(() => {
+	hostModuleLoaderRegistry.loader = undefined;
+	delete process.env.NODE_ENV;
+});
+
+describe('application adapter error pages', () => {
+	it('registers not-found and server-error view loaders', () => {
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+		const notFoundLoader = async () => ({ default: {} as never });
+		const serverErrorLoader = async () => ({ default: {} as never });
+
+		adapter.notFound(notFoundLoader).serverError(serverErrorLoader).forbidden(notFoundLoader);
+
+		assert.deepEqual(adapter.getErrorPageLoaders(), {
+			notFound: notFoundLoader,
+			serverError: serverErrorLoader,
+			forbidden: notFoundLoader,
+		});
+	});
+});
+
+describe('application adapter runtime bootstrap', () => {
+	it('derives embedded cli args from explicit runtime options', () => {
+		process.env.NODE_ENV = 'development';
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+			runtime: {
+				embedded: true,
+			},
+		});
+
+		assert.deepEqual(adapter.getCliArgsSnapshot(), {
+			preview: false,
+			build: false,
+			start: false,
+			dev: true,
+			force: false,
+			serveOnly: false,
+			port: undefined,
+			hostname: undefined,
+			reactFastRefresh: undefined,
+		});
+		assert.ok(adapter.getAppModuleLoader());
+		assert.equal(adapter.getHostModuleLoader(), undefined);
+	});
+
+	it('auto-detects the host module loader in embedded mode from registry', async () => {
+		process.env.NODE_ENV = 'development';
+		let importedId: string | undefined;
+		const filePath = import.meta.filename;
+		hostModuleLoaderRegistry.loader = async (id) => {
+			importedId = id;
+			return { id };
+		};
+
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+			runtime: {
+				embedded: true,
+			},
+		});
+
+		const appModuleLoader = adapter.getAppModuleLoader();
+		const hostModuleLoader = adapter.getHostModuleLoader();
+
+		assert.ok(appModuleLoader);
+		assert.ok(hostModuleLoader);
+		assert.deepEqual(await hostModuleLoader?.('/virtual:entry'), { id: '/virtual:entry' });
+		assert.deepEqual(
+			await appModuleLoader?.importModule({
+				filePath,
+				rootDir: '/app',
+				outdir: '/app/.eco/.server-modules',
+			}),
+			{ id: importedId },
+		);
+		assert.match(importedId ?? '', /application-adapter\.test\.ts\?update=/);
+	});
+
+	it('preserves top-level await through the embedded host module loader path', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-host-loader-tla-'));
+		const moduleFilePath = path.join(tempDir, 'entry.mjs');
+		fs.writeFileSync(
+			moduleFilePath,
+			['export const value = await Promise.resolve(42);', 'export default { ok: value === 42 };'].join('\n'),
+			'utf8',
+		);
+
+		hostModuleLoaderRegistry.loader = async (id) => {
+			const moduleUrl = new URL(id);
+			moduleUrl.search = '';
+			return await import(moduleUrl.href);
+		};
+
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+			runtime: {
+				embedded: true,
+			},
+		});
+
+		try {
+			const imported = await adapter.getAppModuleLoader()?.importModule<{
+				default: { ok: boolean };
+				value: number;
+			}>({
+				filePath: moduleFilePath,
+				rootDir: tempDir,
+				outdir: path.join(tempDir, '.eco', '.server-modules'),
+			});
+
+			assert.deepEqual(imported?.default, { ok: true });
+			assert.equal(imported?.value, 42);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('application adapter listening', () => {
+	it('logs a default runtime startup message when no onAppStart callback is registered', () => {
+		const infoSpy = vi.spyOn(appLogger, 'info').mockReturnValue(appLogger);
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(infoSpy.mock.calls[0]?.[0], 'Node server running at http://localhost:3000');
+		infoSpy.mockRestore();
+	});
+
+	it('skips the default startup message when an onAppStart callback is registered', async () => {
+		const infoSpy = vi.spyOn(appLogger, 'info').mockReturnValue(appLogger);
+		const adapter = new TestApplicationAdapter({
+			appConfig: {
+				runtime: {},
+			} as ApplicationAdapterOptions['appConfig'],
+		});
+
+		let receivedRoutes: unknown;
+		await adapter.start(({ origin, routes }) => {
+			assert.equal(origin, 'http://localhost:3000');
+			receivedRoutes = routes;
+		});
+		await adapter.handleListening('http://localhost:3000/');
+
+		assert.equal(infoSpy.mock.calls.length, 0);
+		assert.deepEqual(receivedRoutes, []);
+		infoSpy.mockRestore();
+	});
+});

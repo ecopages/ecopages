@@ -1,0 +1,25 @@
+import { BaseLayout } from '@/layouts/base-layout';
+
+export const config = {
+	layout: { component: BaseLayout, props: () => ({ prose: true }) },
+};
+
+# Documentation
+
+This page is rendered entirely from **MDX**. It uses the same `BaseLayout` as the rest of the app, so the header, theme toggle, and component integrations behave consistently.
+
+## Features
+
+- **Component integration**: Use JSX components directly inside Markdown.
+- **Layout support**: Declare a layout in the MDX frontmatter or via `config`.
+- **Static generation**: Pages are rendered at build time and hydrated only where needed.
+
+```typescript
+import { BaseLayout } from '../layouts/base-layout';
+
+export const config = {
+    layout: BaseLayout,
+};
+```
+
+Learn more about [MDX in Ecopages](https://ecopages.app/docs/integrations/mdx) or go back to the [Home Page](/).

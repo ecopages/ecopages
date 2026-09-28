@@ -11,9 +11,10 @@ import autoprefixer from 'autoprefixer';
 import browserslist from 'browserslist';
 import cssnano from 'cssnano';
 import path from 'node:path';
-import postcssImport from 'postcss-import';
+import type postcss from 'postcss';
 import postcssNested from 'postcss-nested';
-import type { PostCssProcessorPluginConfig } from '../plugin.ts';
+import { createAppAwarePostcssImport, resolveAppRootFromPath } from '../postcss-import-app-aware.ts';
+import type { PluginFactoryRecord, PostCssProcessorPluginConfig } from '../plugin.ts';
 
 /**
  * Options for Tailwind v4 preset
@@ -33,6 +34,8 @@ export interface TailwindV4PresetOptions {
  * - Uses `@tailwindcss/postcss` plugin (v4)
  * - Automatically injects `@reference` headers for `@apply` support
  * - Includes cssnano for CSS minification
+ * - Returns both `plugins` for immediate use and `pluginFactories` so Ecopages
+ *   can recreate fresh Tailwind/PostCSS plugin instances on dependency-driven rebuilds
  *
  * @example
  * ```typescript
@@ -54,6 +57,7 @@ export interface TailwindV4PresetOptions {
  */
 export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProcessorPluginConfig {
 	const { referencePath } = options;
+	const appRoot = resolveAppRootFromPath(referencePath);
 
 	// Check if browserslist config exists
 	const browserslistConfig = browserslist.loadConfig({ path: process.cwd() });
@@ -63,14 +67,26 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 				overrideBrowserslist: ['>0.3%', 'not ie 11', 'not dead', 'not op_mini all'],
 			};
 
+	const createTailwindPlugin = (): postcss.AcceptedPlugin => {
+		return tailwindcss({ optimize: false }) as unknown as postcss.AcceptedPlugin;
+	};
+
+	const pluginFactories: PluginFactoryRecord = {
+		'postcss-import': () => createAppAwarePostcssImport(appRoot),
+		'postcss-nested': () => postcssNested(),
+		'@tailwindcss/postcss': createTailwindPlugin,
+		autoprefixer: () => autoprefixer(autoprefixerOptions),
+		cssnano: () => cssnano(),
+	};
+
 	return {
-		plugins: {
-			'postcss-import': postcssImport(),
-			'postcss-nested': postcssNested(),
-			'@tailwindcss/postcss': tailwindcss(),
-			autoprefixer: autoprefixer(autoprefixerOptions),
-			cssnano: cssnano(),
-		},
+		dependencyEntryPaths: [referencePath],
+		/**
+		 * Instantiate the initial plugin list for the active processor instance.
+		 * Fresh instances can later be recreated from `pluginFactories`.
+		 */
+		plugins: Object.fromEntries(Object.entries(pluginFactories).map(([name, factory]) => [name, factory()])),
+		pluginFactories,
 		transformInput: async (contents: string | Buffer, filePath: string): Promise<string> => {
 			const css = contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
 			const normalizedFilePath = path.resolve(filePath);
@@ -86,10 +102,11 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 				return css;
 			}
 
-			const relativePath = path.relative(path.dirname(filePath), referencePath);
-
 			/** Skip if file already imports the referencePath */
-			if (css.includes(`@import '${relativePath}'`) || css.includes(`@import "${relativePath}"`)) {
+			if (
+				css.includes(`@import '${normalizedReferencePath}'`) ||
+				css.includes(`@import "${normalizedReferencePath}"`)
+			) {
 				return css;
 			}
 
@@ -99,12 +116,12 @@ export function tailwindV4Preset(options: TailwindV4PresetOptions): PostCssProce
 			 */
 			const tailwindImportPattern = /^@import\s+['"]tailwindcss(?:\/[^'"]*)?['"];?\s*$/m;
 			if (tailwindImportPattern.test(css)) {
-				return css.replace(tailwindImportPattern, `@import '${relativePath}';`);
+				return css.replace(tailwindImportPattern, `@import '${normalizedReferencePath}';`);
 			}
 
 			/** If file uses @apply but has no tailwind import, add @reference */
 			if (css.includes('@apply')) {
-				return `@reference "${relativePath}";\n\n${css}`;
+				return `@reference "${normalizedReferencePath}";\n\n${css}`;
 			}
 
 			return css;

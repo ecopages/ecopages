@@ -4,91 +4,78 @@ on:
     push:
         branches:
             - main
+            # Production publishes from main only. To cut a prerelease train,
+            # uncomment the next line and set .changeset/config.json baseBranch
+            # to that branch (e.g. release/v0.3.0). Comment it again when the
+            # stable version has been merged to main.
+            # - release/v0.3.0
+    workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
     publish:
-        runs-on: ubuntu-latest
+        name: Publish
         permissions:
-            contents: read
-            id-token: write # The OIDC ID token is used for authentication with JSR.
+            contents: write
+            id-token: write
+            pull-requests: write
+
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
 
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
               with:
-                  bun-version: latest
+                  node-version: '24'
+                  cache: 'pnpm'
 
             - name: Install Dependencies
-              run: bun install
+              run: pnpm install --frozen-lockfile
+
+            - name: Install Playwright Browsers
+              run: pnpm exec playwright install --with-deps
 
             - name: Test
-              run: bun test
+              run: pnpm run test:all
               env:
                   ECOPAGES_BASE_URL: http://localhost:3000
                   ECOPAGES_LOGGER_DEBUG: false
 
-            - name: Publish package @ecopages/bun-inline-css-plugin
-              run: bun run --filter @ecopages/bun-inline-css-plugin release:jsr
+            - name: Configure npm for OIDC trusted publishing
+              run: npm config delete //registry.npmjs.org/:_authToken --location=user || true
 
-            - name: Publish package @ecopages/file-system
-              run: bun run --filter @ecopages/file-system release:jsr
-
-            - name: Publish package @ecopages/core
-              run: bun run --filter @ecopages/core release:jsr
-
-            - name: Publish package @ecopages/postcss-processor
-              run: bun run --filter @ecopages/postcss-processor release:jsr
-
-            - name: Publish package @ecopages/image-processor
-              run: bun run --filter @ecopages/image-processor release:jsr
-
-            - name: Publish package @ecopages/bun-postcss-loader
-              run: bun run --filter @ecopages/bun-postcss-loader release:jsr
-
-            - name: Publish package @ecopages/bun-mdx-kitajs-loader
-              run: bun run --filter @ecopages/bun-mdx-kitajs-loader release:jsr
-
-            - name: Publish package @ecopages/kitajs
-              run: bun run --filter @ecopages/kitajs release:jsr
-
-            - name: Publish package @ecopages/lit
-              run: bun run --filter @ecopages/lit release:jsr
-
-            - name: Publish package @ecopages/mdx
-              run: bun run --filter @ecopages/mdx release:jsr
-
-            - name: Publish package @ecopages/react
-              run: bun run --filter @ecopages/react release:jsr
-
-            - name: Publish package @ecopages/browser-router
-              run: bun run --filter @ecopages/browser-router release:jsr
-
-            - name: Publish package @ecopages/react-router
-              run: bun run --filter @ecopages/react-router release:jsr
-
-            - name: Sync versions
-              run: bun scripts/jsr-sync-version.ts
-
-            - name: Setup Node.js for NPM Publish
-              uses: actions/setup-node@v4
+            - name: Create Release Pull Request or Publish
+              id: changesets
+              uses: changesets/action@v2
               with:
-                  node-version: '24'
-                  registry-url: 'https://registry.npmjs.org'
+                  publish-script: pnpm run release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_CONFIG_PROVENANCE: true
 
-            - name: Check if version already published
-              id: check-version
+            - name: Tag CLI version for official templates
+              if: steps.changesets.outputs.published == 'true'
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  LOCAL_VERSION=$(node -p "require('./npm/ecopages/package.json').version")
-                  if npm view "ecopages@$LOCAL_VERSION" version &>/dev/null; then
-                    echo "Version $LOCAL_VERSION is already published"
-                    echo "published=true" >> $GITHUB_OUTPUT
-                  else
-                    echo "Version $LOCAL_VERSION is not published yet"
-                    echo "published=false" >> $GITHUB_OUTPUT
+                  VERSION="$(node -p "require('./packages/ecopages/package.json').version")"
+                  TAG="v${VERSION}"
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    echo "Tag ${TAG} already exists"
+                    exit 0
                   fi
-
-            - name: Publish ecopages to NPM
-              if: steps.check-version.outputs.published == 'false'
-              run: cd npm/ecopages && npm publish --access public --provenance
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git tag "$TAG"
+                  git push origin "$TAG"

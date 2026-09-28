@@ -1,0 +1,170 @@
+---
+title: 'Configuration'
+description: 'Customize your Ecopages project through eco.config.ts — integrations, processors, metadata, and watch paths.'
+order: 3
+---
+
+import { ApiField } from '@/components/api-field/api-field';
+
+# Configuration
+
+Ecopages can be customized to fit your project's needs through a configuration file. Create a file named `eco.config.ts` in your project's root directory to get started.
+
+Here's a basic example of an Ecopages configuration:
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+export default defineConfig({
+	integrations: [ecopagesJsxPlugin()],
+	defaultMetadata: {
+		title: 'Your Site Title',
+		description: 'Your site description',
+		image: 'https://your-domain.com/og-image.png',
+	},
+});
+```
+
+`createApp()` loads and finalizes this file automatically. Override the path with `createApp({ configFile })`, `ECOPAGES_CONFIG_FILE`, or `ecopages dev --config <file>`.
+
+In development, adding, changing, or removing `eco.config.ts` or a supported project `.env` file restarts the dev server so integrations, directories, and environment values reload. Supported files are `.env`, `.env.local`, `.env.[NODE_ENV]`, and `.env.[NODE_ENV].local`. Page and component files still hot-reload without a full restart.
+
+## Configuration API
+
+<ApiField name="rootDir" defaultValue="process.cwd()" type="string" setter="setRootDir">
+	The root directory of your project, used to resolve paths to your project files.
+</ApiField>
+
+<ApiField name="baseUrl" defaultValue="http://localhost:3000" type="string" setter="setBaseUrl">
+	The base URL of your project, used for generating absolute URLs for your pages. `ECOPAGES_BASE_URL` overrides the default when `baseUrl` is omitted.
+</ApiField>
+
+<ApiField
+	name="defaultMetadata"
+	type="PageMetadataProps"
+	defaultValue="{ title: 'Ecopages', description: 'This is a static site generated with Ecopages' }"
+	setter="setDefaultMetadata"
+>
+	Default metadata for your pages. This is merged with page-specific metadata when provided.
+</ApiField>
+
+<ApiField name="srcDir" type="string" defaultValue="src" setter="setSrcDir">
+	The directory containing your source files, relative to the root project directory.
+</ApiField>
+
+<ApiField name="publicDir" type="string" defaultValue="public" setter="setPublicDir">
+	The directory for static assets, relative to the src directory.
+</ApiField>
+
+<ApiField name="pagesDir" type="string" defaultValue="pages" setter="setPagesDir">
+	The directory containing your page files, relative to the src directory.
+</ApiField>
+
+<ApiField name="includesDir" type="string" defaultValue="includes" setter="setIncludesDir">
+	The directory for include templates, relative to the src directory.
+</ApiField>
+
+<ApiField name="layoutsDir" type="string" defaultValue="layouts" setter="setLayoutsDir">
+	The directory for layout components, relative to the src directory.
+</ApiField>
+
+Ecopages now discovers the document shell and error pages semantically:
+
+- `src/includes/html.*` resolves the HTML shell by basename and integration extension.
+- `src/pages/404.*` resolves the not-found page by basename and integration extension.
+- `src/pages/500.*` resolves the server-error page by basename and integration extension.
+
+No template filename setter is required in `eco.config.ts`. If no `pages/500.*` file or `app.serverError()` loader is configured, the page pipeline serves a built-in HTML 500 page. In development, custom and default 500 pages can show `message` and `stack` from the thrown error; the built-in page also includes a **Copy error** button.
+
+<ApiField name="distDir" type="string" defaultValue="dist" setter="setDistDir">
+	The output directory for the built files.
+</ApiField>
+
+<ApiField name="workDir" type="string" defaultValue=".eco" setter="setWorkDir">
+	The internal workspace used for development and runtime-only artifacts. This directory is not intended for
+	deployment.
+</ApiField>
+
+<ApiField name="componentsDir" type="string" defaultValue="components" setter="setComponentsDir">
+	The directory containing your reusable components.
+</ApiField>
+
+<ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]" setter="setAdditionalWatchPaths">
+	Add additional files or directories to monitor during development. Paths are resolved from the project root, so
+	`src/registry` watches every file inside that folder. Glob patterns such as `**/*.config.ts` are also supported. A
+	matching change invalidates server modules, notifies processors, and reloads the browser.
+</ApiField>
+
+<ApiField
+	name="robotsTxt"
+	type="{ preferences: RobotsPreference }"
+	defaultValue={`{ preferences: { "*": [] } }`}
+	setter="setRobotsTxt"
+>
+	Configuration for the robots.txt file.
+</ApiField>
+
+<ApiField
+	name="sitemap"
+	type="SitemapConfig"
+	defaultValue="{ enabled: false, fileName: 'sitemap.xml', extraUrls: [], exclude: [] }"
+	setter="setSitemap"
+>
+	Automatic <code>sitemap.xml</code> generation during static export. Disabled by default. See{' '}
+	<a href="/docs/core/sitemap">Sitemap</a> for eligibility rules, <code>exclude</code> patterns, and{' '}
+	<code>extraUrls</code>.
+</ApiField>
+
+<ApiField name="integrations" type="IntegrationPlugin[]" defaultValue="[]" setter="setIntegrations">
+	An array of integration plugins to enhance Ecopages functionality.
+</ApiField>
+
+<ApiField name="processors" type="Processor[]" defaultValue="[]" setter="setProcessors">
+	An array of processors to handle file transformations (e.g., PostCSS, Images).
+</ApiField>
+
+<ApiField name="loaders" type="EcoBuildPlugin[]" defaultValue="[]" setter="setLoaders">
+	An array of build plugins to use as loaders for custom file types.
+</ApiField>
+
+<ApiField name="sourceTransforms" type="EcoSourceTransform[]" defaultValue="[]" setter="setSourceTransforms">
+	Filter-based module source rewrites for browser and HMR builds. See [Source
+	Transforms](/docs/plugins/source-transforms).
+</ApiField>
+
+<ApiField name="devToolbar" type="DevToolbarConfig" setter="setDevToolbar">
+	Development-only in-browser inspector. Install `@ecopages/dev-toolbar` and call `setDevToolbar(devToolbar())`. See
+	[Dev toolbar](/docs/core/dev-toolbar).
+</ApiField>
+
+## Integrations
+
+Ecopages supports various integrations to extend its capabilities. Here are some commonly used integrations:
+
+- **Ecopages JSX**: Default stack for `.tsx` Pages and optional Radiant hydration
+- **React**: React Pages or component islands
+- **Lit**: Web Components
+- **MDX**: Standalone Markdown on a non-React JSX runtime
+- **KitaJS**: `.kita.tsx` Pages via `@kitajs/html`
+
+To use an integration, install it and add it to your configuration. For example:
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+});
+```
+
+For more details on specific integrations, refer to their respective documentation pages:
+
+- [Ecopages JSX Integration](/docs/integrations/ecopages-jsx)
+- [KitaJS Integration](/docs/integrations/kitajs)
+- [Lit Integration](/docs/integrations/lit)
+- [MDX Integration](/docs/integrations/mdx)
+- [React Integration](/docs/integrations/react)

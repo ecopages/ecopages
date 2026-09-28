@@ -4,22 +4,38 @@
  */
 
 import path from 'node:path';
-import { bunInlineCssPlugin } from '@ecopages/bun-inline-css-plugin';
-import { ClientBridge } from '@ecopages/core/adapters/bun/client-bridge';
+import type { IClientBridge } from '@ecopages/core';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
-import { getFileAsBuffer, PostCssProcessor } from './postcss-processor';
+import {
+	findPostcssConfigPath,
+	loadPostcssConfigFromFile,
+	type LoadedPostcssConfig,
+} from './postcss-config-loading.ts';
+import { PostCssProcessor } from './postcss-processor.ts';
+import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
+import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
-	debug: import.meta.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
 });
 
 /**
  * Record of PostCSS plugins keyed by name
  */
 export type PluginsRecord = Record<string, postcss.AcceptedPlugin>;
+
+/**
+ * Lazily creates PostCSS plugins.
+ *
+ * This is primarily used in development when a non-CSS file change forces the
+ * processor to rebuild tracked stylesheets. Some plugins, including Tailwind,
+ * keep internal caches in long-lived plugin instances, so recreating them is
+ * required to pick up newly discovered classes.
+ */
+export type PluginFactoryRecord = Record<string, () => postcss.AcceptedPlugin>;
 
 /**
  * Configuration for the PostCSS processor
@@ -30,6 +46,13 @@ export interface PostCssProcessorPluginConfig {
 	 */
 	filter?: RegExp;
 	/**
+	 * CSS entry files to rebuild when a non-CSS dependency changes.
+	 *
+	 * Use this when the processor watches template or script files that affect a
+	 * known stylesheet entry, such as a Tailwind reference file.
+	 */
+	dependencyEntryPaths?: string[];
+	/**
 	 * Function to transform the contents of the file.
 	 * It can be handy to add a custom header or footer to the file.
 	 * Useful for injecting Tailwind v4 `@reference` directives.
@@ -37,7 +60,7 @@ export interface PostCssProcessorPluginConfig {
 	 * @param filePath The absolute path to the CSS file being processed
 	 * @returns The transformed contents
 	 */
-	transformInput?: (contents: string | Buffer, filePath: string) => Promise<string>;
+	transformInput?: (contents: string | Buffer, filePath: string) => string | Promise<string>;
 	/**
 	 * Function to transform the output CSS after PostCSS processing.
 	 * It can be handy to add a custom header or footer to the processed CSS.
@@ -50,6 +73,13 @@ export interface PostCssProcessorPluginConfig {
 	 * @default undefined (uses default plugins)
 	 */
 	plugins?: PluginsRecord;
+	/**
+	 * Factory functions for recreating stateful PostCSS plugins.
+	 *
+	 * When provided, Ecopages uses these factories to build a fresh plugin list
+	 * for dependency-driven stylesheet rebuilds during development.
+	 */
+	pluginFactories?: PluginFactoryRecord;
 }
 
 /**
@@ -61,7 +91,251 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		filter: /\.css$/,
 	};
 
+	private buildContributionsPrepared = false;
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
+	private pluginFactories?: PluginFactoryRecord;
+	private readonly runtimeCssCache = new Map<string, string>();
+	private readonly trackedCssFiles = new Set<string>();
+	private watchQueue: Promise<void> = Promise.resolve();
+
+	/**
+	 * Maps an imported CSS file path → set of tracked CSS entry files that import it.
+	 * Used to resolve which parent entry files need re-processing when a dependency changes.
+	 */
+	private readonly cssDependencyMap = new Map<string, Set<string>>();
+
+	private getCssFilter(): RegExp {
+		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+	}
+
+	private resolveProcessedCssPath(filePath: string): string | null {
+		if (!this.context) {
+			return null;
+		}
+
+		const relativePath = path.relative(this.context.srcDir, filePath);
+		if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+			return null;
+		}
+
+		return path.join(this.context.distDir, 'assets', relativePath);
+	}
+
+	private readProcessedCssFromDist(filePath: string): string | null {
+		const outputPath = this.resolveProcessedCssPath(filePath);
+		if (!outputPath || !fileSystem.exists(outputPath)) {
+			return null;
+		}
+
+		return fileSystem.readFileAsBuffer(outputPath).toString('utf-8');
+	}
+
+	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
+		const outputPath = this.resolveProcessedCssPath(filePath);
+		if (!outputPath) {
+			return;
+		}
+
+		fileSystem.ensureDir(path.dirname(outputPath));
+		if (fileSystem.exists(outputPath) && fileSystem.readFileSync(outputPath) === css) {
+			return;
+		}
+
+		fileSystem.write(outputPath, css);
+	}
+
+	private async prewarmRuntimeCssCache(): Promise<void> {
+		if (!this.context) {
+			return;
+		}
+
+		const sourceFiles = await fileSystem.glob(['**/*.{css,scss,sass,less}'], {
+			cwd: this.context.srcDir,
+		});
+
+		for (const relativePath of sourceFiles) {
+			const filePath = path.join(this.context.srcDir, relativePath);
+			if (!this.matchesFileFilter(filePath)) {
+				continue;
+			}
+
+			this.trackedCssFiles.add(filePath);
+
+			const rawContents = await fileSystem.readFile(filePath);
+
+			const processed = await this.process(rawContents, filePath);
+			this.runtimeCssCache.set(filePath, processed);
+			await this.persistProcessedCss(filePath, processed);
+		}
+
+		this.buildCssDependencyMap();
+	}
+
+	/**
+	 * Regex to match CSS @import statements and extract the path.
+	 * Handles: @import './foo.css'; @import "./foo.css"; @import url('./foo.css');
+	 */
+	private static readonly CSS_IMPORT_REGEX = /@import\s+(?:url\(\s*)?['"]([^'"]+\.css)['"](?:\s*\))?\s*;/gm;
+
+	/**
+	 * Builds the CSS dependency map by scanning tracked CSS files for @import directives.
+	 * Maps each imported file to the set of tracked entry files that import it (directly or transitively).
+	 */
+	private buildCssDependencyMap(): void {
+		this.cssDependencyMap.clear();
+
+		for (const entryFile of this.trackedCssFiles) {
+			if (!fileSystem.exists(entryFile)) continue;
+
+			const rawContents = fileSystem.readFileAsBuffer(entryFile).toString('utf-8');
+			const imports = this.extractCssImports(rawContents, entryFile);
+
+			for (const importedFile of imports) {
+				if (!this.cssDependencyMap.has(importedFile)) {
+					this.cssDependencyMap.set(importedFile, new Set());
+				}
+				this.cssDependencyMap.get(importedFile)!.add(entryFile);
+			}
+		}
+	}
+
+	/**
+	 * Extracts resolved absolute paths of CSS files imported via @import in the given CSS content.
+	 * Recursively follows imports to capture transitive dependencies.
+	 * It skips bare module imports like @import 'tailwindcss'.
+	 * It recursively follows imports to capture transitive dependencies.
+	 */
+	private extractCssImports(cssContent: string, fromFile: string, visited = new Set<string>()): string[] {
+		const dir = path.dirname(fromFile);
+		const imports: string[] = [];
+
+		let match: RegExpExecArray | null;
+		const regex = new RegExp(PostCssProcessorPlugin.CSS_IMPORT_REGEX.source, 'gm');
+
+		while ((match = regex.exec(cssContent)) !== null) {
+			const importPath = match[1];
+
+			if (!importPath.startsWith('.') && !importPath.startsWith('/')) {
+				continue;
+			}
+
+			const resolvedPath = path.resolve(dir, importPath);
+
+			if (visited.has(resolvedPath)) continue;
+			visited.add(resolvedPath);
+
+			imports.push(resolvedPath);
+
+			if (fileSystem.exists(resolvedPath)) {
+				const nestedContent = fileSystem.readFileAsBuffer(resolvedPath).toString('utf-8');
+				const nestedImports = this.extractCssImports(nestedContent, resolvedPath, visited);
+				imports.push(...nestedImports);
+			}
+		}
+
+		return imports;
+	}
+
+	/**
+	 * Resolves a changed CSS file to its parent entry file(s) if it is an @import dependency.
+	 * Returns an empty array if the file is not an import dependency (i.e., it's an entry file itself).
+	 */
+	private resolveEntryFiles(filePath: string): string[] {
+		const entries = this.cssDependencyMap.get(filePath);
+		if (!entries || entries.size === 0) {
+			return [];
+		}
+		return Array.from(entries);
+	}
+
+	private transformCssSync(input: CssTransformInput): string {
+		const cached = this.runtimeCssCache.get(input.filePath);
+		if (cached) {
+			return cached;
+		}
+
+		const persisted = this.readProcessedCssFromDist(input.filePath);
+		if (persisted) {
+			this.runtimeCssCache.set(input.filePath, persisted);
+			return persisted;
+		}
+
+		const { contents } = input;
+		return typeof contents === 'string' ? contents : contents.toString('utf-8');
+	}
+
+	private async transformCssAsync(input: CssTransformInput): Promise<string> {
+		const { contents, filePath } = input;
+		const transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
+
+		const processed = await this.process(transformed, filePath);
+		this.runtimeCssCache.set(filePath, processed);
+		await this.persistProcessedCss(filePath, processed);
+		return processed;
+	}
+
+	override matchesFileFilter(filepath: string): boolean {
+		const filter = this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+		return filter.test(filepath);
+	}
+
+	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
+		return Object.values(pluginFactories).map((factory) => factory());
+	}
+
+	private refreshConfiguredPlugins(): void {
+		if (!this.pluginFactories) {
+			return;
+		}
+
+		this.postcssPlugins = this.materializePluginFactories(this.pluginFactories);
+	}
+
+	private enqueueWatchTask(task: () => Promise<void>): Promise<void> {
+		const queuedTask = this.watchQueue.then(task, task);
+		this.watchQueue = queuedTask.catch(() => undefined);
+		return queuedTask;
+	}
+
+	private getTrackedCssFiles(): string[] {
+		return Array.from(this.trackedCssFiles).filter(
+			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+		);
+	}
+
+	private getTrackedCssEntryFiles(): string[] {
+		const importedCssFiles = new Set(this.cssDependencyMap.keys());
+
+		return this.getTrackedCssFiles().filter((filePath) => !importedCssFiles.has(filePath));
+	}
+
+	private getDependencyEntryFiles(): string[] {
+		const configuredEntryPaths = this.options?.dependencyEntryPaths;
+		if (!configuredEntryPaths || configuredEntryPaths.length === 0) {
+			return this.getTrackedCssEntryFiles();
+		}
+
+		return configuredEntryPaths.filter(
+			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+		);
+	}
+
+	private async handleDependencyChange(bridge: IClientBridge): Promise<void> {
+		if (!this.context) {
+			return;
+		}
+
+		const cssFiles = this.getDependencyEntryFiles();
+		if (cssFiles.length === 0) {
+			return;
+		}
+
+		this.refreshConfiguredPlugins();
+
+		for (const cssFilePath of cssFiles) {
+			await this.handleCssChange(cssFilePath, bridge, false);
+		}
+	}
 
 	constructor(
 		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
@@ -71,11 +345,62 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		super({
 			name: 'ecopages-postcss-processor',
 			description: 'A Processor for transforming CSS files using PostCSS.',
+			capabilities: [
+				{
+					kind: 'stylesheet',
+					extensions: ['*.{css,scss,sass,less}'],
+				},
+			],
 			watch: {
 				paths: [],
-				extensions: ['.css', '.scss', '.sass', '.less'],
+				extensions: [
+					'.css',
+					'.scss',
+					'.sass',
+					'.less',
+					'.tsx',
+					'.ts',
+					'.jsx',
+					'.js',
+					'.mdx',
+					'.html',
+					'.svelte',
+					'.vue',
+				],
 				onChange: async ({ path, bridge }) => {
-					await this.handleCssChange(path, bridge);
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							await this.handleCssChange(path, bridge);
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
+				},
+				onCreate: async ({ path, bridge }) => {
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							this.trackedCssFiles.add(path);
+							this.buildCssDependencyMap();
+							await this.handleCssChange(path, bridge);
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
+				},
+				onDelete: async ({ path, bridge }) => {
+					await this.enqueueWatchTask(async () => {
+						if (this.matchesFileFilter(path)) {
+							this.runtimeCssCache.delete(path);
+							this.trackedCssFiles.delete(path);
+							this.cssDependencyMap.delete(path);
+							this.buildCssDependencyMap();
+							return;
+						}
+
+						await this.handleDependencyChange(bridge);
+					});
 				},
 			},
 			...config,
@@ -84,25 +409,56 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	/**
 	 * Handles CSS file changes during development.
-	 * Processes the file and broadcasts a css-update event for hot reloading.
+	 * If the file is an @import dependency, re-processes the parent entry file(s) instead.
+	 * Broadcasts a css-update event for hot reloading.
 	 */
-	private async handleCssChange(filePath: string, bridge: ClientBridge): Promise<void> {
+	private async handleCssChange(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
 		if (!this.context) return;
+		if (!fileSystem.exists(filePath)) return;
+
+		// Check if this file is imported by parent entry files
+		const entryFiles = this.resolveEntryFiles(filePath);
+		if (entryFiles.length > 0) {
+			logger.debug(`CSS dependency changed: ${filePath}, re-processing ${entryFiles.length} parent(s)`);
+			for (const entryFile of entryFiles) {
+				// Invalidate the parent's cache so the broadcast is not skipped.
+				// Even when postcss-import inlines different content for the parent,
+				// defensive invalidation guarantees the css-update event fires.
+				this.runtimeCssCache.delete(entryFile);
+				await this.processAndBroadcast(entryFile, bridge, refreshPlugins);
+			}
+			return;
+		}
+
+		await this.processAndBroadcast(filePath, bridge, refreshPlugins);
+	}
+
+	/**
+	 * Processes a CSS file and broadcasts a css-update event.
+	 * Skips broadcast if the processed output hasn't changed.
+	 */
+	private async processAndBroadcast(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
+		if (!this.context) return;
+		if (!fileSystem.exists(filePath)) return;
 
 		try {
-			const relativePath = path.relative(this.context.srcDir, filePath);
-			const outputPath = path.join(this.context.distDir, 'assets', relativePath);
+			this.trackedCssFiles.add(filePath);
 
-			let content = await fileSystem.readFile(filePath);
-
-			if (this.options?.transformInput) {
-				content = await this.options.transformInput(content, filePath);
+			if (refreshPlugins) {
+				this.refreshConfiguredPlugins();
 			}
+
+			const content = await fileSystem.readFile(filePath);
 
 			const processed = await this.process(content, filePath);
 
-			fileSystem.ensureDir(path.dirname(outputPath));
-			fileSystem.write(outputPath, processed);
+			const cached = this.runtimeCssCache.get(filePath);
+			if (cached === processed) {
+				return;
+			}
+
+			this.runtimeCssCache.set(filePath, processed);
+			await this.persistProcessedCss(filePath, processed);
 
 			bridge.cssUpdate(filePath);
 
@@ -114,120 +470,102 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get buildPlugins(): Bun.BunPlugin[] {
-		const options = this.options;
+	get buildPlugins(): EcoBuildPlugin[] {
 		return [
-			bunInlineCssPlugin({
-				filter: this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
-				namespace: 'bun-postcss-processor-build-plugin',
-				transform: async (contents: string | Buffer, args: { path: string }) => {
-					let transformed: string =
-						contents instanceof Buffer ? contents.toString('utf-8') : (contents as string);
-					if (options?.transformInput) {
-						transformed = await options.transformInput(contents, args.path);
-					}
-					return await this.process(transformed, args.path);
-				},
+			createCssLoaderPlugin({
+				name: 'postcss-processor-build-loader',
+				filter: this.getCssFilter(),
+				transform: this.transformCssAsync.bind(this),
 			}),
 		];
 	}
 
-	get plugins(): Bun.BunPlugin[] {
-		const bindedInputProcessing = this.process.bind(this);
-		const options = this.options;
+	get plugins(): EcoBuildPlugin[] {
 		return [
-			{
-				name: 'bun-postcss-processor-plugin-loader',
-				setup(build) {
-					const postcssFilter = options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
-
-					build.onLoad({ filter: postcssFilter }, async (args) => {
-						let text: string = getFileAsBuffer(args.path).toString('utf-8');
-
-						if (options?.transformInput) {
-							text = await options.transformInput(text, args.path);
-						}
-
-						const contents = await bindedInputProcessing(text, args.path);
-
-						return {
-							contents,
-							exports: { default: contents },
-							loader: 'object',
-						};
-					});
-				},
-			},
+			createCssLoaderPlugin({
+				name: 'postcss-processor-runtime-loader',
+				filter: this.getCssFilter(),
+				transform: this.transformCssSync.bind(this),
+			}),
 		];
 	}
 
 	/**
-	 * Setup the PostCSS processor.
+	 * Resolves the configured PostCSS plugin list before config build seals the
+	 * app manifest.
+	 *
+	 * @remarks
+	 * Runtime setup reuses this prepared list and only performs cache prewarming.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		if (this.buildContributionsPrepared) {
+			return;
+		}
+
+		await this.collectPostcssPlugins();
+		this.buildContributionsPrepared = true;
+	}
+
+	/**
+	 * Prepares build contributions if not already done and prewarms the runtime CSS cache.
 	 */
 	async setup(): Promise<void> {
-		await this.collectPostcssPlugins();
+		await this.prepareBuildContributions();
+		await this.prewarmRuntimeCssCache();
 	}
 
 	/**
 	 * Get the PostCSS plugins from the options or a config file.
 	 * Searches for postcss.config.{js,cjs,mjs,ts} in the root directory.
 	 */
+	private resolvePostcssPluginsFromSources(loaded: LoadedPostcssConfig): void {
+		if (loaded.pluginFactories) {
+			this.pluginFactories = loaded.pluginFactories;
+			this.postcssPlugins = this.materializePluginFactories(loaded.pluginFactories);
+			return;
+		}
+
+		if (loaded.plugins) {
+			this.pluginFactories = undefined;
+			this.postcssPlugins = loaded.plugins;
+			return;
+		}
+
+		if (this.options?.pluginFactories || this.options?.plugins) {
+			this.pluginFactories = this.options?.pluginFactories;
+
+			if (this.options?.plugins) {
+				logger.debug('Using PostCSS plugins provided in processor options.');
+				this.postcssPlugins = Object.values(this.options.plugins);
+				return;
+			}
+
+			if (this.options?.pluginFactories) {
+				logger.debug('Using PostCSS plugin factories provided in processor options.');
+				this.postcssPlugins = this.materializePluginFactories(this.options.pluginFactories);
+				return;
+			}
+		}
+
+		logger.warn(
+			'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
+				'provide plugins via options, or create a postcss.config file.',
+		);
+		this.pluginFactories = undefined;
+		this.postcssPlugins = [];
+	}
+
 	private async collectPostcssPlugins(): Promise<void> {
 		if (!this.context) {
 			throw new Error('Context must be set');
 		}
 
-		const configExtensions = ['js', 'cjs', 'mjs', 'ts'];
-		let foundConfigPath: string | undefined;
-		let loadedPlugins: postcss.AcceptedPlugin[] | undefined;
+		const foundConfigPath = findPostcssConfigPath(this.context.rootDir);
+		const loaded = foundConfigPath
+			? await loadPostcssConfigFromFile(foundConfigPath)
+			: (logger.debug('No PostCSS config file found in root directory.'), {});
 
-		for (const ext of configExtensions) {
-			const configPath = path.join(this.context.rootDir, `postcss.config.${ext}`);
-			if (fileSystem.exists(configPath)) {
-				foundConfigPath = configPath;
-				break;
-			}
-		}
-
-		if (foundConfigPath) {
-			try {
-				logger.debug(`Loading PostCSS config from: ${foundConfigPath}`);
-
-				const postcssConfigModule = await import(foundConfigPath);
-				const postcssConfig = postcssConfigModule.default || postcssConfigModule;
-
-				if (postcssConfig && typeof postcssConfig.plugins === 'object' && postcssConfig.plugins !== null) {
-					if (Array.isArray(postcssConfig.plugins)) {
-						loadedPlugins = postcssConfig.plugins;
-					} else {
-						loadedPlugins = Object.values(postcssConfig.plugins as PluginsRecord);
-					}
-					logger.debug(`Successfully loaded ${loadedPlugins?.length ?? 0} plugins from config file.`);
-				} else {
-					logger.warn(
-						`PostCSS config file found (${foundConfigPath}), but no valid 'plugins' export detected.`,
-					);
-				}
-			} catch (error: any) {
-				logger.error(`Error loading PostCSS config from ${foundConfigPath}: ${error.message}`, error);
-				loadedPlugins = undefined;
-			}
-		} else {
-			logger.debug('No PostCSS config file found in root directory.');
-		}
-
-		if (loadedPlugins) {
-			this.postcssPlugins = loadedPlugins;
-		} else if (this.options?.plugins) {
-			logger.debug('Using PostCSS plugins provided in processor options.');
-			this.postcssPlugins = Object.values(this.options.plugins);
-		} else {
-			logger.warn(
-				'No PostCSS plugins configured. Use a preset like tailwindV3Preset() or tailwindV4Preset(), ' +
-					'provide plugins via options, or create a postcss.config file.',
-			);
-			this.postcssPlugins = [];
-		}
+		this.resolvePostcssPluginsFromSources(loaded);
 
 		if (!this.postcssPlugins || this.postcssPlugins.length === 0) {
 			logger.warn('No PostCSS plugins configured or loaded. CSS processing might be minimal.');
@@ -242,7 +580,29 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * @returns Processed CSS
 	 */
 	async process(fileAsString: string, filePath?: string): Promise<string> {
-		return await PostCssProcessor.processStringOrBuffer(fileAsString, {
+		const input =
+			this.options?.transformInput && filePath
+				? await this.options.transformInput(fileAsString, filePath)
+				: fileAsString;
+
+		return await PostCssProcessor.processStringOrBuffer(input, {
+			filePath,
+			plugins: this.postcssPlugins,
+			transformOutput: this.options?.transformOutput,
+		});
+	}
+
+	processSync(fileAsString: string, filePath?: string): string {
+		const input =
+			this.options?.transformInput && filePath
+				? this.options.transformInput(fileAsString, filePath)
+				: fileAsString;
+
+		if (input instanceof Promise) {
+			throw new Error('transformInput must be synchronous when used with processSync');
+		}
+
+		return PostCssProcessor.processStringOrBufferSync(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
@@ -252,7 +612,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	/**
 	 * Teardown the PostCSS processor.
 	 */
-	async teardown(): Promise<void> {
+	override async teardown(): Promise<void> {
 		logger.debug('Tearing down PostCSS processor');
 	}
 }

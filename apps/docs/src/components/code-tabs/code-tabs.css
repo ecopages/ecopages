@@ -1,0 +1,69 @@
+radiant-code-tabs {
+	@apply block w-full min-w-0 max-w-full my-8;
+}
+
+.code-tabs__tab-label {
+	@apply inline-flex min-w-0 items-center gap-1.5;
+}
+
+.code-tabs__tab-text {
+	@apply truncate;
+}
+
+.code-tabs__tab-icon {
+	@apply size-3.5 shrink-0;
+}
+
+.code-tabs__tab-icon--mono {
+	@apply text-current opacity-70;
+}
+
+.code-tabs__tab-icon--brand {
+	@apply rounded-[2px];
+}
+
+radiant-code-tabs .rui-tabs__panel {
+	@apply min-w-0 p-0;
+}
+
+.code-tabs__body {
+	@apply relative w-full min-w-0 px-4 py-3 font-mono;
+
+	&:has([data-rehype-pretty-code-figure]) {
+		@apply p-0;
+	}
+}
+
+.code-tabs__code {
+	@apply block w-full max-w-full min-w-0 text-sm;
+
+	&:has([data-rehype-pretty-code-figure]) {
+		@apply flex min-h-0 w-full max-w-full flex-col overflow-y-hidden p-0;
+
+		[data-rehype-pretty-code-figure] {
+			@apply my-0 flex min-h-0 w-full max-w-full flex-1 flex-col overflow-y-hidden rounded-none border-0 shadow-none;
+
+			& > pre {
+				@apply min-h-0 w-full max-w-full flex-1 overflow-x-auto whitespace-pre rounded-none;
+			}
+		}
+	}
+}
+
+.code-tabs__copy {
+	@apply absolute right-1.5 top-1.5 z-10 opacity-0;
+
+	&:hover,
+	&:focus-visible {
+		@apply opacity-100;
+	}
+
+	.code-tabs__body:hover &,
+	.code-tabs__body:focus-within & {
+		@apply opacity-100;
+	}
+}
+
+.code-tabs__status {
+	@apply sr-only;
+}

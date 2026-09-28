@@ -1,0 +1,19 @@
+.signup-form {
+	@apply mt-6 space-y-4;
+}
+
+.signup-form__alert {
+	@apply rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger;
+}
+
+.signup-form__label {
+	@apply block text-sm font-medium text-(--color-on-background);
+}
+
+.signup-form__input {
+	@apply flex w-full rounded-lg border border-(--color-border) bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-(--color-muted) focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50 mt-1 block;
+}
+
+.signup-form__helper-text {
+	@apply mt-1 text-xs text-(--color-muted);
+}

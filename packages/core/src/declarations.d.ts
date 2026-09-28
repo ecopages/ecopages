@@ -1,31 +1,38 @@
-import type { EcoPagesAppConfig } from './internal-types';
+import './css-imports.d.ts';
+
+import type { EcoPagesAppConfig } from './types/internal-types';
+import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
 
 type HMRHandler = (url: string) => Promise<void>;
-
-type ReloadPageFunction = (options: { clearCache: boolean }) => Promise<void>;
+type CleanupPageRootFunction = () => void;
+type EcoPageRoot = { render: (node: unknown) => void; unmount: () => void };
+type EcoIslandComponent = (props: Record<string, unknown>) => unknown;
+/** Shared React island diagnostics and root lookup state exposed to devtools. */
+type EcoIslandRuntime = {
+	islandRoots: Record<string, EcoPageRoot>;
+	islandComponents: Record<string, EcoIslandComponent>;
+};
+type EcoPageData = {
+	module: string;
+	props: Record<string, unknown>;
+};
+type EcoPagesWindowRuntime = {
+	hmrHandlers?: Record<string, HMRHandler>;
+	navigation?: EcoNavigationRuntime;
+	react?: {
+		cleanupPageRoot?: CleanupPageRootFunction;
+		pageRoot?: EcoPageRoot | null;
+	};
+	/** Roots keyed by SSR instance ID; component keys are never used for lookup. */
+	islandRoots?: Record<string, EcoPageRoot>;
+	islandComponents?: Record<string, EcoIslandComponent>;
+	__ecoIslandRuntime?: EcoIslandRuntime;
+	page?: EcoPageData;
+};
 
 declare global {
-	var ecoConfig: EcoPagesAppConfig;
-
 	interface Window {
-		/** Registered HMR handlers for specific module paths */
-		__ecopages_hmr_handlers__?: Record<string, HMRHandler>;
-		/** Function to reload the current page, used for layout updates */
-		__ecopages_reload_current_page__?: ReloadPageFunction;
-		/** Page data registry - contains module path and props for current page */
-		__ECO_PAGE__?: {
-			module: string;
-			props: Record<string, unknown>;
-		};
+		/** Shared Ecopages browser runtime state */
+		__ECO_PAGES__?: EcoPagesWindowRuntime;
 	}
-}
-
-declare module '*.css' {
-	const styles: string;
-	export default styles;
-}
-
-declare module '*.mdx' {
-	let MDXComponent: (props: any) => JSX.Element;
-	export default MDXComponent;
 }

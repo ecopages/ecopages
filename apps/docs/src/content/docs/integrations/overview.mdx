@@ -1,0 +1,84 @@
+---
+title: 'Overview'
+description: 'Ecopages JSX is the default Integration. Register React, Lit, MDX, or KitaJS when those runtimes should own routes.'
+order: 1
+---
+
+import { RuiAlert, RuiAlertDescription, RuiAlertTitle } from '@ecopages/radiant-ui/alert';
+
+# Integrations Overview
+
+[Ecopages JSX](/docs/integrations/ecopages-jsx) is the default Integration: `.tsx` Pages, optional Radiant, and JSX-backed MDX. Register another Integration when a route should use that runtime.
+
+## Comparison Table
+
+| Integration                                         | Technology     | Primary Use Case                      | SSR Support |
+| :-------------------------------------------------- | :------------- | :------------------------------------ | :---------- |
+| **[Ecopages JSX](/docs/integrations/ecopages-jsx)** | JSX + Radiant  | Default: `.tsx` Pages, MDX, Radiant   | Full        |
+| **[KitaJS](/docs/integrations/kitajs)**             | `@kitajs/html` | `.kita.tsx` Pages                     | Full        |
+| **[React 19](/docs/integrations/react)**            | React          | Dashboards, React ecosystem           | Full        |
+| **[Lit](/docs/integrations/lit)**                   | Web Components | Portable UI, micro-frontends          | Full        |
+| **[MDX](/docs/integrations/mdx)**                   | Markdown + JSX | Long-form content with embedded UI    | Full        |
+
+---
+
+## Choosing an Integration
+
+### Ecopages JSX (default)
+
+Register `ecopagesJsxPlugin()` when:
+
+- Pages are standard `.tsx` files owned by Ecopages.
+- You want optional Radiant SSR and hydration.
+- The same Integration should own JSX-backed MDX.
+
+### KitaJS
+
+Register `kitajsPlugin()` when Pages are `.kita.tsx` and should compile with `@kitajs/html`.
+
+### React
+
+Register `reactPlugin()` when:
+
+- The app is a dashboard or highly interactive UI.
+- You need the React ecosystem.
+- React should own Pages or islands in a mixed-renderer app.
+
+### Lit
+
+Register the Lit Integration when:
+
+- Components should be standard Web Components.
+- UI must stay portable across hosts.
+- You want declarative templates on native custom elements.
+
+### MDX
+
+Register MDX (on the owning JSX runtime) when:
+
+- The page is primarily Markdown.
+- Articles should embed interactive components.
+
+---
+
+## Mixing Integrations
+
+You can combine Integrations in `eco.config.ts`. Keep Ecopages JSX for `.tsx` Pages, use MDX for long-form content, and add React or Lit on routes that need those runtimes.
+
+Hydratable components across integrations share the [Island Hosts](/docs/core/island-hosts) contract so devtools can discover them without integration-specific selectors.
+
+<RuiAlert variant="info" layout="banner" class="unstyled">
+	<RuiAlertTitle>Pro Tip</RuiAlertTitle>
+	<RuiAlertDescription>
+		<p>
+			Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets third-party
+			JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. React-backed MDX should be
+			enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>. Ecopages JSX MDX should use{' '}
+			<code>ecopagesJsxPlugin({`{ mdx: { enabled: true } }`})</code>.
+		</p>
+	</RuiAlertDescription>
+</RuiAlert>
+
+## Build an Integration
+
+To understand the smallest renderer boundary, follow [Authoring an Integration](/docs/integrations/authoring). The guide builds a dependency-free string renderer and explains when production applications should choose Ecopages JSX instead.

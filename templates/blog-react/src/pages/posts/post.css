@@ -1,0 +1,23 @@
+.post-article {
+	@apply mt-6;
+
+	&::after {
+		content: '';
+		display: block;
+		clear: both;
+	}
+}
+
+.post-article h1 {
+	@apply mb-6 text-3xl font-bold tracking-tight text-text;
+}
+
+.post-image-float {
+	@apply mb-6 aspect-[4/3] w-full max-w-xs overflow-hidden rounded-lg shadow-sm;
+
+	img {
+		@apply m-0 h-full w-full object-cover;
+	}
+
+	@apply sm:float-right sm:ml-8 sm:mb-4 sm:w-48;
+}

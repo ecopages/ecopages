@@ -1,23 +1,22 @@
 import { eco } from '@ecopages/core';
-import type { HtmlTemplateProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { Head } from '@/includes/head';
 import { EcoPropsScript } from '@ecopages/react-router';
 
 const themeScript = `(function(){const t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}})();`;
 
-const HtmlTemplate = eco.component<HtmlTemplateProps, ReactNode>({
+const HtmlTemplate = eco.html<ReactNode>({
 	dependencies: {
 		components: [Head],
+		scripts: [{ content: themeScript }],
 	},
 
-	render: ({ children, metadata, headContent, language = 'en', pageProps }) => {
+	render: ({ children, metadata, headContent, language = 'en', pageProps, pageModuleUrl }) => {
 		return (
 			<html lang={language}>
 				<Head metadata={metadata}>
-					<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 					{headContent}
-					<EcoPropsScript data={pageProps} />
+					<EcoPropsScript data={pageProps} moduleUrl={pageModuleUrl} />
 				</Head>
 				<body>{children}</body>
 			</html>

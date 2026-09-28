@@ -1,0 +1,5 @@
+/**
+ * Aurora palette, default spacing, and soft radius.
+ */
+@import '@ecopages/radiant-ui/themes/aurora';
+@import '@ecopages/radiant-ui/tokens/radius/soft';

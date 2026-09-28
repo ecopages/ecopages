@@ -1,0 +1,181 @@
+import { describe, expect, it } from 'vitest';
+import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
+import {
+	buildReactRuntimeManifest,
+	getReactClientGraphAllowSpecifiers,
+	getReactRuntimeExternalSpecifiers,
+	REACT_RUNTIME_SPECIFIERS,
+} from './runtime-alias-map.ts';
+
+const reactRuntimeImports = {
+	react: '/assets/vendors/react.js',
+	reactDomClient: '/assets/vendors/react-dom.js',
+	reactJsxRuntime: '/assets/vendors/react.js',
+	reactJsxDevRuntime: '/assets/vendors/react.js',
+	reactDom: '/assets/vendors/react-dom.js',
+	useSyncExternalStoreWithSelector: '/assets/vendors/use-sync-external-store-with-selector.js',
+	pageLayoutNormalization: '/assets/vendors/page-layout-normalization.js',
+	layoutCompose: '/assets/vendors/layout-compose.js',
+} as const;
+
+const reactRouterAdapter: ReactRouterAdapter = {
+	name: 'react-router',
+	bundle: {
+		outputName: 'router',
+		importPath: '/router.ts',
+		externals: [],
+	},
+	components: {
+		router: 'Router',
+		pageContent: 'PageContent',
+	},
+	getRouterProps: (page, props) => `{ page: ${page}, pageProps: ${props} }`,
+};
+
+describe('buildReactRuntimeManifest', () => {
+	it('builds the canonical React runtime manifest', () => {
+		const manifest = buildReactRuntimeManifest(reactRuntimeImports);
+
+		expect(Array.from(manifest.bySpecifier.entries())).toEqual([
+			[
+				'react',
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+					externals: [],
+				},
+			],
+			[
+				'react/jsx-runtime',
+				{
+					specifier: 'react/jsx-runtime',
+					owner: '@ecopages/react',
+					importPath: 'react/jsx-runtime',
+					publicPath: '/assets/vendors/react.js',
+					externals: [],
+				},
+			],
+			[
+				'react/jsx-dev-runtime',
+				{
+					specifier: 'react/jsx-dev-runtime',
+					owner: '@ecopages/react',
+					importPath: 'react/jsx-dev-runtime',
+					publicPath: '/assets/vendors/react.js',
+					externals: [],
+				},
+			],
+			[
+				'react-dom',
+				{
+					specifier: 'react-dom',
+					owner: '@ecopages/react',
+					importPath: 'react-dom',
+					publicPath: '/assets/vendors/react-dom.js',
+					externals: [],
+				},
+			],
+			[
+				'react-dom/client',
+				{
+					specifier: 'react-dom/client',
+					owner: '@ecopages/react',
+					importPath: 'react-dom/client',
+					publicPath: '/assets/vendors/react-dom.js',
+					externals: [],
+				},
+			],
+			[
+				'use-sync-external-store/shim',
+				{
+					specifier: 'use-sync-external-store/shim',
+					owner: '@ecopages/react',
+					importPath: 'use-sync-external-store/shim',
+					publicPath: '/assets/vendors/react.js',
+					externals: [],
+				},
+			],
+			[
+				'use-sync-external-store/shim/index.js',
+				{
+					specifier: 'use-sync-external-store/shim/index.js',
+					owner: '@ecopages/react',
+					importPath: 'use-sync-external-store/shim/index.js',
+					publicPath: '/assets/vendors/react.js',
+					externals: [],
+				},
+			],
+			[
+				'use-sync-external-store/shim/with-selector',
+				{
+					specifier: 'use-sync-external-store/shim/with-selector',
+					owner: '@ecopages/react',
+					importPath: 'use-sync-external-store/shim/with-selector',
+					publicPath: '/assets/vendors/use-sync-external-store-with-selector.js',
+					externals: [],
+				},
+			],
+			[
+				'use-sync-external-store/shim/with-selector.js',
+				{
+					specifier: 'use-sync-external-store/shim/with-selector.js',
+					owner: '@ecopages/react',
+					importPath: 'use-sync-external-store/shim/with-selector.js',
+					publicPath: '/assets/vendors/use-sync-external-store-with-selector.js',
+					externals: [],
+				},
+			],
+			[
+				'@ecopages/react/layout-compose',
+				{
+					specifier: '@ecopages/react/layout-compose',
+					owner: '@ecopages/react',
+					importPath: '@ecopages/react/layout-compose',
+					publicPath: '/assets/vendors/layout-compose.js',
+					externals: [],
+				},
+			],
+		]);
+	});
+
+	it('includes configured runtime modules and the router import path', () => {
+		const manifest = buildReactRuntimeManifest(
+			{ ...reactRuntimeImports, router: '/assets/vendors/router.js' },
+			[{ specifier: 'mobx', outputName: 'mobx', externals: [] }],
+			(outputName) => `/assets/vendors/${outputName}.js`,
+			{ routerImportPath: '/router.ts' },
+		);
+
+		expect(manifest.bySpecifier.get('mobx')).toEqual({
+			specifier: 'mobx',
+			owner: '@ecopages/react',
+			importPath: 'mobx',
+			publicPath: '/assets/vendors/mobx.js',
+			externals: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client'],
+		});
+		expect(manifest.bySpecifier.get('/router.ts')?.publicPath).toBe('/assets/vendors/router.js');
+		expect(manifest.bySpecifier.get('@ecopages/react-router')?.publicPath).toBe('/assets/vendors/router.js');
+	});
+
+	it('exposes the canonical runtime external specifiers', () => {
+		expect(getReactRuntimeExternalSpecifiers()).toEqual([...REACT_RUNTIME_SPECIFIERS]);
+	});
+
+	it('builds the canonical allowlist for client graph boundaries', () => {
+		expect(
+			getReactClientGraphAllowSpecifiers(['virtual:runtime-a', 'virtual:runtime-b'], reactRouterAdapter),
+		).toEqual([
+			'@ecopages/core',
+			'react',
+			'react-dom',
+			'react/jsx-runtime',
+			'react/jsx-dev-runtime',
+			'react-dom/client',
+			'/router.ts',
+			'virtual:runtime-a',
+			'virtual:runtime-b',
+		]);
+	});
+});

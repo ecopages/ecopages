@@ -1,18 +1,20 @@
 import type { ServerWebSocket } from 'bun';
-import type { ClientBridgeEvent } from '../../public-types';
+import type { ClientBridgeEvent, IClientBridge } from '../../types/public-types.ts';
+
+type BunSocket = ServerWebSocket<unknown>;
 
 /**
  * Manages WebSocket subscribers and broadcasts development events.
  * Bridges the gap between the server and the development client.
  */
-export class ClientBridge {
-	private subscribers = new Set<ServerWebSocket<unknown>>();
+export class ClientBridge implements IClientBridge {
+	private subscribers = new Set<BunSocket>();
 
-	subscribe(ws: ServerWebSocket<unknown>): void {
+	subscribe(ws: BunSocket): void {
 		this.subscribers.add(ws);
 	}
 
-	unsubscribe(ws: ServerWebSocket<unknown>): void {
+	unsubscribe(ws: BunSocket): void {
 		this.subscribers.delete(ws);
 	}
 
@@ -56,5 +58,9 @@ export class ClientBridge {
 
 	get subscriberCount(): number {
 		return this.subscribers.size;
+	}
+
+	destroy(): void {
+		this.subscribers.clear();
 	}
 }

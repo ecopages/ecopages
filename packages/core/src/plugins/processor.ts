@@ -1,12 +1,35 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { BunPlugin } from 'bun';
-import type { EcoPagesAppConfig } from '../internal-types';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
-import type { AssetDefinition } from '../services/asset-processing-service';
-import { GENERATED_BASE_PATHS } from '../constants';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
+import { GENERATED_BASE_PATHS } from '../config/constants.ts';
+import { deepMerge } from '../utils/deep-merge.ts';
+import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
-function resolveGeneratedPath(
+export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
+export type {
+	EcoBuildLoader,
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildOnResolveArgs,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	EcoBuildPluginBuilder,
+} from '../build/contracts/build-types.ts';
+
+export const PROCESSOR_ERRORS = {
+	CACHE_DIRECTORY_NOT_SET: 'Cache directory not set in context',
+} as const;
+
+export function mergeProcessorOptions<TDefaults, TOverrides>(
+	defaults: TDefaults,
+	overrides: TOverrides,
+): TDefaults & TOverrides {
+	return deepMerge(defaults, overrides);
+}
+
+export function resolveGeneratedPath(
 	type: keyof typeof GENERATED_BASE_PATHS,
 	options: { root: string; module: string; subPath?: string },
 ): string {
@@ -15,13 +38,53 @@ function resolveGeneratedPath(
 	return path.join(...(parts as string[]));
 }
 
+/**
+ * Serializes the TypeScript `@types` package manifest for generated virtual-module declarations.
+ */
+export function serializeGeneratedTypesPackage(packageName: string): string {
+	return `${JSON.stringify(
+		{
+			name: packageName,
+			version: '0.0.0',
+			types: './index.d.ts',
+		},
+		null,
+		2,
+	)}\n`;
+}
+
+/**
+ * Writes the generated `@types` package manifest that TypeScript auto-loads from `node_modules`.
+ */
+export function writeGeneratedTypesPackage(options: {
+	root: string;
+	module: string;
+	packageName: string;
+	writeFile: (filePath: string, content: string) => void;
+}): void {
+	const packageManifestPath = resolveGeneratedPath('types', {
+		root: options.root,
+		module: options.module,
+		subPath: 'package.json',
+	});
+	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
+}
+
 export interface ProcessorWatchContext {
 	path: string;
-	bridge: ClientBridge;
+	bridge: IClientBridge;
 }
 
 export interface ProcessorWatchConfig {
 	paths: string[];
+	/**
+	 * File extensions that trigger watch callbacks (`onCreate`, `onChange`, `onDelete`).
+	 *
+	 * @remarks
+	 * Watch extensions drive notifications only. They do not declare asset ownership.
+	 * Ownership requires {@link ProcessorConfig.capabilities} and controls whether dev
+	 * invalidation skips server modules and HMR for processor-handled assets.
+	 */
 	extensions?: string[];
 	onCreate?: (ctx: ProcessorWatchContext) => Promise<void>;
 	onChange?: (ctx: ProcessorWatchContext) => Promise<void>;
@@ -29,11 +92,31 @@ export interface ProcessorWatchConfig {
 	onError?: (error: Error) => void;
 }
 
-export interface ProcessorConfig<TOptions = Record<string, unknown>> {
+export type ProcessorAssetKind = 'script' | 'stylesheet' | 'image';
+export type ProcessorExtensionPattern = string;
+
+export interface ProcessorAssetCapability {
+	kind: ProcessorAssetKind;
+	/**
+	 * Supported patterns:
+	 * - `*` (all extensions)
+	 * - `.css` or `css`
+	 * - `*.css`
+	 * - `*.{css,scss,sass}`
+	 *
+	 * Pattern matching is case-insensitive and trims surrounding spaces,
+	 * including grouped values (e.g. `*.{ CSS, ScSs }`).
+	 */
+	extensions?: ProcessorExtensionPattern[];
+}
+
+export interface ProcessorConfig<TOptions = unknown> {
 	name: string;
 	description?: string;
 	options?: TOptions;
 	watch?: ProcessorWatchConfig;
+	capabilities?: ProcessorAssetCapability[];
+	runtimeCapability?: RuntimeCapabilityDeclaration;
 }
 export interface ProcessorContext {
 	config: EcoPagesAppConfig;
@@ -44,33 +127,65 @@ export interface ProcessorContext {
 }
 
 /**
- * Interface for processor build plugins
- * This is used to pass plugins to the build process directly from the processor
- * For instance it can become very handy when dealing with virtual modules that needs to be recognized by the bundler
- * i.e. @ecopages/image-processor
+ * Unconstrained processor type for heterogeneous processor collections.
  */
-export abstract class Processor<TOptions = Record<string, unknown>> {
+export type AnyProcessor = Processor<unknown>;
+
+/**
+ * Base class for content and asset processors that contribute build plugins.
+ *
+ * @remarks
+ * Processors declare plugins through two getters that map to
+ * {@link AppBuildManifest} buckets (names differ from integrations):
+ *
+ * - `plugins` → `runtimePlugins` (server **and** browser builds)
+ * - `buildPlugins` → `browserBundlePlugins` (browser bundles only)
+ *
+ * Virtual modules that must resolve during route-module transpile belong in
+ * `plugins`. Browser-only bundler hooks belong in `buildPlugins`.
+ */
+
+export abstract class Processor<TOptions = unknown> {
 	readonly name: string;
-	protected dependencies: AssetDefinition[] = [];
 	protected context?: ProcessorContext;
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
+	protected capabilities: ProcessorAssetCapability[] = [];
+	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
-	/** Plugins that are only used during the build process */
-	abstract buildPlugins?: BunPlugin[];
+	/**
+	 * Browser-bundle-only plugins.
+	 *
+	 * @remarks
+	 * Maps to {@link AppBuildManifest.browserBundlePlugins}. Integrations name the
+	 * same bucket `browserBuildPlugins`.
+	 */
+	abstract buildPlugins?: EcoBuildPlugin[];
 
-	/** Plugins that are used during runtime for file processing */
-	abstract plugins?: BunPlugin[];
+	/**
+	 * Shared build plugins for server-oriented and browser-oriented work.
+	 *
+	 * @remarks
+	 * Maps to {@link AppBuildManifest.runtimePlugins}. Despite the name, these are
+	 * bundler plugins—not dev-server file processors. Runtime-only setup stays in
+	 * {@link setup}.
+	 */
+	abstract plugins?: EcoBuildPlugin[];
 
 	constructor(config: ProcessorConfig<TOptions>) {
 		this.name = config.name;
 		this.options = config.options;
 		this.watchConfig = config.watch;
+		this.capabilities = config.capabilities ?? [];
+		this.runtimeCapability = config.runtimeCapability;
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
+		const workDir =
+			appConfig.absolutePaths.workDir ??
+			path.join(appConfig.rootDir, appConfig.workDir ?? DEFAULT_ECOPAGES_WORK_DIR);
 		const cachePath = resolveGeneratedPath('cache', {
-			root: appConfig.absolutePaths.distDir,
+			root: workDir,
 			module: this.name,
 		});
 
@@ -85,9 +200,56 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		};
 	}
 
+	/**
+	 * Prepares build-facing processor contributions before config finalization.
+	 *
+	 * @remarks
+	 * Override this when a processor must compute runtime/build plugins or other
+	 * manifest-owned state before startup. Runtime-only work such as cache
+	 * warming or watcher registration should stay in `setup()`.
+	 */
+	async prepareBuildContributions(): Promise<void> {}
+
+	/**
+	 * Declares watch-mode SSR prewarm pathnames and readiness for core.
+	 *
+	 * @remarks
+	 * Processors return paths and readiness only; core owns parallel rendering and page cache population.
+	 */
+	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[]; readiness: 'background' | 'beforeReady' }> {
+		return Promise.resolve({ pathnames: [], readiness: 'background' });
+	}
+
+	/**
+	 * Reports whether this processor's build inputs changed since the last
+	 * incremental static build.
+	 *
+	 * @remarks
+	 * No shipped processor overrides this today. Integrations and processors can
+	 * opt in when they own build inputs that should invalidate incremental static
+	 * exports without a full rebuild.
+	 */
+	didChange(): boolean {
+		return false;
+	}
+
 	abstract setup(): Promise<void>;
-	abstract teardown(): Promise<void>;
-	abstract process(input: unknown): Promise<unknown>;
+	abstract process(input: unknown, filePath?: string): Promise<unknown>;
+
+	/**
+	 * Discards cached server build artifacts when server modules are invalidated.
+	 */
+	invalidateServerArtifacts(): void {}
+
+	/**
+	 * Releases runtime resources owned by the processor.
+	 *
+	 * @remarks
+	 * Core does not call this hook today. Override only when a processor owns
+	 * watchers, compiler handles, or other resources that outlive individual
+	 * requests.
+	 */
+	async teardown(): Promise<void> {}
 
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;
@@ -105,7 +267,7 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 
 	protected async writeCache<T>(key: string, data: T): Promise<void> {
 		if (!this.context?.cache) {
-			throw new Error('Cache directory not set in context');
+			throw new Error(PROCESSOR_ERRORS.CACHE_DIRECTORY_NOT_SET);
 		}
 
 		const cachePath = this.getCachePath(key);
@@ -116,11 +278,77 @@ export abstract class Processor<TOptions = Record<string, unknown>> {
 		return this.watchConfig;
 	}
 
-	getDependencies(): AssetDefinition[] {
-		return this.dependencies;
-	}
-
 	getName(): string {
 		return this.name;
+	}
+
+	getAssetCapabilities(): ProcessorAssetCapability[] {
+		return this.capabilities;
+	}
+
+	matchesFileFilter(_filepath: string): boolean {
+		return true;
+	}
+
+	canProcessAsset(kind: ProcessorAssetKind, filepath?: string): boolean {
+		const capabilities = this.getAssetCapabilities();
+		if (capabilities.length === 0) {
+			return false;
+		}
+
+		const matchingKind = capabilities.filter((capability) => capability.kind === kind);
+		if (matchingKind.length === 0) {
+			return false;
+		}
+
+		if (!filepath) {
+			return true;
+		}
+
+		return matchingKind.some((capability) => this.matchesCapabilityExtensions(filepath, capability.extensions));
+	}
+
+	private matchesCapabilityExtensions(filepath: string, extensions?: ProcessorExtensionPattern[]): boolean {
+		if (!extensions || extensions.length === 0) {
+			return true;
+		}
+
+		const normalizedExt = path.extname(filepath).toLowerCase();
+
+		return extensions.some((rawPattern) => {
+			const pattern = this.normalizeExtensionPattern(rawPattern);
+			if (!pattern) {
+				return false;
+			}
+
+			if (pattern === '*') {
+				return true;
+			}
+
+			const groupedMatch = pattern.match(/^\*\.\{(.+)\}$/);
+			if (groupedMatch) {
+				const groupItems = groupedMatch[1]
+					.split(',')
+					.map((item) => this.normalizeExtensionPattern(item))
+					.filter(Boolean);
+
+				return groupItems.some((item) => normalizedExt === item || normalizedExt === `.${item}`);
+			}
+
+			if (pattern.startsWith('*')) {
+				const suffix = pattern.slice(1);
+				return normalizedExt.endsWith(suffix);
+			}
+
+			if (pattern.startsWith('.')) {
+				return normalizedExt === pattern;
+			}
+
+			return normalizedExt === `.${pattern}`;
+		});
+	}
+
+	private normalizeExtensionPattern(rawPattern: string): string {
+		return rawPattern.trim().toLowerCase();
 	}
 }

@@ -10,7 +10,6 @@ export type BaseLayoutProps = {
 export const BaseLayout = eco.component<BaseLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./base-layout.css'],
-		scripts: ['./base-layout.script.ts'],
 	},
 
 	render: ({ children, className }) => {

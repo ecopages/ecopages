@@ -1,0 +1,75 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
+
+/**
+ * Options for the shared foreign-JSX override build plugin.
+ */
+export interface ForeignJsxOverrideOptions {
+	/** JSX runtime that should own the transformed foreign files. */
+	hostJsxImportSource: string;
+	/** Extensions claimed by other JSX integrations that may appear in the host graph. */
+	foreignExtensions: string[];
+	/** More specific owned suffixes that must not be claimed by this override. */
+	excludeExtensions?: string[];
+	/** Optional plugin name override for debug output. */
+	name?: string;
+}
+
+/**
+ * Build plugin that prepends a `@jsxImportSource` pragma to foreign integration
+ * files bundled into a host integration's client graph.
+ *
+ * When a host integration (e.g. React) bundles a component file that belongs to
+ * another JSX integration (e.g. `.kita.tsx`), that file inherits the project
+ * `tsconfig` JSX runtime which produces the wrong output (HTML strings instead
+ * of framework elements). This plugin rewrites the source to explicitly target
+ * the host's JSX factory so the bundler compiles every JSX expression into the
+ * correct element creation calls.
+ *
+ * The plugin is intentionally framework-agnostic: any integration that does
+ * client-side bundling can use it by passing its own `jsxImportSource` and the
+ * set of foreign extensions collected from the app config.
+ *
+ * When no JSX-bearing foreign extensions are present, the returned plugin is a
+ * no-op so integrations can register it unconditionally.
+ */
+export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOptions): EcoBuildPlugin {
+	const extensions = filterJsxSourceExtensions(options.foreignExtensions);
+	const excludedExtensions = filterJsxSourceExtensions(options.excludeExtensions ?? []);
+
+	if (extensions.length === 0) {
+		return {
+			name: options.name ?? 'foreign-jsx-override',
+			setup() {},
+		};
+	}
+
+	const pragma = createJsxImportSourcePragma(options.hostJsxImportSource);
+	const filter = new RegExp(`(${extensions.map((e) => e.replace('.', '\\.')).join('|')})$`);
+
+	return {
+		name: options.name ?? 'foreign-jsx-override',
+		setup(build) {
+			build.onLoad({ filter }, (args) => {
+				if (excludedExtensions.some((extension) => args.path.endsWith(extension))) {
+					return undefined;
+				}
+
+				const source = readFileSync(args.path, 'utf-8');
+				const loader = args.path.endsWith('.jsx') ? 'jsx' : 'tsx';
+
+				if (source.includes('@jsxImportSource')) {
+					return undefined;
+				}
+
+				return {
+					contents: pragma + source,
+					loader,
+					resolveDir: path.dirname(args.path),
+				};
+			});
+		},
+	};
+}

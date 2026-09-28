@@ -115,15 +115,43 @@ const processStringOrBuffer: ProcessStringOrBuffer = async (contents, options) =
 		});
 };
 
+export type ProcessStringOrBufferSync = (contents: string | Buffer, options?: PostCssProcessorOptions) => string;
+
+const processStringOrBufferSync: ProcessStringOrBufferSync = (contents, options) => {
+	if (!contents) return '';
+
+	try {
+		const result = postcss(getPlugins(options)).process(contents, { from: options?.filePath });
+		let css = result.css;
+		if (options?.transformOutput) {
+			const output = options.transformOutput(css);
+			if (output instanceof Promise) {
+				throw new Error('transformOutput must be synchronous when used with processStringOrBufferSync');
+			}
+			css = output;
+		}
+		return css;
+	} catch (error) {
+		if (error instanceof Error && error.message.includes('transformOutput must be synchronous')) {
+			throw error;
+		}
+		appLogger.error('Error processing string or buffer with PostCssProcessor', (error as Error).message);
+		return '';
+	}
+};
+
 /**
  * PostCSS Processor
  * - {@link processPath} : It processes the given path using PostCSS
  * - {@link processStringOrBuffer}: It processes the given string or buffer using PostCSS
+ * - {@link processStringOrBufferSync}: It processes the given string or buffer synchronously using PostCSS (requires all plugins to be sync)
  */
 export const PostCssProcessor: {
 	processPath: ProcessPath;
 	processStringOrBuffer: ProcessStringOrBuffer;
+	processStringOrBufferSync: ProcessStringOrBufferSync;
 } = {
 	processPath,
 	processStringOrBuffer,
+	processStringOrBufferSync,
 };

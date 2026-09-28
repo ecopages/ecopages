@@ -1,0 +1,40 @@
+import { ReactPlaygroundLayout } from '../layouts/react-playground-layout.react';
+import { LitCounter } from '../components/lit-counter.lit';
+import { ReactCounter } from '../components/react-counter.react';
+
+export const config = {
+	layout: ReactPlaygroundLayout,
+	dependencies: {
+		components: [ReactCounter, LitCounter],
+		stylesheets: ['./docs.css'],
+	},
+};
+
+<div className="docs-page__prose" data-testid="page-react-content">
+
+# React MDX
+
+This route is rendered through `@ecopages/react`, while the document shell stays on the shared Kita HTML template and the page shell is owned by a React layout.
+
+- The first navigation into this page can still come from the global browser router.
+- Once hydrated, links between React-owned pages use `@ecopages/react-router`.
+- Navigating back to a non-React route hands control back to the browser router for a smooth transition.
+- The React page shell stays inside the React lane, so the router no longer has to push React elements through a Kita layout.
+
+## Interactive content
+
+<div className="flex flex-wrap gap-3 my-6 not-prose">
+	<ReactCounter />
+	<lit-counter count={1}></lit-counter>
+</div>
+
+## Route handoff
+
+<ul>
+	<li><a href="/react-lab" data-testid="route-link-react-lab">Open the companion React page</a></li>
+	<li><a href="/react-notes" data-testid="route-link-react-notes">Open the second React page</a></li>
+	<li><a href="/docs" data-testid="route-link-docs">Back to the Kita MDX page</a></li>
+	<li><a href="/integration-matrix" data-testid="route-link-integration-matrix">Back to the integration matrix</a></li>
+</ul>
+
+</div>

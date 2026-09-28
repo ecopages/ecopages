@@ -1,65 +1,58 @@
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
+import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { imageProcessorPlugin } from '@ecopages/image-processor';
-import { kitajsPlugin } from '@ecopages/kitajs';
-import { litPlugin } from '@ecopages/lit';
-import { mdxPlugin } from '@ecopages/mdx';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-import remarkGfm from 'remark-gfm';
-import rehypePrettyCode from 'rehype-pretty-code';
-import { rehypeSimpleTableWrapper } from './src/plugins/rehype-simple-table-wrapper';
-import { transformerEscapeHtml } from './src/plugins/transformer-escape-html';
+import { compareDocsEntries, docsFrontmatterSchema, DOCS_ROOT } from './src/content/docs';
+import { docsMdxPluginOptions } from './src/lib/docs/mdx-plugin-options';
+import { configuredSiteOrigin, DOCS_SITEMAP_EXTRA_URLS } from './src/lib/docs/site-meta';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
-		kitajsPlugin(),
-		litPlugin(),
-		mdxPlugin({
-			compilerOptions: {
-				jsxImportSource: '@kitajs/html',
-				remarkPlugins: [remarkGfm],
-				rehypePlugins: [
-					[
-						rehypePrettyCode,
-						{
-							theme: {
-								light: 'light-plus',
-								dark: 'dark-plus',
-							},
-							transformers: [transformerEscapeHtml],
-						},
-					],
-					rehypeSimpleTableWrapper,
-				],
-			},
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: configuredSiteOrigin(),
+	sitemap: {
+		enabled: true,
+		extraUrls: [...DOCS_SITEMAP_EXTRA_URLS],
+		exclude: ['/404', '/500'],
+	},
+	integrations: [
+		ecopagesJsxPlugin({
+			extensions: ['.tsx', '.kita.tsx'],
+			mdx: docsMdxPluginOptions,
 		}),
-	])
-	.setDefaultMetadata({
+	],
+	defaultMetadata: {
 		title: 'Ecopages | Docs',
 		description: 'Ecopages is a static site generator written in TypeScript',
-		image: 'public/assets/images/default-og.png',
+		image: '/assets/images/default-og.png',
 		keywords: ['typescript', 'framework', 'static'],
-	})
-	.setIncludesTemplates({
-		head: 'head.kita.tsx',
-		html: 'html.kita.tsx',
-		seo: 'seo.kita.tsx',
-	})
-	.setError404Template('404.kita.tsx')
-	.setAdditionalWatchPaths(['src/data'])
-	.setProcessors([
+	},
+	additionalWatchPaths: ['src/content', 'src/homepage', 'src/lib/plugins', 'src/data'],
+	processors: [
+		contentProcessorPlugin({
+			options: {
+				collections: {
+					docs: {
+						contentDir: 'content/docs',
+						schema: docsFrontmatterSchema,
+						orderBy: compareDocsEntries,
+						entryType: './src/content/docs#DocsFrontmatter',
+						routePrefix: DOCS_ROOT,
+					},
+				},
+			},
+		}),
 		postcssProcessorPlugin(
 			tailwindV4Preset({
-				referencePath: path.resolve(import.meta.dir, 'src/styles/tailwind.css'),
+				referencePath: path.resolve(import.meta.dirname, 'src/styles/tailwind.css'),
 			}),
 		),
 		imageProcessorPlugin({
 			options: {
-				sourceDir: path.resolve(import.meta.dir, 'src/images'),
-				outputDir: path.resolve(import.meta.dir, '.eco/images'),
+				sourceDir: path.resolve(import.meta.dirname, 'src/images'),
+				outputDir: path.resolve(import.meta.dirname, 'dist/images'),
 				publicPath: '/images',
 				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
 				quality: 80,
@@ -72,7 +65,5 @@ const config = await new ConfigBuilder()
 				],
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});

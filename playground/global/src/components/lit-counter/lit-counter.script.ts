@@ -9,15 +9,15 @@ export type LitCounterProps = {
 
 @customElement('lit-counter')
 export class LitCounter extends StyledMixin(LitElement, [styles]) {
-	@property({ type: Number }) count = 0;
+	@property({ type: Number }) declare count: number;
 
-	decrement() {
+	decrement = () => {
 		if (this.count > 0) this.count--;
-	}
+	};
 
-	increment() {
+	increment = () => {
 		this.count++;
-	}
+	};
 
 	override render() {
 		return html`

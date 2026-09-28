@@ -1,252 +1,81 @@
-import type { BunPlugin, WebSocketHandler, ServerWebSocket } from 'bun';
-import fs from 'node:fs';
-import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../constants';
-import type { DefaultHmrContext, EcoPagesAppConfig, IHmrManager } from '../../internal-types';
-import { fileSystem } from '@ecopages/file-system';
-import type { HmrStrategy } from '../../hmr/hmr-strategy';
-import { DefaultHmrStrategy } from '../../hmr/strategies/default-hmr-strategy';
-import { JsHmrStrategy } from '../../hmr/strategies/js-hmr-strategy';
-import { appLogger } from '../../global/app-logger';
-import type { ClientBridge } from './client-bridge';
-import type { ClientBridgeEvent } from '../../public-types';
-import { stripServerOnlyPlugin } from '../../plugins/strip-server-only-plugin';
+import type { ServerWebSocket, WebSocketHandler } from 'bun';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import type { ClientBridge } from './client-bridge.ts';
+import {
+	InMemoryEntrypointDependencyGraph,
+	type EntrypointDependencyGraph,
+} from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { SharedHmrManager } from '../shared/hmr/shared-hmr-manager.ts';
+
+type BunSocket = ServerWebSocket<unknown>;
+type BunSocketHandler = WebSocketHandler<unknown>;
 
 export interface HmrManagerParams {
 	appConfig: EcoPagesAppConfig;
 	bridge: ClientBridge;
 }
 
-export class HmrManager implements IHmrManager {
-	public readonly appConfig: EcoPagesAppConfig;
-	private readonly bridge: ClientBridge;
-	/** Keep track of watchers */
-	private watchers = new Map<string, fs.FSWatcher>();
-	/** entrypoint -> output path */
-	private watchedFiles = new Map<string, string>();
-	/** bare specifier -> vendor URL (e.g., 'react' -> '/assets/vendors/react-esm.js') */
-	private specifierMap = new Map<string, string>();
-	private distDir: string;
-	private plugins: BunPlugin[] = [];
-	private enabled = true;
-	private strategies: HmrStrategy[] = [];
-	private wsHandler!: {
-		open: (ws: ServerWebSocket<unknown>) => void;
-		close: (ws: ServerWebSocket<unknown>) => void;
-	};
-
+/**
+ * Bun development HMR manager.
+ *
+ * @remarks
+ * Bun shares the same public contract as the Node manager: page entrypoints are
+ * strict integration-owned registrations, while generic script assets use their
+ * own explicit registration path.
+ */
+export class HmrManager extends SharedHmrManager {
+	/**
+	 * Creates the Bun HMR manager around the shared HMR orchestration pipeline.
+	 *
+	 * @remarks
+	 * Bun delegates route watching, rebuild dispatch, and runtime bundle
+	 * generation to `SharedHmrManager`. The Bun subclass only supplies the
+	 * transport-specific dependency graph policy and websocket hook surface.
+	 */
 	constructor({ appConfig, bridge }: HmrManagerParams) {
-		this.appConfig = appConfig;
-		this.bridge = bridge;
-		this.distDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, '_hmr');
-		fileSystem.ensureDir(this.distDir);
-		this.plugins = [stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir })];
-		this.initializeStrategies();
+		super({ appConfig, bridge });
 	}
 
 	/**
-	 * Initializes core HMR strategies.
-	 * Strategies are evaluated in priority order (highest first).
+	 * Reuses the shared in-memory dependency graph when possible and otherwise
+	 * creates the Bun-compatible default graph implementation.
 	 */
-	private initializeStrategies(): void {
-		const jsContext = {
-			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
-			getDistDir: () => this.distDir,
-			getPlugins: () => this.plugins,
-			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-		};
-
-		this.strategies = [new JsHmrStrategy(jsContext), new DefaultHmrStrategy()];
+	protected createEntrypointDependencyGraph(existingEntrypointDependencyGraph: EntrypointDependencyGraph) {
+		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
+			? existingEntrypointDependencyGraph
+			: new InMemoryEntrypointDependencyGraph();
 	}
 
 	/**
-	 * Registers a custom HMR strategy.
-	 * Used by integrations to provide framework-specific HMR handling.
-	 * @param strategy - The HMR strategy to register
+	 * Returns the Bun websocket hooks that attach and detach live HMR subscribers.
+	 *
+	 * @remarks
+	 * `SharedHmrManager` stores the bridge behind the transport-agnostic
+	 * `IClientBridge` contract because most HMR coordination only needs broadcast
+	 * behavior. Bun connection lifecycle wiring is the point where that abstraction
+	 * intentionally narrows back to the concrete Bun bridge so websocket instances
+	 * can be tracked directly.
 	 */
-	public registerStrategy(strategy: HmrStrategy): void {
-		this.strategies.push(strategy);
-	}
+	public getWebSocketHandler(): BunSocketHandler {
+		const bridge = this.bridge as ClientBridge;
 
-	public setPlugins(plugins: BunPlugin[]): void {
-		const corePlugin = stripServerOnlyPlugin({ pagesDir: this.appConfig.absolutePaths.pagesDir });
-		this.plugins = [corePlugin, ...plugins];
-	}
-
-	public setEnabled(enabled: boolean): void {
-		this.enabled = enabled;
-	}
-
-	public isEnabled(): boolean {
-		return this.enabled;
-	}
-
-	/**
-	 * Registers a mapping from bare specifiers to vendor URLs.
-	 * Used by integrations to provide their module resolution mappings.
-	 * @param map - Object mapping bare specifiers to vendor URLs
-	 */
-	public registerSpecifierMap(map: Record<string, string>): void {
-		for (const [specifier, url] of Object.entries(map)) {
-			this.specifierMap.set(specifier, url);
-		}
-	}
-
-	public getWebSocketHandler(): WebSocketHandler<unknown> {
-		const open = (ws: ServerWebSocket<unknown>) => {
-			this.bridge.subscribe(ws);
-			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${this.bridge.subscriberCount}`);
+		const open = (ws: BunSocket) => {
+			bridge.subscribe(ws);
+			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${bridge.subscriberCount}`);
 		};
 
-		const close = (ws: ServerWebSocket<unknown>) => {
-			this.bridge.unsubscribe(ws);
-			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${this.bridge.subscriberCount}`);
+		const close = (ws: BunSocket) => {
+			bridge.unsubscribe(ws);
+			appLogger.debug(`[HmrManager] Connection closed. Subscribers: ${bridge.subscriberCount}`);
 		};
-
-		this.wsHandler = { open, close };
 
 		return {
-			open: this.wsHandler.open,
-			close: this.wsHandler.close,
+			open,
+			close,
 			message: (_ws, message) => {
 				appLogger.debug('[HMR] Received message from client:', message);
 			},
 		};
-	}
-
-	/**
-	 * Builds the client-side HMR runtime script.
-	 */
-	public async buildRuntime(): Promise<void> {
-		const runtimeSource = path.resolve(import.meta.dir, '../../hmr/client/hmr-runtime.ts');
-
-		const result = await Bun.build({
-			entrypoints: [runtimeSource],
-			outdir: this.distDir,
-			naming: '_hmr_runtime.js',
-			minify: false,
-			target: 'browser',
-			plugins: this.plugins,
-		});
-
-		if (!result.success) {
-			appLogger.error('[HMR] Failed to build runtime script:', result.logs);
-		}
-	}
-
-	public getRuntimePath(): string {
-		return path.join(this.distDir, '_hmr_runtime.js');
-	}
-
-	public broadcast(event: ClientBridgeEvent) {
-		appLogger.debug(
-			`[HMR] Broadcasting ${event.type} event, path=${event.path || 'all'}, subscribers=${this.bridge.subscriberCount}`,
-		);
-		this.bridge.broadcast(event);
-	}
-
-	/**
-	 * Handles file changes using registered HMR strategies.
-	 * Strategies are evaluated in priority order until one matches.
-	 * @param filePath - Absolute path to the changed file
-	 */
-	public async handleFileChange(filePath: string): Promise<void> {
-		const sorted = [...this.strategies].sort((a, b) => b.priority - a.priority);
-		const strategy = sorted.find((s) => {
-			try {
-				return s.matches(filePath);
-			} catch (err) {
-				appLogger.error(`[HmrManager] Error checking match for ${s.constructor.name}:`, err as Error);
-				return false;
-			}
-		});
-
-		if (!strategy) {
-			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			return;
-		}
-
-		appLogger.debug(`[HmrManager] Selected strategy: ${strategy.constructor.name}`);
-
-		const action = await strategy.process(filePath);
-
-		if (action.type === 'broadcast') {
-			if (action.events) {
-				for (const event of action.events) {
-					this.broadcast(event);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Registers a client entrypoint to be built and watched by Bun.
-	 */
-	public getOutputUrl(entrypointPath: string): string | undefined {
-		return this.watchedFiles.get(entrypointPath);
-	}
-
-	public getWatchedFiles(): Map<string, string> {
-		return this.watchedFiles;
-	}
-
-	public getSpecifierMap(): Map<string, string> {
-		return this.specifierMap;
-	}
-
-	public getDistDir(): string {
-		return this.distDir;
-	}
-
-	public getPlugins(): BunPlugin[] {
-		return this.plugins;
-	}
-
-	public getDefaultContext(): DefaultHmrContext {
-		return {
-			getWatchedFiles: () => this.watchedFiles,
-			getSpecifierMap: () => this.specifierMap,
-			getDistDir: () => this.distDir,
-			getPlugins: () => this.plugins,
-			getSrcDir: () => this.appConfig.absolutePaths.srcDir,
-			getLayoutsDir: () => this.appConfig.absolutePaths.layoutsDir,
-			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
-		};
-	}
-
-	public async registerEntrypoint(entrypointPath: string): Promise<string> {
-		if (this.watchedFiles.has(entrypointPath)) {
-			return this.watchedFiles.get(entrypointPath)!;
-		}
-
-		const srcDir = this.appConfig.absolutePaths.srcDir;
-		const relativePath = path.relative(srcDir, entrypointPath);
-		const relativePathJs = relativePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-		const encodedPathJs = this.encodeDynamicSegments(relativePathJs);
-
-		const urlPath = encodedPathJs.split(path.sep).join('/');
-		const outputUrl = `/${path.join(RESOLVED_ASSETS_DIR, '_hmr', urlPath)}`;
-
-		this.watchedFiles.set(entrypointPath, outputUrl);
-
-		await this.handleFileChange(entrypointPath);
-
-		return outputUrl;
-	}
-
-	/**
-	 * Encodes dynamic route segments (brackets) in file paths.
-	 * Converts `[slug]` to `_slug_` to avoid filesystem/URL issues.
-	 */
-	private encodeDynamicSegments(filepath: string): string {
-		return filepath.replace(/\[([^\]]+)\]/g, '_$1_');
-	}
-
-	public stop() {
-		for (const watcher of this.watchers.values()) {
-			watcher.close();
-		}
-		this.watchers.clear();
 	}
 }

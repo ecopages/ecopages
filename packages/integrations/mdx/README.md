@@ -1,41 +1,74 @@
-# Ecopages MDX Integration Plugin
+# @ecopages/mdx
 
-The `@ecopages/mdx` package facilitates the integration of MDX, allowing for the smooth rendering of Markdown mixed with JSX. This integration leverages the `@mdx-js/esbuild` plugin behind the scenes, providing a streamlined layer within the Ecopages integration plugin system to enhance the platform's adaptability and user-friendliness.
+Standalone MDX integration for Ecopages third-party JSX runtimes (for example `@kitajs/html`). For React or Ecopages JSX MDX, use the owning integration plugin instead.
 
-## Install
+## Choose your MDX path
+
+| Runtime      | Plugin                                                       |
+| ------------ | ------------------------------------------------------------ |
+| React        | `reactPlugin({ mdx: { enabled: true } })`                    |
+| Ecopages JSX | `ecopagesJsxPlugin({ mdx: { enabled: true } })`              |
+| Third-party  | `mdxPlugin({ compilerOptions: { jsxImportSource: '...' } })` |
+
+## Installation
 
 ```bash
-bunx jsr add @ecopages/mdx
+bun add @ecopages/mdx @mdx-js/mdx @kitajs/html
 ```
+
+`@mdx-js/mdx` is a peer dependency. Install the JSX runtime you set in `compilerOptions.jsxImportSource`.
 
 ## Usage
 
-Integrating MDX into your Ecopages project is made simple. Import and apply the `mdxPlugin` in your Ecopages configuration as demonstrated below:
-
 ```ts
-import { ConfigBuilder } from '@ecopages/core';
+import { ConfigBuilder } from '@ecopages/core/config-builder';
 import { mdxPlugin } from '@ecopages/mdx';
 
 const config = await new ConfigBuilder()
 	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([mdxPlugin()])
+	.setIntegrations([
+		mdxPlugin({
+			compilerOptions: {
+				jsxImportSource: '@kitajs/html',
+			},
+		}),
+	])
 	.build();
 
 export default config;
 ```
 
-## Using MDX with React Router
+`compilerOptions.jsxImportSource` is **required**. `react` and `@ecopages/jsx` are rejected — use `reactPlugin` or `ecopagesJsxPlugin` for those runtimes.
 
-If you are using `@ecopages/react` with a client-side router, enable MDX directly within the React plugin instead of using this standalone plugin. This ensures unified routing, hydration, and HMR for both `.tsx` and `.mdx` pages:
+## Types
+
+```ts
+import type { JsxImportSource, KnownJsxImportSource, StandaloneMdxCompilerOptions } from '@ecopages/mdx';
+```
+
+`KnownJsxImportSource` is `'@kitajs/html' | 'react' | '@ecopages/jsx'`. `JsxImportSource` also accepts custom runtime strings.
+
+Shared MDX loader utilities live at `@ecopages/mdx/core` for internal integration use.
+
+## React MDX
+
+Do not use standalone `mdxPlugin()` for React apps:
 
 ```ts
 import { reactPlugin } from '@ecopages/react';
-import { ecoRouter } from '@ecopages/react-router';
 
 reactPlugin({
-	router: ecoRouter(),
 	mdx: { enabled: true },
 });
 ```
 
-See the `@ecopages/react` documentation for details.
+The React MDX loader derives its file filter from `mdx.extensions`, which replace `compilerOptions.mdxExtensions` rather than merging with them. Declaring a custom extension such as `['.react.mdx']` means only those files compile with React — plain `.mdx` files in the same build stay with whichever integration owns them. MDX entries compiled by React are React components and must be rendered through React-owned routes; see `@ecopages/content-processor` for the content-entry ownership contract.
+
+## Dependency discovery in MDX
+
+The core MDX loader plugin automatically discovers top-level component and stylesheet imports in MDX files across all integrations. `projectRoot` is required and comes from the app config (`rootDir`); the loader throws if it is missing.
+
+- **Local components**: Top-level imports of local `eco.component()` declarations are added to `config.dependencies.components`.
+- **Stylesheets**: Relative and TSConfig-aliased bare CSS imports (e.g. `import './post.css';` or `import '@/styles/post.css';`) are stripped from the compiled JavaScript. Discovered paths stay on Component identity until collection; they are not copied into `config.dependencies.stylesheets`. Explicit `dependencies.stylesheets` entries remain authoritative for attributes such as `media`.
+- **Code blocks and functions**: Markdown code blocks containing import statements and dynamic imports inside functions are distinguished from top-level ESM declarations and remain untouched.
+- **Config synthesis**: Every compiled MDX module is attributed with `bindComponentIdentity` and `attachDiscoveredDependencies`. If `export const config = { ... }` is already present, discovered Components merge with explicit ones.

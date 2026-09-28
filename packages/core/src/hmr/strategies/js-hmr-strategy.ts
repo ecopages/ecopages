@@ -2,259 +2,197 @@
  * JavaScript HMR Strategy
  *
  * Handles hot module replacement for JavaScript and TypeScript entrypoints.
- * Bundles files, replaces bare specifiers, and injects HMR boilerplate.
+ * Invalidates dev-transform modules and decides whether the browser can hot-accept
+ * the change or must reload.
  *
  * @module
  */
 
 import path from 'node:path';
-import type { BunPlugin } from 'bun';
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy';
-import { appLogger } from '../../global/app-logger';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '../hmr-entrypoint-output.ts';
+import { isDevTransformModuleUrl } from '../hmr-asset-paths.ts';
+import type { HmrRegisteredEntrypointsContext } from '../hmr-registered-entrypoints-context.ts';
+import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
 /**
  * Context interface providing access to HmrManager state.
  * Required for JsHmrStrategy to access registered entrypoints and configuration.
  */
-export interface JsHmrContext {
-	/**
-	 * Map of registered entrypoints to their output URLs.
-	 */
+export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 	getWatchedFiles(): Map<string, string>;
 
-	/**
-	 * Map of bare specifiers to vendor URLs for import resolution.
-	 */
-	getSpecifierMap(): Map<string, string>;
+	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
 
-	/**
-	 * Directory where HMR bundles are written.
-	 */
-	getDistDir(): string;
-
-	/**
-	 * Bun plugins to use during bundling.
-	 */
-	getPlugins(): BunPlugin[];
-
-	/**
-	 * Absolute path to the source directory.
-	 */
 	getSrcDir(): string;
+
+	getPagesDir(): string;
+
+	getLayoutsDir(): string;
+
+	getTemplateExtensions(): string[];
+
+	/**
+	 * @remarks
+	 * Integrations with higher-priority HMR strategies can use this to keep the
+	 * generic JS strategy from overwriting their emitted entrypoints when a shared
+	 * dependency changes.
+	 */
+	shouldProcessEntrypoint?(entrypointPath: string): boolean;
+
+	invalidateDevTransformSource?(sourcePath: string): void;
+
+	consumeRegisteredScriptReloadRequired?(filePath: string): boolean;
 }
 
 /**
  * Strategy for handling JavaScript/TypeScript file changes with hot reloading.
- *
- * This strategy rebuilds all registered entrypoints when any file changes,
- * as we don't currently track dependencies. This is safe but inefficient.
- *
- * The processing steps are:
- * 1. Check if any entrypoints are registered
- * 2. Rebuild all entrypoints (the changed file could be a dependency)
- * 3. Replace bare specifiers with vendor URLs
- * 4. Inject generic HMR boilerplate
- * 5. Broadcast update events for each rebuilt entrypoint
- *
- * @remarks
- * Future enhancement: Track dependencies using Bun's transpiler API to only
- * rebuild affected entrypoints instead of all of them.
- *
- * @see https://bun.sh/docs/runtime/transpiler
- *
- * @example
- * ```typescript
- * const context = {
- *   getWatchedFiles: () => watchedFilesMap,
- *   getSpecifierMap: () => specifierMap,
- *   getDistDir: () => '/path/to/dist/_hmr',
- *   getPlugins: () => [],
- *   getSrcDir: () => '/path/to/src'
- * };
- * const strategy = new JsHmrStrategy(context);
- * ```
  */
 export class JsHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.SCRIPT;
+	private context: JsHmrContext;
 
-	constructor(private context: JsHmrContext) {
+	constructor(context: JsHmrContext) {
 		super();
+		this.context = context;
 	}
 
-	/**
-	 * Determines if the file is a JS/TS file that could affect registered entrypoints.
-	 *
-	 * Matches if:
-	 * 1. There are registered entrypoints to rebuild
-	 * 2. The changed file is a JS/TS file in the src directory
-	 *
-	 * @param filePath - Absolute path to the changed file
-	 * @returns True if this file should trigger entrypoint rebuilds
-	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
-		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(filePath);
-		const isInSrc = filePath.startsWith(this.context.getSrcDir());
+		const resolvedPath = path.resolve(filePath);
+		const isJsTs = /\.(ts|tsx|js|jsx)$/.test(resolvedPath);
+		const srcDir = path.resolve(this.context.getSrcDir());
+		const isInSrc = resolvedPath.startsWith(`${srcDir}${path.sep}`) || resolvedPath === srcDir;
+		const isIntegrationTemplate = this.context
+			.getTemplateExtensions()
+			.some((extension) => resolvedPath.endsWith(extension));
 
 		if (watchedFiles.size === 0) {
 			return false;
 		}
 
-		return isJsTs && isInSrc;
+		if (!isJsTs || !isInSrc) {
+			return false;
+		}
+
+		if (watchedFiles.has(resolvedPath)) {
+			return true;
+		}
+
+		if (isIntegrationTemplate) {
+			return false;
+		}
+
+		return true;
 	}
 
-	/**
-	 * Processes a file change by rebuilding all registered entrypoints.
-	 *
-	 * @param _filePath - Absolute path to the changed file
-	 * @returns Action to broadcast update events
-	 */
-	async process(_filePath: string): Promise<HmrAction> {
-		appLogger.debug(`[JsHmrStrategy] Processing ${_filePath}`);
+	private resolveImpactedEntrypoints(
+		filePath: string,
+		watchedFiles: Map<string, string>,
+		resolvedChanged: string,
+		isRegisteredEntrypointEdit: boolean,
+	): { buildableEntrypoints: string[]; hasDependencyHit: boolean } {
+		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
+		const hasDependencyHit = dependencyHits.size > 0;
+		const impactedEntrypoints = isRegisteredEntrypointEdit
+			? [resolvedChanged]
+			: hasDependencyHit
+				? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
+				: Array.from(watchedFiles.keys());
+		const buildableEntrypoints = impactedEntrypoints.filter(
+			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
+		);
+
+		return { buildableEntrypoints, hasDependencyHit };
+	}
+
+	private collectDevTransformHmrOutcome(
+		buildableEntrypoints: string[],
+		watchedFiles: Map<string, string>,
+		registeredEntrypoints: ReturnType<JsHmrContext['getRegisteredEntrypoints']>,
+	): { devTransformUpdates: string[]; devTransformReloadRequired: boolean } {
+		const devTransformUpdates: string[] = [];
+		let devTransformReloadRequired = false;
+
+		for (const entrypoint of buildableEntrypoints) {
+			const resolvedEntrypoint = path.resolve(entrypoint);
+			const outputUrl = watchedFiles.get(resolvedEntrypoint);
+
+			if (!outputUrl || !isDevTransformModuleUrl(outputUrl)) {
+				appLogger.debug(
+					`[JsHmrStrategy] Skipping non-dev-transform entrypoint ${resolvedEntrypoint}: ${outputUrl ?? 'unregistered'}`,
+				);
+				continue;
+			}
+
+			this.context.invalidateDevTransformSource?.(resolvedEntrypoint);
+			if (isRegisteredScriptEntrypoint(registeredEntrypoints, resolvedEntrypoint)) {
+				if (this.context.consumeRegisteredScriptReloadRequired?.(resolvedEntrypoint)) {
+					devTransformReloadRequired = true;
+				} else {
+					devTransformUpdates.push(outputUrl);
+				}
+			} else {
+				devTransformUpdates.push(outputUrl);
+			}
+		}
+
+		return { devTransformUpdates, devTransformReloadRequired };
+	}
+
+	async process(filePath: string): Promise<HmrAction> {
+		appLogger.debug(`[JsHmrStrategy] Processing ${filePath}`);
 		const watchedFiles = this.context.getWatchedFiles();
+		const resolvedChanged = path.resolve(filePath);
+		const registeredEntrypoints = this.context.getRegisteredEntrypoints();
+		const isRegisteredEntrypointEdit = isRegisteredDevTransformEntrypoint(registeredEntrypoints, resolvedChanged);
 
 		if (watchedFiles.size === 0) {
 			appLogger.debug(`[JsHmrStrategy] No watched files to rebuild`);
 			return { type: 'none' };
 		}
 
-		const updates: string[] = [];
-		let reloadRequired = false;
+		const { buildableEntrypoints, hasDependencyHit } = this.resolveImpactedEntrypoints(
+			filePath,
+			watchedFiles,
+			resolvedChanged,
+			isRegisteredEntrypointEdit,
+		);
 
-		for (const [entrypoint, outputUrl] of watchedFiles.entries()) {
-			const result = await this.bundleEntrypoint(entrypoint, outputUrl);
-			if (result.success) {
-				updates.push(outputUrl);
-				if (result.requiresReload) {
-					reloadRequired = true;
-				}
-			}
+		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
+			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
 		}
 
-		if (updates.length > 0) {
-			if (reloadRequired) {
-				appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
-				return {
-					type: 'broadcast',
-					events: [
-						{
-							type: 'reload',
-						},
-					],
-				};
-			}
+		if (buildableEntrypoints.length === 0) {
+			return { type: 'none' };
+		}
 
+		const { devTransformUpdates, devTransformReloadRequired } = this.collectDevTransformHmrOutcome(
+			buildableEntrypoints,
+			watchedFiles,
+			registeredEntrypoints,
+		);
+
+		if (devTransformReloadRequired) {
+			appLogger.debug(`[JsHmrStrategy] Full reload required (no HMR accept found)`);
 			return {
 				type: 'broadcast',
-				events: updates.map((path) => ({
+				events: [{ type: 'reload' }],
+			};
+		}
+
+		if (devTransformUpdates.length > 0) {
+			return {
+				type: 'broadcast',
+				events: devTransformUpdates.map((p) => ({
 					type: 'update',
-					path,
+					path: p,
 					timestamp: Date.now(),
 				})),
 			};
 		}
 
 		return { type: 'none' };
-	}
-
-	/**
-	 * Bundles a single entrypoint and processes the output.
-	 *
-	 * @param entrypointPath - Absolute path to the source file
-	 * @param outputUrl - URL path for the bundled file
-	 * @returns True if bundling was successful
-	 */
-	private async bundleEntrypoint(
-		entrypointPath: string,
-		outputUrl: string,
-	): Promise<{ success: boolean; requiresReload: boolean }> {
-		try {
-			const srcDir = this.context.getSrcDir();
-			const relativePath = path.relative(srcDir, entrypointPath);
-			const relativePathJs = relativePath.replace(/\.(tsx?|jsx?)$/, '.js');
-			const outputPath = path.join(this.context.getDistDir(), relativePathJs);
-
-			const result = await Bun.build({
-				entrypoints: [entrypointPath],
-				outdir: this.context.getDistDir(),
-				naming: relativePathJs,
-				target: 'browser',
-				format: 'esm',
-				plugins: this.context.getPlugins(),
-				minify: false,
-				external: ['react', 'react-dom'],
-			});
-
-			if (!result.success) {
-				appLogger.error(`[JsHmrStrategy] Failed to build ${entrypointPath}:`, result.logs);
-				return { success: false, requiresReload: false };
-			}
-
-			return await this.processOutput(outputPath, outputUrl);
-		} catch (error) {
-			appLogger.error(`[JsHmrStrategy] Error bundling ${entrypointPath}:`, error as Error);
-			return { success: false, requiresReload: false };
-		}
-	}
-
-	/**
-	 * Processes bundled output by replacing specifiers and injecting HMR code.
-	 *
-	 * @param filepath - Path to the bundled output file
-	 * @param url - URL path for the bundled file
-	 * @returns True if processing was successful and update should be broadcast
-	 */
-	private async processOutput(filepath: string, url: string): Promise<{ success: boolean; requiresReload: boolean }> {
-		try {
-			let code = await Bun.file(filepath).text();
-
-			if (code.includes('/* [ecopages] hmr */')) {
-				/**
-				 * Already processed, assume it supports HMR if it has the header (legacy safety)
-				 * or check specifically for accept
-				 */
-				return { success: true, requiresReload: !code.includes('import.meta.hot.accept') };
-			}
-
-			code = this.replaceBareSpecifiers(code);
-			await Bun.write(filepath, code);
-
-			appLogger.debug(`[JsHmrStrategy] Processed ${url}`);
-
-			/**
-			 * Implicit HMR check: if the code explicitly accepts HMR, we broadcast update.
-			 * Otherwise, we must reload the page to ensure fresh execution (e.g. for Custom Elements or side effects).
-			 */
-			const hasHmrAccept = code.includes('import.meta.hot.accept');
-			return { success: true, requiresReload: !hasHmrAccept };
-		} catch (error) {
-			appLogger.error(`[JsHmrStrategy] Error processing output for ${url}:`, error as Error);
-			return { success: false, requiresReload: false };
-		}
-	}
-
-	/**
-	 * Replaces bare specifiers with vendor URLs.
-	 *
-	 * Handles both static imports and dynamic imports.
-	 *
-	 * @param code - The bundled code to transform
-	 * @returns The transformed code with vendor URLs
-	 */
-	private replaceBareSpecifiers(code: string): string {
-		const specifierMap = this.context.getSpecifierMap();
-
-		if (specifierMap.size === 0) {
-			return code;
-		}
-
-		let result = code;
-		for (const [bareSpec, vendorUrl] of specifierMap.entries()) {
-			const escaped = bareSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			result = result.replace(new RegExp(`from\\s*["']${escaped}["']`, 'g'), `from "${vendorUrl}"`);
-			result = result.replace(new RegExp(`import\\(["']${escaped}["']\\)`, 'g'), `import("${vendorUrl}")`);
-		}
-
-		return result;
 	}
 }

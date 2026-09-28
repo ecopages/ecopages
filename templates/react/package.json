@@ -1,0 +1,30 @@
+{
+	"name": "@ecopages/template-react",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "pnpm run build && ecopages start",
+		"dev": "ecopages dev -r",
+		"build": "ecopages build",
+		"preview": "ecopages preview",
+		"dev:watch": "ecopages dev:watch -r"
+	},
+	"devDependencies": {
+		"ecopages": "workspace:*",
+		"@ecopages/core": "workspace:*",
+		"@ecopages/image-processor": "workspace:*",
+		"@ecopages/postcss-processor": "workspace:*",
+		"@ecopages/react-router": "workspace:*",
+		"@ecopages/react": "workspace:*",
+		"@tailwindcss/postcss": "^4.0.0",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"tailwindcss": "^4.0.0"
+	},
+	"dependencies": {
+		"react": "^19",
+		"react-dom": "^19",
+		"react-aria-components": "^1.6.0",
+		"@tanstack/react-table": "^8.20.6"
+	}
+}

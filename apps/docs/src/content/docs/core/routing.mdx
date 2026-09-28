@@ -1,0 +1,141 @@
+---
+title: "Routing"
+description: "File-based routing for pages and programmatic routing for API endpoints."
+order: 5
+---
+
+# Routing
+
+Ecopages uses file-based routing for pages and programmatic routing for API endpoints.
+
+## File-Based Routing
+
+Every file in your `src/pages` directory corresponds to a route. The path relative to `src/pages` determines the URL.
+
+### Supported File Extensions
+
+Extensions depend on your active integrations:
+
+- `.tsx` — [Ecopages JSX](/docs/integrations/ecopages-jsx) (default in Installation)
+- `.kita.tsx` — [KitaJS](/docs/integrations/kitajs)
+- `.tsx` with [React](/docs/integrations/react) when React owns the route
+- `.lit.tsx` — [Lit](/docs/integrations/lit)
+- `.mdx` — [MDX](/docs/integrations/mdx)
+
+### Index Routes
+
+- `src/pages/index.tsx` → `/`
+- `src/pages/blog/index.tsx` → `/blog`
+
+### Nested Routes
+
+- `src/pages/about/team.tsx` → `/about/team`
+
+---
+
+## Dynamic Routes
+
+Use bracket syntax: `[param]`.
+
+- `src/pages/blog/[slug].tsx` → `/blog/:slug`
+- `src/pages/users/[id]/profile.tsx` → `/users/:id/profile`
+
+Access params via `staticPaths` and `staticProps` on `eco.page` views, or at request time with `cache: 'dynamic'`.
+
+### Catch-all Routes
+
+- `src/pages/docs/[...slug].tsx` → `/docs/a`, `/docs/a/b`, etc.
+
+---
+
+## Programmatic API Routing
+
+API routes are defined on your app instance in `app.ts`:
+
+```typescript
+import { createApp } from '@ecopages/core/create-app';
+
+const app = await createApp();
+
+app.get('/api/users/:id', async ({ params, response }) => {
+	return response.json({ userId: params.id });
+});
+
+await app.start();
+```
+
+Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define Handlers](/docs/server/define-handlers).
+
+### Route Priority
+
+1. **API / explicit routes** in `app.ts`
+2. **Static files** in `public`
+3. **File-based pages** in `src/pages`
+
+---
+
+## Route Configuration
+
+Set the canonical base URL in `eco.config.ts`:
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: 'https://example.com',
+	integrations: [ecopagesJsxPlugin()],
+});
+```
+
+### 404 Page
+
+Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched page requests render this template with status 404.
+
+### 500 Page
+
+Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
+
+### Precedence
+
+1. **`src/pages/404.*` / `500.*`** — highest priority when the file exists.
+2. **`app.notFound()` / `app.serverError()`** — lazy view loaders for explicit-route apps without a `pages/` error file.
+3. **Built-in HTML defaults** — basic pages shipped by the framework when neither of the above is configured. They include inline CSS and `eco-error-page*` class hooks; they do not load your app stylesheets.
+
+Custom error pages (filesystem or `app.notFound()` / `app.serverError()`) use your layout and assets. Typical class names are `error404`, `error500`, and `error500__stack` with optional `dependencies.stylesheets`.
+
+### 500 Page behavior
+
+Important:
+
+- Applies to page rendering (matched routes and a failing custom 404). API handlers keep their own `errorHandler` / JSON response path.
+- If the custom `500.*` template or app loader is missing or throws, the response falls back to the built-in HTML error page. The custom page is never retried.
+- In **development**, the thrown error is passed as page props (`message`, `stack`) so the custom 500 page can show the real failure. In **production**, those props are omitted so stacks are not serialized into HTML. The original error is always logged server-side.
+- Like `404.*`, the file is also a normal route at `/500`, so you can open it directly to preview the design (that direct visit is a 200 and has no error props unless you trigger a render failure).
+- Semantic error templates render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on `404.*` / `500.*` templates.
+
+```tsx
+import { eco, type Error500TemplateProps } from '@ecopages/core';
+
+export default eco.page<Error500TemplateProps>({
+	render: ({ message, stack }) => (
+		<div>
+			<h1>Something went wrong</h1>
+			{message ? <p>{message}</p> : null}
+			{stack ? <pre>{stack}</pre> : null}
+		</div>
+	),
+});
+```
+
+---
+
+## Summary
+
+| Type | Definition | Usage |
+| :--- | :--- | :--- |
+| **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
+| **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
+| **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
+| **API endpoints** | `app.get('/api/...')` | Data, forms |

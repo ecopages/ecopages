@@ -10,6 +10,10 @@
 		@apply my-1;
 	}
 
+	[data-rehype-pretty-code-figure] {
+		@apply my-0;
+	}
+
 	&--alert {
 		@apply bg-yellow-100 border border-yellow-300;
 

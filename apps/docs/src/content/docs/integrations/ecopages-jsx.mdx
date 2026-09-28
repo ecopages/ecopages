@@ -1,0 +1,216 @@
+---
+title: 'Ecopages JSX'
+description: 'Build JSX-first routes through the Ecopages JSX integration and runtime.'
+order: 2
+---
+
+import { CodeTabs } from '@/components/code-tabs';
+
+# Ecopages JSX Integration
+
+Ecopages JSX is the default Integration. `@ecopages/ecopages-jsx` owns `.tsx` Pages through `@ecopages/jsx`, with optional Radiant and MDX on the same runtime. Register React, Lit, or KitaJS when those Integrations should own routes.
+
+## Installation
+
+Install the integration and its peer runtimes:
+
+<CodeTabs
+	name="ecopages-jsx-install"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npm install @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Usage
+
+Register the `ecopagesJsxPlugin` in your Ecopages config.
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [ecopagesJsxPlugin()],
+});
+```
+
+By default, the plugin owns `.tsx` route files and compiles them against `@ecopages/jsx` with the automatic JSX runtime.
+
+## Creating Pages
+
+Pages use the usual `eco.page()` contract. Assign route wrappers with `layout`; import nested components directly — Ecopages discovers local `eco.component()` imports automatically.
+
+```tsx
+import { BaseLayout } from '@/layouts/base-layout';
+import { eco } from '@ecopages/core';
+
+export default eco.page({
+	layout: BaseLayout,
+	metadata: () => ({
+		title: 'Home',
+		description: 'Welcome to Ecopages JSX',
+	}),
+	render: () => (
+		<>
+			<h1>Welcome to Ecopages JSX</h1>
+			<p>TSX routes render through the Ecopages JSX runtime.</p>
+		</>
+	),
+});
+```
+
+## Foreign Children and Islands
+
+The right mental model here is renderer-owned foreign children, not blanket client hydration for every JSX component.
+
+- Plain Ecopages JSX components render to HTML on the server.
+- A foreign child is a subtree that Ecopages can hand back to the JSX renderer during mixed rendering.
+- A foreign child only behaves like an island when that subtree also brings browser behavior, such as a Radiant custom element or component-scoped browser assets.
+
+For Ecopages JSX, Radiant custom-element hosts are the clearest island-like case: Ecopages renders the host HTML on the server, then the explicit Radiant hydrator upgrades that host in place on the client. Without that hydrator, the host falls back to a fresh client render instead of in-place hydration.
+
+See [Island Hosts](/docs/core/island-hosts) for the shared `data-eco-island` contract stamped on SSR roots.
+
+Important: foreign-child ownership is broader than hydration. Ecopages uses the same foreign-subtree contract to preserve renderer ownership, collect nested assets, and resolve foreign children even when the final output is fully static HTML.
+
+## Route Extensions
+
+Use `extensions` when JSX routes should use a custom suffix instead of the default `.tsx`.
+
+```typescript
+ecopagesJsxPlugin({
+	extensions: ['.page.tsx'],
+});
+```
+
+## Radiant Support
+
+Radiant support is enabled by default. When `radiant: true`, the plugin wires the Radiant SSR renderer on the server and installs the client hydrator before intrinsic custom-element modules load.
+
+```typescript
+ecopagesJsxPlugin({
+	radiant: true,
+});
+```
+
+Set `radiant: false` when the app does not use Radiant web components and should not include that runtime contract.
+
+### Registered Radiant scripts (`ssr: true`)
+
+Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so Radiant hosts SSR without a redundant value import in the component file.
+
+```tsx
+import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
+import type { ThemeToggleProps } from './theme-toggle.script';
+
+export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
+	dependencies: {
+		scripts: [{ src: './theme-toggle.script.ts', ssr: true }],
+	},
+	render: (props) => <theme-toggle {...props} />,
+});
+```
+
+Keep `import type` when you only need props from the script module. Do not add `ssr: true` to browser-only layout scripts that use `window` or `document` without guards.
+
+If a Radiant host is missing from SSR HTML, confirm the registration script is on the same `eco.component()` with `ssr: true`. See [Creating Components](/docs/core/components#troubleshooting-custom-element-ssr).
+
+## MDX Support
+
+Enable `mdx` to let the same integration own `.mdx` routes compiled against `@ecopages/jsx`.
+
+```typescript
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+
+export default defineConfig({
+	rootDir: import.meta.dirname,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	integrations: [
+		ecopagesJsxPlugin({
+			mdx: {
+				enabled: true,
+				extensions: ['.mdx', '.md'],
+			},
+		}),
+	],
+});
+```
+
+Use the standalone <a href="/docs/integrations/mdx">MDX Integration</a> only when MDX should stay on a non-React JSX runtime without the Ecopages JSX route owner.
+
+## Mixed Rendering
+
+Ecopages JSX can own the full route or only a nested foreign subtree. When another integration reaches a JSX-owned foreign child, Ecopages hands that foreign subtree back to the JSX renderer before the outer renderer resumes.
+
+Important:
+
+- Foreign children must appear in the owning component's dependency graph. Direct local imports are discovered automatically.
+- Declare `dependencies.components` explicitly for `export *` barrels, package components, or other imports discovery cannot follow.
+- Mixed-renderer ownership is validated from declared dependencies during render preparation.
+- Raw markup preservation and asset collection stay inside the JSX renderer.
+- Nested foreign-subtree assets bubble back through the owning JSX render pass, so the foreign subtree keeps both its HTML and its browser requirements together.
+
+### Cross-integration children
+
+Use `EcoEmbed` from `@ecopages/ecopages-jsx/eco-embed` when a JSX page composes foreign-integration shells or passes children across integration boundaries. `EcoEmbed` wraps [`eco.embed()`](/docs/reference/eco-namespace#ecoembed) so the active foreign-child runtime can queue the subtree in the owning renderer and resolve it before the outer renderer resumes.
+
+```tsx
+/** @jsxImportSource @ecopages/jsx */
+import { eco } from '@ecopages/core';
+import { EcoEmbed } from '@ecopages/ecopages-jsx/eco-embed';
+import { KitaShell } from '@/components/kita-shell';
+import { LitShell } from '@/components/lit-shell';
+
+export default eco.page({
+	dependencies: {
+		components: [KitaShell, LitShell],
+	},
+	render: () => (
+		<EcoEmbed component={KitaShell} props={{ id: 'kita-shell' }}>
+			<EcoEmbed component={LitShell} props={{ id: 'lit-shell' }}>
+				Leaf content
+			</EcoEmbed>
+		</EcoEmbed>
+	),
+});
+```
+
+Each integration ships its own adapter (`@ecopages/react/eco-embed`, `@ecopages/kitajs/eco-embed`, and so on). Import the adapter that matches the file you are authoring.
+
+#### Opaque children fail fast at queue boundaries
+
+During mixed rendering, core validates children before foreign subtrees enter the queue. Plain opaque objects — values that string serializers would coerce to `[object Object]` — throw a `TypeError` instead of leaking object text into HTML.
+
+Accepted at the boundary without throwing:
+
+- Already-serialized HTML strings
+- Template results with `strings` / `values` (Kita, Lit)
+- Markup nodes with `outerHTML`
+- Framework element markers (`$$typeof`, including Ecopages JSX trees the renderer can stringify first)
+
+Rejected at the boundary:
+
+- Plain objects such as `{ slot: 'content' }` or `Object.create(null)`
+
+The Ecopages JSX renderer stringifies JSX-shaped children before queueing. When it cannot serialize a value, core rejects opaque payloads at the `foreign-subtree queue` boundary with guidance to use `EcoEmbed` or pass already-serialized HTML.
+
+Note: Some same-integration or inline paths can still produce `[object Object]` if a plain object reaches string concatenation without going through the queue. Mixed-integration shell stacks should use `EcoEmbed` (or pre-serialized HTML) so handoff stays explicit and queue-safe.

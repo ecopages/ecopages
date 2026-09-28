@@ -4,7 +4,7 @@
  *
  * Automatically selects the optimal adapter based on runtime:
  * - **Bun**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance
- * - **Node.js**: Uses `fast-glob` and `crypto` for compatibility
+ * - **Node.js**: Uses native `node:fs/promises.glob()` and `crypto`
  *
  * @example
  * ```typescript

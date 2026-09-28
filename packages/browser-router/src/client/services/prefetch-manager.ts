@@ -4,6 +4,9 @@
  * @module prefetch-manager
  */
 
+import { assertHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
+
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
 
 export interface PrefetchOptions {
@@ -25,6 +28,7 @@ const DEFAULT_PREFETCH_OPTIONS: PrefetchOptions = {
 export class PrefetchManager {
 	private options: PrefetchOptions;
 	private prefetched: Set<string> = new Set();
+	private prefetchedStylesheets: Set<string> = new Set();
 	private htmlCache: Map<string, string> = new Map();
 	private observer: IntersectionObserver | null = null;
 	private hoverTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -51,7 +55,7 @@ export class PrefetchManager {
 			this.setupHoverListeners();
 		}
 
-		this.observeExistingLinks();
+		this.observeLinks();
 	}
 
 	/**
@@ -96,7 +100,11 @@ export class PrefetchManager {
 				priority: 'low',
 			} as RequestInit);
 
-			if (!response.ok) return;
+			if (!response.ok) {
+				this.prefetched.delete(url.href);
+				return;
+			}
+			await assertHtmlPageResponse(response);
 
 			const html = await response.text();
 
@@ -120,6 +128,12 @@ export class PrefetchManager {
 	getCachedHtml(href: string): string | null {
 		const url = new URL(href, window.location.origin);
 		return this.htmlCache.get(url.href) ?? null;
+	}
+
+	invalidate(href: string): void {
+		const url = new URL(href, window.location.origin);
+		this.htmlCache.delete(url.href);
+		this.prefetched.delete(url.href);
 	}
 
 	/**
@@ -148,9 +162,17 @@ export class PrefetchManager {
 				headers: { Accept: 'text/html' },
 				priority: 'low',
 			} as RequestInit)
-				.then((response) => {
-					if (response.ok) return response.text();
-					return null;
+				.then(async (response) => {
+					if (!response.ok) {
+						return null;
+					}
+					try {
+						await assertHtmlPageResponse(response);
+					} catch {
+						return null;
+					}
+
+					return response.text();
 				})
 				.then((freshHtml) => {
 					if (freshHtml) {
@@ -268,11 +290,9 @@ export class PrefetchManager {
 		const link = target.closest(this.options.linkSelector) as HTMLAnchorElement | null;
 
 		if (!link) return null;
-		if (link.hasAttribute(this.options.noPrefetchAttribute)) return null;
-		if (link.hasAttribute('download')) return null;
-
-		const href = link.getAttribute('href');
-		if (!href || href.startsWith('#') || href.startsWith('javascript:')) return null;
+		if (!shouldPrefetchLink(link, { noPrefetchAttribute: this.options.noPrefetchAttribute })) {
+			return null;
+		}
 
 		return link;
 	}
@@ -366,35 +386,9 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Begins observing all existing links on the page.
-	 *
-	 * Called once during initialization. Eager links are prefetched immediately;
-	 * viewport-strategy links are registered with the IntersectionObserver.
+	 * Observes links for prefetching within `root`.
 	 */
-	private observeExistingLinks(): void {
-		const links = document.querySelectorAll<HTMLAnchorElement>(this.options.linkSelector);
-		for (const link of links) {
-			if (link.hasAttribute(this.options.noPrefetchAttribute)) continue;
-
-			const strategy = this.getLinkStrategy(link);
-
-			if (strategy === 'eager') {
-				this.scheduleIdlePrefetch(link.href, true);
-			} else if (this.observer && strategy === 'viewport') {
-				this.observer.observe(link);
-			}
-		}
-	}
-
-	/**
-	 * Observes newly added links after DOM mutations.
-	 *
-	 * Should be called after client-side navigation or dynamic content updates
-	 * to ensure new links are tracked for prefetching.
-	 *
-	 * @param root - The root element to search for links (defaults to document)
-	 */
-	observeNewLinks(root: Element | Document = document): void {
+	observeLinks(root: Element | Document = document): void {
 		const links = root.querySelectorAll<HTMLAnchorElement>(this.options.linkSelector);
 		for (const link of links) {
 			if (link.hasAttribute(this.options.noPrefetchAttribute)) continue;
@@ -412,9 +406,10 @@ export class PrefetchManager {
 	/**
 	 * Prefetches stylesheets discovered in HTML content.
 	 *
-	 * Parses the HTML to find stylesheet links, then creates preload hints
-	 * for stylesheets not already present in the current document. This ensures
-	 * styles are cached before navigation to prevent FOUC.
+	 * Parses the HTML to find stylesheet links, then warms the HTTP cache for
+	 * stylesheets not already present in the current document. This keeps future
+	 * navigation CSS warm without injecting `preload` hints that browsers expect
+	 * the current page to consume immediately.
 	 *
 	 * @param html - The raw HTML string to parse
 	 * @param url - The base URL for resolving relative stylesheet paths
@@ -423,24 +418,24 @@ export class PrefetchManager {
 		const parser = new DOMParser();
 		const doc = parser.parseFromString(`<base href="${url.href}">${html}`, 'text/html');
 
-		const existingHrefs = new Set([
-			...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((l) => l.href),
-			...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="style"]')).map(
-				(l) => l.href,
-			),
-		]);
+		const existingHrefs = new Set([...getCurrentStylesheetHrefs(), ...this.prefetchedStylesheets]);
+		const newStylesheetHrefs = discoverNewStylesheetLinks(doc, existingHrefs).map((link) => link.href);
+		const stylesheetFetches = newStylesheetHrefs.map((href) => {
+			this.prefetchedStylesheets.add(href);
+			return this.prefetchStylesheet(href);
+		});
 
-		const newStylesheets = doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]');
+		await Promise.allSettled(stylesheetFetches);
+	}
 
-		for (const link of newStylesheets) {
-			if (!existingHrefs.has(link.href)) {
-				const preloadLink = document.createElement('link');
-				preloadLink.rel = 'preload';
-				preloadLink.as = 'style';
-				preloadLink.href = link.href;
-
-				document.head.appendChild(preloadLink);
-			}
+	private async prefetchStylesheet(href: string): Promise<void> {
+		try {
+			await fetch(href, {
+				credentials: 'same-origin',
+				priority: 'low',
+			} as RequestInit);
+		} catch {
+			this.prefetchedStylesheets.delete(href);
 		}
 	}
 }

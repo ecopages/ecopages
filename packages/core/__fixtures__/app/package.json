@@ -1,6 +1,7 @@
 {
 	"name": "@ecopages/fixture",
 	"version": "0.0.1",
+	"private": true,
 	"scripts": {
 		"start": "bun run app.ts",
 		"dev": "bun run app.ts --dev",
@@ -10,6 +11,11 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/mdx": "workspace:*"
+		"@ecopages/mdx": "workspace:*",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	},
+	"dependencies": {
+		"@mdx-js/mdx": "^3.1.1"
 	}
 }

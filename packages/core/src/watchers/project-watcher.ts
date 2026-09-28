@@ -2,23 +2,41 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../internal-types.ts';
-import type { ClientBridge } from '../adapters/bun/client-bridge';
-import type { ProcessorWatchContext } from '../plugins/processor.ts';
+import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
+import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
+import {
+	DevelopmentInvalidationService,
+	type DevelopmentInvalidationPlan,
+} from '../services/invalidation/development-invalidation.service.ts';
+import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
+import { invalidateAppPageCacheBySourcePaths, clearAppPageCache } from '../services/cache/page-cache-service.ts';
+import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
+import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
+import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
+import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
+import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 
 /**
  * Configuration options for the ProjectWatcher
  * @interface ProjectWatcherConfig
  * @property {EcoPagesAppConfig} config - The application configuration
- * @property {() => void} refreshRouterRoutesCallback - Callback to refresh router routes
+ * @property {() => Promise<void>} refreshRouterRoutesCallback - Callback to refresh router routes
  * @property {IHmrManager} hmrManager - The HMR manager instance
  * @property {ClientBridge} bridge - The client bridge instance
  */
 export interface ProjectWatcherConfig {
 	config: EcoPagesAppConfig;
-	refreshRouterRoutesCallback: () => void;
+	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
-	bridge: ClientBridge;
+	bridge: IClientBridge;
+	/** When true, the host dev server owns browser dev-client bootstrap. */
+	hostOwnsDevClient?: boolean;
+	/** Delay before a change event is processed; 0 disables debouncing. */
+	changeDebounceMs?: number;
+	/** Applies a config or dotenv change through the owning runtime lifecycle. */
+	onRestartRequest?: (filePath: string) => Promise<void>;
+	/** Whether an entry watcher already owns changes to the config module. */
+	entryWatcherOwnsConfig?: boolean;
 }
 
 /**
@@ -37,20 +55,59 @@ export interface ProjectWatcherConfig {
  * @class ProjectWatcher
  */
 export class ProjectWatcher {
+	/**
+	 * Duplicate identical watcher events within this window are ignored.
+	 *
+	 * Some editors or save pipelines emit two near-identical filesystem change
+	 * notifications for the same file. Ecopages should treat those as one logical
+	 * update so HMR and route refresh work are not repeated unnecessarily.
+	 */
+	private static readonly duplicateChangeWindowMs = 150;
 	private appConfig: EcoPagesAppConfig;
-	private refreshRouterRoutesCallback: () => void;
+	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
-	private bridge: ClientBridge;
+	private bridge: IClientBridge;
+	private readonly hostOwnsDevClient: boolean;
+	private readonly invalidationService: DevelopmentInvalidationService;
+	private readonly changeDebounceMs: number;
+	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
+	private readonly entryWatcherOwnsConfig: boolean;
+	private restartRequestScheduled = false;
 	private watcher: FSWatcher | null = null;
+	private closed = false;
+	private pendingChangeEvents = new Map<
+		string,
+		{ event: 'change' | 'add' | 'unlink'; timer: ReturnType<typeof setTimeout> }
+	>();
+	private changeQueue: Promise<void> = Promise.resolve();
 
-	constructor({ config, refreshRouterRoutesCallback, hmrManager, bridge }: ProjectWatcherConfig) {
+	constructor({
+		config,
+		refreshRouterRoutesCallback,
+		hmrManager,
+		bridge,
+		hostOwnsDevClient,
+		changeDebounceMs,
+		onRestartRequest,
+		entryWatcherOwnsConfig,
+	}: ProjectWatcherConfig) {
 		this.appConfig = config;
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
+		this.hostOwnsDevClient = hostOwnsDevClient === true;
+		const envDebounceMs = process.env.ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS;
+		this.changeDebounceMs =
+			changeDebounceMs ??
+			(envDebounceMs !== undefined && envDebounceMs !== '' ? Number(envDebounceMs) : undefined) ??
+			ProjectWatcher.duplicateChangeWindowMs;
+		this.onRestartRequest = onRestartRequest;
+		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
+		this.invalidationService = new DevelopmentInvalidationService(config);
 		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
+		this.processFileChange = this.processFileChange.bind(this);
 	}
 
 	/**
@@ -59,6 +116,8 @@ export class ProjectWatcher {
 	 * @private
 	 */
 	private uncacheModules(): void {
+		if (typeof require === 'undefined') return;
+
 		const { srcDir, rootDir } = this.appConfig;
 		const regex = new RegExp(`${rootDir}/${srcDir}/.*`);
 
@@ -67,6 +126,18 @@ export class ProjectWatcher {
 				delete require.cache[key];
 			}
 		}
+	}
+
+	private isRouteSourceFile(filePath: string): boolean {
+		return this.invalidationService.isRouteSourceFile(filePath);
+	}
+
+	private requestBrowserReload(): void {
+		if (this.hostOwnsDevClient) {
+			return;
+		}
+
+		this.bridge.reload();
 	}
 
 	/**
@@ -81,98 +152,306 @@ export class ProjectWatcher {
 			if (fileSystem.exists(filePath)) {
 				const destDir = path.dirname(destPath);
 				fileSystem.ensureDir(destDir);
-				await Bun.write(destPath, Bun.file(filePath));
+				await fileSystem.copyFileAsync(filePath, destPath);
 			}
 
-			this.bridge.reload();
+			this.requestBrowserReload();
 		} catch (error) {
 			appLogger.error(`Failed to copy public file: ${error instanceof Error ? error.message : String(error)}`);
-			this.bridge.reload();
+			this.requestBrowserReload();
 		}
 	}
 
 	/**
-	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
-	 * Follows 4-rule priority:
-	 * 0. Public directory match? → copy file and reload
-	 * 1. additionalWatchPaths match? → reload
-	 * 2. Processor extension match? → processor handles (skip HMR)
-	 * 3. Otherwise → HMR strategies
-	 * @param rawPath - Path of the changed file
+	 * Serializes file change handling so that concurrent chokidar events are
+	 * processed one at a time, preventing overlapping builds and race conditions.
 	 */
-	private async handleFileChange(rawPath: string): Promise<void> {
+	private enqueueChange(task: () => Promise<void>): Promise<void> {
+		const queuedTask = this.changeQueue.then(task, task);
+		this.changeQueue = queuedTask.catch(() => undefined);
+		return queuedTask;
+	}
+
+	/**
+	 * Handles file changes by uncaching modules, refreshing routes, and delegating appropriately.
+	 * Follows 5-rule priority:
+	 * 0. Public directory match? -> copy file and reload
+	 * 1. additionalWatchPaths match? -> reload
+	 * 2. Include template source? -> current-page refresh via HMR after processor notifications are deferred
+	 * 3. Processor-owned asset? -> processor already handled it via notification, skip HMR
+	 * 4. Otherwise -> HMR strategies
+	 *
+	 * Processors that watch a file extension as a dependency (e.g. PostCSS watching
+	 * .tsx for Tailwind class scanning) are always notified first, but do not
+	 * prevent the file from flowing through the normal HMR strategy pipeline.
+	 *
+	 * Duplicate identical watcher events for the same file are coalesced within a
+	 * short window before any of the priority rules run.
+	 * @param rawPath - Path of the changed file
+	 * @param event - The type of file system event
+	 */
+	private handleFileChange(rawPath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
+		if (this.closed) {
+			return Promise.resolve();
+		}
+
 		const filePath = path.resolve(rawPath);
+
+		if (this.changeDebounceMs === 0) {
+			return this.enqueueChange(() => this.processFileChange(filePath, event));
+		}
+
+		const existing = this.pendingChangeEvents.get(filePath);
+		if (existing) {
+			clearTimeout(existing.timer);
+		}
+
+		const timer = setTimeout(() => {
+			this.pendingChangeEvents.delete(filePath);
+			void this.enqueueChange(() => this.processFileChange(filePath, event));
+		}, this.changeDebounceMs);
+
+		this.pendingChangeEvents.set(filePath, { event, timer });
+		return Promise.resolve();
+	}
+
+	private async invalidatePageCachesForChange(
+		plan: DevelopmentInvalidationPlan,
+		resolvedFilePath: string,
+	): Promise<void> {
+		if (shouldClearAllPageHtmlCache(plan.category)) {
+			await clearAppPageCache(this.appConfig);
+			return;
+		}
+		await invalidateAppPageCacheBySourcePaths(this.appConfig, [resolvedFilePath]);
+	}
+
+	private async applyRouteAndServerInvalidation(
+		plan: DevelopmentInvalidationPlan,
+		filePath: string,
+		resolvedFilePath: string,
+		event: 'change' | 'add' | 'unlink',
+		isRegisteredDevTransformEdit: boolean,
+	): Promise<void> {
+		if (plan.refreshRoutes && (event === 'unlink' || event === 'add')) {
+			getAppPageBrowserGraphSession(this.appConfig).invalidateByRouteFile(resolvedFilePath);
+		}
+		if (plan.invalidateServerModules && !isRegisteredDevTransformEdit) {
+			this.invalidationService.invalidateServerModules([filePath]);
+		}
+		if (plan.refreshRoutes) {
+			await this.refreshRouterRoutesCallback();
+		}
+	}
+
+	private shouldDeferProcessorNotifications(
+		plan: DevelopmentInvalidationPlan,
+		isRegisteredDevTransformEdit: boolean,
+	): boolean {
+		return (
+			plan.category === 'include-source' ||
+			plan.category === 'explicit-server-view' ||
+			isRegisteredDevTransformEdit
+		);
+	}
+
+	private async handleDeferredHmrFileChange(
+		filePath: string,
+		resolvedFilePath: string,
+		event: 'change' | 'add' | 'unlink',
+		plan: DevelopmentInvalidationPlan,
+		graphPreparation: ReturnType<typeof prepareHmrFileChange> | undefined,
+	): Promise<void> {
+		await this.prewarmBeforeHmr(resolvedFilePath, plan);
+		await this.hmrManager.handleFileChange(filePath, {
+			graphIdentities: graphPreparation?.affectedGraphIdentities,
+		});
+		await this.notifyProcessors(filePath, event);
+	}
+
+	private async handleStandardHmrFileChange(
+		filePath: string,
+		event: 'change' | 'add' | 'unlink',
+		plan: DevelopmentInvalidationPlan,
+		graphPreparation: ReturnType<typeof prepareHmrFileChange> | undefined,
+	): Promise<void> {
+		await this.notifyProcessors(filePath, event);
+		if (plan.processorHandledAsset) {
+			return;
+		}
+		if (plan.delegateToHmr) {
+			await this.hmrManager.handleFileChange(filePath, {
+				graphIdentities: graphPreparation?.affectedGraphIdentities,
+			});
+		}
+	}
+
+	private handleRuntimeRestart(filePath: string): void {
+		const onRestartRequest = this.onRestartRequest;
+		if (!onRestartRequest) {
+			appLogger.warn(
+				`Configuration or environment file changed (${filePath}). Restart the development server to apply it.`,
+			);
+			return;
+		}
+
+		if (this.restartRequestScheduled) {
+			return;
+		}
+
+		this.restartRequestScheduled = true;
+		void this.changeQueue
+			.then(() => onRestartRequest(filePath))
+			.catch((error) => this.handleError(error))
+			.finally(() => {
+				this.restartRequestScheduled = false;
+			});
+	}
+
+	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		try {
-			if (this.isPublicDirFile(filePath)) {
+			const plan = this.invalidationService.planFileChange(filePath);
+
+			if (plan.category === 'runtime-restart') {
+				if (this.entryWatcherOwnsConfig && this.invalidationService.isConfigModuleFile(filePath)) {
+					return;
+				}
+
+				this.handleRuntimeRestart(filePath);
+				return;
+			}
+
+			if (plan.category === 'public-asset') {
 				await this.handlePublicDirFileChange(filePath);
 				return;
 			}
 
 			this.uncacheModules();
-			const isPageFile = filePath.startsWith(this.appConfig.absolutePaths.pagesDir);
+			const resolvedFilePath = path.resolve(filePath);
+			await this.invalidatePageCachesForChange(plan, resolvedFilePath);
+			const graphPreparation = this.hmrManager.isEnabled()
+				? prepareHmrFileChange(this.appConfig, resolvedFilePath)
+				: undefined;
+			const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
+				this.hmrManager.getRegisteredEntrypoints(),
+				resolvedFilePath,
+			);
 
-			if (isPageFile) {
-				this.refreshRouterRoutesCallback();
-			}
+			await this.applyRouteAndServerInvalidation(
+				plan,
+				filePath,
+				resolvedFilePath,
+				event,
+				isRegisteredDevTransformEdit,
+			);
 
-			if (this.matchesAdditionalWatchPaths(filePath)) {
-				this.bridge.reload();
+			if (plan.reloadBrowser) {
+				await this.notifyProcessors(filePath, event);
+				this.requestBrowserReload();
 				return;
 			}
 
-			if (this.isHandledByProcessor(filePath)) {
+			const deferProcessorNotifications = this.shouldDeferProcessorNotifications(
+				plan,
+				isRegisteredDevTransformEdit,
+			);
+			if (deferProcessorNotifications && plan.delegateToHmr) {
+				await this.handleDeferredHmrFileChange(filePath, resolvedFilePath, event, plan, graphPreparation);
 				return;
 			}
 
-			await this.hmrManager.handleFileChange(filePath);
+			await this.handleStandardHmrFileChange(filePath, event, plan, graphPreparation);
 		} catch (error) {
-			if (error instanceof Error) {
-				this.bridge.error(error.message);
-				this.handleError(error);
+			this.handleError(error);
+		}
+	}
+
+	/**
+	 * Re-imports server modules before HMR broadcast so reload/refetch does not
+	 * race stale in-memory imports or custom-element registry state.
+	 */
+	private async prewarmBeforeHmr(filePath: string, plan: DevelopmentInvalidationPlan): Promise<void> {
+		if (plan.category !== 'include-source' && plan.category !== 'explicit-server-view') {
+			return;
+		}
+
+		const modulePaths =
+			plan.category === 'include-source'
+				? [this.appConfig.absolutePaths.htmlTemplatePath]
+				: [path.resolve(filePath)];
+
+		await this.prewarmServerModuleImports(modulePaths, { scope: 'server template' });
+	}
+
+	private async prewarmServerModuleImports(
+		modulePaths: readonly string[],
+		options: { bypassCache?: boolean; scope: string },
+	): Promise<void> {
+		const appModuleLoader = this.appConfig.runtime?.appModuleLoader;
+		if (!appModuleLoader) {
+			return;
+		}
+
+		const outdir = path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules');
+
+		for (const modulePath of modulePaths) {
+			if (!modulePath) {
+				continue;
+			}
+
+			try {
+				await appModuleLoader.importModule({
+					filePath: modulePath,
+					rootDir: this.appConfig.rootDir,
+					outdir,
+					externalPackages: true,
+					bypassCache: options.bypassCache,
+				});
+			} catch (error) {
+				appLogger.error(
+					`Failed to prewarm ${options.scope} ${modulePath}: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		}
 	}
 
 	/**
-	 * Checks if a file is in the public directory.
+	 * Notifies all processors whose watch config matches the given file extension.
+	 * This is called before checking processor ownership so that dependency-only
+	 * processors (e.g. PostCSS watching .tsx for class scanning) receive their
+	 * notifications regardless of whether they own the file.
 	 */
-	private isPublicDirFile(filePath: string): boolean {
-		return filePath.startsWith(this.appConfig.absolutePaths.publicDir);
-	}
+	private async notifyProcessors(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
+		const ctx: ProcessorWatchContext = { path: filePath, bridge: this.bridge };
 
-	/**
-	 * Checks if file path matches any additionalWatchPaths patterns.
-	 */
-	private matchesAdditionalWatchPaths(filePath: string): boolean {
-		const patterns = this.appConfig.additionalWatchPaths;
-		if (!patterns.length) return false;
-
-		for (const pattern of patterns) {
-			if (pattern.includes('*')) {
-				const ext = pattern.replace(/\*\*?\/\*/, '');
-				if (filePath.endsWith(ext)) return true;
-			} else {
-				if (filePath.endsWith(pattern) || filePath === path.resolve(pattern)) return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Checks if a file is handled by a processor.
-	 * Processors that declare extensions own those file types.
-	 */
-	private isHandledByProcessor(filePath: string): boolean {
 		for (const processor of this.appConfig.processors.values()) {
 			const watchConfig = processor.getWatchConfig();
 			if (!watchConfig) continue;
 
 			const { extensions = [] } = watchConfig;
-			if (extensions.length && extensions.some((ext) => filePath.endsWith(ext))) {
-				return true;
+			if (extensions.length && !extensions.some((ext) => filePath.endsWith(ext))) {
+				continue;
+			}
+
+			const handler = this.getProcessorHandler(watchConfig, event);
+			if (handler) {
+				await handler(ctx);
 			}
 		}
-		return false;
+	}
+
+	private getProcessorHandler(
+		watchConfig: ProcessorWatchConfig,
+		event: 'change' | 'add' | 'unlink',
+	): ((ctx: ProcessorWatchContext) => Promise<void>) | undefined {
+		switch (event) {
+			case 'change':
+				return watchConfig.onChange;
+			case 'add':
+				return watchConfig.onCreate;
+			case 'unlink':
+				return watchConfig.onDelete;
+		}
 	}
 
 	/**
@@ -181,10 +460,13 @@ export class ProjectWatcher {
 	 *
 	 * @param {string} path - Path of the changed directory
 	 */
-	triggerRouterRefresh(path: string) {
-		const isPageDir = path.startsWith(this.appConfig.absolutePaths.pagesDir);
-		if (isPageDir) {
-			this.refreshRouterRoutesCallback();
+	async triggerRouterRefresh(changedPath: string): Promise<void> {
+		const resolvedPath = path.resolve(changedPath);
+		const isPageDir =
+			resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
+
+		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
+			await this.refreshRouterRoutesCallback();
 		}
 	}
 
@@ -201,86 +483,116 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Processes file changes for specific file extensions.
-	 * Used by processors to handle their specific file types.
-	 *
-	 * @private
-	 * @param {string} path - Path of the changed file
-	 * @param {string[]} extensions - File extensions to process
-	 * @param {(ctx: ProcessorWatchContext) => void} handler - Handler function for the file change
-	 */
-	private shouldProcess(path: string, extensions: string[], handler: (ctx: ProcessorWatchContext) => void) {
-		if (!extensions.length || extensions.some((ext) => path.endsWith(ext))) {
-			handler({ path, bridge: this.bridge });
-		}
-	}
-
-	/**
 	 * Creates and configures the file system watcher.
 	 * This sets up:
-	 * 1. Processor-specific file watching
-	 * 2. Page file watching
-	 * 3. Directory watching
-	 * 4. Error handling
+	 * 1. Page file watching
+	 * 2. Directory watching
+	 * 3. Error handling
+	 *
+	 * Processor notifications are dispatched inside handleFileChange, ensuring
+	 * a single unified event pipeline with no parallel chokidar bindings.
 	 *
 	 * Uses chokidar's built-in debouncing through `awaitWriteFinish` to handle
 	 * rapid file changes efficiently.
 	 */
 	public async createWatcherSubscription() {
-		if (!this.watcher) {
-			const processorPaths: string[] = [];
-			for (const processor of this.appConfig.processors.values()) {
-				const watchConfig = processor.getWatchConfig();
-				if (!watchConfig) continue;
-				processorPaths.push(...watchConfig.paths);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.pagesDir);
-			}
-
-			if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
-				processorPaths.push(this.appConfig.absolutePaths.publicDir);
-			}
-
-			if (this.appConfig.additionalWatchPaths.length) {
-				processorPaths.push(...this.appConfig.additionalWatchPaths);
-			}
-
-			this.watcher = chokidar.watch(processorPaths, {
-				ignoreInitial: true,
-				ignorePermissionErrors: true,
-				awaitWriteFinish: {
-					stabilityThreshold: 50,
-					pollInterval: 50,
-				},
-			});
+		if (this.watcher) {
+			return this.watcher;
 		}
 
+		const processorPaths = new Set<string>();
 		for (const processor of this.appConfig.processors.values()) {
 			const watchConfig = processor.getWatchConfig();
 			if (!watchConfig) continue;
-			const { extensions = [], onCreate, onChange, onDelete, onError } = watchConfig;
-
-			if (onCreate) this.watcher.on('add', (path) => this.shouldProcess(path, extensions, onCreate));
-			if (onChange) this.watcher.on('change', (path) => this.shouldProcess(path, extensions, onChange));
-			if (onDelete) this.watcher.on('unlink', (path) => this.shouldProcess(path, extensions, onDelete));
-			if (onError) this.watcher.on('error', onError as (error: unknown) => void);
+			for (const watchPath of watchConfig.paths) {
+				processorPaths.add(watchPath);
+			}
 		}
 
-		this.watcher.add(this.appConfig.absolutePaths.srcDir);
+		if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
+			processorPaths.add(this.appConfig.absolutePaths.includesDir);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
+			processorPaths.add(this.appConfig.absolutePaths.srcDir);
+		}
+
+		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
+			processorPaths.add(this.appConfig.absolutePaths.publicDir);
+		}
+
+		for (const watchPath of this.appConfig.additionalWatchPaths) {
+			const resolvedWatchPath =
+				path.isAbsolute(watchPath) || watchPath.includes('*')
+					? watchPath
+					: path.resolve(this.appConfig.rootDir, watchPath);
+			processorPaths.add(resolvedWatchPath);
+		}
+
+		for (const restartPath of resolveRuntimeRestartWatchPaths(this.appConfig)) {
+			processorPaths.add(restartPath);
+		}
+
+		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
+
+		this.watcher = chokidar.watch(Array.from(processorPaths), {
+			ignoreInitial: true,
+			ignorePermissionErrors: true,
+			ignored,
+			awaitWriteFinish: {
+				stabilityThreshold: 50,
+				pollInterval: 50,
+			},
+		});
 
 		this.watcher
-			.on('change', (path) => this.handleFileChange(path))
-			.on('add', (path) => {
-				this.handleFileChange(path);
-				this.triggerRouterRefresh(path);
-			})
-			.on('addDir', (path) => this.triggerRouterRefresh(path))
-			.on('unlink', (path) => this.triggerRouterRefresh(path))
-			.on('unlinkDir', (path) => this.triggerRouterRefresh(path))
+			.on('change', (p) => this.handleFileChange(p, 'change'))
+			.on('add', (p) => this.handleFileChange(p, 'add'))
+			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
+			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
+			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('error', (error) => this.handleError(error));
+
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (watchConfig?.onError) {
+				this.watcher.on('error', watchConfig.onError as (error: unknown) => void);
+			}
+		}
 
 		return this.watcher;
 	}
+
+	/**
+	 * Closes the active filesystem watcher subscription.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Used when tearing down dev servers in tests
+	 * and other short-lived Ecopages runtimes.
+	 */
+	public async close(): Promise<void> {
+		this.closed = true;
+
+		for (const pending of this.pendingChangeEvents.values()) {
+			clearTimeout(pending.timer);
+		}
+		this.pendingChangeEvents.clear();
+
+		if (this.watcher) {
+			await this.watcher.close();
+			this.watcher = null;
+		}
+
+		await this.changeQueue.catch(() => undefined);
+	}
+}
+
+function shouldClearAllPageHtmlCache(category: DevelopmentInvalidationPlan['category']): boolean {
+	return (
+		category === 'other' ||
+		category === 'server-source' ||
+		category === 'additional-watch' ||
+		category === 'include-source' ||
+		category === 'explicit-server-view'
+	);
 }

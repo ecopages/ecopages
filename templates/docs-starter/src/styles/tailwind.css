@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import '@ecopages/radiant-ui/themes/default';
+@import './theme.css';
+@import './components/prose.css';
+@import './vendor/shiki.css';
+@import '@ecopages/radiant-ui/styles.css';
+@import 'ecopages/css/view-transitions.css';

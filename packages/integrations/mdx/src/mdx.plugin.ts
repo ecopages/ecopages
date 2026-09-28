@@ -1,181 +1,185 @@
-import { IntegrationPlugin, type IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import { AssetFactory, type AssetDefinition } from '@ecopages/core/services/asset-processing-service';
-import { deepMerge } from '@ecopages/core/utils/deep-merge';
 import type { EcoPagesElement } from '@ecopages/core';
-import type { IHmrManager } from '@ecopages/core/internal-types';
-import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { CompileOptions } from '@mdx-js/mdx';
+import {
+	IntegrationPlugin,
+	mergeIntegrationOptions,
+	type EcoBuildPlugin,
+} from '@ecopages/core/plugins/integration-plugin';
 import { Logger } from '@ecopages/logger';
-import { createMDXRenderer, MDXRenderer } from './mdx-renderer.ts';
-import { createMDXReactRenderer, MDXReactRenderer } from './mdx-react-renderer.ts';
-import { MdxHmrStrategy } from './mdx-hmr-strategy.ts';
+import type { CompileOptions } from '@mdx-js/mdx';
+import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
+import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
+import { MDXRenderer } from './mdx-renderer.ts';
+import type { MDXPluginConfig } from './mdx.types.ts';
+import type { JsxImportSource } from './core/jsx-import-source.ts';
+
+export type {
+	MDXPluginConfig,
+	MDXRendererConfig,
+	MDXRendererOptions,
+	StandaloneMdxCompilerOptions,
+} from './mdx.types.ts';
+export type { JsxImportSource, KnownJsxImportSource, ThirdPartyJsxImportSource } from './core/jsx-import-source.ts';
 
 const appLogger = new Logger('[MDXPlugin]');
 
 /**
  * The name of the MDX plugin
  */
-export const PLUGIN_NAME = 'MDX';
-
-export type MDXPluginConfig = Partial<Omit<IntegrationPluginConfig, 'name'>> & {
-	compilerOptions?: CompileOptions;
-};
+export const PLUGIN_NAME = MDX_PLUGIN_NAME;
 
 const defaultOptions: CompileOptions = {
 	format: 'detect',
 	outputFormat: 'program',
-	jsxImportSource: 'react',
 	jsxRuntime: 'automatic',
 	development: process.env.NODE_ENV === 'development',
 };
 
-/**
- * The MDX plugin class
- * This plugin provides support for MDX components in Ecopages
- *
- * @deprecated When using React jsxImportSource, consider using `reactPlugin({ mdx: { enabled: true, compilerOptions: {...} } })`
- * instead for full SPA routing and router integration support.
- */
-export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
-	renderer: typeof MDXRenderer | typeof MDXReactRenderer;
-	private dependencies: AssetDefinition[] | undefined;
-	private isReact = false;
-	private compilerOptions: CompileOptions;
-
-	constructor({ compilerOptions, ...options }: MDXPluginConfig = { extensions: ['.mdx'] }) {
-		super({
-			name: PLUGIN_NAME,
-			extensions: ['.mdx'],
-			...options,
-		});
-
-		const finalCompilerOptions = deepMerge({ ...defaultOptions }, compilerOptions);
-		this.compilerOptions = finalCompilerOptions;
-		this.isReact =
-			finalCompilerOptions.jsxImportSource === 'react' ||
-			(finalCompilerOptions.jsxImportSource?.startsWith('react/') ?? false);
-
-		if (this.isReact) {
-			appLogger.warn(
-				'Using MDX with React jsxImportSource. For full SPA routing support, consider using ' +
-					'`reactPlugin({ mdx: { enabled: true, compilerOptions: {...} } })` instead.',
-			);
-			this.renderer = createMDXReactRenderer(finalCompilerOptions);
-			this.integrationDependencies.unshift(...this.getReactDependencies());
-		} else {
-			this.renderer = createMDXRenderer(finalCompilerOptions);
-		}
+function assertStandaloneJsxImportSource(
+	jsxImportSource: string | null | undefined,
+): asserts jsxImportSource is JsxImportSource {
+	if (!jsxImportSource) {
+		throw new Error(
+			'Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource` (for example `@kitajs/html`). React-backed MDX should use `reactPlugin({ mdx: { enabled: true } })`; Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.',
+		);
 	}
 
-	override async setup(): Promise<void> {
-		await this.setupBunPlugin(this.compilerOptions);
-		await super.setup();
+	if (jsxImportSource === 'react' || jsxImportSource.startsWith('react/')) {
+		throw new Error(
+			'Standalone `mdxPlugin()` does not support React JSX runtimes. Use `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+		);
 	}
 
-	/**
-	 * Override to register React-specific specifier mappings for HMR.
-	 */
-	override setHmrManager(hmrManager: IHmrManager): void {
-		super.setHmrManager(hmrManager);
-
-		if (this.isReact) {
-			hmrManager.registerSpecifierMap(this.getSpecifierMap());
-		}
-	}
-
-	/**
-	 * Provides MDX-specific HMR strategy with Fast Refresh support.
-	 */
-	override getHmrStrategy(): HmrStrategy | undefined {
-		if (!this.hmrManager || !this.isReact) {
-			return undefined;
-		}
-
-		const hmrManager = this.hmrManager;
-		const context = hmrManager.getDefaultContext();
-
-		return new MdxHmrStrategy(context, this.compilerOptions);
-	}
-
-	/**
-	 * Registers the MDX plugin with Bun globally.
-	 */
-	async setupBunPlugin(options?: Readonly<CompileOptions>): Promise<void> {
-		const mdx = (await import('@mdx-js/esbuild')).default;
-		// @ts-expect-error: esbuild plugin vs bun plugin
-		await Bun.plugin(mdx(options));
-	}
-
-	/**
-	 * Helper to construct the source URL for import maps.
-	 */
-	private buildImportMapSourceUrl(fileName: string): string {
-		return `/${AssetFactory.RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
-	}
-
-	/**
-	 * Returns the bare specifier to vendor URL mappings for React.
-	 */
-	private getSpecifierMap(): Record<string, string> {
-		return {
-			react: this.buildImportMapSourceUrl('react-esm.js'),
-			'react/jsx-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-			'react/jsx-dev-runtime': this.buildImportMapSourceUrl('react-esm.js'),
-			'react-dom': this.buildImportMapSourceUrl('react-dom-esm.js'),
-			'react-dom/client': this.buildImportMapSourceUrl('react-esm.js'),
-		};
-	}
-
-	/**
-	 * Retrieves the integration dependencies for React-based MDX.
-	 */
-	private getReactDependencies(): AssetDefinition[] {
-		if (this.dependencies) return this.dependencies;
-
-		this.dependencies = [
-			AssetFactory.createInlineContentScript({
-				position: 'head',
-				bundle: false,
-				content: JSON.stringify(
-					{
-						imports: this.getSpecifierMap(),
-					},
-					null,
-					2,
-				),
-				attributes: {
-					type: 'importmap',
-				},
-			}),
-			AssetFactory.createNodeModuleScript({
-				position: 'head',
-				importPath: '@ecopages/react/react-esm.ts',
-				name: 'react-esm',
-				attributes: {
-					type: 'module',
-					defer: '',
-				},
-			}),
-			AssetFactory.createNodeModuleScript({
-				position: 'head',
-				importPath: '@ecopages/react/react-dom-esm.ts',
-				name: 'react-dom-esm',
-				attributes: {
-					type: 'module',
-					defer: '',
-				},
-			}),
-		];
-
-		return this.dependencies;
+	if (jsxImportSource === '@ecopages/jsx' || jsxImportSource.startsWith('@ecopages/jsx/')) {
+		throw new Error(
+			'Standalone `mdxPlugin()` does not support the Ecopages JSX runtime. Use `ecopagesJsxPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+		);
 	}
 }
 
 /**
- * Factory function to create a MDX plugin instance
+ * Splits configured markdown extensions into the two buckets understood by the
+ * MDX loader.
+ *
+ * `.mdx` remains the native MDX extension list. `.md` is special: it is only
+ * treated as MDX when a caller explicitly opts it into the pipeline, so we keep
+ * it separate rather than hiding that behavior inside a pair of constructor
+ * filters.
+ */
+function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'mdExtensions' | 'mdxExtensions'> {
+	const mdExtensions: string[] = [];
+	const mdxExtensions: string[] = [];
+
+	for (const extension of extensions) {
+		if (extension === '.md') {
+			mdExtensions.push(extension);
+			continue;
+		}
+
+		mdxExtensions.push(extension);
+	}
+
+	return { mdExtensions, mdxExtensions };
+}
+
+/**
+ * The MDX plugin class
+ * This plugin provides support for MDX components in Ecopages.
+ *
+ * Standalone `mdxPlugin()` is for third-party JSX runtimes. Set
+ * `compilerOptions.jsxImportSource` explicitly (for example `@kitajs/html`).
+ * React-backed MDX should be configured through
+ * `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })`.
+ * Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
+ */
+export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
+	renderer = MDXRenderer;
+	private readonly compilerOptions: CompileOptions;
+	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
+
+	constructor({ compilerOptions, ...options }: MDXPluginConfig) {
+		super({
+			name: PLUGIN_NAME,
+			...options,
+			extensions: options.extensions ?? ['.mdx'],
+		});
+
+		const { mdExtensions, mdxExtensions } = splitMarkdownExtensions(this.extensions);
+
+		const finalCompilerOptions = mergeIntegrationOptions(
+			{
+				...defaultOptions,
+				mdxExtensions,
+				mdExtensions,
+			},
+			compilerOptions ?? {},
+		);
+		const jsxImportSource = finalCompilerOptions.jsxImportSource;
+
+		assertStandaloneJsxImportSource(jsxImportSource);
+
+		this.compilerOptions = finalCompilerOptions;
+
+		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource}`);
+	}
+
+	override initializeRenderer(options?: { rendererModules?: unknown }): MDXRenderer {
+		const renderer = new this.renderer({
+			...this.createRendererOptions(options),
+			mdxConfig: {
+				compilerOptions: this.compilerOptions,
+			},
+		});
+		return this.attachRendererRuntimeServices(renderer);
+	}
+
+	override get plugins(): EcoBuildPlugin[] {
+		if (this.mdxLoaderPlugin) {
+			return [this.mdxLoaderPlugin];
+		}
+
+		return [];
+	}
+
+	/**
+	 * Materializes the MDX loader once so config-time sealing and runtime setup
+	 * can share the same loader instance.
+	 */
+	private ensureLoaderPlugin(): void {
+		if (this.mdxLoaderPlugin) {
+			return;
+		}
+
+		if (!this.appConfig?.rootDir) {
+			throw new Error('[MDXPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+		}
+
+		this.mdxLoaderPlugin = createMdxLoaderPlugin({
+			compilerOptions: this.compilerOptions,
+			projectRoot: this.appConfig.rootDir,
+		});
+	}
+
+	/**
+	 * Prepares the MDX loader contribution before config build seals the manifest.
+	 */
+	override async prepareBuildContributions(): Promise<void> {
+		this.ensureLoaderPlugin();
+	}
+
+	/**
+	 * Runs runtime-only MDX setup after build contributions are already prepared.
+	 */
+	override async setup(): Promise<void> {
+		this.ensureLoaderPlugin();
+		await super.setup();
+	}
+}
+
+/**
+ * Factory function to create an MDX plugin instance.
  * @param options Configuration options for the MDX plugin
  * @returns A new MDXPlugin instance
  */
-export function mdxPlugin(options?: MDXPluginConfig): MDXPlugin {
+export function mdxPlugin(options: MDXPluginConfig): MDXPlugin {
 	return new MDXPlugin(options);
 }

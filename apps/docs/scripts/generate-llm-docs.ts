@@ -1,118 +1,117 @@
-import { join, dirname, basename } from 'path';
-import { exists, mkdir, readdir } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { ContentScanner } from '@ecopages/content-processor';
+import { compareDocsEntries, docsFrontmatterSchema, type DocsFrontmatter } from '../src/content/docs';
+import { configuredSiteOrigin, normalizeSiteOrigin } from '../src/lib/docs/site-meta';
+import {
+	appendAgentSkillSection,
+	exportLlmSectionPages,
+	groupPostsBySection,
+	orderedSectionIds,
+} from './llm-docs-export';
 
-const ROOT_DIR = join(import.meta.dir, '..');
-const SRC_DOCS_DIR = join(ROOT_DIR, 'src/pages/docs');
-const ECO_DIR = join(ROOT_DIR, '.eco');
-const OUTPUT_CONTENT_DIR = join(ECO_DIR, 'llms-content');
-const OUTPUT_LLMS_FILE = join(ECO_DIR, 'llms.txt');
+const docsRoot = join(import.meta.dirname, '..');
+const publicRoot = join(docsRoot, 'src/public');
+const defaultContentRoot = join(docsRoot, 'src/content/docs');
 
-async function ensureDir(path: string) {
-	if (!(await exists(path))) {
-		await mkdir(path, { recursive: true });
-	}
+export type GenerateLlmDocsOptions = {
+	contentRoot?: string;
+	/**
+	 * Site origin used in `llms.txt` links. Defaults to `configuredSiteOrigin()`.
+	 */
+	baseUrl?: string;
+};
+
+function llmDocsOrigin(baseUrl?: string): string {
+	return normalizeSiteOrigin(baseUrl ?? configuredSiteOrigin());
 }
 
-async function scanDocs(
-	dir: string,
-	relativePath = '',
-): Promise<Array<{ filePath: string; relativePath: string; title: string }>> {
-	const results: Array<{ filePath: string; relativePath: string; title: string }> = [];
-
-	const entries = await readdir(dir, { withFileTypes: true });
-
-	for (const entry of entries) {
-		const fullPath = join(dir, entry.name);
-		const newRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-		if (entry.isDirectory()) {
-			const subResults = await scanDocs(fullPath, newRelativePath);
-			results.push(...subResults);
-		} else if (entry.isFile() && (entry.name.endsWith('.mdx') || entry.name.endsWith('.md'))) {
-			const baseName = basename(entry.name, entry.name.endsWith('.mdx') ? '.mdx' : '.md');
-			const pathWithoutExt = relativePath ? `${relativePath}/${baseName}` : baseName;
-
-			const title = baseName
-				.split('-')
-				.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-				.join(' ');
-
-			results.push({
-				filePath: fullPath,
-				relativePath: pathWithoutExt,
-				title,
-			});
-		}
-	}
-
-	return results;
+function createScanner(contentRoot: string): ContentScanner<DocsFrontmatter> {
+	return new ContentScanner({
+		contentRoot,
+		schema: docsFrontmatterSchema,
+		orderBy: compareDocsEntries,
+	});
 }
 
-function groupBySection(
-	files: Array<{ filePath: string; relativePath: string; title: string }>,
-): Map<string, Array<{ filePath: string; relativePath: string; title: string }>> {
-	const sections = new Map<string, Array<{ filePath: string; relativePath: string; title: string }>>();
-
-	for (const file of files) {
-		const parts = file.relativePath.split('/');
-		const section = parts[0] || 'other';
-
-		if (!sections.has(section)) {
-			sections.set(section, []);
-		}
-		sections.get(section)?.push(file);
-	}
-
-	return sections;
-}
-
-async function main() {
-	await ensureDir(ECO_DIR);
-	await ensureDir(OUTPUT_CONTENT_DIR);
-
-	const files = await scanDocs(SRC_DOCS_DIR);
-	const sections = groupBySection(files);
-
-	const sectionOrder = ['getting-started', 'core', 'server', 'ecosystem', 'integrations', 'plugins', 'reference'];
-
-	const outputLines: string[] = [
+function buildLlmsTxtPreamble(): string[] {
+	return [
 		'# Ecopages Documentation',
 		'> Ecopages is a static site generator written in TypeScript.',
 		'',
+		'## When to use this',
+		'',
+		'Reach for Ecopages when you are:',
+		'',
+		'- Scaffolding a new HTML-first multi-page app (`npx ecopages init`).',
+		'- Authoring Pages and Layouts, then picking an Integration (Ecopages JSX, React, Lit, KitaJS, or MDX).',
+		'- Choosing a Cache Strategy (static, dynamic, or revalidate) or adding typed handlers only when a Page needs more than static HTML.',
+		'',
+		'Do not use this site as a hosted SaaS or authenticated API. It is documentation and generated markdown for the open-source framework.',
+		'',
+		'## How to read the docs',
+		'',
+		'- This `llms.txt` file is an index only.',
+		'- Follow links to `/docs-llm/<section>/<slug>.md` for full page exports (HTML pages also advertise that URL as `rel=alternate`).',
+		'- For a progressive build guide, start at `/skill.txt` or `/skill/SKILL.md`.',
+		'',
+		'## CLI',
+		'',
+		'- npm package: [`ecopages`](https://www.npmjs.com/package/ecopages).',
+		'- Run without installing: `npx ecopages`, `pnpm dlx ecopages`, or `bunx ecopages`.',
+		'- Guide: `/docs/ecosystem/ecopages` (markdown export: `/docs-llm/ecosystem/ecopages.md`).',
+		'',
 	];
-
-	const baseUrl = process.env.ECOPAGES_BASE_URL || 'https://ecopages.app';
-
-	for (const section of sectionOrder) {
-		const sectionFiles = sections.get(section);
-		if (!sectionFiles || sectionFiles.length === 0) continue;
-
-		const sectionTitle = section
-			.split('-')
-			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-			.join(' ');
-
-		outputLines.push(`## ${sectionTitle}`);
-
-		for (const file of sectionFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath))) {
-			const destFile = join(OUTPUT_CONTENT_DIR, `${file.relativePath}.txt`);
-			const destDir = dirname(destFile);
-
-			await ensureDir(destDir);
-
-			const fileContent = await Bun.file(file.filePath).text();
-			await Bun.write(destFile, fileContent);
-
-			const url = `${baseUrl}/llms-content/${file.relativePath}.txt`;
-			outputLines.push(`- [${file.title}](${url})`);
-		}
-
-		outputLines.push('');
-	}
-
-	await Bun.write(OUTPUT_LLMS_FILE, outputLines.join('\n'));
-	console.log(`[llms.txt] Successfully generated at ${OUTPUT_LLMS_FILE}`);
-	console.log(`[llms.txt] Generated ${files.length} documentation files`);
 }
 
-main().catch(console.error);
+/**
+ * Writes raw MDX bodies and `llms.txt` into the public directory for static serving.
+ *
+ * @remarks
+ * Agent-facing contract:
+ * - `llms.txt` is a `.txt` discovery index only (when-to-use, CLI, section links).
+ * - Linked page bodies live under `docs-llm/<section>/<slug>.md`.
+ * - Progressive build guidance lives under `skill.txt` and `skill/reference/*.md`.
+ * - `docs-llm/` is generator-owned: each successful run replaces that tree so deleted or `llms: false` pages are not left public.
+ * - Output is staged in `.docs-llm-staging/` and swapped in only after all writes succeed; a failed run leaves the previous exports intact and removes the staging tree.
+ */
+export async function generateLlmDocs(outputRoot = publicRoot, options: GenerateLlmDocsOptions = {}): Promise<void> {
+	const scanner = createScanner(options.contentRoot ?? defaultContentRoot);
+	const posts = await scanner.getManifest();
+	const llmRoot = join(outputRoot, 'docs-llm');
+	const stagingRoot = join(outputRoot, '.docs-llm-staging');
+	const origin = llmDocsOrigin(options.baseUrl);
+
+	try {
+		await rm(stagingRoot, { recursive: true, force: true });
+		await mkdir(stagingRoot, { recursive: true });
+		const lines = buildLlmsTxtPreamble();
+		const sections = groupPostsBySection(posts);
+
+		for (const sectionId of orderedSectionIds(sections)) {
+			const sectionPosts = sections.get(sectionId);
+			if (!sectionPosts || sectionPosts.length === 0) {
+				continue;
+			}
+
+			await exportLlmSectionPages(scanner, sectionId, sectionPosts, stagingRoot, origin, lines);
+		}
+
+		appendAgentSkillSection(lines, origin);
+
+		await mkdir(outputRoot, { recursive: true });
+		await writeFile(join(outputRoot, 'llms.txt'), lines.join('\n'), 'utf8');
+		await rm(llmRoot, { recursive: true, force: true });
+		await rename(stagingRoot, llmRoot);
+	} finally {
+		await rm(stagingRoot, { recursive: true, force: true });
+	}
+}
+
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+	await generateLlmDocs(publicRoot);
+	console.log(`[llms] Generated ${join(publicRoot, 'llms.txt')} and ${join(publicRoot, 'docs-llm')}/`);
+}

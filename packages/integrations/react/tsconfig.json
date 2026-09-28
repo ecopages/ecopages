@@ -3,7 +3,6 @@
 		"allowSyntheticDefaultImports": true,
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
-		"baseUrl": ".",
 		"outDir": "./dist",
 		"esModuleInterop": true,
 		"experimentalDecorators": true,

@@ -1,19 +1,162 @@
 import path from 'node:path';
+import { availableParallelism } from 'node:os';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../internal-types.ts';
-import type { EcoPageComponent, StaticRoute } from '../public-types.ts';
-import type { RouteRendererFactory } from '../route-renderer/route-renderer.ts';
-import type { FSRouter } from '../router/fs-router.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type {
+	EcoPageComponent,
+	EcoPageFile,
+	EcopagesRouteInfo,
+	PageMetadataProps,
+	SitemapConfig,
+	StaticRoute,
+	ErrorPageLoaders,
+} from '../types/public-types.ts';
+import type {
+	ExplicitViewRenderer,
+	ExplicitViewRendererResolver,
+	PageRendererResolver,
+	StaticGenerationRendererResolver,
+} from '../route-renderer/route-renderer.ts';
+import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { PathUtils } from '../utils/path-utils.module.ts';
+import { prepareExplicitStaticRender } from '../route-renderer/explicit-view-render-preparation.ts';
+import { createRouteModuleStaticRenderCacheContext } from './static-build-invalidation.ts';
+import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
+import {
+	getServerModuleBuildCacheOutdir,
+	getSharedRouteModuleBuildCache,
+} from '../services/module-loading/route-module-build-cache-registry.ts';
+import type { StaticExportContext } from './static-export-context.ts';
+import {
+	ensurePagesUnifiedGraphBuilt,
+	shouldBuildPagesUnifiedGraph,
+} from '../build/cache/pages-unified-graph-build.ts';
+import {
+	clearProductionPageBrowserGraphSession,
+	prebuildProductionPageBrowserGraphs,
+	shouldPrebuildProductionPageBrowserGraphs,
+} from './production-page-browser-graph-prebuild.ts';
+import { PageModuleLoaderService } from '../route-renderer/page-loading/page-module-loader.ts';
+import { renderSitemap } from './sitemap.ts';
+import { resolveSitemapLocations } from './sitemap-routes.ts';
+import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
+import { normalizePathname } from '../utils/path-pattern.ts';
+import { ErrorPageRenderer } from '../services/error-pages/error-page-renderer.ts';
+import {
+	SemanticErrorPageExporter,
+	SEMANTIC_ERROR_PAGE_PATHNAMES,
+} from '../services/error-pages/semantic-error-page-exporter.ts';
 
-export class StaticSiteGenerator {
-	appConfig: EcoPagesAppConfig;
+type StaticGenerationRouteSource = {
+	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
+};
 
-	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
-		this.appConfig = appConfig;
+type StaticPageRouteRendererFactory = PageRendererResolver;
+
+type ExplicitStaticRouteRendererFactory = ExplicitViewRendererResolver;
+
+type StaticGenerationRendererFactory = StaticGenerationRendererResolver;
+
+type ExplicitStaticRouteEntry = {
+	pathname: string;
+	params: Record<string, string | string[]>;
+};
+
+export const STATIC_SITE_GENERATOR_ERRORS = {
+	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
+	unsupportedBodyType: (bodyType: string) => `Unsupported body type for static generation: ${bodyType}`,
+	missingIntegration: (routePath: string) =>
+		`View at ${routePath} is missing component identity integration. Ensure it's defined with eco.page().`,
+	noRendererForIntegration: (integrationName: string) => `No renderer found for integration: ${integrationName}`,
+	dynamicRouteRequiresStaticPaths: (routePath: string) =>
+		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
+} as const;
+
+function resolveStaticPageConcurrency(): number {
+	return Math.max(1, availableParallelism() - 1);
+}
+
+async function runWithConcurrency<T>(
+	items: readonly T[],
+	concurrency: number,
+	worker: (item: T) => Promise<void>,
+): Promise<void> {
+	if (items.length === 0) {
+		return;
 	}
 
+	const limit = Math.max(1, concurrency);
+	let nextIndex = 0;
+
+	const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+		while (nextIndex < items.length) {
+			const currentIndex = nextIndex++;
+			await worker(items[currentIndex]!);
+		}
+	});
+
+	await Promise.all(runners);
+}
+
+/**
+ * Generates static output files from the finalized app config and route graph.
+ *
+ * @remarks
+ * This class intentionally reuses the same routing, renderer, and server-module
+ * loading seams used by runtime rendering. Static generation should be a build
+ * loop over the normal app model, not a parallel rendering stack with different
+ * semantics.
+ */
+export class StaticSiteGenerator {
+	appConfig: EcoPagesAppConfig;
+	private readonly routeModuleBuildCacheOverride?: RouteModuleBuildCache;
+	private staticRenderCacheContext: ReturnType<typeof createRouteModuleStaticRenderCacheContext>;
+	private forceFullStaticGeneration = false;
+	private pageModuleLoader?: PageModuleLoaderService;
+
+	/**
+	 * Creates the static-site generator for one app config.
+	 */
+	constructor({
+		appConfig,
+		routeModuleBuildCache,
+	}: {
+		appConfig: EcoPagesAppConfig;
+		routeModuleBuildCache?: RouteModuleBuildCache;
+	}) {
+		this.appConfig = appConfig;
+		this.routeModuleBuildCacheOverride = routeModuleBuildCache;
+		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(appConfig);
+	}
+
+	private getRouteModuleBuildCache(): RouteModuleBuildCache {
+		return (
+			this.routeModuleBuildCacheOverride ??
+			getSharedRouteModuleBuildCache(getServerModuleBuildCacheOutdir(this.appConfig), this.appConfig)
+		);
+	}
+
+	private getExportDir(): string {
+		return this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
+	}
+
+	private async shouldSkipStaticPageFile(
+		filePath: string,
+		routeRendererFactory: StaticPageRouteRendererFactory,
+	): Promise<boolean> {
+		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
+		const Page = pageModule.default as EcoPageComponent<any>;
+
+		return Page.cache === 'dynamic';
+	}
+
+	private shouldSkipStaticView(_routePath: string, view: EcoPageComponent<any>): boolean {
+		return view.cache === 'dynamic';
+	}
+
+	/**
+	 * Writes the robots.txt file declared by the app config.
+	 */
 	generateRobotsTxt(): void {
 		let data = '';
 		const preferences = this.appConfig.robotsTxt.preferences;
@@ -26,15 +169,30 @@ export class StaticSiteGenerator {
 			data += '\n';
 		}
 
-		fileSystem.ensureDir(this.appConfig.distDir);
-		fileSystem.write(`${this.appConfig.distDir}/robots.txt`, data);
+		fileSystem.ensureDir(this.getExportDir());
+		fileSystem.write(path.join(this.getExportDir(), 'robots.txt'), data);
 	}
 
+	/**
+	 * Writes the configured sitemap file to the export directory.
+	 */
+	generateSitemap(locations: readonly string[], sitemap: SitemapConfig): void {
+		const fileName = sitemap.fileName ?? 'sitemap.xml';
+		fileSystem.ensureDir(this.getExportDir());
+		fileSystem.write(path.join(this.getExportDir(), fileName), renderSitemap(locations));
+	}
+
+	/**
+	 * Returns whether the input path points at the root directory.
+	 */
 	isRootDir(path: string) {
 		const slashes = path.match(/\//g);
 		return slashes && slashes.length === 1;
 	}
 
+	/**
+	 * Collects parent directories that must exist for the generated route set.
+	 */
 	getDirectories(routes: string[]) {
 		const directories = new Set<string>();
 
@@ -51,163 +209,510 @@ export class StaticSiteGenerator {
 		return Array.from(directories);
 	}
 
-	/**
-	 * Extracts dynamic parameters from the actual path based on the template path.
-	 *
-	 * @param templatePath - The template path (e.g., "/blog/[slug]")
-	 * @param actualPath - The actual path (e.g., "/blog/my-post")
-	 * @returns A record of extracted parameters (e.g., { slug: "my-post" })
-	 */
-	private extractParams(templatePath: string, actualPath: string): Record<string, string> {
-		const templateSegments = templateSegmentsFromPath(templatePath);
-		const actualSegments = templateSegmentsFromPath(actualPath);
-		const params: Record<string, string> = {};
-
-		for (let i = 0; i < templateSegments.length; i++) {
-			const segment = templateSegments[i];
-			if (segment.startsWith('[') && segment.endsWith(']')) {
-				const paramName = segment.slice(1, -1).replace('...', '');
-				params[paramName] = actualSegments[i];
-			}
-		}
-
-		return params;
+	private writeStaticOutput(routePath: string, contents: string | Buffer, directories: string[] = []): string {
+		const outputPath = this.getOutputPath(routePath, directories);
+		fileSystem.ensureDir(path.dirname(outputPath));
+		fileSystem.write(outputPath, contents);
+		return outputPath;
 	}
 
-	async generateStaticPages(router: FSRouter, baseUrl: string, routeRendererFactory?: RouteRendererFactory) {
-		const routes = Object.keys(router.routes).filter((route) => !route.includes('['));
+	private async writeStaticPageArtifact(options: {
+		pathname: string;
+		sourceFile?: string;
+		directories?: string[];
+		createContents: () => Promise<string | Buffer | null>;
+		debugLabel?: string;
+		reuseRenderedOutput?: boolean;
+		activeStaticPathnames?: Set<string>;
+		onSuccessfulExport?: () => Promise<void>;
+	}): Promise<void> {
+		const directories = options.directories ?? this.getDirectories([options.pathname]);
+		const renderedOutputPath = this.getOutputPath(options.pathname, directories);
+		const routeModuleBuildCache = this.getRouteModuleBuildCache();
 
-		appLogger.debug('Static Pages', routes);
-
-		const directories = this.getDirectories(routes);
-
-		for (const directory of directories) {
-			fileSystem.ensureDir(path.join(this.appConfig.rootDir, this.appConfig.distDir, directory));
+		if (
+			options.reuseRenderedOutput !== false &&
+			options.sourceFile &&
+			routeModuleBuildCache.canReuseStaticRender({
+				sourceFile: options.sourceFile,
+				pathname: options.pathname,
+				renderedOutputPath,
+				context: this.staticRenderCacheContext,
+				force: this.forceFullStaticGeneration,
+			})
+		) {
+			options.activeStaticPathnames?.add(options.pathname);
+			await options.onSuccessfulExport?.();
+			appLogger.debug(`Skipped unchanged static page: ${options.debugLabel ?? options.pathname}`);
+			return;
 		}
 
-		for (const route of routes) {
+		const contents = await options.createContents();
+		if (contents === null) {
+			return;
+		}
+
+		const outputPath = this.writeStaticOutput(options.pathname, contents, directories);
+		options.activeStaticPathnames?.add(options.pathname);
+
+		if (options.sourceFile) {
 			try {
-				const { filePath, pathname: routePathname } = router.routes[route];
-				const ext = PathUtils.getEcoTemplateExtension(filePath);
-				const integration = this.appConfig.integrations.find((plugin) => plugin.extensions.includes(ext));
-				const strategy = integration?.staticBuildStep || 'render';
-
-				let contents: string | Buffer;
-
-				if (strategy === 'fetch') {
-					const fetchUrl = route.startsWith('http') ? route : `${baseUrl}${route}`;
-					const response = await fetch(fetchUrl);
-
-					if (!response.ok) {
-						appLogger.error(`Failed to fetch ${fetchUrl}. Status: ${response.status}`);
-						continue;
-					}
-					contents = await response.text();
-				} else {
-					if (!routeRendererFactory) {
-						throw new Error('RouteRendererFactory is required for render strategy');
-					}
-
-					let pathname = routePathname;
-					const pathnameSegments = pathname.split('/').filter(Boolean);
-
-					if (pathname === '/') {
-						pathname = '/index.html';
-					} else if (pathnameSegments.join('/').includes('[')) {
-						pathname = `${route.replace(router.origin, '')}.html`;
-					} else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
-						pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
-					} else {
-						pathname += '.html';
-					}
-
-					const renderer = routeRendererFactory.createRenderer(filePath);
-					const params = this.extractParams(routePathname, pathname.replace('.html', ''));
-
-					const result = await renderer.createRoute({
-						file: filePath,
-						params,
-					});
-
-					const body = result.body;
-
-					if (typeof body === 'string' || Buffer.isBuffer(body)) {
-						contents = body;
-					} else if (body instanceof ReadableStream) {
-						contents = await Bun.readableStreamToText(body);
-					} else {
-						throw new Error(`Unsupported body type for static generation: ${typeof body}`);
-					}
-				}
-
-				let pathname = routePathname;
-				const pathnameSegments = pathname.split('/').filter(Boolean);
-
-				if (pathname === '/') {
-					pathname = '/index.html';
-				} else if (pathnameSegments.join('/').includes('[')) {
-					pathname = `${route.replace(router.origin, '')}.html`;
-				} else if (pathnameSegments.length >= 1 && directories.includes(`/${pathnameSegments.join('/')}`)) {
-					pathname = `${pathname.endsWith('/') ? pathname : `${pathname}/`}index.html`;
-				} else {
-					pathname += '.html';
-				}
-
-				const outputPath = path.join(this.appConfig.rootDir, this.appConfig.distDir, pathname);
-				fileSystem.write(outputPath, contents);
+				routeModuleBuildCache.recordStaticRender({
+					filePath: options.sourceFile,
+					pathname: options.pathname,
+					sourceHash: fileSystem.hash(options.sourceFile),
+					renderedOutputPath: outputPath,
+					context: this.staticRenderCacheContext,
+				});
 			} catch (error) {
-				appLogger.error(
-					`Error generating static page for ${route}:`,
-					error instanceof Error ? error : String(error),
+				appLogger.debug(
+					`Failed to record static render cache for ${options.pathname}`,
+					error instanceof Error ? error.message : String(error),
 				);
 			}
 		}
+
+		await options.onSuccessfulExport?.();
 	}
 
+	/**
+	 * Marks a successfully exported pathname as sitemap-eligible when robots allow indexing.
+	 *
+	 * @remarks
+	 * Fail-closed: metadata resolution errors omit the URL. `robots.index === false`
+	 * also omits it. Eligibility is decided during generation, not by reloading modules
+	 * after `afterStaticExport`.
+	 */
+	private async considerSitemapEligibility(input: {
+		pathname: string;
+		sitemapEligiblePathnames?: Set<string>;
+		resolveMetadata: () => Promise<PageMetadataProps>;
+	}): Promise<void> {
+		if (!input.sitemapEligiblePathnames || !this.appConfig.sitemap?.enabled) {
+			return;
+		}
+
+		try {
+			const metadata = await input.resolveMetadata();
+			if (metadata.robots?.index === false) {
+				return;
+			}
+			input.sitemapEligiblePathnames.add(normalizePathname(input.pathname));
+		} catch (error) {
+			appLogger.debug(
+				`Sitemap eligibility skipped for ${input.pathname}; metadata resolution failed`,
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+	}
+
+	private getPageModuleLoader(baseUrl: string): PageModuleLoaderService {
+		this.pageModuleLoader ??= new PageModuleLoaderService(this.appConfig, baseUrl);
+		return this.pageModuleLoader;
+	}
+
+	private async resolveFilesystemPageMetadata(input: {
+		filePath: string;
+		params: Record<string, string | string[]>;
+		baseUrl: string;
+		routeRendererFactory: StaticPageRouteRendererFactory;
+	}): Promise<PageMetadataProps> {
+		const loader = this.getPageModuleLoader(input.baseUrl);
+		const pageModule = await loader.resolvePageModule({
+			file: input.filePath,
+			importPageFileFn: (file) => input.routeRendererFactory.getPageRenderer(file).loadPageModule(file),
+		});
+		const { metadata } = await loader.resolvePageData({
+			pageModule,
+			routeOptions: {
+				file: input.filePath,
+				params: input.params,
+			},
+		});
+		return metadata;
+	}
+
+	private async resolveExplicitViewMetadata(input: {
+		view: EcoPageComponent<any>;
+		params: Record<string, string | string[]>;
+		props: Record<string, unknown>;
+	}): Promise<PageMetadataProps> {
+		if (!input.view.metadata) {
+			return this.appConfig.defaultMetadata;
+		}
+
+		const dynamicMetadata = await input.view.metadata({
+			params: input.params,
+			query: {},
+			props: input.props,
+			appConfig: this.appConfig,
+		});
+
+		return { ...this.appConfig.defaultMetadata, ...dynamicMetadata };
+	}
+
+	private pruneStaleStaticOutputs(activeStaticPathnames: ReadonlySet<string>): void {
+		const removedOutputPaths = this.getRouteModuleBuildCache().pruneStaleRenderedOutputs(activeStaticPathnames);
+
+		for (const outputPath of removedOutputPaths) {
+			const resolvedOutputPath = path.isAbsolute(outputPath) ? outputPath : path.resolve(outputPath);
+
+			if (fileSystem.exists(resolvedOutputPath)) {
+				fileSystem.remove(resolvedOutputPath);
+				appLogger.debug(`Removed stale static output: ${resolvedOutputPath}`);
+			}
+		}
+	}
+
+	private async createFilesystemStaticContents(input: {
+		route: StaticGenerationRoute;
+		baseUrl: string;
+		routeRendererFactory?: StaticPageRouteRendererFactory;
+		skipped?: string[];
+	}): Promise<string | Buffer | null> {
+		const {
+			route: {
+				templateRoute: { filePath },
+				params,
+			},
+			routeRendererFactory,
+			skipped,
+		} = input;
+
+		if (!routeRendererFactory) {
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
+		}
+
+		if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
+			skipped?.push(filePath);
+			return null;
+		}
+
+		const renderer = routeRendererFactory.getPageRenderer(filePath);
+		const result = await renderer.execute({
+			file: filePath,
+			params: params as Record<string, string>,
+		});
+
+		const body = result.body;
+		if (typeof body === 'string' || Buffer.isBuffer(body)) {
+			return body;
+		}
+
+		if (body instanceof ReadableStream) {
+			return new Response(body).text();
+		}
+
+		throw new Error(STATIC_SITE_GENERATOR_ERRORS.unsupportedBodyType(typeof body));
+	}
+
+	/**
+	 * Generates static output for all filesystem-discovered routes.
+	 *
+	 * @remarks
+	 * Routes are rendered through the normal route renderer directly.
+	 */
+	async generateStaticPages(input: {
+		router: StaticGenerationRouteSource;
+		baseUrl: string;
+		routeRendererFactory?: StaticPageRouteRendererFactory;
+		skipped?: string[];
+		activeStaticPathnames?: Set<string>;
+		preloadedRoutes?: readonly StaticGenerationRoute[];
+		sitemapEligiblePathnames?: Set<string>;
+	}) {
+		const { router, baseUrl, routeRendererFactory, skipped, activeStaticPathnames, sitemapEligiblePathnames } =
+			input;
+		const routes = input.preloadedRoutes ?? (await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl }));
+
+		appLogger.debug(
+			'Static Pages',
+			routes.map((route) => route.requestUrl),
+		);
+
+		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
+
+		await runWithConcurrency(routes, resolveStaticPageConcurrency(), async (route) => {
+			try {
+				await this.writeStaticPageArtifact({
+					pathname: route.pathname,
+					sourceFile: route.templateRoute.filePath,
+					directories,
+					debugLabel: route.requestUrl,
+					activeStaticPathnames,
+					onSuccessfulExport: () =>
+						this.considerSitemapEligibility({
+							pathname: route.pathname,
+							sitemapEligiblePathnames,
+							resolveMetadata: () => {
+								if (!routeRendererFactory) {
+									throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
+								}
+								return this.resolveFilesystemPageMetadata({
+									filePath: route.templateRoute.filePath,
+									params: route.params,
+									baseUrl,
+									routeRendererFactory,
+								});
+							},
+						}),
+					createContents: () =>
+						this.createFilesystemStaticContents({
+							route,
+							baseUrl,
+							routeRendererFactory,
+							skipped,
+						}),
+				});
+			} catch (error) {
+				appLogger.error(
+					`Error generating static page for ${route.requestUrl}:`,
+					error instanceof Error ? error : String(error),
+				);
+			}
+		});
+	}
+
+	private createStaticExportContext(input: {
+		router: StaticGenerationRouteSource;
+		baseUrl: string;
+		routeRendererFactory?: StaticGenerationRendererFactory;
+		staticRoutes?: StaticRoute[];
+		force: boolean;
+		preserveExportDirectory: boolean;
+		routes: EcopagesRouteInfo[];
+	}): StaticExportContext {
+		return {
+			appConfig: this.appConfig,
+			router: input.router,
+			baseUrl: input.baseUrl,
+			routeRendererFactory: input.routeRendererFactory,
+			staticRoutes: input.staticRoutes,
+			force: input.force,
+			preserveExportDirectory: input.preserveExportDirectory,
+			routes: input.routes,
+		};
+	}
+
+	private async invokeStaticExportHook(
+		hook: 'beforeStaticExport' | 'afterStaticExport',
+		context: StaticExportContext,
+	): Promise<void> {
+		for (const integration of this.appConfig.integrations) {
+			const handler = integration[hook];
+			if (typeof handler === 'function') {
+				await handler.call(integration, context);
+			}
+		}
+	}
+
+	private resetStaticGenerationState(force: boolean): void {
+		this.forceFullStaticGeneration = force;
+		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig);
+		this.pageModuleLoader = undefined;
+		if (!force) {
+			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
+		}
+		if (shouldPrebuildProductionPageBrowserGraphs() && force) {
+			clearProductionPageBrowserGraphSession(this.appConfig);
+		}
+	}
+
+	private async ensureUnifiedGraphForStaticGeneration(
+		routes: readonly StaticGenerationRoute[],
+		force: boolean,
+	): Promise<void> {
+		if (!shouldBuildPagesUnifiedGraph()) {
+			return;
+		}
+		await ensurePagesUnifiedGraphBuilt({
+			appConfig: this.appConfig,
+			entryPaths: routes.map((route) => route.templateRoute.filePath),
+			outdir: getServerModuleBuildCacheOutdir(this.appConfig),
+			force,
+		});
+	}
+
+	private async executeStaticGenerationBody(input: {
+		router: StaticGenerationRouteSource;
+		baseUrl: string;
+		routeRendererFactory?: StaticGenerationRendererFactory;
+		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+		preserveExportDirectory: boolean;
+		routes: readonly StaticGenerationRoute[];
+		skippedDynamicPages: string[];
+		activeStaticPathnames: Set<string>;
+		sitemapEligiblePathnames?: Set<string>;
+	}): Promise<void> {
+		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
+			await prebuildProductionPageBrowserGraphs(
+				input.routes.map((route) => ({
+					routeFile: route.templateRoute.filePath,
+					params: route.params,
+				})),
+				input.routeRendererFactory,
+			);
+		}
+
+		this.generateRobotsTxt();
+		const semanticErrorPathnames = new Set<string>(SEMANTIC_ERROR_PAGE_PATHNAMES);
+		const pageRoutes = input.routes.filter((route) => !semanticErrorPathnames.has(route.pathname));
+		await this.generateStaticPages({
+			router: input.router,
+			baseUrl: input.baseUrl,
+			routeRendererFactory: input.routeRendererFactory,
+			skipped: input.skippedDynamicPages,
+			activeStaticPathnames: input.activeStaticPathnames,
+			preloadedRoutes: pageRoutes,
+			sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+		});
+
+		if (input.staticRoutes && input.staticRoutes.length > 0 && input.routeRendererFactory) {
+			await this.generateExplicitStaticPages({
+				staticRoutes: input.staticRoutes,
+				routeRendererFactory: input.routeRendererFactory,
+				skipped: input.skippedDynamicPages,
+				activeStaticPathnames: input.activeStaticPathnames,
+				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+			});
+		}
+
+		const errorPageRenderer = new ErrorPageRenderer({
+			appConfig: this.appConfig,
+			routeRendererFactory: input.routeRendererFactory,
+			errorPageLoaders: input.errorPageLoaders,
+		});
+		await new SemanticErrorPageExporter({
+			errorPageRenderer,
+			writeArtifact: async (artifact) => await this.writeStaticPageArtifact(artifact),
+		}).export(input.activeStaticPathnames);
+
+		if (input.preserveExportDirectory) {
+			this.pruneStaleStaticOutputs(input.activeStaticPathnames);
+		}
+	}
+
+	private finalizeStaticGenerationRun(input: {
+		baseUrl: string;
+		skippedDynamicPages: string[];
+		sitemapEligiblePathnames?: Set<string>;
+	}): void {
+		if (this.appConfig.sitemap?.enabled && input.sitemapEligiblePathnames) {
+			const locations = resolveSitemapLocations({
+				eligiblePathnames: [...input.sitemapEligiblePathnames],
+				sitemap: this.appConfig.sitemap,
+				baseUrl: input.baseUrl,
+			});
+			this.generateSitemap(locations, this.appConfig.sitemap);
+		}
+
+		if (input.skippedDynamicPages.length > 0) {
+			appLogger.debug(
+				`Skipped ${input.skippedDynamicPages.length} page(s) with cache: 'dynamic' (not supported in static generation)`,
+				input.skippedDynamicPages,
+			);
+		}
+	}
+
+	/**
+	 * Executes the full static-generation workflow for one app run.
+	 */
 	async run({
 		router,
 		baseUrl,
 		routeRendererFactory,
 		staticRoutes,
+		errorPageLoaders,
+		force = false,
+		preserveExportDirectory = false,
 	}: {
-		router: FSRouter;
+		router: StaticGenerationRouteSource;
 		baseUrl: string;
-		routeRendererFactory?: RouteRendererFactory;
+		routeRendererFactory?: StaticGenerationRendererFactory;
 		staticRoutes?: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+		force?: boolean;
+		preserveExportDirectory?: boolean;
 	}) {
-		this.generateRobotsTxt();
-		await this.generateStaticPages(router, baseUrl, routeRendererFactory);
+		const skippedDynamicPages: string[] = [];
+		const activeStaticPathnames = new Set<string>();
+		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
+		this.resetStaticGenerationState(force);
 
-		if (staticRoutes && staticRoutes.length > 0 && routeRendererFactory) {
-			await this.generateExplicitStaticPages(staticRoutes, routeRendererFactory);
+		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+		const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
+		await this.ensureUnifiedGraphForStaticGeneration(routes, force);
+
+		const staticExportContext = this.createStaticExportContext({
+			router,
+			baseUrl,
+			routeRendererFactory,
+			staticRoutes,
+			force,
+			preserveExportDirectory,
+			routes: exportRoutes,
+		});
+
+		await this.invokeStaticExportHook('beforeStaticExport', staticExportContext);
+
+		try {
+			await this.executeStaticGenerationBody({
+				router,
+				baseUrl,
+				routeRendererFactory,
+				staticRoutes,
+				errorPageLoaders,
+				preserveExportDirectory,
+				routes,
+				skippedDynamicPages,
+				activeStaticPathnames,
+				sitemapEligiblePathnames,
+			});
+		} catch (error) {
+			if (shouldPrebuildProductionPageBrowserGraphs()) {
+				clearProductionPageBrowserGraphSession(this.appConfig);
+			}
+			throw error;
+		} finally {
+			await this.invokeStaticExportHook('afterStaticExport', staticExportContext);
 		}
+
+		this.finalizeStaticGenerationRun({
+			baseUrl,
+			skippedDynamicPages,
+			sitemapEligiblePathnames,
+		});
 	}
 
-	/**
-	 * Generates static pages from explicit static routes registered via app.static().
-	 * These routes use eco.page views via loader functions for HMR support.
-	 */
-	private async generateExplicitStaticPages(
-		staticRoutes: StaticRoute[],
-		routeRendererFactory: RouteRendererFactory,
-	): Promise<void> {
+	private async generateExplicitStaticPages(input: {
+		staticRoutes: StaticRoute[];
+		routeRendererFactory: ExplicitStaticRouteRendererFactory;
+		skipped?: string[];
+		activeStaticPathnames?: Set<string>;
+		sitemapEligiblePathnames?: Set<string>;
+	}): Promise<void> {
 		appLogger.debug(
 			'Generating explicit static routes',
-			staticRoutes.map((r) => r.path),
+			input.staticRoutes.map((r) => r.path),
 		);
 
-		for (const route of staticRoutes) {
+		for (const route of input.staticRoutes) {
 			try {
 				const mod = await route.loader();
 				const view = mod.default;
-
-				const isDynamic = route.path.includes(':') || route.path.includes('[');
-
-				if (isDynamic) {
-					await this.generateDynamicStaticRoute(route.path, view, routeRendererFactory);
-				} else {
-					await this.generateSingleStaticRoute(route.path, view, routeRendererFactory);
+				if (this.shouldSkipStaticView(route.path, view)) {
+					input.skipped?.push(route.path);
+					continue;
 				}
+
+				await this.generateExplicitStaticRoute({
+					routePath: route.path,
+					view,
+					routeRendererFactory: input.routeRendererFactory,
+					activeStaticPathnames: input.activeStaticPathnames,
+					sitemapEligiblePathnames: input.sitemapEligiblePathnames,
+				});
 			} catch (error) {
 				appLogger.error(
 					`Error generating explicit static page for ${route.path}:`,
@@ -217,64 +722,120 @@ export class StaticSiteGenerator {
 		}
 	}
 
-	/**
-	 * Generate a single static page for a non-dynamic route.
-	 */
-	private async generateSingleStaticRoute(
-		routePath: string,
-		view: EcoPageComponent<any>,
-		routeRendererFactory: RouteRendererFactory,
-	): Promise<void> {
-		const integrationName = view.config?.__eco?.integration;
-		if (!integrationName) {
-			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
+	private resolveExplicitViewSourceFile(view: EcoPageComponent<any>): string | undefined {
+		const sourceFile = view.config?.identity?.file;
+		if (!sourceFile) {
+			return undefined;
 		}
 
-		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
-		if (!renderer) {
-			throw new Error(`No renderer found for integration: ${integrationName}`);
-		}
-
-		const props = view.staticProps
-			? (
-					await view.staticProps({
-						pathname: { params: {} },
-						appConfig: this.appConfig,
-						runtimeOrigin: this.appConfig.baseUrl,
-					})
-				).props
-			: {};
-
-		const response = await renderer.renderToResponse(view, props, {});
-		const contents = await response.text();
-
-		const outputPath = this.getOutputPath(routePath);
-		fileSystem.ensureDir(path.dirname(outputPath));
-		fileSystem.write(outputPath, contents);
-
-		appLogger.debug(`Generated static page: ${routePath} -> ${outputPath}`);
+		return path.isAbsolute(sourceFile) ? sourceFile : path.join(this.appConfig.rootDir, sourceFile);
 	}
 
-	/**
-	 * Generate static pages for a dynamic route using staticPaths.
-	 */
-	private async generateDynamicStaticRoute(
+	private async generateExplicitStaticRoute(input: {
+		routePath: string;
+		view: EcoPageComponent<any>;
+		routeRendererFactory: ExplicitStaticRouteRendererFactory;
+		activeStaticPathnames?: Set<string>;
+		sitemapEligiblePathnames?: Set<string>;
+	}): Promise<void> {
+		const { routePath, view, routeRendererFactory, activeStaticPathnames, sitemapEligiblePathnames } = input;
+		const { renderer, routeEntries } = await this.planExplicitStaticRoute({
+			routePath,
+			view,
+			routeRendererFactory,
+		});
+		const sourceFile = this.resolveExplicitViewSourceFile(view);
+
+		for (const { pathname, params } of routeEntries) {
+			await this.writeStaticPageArtifact({
+				pathname,
+				sourceFile,
+				debugLabel: pathname,
+				activeStaticPathnames,
+				onSuccessfulExport: () =>
+					this.considerSitemapEligibility({
+						pathname,
+						sitemapEligiblePathnames,
+						resolveMetadata: async () => {
+							const { props } = await prepareExplicitStaticRender({
+								routePath,
+								view,
+								params,
+								appConfig: this.appConfig,
+								runtimeOrigin: this.appConfig.baseUrl,
+								routeRendererFactory,
+								errors: STATIC_SITE_GENERATOR_ERRORS,
+							});
+							return this.resolveExplicitViewMetadata({ view, params, props });
+						},
+					}),
+				createContents: () =>
+					this.createExplicitStaticContents({
+						routePath,
+						view,
+						params,
+						routeRendererFactory,
+						renderer,
+					}),
+			});
+
+			appLogger.debug(`Generated static page: ${pathname}`);
+		}
+	}
+
+	private async planExplicitStaticRoute(input: {
+		routePath: string;
+		view: EcoPageComponent<any>;
+		routeRendererFactory: ExplicitStaticRouteRendererFactory;
+	}): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
+		const { renderer } = await prepareExplicitStaticRender({
+			routePath: input.routePath,
+			view: input.view,
+			params: {},
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+			routeRendererFactory: input.routeRendererFactory,
+			errors: STATIC_SITE_GENERATOR_ERRORS,
+		});
+
+		return {
+			renderer,
+			routeEntries: await this.listExplicitStaticRouteEntries(input.routePath, input.view),
+		};
+	}
+
+	private async createExplicitStaticContents(input: {
+		routePath: string;
+		view: EcoPageComponent<any>;
+		params: Record<string, string | string[]>;
+		routeRendererFactory: ExplicitStaticRouteRendererFactory;
+		renderer: ExplicitViewRenderer;
+	}): Promise<string> {
+		const { props, view: renderableView } = await prepareExplicitStaticRender({
+			routePath: input.routePath,
+			view: input.view,
+			params: input.params,
+			appConfig: this.appConfig,
+			runtimeOrigin: this.appConfig.baseUrl,
+			routeRendererFactory: input.routeRendererFactory,
+			errors: STATIC_SITE_GENERATOR_ERRORS,
+		});
+
+		const response = await input.renderer.renderToResponse(renderableView, props, {});
+		return response.text();
+	}
+
+	private async listExplicitStaticRouteEntries(
 		routePath: string,
 		view: EcoPageComponent<any>,
-		routeRendererFactory: RouteRendererFactory,
-	): Promise<void> {
+	): Promise<ExplicitStaticRouteEntry[]> {
+		const isDynamic = routePath.includes(':') || routePath.includes('[');
+		if (!isDynamic) {
+			return [{ pathname: routePath, params: {} }];
+		}
+
 		if (!view.staticPaths) {
-			throw new Error(`Dynamic route ${routePath} requires staticPaths to be defined on the view.`);
-		}
-
-		const integrationName = view.config?.__eco?.integration;
-		if (!integrationName) {
-			throw new Error(`View at ${routePath} is missing __eco.integration. Ensure it's defined with eco.page().`);
-		}
-
-		const renderer = routeRendererFactory.getRendererByIntegration(integrationName);
-		if (!renderer) {
-			throw new Error(`No renderer found for integration: ${integrationName}`);
+			throw new Error(STATIC_SITE_GENERATOR_ERRORS.dynamicRouteRequiresStaticPaths(routePath));
 		}
 
 		const { paths } = await view.staticPaths({
@@ -282,28 +843,10 @@ export class StaticSiteGenerator {
 			runtimeOrigin: this.appConfig.baseUrl,
 		});
 
-		for (const { params } of paths) {
-			const resolvedPath = this.resolveRoutePath(routePath, params);
-
-			const props = view.staticProps
-				? (
-						await view.staticProps({
-							pathname: { params },
-							appConfig: this.appConfig,
-							runtimeOrigin: this.appConfig.baseUrl,
-						})
-					).props
-				: {};
-
-			const response = await renderer.renderToResponse(view, props, {});
-			const contents = await response.text();
-
-			const outputPath = this.getOutputPath(resolvedPath);
-			fileSystem.ensureDir(path.dirname(outputPath));
-			fileSystem.write(outputPath, contents);
-
-			appLogger.debug(`Generated static page: ${resolvedPath} -> ${outputPath}`);
-		}
+		return paths.map(({ params }) => ({
+			pathname: this.resolveRoutePath(routePath, params),
+			params,
+		}));
 	}
 
 	/**
@@ -326,24 +869,19 @@ export class StaticSiteGenerator {
 	/**
 	 * Get the output file path for a given route.
 	 */
-	private getOutputPath(routePath: string): string {
+	private getOutputPath(routePath: string, directories: string[] = []): string {
 		let outputName: string;
 
 		if (routePath === '/') {
 			outputName = 'index.html';
+		} else if (directories.includes(routePath)) {
+			outputName = `${routePath}/index.html`;
 		} else if (routePath.endsWith('/')) {
 			outputName = `${routePath}index.html`;
 		} else {
 			outputName = `${routePath}.html`;
 		}
 
-		return path.join(this.appConfig.rootDir, this.appConfig.distDir, outputName);
+		return path.join(this.getExportDir(), outputName);
 	}
-}
-
-/**
- * Splits a path into segments, filtering out empty strings.
- */
-function templateSegmentsFromPath(path: string) {
-	return path.split('/').filter(Boolean);
 }

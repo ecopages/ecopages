@@ -3,6 +3,9 @@
  * Injected into the browser to handle Hot Module Replacement updates.
  */
 
+import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
+import { applyModuleUpdate, resolveActiveModuleUrl } from './module-update.ts';
+
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
 	path?: string;
@@ -20,19 +23,21 @@ interface HMRPayload {
 
 		socket.addEventListener('open', () => {
 			console.log('[ecopages] HMR Connected');
+			(window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ = true;
 			reconnectAttempts = 0;
 		});
 
 		socket.addEventListener('message', async (event) => {
 			try {
 				const payload: HMRPayload = JSON.parse(event.data);
-				handleMessage(payload);
+				await handleMessage(payload);
 			} catch (e) {
 				console.error('[ecopages] Invalid HMR message:', e);
 			}
 		});
 
 		socket.addEventListener('close', () => {
+			(window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ = false;
 			if (reconnectAttempts < 10) {
 				setTimeout(connect, 1000 * 2 ** reconnectAttempts);
 				reconnectAttempts++;
@@ -41,17 +46,30 @@ interface HMRPayload {
 	}
 
 	async function handleMessage(payload: HMRPayload) {
+		const navigationRuntime = getEcoNavigationRuntime(window);
+
 		switch (payload.type) {
 			case 'reload':
+				await waitForNavigationToSettle(navigationRuntime);
+				if ((window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__) {
+					break;
+				}
 				location.reload();
 				break;
 			case 'layout-update': {
-				const reloadFn = window.__ecopages_reload_current_page__;
-				if (typeof reloadFn === 'function') {
-					await reloadFn({ clearCache: true });
-				} else {
-					location.reload();
+				await waitForNavigationToSettle(navigationRuntime);
+				if (
+					await navigationRuntime.reloadCurrentPage({
+						clearCache: true,
+						moduleUrl: getActiveHmrModuleUrl(),
+					})
+				) {
+					break;
 				}
+				if ((window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__) {
+					break;
+				}
+				location.reload();
 				break;
 			}
 			case 'error':
@@ -70,25 +88,51 @@ interface HMRPayload {
 		}
 	}
 
-	/**
-	 * Applies a module update by calling registered HMR handlers or re-importing the module.
-	 * @param path - The module path to update
-	 * @param timestamp - Optional timestamp for cache busting
-	 */
 	async function applyUpdate(path: string, timestamp?: number) {
-		try {
-			const url = path + '?t=' + (timestamp || Date.now());
-			const handlers = window.__ecopages_hmr_handlers__;
+		const navigationRuntime = getEcoNavigationRuntime(window);
 
-			if (handlers?.[path]) {
-				await handlers[path](url);
-				return;
-			}
+		await applyModuleUpdate(
+			path,
+			{
+				getHandlers: () => window.__ECO_PAGES__?.hmrHandlers,
+				getActivePageModule: () => window.__ECO_PAGES__?.page?.module,
+				reloadCurrentPage: async (request) => Boolean(await navigationRuntime.reloadCurrentPage(request)),
+				importModule: (url) => import(url),
+				waitForSettled: async () => waitForNavigationToSettle(navigationRuntime),
+			},
+			timestamp,
+		);
+	}
 
-			await import(url);
-		} catch (e) {
-			console.error('[ecopages] Failed to apply HMR update:', e);
+	function getActiveHmrModuleUrl(): string | undefined {
+		return resolveActiveModuleUrl(window.__ECO_PAGES__?.hmrHandlers ?? {}, window.__ECO_PAGES__?.page?.module);
+	}
+
+	async function waitForNavigationToSettle(navigationRuntime: ReturnType<typeof getEcoNavigationRuntime>) {
+		if (!navigationRuntime.hasPendingNavigationTransaction()) {
+			return;
 		}
+
+		await new Promise<void>((resolve) => {
+			const startedAt = performance.now();
+			const timeoutMs = 5_000;
+
+			const poll = () => {
+				if (!navigationRuntime.hasPendingNavigationTransaction()) {
+					resolve();
+					return;
+				}
+
+				if (performance.now() - startedAt >= timeoutMs) {
+					resolve();
+					return;
+				}
+
+				requestAnimationFrame(poll);
+			};
+
+			requestAnimationFrame(poll);
+		});
 	}
 
 	/**

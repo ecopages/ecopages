@@ -8,7 +8,15 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../internal-types.ts';
+import {
+	getAppModuleLoader,
+	setAppHostModuleLoader,
+} from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
+import { getHostModuleLoader } from '../../services/module-loading/host-module-loader-registry.ts';
+import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { invariant } from '../../utils/invariant.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -17,9 +25,65 @@ import type {
 	RouteOptions,
 	StaticRoute,
 	ViewLoader,
-} from '../../public-types.ts';
-import { fileSystem } from '@ecopages/file-system';
+	ErrorPageLoaders,
+	ErrorPageTemplateProps,
+	EcopagesRouteInfo,
+} from '../../types/public-types.ts';
+import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
+import { ERROR_PAGE_KIND_BY_STATUS, type HttpErrorPageStatus } from '../../errors/http-error-page-contract.ts';
+import {
+	formatRuntimeServerStartedMessage,
+	type EcopagesRuntimeLabel,
+} from '../../dev/runtime-server-started-message.ts';
 import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
+
+/**
+ * Runtime bootstrap options layered on top of the app config.
+ *
+ * These options let a host runtime embed Ecopages without mutating process
+ * globals or app runtime state before calling `createApp()`.
+ */
+export interface ApplicationRuntimeOptions {
+	/**
+	 * Forces the app into the embedded-runtime CLI mode used by host
+	 * environments.
+	 *
+	 * When enabled and no explicit `hostModuleLoader` is provided, the
+	 * adapter auto-detects a host module loader from the global scope.
+	 */
+	embedded?: boolean;
+	/**
+	 * Selects which layer injects browser dev-client bootstrap (HMR runtime, reload).
+	 *
+	 * `host` disables core injection and reload signaling so embedded hosts like
+	 * Vite own the full dev-client surface.
+	 */
+	devClientOwner?: 'core' | 'host';
+	/**
+	 * Explicit source module loader for request-time imports.
+	 *
+	 * When omitted in embedded mode, the adapter attempts automatic
+	 * detection from globals set by the host environment.
+	 */
+	hostModuleLoader?: SourceModuleLoader;
+}
+
+export interface AppStartInfo {
+	origin: string;
+	/**
+	 * Static-generation routes available when the runtime becomes ready.
+	 *
+	 * @remarks
+	 * Empty when the server adapter has no route registry yet, or when route
+	 * resolution fails (failures never block startup). Route resolution completes
+	 * before the `onAppStart` callback runs.
+	 */
+	routes: EcopagesRouteInfo[];
+}
+
+export type OnAppStartCallback = (info: AppStartInfo) => void;
 
 /**
  * Configuration options for application adapters
@@ -27,18 +91,18 @@ import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-arg
 export interface ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
-	/**
-	 * Options for clearing the output directory before starting the server
-	 * @default false
-	 */
-	clearOutput?: boolean;
+	runtime?: ApplicationRuntimeOptions;
 }
 
 /**
  * Common interface for application adapters
  */
-export interface ApplicationAdapter<T = any> {
-	start(): Promise<T | void>;
+export interface ApplicationAdapter<T = any> extends AsyncDisposable {
+	/** Boot the server. Pass a callback to run when the runtime is ready (optional). */
+	start(onAppStart?: OnAppStartCallback): Promise<T | void>;
+	/** Invoked by embedded hosts once the app can take traffic. */
+	handleListening(origin: string): void | Promise<void>;
+	stop(force?: boolean): Promise<void>;
 }
 
 /**
@@ -49,6 +113,12 @@ export type RouteHandler<
 	TServer = any,
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
 > = (context: TContext) => Promise<Response> | Response;
+
+export type RouteGroupDefinition<TRequest extends Request = Request, TServer = any> = {
+	prefix: string;
+	middleware?: readonly Middleware<TRequest, TServer, any>[];
+	routes: readonly ApiHandler<string, TRequest, TServer>[];
+};
 
 /**
  * Abstract base class for application adapters across different runtimes
@@ -61,39 +131,49 @@ export abstract class AbstractApplicationAdapter<
 	protected appConfig: EcoPagesAppConfig;
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
+	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
+	protected errorPageLoaders: ErrorPageLoaders = {};
 	protected errorHandler?: ErrorHandler;
+	/**
+	 * App-level WebSocket handlers keyed by URL path pattern (e.g. '/ws/chat/:id').
+	 * Both Bun and Node adapters read this map to register upgrade routes.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+	private onAppStartCallback?: OnAppStartCallback;
+	protected readonly runtimeLabel: EcopagesRuntimeLabel;
 
-	constructor(options: TOptions) {
+	constructor(options: TOptions, runtimeLabel: EcopagesRuntimeLabel) {
+		this.runtimeLabel = runtimeLabel;
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
-		this.cliArgs = parseCliArgs();
-
-		if (options.clearOutput) {
-			this.clearDistFolder().catch((error) => {
-				appLogger.error('Error clearing dist folder', error as Error);
-			});
+		this.runtimeOptions = options.runtime ?? {};
+		if (options.runtime) {
+			this.appConfig.runtime = {
+				...(this.appConfig.runtime ?? {}),
+				...options.runtime,
+			};
 		}
-	}
+		this.cliArgs = parseCliArgs({ embeddedRuntime: this.runtimeOptions.embedded });
 
-	private async clearDistFolder(_filter: string[] = []): Promise<void> {
-		const distPath = this.appConfig.absolutePaths.distDir;
-		const distExists = fileSystem.exists(distPath);
+		const hostModuleLoader =
+			this.runtimeOptions.hostModuleLoader ?? (this.runtimeOptions.embedded ? getHostModuleLoader() : undefined);
 
-		if (!distExists) return;
-
-		try {
-			await fileSystem.removeAsync(distPath);
-			appLogger.debug(`Cleared dist folder: ${distPath}`);
-		} catch (error) {
-			appLogger.error(`Error clearing dist folder: ${distPath}`, error as Error);
+		if (hostModuleLoader) {
+			setAppHostModuleLoader(this.appConfig, hostModuleLoader);
 		}
+
+		getAppModuleLoader(this.appConfig);
+
+		startupTrace.markConfigReady();
 	}
 
 	/**
-	 * Register a GET route handler
-	 * The handler expects a context where request.params exists.
+	 * Register a GET route handler.
+	 *
+	 * Use verb methods for inline route definitions.
+	 * For dynamic HTTP method registration, use `route(...)`.
 	 */
 	abstract get<
 		P extends string,
@@ -177,7 +257,11 @@ export abstract class AbstractApplicationAdapter<
 	): this;
 
 	/**
-	 * Register a route with any HTTP method
+	 * Register a route with an explicit HTTP method.
+	 *
+	 * This is useful when the method is determined programmatically, or when
+	 * registering a pre-built route declaration object by forwarding its
+	 * `path`, `method`, and `handler` fields.
 	 */
 	abstract route<P extends string>(
 		path: P,
@@ -185,6 +269,11 @@ export abstract class AbstractApplicationAdapter<
 		handler: RouteHandler<TRequest, TServer>,
 		options?: RouteOptions<TRequest, TServer>,
 	): this;
+
+	/**
+	 * Register a pre-built API handler declaration.
+	 */
+	abstract add(handler: ApiHandler<string, TRequest, TServer>): this;
 
 	/**
 	 * Internal method to add route handlers to the API handlers array
@@ -201,6 +290,16 @@ export abstract class AbstractApplicationAdapter<
 		middleware?: Middleware<TSpecRequest, TSpecServer, TContext>[],
 		schema?: ApiHandler['schema'],
 	): this {
+		invariant(
+			typeof path === 'string',
+			`Invalid route path for ${method}: expected a string path starting with "/" but received ${Object.prototype.toString.call(path)}. If you're passing a prebuilt ApiHandler, use app.add(handler).`,
+		);
+
+		invariant(
+			path.startsWith('/'),
+			`Invalid route path for ${method}: "${path}". Route paths must start with '/'.`,
+		);
+
 		this.apiHandlers.push({
 			path,
 			method,
@@ -217,6 +316,7 @@ export abstract class AbstractApplicationAdapter<
 	 *
 	 * Each adapter implements this with its own builder type to support
 	 * runtime-specific features (e.g., Bun's path parameter inference).
+	 * Implementations may also support passing a pre-built group object.
 	 *
 	 * @param prefix - URL prefix for all routes in the group (e.g., '/api/v1')
 	 * @param callback - Function that receives a builder to define routes
@@ -230,42 +330,156 @@ export abstract class AbstractApplicationAdapter<
 		},
 	): this;
 
-	/**
-	 * Get all registered API handlers
-	 */
-	getApiHandlers(): ApiHandler[] {
-		return this.apiHandlers;
-	}
+	abstract group(group: RouteGroupDefinition<TRequest, TServer>): this;
 
 	/**
 	 * Register a view for static generation at build time.
 	 * The view must have staticPaths defined for dynamic routes.
 	 *
-	 * Uses a loader function to enable HMR in development.
+	 * String and URL inputs load through the server-module transpiler so HMR and
+	 * component identity transforms remain active in development.
 	 *
 	 * @param path - URL path pattern (e.g., '/posts/:slug')
-	 * @param loader - A function that dynamically imports the eco.page view module
+	 * @param loader - A view loader function, source path, or URL for the eco.page view module
 	 * @example
 	 * ```typescript
-	 * app.static('/login', () => import('./src/views/login.kita'))
-	 * app.static('/posts/:slug', () => import('./src/views/post-view.kita'))
+	 * app.static('/login', './src/views/login.kita')
+	 * app.static('/posts/:slug', './src/views/post-view.kita')
 	 * ```
 	 */
-	static<P>(path: string, loader: ViewLoader<P>): this {
-		this.staticRoutes.push({ path, loader });
+	static<P>(path: string, loader: ViewLoader<P> | string | URL): this {
+		const resolvedLoader = this.resolveViewLoader(loader);
+		this.staticRoutes.push({ path, loader: resolvedLoader });
 		return this;
 	}
 
+	private resolveViewLoader<P>(loader: ViewLoader<P> | string | URL): ViewLoader<P> {
+		return typeof loader === 'string' || loader instanceof URL
+			? createViewModuleLoader<P>(this.appConfig, loader)
+			: loader;
+	}
+
 	/**
-	 * Get all registered static routes
+	 * Registers a semantic HTML error page used when no filesystem `pages/{status}.*`
+	 * file exists.
 	 */
-	getStaticRoutes(): StaticRoute[] {
-		return this.staticRoutes;
+	errorPage(status: HttpErrorPageStatus, loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		const kind = ERROR_PAGE_KIND_BY_STATUS[status];
+		const resolvedLoader = this.resolveViewLoader<ErrorPageTemplateProps>(loader);
+		this.errorPageLoaders = { ...this.errorPageLoaders, [kind]: resolvedLoader };
+		return this;
+	}
+
+	badRequest(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(400, loader);
+	}
+
+	unauthorized(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(401, loader);
+	}
+
+	forbidden(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(403, loader);
+	}
+
+	/**
+	 * Registers the not-found page used when no filesystem `pages/404.*` file exists.
+	 */
+	notFound(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(404, loader);
+	}
+
+	conflict(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(409, loader);
+	}
+
+	/**
+	 * Registers the server-error page used when no filesystem `pages/500.*` file exists.
+	 */
+	serverError(loader: ViewLoader<ErrorPageTemplateProps> | string | URL): this {
+		return this.errorPage(500, loader);
+	}
+
+	getErrorPageLoaders(): ErrorPageLoaders {
+		return this.errorPageLoaders;
+	}
+
+	/**
+	 * Register a WebSocket handler for the given path pattern.
+	 *
+	 * The runtime adapter handles the HTTP→WebSocket upgrade for this path
+	 * and routes lifecycle events to `handler`.
+	 *
+	 * Supports dynamic segments via `:param` syntax. The handler receives
+	 * typed `params` and `search` fields, and a typed `context` produced by
+	 * the optional `context()` factory.
+	 *
+	 * One pattern registration matches infinite path variations. For example,
+	 * `app.websocket('/ws/chat/:roomId', handler)` matches `/ws/chat/abc`,
+	 * `/ws/chat/xyz`, etc. Each connection receives its own `params.roomId`.
+	 *
+	 * Works across both Bun and Node runtimes — no runtime-specific imports needed.
+	 *
+	 * @example
+	 * ```typescript
+	 * app.websocket<ChatContext, { roomId: string }>('/ws/chat/:roomId', {
+	 *   async context({ params, search }) {
+	 *     return { username: search.username ?? 'anonymous', roomId: params.roomId };
+	 *   },
+	 *   onConnect(socket) {
+	 *     socket.send(`Welcome to room ${socket.context.roomId}`);
+	 *   },
+	 *   onMessage(socket, message) {
+	 *     if (message.kind === 'text') {
+	 *       socket.send(message.text);
+	 *     }
+	 *   },
+	 * });
+	 * ```
+	 */
+	websocket<TContext = unknown, TParams extends Record<string, string> = Record<string, string>>(
+		path: string,
+		handler: EcopagesWebSocketHandler<TContext, TParams>,
+	): this {
+		invariant(
+			typeof path === 'string' && path.startsWith('/'),
+			`app.websocket(): path must be a string starting with "/", got "${path}".`,
+		);
+
+		/**
+		 * Validate the pattern at registration time. Reject empty segments
+		 * and duplicate param names early.
+		 */
+		const segments = path.split('/').filter(Boolean);
+		const paramNames = new Set<string>();
+		for (const segment of segments) {
+			if (segment.startsWith(':')) {
+				const paramName = segment.slice(1);
+				invariant(
+					paramName.length > 0,
+					`app.websocket(): invalid pattern "${path}" — empty param name in segment ":${paramName}".`,
+				);
+				invariant(
+					!paramNames.has(paramName),
+					`app.websocket(): invalid pattern "${path}" — duplicate param name ":${paramName}".`,
+				);
+				paramNames.add(paramName);
+			}
+		}
+
+		this.websocketHandlers.set(path, handler as EcopagesWebSocketHandler<any, any>);
+		return this;
 	}
 
 	/**
 	 * Register a global error handler for all routes.
 	 * Useful for logging, monitoring integration, and custom error formatting.
+	 *
+	 * @remarks
+	 * It receives errors thrown by API handlers and their middleware, and errors
+	 * that escape the request pipeline. Page render failures render the error
+	 * page instead and do not reach it. Client disconnects answer 499 without
+	 * calling it.
 	 *
 	 * @example
 	 * ```typescript
@@ -281,27 +495,102 @@ export abstract class AbstractApplicationAdapter<
 	}
 
 	/**
-	 * Get the registered error handler
-	 */
-	getErrorHandler(): ErrorHandler | undefined {
-		return this.errorHandler;
-	}
-
-	/**
 	 * Initialize the server adapter based on the runtime
 	 */
 	protected abstract initializeServerAdapter(): Promise<any>;
 
 	/**
-	 * Start the application server
+	 * Boot the server. When `onAppStart` is passed, it runs once the runtime can take traffic.
+	 * Embedded apps only register the callback — the host (for example Vite) boots the port.
 	 */
-	public abstract start(): Promise<TServer | void>;
+	public async start(onAppStart?: OnAppStartCallback): Promise<TServer | void> {
+		if (onAppStart) {
+			this.onAppStartCallback = onAppStart;
+		}
+
+		if (this.runtimeOptions.embedded) {
+			return;
+		}
+
+		return this.bootServer();
+	}
+
+	/** Runtime-specific server boot (dev, preview, build). */
+	protected abstract bootServer(): Promise<TServer | void>;
+
+	protected logServerStarted(origin: string): void {
+		appLogger.info(formatRuntimeServerStartedMessage(this.runtimeLabel, origin));
+	}
 
 	/**
-	 * Makes a request to the running server using real HTTP fetch.
-	 * This is useful for testing API endpoints.
-	 * @param request - URL string or Request object
-	 * @returns Promise<Response>
+	 * Invoked by embedded hosts (for example Vite) once the app can take traffic.
 	 */
-	public abstract request(request: string | Request): Promise<Response>;
+	public async handleListening(origin: string): Promise<void> {
+		await this.notifyListening(origin);
+	}
+
+	protected async notifyListening(origin: string): Promise<void> {
+		const normalizedOrigin = origin.replace(/\/$/, '');
+
+		startupTrace.markServerListening();
+
+		const restartReason = process.env[ECOPAGES_DEV_RESTART_REASON_ENV];
+		if (restartReason) {
+			appLogger.info(`Development server restarted (${restartReason}).`);
+			delete process.env[ECOPAGES_DEV_RESTART_REASON_ENV];
+		}
+
+		if (!this.onAppStartCallback) {
+			this.logServerStarted(normalizedOrigin);
+			return;
+		}
+
+		await this.invokeAppStartCallback(normalizedOrigin);
+	}
+
+	/**
+	 * Resolves routes exposed on {@link AppStartInfo}.
+	 *
+	 * @remarks
+	 * Default is empty. Runtime adapters override this to read from the
+	 * initialized server route registry.
+	 */
+	protected async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		return [];
+	}
+
+	private async invokeAppStartCallback(origin: string): Promise<void> {
+		let routes: EcopagesRouteInfo[] = [];
+		try {
+			routes = await this.resolveAppRoutes();
+		} catch (error) {
+			appLogger.debug(
+				'Failed to resolve app start routes; continuing with empty routes',
+				error instanceof Error ? error.message : String(error),
+			);
+		}
+
+		this.onAppStartCallback?.({ origin, routes });
+	}
+
+	/**
+	 * Stops the application server and releases runtime resources.
+	 *
+	 * @remarks
+	 * Subclasses override this to shut down bound servers, watchers, and other
+	 * dev-time resources. The default implementation is a no-op so embedded
+	 * adapters that never call `start()` can still be used with `await using`.
+	 */
+	public async stop(_force = true): Promise<void> {}
+
+	public async [Symbol.asyncDispose](): Promise<void> {
+		await this.stop(true);
+	}
+
+	/**
+	 * Handles a standard Web request without requiring a bound network server.
+	 * This is the primary interoperability surface for embedding Ecopages inside
+	 * other runtimes and frameworks.
+	 */
+	public abstract fetch(request: TRequest): Promise<Response>;
 }

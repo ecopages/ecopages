@@ -6,6 +6,7 @@ import {
 	theodorePoncetQzephogqd7WUnsplashJpg,
 	urbanVintage78A265Wpio4UnsplashJpg,
 } from 'ecopages:images';
+import type { ReactNode } from 'react';
 
 const posts = [
 	{
@@ -28,7 +29,7 @@ const posts = [
 	},
 ];
 
-export default eco.page({
+export default eco.page<{}, ReactNode>({
 	layout: BaseLayout,
 
 	dependencies: {

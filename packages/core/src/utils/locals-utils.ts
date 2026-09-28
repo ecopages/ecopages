@@ -1,4 +1,4 @@
-import type { ApiHandlerContext } from '../public-types.ts';
+import type { ApiHandlerContext } from '../types/public-types.ts';
 
 /**
  * Creates a require function for validating and retrieving request locals.
@@ -14,7 +14,7 @@ import type { ApiHandlerContext } from '../public-types.ts';
  * ```
  */
 export function createRequire(getLocals: () => Record<string, unknown>): ApiHandlerContext['require'] {
-	return ((keyOrKeys: string | readonly string[], onMissing: () => Response) => {
+	return (keyOrKeys: string | readonly string[], onMissing: () => Response) => {
 		const locals = getLocals();
 		if (Array.isArray(keyOrKeys)) {
 			const result: Record<string, unknown> = {};
@@ -33,5 +33,5 @@ export function createRequire(getLocals: () => Record<string, unknown>): ApiHand
 			throw onMissing();
 		}
 		return value;
-	}) as unknown as ApiHandlerContext['require'];
+	};
 }

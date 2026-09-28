@@ -1,0 +1,221 @@
+import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.ts';
+import { SchemaError, validateStandardSchema } from './validate-standard-schema.ts';
+
+export interface ValidationResult<T = unknown> {
+	success: boolean;
+	data?: T;
+	errors?: Array<{
+		message: string;
+		path?: Array<string | number>;
+	}>;
+}
+
+export interface ValidationSource {
+	body?: unknown;
+	query?: Record<string, string>;
+	headers?: Record<string, string>;
+	params?: Record<string, string>;
+}
+
+export interface ValidationSchemas {
+	body?: StandardSchema;
+	query?: StandardSchema;
+	headers?: StandardSchema;
+	params?: StandardSchema;
+}
+
+export interface ValidatedData {
+	body?: unknown;
+	query?: unknown;
+	headers?: unknown;
+	params?: unknown;
+}
+
+/**
+ * Service for validating request data using Standard Schema compliant validators.
+ *
+ * This service provides a unified interface for validating HTTP request data (body, query parameters, headers)
+ * using any validation library that implements the Standard Schema specification.
+ *
+ * @example Using with Zod
+ * ```typescript
+ * import { z } from 'zod';
+ * import { SchemaValidationService } from './schema-validation-service.ts';
+ *
+ * const service = new SchemaValidationService();
+ * const result = await service.validateRequest(
+ *   { body: { title: 'Hello', count: 42 } },
+ *   { body: z.object({ title: z.string(), count: z.number() }) }
+ * );
+ *
+ * if (result.success) {
+ *   console.log(result.data.body);
+ * }
+ * ```
+ *
+ * @example Using with Valibot
+ * ```typescript
+ * import * as v from 'valibot';
+ *
+ * const result = await service.validateRequest(
+ *   { query: { page: '1' } },
+ *   { query: v.object({ page: v.string() }) }
+ * );
+ * ```
+ *
+ * @example Using with ArkType
+ * ```typescript
+ * import { type } from 'arktype';
+ *
+ * const result = await service.validateRequest(
+ *   { headers: { 'authorization': 'Bearer token' } },
+ *   { headers: type({ authorization: 'string' }) }
+ * );
+ * ```
+ *
+ * @example Multiple sources
+ * ```typescript
+ * const result = await service.validateRequest(
+ *   {
+ *     body: { title: 'Post' },
+ *     query: { format: 'json' },
+ *     headers: { 'content-type': 'application/json' }
+ *   },
+ *   {
+ *     body: z.object({ title: z.string() }),
+ *     query: v.object({ format: v.string() }),
+ *     headers: type({ 'content-type': 'string' })
+ *   }
+ * );
+ * ```
+ *
+ * Supported libraries: Zod, Valibot, ArkType, Effect Schema (with standardSchemaV1 wrapper)
+ */
+export class SchemaValidationService {
+	/**
+	 * Validates request data against provided schemas.
+	 *
+	 * Validates body, query parameters, and headers against their respective schemas.
+	 * All validations are performed, and errors are aggregated from all sources.
+	 *
+	 * @param source - The data to validate (body, query, headers)
+	 * @param schemas - The Standard Schema validators for each source
+	 * @returns Validation result with validated data or aggregated errors
+	 *
+	 * @example
+	 * ```typescript
+	 * const result = await service.validateRequest(
+	 *   { body: { name: 'John', age: 30 } },
+	 *   { body: z.object({ name: z.string(), age: z.number() }) }
+	 * );
+	 *
+	 * if (result.success) {
+	 *   const validated = result.data.body;
+	 * } else {
+	 *   console.error(result.errors);
+	 * }
+	 * ```
+	 */
+	private async validateRequestPart<T>(
+		schema: StandardSchema | undefined,
+		value: unknown,
+		assign: (data: T) => void,
+		allErrors: Array<{ message: string; path?: Array<string | number> }>,
+		shouldValidate: boolean,
+	): Promise<void> {
+		if (!schema || !shouldValidate) {
+			return;
+		}
+		const result = await this.validateWithSchema(schema, value);
+		if (!result.success) {
+			allErrors.push(...(result.errors || []));
+			return;
+		}
+		assign(result.data as T);
+	}
+
+	async validateRequest(
+		source: ValidationSource,
+		schemas: ValidationSchemas,
+	): Promise<ValidationResult<ValidatedData>> {
+		const validated: ValidatedData = {};
+		const allErrors: Array<{ message: string; path?: Array<string | number> }> = [];
+
+		await this.validateRequestPart(
+			schemas.body,
+			source.body,
+			(data) => {
+				validated.body = data;
+			},
+			allErrors,
+			schemas.body !== undefined && source.body !== undefined,
+		);
+		await this.validateRequestPart(
+			schemas.query,
+			source.query,
+			(data) => {
+				validated.query = data;
+			},
+			allErrors,
+			!!schemas.query && !!source.query,
+		);
+		await this.validateRequestPart(
+			schemas.headers,
+			source.headers,
+			(data) => {
+				validated.headers = data;
+			},
+			allErrors,
+			!!schemas.headers && !!source.headers,
+		);
+		await this.validateRequestPart(
+			schemas.params,
+			source.params,
+			(data) => {
+				validated.params = data;
+			},
+			allErrors,
+			!!schemas.params && !!source.params,
+		);
+
+		if (allErrors.length > 0) {
+			return { success: false, errors: allErrors };
+		}
+
+		return { success: true, data: validated };
+	}
+
+	/**
+	 * Validates a single value against a Standard Schema.
+	 */
+	private mapSchemaIssue(issue: StandardSchemaIssue): { message: string; path?: Array<string | number> } {
+		return {
+			message: issue.message,
+			path: issue.path?.map((p) => (typeof p === 'object' && 'key' in p ? p.key : p)) as
+				Array<string | number> | undefined,
+		};
+	}
+
+	private async validateWithSchema<T>(schema: StandardSchema, data: unknown): Promise<ValidationResult<T>> {
+		try {
+			const value = await validateStandardSchema(schema, data);
+			return { success: true, data: value as T };
+		} catch (error) {
+			if (error instanceof SchemaError) {
+				return {
+					success: false,
+					errors: error.issues.map((issue) => this.mapSchemaIssue(issue)),
+				};
+			}
+
+			return {
+				success: false,
+				errors: [
+					{
+						message: error instanceof Error ? error.message : 'Validation failed',
+					},
+				],
+			};
+		}
+	}
+}

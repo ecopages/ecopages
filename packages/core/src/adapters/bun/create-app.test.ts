@@ -1,88 +1,63 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
-import { EcopagesApp } from './create-app';
+import type { Server } from 'bun';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
+import { BunEcopagesApp } from './create-app.ts';
+import type { BunServerAdapterResult } from './server-adapter.ts';
 
-describe('EcopagesApp', () => {
-	let app: EcopagesApp;
+class TestBunEcopagesApp extends BunEcopagesApp {
+	public readonly getServerOptions = vi.fn(() => ({}));
 
-	beforeEach(() => {
-		app = new EcopagesApp({
-			appConfig: {} as any,
-		});
-	});
-
-	describe('HTTP Method Handlers', () => {
-		const testPath = '/test';
-		const testHandler = async () => {
-			return new Response('OK');
+	public async bootWith(cliArgs: Partial<ReturnParseCliArgs>): Promise<void> {
+		this.cliArgs = {
+			preview: false,
+			build: false,
+			start: false,
+			dev: false,
+			force: false,
+			serveOnly: false,
+			...cliArgs,
 		};
+		await this.bootServer();
+	}
 
-		test('get() adds GET route handler', () => {
-			app.get(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('GET');
-		});
+	protected override async initializeServerAdapter(): Promise<BunServerAdapterResult> {
+		return {
+			getServerOptions: this.getServerOptions,
+			applyBoundPort: () => {},
+			completeInitialization: async () => {},
+			dispose: async () => {},
+		} as unknown as BunServerAdapterResult;
+	}
+}
 
-		test('post() adds POST route handler', () => {
-			app.post(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('POST');
-		});
+function createApp() {
+	const runtimeHost: RuntimeHost<Server<undefined>, Bun.Serve.Options<undefined>> = {
+		start: async () => ({}) as Server<undefined>,
+		stop: async () => {},
+		getOrigin: () => 'http://localhost:3000',
+	};
+	return new TestBunEcopagesApp({ appConfig: { runtime: {} } as never }, { runtimeHost });
+}
 
-		test('put() adds PUT route handler', () => {
-			app.put(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('PUT');
-		});
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
-		test('delete() adds DELETE route handler', () => {
-			app.delete(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('DELETE');
-		});
+describe('BunEcopagesApp.bootServer', () => {
+	it('serves production start without HMR endpoints or Bun development mode', async () => {
+		const app = createApp();
 
-		test('patch() adds PATCH route handler', () => {
-			app.patch(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('PATCH');
-		});
+		await app.bootWith({ start: true });
 
-		test('options() adds OPTIONS route handler', () => {
-			app.options(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('OPTIONS');
-		});
-
-		test('head() adds HEAD route handler', () => {
-			app.head(testPath, testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].method).toBe('HEAD');
-		});
-
-		test('route() adds route with specified method', () => {
-			app.route('/custom', 'GET', testHandler);
-			const apiHandlers = app.getApiHandlers();
-			expect(apiHandlers).toHaveLength(1);
-			expect(apiHandlers[0].path).toBe('/custom');
-			expect(apiHandlers[0].method).toBe('GET');
-		});
+		expect(app.getServerOptions).toHaveBeenCalledWith({ enableHmr: false });
 	});
 
-	describe('request()', () => {
-		test('should throw error when server not started', async () => {
-			expect(app.request('/test')).rejects.toThrow('Server not started');
-		});
-	});
+	it('enables HMR endpoints in dev', async () => {
+		const app = createApp();
 
-	describe('completeInitialization()', () => {
-		test('should throw error when server adapter not initialized', async () => {
-			expect(app.completeInitialization({} as any)).rejects.toThrow('Server adapter not initialized');
-		});
+		await app.bootWith({ dev: true });
+
+		expect(app.getServerOptions).toHaveBeenCalledWith({ enableHmr: true });
 	});
 });

@@ -1,6 +1,6 @@
 {
 	"name": "@ecopages/lit",
-	"version": "0.1.105",
+	"version": "0.2.0",
 	"description": "Ecopages lit integration",
 	"keywords": [
 		"ecopages",
@@ -11,6 +11,9 @@
 	"main": "./src/lit.plugin.ts",
 	"types": "./src/lit.plugin.ts",
 	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"src"
 	],
@@ -22,23 +25,29 @@
 		"./styled-mixin": {
 			"default": "./src/styled-mixin.ts",
 			"types": "./src/styled-mixin.ts"
+		},
+		"./static-render-worker": {
+			"default": "./src/lit-static-render-worker.ts",
+			"types": "./src/lit-static-render-worker.ts"
 		}
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/ecopages/ecopages.git",
+		"url": "git+https://github.com/ecopages/ecopages.git",
 		"directory": "packages/integrations/lit"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"release:jsr": "bunx jsr publish"
+		"typecheck": "tsc --noEmit"
 	},
-	"dependencies": {
+	"devDependencies": {
+		"@ecopages/core": "workspace:*",
+		"@ecopages/testing": "workspace:*",
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"@ecopages/core": "workspace:*",
 		"@lit-labs/ssr": "^3.3.0",
 		"@lit-labs/ssr-client": "^1.1.7",
 		"lit": "^3.2.1"
-	},
-	"peerDependencies": {
-		"@ecopages/core": "workspace:*"
 	}
 }

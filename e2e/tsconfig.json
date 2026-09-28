@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"allowSyntheticDefaultImports": true,
+		"allowJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noImplicitOverride": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2021",
+		"types": ["node"],
+		"useDefineForClassFields": true,
+		"verbatimModuleSyntax": true
+	},
+	"include": ["playwright/**/*.ts", "scripts/playwright/**/*.ts", "fixtures/*/fixture.e2e.ts"],
+	"exclude": ["fixtures/**/node_modules/**", "fixtures/**/dist*/**", "fixtures/**/.eco*/**", "fixtures/**/src/**"]
+}

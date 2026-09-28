@@ -1,0 +1,255 @@
+---
+title: 'Image Processor'
+description: 'Optimize images at build time and render responsive EcoImage markup.'
+order: 9
+---
+
+import { CodeTabs } from '@/components/code-tabs';
+
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
+
+# Image Processor
+
+The `@ecopages/image-processor` package provides powerful image processing capabilities for transforming and optimizing images for web use in your Ecopages project.
+
+## Installation
+
+Install the package:
+
+<CodeTabs
+	name="image-processor-install"
+	tabs={[
+		{ id: 'npm', label: 'npm', code: 'npm install @ecopages/image-processor' },
+		{ id: 'pnpm', label: 'pnpm', code: 'pnpm add @ecopages/image-processor' },
+		{ id: 'bun', label: 'bun', code: 'bun add @ecopages/image-processor' },
+	]}
+	defaultSelectedKey="npm"
+/>
+
+## Configuration
+
+Add the image processor to your Ecopages configuration:
+
+```typescript
+import path from 'node:path';
+import { defineConfig } from '@ecopages/core/config';
+import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+import { imageProcessorPlugin } from '@ecopages/image-processor';
+
+const appRoot = import.meta.dirname;
+
+export default defineConfig({
+	rootDir: appRoot,
+	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
+	processors: [
+		imageProcessorPlugin({
+			options: {
+				sourceDir: path.resolve(appRoot, 'src/images'),
+				outputDir: path.resolve(appRoot, 'dist/images'),
+				publicPath: '/images',
+				acceptedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+				quality: 80,
+				format: 'webp',
+				sizes: [
+					{ width: 320, label: 'sm' },
+					{ width: 768, label: 'md' },
+					{ width: 1024, label: 'lg' },
+					{ width: 1920, label: 'xl' },
+				],
+			},
+		}),
+	],
+	integrations: [ecopagesJsxPlugin()],
+});
+```
+
+The processor name and image asset capabilities are fixed inside the plugin factory. Pass options only through `imageProcessorPlugin({ options })`.
+
+`outputDir` commonly targets a deployable path such as `dist/images`. Use a work-dir path only when processed files should stay inside `.eco` or another internal workspace.
+
+### Configuration Options
+
+All options live under `imageProcessorPlugin({ options })`:
+
+- `sourceDir`: Directory containing your source images
+- `outputDir`: Where processed images will be saved
+- `publicPath`: Public URL path for accessing images
+- `acceptedFormats`: Array of input image formats to process
+- `quality`: Output image quality (1-100)
+- `format`: Default output format
+- `sizes`: Array of responsive image sizes to generate
+
+## Package Structure
+
+The image processor provides several entry points:
+
+- Main processor: `@ecopages/image-processor`
+- Type definitions: `@ecopages/image-processor/types`
+- HTML Component: `@ecopages/image-processor/component/html`
+- Ecopages JSX Component: `@ecopages/image-processor/component/jsx`
+- React Component: `@ecopages/image-processor/component/react`
+
+Apps type `ecopages:images` through `import '@ecopages/image-processor/types'` in
+`modules.d.ts`. Named exports are generated at dev/build time.
+
+## Components Usage
+
+### HTML Component
+
+Returns a markup string. Call it as a function, or use it as JSX in string-based runtimes such as KitaJS.
+
+```typescript
+import { EcoImage } from '@ecopages/image-processor/component/html';
+
+const imageHtml = EcoImage({
+	src: '/images/hero.jpg',
+	alt: 'Hero image',
+	width: 800,
+	height: 600,
+	loading: 'lazy',
+});
+```
+
+### Ecopages JSX Component
+
+```typescript
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+
+function MyComponent() {
+	return (
+		<EcoImage src="/images/hero.jpg" alt="Hero image" width={800} height={600} loading="lazy" />
+	);
+}
+```
+
+### React Component
+
+```typescript
+import { EcoImage } from '@ecopages/image-processor/component/react';
+
+function MyComponent() {
+	return (
+		<EcoImage src="/images/hero.jpg" alt="Hero image" width={800} height={600} loading="lazy" />
+	);
+}
+```
+
+The `ecopages:images` virtual module provides a unified, type-safe way to handle images across your project:
+
+```typescript
+// All images from your source directory are available as named exports
+import { heroImage, profilePicture, blogThumbnail } from 'ecopages:images';
+
+// Names are automatically converted to camelCase
+// example:
+// src/images/hero-image.jpg -> heroImage
+// src/images/profile_picture.png -> profilePicture
+```
+
+You do not need to manually add `ecopages:images` to `dependencies.modules`; importing from `ecopages:images` is automatically detected and bundled.
+
+#### Benefits:
+
+- **TypeScript Integration**: Full autocompletion support for image names
+- **Automatic Processing**: Images are processed at build time
+- **Tree Shaking**: Only imported images and their required metadata are included in the final bundle
+- **Type Safety**: Prevents imports of non-existent images
+- **Unified API**: Consistent way to handle images across your project
+
+## Dependencies
+
+The image processor uses:
+
+- [sharp](https://sharp.pixelplumbing.com/) for high-performance image processing
+- React 19 for the React component integration
+- [@ecopages/logger](https://www.npmjs.com/package/@ecopages/logger) for logging
+
+## Examples
+
+```tsx
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
+
+<div class="grid gap-8">
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		layout="full-width"
+		height={200}
+	/>
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		width={600}
+		height={200}
+		layout="constrained"
+	/>
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		layout="fixed"
+		width={200}
+		height={200}
+	/>
+</div>;
+```
+
+<div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		layout="full-width"
+		height={200}
+	/>
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		width={600}
+		height={200}
+		layout="constrained"
+	/>
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		alt="green plant on persons hand"
+		layout="fixed"
+		width={200}
+		height={200}
+	/>
+</div>
+
+```tsx
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+import { janKoprivaNex3P5IbnpgUnsplashJpg } from 'ecopages:images';
+
+<div class="grid gap-8">
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		width={400}
+		alt="green plant on persons hand"
+		priority={true}
+		unstyled={true}
+		data-test="attribute"
+	/>
+	<EcoImage {...janKoprivaNex3P5IbnpgUnsplashJpg} alt="green plant on persons hand" width={300} aspectRatio="1/2" />
+</div>;
+```
+
+<div class="grid gap-8 resize-x overflow-auto border border-on-background max-w-full place-items-center">
+	<EcoImage
+		{...janKoprivaNex3P5IbnpgUnsplashJpg}
+		width={400}
+		alt="green plant on persons hand"
+		priority={true}
+		unstyled={true}
+		data-test="attribute"
+	/>
+	<EcoImage {...janKoprivaNex3P5IbnpgUnsplashJpg} alt="green plant on persons hand" width={300} aspectRatio="1/2" />
+</div>
+
+Photo by <a href="https://unsplash.com/@jxk?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash">Jan Kopřiva</a> on <a href="https://unsplash.com/photos/green-plant-on-persons-hand-nex3P5iBnPg?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash">Unsplash</a>
+
+## See also
+
+- [Custom Processor](/docs/plugins/custom-processor) — authoring processors
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when processor hooks run

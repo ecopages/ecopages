@@ -1,0 +1,459 @@
+import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
+import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
+import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { NodeClientBridge } from './node-client-bridge.ts';
+import { NodeHmrManager } from './node-hmr-manager.ts';
+import type {
+	ApiHandler,
+	ErrorHandler,
+	StaticRoute,
+	ErrorPageLoaders,
+	EcopagesWebSocketHandler,
+} from '../../types/public-types.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
+import {
+	attachNodeHttpWebSocketUpgrades,
+	type WebSocketUpgradeOptions,
+} from '../shared/ws/node-http-websocket-upgrades.ts';
+
+import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
+import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
+import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
+import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
+import {
+	attachHmrToIntegrations,
+	disposeDevResources,
+	prepareRuntimePublicDir,
+	startDevWarmup,
+} from '../shared/runtime/runtime-server-lifecycle.ts';
+import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { isNodeClientAbortError } from './http-request-bridge.ts';
+import { NodeStaticPreviewHost } from './static-preview-host.ts';
+import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
+import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
+
+export type NodeServerInstance = NodeHttpServer;
+export type NodeServeAdapterServerOptions = {
+	port?: number;
+	hostname?: string;
+	[key: string]: unknown;
+};
+
+export interface NodeServerAdapterParams {
+	appConfig: EcoPagesAppConfig;
+	runtimeOrigin: string;
+	serveOptions: NodeServeAdapterServerOptions;
+	apiHandlers?: ApiHandler[];
+	staticRoutes?: StaticRoute[];
+	errorPageLoaders?: ErrorPageLoaders;
+	errorHandler?: ErrorHandler;
+	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
+	hostOwnsDevClient?: boolean;
+	options?: {
+		watch?: boolean;
+	};
+	deferRuntimeAssetSetup?: boolean;
+	allowPortFallback?: boolean;
+	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
+	previewHost?: StaticPreviewHost;
+}
+
+export interface NodeServerAdapterResult extends ServerAdapterResult {
+	completeInitialization: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => Promise<void>;
+	handleRequest: (request: Request) => Promise<Response>;
+	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => void;
+	dispose: () => Promise<void>;
+}
+
+/**
+ * Node.js HTTP server adapter for the Ecopages runtime.
+ *
+ * `NodeServerAdapter` bridges the Node.js `http` module and the Ecopages
+ * `SharedServerAdapter` abstraction, translating between Node's
+ * `IncomingMessage`/`ServerResponse` API and the platform-agnostic Web
+ * `Request`/`Response` model.
+ *
+ * Lifecycle:
+ * 1. `createAdapter()` — calls `initialize()` and returns the public adapter result.
+ * 2. `completeInitialization(server)` — called once the HTTP server is listening.
+ *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
+ *    `options.watch` is `true`.
+ * 3. `handleRequest(request)` — delegates to `handleSharedRequest` for routing;
+ *    intercepts `ClientAbortError` to return 499 instead of 500 and sends every
+ *    other escaped error through the shared `app.onError` boundary.
+ * 4. `buildStatic()` — generates static pages in-process through the shared
+ *    static builder (no runtime server), then optionally starts the preview server.
+ *
+ * @see SharedServerAdapter for routing, caching and response handler logic.
+ */
+export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterParams, NodeServerAdapterResult> {
+	private serverInstance: NodeServerInstance | null = null;
+	private initialized = false;
+	private apiHandlers: ApiHandler[];
+	private staticRoutes: StaticRoute[];
+	private errorPageLoaders: ErrorPageLoaders;
+	private errorHandler?: ErrorHandler;
+	private bridge: NodeClientBridge | null = null;
+	private hmrManager: NodeHmrManager | null = null;
+	private projectWatcher: ProjectWatcher | null = null;
+	private adapterDisposed = false;
+	private readonly deferRuntimeAssetSetup: boolean;
+	private readonly allowPortFallback: boolean;
+	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
+	private readonly previewHost: StaticPreviewHost;
+	/**
+	 * Reference to the application-level WebSocket handlers map.
+	 *
+	 * @remarks
+	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * passed in via the constructor. The Node adapter reads from it to wire
+	 * WebSocket upgrades for user-registered patterns.
+	 */
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+
+	/**
+	 * Wires user WebSocket routes onto a foreign Node HTTP server.
+	 *
+	 * Host integrations such as the Vite plugin call this so `app.websocket()`
+	 * handlers work while HTTP is still served by the host dev server.
+	 */
+	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: WebSocketUpgradeOptions): void {
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: this.runtimeOrigin,
+			websocketHandlers: this.websocketHandlers,
+			passthroughUnmatched: options?.passthroughUnmatched,
+		});
+	}
+
+	/**
+	 * @remarks
+	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
+	 * factory callers can omit it, but it is mandatory by the time the concrete
+	 * adapter is constructed — {@link createNodeServerAdapter} fills in the Node
+	 * default first. The constructor signature makes that invariant explicit
+	 * instead of relying on non-null assertions.
+	 */
+	constructor(
+		options: NodeServerAdapterParams & {
+			previewHost: StaticPreviewHost;
+		},
+	) {
+		super(options);
+		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
+		this.allowPortFallback = options.allowPortFallback !== false;
+		this.onDevelopmentRestart = options.onDevelopmentRestart;
+		this.apiHandlers = options.apiHandlers || [];
+		this.staticRoutes = options.staticRoutes || [];
+		this.errorPageLoaders = options.errorPageLoaders ?? {};
+		this.errorHandler = options.errorHandler;
+		this.previewHost = options.previewHost;
+		if (options.websocketHandlers) {
+			this.websocketHandlers = options.websocketHandlers;
+		}
+		this.hostOwnsDevClient = options.hostOwnsDevClient === true;
+	}
+
+	/**
+	 * Prepares the adapter for use.
+	 *
+	 * Order is intentional:
+	 * 1. **Loaders** are registered first so processors and integrations can
+	 *    reference loader-provided file types in their own plugins.
+	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
+	 *    before the first request arrives.
+	 * 3. **Plugins** (processors, then integrations) are set up after the public dir
+	 *    is in place so they can safely reference dist-relative paths.
+	 * 4. **Router** is initialised last because it may depend on files written by
+	 *    processors during their `setup()` calls.
+	 */
+	public async initialize(): Promise<void> {
+		installBuildRuntime(this.appConfig);
+
+		prepareRuntimePublicDir(this.appConfig);
+		if (!this.deferRuntimeAssetSetup) {
+			await setupAppRuntimePlugins({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+			});
+		}
+		await this.initializeSharedRouteHandling({
+			staticRoutes: this.staticRoutes,
+			errorPageLoaders: this.errorPageLoaders,
+			hmrManager: this.hmrManager ?? undefined,
+		});
+		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		this.staticBuilder = new ServerStaticBuilder({
+			appConfig: this.appConfig,
+			staticSiteGenerator: this.staticSiteGenerator,
+			serveOptions: this.serveOptions,
+			runtimeOrigin: this.runtimeOrigin,
+			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
+			hmrManager: this.hmrManager ?? undefined,
+		});
+		this.initialized = true;
+	}
+
+	public getServerOptions(): NodeServeAdapterServerOptions {
+		return {
+			...this.serveOptions,
+		};
+	}
+
+	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined> {
+		if (!this.initialized) {
+			await this.initialize();
+		}
+
+		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
+		await this.staticBuilder.build(
+			{ baseUrl, force: options?.force },
+			{
+				router: this.router,
+				routeRendererFactory: this.routeRendererFactory,
+				staticRoutes: this.staticRoutes,
+				errorPageLoaders: this.errorPageLoaders,
+			},
+		);
+
+		if (!options?.preview) {
+			return undefined;
+		}
+
+		return this.startPreviewServer();
+	}
+
+	/**
+	 * Serves an existing static export without running SSG. Used by e2e preview
+	 * launchers after a shared prewarm build.
+	 */
+	public async servePreviewOnly(): Promise<string | undefined> {
+		if (!this.initialized) {
+			await this.initialize();
+		}
+
+		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
+		if (!fileSystem.exists(distPath)) {
+			throw new Error(
+				`Cannot serve preview without building first: dist directory "${this.appConfig.distDir}" not found in "${this.appConfig.rootDir}".`,
+			);
+		}
+
+		return this.startPreviewServer();
+	}
+
+	private async startPreviewServer(): Promise<string | undefined> {
+		const activePreviewPort = await this.previewHost.start({
+			appConfig: this.appConfig,
+			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
+			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
+			allowPortFallback: this.allowPortFallback,
+		});
+
+		if (!activePreviewPort) {
+			return undefined;
+		}
+
+		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
+		return `http://${previewHostname}:${activePreviewPort}`;
+	}
+
+	public async createAdapter(): Promise<NodeServerAdapterResult> {
+		await this.initialize();
+
+		return {
+			getServerOptions: this.getServerOptions.bind(this),
+			buildStatic: this.buildStatic.bind(this),
+			servePreviewOnly: this.servePreviewOnly.bind(this),
+			completeInitialization: this.completeInitialization.bind(this),
+			handleRequest: this.handleRequest.bind(this),
+			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
+			applyBoundPort: this.applyBoundPort.bind(this),
+			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
+			dispose: this.dispose.bind(this),
+		};
+	}
+
+	/**
+	 * Releases dev-time resources owned by the adapter.
+	 *
+	 * @remarks
+	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
+	 * should shut down transport through the runtime host before disposing.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.adapterDisposed) {
+			return;
+		}
+
+		this.adapterDisposed = true;
+
+		await disposeDevResources({
+			projectWatcher: this.projectWatcher,
+			appConfig: this.appConfig,
+			hmrManager: this.hmrManager,
+			bridge: this.bridge,
+			previewHost: this.previewHost,
+		});
+
+		this.projectWatcher = null;
+		this.hmrManager = null;
+		this.bridge = null;
+	}
+
+	/**
+	 * Handles a single incoming Web `Request` and returns a Web `Response`.
+	 *
+	 * Delegates to `handleSharedRequest` for all routing, caching, and response
+	 * handler logic. Escaped errors go through the shared `app.onError`
+	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499.
+	 */
+	public async handleRequest(request: Request): Promise<Response> {
+		if (!this.initialized) {
+			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
+		}
+
+		const context = {
+			apiHandlers: this.apiHandlers,
+			errorHandler: this.errorHandler,
+			serverInstance: this.serverInstance,
+			hmrManager: this.hmrManager ?? undefined,
+		};
+
+		try {
+			return await this.handleSharedRequest(request, context);
+		} catch (error) {
+			return await this.handleUnexpectedRequestError(error, request, context);
+		}
+	}
+
+	/**
+	 * @remarks
+	 * The request body stream raises `NodeClientAbortError` when the socket closes
+	 * early (closed tab, network drop, programmatic abort).
+	 */
+	protected override isClientAbortError(error: unknown): boolean {
+		return isNodeClientAbortError(error);
+	}
+
+	/**
+	 * Called once the HTTP server is bound and listening.
+	 *
+	 * When `options.watch` is `true` this method wires the full HMR pipeline:
+	 * - A `WebSocketServer` is attached to the existing HTTP server via the
+	 *   `upgrade` event (no separate port needed).
+	 * - `NodeClientBridge` tracks active WebSocket connections and handles
+	 *   broadcast + heartbeat cleanup.
+	 * - `NodeHmrManager` watches the filesystem and triggers incremental
+	 *   rebuilds, notifying connected clients via the bridge.
+	 * - Shared watcher bootstrapping listens for route-level file changes and
+	 *   refreshes the router and response handlers when pages are added or removed.
+	 *
+	 * WebSocket upgrade requests that do not match a known path are rejected with an
+	 * immediate socket destroy to prevent unhandled upgrade leaks, unless
+	 * `passthroughUnmatched` is set because a host (for example Vite) shares the
+	 * server and owns other upgrade paths.
+	 */
+	public async completeInitialization(server: NodeServerInstance, options?: WebSocketUpgradeOptions): Promise<void> {
+		this.serverInstance = server;
+
+		const passthroughUnmatched = options?.passthroughUnmatched;
+
+		if (this.options?.watch) {
+			const devRuntime = createNodeServerDevRuntime(this.appConfig);
+			const wss = devRuntime.websocketServer;
+			this.bridge = devRuntime.bridge;
+			this.hmrManager = devRuntime.hmrManager;
+			this.hmrManager.setEnabled(true);
+
+			await this.hmrManager.ensureRuntimeReady();
+
+			const hmrPreflight = (
+				req: IncomingMessage,
+				socket: import('node:stream').Duplex,
+				head: Buffer,
+			): boolean => {
+				const url = new URL(req.url ?? '/', this.runtimeOrigin);
+				if (url.pathname !== '/_hmr') return false;
+				wss.handleUpgrade(req, socket, head, (ws) => {
+					this.bridge!.subscribe(ws);
+					ws.on('close', () => this.bridge!.unsubscribe(ws));
+					ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+				});
+				return true;
+			};
+
+			attachNodeHttpWebSocketUpgrades(server, {
+				runtimeOrigin: this.runtimeOrigin,
+				websocketHandlers: this.websocketHandlers,
+				passthroughUnmatched,
+				preflight: hmrPreflight,
+			});
+
+			attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			startDevWarmup({
+				appConfig: this.appConfig,
+				runtimeOrigin: this.runtimeOrigin,
+			});
+
+			this.configureSharedResponseHandlers({
+				staticRoutes: this.staticRoutes,
+				hmrManager: this.hmrManager,
+				errorPageLoaders: this.errorPageLoaders,
+			});
+
+			await this.startDevStaticRoutePrewarmWhenReady();
+
+			const watcher = new ProjectWatcher({
+				config: this.appConfig,
+				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
+					staticRoutes: this.staticRoutes,
+					errorPageLoaders: this.errorPageLoaders,
+					hmrManager: this.hmrManager ?? undefined,
+				}),
+				hmrManager: this.hmrManager ?? undefined,
+				bridge: this.bridge,
+				hostOwnsDevClient: this.hostOwnsDevClient,
+				onRestartRequest: this.onDevelopmentRestart,
+				entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
+			});
+
+			this.projectWatcher = watcher;
+			await watcher.createWatcherSubscription();
+		} else {
+			this.attachUserWebSocketUpgrades(server, { passthroughUnmatched });
+		}
+
+		appLogger.debug('Node server adapter initialization completed', {
+			apiHandlers: this.apiHandlers.length,
+			staticRoutes: this.staticRoutes.length,
+			hasErrorHandler: !!this.errorHandler,
+			hmrEnabled: !!this.hmrManager?.isEnabled(),
+		});
+	}
+}
+
+/**
+ * Factory function that creates and fully initialises a `NodeServerAdapter`.
+ *
+ * `runtimeOrigin` is derived from `serveOptions` when not explicitly provided,
+ * so callers only need to set it when the server is behind a reverse proxy that
+ * changes the effective host or port.
+ */
+export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
+	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
+	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
+
+	const adapter = new NodeServerAdapter({
+		...params,
+		runtimeOrigin,
+		previewHost,
+	});
+
+	return adapter.createAdapter();
+}

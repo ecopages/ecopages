@@ -6,7 +6,7 @@
 import { createContext, useContext } from 'react';
 
 export type RouterContextValue = {
-	navigate: (url: string) => void;
+	navigate: (url: string) => Promise<void>;
 	isNavigating: boolean;
 };
 

@@ -26,6 +26,8 @@ Keep `baseBranch` and the Publish branch list pointed at the line you are actual
 
 `pnpm changeset pre enter <tag>` writes `pre.json`. While that file exists with `"mode": "pre"`, Version Packages PRs append `-<tag>.N` and npm publish uses that dist-tag instead of `latest`.
 
+New changesets belong in `.changeset/*.md`. After a version is cut, pre mode moves that file into `.changeset/pre/`. Files already in `pre/` are an archive and are not versioned again.
+
 `pnpm changeset pre exit` marks the intent to leave pre mode. The next Version Packages PR promotes to a stable version and publishes to `latest`.
 
 ## What gets published

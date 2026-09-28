@@ -10,7 +10,7 @@ PRs that change user-facing package behavior add a changeset. Merging into `main
 
 A changeset describes the **final** author-facing behavior, not the implementation steps that got there. Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are not published.
 
-Until 0.2.0 is on npm `latest`, the Version Packages PR still targets `release/v0.2.0`. Publish itself runs only on `main`. The cut checklist is [`ship-0.2.0.md`](./ship-0.2.0.md). After that cut the remote has only `main` and `develop`.
+Until 0.2.0 is on npm `latest`, the Version Packages PR still targets `release/v0.2.0`. Publish itself runs only on `main`. The cut checklist is [`.github/ship-0.2.0.md`](../.github/ship-0.2.0.md). After that cut the remote has only `main` and `develop`.
 
 ## After a change
 
@@ -27,14 +27,14 @@ These two must name the same production line. Editing only this README does not 
 | File                                                                                   | Role                                                                                                 |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | [`config.json`](./config.json) `baseBranch`                                            | Branch Changesets diffs against when assembling a release.                                           |
-| [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) `on.push.branches` | Pushes that run versioning and publish. Production is `main` only. |
+| [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) `on.push.branches` | Pushes that run versioning and publish. Production is `main` only.                                   |
 | [`pre.json`](./pre.json)                                                               | Present in pre mode (`mode: pre`) or while exiting it (`mode: exit`). Delete after a stable version. |
 
 ## Pre mode
 
 `pnpm changeset pre enter <tag>` writes `pre.json`. While `mode` is `pre`, Version Packages PRs append `-<tag>.N` and npm publish uses that dist-tag (`rc` → `0.2.0-rc.14` on dist-tag `rc`).
 
-New changesets belong in `.changeset/*.md`. After a version, pre mode moves that file into `.changeset/pre/`. Files already in `pre/` are consumed again on the next **stable** version unless you delete or rewrite them first. That is how RC iteration would leak into `## 0.2.0`.
+New changesets belong in `.changeset/*.md` with YAML frontmatter. `README.md` is the only other markdown this folder may contain; extra files here are parsed as changesets and fail Publish. After a version, pre mode moves that file into `.changeset/pre/`. Files already in `pre/` are consumed again on the next **stable** version unless you delete or rewrite them first.
 
 `pnpm changeset pre exit` sets `mode` to `exit`. The next Version Packages PR promotes to a stable version and publishes to `latest`.
 

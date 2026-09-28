@@ -168,7 +168,7 @@ Commit the generated file under `.changeset/`. Do not bump `package.json` versio
 
 Public packages are a **fixed** group: they always share one version. The Publish workflow tests the same commit, then versions and publishes through Changesets. Compilation to `dist` runs only when publishing. The install entrypoint is the `ecopages` CLI.
 
-How versioning works: [`.changeset/README.md`](.changeset/README.md). The 0.2.0 cut checklist is [`.changeset/ship-0.2.0.md`](.changeset/ship-0.2.0.md).
+How versioning works: [`.changeset/README.md`](.changeset/README.md). The 0.2.0 cut checklist is [`.github/ship-0.2.0.md`](.github/ship-0.2.0.md).
 
 ## Embracing Simplicity with a Side of Verbosity
 

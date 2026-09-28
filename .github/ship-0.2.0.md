@@ -2,7 +2,9 @@
 
 One-time cut from `release/v0.2.0`. Delete this file after `develop` is the GitHub default branch.
 
-Durable process after this cut: [`README.md`](./README.md).
+Durable process after this cut: [`.changeset/README.md`](../.changeset/README.md).
+
+Do not put this file under `.changeset/`. Every other `*.md` there is parsed as a changeset.
 
 ## History
 
@@ -12,13 +14,13 @@ Merge every pull request in this cut with a merge commit. Do not squash `release
 gh pr merge <number> --merge
 ```
 
-The 0.2.0 changelog is the `stable-0.2.0-*.md` files in this folder. RC notes were removed from `pre/` so they do not appear under `## 0.2.0`. Prerelease GitHub Releases and git tags keep that history.
+The 0.2.0 changelog is the `stable-0.2.0-*.md` files in `.changeset/`. RC notes were removed from `.changeset/pre/` so they do not appear under `## 0.2.0`. Prerelease GitHub Releases and git tags keep that history.
 
 ## Sequence
 
-1. Commit and push the pre-exit prep on `release/v0.2.0` (`pre.json` `mode` is `exit`). Direct push is fine; this branch is the RC line. The in-flight Publish run on that push opens the Version Packages PR.
-2. Review the Version Packages PR (`## 0.2.0` only). Merge it with a merge commit. That commit versions packages on `release/v0.2.0`. It does not publish; Publish no longer runs on `release/*`.
-3. Set `config.json` `baseBranch` to `main`. Open a PR from `release/v0.2.0` into `main` and merge it with a merge commit. That push to `main` runs `test:all` and `changeset publish`.
+1. Commit and push the pre-exit prep on `release/v0.2.0` (`pre.json` `mode` is `exit`). Direct push is fine; this branch is the RC line.
+2. Open the Version Packages PR with **Publish** `workflow_dispatch` on `release/v0.2.0` if a push did not trigger it (Publish `on.push` is `main` only). Review `## 0.2.0` only. Merge it with a merge commit. That commit versions packages on `release/v0.2.0`. It does not publish.
+3. Set `.changeset/config.json` `baseBranch` to `main`. Open a PR from `release/v0.2.0` into `main` and merge it with a merge commit. That push to `main` runs `test:all` and `changeset publish`.
 4. Confirm `npm view @ecopages/core dist-tags` shows `latest: 0.2.0`, and that git tag `v0.2.0` exists (`ecopages init` needs it).
 5. Create the default integration branch:
 

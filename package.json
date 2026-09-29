@@ -10,6 +10,7 @@
 		"build:docs": "pnpm --filter @ecopages/docs run build",
 		"build:npm": "node scripts/build-npm-packages.ts",
 		"changeset": "changeset",
+		"changeset:version": "changeset version && node scripts/sync-root-version.ts",
 		"release": "node scripts/build-npm-packages.ts --stamp-publish-directory && changeset publish",
 		"template:local-npm": "node scripts/run-template-with-local-npm.ts",
 		"start:docs": "pnpm --filter @ecopages/docs run start",

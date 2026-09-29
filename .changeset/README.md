@@ -8,9 +8,7 @@ PRs that change user-facing package behavior add a changeset. Merging into `main
 
 `develop` is the default integration branch. Feature work lands there. `main` is production.
 
-A changeset describes the **final** author-facing behavior, not the implementation steps that got there. Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are not published.
-
-Until 0.2.0 is on npm `latest`, the Version Packages PR still targets `release/v0.2.0`. Publish itself runs only on `main`. The cut checklist is [`.github/ship-0.2.0.md`](../.github/ship-0.2.0.md). After that cut the remote has only `main` and `develop`.
+A changeset describes the **final** author-facing behavior, not the implementation steps that got there. Public packages are one **fixed** group, so they always share a version. Private workspace packages (playgrounds, templates, docs, fixtures) are not published. The repo-root `package.json` is not a workspace member, so Changesets cannot bump it. Version Packages runs `pnpm run changeset:version`, which copies the CLI version onto the root manifest after `changeset version`.
 
 ## After a change
 
@@ -22,12 +20,13 @@ Feature PRs into `develop` may squash. Merging into `main` uses a merge commit s
 
 ## Files of record
 
-These two must name the same production line. Editing only this README does not retarget a release.
+These files must name the same production line. Editing only this README does not retarget a release.
 
 | File                                                                                   | Role                                                                                                 |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | [`config.json`](./config.json) `baseBranch`                                            | Branch Changesets diffs against when assembling a release.                                           |
 | [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) `on.push.branches` | Pushes that run versioning and publish. Production is `main` only.                                   |
+| `pnpm run changeset:version`                                                           | Version Packages command: `changeset version`, then sync root `package.json` to the CLI version.     |
 | [`pre.json`](./pre.json)                                                               | Present in pre mode (`mode: pre`) or while exiting it (`mode: exit`). Delete after a stable version. |
 
 ## Pre mode

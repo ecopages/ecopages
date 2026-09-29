@@ -1,9 +1,7 @@
 import cliJson from '../../../../packages/ecopages/package.json';
 
 /**
- * Version shown in docs chrome.
- *
  * @remarks
- * The workspace root `package.json` is private and not in the Changesets group, so it can lag the published CLI.
+ * The workspace root version is kept in sync by `pnpm run changeset:version`.
  */
 export const frameworkVersion: string = cliJson.version;

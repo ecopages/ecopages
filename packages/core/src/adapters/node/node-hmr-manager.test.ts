@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
 
@@ -34,7 +34,7 @@ test('NodeHmrManager shares one in-flight entrypoint registration across concurr
 	const entrypointPath = path.join(pagesDir, 'react-lab.tsx');
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -62,7 +62,7 @@ test('NodeHmrManager does not broadcast HMR events for initial entrypoint regist
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const broadcast = vi.fn();
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -86,7 +86,7 @@ test('NodeHmrManager registers unowned page entrypoints with dev transform URLs'
 	const entrypointPath = path.join(pagesDir, 'react-content.mdx');
 	fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -109,7 +109,7 @@ test('NodeHmrManager registers script entrypoints with dev transform URLs withou
 	const entrypointPath = path.join(srcDir, 'script.ts');
 	fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -140,7 +140,7 @@ test('NodeHmrManager registers script entrypoints with dev transform URLs withou
 
 test('NodeHmrManager disables HMR instead of throwing when runtime bundle generation crashes', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-runtime-failure');
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -181,7 +181,7 @@ test('NodeHmrManager broadcasts dev transform update when a watched page source 
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
 	const broadcast = vi.fn();
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -207,7 +207,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 	const entrypointPath = path.join(pagesDir, 'react-content.tsx');
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {
@@ -226,7 +226,7 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 
 test('NodeHmrManager keeps internal browser and server-module outputs out of distDir', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-internal-paths');
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {

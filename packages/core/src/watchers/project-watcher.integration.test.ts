@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../types/internal-types';
-import { ConfigBuilder } from '../config/config-builder';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
 const TEST_ROOT = path.join(os.tmpdir(), 'ecopages-integration-test-temp');
@@ -25,7 +25,7 @@ const writeTestFile = (filePath: string, content: string): void => {
 
 const createIntegrationConfig = async (testId: string): Promise<EcoPagesAppConfig> => {
 	const rootDir = path.join(TEST_ROOT, testId);
-	return await new ConfigBuilder().setRootDir(rootDir).build();
+	return await finalizeEcoPagesConfig({ rootDir });
 };
 
 describe('ProjectWatcher - Integration Tests', () => {

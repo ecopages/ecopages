@@ -3,12 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineConfig } from './define-config.ts';
-import {
-	clearEcoPagesConfigCachesForTests,
-	finalizeEcoPagesConfig,
-	loadEcoPagesConfig,
-	loadEcoPagesUserConfig,
-} from './load-eco-config.ts';
+import { finalizeEcoPagesConfig } from './finalize-config.ts';
+import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
 import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 
 describe('defineConfig', () => {
@@ -163,23 +159,8 @@ describe('loadEcoPagesConfig', () => {
 	});
 
 	it('finalizeEcoPagesConfig produces distinct configs for distinct userConfig objects', async () => {
-		const loadedA = {
-			config: defineConfig({
-				rootDir: tempDir,
-				baseUrl: 'http://a.com',
-			}),
-			configFilePath: path.join(tempDir, 'eco.config.ts'),
-		};
-		const loadedB = {
-			config: defineConfig({
-				rootDir: tempDir,
-				baseUrl: 'http://b.com',
-			}),
-			configFilePath: path.join(tempDir, 'eco.config.ts'),
-		};
-
-		const configA = await finalizeEcoPagesConfig(loadedA);
-		const configB = await finalizeEcoPagesConfig(loadedB);
+		const configA = await finalizeEcoPagesConfig(defineConfig({ rootDir: tempDir, baseUrl: 'http://a.com' }));
+		const configB = await finalizeEcoPagesConfig(defineConfig({ rootDir: tempDir, baseUrl: 'http://b.com' }));
 
 		expect(configA.baseUrl).toBe('http://a.com');
 		expect(configB.baseUrl).toBe('http://b.com');
@@ -208,19 +189,15 @@ describe('loadEcoPagesConfig', () => {
 		expect(loaded.configFilePath).toBe(configPath);
 	});
 
-	it('returns leftover ConfigBuilder.build() exports from eco.config.ts', async () => {
+	it('rejects an eco.config.ts that exports a finalized app config', async () => {
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
 			`export default { rootDir: ${JSON.stringify(tempDir)}, processors: new Map(), templatesExt: ['.ts'] };`,
 		);
 
-		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
-		expect(appConfig.rootDir).toBe(tempDir);
-		expect(appConfig.processors).toBeInstanceOf(Map);
-
-		await expect(loadEcoPagesUserConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
-			/exported a finalized app config/,
+		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
+			/already finalized app config/,
 		);
 	});
 });

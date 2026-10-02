@@ -1,7 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import {
 	eco,
 	type ForeignSubtreeRenderPayload,
@@ -335,19 +335,19 @@ describe('EcopagesJsxRenderer', () => {
 		it('serializes nested foreign children before delegating a string-first foreign shell', async () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([kitajsPlugin, litPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [kitajsPlugin, litPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			kitajsPlugin.setConfig(config);
 			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -406,19 +406,19 @@ describe('EcopagesJsxRenderer', () => {
 		it('resolves nested foreign descendants inside a direct foreign component rendered by an Ecopages JSX page', async () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([kitajsPlugin, litPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [kitajsPlugin, litPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			kitajsPlugin.setConfig(config);
 			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -486,20 +486,20 @@ describe('EcopagesJsxRenderer', () => {
 			const react = reactPlugin({
 				extensions: ['.react.tsx'],
 			});
-			const config = await new ConfigBuilder()
-				.setRootDir(KITCHEN_SINK_ROOT)
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				rootDir: KITCHEN_SINK_ROOT,
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([jsx, kitajs, lit, react])
-				.setDefaultMetadata({
+				},
+				integrations: [jsx, kitajs, lit, react],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			jsx.setConfig(config);
 			jsx.setRuntimeOrigin('http://localhost:3000');
@@ -592,19 +592,19 @@ describe('EcopagesJsxRenderer', () => {
 
 		it('preserves normalized props when the delegated child stays inline', async () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([kitajsPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [kitajsPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			kitajsPlugin.setConfig(config);
 			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -652,19 +652,19 @@ describe('EcopagesJsxRenderer', () => {
 		it('serializes queued foreign child props before storing them in the Ecopages JSX runtime context', async () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([kitajsPlugin, litPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [kitajsPlugin, litPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			kitajsPlugin.setConfig(config);
 			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -733,19 +733,19 @@ describe('EcopagesJsxRenderer', () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
 			const reactPlugin = new StringChildContractPlugin('react', '.react.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([kitajsPlugin, litPlugin, reactPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [kitajsPlugin, litPlugin, reactPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			kitajsPlugin.setConfig(config);
 			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
@@ -833,19 +833,19 @@ describe('EcopagesJsxRenderer', () => {
 		it('supports generated Ecopages JSX shells when a delegated Kita subtree re-enters Ecopages JSX', async () => {
 			const jsxPlugin = ecopagesJsxPlugin();
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
-			const config = await new ConfigBuilder()
-				.setRobotsTxt({
+			const config = await finalizeEcoPagesConfig({
+				robotsTxt: {
 					preferences: {
 						'*': [],
 					},
-				})
-				.setIntegrations([jsxPlugin, kitajsPlugin])
-				.setDefaultMetadata({
+				},
+				integrations: [jsxPlugin, kitajsPlugin],
+				defaultMetadata: {
 					title: 'Ecopages',
 					description: 'Ecopages',
-				})
-				.setBaseUrl('http://localhost:3000')
-				.build();
+				},
+				baseUrl: 'http://localhost:3000',
+			});
 
 			jsxPlugin.setConfig(config);
 			jsxPlugin.setRuntimeOrigin('http://localhost:3000');

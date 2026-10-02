@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
 import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
@@ -55,7 +55,7 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('BASELINE');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		config.templatesExt = ['.eco.tsx'];
 
 		const broadcasts: ClientBridgeEvent[] = [];
@@ -116,7 +116,7 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('BASELINE');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
 		let importCalls = 0;
 		config.runtime ??= {};
@@ -177,7 +177,7 @@ describe('JsHmrStrategy integration', () => {
 		const entrypointPath = path.join(componentsDir, 'widget.script.tsx');
 		fs.writeFileSync(entrypointPath, `export const marker = "BASELINE";\nconsole.log("BASELINE");\n`, 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
 		config.runtime ??= {};
 		config.runtime.registeredScriptEntrypointChangeHandlers = [() => true];

@@ -4,7 +4,7 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 
 ## Ownership
 
-`ConfigBuilder.build()` appends the internal `html-pages` Integration after user Integrations, unless a user Integration already declares `.html`. Appending last keeps the first-extension fallback for missing semantic templates unchanged for existing apps. There is no public plugin factory.
+`finalizeEcoPagesConfig()` appends the internal `html-pages` Integration after user Integrations, unless a user Integration already declares `.html`. Appending last keeps the first-extension fallback for missing semantic templates unchanged for existing apps. There is no public plugin factory.
 
 | File                    | Role                                                                                                      |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |

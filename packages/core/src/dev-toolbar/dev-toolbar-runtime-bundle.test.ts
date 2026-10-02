@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
 import { DevToolbarHost } from './dev-toolbar-host.ts';
 
@@ -20,10 +20,10 @@ afterEach(() => {
 
 describe('dev toolbar runtime bundle', () => {
 	it('bundles without leaving bare @ecopages/core imports', async () => {
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(kitchenSinkRoot)
-			.setDevToolbar({ package: '@ecopages/dev-toolbar' })
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: kitchenSinkRoot,
+			devToolbar: { package: '@ecopages/dev-toolbar' },
+		});
 
 		installBuildRuntime(appConfig);
 		const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-toolbar-runtime-'));

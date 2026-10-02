@@ -1,6 +1,5 @@
-import path from 'node:path';
-import { finalizeEcoPagesConfig, loadEcoPagesConfig } from '../config/load-eco-config.ts';
-import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../config/resolve-eco-config-path.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
@@ -55,13 +54,7 @@ async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAp
 	}
 
 	if (options.userConfig) {
-		return await finalizeEcoPagesConfig({
-			config: options.userConfig,
-			configFilePath: path.join(
-				resolveUserConfigRootDir(options.userConfig.rootDir),
-				DEFAULT_ECO_CONFIG_FILENAME,
-			),
-		});
+		return await finalizeEcoPagesConfig(options.userConfig);
 	}
 
 	return await loadEcoPagesConfig({ configFile: options.configFile });

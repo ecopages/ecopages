@@ -1,6 +1,6 @@
 /** @jsxImportSource @ecopages/jsx */
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { renderToString } from '@ecopages/jsx/server';
@@ -15,19 +15,19 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const TestConfig = await new ConfigBuilder()
-	.setRobotsTxt({
+const TestConfig = await finalizeEcoPagesConfig({
+	robotsTxt: {
 		preferences: {
 			'*': [],
 		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
+	},
+	integrations: [],
+	defaultMetadata: {
 		title: 'Ecopages',
 		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+	},
+	baseUrl: 'http://localhost:3000',
+});
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {

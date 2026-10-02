@@ -11,7 +11,7 @@ export type DevToolbarConfig = {
 };
 
 /**
- * Returns the `devToolbar` config block for {@link ConfigBuilder.setDevToolbar}.
+ * Returns the `devToolbar` block for `defineConfig({ devToolbar })`.
  */
 export function devToolbar(options?: DevToolbarOptions): DevToolbarConfig {
 	return {

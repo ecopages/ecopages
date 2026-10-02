@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getAppBuildManifest, setAppBuildManifest } from '../../build/build-adapter.ts';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
@@ -45,7 +45,7 @@ describe('DevTransformBundler', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: config,
@@ -84,7 +84,7 @@ describe('DevTransformBundler', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
@@ -119,7 +119,7 @@ describe('DevTransformBundler', () => {
 		fs.writeFileSync(firstPath, "export const source = 'page';\n", 'utf8');
 		fs.writeFileSync(secondPath, "export const source = 'component';\n", 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
@@ -150,7 +150,7 @@ describe('DevTransformBundler', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const existingManifest = getAppBuildManifest(config);
 		setAppBuildManifest(config, {
 			...existingManifest,

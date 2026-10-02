@@ -13,7 +13,7 @@ import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts'
  * @remarks
  * Author this object using `defineConfig({ ... })` in `eco.config.ts`.
  * This type excludes resolved absolute paths, derived integration extensions, and runtime
- * services attached during {@link ConfigBuilder.build}.
+ * services attached during {@link finalizeEcoPagesConfig}.
  *
  * @example
  * ```typescript
@@ -181,6 +181,13 @@ export type LoadedEcoPagesUserConfig = {
 };
 
 export type FinalizeEcoPagesConfigOptions = {
+	/**
+	 * Path of the config module, stored as `absolutePaths.config`.
+	 *
+	 * @default `<rootDir>/eco.config.ts`
+	 */
+	configFilePath?: string;
+	/** Overrides `buildOwnership` from the user config. */
 	buildOwnership?: BuildOwnership;
 	/**
 	 * Working directory used when `rootDir` is omitted.

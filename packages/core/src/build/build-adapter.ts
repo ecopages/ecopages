@@ -177,10 +177,8 @@ export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnersh
  * Sets the explicit build ownership on an app config.
  *
  * @remarks
- * The `ConfigBuilder` uses this when the caller calls
- * `setBuildOwnership`. App code that needs a different ownership
- * should call this directly with a new value; passing the same
- * value is a no-op.
+ * Config finalization selects ownership through the build adapter it installs
+ * and does not call this. Passing the current value is a no-op.
  */
 export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
 	patchAppRuntime(appConfig, { buildOwnership });
@@ -232,7 +230,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
  *
  * @remarks
  * Production apps are sealed via {@link updateAppBuildManifest} during
- * {@link ConfigBuilder.build}. Call `setAppBuildManifest` directly only in tests or
+ * {@link finalizeEcoPagesConfig}. Call `setAppBuildManifest` directly only in tests or
  * when replacing the entire manifest object; partial updates should use
  * {@link updateAppBuildManifest}.
  */
@@ -267,7 +265,7 @@ export function createConfiguredAppBuildManifest(
  * caller-supplied contribution input.
  *
  * @remarks
- * Primary production entry: `ConfigBuilder.build()` passes the return value of
+ * Primary production entry: `finalizeEcoPagesConfig()` passes the return value of
  * {@link collectConfiguredAppBuildManifestContributions} here to seal
  * `appConfig.runtime.buildManifest` before startup.
  */

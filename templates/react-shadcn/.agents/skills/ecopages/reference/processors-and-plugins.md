@@ -11,7 +11,7 @@
 
 ## Plugin lifecycle
 
-Core owns ordering. During `ConfigBuilder.build()`:
+Core owns ordering. During config finalization (`finalizeEcoPagesConfig()`):
 
 1. Processors run `prepareBuildContributions()`
 2. Processor `plugins` → runtime contributions; `buildPlugins` → browser bundle contributions

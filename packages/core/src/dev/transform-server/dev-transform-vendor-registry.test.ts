@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 
@@ -56,7 +56,7 @@ describe('DevTransformVendorRegistry', () => {
 			'dir',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
@@ -82,7 +82,7 @@ describe('DevTransformVendorRegistry', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
@@ -122,7 +122,7 @@ describe('DevTransformVendorRegistry', () => {
 			'dir',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
@@ -155,7 +155,7 @@ describe('DevTransformVendorRegistry', () => {
 			'dir',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,

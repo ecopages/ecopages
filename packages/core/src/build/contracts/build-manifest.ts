@@ -10,7 +10,7 @@ import {
  * Sealed, app-owned registry of build plugins and browser runtime assets.
  *
  * @remarks
- * Core assembles one manifest during {@link ConfigBuilder.build} and stores it on
+ * Core assembles one manifest during {@link finalizeEcoPagesConfig} and stores it on
  * `appConfig.runtime.buildManifest`. Request policy reads from this manifest when
  * constructing server and browser {@link BuildOptions}; profiles do not inject
  * plugins themselves.

@@ -5,13 +5,12 @@ export const ApiField = eco.component<{
 	type: string;
 	defaultValue: string;
 	mandatory: boolean;
-	setter: string;
 	children: string;
 }>({
 	dependencies: {
 		stylesheets: ['./api-field.css'],
 	},
-	render: ({ name, defaultValue, setter, mandatory, type, children }) => {
+	render: ({ name, defaultValue, mandatory, type, children }) => {
 		return (
 			<div class="api-field">
 				<div class="api-field__top-line">
@@ -23,9 +22,6 @@ export const ApiField = eco.component<{
 							{type}
 						</span>
 					</div>
-					<span class="api-field__setter" safe>
-						{setter}
-					</span>
 					{defaultValue ? (
 						<span class="api-field__default-value">@default: {defaultValue as 'safe'}</span>
 					) : null}

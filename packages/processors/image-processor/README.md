@@ -24,7 +24,7 @@ Import and register the processor in your `eco.config.ts`:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
 const imageProcessor = new ImageProcessorPlugin({
@@ -46,11 +46,7 @@ const imageProcessor = new ImageProcessorPlugin({
 	},
 });
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setProcessors([imageProcessor])
-	.build();
+export default defineConfig({ processors: [imageProcessor] });
 ```
 
 ## Usage

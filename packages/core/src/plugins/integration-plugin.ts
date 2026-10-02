@@ -110,7 +110,7 @@ type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => 
  * - which build-time or runtime contributions must be registered for that framework
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
- * hooks on this class, while `ConfigBuilder.build()` and app startup decide when
+ * hooks on this class, while `finalizeEcoPagesConfig()` and app startup decide when
  * those hooks run. Build plugins map to {@link AppBuildManifest} buckets:
  * `plugins` → `runtimePlugins`, `browserBuildPlugins` → `browserBundlePlugins`,
  * `browserRuntimeManifest` → client import rewrite map. For page-browser and

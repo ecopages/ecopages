@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from '../render/react-renderer.ts';
@@ -12,12 +12,12 @@ MockPage.config = {};
 const fixtureAppRoot = path.resolve(__dirname, '../../../../core/__fixtures__/app');
 const testDir = path.join(__dirname, 'fixture/.eco-mdx');
 
-const Config = await new ConfigBuilder()
-	.setRootDir(fixtureAppRoot)
-	.setDistDir(testDir)
-	.setIntegrations([])
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await finalizeEcoPagesConfig({
+	rootDir: fixtureAppRoot,
+	distDir: testDir,
+	integrations: [],
+	baseUrl: 'http://localhost:3000',
+});
 
 /** Helper to access private/protected properties for testing */
 const getExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).extensions;

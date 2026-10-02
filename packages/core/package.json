@@ -157,10 +157,6 @@
 		"./env": {
 			"types": "./src/env.d.ts"
 		},
-		"./config-builder": {
-			"types": "./src/config/config-builder.ts",
-			"default": "./src/config/config-builder.ts"
-		},
 		"./config": {
 			"types": "./src/config/index.ts",
 			"default": "./src/config/index.ts"

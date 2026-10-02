@@ -6,7 +6,7 @@ import { HtmlPageRenderer } from './html-page-renderer.ts';
  * Core-owned Integration for `.html` Filesystem Routes.
  *
  * @remarks
- * `ConfigBuilder.build()` appends it after user Integrations unless one of them
+ * `finalizeEcoPagesConfig()` appends it after user Integrations unless one of them
  * already owns `.html`, so apps never register it themselves.
  */
 export const htmlPagesPlugin = defineIntegration({

@@ -20,19 +20,18 @@ It is responsible for:
 ## Main Files
 
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
-- `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder` (omitted `rootDir` defaults to `cwd`; `baseUrl` defaults during `ConfigBuilder.build()`)
+- `finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
+- `runtime-capability-validation.ts`: rejects Integrations and Processors whose `runtimeCapability` the current runtime cannot meet
+- `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
-- `apply-user-config.ts`: maps declarative `EcoPagesUserConfig` fields onto `ConfigBuilder`
-- `is-finalized-app-config.ts`: detects leftover `ConfigBuilder.build()` exports so `loadEcoPagesConfig()` can reuse them
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
-- `config-builder.ts`: finalization boundary used by the loader and tests
 - `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup
-- `config-builder.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
+- `finalize-config.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
 
 ## Ownership Rules
 
 - Integrations and processors declare contributions.
-- `ConfigBuilder.build()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
+- `finalizeEcoPagesConfig()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 

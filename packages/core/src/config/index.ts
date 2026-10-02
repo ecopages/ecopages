@@ -1,5 +1,6 @@
 export { defineConfig } from './define-config.ts';
-export { loadEcoPagesConfig, loadEcoPagesUserConfig, finalizeEcoPagesConfig } from './load-eco-config.ts';
+export { finalizeEcoPagesConfig } from './finalize-config.ts';
+export { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
 export {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,

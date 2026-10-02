@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { mdxPlugin } from '../mdx.plugin.ts';
 import type { StandaloneMdxCompilerOptions } from '../mdx.types.ts';
 
-const Config = await new ConfigBuilder()
-	.setRobotsTxt({
+const Config = await finalizeEcoPagesConfig({
+	robotsTxt: {
 		preferences: {
 			'*': [],
 		},
-	})
-	.setIntegrations([])
-	.setDefaultMetadata({
+	},
+	integrations: [],
+	defaultMetadata: {
 		title: 'Ecopages',
 		description: 'Ecopages',
-	})
-	.setBaseUrl('http://localhost:3000')
-	.build();
+	},
+	baseUrl: 'http://localhost:3000',
+});
 
 describe('MDXPlugin', () => {
 	it('throws when jsxImportSource is missing', () => {

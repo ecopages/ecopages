@@ -26,21 +26,19 @@ Requires `@tailwindcss/postcss` and `tailwindcss` to be installed.
 ```typescript
 // eco.config.ts
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/app.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ### Tailwind v3 Preset
@@ -49,13 +47,11 @@ Requires `tailwindcss@3`, `autoprefixer`, `postcss-import`, and `cssnano` to be 
 
 ```typescript
 // eco.config.ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
-const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(tailwindV3Preset())]).build();
-
-export default config;
+export default defineConfig({ processors: [postcssProcessorPlugin(tailwindV3Preset())] });
 ```
 
 ## Custom Configuration
@@ -65,12 +61,12 @@ To use your own `postcss.config.js`, simply call `postcssProcessorPlugin()` with
 You can also pass raw plugins or transformation hooks manually:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import myPlugin from 'postcss-my-plugin';
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		postcssProcessorPlugin({
 			filter: /\.css$/,
 			plugins: {
@@ -79,10 +75,8 @@ const config = await new ConfigBuilder()
 			transformInput: async (css) => `/* Header */\n${css}`,
 			transformOutput: async (css) => css.replace('blue', 'red'),
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Standalone Processing

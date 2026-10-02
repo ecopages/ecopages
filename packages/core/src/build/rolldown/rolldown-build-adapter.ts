@@ -3,7 +3,7 @@
  *
  * @remarks
  * Implements {@link BuildAdapter} on top of Rolldown. This is the
- * default adapter installed by `ConfigBuilder` and the adapter that
+ * default adapter installed by config finalization and the adapter that
  * issues real builds in production.
  *
  * Each `build()` creates a fresh `rolldown()` bundler.

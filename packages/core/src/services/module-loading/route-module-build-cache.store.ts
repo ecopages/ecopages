@@ -151,6 +151,7 @@ export class RouteModuleBuildCache {
 
 		return (
 			manifest.configHash === context.configHash &&
+			manifest.watchedInputsHash === context.watchedInputsHash &&
 			matchesProductionCacheFingerprint(manifest, context.buildInputsFingerprint)
 		);
 	}
@@ -164,6 +165,7 @@ export class RouteModuleBuildCache {
 		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.configHash = context.configHash;
 		manifest.buildInputsFingerprint = context.buildInputsFingerprint;
+		manifest.watchedInputsHash = context.watchedInputsHash;
 		this.persistManifest(manifest);
 	}
 
@@ -247,6 +249,7 @@ export class RouteModuleBuildCache {
 		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.configHash = options.context.configHash;
 		manifest.buildInputsFingerprint = options.context.buildInputsFingerprint;
+		manifest.watchedInputsHash = options.context.watchedInputsHash;
 		manifest.entries[cacheFilePath] = {
 			...existingEntry,
 			sourceHash: options.sourceHash,
@@ -264,6 +267,11 @@ export class RouteModuleBuildCache {
 		};
 
 		this.persistManifest(manifest);
+	}
+
+	/** Returns the watched-inputs hash recorded by the last production export, if any. */
+	getRecordedWatchedInputsHash(): string | undefined {
+		return this.loadManifest().watchedInputsHash;
 	}
 
 	resetMemory(): void {

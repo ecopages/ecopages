@@ -110,7 +110,8 @@ async function runWithConcurrency<T>(
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
 	private readonly routeModuleBuildCacheOverride?: RouteModuleBuildCache;
-	private staticRenderCacheContext: ReturnType<typeof createRouteModuleStaticRenderCacheContext>;
+	/** Created when an export starts, so constructing a generator (as every app start does) hashes nothing. */
+	private staticRenderCacheContext?: ReturnType<typeof createRouteModuleStaticRenderCacheContext>;
 	private forceFullStaticGeneration = false;
 	private pageModuleLoader?: PageModuleLoaderService;
 
@@ -126,7 +127,6 @@ export class StaticSiteGenerator {
 	}) {
 		this.appConfig = appConfig;
 		this.routeModuleBuildCacheOverride = routeModuleBuildCache;
-		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(appConfig);
 	}
 
 	private getRouteModuleBuildCache(): RouteModuleBuildCache {
@@ -237,7 +237,7 @@ export class StaticSiteGenerator {
 				sourceFile: options.sourceFile,
 				pathname: options.pathname,
 				renderedOutputPath,
-				context: this.staticRenderCacheContext,
+				context: this.getStaticRenderCacheContext(),
 				force: this.forceFullStaticGeneration,
 			})
 		) {
@@ -262,7 +262,7 @@ export class StaticSiteGenerator {
 					pathname: options.pathname,
 					sourceHash: fileSystem.hash(options.sourceFile),
 					renderedOutputPath: outputPath,
-					context: this.staticRenderCacheContext,
+					context: this.getStaticRenderCacheContext(),
 				});
 			} catch (error) {
 				appLogger.debug(
@@ -506,9 +506,14 @@ export class StaticSiteGenerator {
 		}
 	}
 
-	private resetStaticGenerationState(force: boolean): void {
+	private getStaticRenderCacheContext(): ReturnType<typeof createRouteModuleStaticRenderCacheContext> {
+		this.staticRenderCacheContext ??= createRouteModuleStaticRenderCacheContext(this.appConfig);
+		return this.staticRenderCacheContext;
+	}
+
+	private resetStaticGenerationState(force: boolean, watchedInputsHash?: string): void {
 		this.forceFullStaticGeneration = force;
-		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig);
+		this.staticRenderCacheContext = createRouteModuleStaticRenderCacheContext(this.appConfig, watchedInputsHash);
 		this.pageModuleLoader = undefined;
 		if (!force) {
 			this.getRouteModuleBuildCache().ensureIncrementalStaticGenerationContext(this.staticRenderCacheContext);
@@ -626,6 +631,7 @@ export class StaticSiteGenerator {
 		errorPageLoaders,
 		force = false,
 		preserveExportDirectory = false,
+		watchedInputsHash,
 	}: {
 		router: StaticGenerationRouteSource;
 		baseUrl: string;
@@ -634,11 +640,13 @@ export class StaticSiteGenerator {
 		errorPageLoaders?: ErrorPageLoaders;
 		force?: boolean;
 		preserveExportDirectory?: boolean;
+		/** A `hashWatchedBuildInputs()` result the caller already computed for this export. */
+		watchedInputsHash?: string;
 	}) {
 		const skippedDynamicPages: string[] = [];
 		const activeStaticPathnames = new Set<string>();
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
-		this.resetStaticGenerationState(force);
+		this.resetStaticGenerationState(force, watchedInputsHash);
 
 		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
 		const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));

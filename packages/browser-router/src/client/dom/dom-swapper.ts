@@ -1,9 +1,15 @@
 import type { PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
 import { morphBody, replaceBody } from './body-morpher.ts';
 import {
-	flushHeadScripts,
+	activateScriptsInOrder,
+	collectBodyScriptKeys,
+	collectEnteringBodyScripts,
+	type ScriptActivation,
+} from './script-activation.ts';
+import {
 	flushRerunScripts as flushPendingRerunScripts,
 	morphHead,
+	toHeadScriptActivations,
 	type PendingHeadScript,
 } from './head-updater.ts';
 import { parseHTML } from './html-parser.ts';
@@ -21,6 +27,7 @@ export class DomSwapper {
 	private persistAttribute: string;
 	private pendingHeadScripts: PendingHeadScript[] = [];
 	private pendingRerunScripts: PendingRerunScript[] = [];
+	private pendingBodyScripts: ScriptActivation[] = [];
 
 	constructor(persistAttribute: string) {
 		this.persistAttribute = persistAttribute;
@@ -47,21 +54,30 @@ export class DomSwapper {
 	 * @remarks
 	 * Scripts are intentionally flushed after the new body is in place so DOM-
 	 * dependent bootstraps bind against the incoming page rather than the page
-	 * being replaced.
+	 * being replaced. New head scripts, then new body scripts, run in document
+	 * order through {@link activateScriptsInOrder}.
 	 */
 	flushRerunScripts(): void {
-		flushHeadScripts(this.pendingHeadScripts);
+		const headScripts = activateScriptsInOrder(toHeadScriptActivations(this.pendingHeadScripts));
 		this.pendingHeadScripts = [];
 
 		flushPendingRerunScripts(this.pendingRerunScripts);
 		this.pendingRerunScripts = [];
+
+		const bodyScripts = this.pendingBodyScripts;
+		this.pendingBodyScripts = [];
+		void headScripts.then((pendingLoads) => activateScriptsInOrder(bodyScripts, pendingLoads));
 	}
 
 	morphBody(newDocument: Document): void {
+		const previousBodyScriptKeys = collectBodyScriptKeys();
 		morphBody(newDocument, this.persistAttribute);
+		this.pendingBodyScripts = collectEnteringBodyScripts(previousBodyScriptKeys);
 	}
 
 	replaceBody(newDocument: Document): void {
+		const previousBodyScriptKeys = collectBodyScriptKeys();
 		replaceBody(newDocument, this.persistAttribute);
+		this.pendingBodyScripts = collectEnteringBodyScripts(previousBodyScriptKeys);
 	}
 }

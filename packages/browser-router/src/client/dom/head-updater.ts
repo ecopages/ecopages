@@ -4,6 +4,7 @@ import {
 	shouldPersistExecutableInlineHeadScript,
 } from '@ecopages/core/client/navigation-scripts';
 import type { PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
+import type { ScriptActivation } from './script-activation.ts';
 import { syncIncomingHeadMetadata } from './head-updater-incoming.ts';
 import { collectPendingHeadScriptsFromIncoming, createHeadScriptDedupState } from './head-updater-scripts.ts';
 import { findExistingHeadScript, getHeadScriptKey } from './head-updater-script-identity.ts';
@@ -77,26 +78,21 @@ export function morphHead(newDocument: Document, persistAttribute: string): Morp
 }
 
 /**
- * Replays queued head scripts after the body swap completes.
+ * Returns activations that insert queued head scripts, replacing a stale copy when asked.
  */
-export function flushHeadScripts(pendingHeadScripts: PendingHeadScript[]): void {
-	for (const script of pendingHeadScripts) {
-		const replacement = document.createElement('script');
-
-		for (const [name, value] of script.attributes) {
-			replacement.setAttribute(name, value);
-		}
-
-		replacement.textContent = script.textContent;
-
-		const existingScript = findExistingHeadScript(script);
-		if (script.replaceExisting && existingScript) {
-			existingScript.replaceWith(replacement);
-			continue;
-		}
-
-		document.head.appendChild(replacement);
-	}
+export function toHeadScriptActivations(pendingHeadScripts: readonly PendingHeadScript[]): ScriptActivation[] {
+	return pendingHeadScripts.map((script) => ({
+		attributes: script.attributes,
+		textContent: script.textContent,
+		insert: (replacement) => {
+			const existingScript = findExistingHeadScript(script);
+			if (script.replaceExisting && existingScript) {
+				existingScript.replaceWith(replacement);
+				return;
+			}
+			document.head.appendChild(replacement);
+		},
+	}));
 }
 
 /**

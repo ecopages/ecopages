@@ -234,6 +234,15 @@ importers:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
 
+  e2e/fixtures/html-pages:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+
   e2e/fixtures/react-router:
     dependencies:
       '@mdx-js/mdx':

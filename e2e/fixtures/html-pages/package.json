@@ -1,0 +1,14 @@
+{
+	"name": "@ecopages/e2e-html-pages-app",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun run app.ts --dev",
+		"build": "NODE_ENV=production bun run app.ts --build",
+		"preview": "NODE_ENV=production bun run app.ts --preview"
+	},
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*"
+	}
+}

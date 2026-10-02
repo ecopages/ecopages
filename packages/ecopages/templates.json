@@ -12,6 +12,16 @@
 			"integrations": ["ecopages-jsx", "mdx"]
 		},
 		{
+			"id": "html",
+			"displayName": "HTML",
+			"description": "An Ecopages application built from plain HTML Pages.",
+			"category": "integration",
+			"order": 15,
+			"source": "html",
+			"packageDirectory": ".",
+			"integrations": ["html-pages"]
+		},
+		{
 			"id": "react",
 			"displayName": "React",
 			"description": "A minimal Ecopages React application.",

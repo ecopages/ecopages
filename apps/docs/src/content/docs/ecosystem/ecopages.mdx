@@ -94,6 +94,30 @@ Use these when you want a full bootstrap in one command chain.
 	defaultSelectedKey="npm"
 />
 
+**HTML Pages template** - Creates an app built from plain [HTML Pages](/docs/core/pages#html-pages), with a `src/includes/html.html` shell, Tailwind, client navigation, and custom-element islands. <a href="https://github.com/ecopages/ecopages/tree/main/templates/html" target="_blank">html</a>.
+
+<CodeTabs
+	name="ecopages-html"
+	tabs={[
+		{
+			id: 'npm',
+			label: 'npm',
+			code: 'npx ecopages init html-app --template html && cd html-app && npm install && npm run dev',
+		},
+		{
+			id: 'pnpm',
+			label: 'pnpm',
+			code: 'pnpm dlx ecopages init html-app --template html && cd html-app && pnpm install && pnpm run dev',
+		},
+		{
+			id: 'bun',
+			label: 'bun',
+			code: 'bunx ecopages init html-app --template html && cd html-app && bun install && bun dev',
+		},
+	]}
+	defaultSelectedKey="npm"
+/>
+
 **Radiant UI template** - Creates an Ecopages JSX app using Radiant UI components and the docs theme preference control. <a href="https://github.com/ecopages/ecopages/tree/main/templates/radiant" target="_blank">radiant</a>.
 
 <CodeTabs

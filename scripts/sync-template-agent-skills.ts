@@ -40,6 +40,7 @@ const SKILL_PACKS: Record<TemplateSkillPackId, SkillPackSource> = {
  */
 export const TEMPLATE_SKILL_PACKS: Record<string, TemplateSkillPackId[]> = {
 	jsx: ['ecopages', 'radiant'],
+	html: ['ecopages'],
 	radiant: ['ecopages', 'radiant', 'radiant-ui'],
 	'docs-starter': ['ecopages', 'radiant', 'radiant-ui'],
 	'blog-jsx': ['ecopages', 'radiant', 'radiant-ui'],

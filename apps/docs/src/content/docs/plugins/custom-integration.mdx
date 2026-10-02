@@ -311,7 +311,7 @@ export default defineConfig({
 });
 ```
 
-Config finalization (`finalizeEcoPagesConfig()`, called by `createApp()` and `loadEcoPagesConfig()`) is the app-owned boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
+Config finalization, when `createApp()` loads `eco.config.ts`, is the app-owned boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
 
 ## Best Practices
 

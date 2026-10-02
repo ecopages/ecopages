@@ -41,7 +41,7 @@ import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-c
 function assertUserConfig(userConfig: EcoPagesUserConfig): void {
 	if (userConfig.processors instanceof Map || 'absolutePaths' in userConfig) {
 		throw new Error(
-			'finalizeEcoPagesConfig() received an already finalized app config. Export defineConfig(...) from eco.config.ts and let createApp() finalize it.',
+			'Expected a defineConfig(...) object but received an already finalized app config. Export defineConfig(...) from eco.config.ts and let createApp() finalize it.',
 		);
 	}
 
@@ -189,6 +189,12 @@ function createAbsolutePaths(
  * 6. installs the app-owned build adapter, build manifest, and runtime state.
  *
  * Every call returns a new config; nothing is cached.
+ *
+ * App code never calls this: it exports `defineConfig(...)` and `createApp()` finalizes it.
+ * The export exists for core's own callers, `@ecopages/testing`, and test fixtures, so keep
+ * it out of user-facing docs.
+ *
+ * @internal
  *
  * @throws When `userConfig` is an already finalized config; when Integration names or
  * extensions, or Processor, loader, or source transform names, repeat; when a semantic

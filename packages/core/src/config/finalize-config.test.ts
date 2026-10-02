@@ -447,7 +447,7 @@ describe('finalizeEcoPagesConfig', () => {
 		const finalized = await finalize();
 
 		await expect(finalizeEcoPagesConfig(finalized as unknown as EcoPagesUserConfig)).rejects.toThrow(
-			'already finalized app config',
+			'received an already finalized app config',
 		);
 		await expect(
 			finalizeEcoPagesConfig({ config: {}, configFilePath: '/project/eco.config.ts' } as EcoPagesUserConfig),

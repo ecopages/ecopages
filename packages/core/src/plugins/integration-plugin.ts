@@ -5,7 +5,7 @@ import {
 } from '../build/browser/browser-runtime-manifest.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
-import type { EcoPagesElement } from '../types/public-types.ts';
+import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
@@ -126,6 +126,17 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 	readonly jsxImportSource?: string;
 
+	/**
+	 * Whether this Integration's Pages can take route params from `[param]` and `[...param]`
+	 * filenames.
+	 *
+	 * @remarks
+	 * An Integration whose Pages cannot export `staticPaths` or read params overrides it with
+	 * `false`, and route discovery then rejects those filenames instead of failing at render.
+	 * It describes the Integration, so it is a class member rather than a user option.
+	 */
+	readonly routeParams: boolean = true;
+
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected options?: Record<string, unknown>;
@@ -184,6 +195,26 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.runtimeCapability = config.runtimeCapability;
 		this.jsxImportSource = config.jsxImportSource;
 	}
+
+	/**
+	 * Compiles one of this Integration's Page files, or its `html.*` shell, in-process instead
+	 * of letting core bundle it.
+	 *
+	 * @remarks
+	 * For Integrations whose files are not JavaScript modules, such as core's HTML Pages.
+	 * Return `undefined` to let core bundle that file.
+	 *
+	 * - Every Page of an Integration that implements this stays out of the production pages
+	 *   graph, including Pages it hands back with `undefined`, so each one builds on first load.
+	 * - The result is cached by the file's content hash, so editing another file it reads does
+	 *   not invalidate it.
+	 * - Vite-hosted development imports files whose last extension is a JavaScript one (such
+	 *   as `.tpl.ts`) itself and never calls this.
+	 */
+	compilePageModule?(
+		filePath: string,
+		appConfig: EcoPagesAppConfig,
+	): EcoPageFile | undefined | Promise<EcoPageFile | undefined>;
 
 	/**
 	 * Attaches the finalized app config to the integration.

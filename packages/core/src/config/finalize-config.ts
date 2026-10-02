@@ -7,7 +7,7 @@ import {
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
-import { htmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
+import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import {
@@ -92,7 +92,7 @@ function withHtmlPagesIntegration(integrations: AnyIntegrationPlugin[]): AnyInte
 		return integrations;
 	}
 
-	return [...integrations, htmlPagesPlugin()];
+	return [...integrations, new HtmlPagesPlugin()];
 }
 
 function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string[] {

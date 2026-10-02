@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDiscoveredWatchFiles } from '../eco/discovered-dependencies.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { GetMetadataContext } from '../types/public-types.ts';
-import { HTML_PAGES_INTEGRATION_NAME, isHtmlPageModuleFile, loadHtmlPageModule } from './html-page-module.ts';
+import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
 
 describe('html-page-module', () => {
 	let rootDir: string;
@@ -17,7 +17,6 @@ describe('html-page-module', () => {
 		mkdirSync(path.join(rootDir, 'src/includes'), { recursive: true });
 		appConfig = {
 			rootDir,
-			integrations: [{ name: HTML_PAGES_INTEGRATION_NAME }],
 			defaultMetadata: { title: 'Site', description: 'Default description' },
 			absolutePaths: {
 				srcDir: path.join(rootDir, 'src'),
@@ -29,24 +28,6 @@ describe('html-page-module', () => {
 
 	afterEach(() => {
 		rmSync(rootDir, { recursive: true, force: true });
-	});
-
-	it('claims Pages and the html.html shell, and nothing else', () => {
-		const at = (relativePath: string) => path.join(rootDir, relativePath);
-
-		expect(isHtmlPageModuleFile(appConfig, at('src/pages/about.html'))).toBe(true);
-		expect(isHtmlPageModuleFile(appConfig, at('src/pages/blog/post.html'))).toBe(true);
-		expect(isHtmlPageModuleFile(appConfig, at('src/includes/html.html'))).toBe(true);
-		expect(isHtmlPageModuleFile(appConfig, at('src/includes/other.html'))).toBe(false);
-		expect(isHtmlPageModuleFile(appConfig, at('src/public/index.html'))).toBe(false);
-		expect(isHtmlPageModuleFile(appConfig, at('src/pages-old/about.html'))).toBe(false);
-		expect(isHtmlPageModuleFile(appConfig, at('src/pages/about.tsx'))).toBe(false);
-		expect(
-			isHtmlPageModuleFile(
-				{ ...appConfig, integrations: [{ name: 'custom-html' }] } as unknown as EcoPagesAppConfig,
-				at('src/pages/about.html'),
-			),
-		).toBe(false);
 	});
 
 	it('merges Page head metadata over defaultMetadata', async () => {

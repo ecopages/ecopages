@@ -52,27 +52,6 @@ export function getCompiledHtmlTemplate(component: unknown): HtmlTemplate | unde
 	return (component as HtmlTemplateComponent | undefined)?.[HTML_TEMPLATE];
 }
 
-export function isHtmlPagesEnabled(appConfig: EcoPagesAppConfig): boolean {
-	return appConfig.integrations?.some((integration) => integration.name === HTML_PAGES_INTEGRATION_NAME) ?? false;
-}
-
-/**
- * Returns whether core loads `filePath` as an HTML Page or the `html.html` shell.
- *
- * @remarks
- * Other `.html` files, such as public-directory documents, never reach the
- * module loader, and a user Integration that owns `.html` keeps its own loader.
- */
-export function isHtmlPageModuleFile(appConfig: EcoPagesAppConfig, filePath: string): boolean {
-	if (!filePath.endsWith('.html') || !appConfig.absolutePaths || !isHtmlPagesEnabled(appConfig)) {
-		return false;
-	}
-
-	const resolvedPath = path.resolve(filePath);
-	const { pagesDir, includesDir } = appConfig.absolutePaths;
-	return resolvedPath.startsWith(`${pagesDir}${path.sep}`) || resolvedPath === path.join(includesDir, 'html.html');
-}
-
 function createTemplateComponent(template: HtmlTemplate, identity?: ComponentIdentity): HtmlTemplateComponent {
 	const render = () => {
 		throw new Error(

@@ -183,24 +183,67 @@ describe('RouteRegistry', () => {
 		}
 	});
 
-	test('rejects dynamic HTML Page filenames unless a user Integration owns .html', async () => {
-		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+	test.each(['[slug].html', '[...slug].html', 'blog/[slug]/index.html'])(
+		'rejects %p for an Integration without route params, and accepts it for one with them',
+		async (file) => {
+			const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+			try {
+				await fs.mkdir(path.dirname(path.join(pagesDir, file)), { recursive: true });
+				await fs.writeFile(path.join(pagesDir, file), '');
+				const withIntegration = (integration: object) =>
+					createRegistry({
+						pagesDir,
+						templatesExt: ['.html'],
+						appConfig: { ...appConfig, integrations: [integration] } as EcoPagesAppConfig,
+					});
+
+				await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
+					'.html Pages cannot use dynamic route segments',
+				);
+				await expect(
+					withIntegration({ name: 'templates', extensions: ['.html'], routeParams: false }).init(),
+				).rejects.toThrow('.html Pages cannot use dynamic route segments');
+
+				const userOwned = withIntegration({ name: 'custom-html', extensions: ['.html'], routeParams: true });
+				await userOwned.init();
+				expect(userOwned.templateRoutes).toHaveLength(1);
+			} finally {
+				await fs.rm(pagesDir, { recursive: true, force: true });
+			}
+		},
+	);
+
+	test('strips the longest template extension the file ends with, regardless of registration order', async () => {
+		const globSpy = vi
+			.spyOn(fileSystem, 'glob')
+			.mockResolvedValue(['about.kita.tsx', 'notes.mdx', 'my.html-tips.html', 'v1.2.html']);
 		try {
-			await fs.writeFile(path.join(pagesDir, '[slug].html'), '');
+			const registry = createRegistry({ templatesExt: ['.tsx', '.kita.tsx', '.md', '.mdx', '.html'] });
+			await registry.init();
 
-			await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
-				'HTML Pages cannot use dynamic route segments',
-			);
-
-			const userOwned = createRegistry({
-				pagesDir,
-				templatesExt: ['.html'],
-				appConfig: { ...appConfig, integrations: [{ name: 'custom-html' }] } as EcoPagesAppConfig,
-			});
-			await userOwned.init();
-			expect(userOwned.templateRoutes.map((route) => route.pathname)).toEqual(['/[slug]']);
+			expect(registry.templateRoutes.map((route) => route.pathname).sort()).toEqual([
+				'/about',
+				'/my.html-tips',
+				'/notes',
+				'/v1.2',
+			]);
 		} finally {
-			await fs.rm(pagesDir, { recursive: true, force: true });
+			globSpy.mockRestore();
+		}
+	});
+
+	test('classifies routes by their path inside the pages directory', async () => {
+		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-[client]-'));
+		const pagesDir = path.join(projectDir, 'pages');
+		try {
+			await fs.mkdir(pagesDir);
+			await fs.writeFile(path.join(pagesDir, 'about.html'), '');
+			const registry = createRegistry({ pagesDir, templatesExt: ['.html'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.kind)).toEqual(['exact']);
+		} finally {
+			await fs.rm(projectDir, { recursive: true, force: true });
 		}
 	});
 

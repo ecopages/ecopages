@@ -10,7 +10,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
-import { isHtmlPageModuleFile } from '../../html-pages/html-page-module.ts';
+import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { build } from '../build-adapter.ts';
 import { requireBuildRuntime } from '../runtime/build-runtime.ts';
 import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
@@ -80,14 +80,12 @@ export function shouldBuildPagesUnifiedGraph(): boolean {
 
 /**
  * @remarks
- * HTML Pages are compiled in-process rather than bundled, so they stay out of the graph.
+ * Pages of an Integration that compiles its own modules (`compilePageModule`), such as
+ * HTML Pages, are not bundled, so they stay out of the graph.
  */
 export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesAppConfig): boolean {
-	const normalizedPath = path.normalize(filePath);
-	return (
-		appConfig.templatesExt.some((extension) => normalizedPath.endsWith(extension)) &&
-		!isHtmlPageModuleFile(appConfig, normalizedPath)
-	);
+	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
+	return owner !== undefined && !owner.compilePageModule;
 }
 
 function getPagesUnifiedGraphCachePath(appConfig: EcoPagesAppConfig): string {

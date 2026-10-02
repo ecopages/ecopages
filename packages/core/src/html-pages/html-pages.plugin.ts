@@ -1,5 +1,8 @@
-import { defineIntegration } from '../plugins/define-integration.ts';
-import { HTML_PAGES_INTEGRATION_NAME } from './html-page-module.ts';
+import path from 'node:path';
+import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPageFile } from '../types/public-types.ts';
+import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
 import { HtmlPageRenderer } from './html-page-renderer.ts';
 
 /**
@@ -7,10 +10,30 @@ import { HtmlPageRenderer } from './html-page-renderer.ts';
  *
  * @remarks
  * `finalizeEcoPagesConfig()` appends it after user Integrations unless one of them
- * already owns `.html`, so apps never register it themselves.
+ * already owns `.html`, so apps never register it themselves. HTML Pages have no
+ * `staticPaths`, so they take no route params.
  */
-export const htmlPagesPlugin = defineIntegration({
-	name: HTML_PAGES_INTEGRATION_NAME,
-	extensions: ['.html'],
-	renderer: HtmlPageRenderer,
-});
+export class HtmlPagesPlugin extends IntegrationPlugin {
+	renderer = HtmlPageRenderer;
+	override readonly routeParams = false;
+
+	constructor() {
+		super({ name: HTML_PAGES_INTEGRATION_NAME, extensions: ['.html'] });
+	}
+
+	/**
+	 * Compiles Pages under the pages directory and the `html.html` shell.
+	 *
+	 * @remarks
+	 * Other `.html` files, such as an include other than the shell, are left to core.
+	 */
+	override compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | undefined {
+		const file = path.resolve(filePath);
+		const { pagesDir, includesDir } = appConfig.absolutePaths;
+		if (!file.startsWith(`${pagesDir}${path.sep}`) && file !== path.join(includesDir, 'html.html')) {
+			return undefined;
+		}
+
+		return loadHtmlPageModule(appConfig, file);
+	}
+}

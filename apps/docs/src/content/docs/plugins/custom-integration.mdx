@@ -94,6 +94,31 @@ Use the smallest declaration that matches reality. For example, an integration t
 
 `runtimeCapability` is validated during config finalization, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
 
+## Pages That Are Not JavaScript Modules
+
+Core bundles an Integration's Page files and imports the result. An Integration whose files are not JavaScript, such as core's own HTML Pages, can compile them itself instead:
+
+- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` shell file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Return `undefined` to let core bundle that file.
+  - Every Page of an Integration that implements it stays out of the production pages graph, including the ones it returns `undefined` for, so each one builds on first load.
+  - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
+  - Vite-hosted development imports files whose last extension is a JavaScript one, such as `.tpl.ts`, itself and never calls it. Use a non-JavaScript extension.
+- **`routeParams = false`** as a class field says its Pages cannot read route params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.
+
+```typescript
+class TemplateIntegration extends IntegrationPlugin {
+	renderer = TemplateRenderer;
+	override readonly routeParams = false;
+
+	constructor() {
+		super({ name: 'templates', extensions: ['.tpl'] });
+	}
+
+	override async compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): Promise<EcoPageFile> {
+		return { default: await compileTemplate(filePath, appConfig) };
+	}
+}
+```
+
 ## Creating a Custom Renderer
 
 The renderer handles framework-specific HTML generation. It extends `IntegrationRenderer` and implements `render()`.

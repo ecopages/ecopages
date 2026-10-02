@@ -9,7 +9,7 @@ import {
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
 } from '../../build/cache/pages-unified-graph-build.ts';
-import { isHtmlPageModuleFile, loadHtmlPageModule } from '../../html-pages/html-page-module.ts';
+import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
 import { recordPageModuleLoad } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
@@ -344,8 +344,14 @@ export class PageModuleImportService {
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
 		const { filePath, fileHash, importCacheKey } = options;
-		if (this.appConfig && isHtmlPageModuleFile(this.appConfig, filePath)) {
-			return loadHtmlPageModule(this.appConfig, filePath) as T;
+		const ownModule =
+			this.appConfig &&
+			(await findIntegrationForFile(this.appConfig.integrations, filePath)?.compilePageModule?.(
+				filePath,
+				this.appConfig,
+			));
+		if (ownModule) {
+			return ownModule as T;
 		}
 		const {
 			outdir,

@@ -40,7 +40,9 @@ File patterns determine route kind:
 | `[slug].tsx`    | `dynamic`   | `/blog/[slug]`    |
 | `[...slug].tsx` | `catch-all` | `/docs/[...slug]` |
 
-Discovery rejects two Page files that produce the same template route (for example `about.html` with `about.tsx` or `about/index.html`) and dynamic HTML Page filenames such as `[slug].html`, which have no `staticPaths` source.
+Route paths drop the longest registered extension the file ends with, so `about.kita.tsx` becomes `/about` and `v1.2.html` becomes `/v1.2`. Route kinds come from the path inside the pages directory, so brackets in the project path do not make routes dynamic.
+
+Discovery rejects two Page files that produce the same template route (for example `about.html` with `about.tsx` or `about/index.html`) and dynamic filenames such as `[slug].html` whose owning Integration sets `routeParams` to `false` (HTML Pages do, because they have no `staticPaths` source).
 
 The registry stores canonical template routes only. It compiles request-time matching metadata during `init()` and `reload()`, but it does not execute `staticPaths()` during discovery.
 

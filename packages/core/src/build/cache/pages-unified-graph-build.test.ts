@@ -58,14 +58,21 @@ describe('pages-unified-graph-build', () => {
 		);
 	});
 
-	it('leaves HTML Pages out, since core compiles them without a bundler', async () => {
+	it('leaves out Pages of any Integration that compiles its own modules', async () => {
 		const appConfig = await createFixtureAppConfig();
+		const pagesDir = appConfig.absolutePaths.pagesDir;
+		const withTemplates = {
+			...appConfig,
+			integrations: [
+				...appConfig.integrations,
+				{ name: 'templates', extensions: ['.tpl'], compilePageModule: () => undefined },
+			],
+		} as unknown as typeof appConfig;
 
 		assert.equal(appConfig.templatesExt.includes('.html'), true);
-		assert.equal(
-			isPagesUnifiedGraphPage(path.join(appConfig.absolutePaths.pagesDir, 'about.html'), appConfig),
-			false,
-		);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'about.html'), appConfig), false);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'about.tpl'), withTemplates), false);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'index.ts'), withTemplates), true);
 	});
 
 	it('defaults unified graph on in production unless explicitly disabled', () => {

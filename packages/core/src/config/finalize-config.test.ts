@@ -414,9 +414,9 @@ describe('finalizeEcoPagesConfig', () => {
 
 		expect(config.integrations.map((integration) => integration.name)).toEqual(['html-pages']);
 		expect(config.templatesExt).toEqual(['.html']);
-		expect(config.absolutePaths.htmlTemplatePath).toBe('/project/src/includes/html.html');
-		expect(config.absolutePaths.error404TemplatePath).toBe('/project/src/pages/404.html');
-		expect(config.absolutePaths.error500TemplatePath).toBe('/project/src/pages/500.html');
+		expect(config.absolutePaths.htmlTemplatePath).toBe(path.join('/project', 'src', 'includes', 'html.html'));
+		expect(config.absolutePaths.error404TemplatePath).toBe(path.join('/project', 'src', 'pages', '404.html'));
+		expect(config.absolutePaths.error500TemplatePath).toBe(path.join('/project', 'src', 'pages', '500.html'));
 	});
 
 	test('leaves .html to a user Integration that owns it', async () => {
@@ -432,7 +432,9 @@ describe('finalizeEcoPagesConfig', () => {
 			createMockIntegration('test-integration', ['.test1']),
 			createMockIntegration('test-integration', ['.test2']),
 		];
-		await expect(finalize({ integrations })).rejects.toThrow('Integrations names must be unique');
+		await expect(finalize({ integrations })).rejects.toThrow(
+			'Integration names must be unique: "test-integration" is registered twice.',
+		);
 	});
 
 	test('should throw error for duplicate integration extensions', async () => {
@@ -440,7 +442,9 @@ describe('finalizeEcoPagesConfig', () => {
 			createMockIntegration('test-integration-1', ['.test']),
 			createMockIntegration('test-integration-2', ['.test']),
 		];
-		await expect(finalize({ integrations })).rejects.toThrow('Integrations extensions must be unique');
+		await expect(finalize({ integrations })).rejects.toThrow(
+			'Integration extensions must be unique: ".test" is registered by more than one Integration.',
+		);
 	});
 
 	test('should reject an already finalized config and the old loaded-config argument', async () => {

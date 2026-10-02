@@ -16,7 +16,7 @@ function textContent(node: Root | RootContent | ElementContent): string {
  * Matching the TOC keeps every fragment it generated before build-time ids
  * existed, including links readers already shared.
  */
-export function slugifyHeadingText(text: string): string {
+function slugifyHeadingText(text: string): string {
 	return text
 		.trim()
 		.toLowerCase()

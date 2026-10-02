@@ -230,7 +230,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
  *
  * @remarks
  * Production apps are sealed via {@link updateAppBuildManifest} during
- * {@link finalizeEcoPagesConfig}. Call `setAppBuildManifest` directly only in tests or
+ * config finalization. Call `setAppBuildManifest` directly only in tests or
  * when replacing the entire manifest object; partial updates should use
  * {@link updateAppBuildManifest}.
  */
@@ -265,7 +265,7 @@ export function createConfiguredAppBuildManifest(
  * caller-supplied contribution input.
  *
  * @remarks
- * Primary production entry: `finalizeEcoPagesConfig()` passes the return value of
+ * Primary production entry: config finalization passes the return value of
  * {@link collectConfiguredAppBuildManifestContributions} here to seal
  * `appConfig.runtime.buildManifest` before startup.
  */

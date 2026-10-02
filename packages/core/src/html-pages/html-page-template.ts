@@ -411,11 +411,10 @@ export function compileHtmlPage(file: string, source: string, options: CompileHt
 		file,
 		assets,
 		head: headChildren.map((node) => {
-			const key = node.type === 'element' ? getHeadTagKey(node) : undefined;
+			const element = node.type === 'element' ? node : undefined;
+			const key = element ? getHeadTagKey(element) : undefined;
 			const charset =
-				key === 'charset' && node.type === 'element'
-					? attributeValue(node, 'charset')!.trim().toLowerCase()
-					: undefined;
+				element && key === 'charset' ? attributeValue(element, 'charset')?.trim().toLowerCase() : undefined;
 			return {
 				parts: sliceParts(source, node.start, node.end, ranges),
 				...(key ? { key } : {}),

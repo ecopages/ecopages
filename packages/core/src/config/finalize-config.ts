@@ -7,6 +7,7 @@ import {
 	updateAppBuildManifest,
 } from '../build/build-adapter.ts';
 import { appLogger } from '../global/app-logger.ts';
+import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
 import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -38,10 +39,11 @@ import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-c
  * the earlier `{ config, configFilePath }` argument would otherwise be finalized with
  * silent defaults or fail far from the cause.
  */
-function assertUserConfig(userConfig: EcoPagesUserConfig): void {
+function assertUserConfig(userConfig: EcoPagesUserConfig, configFilePath: string | undefined): void {
 	if (userConfig.processors instanceof Map || 'absolutePaths' in userConfig) {
+		const source = configFilePath ? ` from ${configFilePath}` : '';
 		throw new Error(
-			'Expected a defineConfig(...) object but received an already finalized app config. Export defineConfig(...) from eco.config.ts and let createApp() finalize it.',
+			`Expected a defineConfig(...) object but received an already finalized app config${source}. Export defineConfig(...) from eco.config.ts and let createApp() finalize it.`,
 		);
 	}
 
@@ -95,9 +97,26 @@ function withHtmlPagesIntegration(integrations: AnyIntegrationPlugin[]): AnyInte
 	return [...integrations, new HtmlPagesPlugin()];
 }
 
+function findDuplicate(values: string[]): string | undefined {
+	const seen = new Set<string>();
+	for (const value of values) {
+		if (seen.has(value)) return value;
+		seen.add(value);
+	}
+	return undefined;
+}
+
 function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string[] {
 	const names = new Set(integrations.map((integration) => integration.name));
-	invariant(names.size === integrations.length, 'Integrations names must be unique');
+	const duplicateName = findDuplicate(integrations.map((integration) => integration.name));
+	invariant(
+		duplicateName === undefined,
+		`Integration names must be unique: "${duplicateName}" is registered twice.${
+			duplicateName === HTML_PAGES_INTEGRATION_NAME
+				? ` Core registers "${HTML_PAGES_INTEGRATION_NAME}" for .html Pages unless an Integration owns .html; rename yours.`
+				: ''
+		}`,
+	);
 
 	if (names.has('kitajs') && names.has('react')) {
 		appLogger.debug(
@@ -106,7 +125,11 @@ function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string
 	}
 
 	const extensions = integrations.flatMap((integration) => integration.extensions);
-	invariant(new Set(extensions).size === extensions.length, 'Integrations extensions must be unique');
+	const duplicateExtension = findDuplicate(extensions);
+	invariant(
+		duplicateExtension === undefined,
+		`Integration extensions must be unique: "${duplicateExtension}" is registered by more than one Integration.`,
+	);
 	return extensions;
 }
 
@@ -204,7 +227,7 @@ export async function finalizeEcoPagesConfig(
 	userConfig: EcoPagesUserConfig,
 	options: FinalizeEcoPagesConfigOptions = {},
 ): Promise<EcoPagesAppConfig> {
-	assertUserConfig(userConfig);
+	assertUserConfig(userConfig, options.configFilePath);
 	const rootDir = resolveUserConfigRootDir(userConfig.rootDir, options.cwd);
 	const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
 	const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {

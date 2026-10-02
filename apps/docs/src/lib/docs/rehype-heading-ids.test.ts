@@ -1,7 +1,7 @@
 import type { Element, ElementContent, Root } from 'hast';
 import { unified } from 'unified';
 import { expect, test } from 'vitest';
-import { rehypeHeadingIds, slugifyHeadingText } from './rehype-heading-ids';
+import { rehypeHeadingIds } from './rehype-heading-ids';
 
 function heading(tagName: string, children: ElementContent[], id?: string): Element {
 	return { type: 'element', tagName, properties: id ? { id } : {}, children };
@@ -17,19 +17,14 @@ function idsOf(tree: Root): Array<string | undefined> {
 	);
 }
 
-test('slugifies like the TOC: lowercase, hyphenated, punctuation dropped', () => {
-	expect(slugifyHeadingText('  Stylesheets, scripts, and other assets ')).toBe(
-		'stylesheets-scripts-and-other-assets',
-	);
-	expect(slugifyHeadingText('html.tsx')).toBe('htmltsx');
-});
-
 test('ids section headings from their text, including inline code, and dedupes repeats', () => {
 	const tree: Root = {
 		type: 'root',
 		children: [
 			heading('h1', [text('Page title')]),
 			heading('h2', [text('HTML Pages')]),
+			heading('h2', [text('  Stylesheets, scripts, and other assets ')]),
+			heading('h3', [text('!!!')]),
 			heading('h3', [{ type: 'element', tagName: 'code', properties: {}, children: [text('html.tsx')] }]),
 			heading('h3', [text('Examples')]),
 			heading('h3', [text('Examples')]),
@@ -43,6 +38,8 @@ test('ids section headings from their text, including inline code, and dedupes r
 	expect(idsOf(result)).toEqual([
 		undefined,
 		'html-pages',
+		'stylesheets-scripts-and-other-assets',
+		'section',
 		'htmltsx',
 		'examples',
 		'examples-2',

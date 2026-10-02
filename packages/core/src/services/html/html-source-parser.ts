@@ -21,6 +21,8 @@ import {
  * syntax closes any element so SVG children such as `<path />` do not nest.
  * Script content ends at the first `</script>`; script escape states are not
  * followed.
+ *
+ * @module
  */
 
 export type HtmlAttribute = {

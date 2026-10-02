@@ -198,11 +198,11 @@ describe('RouteRegistry', () => {
 					});
 
 				await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
-					'.html Pages cannot use dynamic route segments',
+					'.html Pages cannot receive Params',
 				);
 				await expect(
 					withIntegration({ name: 'templates', extensions: ['.html'], routeParams: false }).init(),
-				).rejects.toThrow('.html Pages cannot use dynamic route segments');
+				).rejects.toThrow('.html Pages cannot receive Params');
 
 				const userOwned = withIntegration({ name: 'custom-html', extensions: ['.html'], routeParams: true });
 				await userOwned.init();

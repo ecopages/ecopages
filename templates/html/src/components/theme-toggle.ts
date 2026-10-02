@@ -29,22 +29,34 @@ function themeLabel(preference: ThemePreference): string {
 
 export class ThemeToggleElement extends HTMLElement {
 	private preference: ThemePreference = 'system';
+	private listeners: AbortController | null = null;
 
 	connectedCallback() {
+		this.listeners = new AbortController();
+		const { signal } = this.listeners;
 		this.preference = normalizePreference(localStorage.getItem(STORAGE_KEY));
 		this.setAttribute('data-value', this.preference);
 		applyTheme(this.preference);
 		this.updateButton();
 
 		const button = this.querySelector('button');
-		button?.addEventListener('click', () => this.cycle());
+		button?.addEventListener('click', () => this.cycle(), { signal });
 
-		window.matchMedia(DARK_THEME_QUERY).addEventListener('change', () => {
-			if (this.preference === 'system') {
-				applyTheme('system');
-				this.updateButton();
-			}
-		});
+		window.matchMedia(DARK_THEME_QUERY).addEventListener(
+			'change',
+			() => {
+				if (this.preference === 'system') {
+					applyTheme('system');
+					this.updateButton();
+				}
+			},
+			{ signal },
+		);
+	}
+
+	disconnectedCallback() {
+		this.listeners?.abort();
+		this.listeners = null;
 	}
 
 	private cycle() {

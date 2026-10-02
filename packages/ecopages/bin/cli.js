@@ -65,7 +65,7 @@ function getMainHelpText() {
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
-		'  types                   Write generated types for virtual modules, then exit',
+		'  types                   Write virtual-module types for tsc, then exit',
 		'',
 		'Global options:',
 		'  -e, --entry-file <file> Entry file (default: app.ts)',
@@ -247,58 +247,47 @@ async function runServerCommand(rawArgs, definition) {
 }
 
 /**
- * Commands that run the app entry, keyed by name.
+ * Commands that run the app entry, keyed by name. `launchMode` defaults to the name.
  */
 const SERVER_COMMANDS = {
 	dev: {
-		name: 'dev',
 		description: 'Start the development server.',
 		entryArgs: ['--dev'],
 		launchMode: 'dev',
 		optionOverrides: { nodeEnv: 'development' },
 	},
 	'dev:watch': {
-		name: 'dev:watch',
 		description: 'Start the development server with watch mode.',
 		entryArgs: ['--dev'],
 		launchMode: 'dev',
 		optionOverrides: { watch: true, nodeEnv: 'development' },
 	},
 	'dev:hot': {
-		name: 'dev:hot',
 		description: 'Start the development server with hot reload.',
 		entryArgs: ['--dev'],
 		launchMode: 'dev',
 		optionOverrides: { hot: true, nodeEnv: 'development' },
 	},
 	build: {
-		name: 'build',
 		description: 'Build the project for production.',
 		entryArgs: ['--build'],
-		launchMode: 'build',
 		optionOverrides: { nodeEnv: 'production' },
 		mode: 'build',
 	},
 	start: {
-		name: 'start',
 		description: 'Start the production server.',
 		entryArgs: [],
-		launchMode: 'start',
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	types: {
-		name: 'types',
 		description:
-			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. Run it before tsc.',
+			'Run the entry file until createApp() finalizes eco.config.ts, so processors write the types for virtual modules such as ecopages:images, then exit. Run it before tsc.',
 		entryArgs: ['--types'],
-		launchMode: 'types',
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {
-		name: 'preview',
 		description: 'Preview the production build.',
 		entryArgs: ['--preview'],
-		launchMode: 'preview',
 		optionOverrides: { nodeEnv: 'production' },
 	},
 };
@@ -319,7 +308,7 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 	try {
 		const serverCommand = Object.hasOwn(SERVER_COMMANDS, commandName) ? SERVER_COMMANDS[commandName] : undefined;
 		if (serverCommand) {
-			await runServerCommand(commandArgs, serverCommand);
+			await runServerCommand(commandArgs, { name: commandName, ...serverCommand });
 			return;
 		}
 

@@ -1,6 +1,8 @@
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+
 const TAG = 'demo-counter';
 
-class DemoCounterElement extends HTMLElement {
+export class DemoCounterElement extends HTMLElement {
 	private count = 0;
 	private countText: HTMLElement | null = null;
 
@@ -28,4 +30,10 @@ class DemoCounterElement extends HTMLElement {
 
 if (!customElements.get(TAG)) {
 	customElements.define(TAG, DemoCounterElement);
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'demo-counter': JsxCustomElementAttributes<DemoCounterElement, { count?: number }>;
+	}
 }

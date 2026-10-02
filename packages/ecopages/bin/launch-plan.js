@@ -135,13 +135,13 @@ function inferLaunchMode(args, launchMode) {
  * directly. If the bundle is missing, an error is thrown directing the
  * caller to run `ecopages build` first.
  *
- * In `build`, `dev`, and `preview` modes, the source entry file is executed via tsx
+ * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx
  * (Node) or Bun's native runtime with the appropriate loader flags.
  *
  * @param {string[]} args - Arguments forwarded to the entry file.
  * @param {object} options - CLI options (nodeEnv, runtime, port, etc.).
  * @param {string} entryFile - Path to the entry file (default: `app.ts`).
- * @param {'build' | 'dev' | 'preview' | 'start'} launchMode - The CLI command mode.
+ * @param {'build' | 'dev' | 'preview' | 'start' | 'types'} launchMode - The CLI command mode.
  * @returns {{ runtime: string, command: string, commandArgs: string[], envOverrides: object, env: object }}
  * @throws {Error} When `launchMode` is `start` and the bundle does not exist.
  */

@@ -1,6 +1,6 @@
 const TAG = 'demo-counter';
 
-class DemoCounterElement extends HTMLElement {
+export class DemoCounterElement extends HTMLElement {
 	private count = 0;
 	private countText: HTMLElement | null = null;
 

@@ -11,7 +11,8 @@
 		"dev:hot": "ecopages dev:hot -r",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:push": "drizzle-kit push"
+		"db:push": "drizzle-kit push",
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",

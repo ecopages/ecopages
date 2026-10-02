@@ -12,6 +12,7 @@ class TestBunEcopagesApp extends BunEcopagesApp {
 		this.cliArgs = {
 			preview: false,
 			build: false,
+			types: false,
 			start: false,
 			dev: false,
 			force: false,

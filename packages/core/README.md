@@ -98,6 +98,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution
 - `src/static-site-generator/README.md`: static build execution path
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
+- `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation
 
 The intended reading order is:
 
@@ -170,6 +171,8 @@ export default eco.page({
 	),
 });
 ```
+
+Plain `.html` files in `src/pages/` are HTML Pages and need no Integration: `src/pages/about.html` becomes `/about`, rendered inside `src/includes/html.*` or a built-in shell. See [HTML Pages](src/html-pages/README.md).
 
 ### 4. Reusable Components
 

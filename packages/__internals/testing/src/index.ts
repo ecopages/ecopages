@@ -85,8 +85,8 @@ export function createStringMarkupIntegration(
  *
  * @remarks
  * A test-only string Integration is installed by default so `.string.ts`
- * templates have an explicit owner. Pass `integrations: []` when a test
- * intentionally needs an app configuration without an Integration. Fixture
+ * templates have an explicit owner. Pass `integrations: []` when a test needs
+ * no Integration of its own; core still appends its HTML Pages Integration. Fixture
  * apps that author plain `.ts` templates must pass
  * `createStringMarkupIntegration({ extensions: ['.ts'] })`.
  */

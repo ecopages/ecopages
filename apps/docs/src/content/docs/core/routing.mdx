@@ -21,6 +21,9 @@ Extensions depend on your active integrations:
 - `.tsx` with [React](/docs/integrations/react) when React owns the route
 - `.lit.tsx` — [Lit](/docs/integrations/lit)
 - `.mdx` — [MDX](/docs/integrations/mdx)
+- `.html` — [HTML Pages](/docs/core/pages#html-pages), no integration needed
+
+Each route must come from exactly one file. For example, `about.html` next to `about.tsx`, or `about.tsx` next to `about/index.tsx`, is an error. HTML Pages cannot use dynamic segments such as `[slug].html`.
 
 ### Index Routes
 
@@ -91,11 +94,11 @@ export default defineConfig({
 
 ### 404 Page
 
-Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched page requests render this template with status 404.
+Create `404.tsx` (or the extension of your integration, or `404.html`) under `src/pages`. Unmatched page requests render this template with status 404.
 
 ### 500 Page
 
-Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
+Create `500.tsx` (or the extension of your integration, or `500.html`) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
 
 ### Precedence
 

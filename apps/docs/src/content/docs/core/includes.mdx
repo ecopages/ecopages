@@ -16,7 +16,7 @@ By default, Ecopages looks for three main include files:
 2. `head.{ext}`: The HTML head section
 3. `seo.{ext}`: SEO-related meta tags
 
-The extension depends on your chosen integration (e.g. `.tsx` for Ecopages JSX, `.kita.tsx`, `.lit.tsx`).
+The extension depends on your chosen integration (e.g. `.tsx` for Ecopages JSX, `.kita.tsx`, `.lit.tsx`). The HTML template can also be plain HTML, `src/includes/html.html`; see [Plain HTML template](#plain-html-template). An app has one `html` template file: `html.tsx` and `html.html` together are an error.
 
 ## Configuration
 
@@ -54,6 +54,27 @@ const Html = eco.html<HtmlTemplateProps<JsxRenderable>, JsxRenderable>({
 
 export default Html;
 ```
+
+### Plain HTML template
+
+`src/includes/html.html` is the HTML template written in plain HTML, also called the HTML shell. It needs an `<html>` element with `<head>` and `<body>`, and exactly one `<!-- eco:children -->` comment where page content goes:
+
+```html
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>My site</title>
+		<link rel="stylesheet" href="./site.css">
+	</head>
+	<body>
+		<!-- eco:children -->
+	</body>
+</html>
+```
+
+Relative stylesheets and scripts resolve against the template file and are processed the same way as in an [HTML Page](/docs/core/pages#html-pages). Ecopages always emits one doctype, so the template does not need one.
+
+The template has no props, so it cannot render `metadata`. For HTML Pages that is fine: its title and description are fallbacks that each page's own head tags replace. For pages from other integrations, its `<title>` and description stay as written (core still adds their stylesheets, scripts, and robots tag), so if your app also has `eco.page()` Pages that set metadata, use a JSX or React `html.*` template instead.
 
 ### Head Template
 

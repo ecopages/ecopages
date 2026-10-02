@@ -20,6 +20,7 @@ import type {
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getDiscoveredWatchFiles } from '../../../eco/discovered-dependencies.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -391,6 +392,11 @@ export class RouteRenderOrchestrator {
 	}
 }
 
+/**
+ * @remarks
+ * Identity watch files cover sources a root component reads without being one,
+ * such as named barrel hops and the local assets of HTML Pages and shells.
+ */
 function collectRenderShellSourcePaths(
 	appConfig: EcoPagesAppConfig,
 	components: Array<EcoComponent | Partial<EcoComponent>>,
@@ -405,6 +411,10 @@ function collectRenderShellSourcePaths(
 		const componentFile = getComponentIdentity(component)?.file;
 		if (componentFile) {
 			sourcePaths.add(componentFile);
+		}
+
+		for (const watchFile of getDiscoveredWatchFiles(component.config)) {
+			sourcePaths.add(watchFile);
 		}
 	}
 

@@ -47,15 +47,15 @@ describe('createTestAppConfig', () => {
 	it('installs the test-only string Integration by default', async () => {
 		const config = await createTestAppConfig();
 
-		expect(config.integrations.map((integration) => integration.name)).toEqual(['string']);
-		expect(config.templatesExt).toEqual(['.string.ts']);
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['string', 'html-pages']);
+		expect(config.templatesExt).toEqual(['.string.ts', '.html']);
 	});
 
-	it('allows an integration-free config when requested explicitly', async () => {
+	it('keeps only the core HTML Pages Integration when integrations are cleared', async () => {
 		const config = await createTestAppConfig({ integrations: [] });
 
-		expect(config.integrations).toEqual([]);
-		expect(config.templatesExt).toEqual([]);
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['html-pages']);
+		expect(config.templatesExt).toEqual(['.html']);
 	});
 
 	it('allows user config overrides through configure', async () => {

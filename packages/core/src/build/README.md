@@ -182,7 +182,7 @@ The route-module registry (`route-module-build-cache-registry.ts`) shares one `R
 
 ## Unified pages graph
 
-Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`).
+Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`). HTML Pages are compiled in-process (see [HTML Pages](../html-pages/README.md)) and stay out of the graph.
 
 | Artifact       | Location                                              |
 | -------------- | ----------------------------------------------------- |

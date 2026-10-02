@@ -40,7 +40,7 @@ Please run the following command to install the package:
 
 ## Setup
 
-To enable client-side routing, initialize the router in your global script (e.g., `src/layouts/base-layout.script.ts`).
+To enable client-side routing, initialize the router in a script that every page loads: a global Layout script (for example `src/layouts/base-layout.script.ts`), or for [HTML Pages](/docs/core/pages#html-pages), a module referenced from `src/includes/html.html`.
 
 <RuiAlert variant="info" layout="banner" class="unstyled">
 	<RuiAlertTitle>Consistent Head Ordering Required</RuiAlertTitle>

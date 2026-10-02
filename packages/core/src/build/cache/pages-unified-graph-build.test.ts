@@ -58,6 +58,16 @@ describe('pages-unified-graph-build', () => {
 		);
 	});
 
+	it('leaves HTML Pages out, since core compiles them without a bundler', async () => {
+		const appConfig = await createFixtureAppConfig();
+
+		assert.equal(appConfig.templatesExt.includes('.html'), true);
+		assert.equal(
+			isPagesUnifiedGraphPage(path.join(appConfig.absolutePaths.pagesDir, 'about.html'), appConfig),
+			false,
+		);
+	});
+
 	it('defaults unified graph on in production unless explicitly disabled', () => {
 		process.env.NODE_ENV = 'production';
 		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;

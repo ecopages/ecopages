@@ -369,7 +369,8 @@ describe('EcoConfigBuilder', () => {
 			.setIntegrations(integrations)
 			.build();
 
-		expect(config.integrations).toEqual(integrations);
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['test-integration', 'html-pages']);
+		expect(config.integrations[0]).toBe(integrations[0]);
 	});
 
 	test('should set defaultMetadata', async () => {
@@ -409,17 +410,29 @@ describe('EcoConfigBuilder', () => {
 			.setIntegrations(integrations)
 			.build();
 
-		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3']);
+		expect(config.templatesExt).toEqual(['.test1', '.test2', '.test3', '.html']);
 	});
 
-	test('allows a configuration without an Integration for non-rendering apps', async () => {
+	test('registers only the HTML Pages Integration when the config declares none', async () => {
 		const config = await new ConfigBuilder().setBaseUrl('https://example.com').setRootDir('/project').build();
 
-		expect(config.integrations).toEqual([]);
-		expect(config.templatesExt).toEqual([]);
-		expect(config.absolutePaths.htmlTemplatePath).toBe('');
-		expect(config.absolutePaths.error404TemplatePath).toBe('');
-		expect(config.absolutePaths.error500TemplatePath).toBe('');
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['html-pages']);
+		expect(config.templatesExt).toEqual(['.html']);
+		expect(config.absolutePaths.htmlTemplatePath).toBe('/project/src/includes/html.html');
+		expect(config.absolutePaths.error404TemplatePath).toBe('/project/src/pages/404.html');
+		expect(config.absolutePaths.error500TemplatePath).toBe('/project/src/pages/500.html');
+	});
+
+	test('leaves .html to a user Integration that owns it', async () => {
+		const htmlIntegration = createMockIntegration('custom-html', ['.html']);
+		const config = await new ConfigBuilder()
+			.setBaseUrl('https://example.com')
+			.setRootDir('/project')
+			.setIntegrations([htmlIntegration])
+			.build();
+
+		expect(config.integrations).toEqual([htmlIntegration]);
+		expect(config.templatesExt).toEqual(['.html']);
 	});
 
 	test('should throw error for duplicate integration names', async () => {

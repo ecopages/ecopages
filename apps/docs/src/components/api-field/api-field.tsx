@@ -1,12 +1,16 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const ApiField = eco.component<{
-	name: string;
-	type: string;
-	defaultValue: string;
-	mandatory: boolean;
-	children: string;
-}>({
+export const ApiField = eco.component<
+	{
+		name: string;
+		type: string;
+		defaultValue: string;
+		mandatory: boolean;
+		children: string;
+	},
+	JsxRenderable
+>({
 	dependencies: {
 		stylesheets: ['./api-field.css'],
 	},

@@ -6,9 +6,7 @@ import { expect, test } from 'vitest';
 import { rehypePrettyCopyCompatibility } from './rehype-pretty-copy-compatibility';
 
 function run(tree: Root): Root {
-	const plugin = rehypePrettyCopyCompatibility();
-	plugin(tree);
-	return tree;
+	return unified().use(rehypePrettyCopyCompatibility).runSync(tree);
 }
 
 function copyButton(properties: Element['properties']): Element {

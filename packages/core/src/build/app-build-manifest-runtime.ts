@@ -43,7 +43,7 @@ function registerRuntimePlugins(
  * Collects integration and processor contributions before the app build manifest is sealed.
  *
  * @remarks
- * Called from {@link ConfigBuilder.build} via {@link updateAppBuildManifest}. Walks
+ * Called from {@link finalizeEcoPagesConfig} via {@link updateAppBuildManifest}. Walks
  * processors first, then integrations, invoking {@link Processor.prepareBuildContributions}
  * and {@link IntegrationPlugin.prepareBuildContributions} so dynamic plugin lists can be
  * materialized before sealing.

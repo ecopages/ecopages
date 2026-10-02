@@ -19,7 +19,7 @@ The current core package is organized around app-owned runtime state and explici
 
 The important ownership rules are:
 
-- `ConfigBuilder.build()` finalizes app-owned build and runtime services.
+- `finalizeEcoPagesConfig()` finalizes app-owned build and runtime services.
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
@@ -31,7 +31,7 @@ The important ownership rules are:
 ```mermaid
 flowchart TD
 	A[eco.config.ts] --> B[defineConfig / loadEcoPagesConfig]
-	B --> C[ConfigBuilder.build]
+	B --> C[finalizeEcoPagesConfig]
 	C --> D[App build adapter]
 	C --> E[App build manifest]
 	C --> F[Build executor]
@@ -75,7 +75,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- `ConfigBuilder` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
+- `finalizeEcoPagesConfig()` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
@@ -291,7 +291,7 @@ Use these entrypoints when building an Ecopages app:
 
 - `@ecopages/core`
 - `@ecopages/core/create-app`
-- `@ecopages/core/config-builder`
+- `@ecopages/core/config`
 - `@ecopages/core/errors`
 - `@ecopages/core/hash`
 - `@ecopages/core/declarations`

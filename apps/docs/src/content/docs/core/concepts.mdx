@@ -21,8 +21,11 @@ Ecopages uses a flexible integration system to extend its functionality. Each in
 For example, the KitaJS integration might set up template extensions like this:
 
 ```typescript
-  // html.kita.tsx, 404.kita.tsx, and 500.kita.tsx are discovered automatically
-  .setIntegrations([kitajsPlugin()])
+import { defineConfig } from '@ecopages/core/config';
+import { kitajsPlugin } from '@ecopages/kitajs';
+
+// html.kita.tsx, 404.kita.tsx, and 500.kita.tsx are discovered automatically
+export default defineConfig({ integrations: [kitajsPlugin()] });
 ```
 
 Those extensions are then used to resolve semantic files such as `html.*`, `404.*`, and `500.*`.
@@ -116,9 +119,9 @@ const MyComponent = eco.component({
 
 ## Robots.txt and sitemap
 
-Ecopages writes `robots.txt` on every static export from `setRobotsTxt()` preferences.
+Ecopages writes `robots.txt` on every static export from the `robotsTxt` preferences in `eco.config.ts`.
 
-Optional `sitemap.xml` generation is separate and disabled by default. Enable it with `setSitemap({ enabled: true })` — see [Sitemap](/docs/core/sitemap) for eligibility, `exclude`, `extraUrls`, and page-level `metadata.robots.index`.
+Optional `sitemap.xml` generation is separate and disabled by default. Enable it with `sitemap: { enabled: true }` — see [Sitemap](/docs/core/sitemap) for eligibility, `exclude`, `extraUrls`, and page-level `metadata.robots.index`.
 
 ## Import CSS as String in JS Files
 

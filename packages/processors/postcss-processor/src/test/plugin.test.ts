@@ -5,7 +5,7 @@ import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
 import type { IClientBridge } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 
 const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
 const SRC_DIR = path.join(TMP_DIR, 'src');
@@ -37,12 +37,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 
@@ -101,12 +101,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -175,12 +175,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -245,12 +245,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -291,12 +291,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -324,12 +324,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -379,12 +379,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -429,12 +429,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -478,12 +478,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();

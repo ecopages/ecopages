@@ -13,7 +13,7 @@ Integrations in Ecopages add support for new templating engines or frameworks. A
 3. which build-time contributions must be registered before startup
 4. which runtime-only behavior is needed for HMR, browser bundles, or cross-integration boundaries
 
-Core still owns lifecycle ordering. Integration plugins declare contributions; `ConfigBuilder.build()` and app startup decide when those hooks run.
+Core still owns lifecycle ordering. Integration plugins declare contributions; config finalization and app startup decide when those hooks run.
 
 ## Minimal Integrations
 
@@ -92,7 +92,7 @@ Available tags:
 
 Use the smallest declaration that matches reality. For example, an integration that only needs standard Node-compatible APIs should not declare Bun-only requirements.
 
-`runtimeCapability` is validated during `ConfigBuilder.build()`, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
+`runtimeCapability` is validated during config finalization, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
 
 ## Creating a Custom Renderer
 
@@ -311,7 +311,7 @@ export default defineConfig({
 });
 ```
 
-`ConfigBuilder.build()` is the app-owned finalization boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
+Config finalization (`finalizeEcoPagesConfig()`, called by `createApp()` and `loadEcoPagesConfig()`) is the app-owned boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
 
 ## Best Practices
 

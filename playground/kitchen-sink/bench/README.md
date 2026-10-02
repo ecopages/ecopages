@@ -224,7 +224,7 @@ bench/
 - `run.mts` — mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
 - `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
 - `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
-  via the public `ConfigBuilder` API.
+  via the public `finalizeEcoPagesConfig()` API.
 - `lib/static-build-fixture.ts` — bootstrap for static-build benches.
 - `lib/bench-env.ts` — temporary env overrides for graph on/off scenarios.
 - `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.

@@ -94,7 +94,7 @@ export const MyComponent = eco.component({
 
 ## Metadata and SEO
 
-Defaults in `eco.config.ts` via `.setDefaultMetadata()`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
+Defaults in `eco.config.ts` via `defaultMetadata`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
 
 ```tsx
 export default eco.page({
@@ -111,11 +111,13 @@ export default eco.page({
 Disabled by default. Enable in `eco.config.ts`:
 
 ```typescript
-.setSitemap({
-	enabled: true,
-	extraUrls: ['/rss.xml'],
-	exclude: ['/admin/**'],
-})
+export default defineConfig({
+	sitemap: {
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/admin/**'],
+	},
+});
 ```
 
 Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after `afterStaticExport` during `ecopages build` only — not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.

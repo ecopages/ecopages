@@ -45,7 +45,7 @@ This app is documentation, not a hosted API. Agents should follow a progressive 
 2. **`/docs-llm/<section>/<slug>.md`** — raw MDX body for one page. HTML docs pages advertise that URL as `rel="alternate" type="text/markdown"`.
 3. **`/skill.txt`** then **`/skill/SKILL.md`** — task-oriented build guide. Read one reference module, not the whole pack.
 
-`pnpm run generate:llms` runs before `dev` and `build`. The script replaces the generator-owned `src/public/docs-llm/` tree, so deleted pages and `llms: false` entries are not left public. Absolute links in `llms.txt` use `configuredSiteOrigin()` from `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` passes to `setBaseUrl()`. Change that helper or `ECOPAGES_BASE_URL`; do not hardcode a different origin only in `setBaseUrl()`.
+`pnpm run generate:llms` runs before `dev` and `build`. The script replaces the generator-owned `src/public/docs-llm/` tree, so deleted pages and `llms: false` entries are not left public. Absolute links in `llms.txt` use `configuredSiteOrigin()` from `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` sets as `baseUrl`. Change that helper or `ECOPAGES_BASE_URL`; do not hardcode a different origin only in `baseUrl`.
 
 HTML `rel="alternate"` is derived from the page pathname. It does not read the `llms` frontmatter flag. After a generate, an excluded page can still advertise a markdown URL that no longer exists. The generator output is the source of truth for what is fetchable.
 

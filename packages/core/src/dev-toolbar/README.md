@@ -34,17 +34,19 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 ## Config
 
 ```ts
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-.setDevToolbar(devToolbar())
+export default defineConfig({ devToolbar: devToolbar() });
 ```
 
 Bring-your-own client:
 
 ```ts
+import { defineConfig } from '@ecopages/core/config';
 import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
 
-.setDevToolbar(defineDevTool('@acme/my-dev-toolbar'))
+export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
 ```
 
 Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.

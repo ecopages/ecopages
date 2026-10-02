@@ -46,14 +46,14 @@ Peer dependency: `@ecopages/core`.
 Register the processor in `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { compareEntriesByField } from '@ecopages/content-processor';
+import { blogFrontmatterSchema } from './src/content/blog-schema';
 import { docsFrontmatterSchema } from './src/content/docs-schema';
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		contentProcessorPlugin({
 			options: {
 				collections: {
@@ -73,8 +73,8 @@ export default await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
+	],
+});
 ```
 
 ### Collection options

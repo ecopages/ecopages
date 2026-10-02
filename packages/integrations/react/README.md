@@ -14,15 +14,10 @@ bun add -d @types/react @types/react-dom
 Configure the plugin in your `eco.config.ts`:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([reactPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [reactPlugin()] });
 ```
 
 ## Component-Level Islands
@@ -42,11 +37,11 @@ For component-level islands, Ecopages React uses this contract:
 The React plugin includes built-in MDX support. When enabled, you can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([
+export default defineConfig({
+	integrations: [
 		reactPlugin({
 			mdx: {
 				enabled: true,
@@ -55,10 +50,8 @@ const config = await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Mixed Rendering
@@ -300,13 +293,11 @@ Path aliases resolve from `tsconfig.json` `compilerOptions.paths` (oxc-resolver)
 Plugin config — no manual vendor list when provider layouts are flagged:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder().setIntegrations([reactPlugin({ router: ecoRouter() })]).build();
-
-export default config;
+export default defineConfig({ integrations: [reactPlugin({ router: ecoRouter() })] });
 ```
 
 Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:

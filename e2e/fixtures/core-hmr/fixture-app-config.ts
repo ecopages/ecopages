@@ -1,10 +1,8 @@
-import path from 'node:path';
 import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
 import { finalizeEcoPagesConfig, loadEcoPagesConfig } from '@ecopages/core/config';
 import { createCoreHmrUserConfig } from './fixture-user-config.ts';
 
 const fixtureRootDir = import.meta.dirname;
-const defaultConfigFilePath = path.join(fixtureRootDir, 'eco.config.ts');
 
 export type CreateCoreHmrAppConfigOptions = {
 	configFile?: string;
@@ -15,10 +13,7 @@ export async function createCoreHmrAppConfig(options: CreateCoreHmrAppConfigOpti
 		return await loadEcoPagesConfig({ cwd: fixtureRootDir, configFile: options.configFile });
 	}
 
-	return await finalizeEcoPagesConfig({
-		config: createCoreHmrUserConfig(),
-		configFilePath: defaultConfigFilePath,
-	});
+	return await finalizeEcoPagesConfig(createCoreHmrUserConfig());
 }
 
 export type CreateCoreHmrAppOptions = CreateCoreHmrAppConfigOptions &

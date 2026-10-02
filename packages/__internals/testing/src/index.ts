@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -7,12 +6,7 @@ import type {
 	EcoPagesElement,
 } from '@ecopages/core';
 import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
-import {
-	DEFAULT_ECO_CONFIG_FILENAME,
-	finalizeEcoPagesConfig,
-	resolveUserConfigRootDir,
-	type EcoPagesUserConfig,
-} from '@ecopages/core/config';
+import { finalizeEcoPagesConfig, type EcoPagesUserConfig } from '@ecopages/core/config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
@@ -125,11 +119,7 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 		userConfig = configured;
 	}
 
-	const resolvedRoot = resolveUserConfigRootDir(userConfig.rootDir);
-	const config = await finalizeEcoPagesConfig({
-		config: userConfig,
-		configFilePath: path.join(resolvedRoot, DEFAULT_ECO_CONFIG_FILENAME),
-	});
+	const config = await finalizeEcoPagesConfig(userConfig);
 
 	for (const integration of integrations) {
 		integration.setConfig(config);

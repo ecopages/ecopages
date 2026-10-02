@@ -1,14 +1,13 @@
 import path from 'node:path';
 import { createApp, type EcopagesAppOptions } from '../../src/adapters/create-app.ts';
-import { finalizeEcoPagesConfig, loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';
+import { finalizeEcoPagesConfig } from '../../src/config/finalize-config.ts';
+import { loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';
 import { createFixtureUserConfig, fixtureRootDir } from './fixture-user-config.ts';
 
 export type CreateFixtureAppConfigOptions = {
 	/** Loads and finalizes a config module from the fixture directory (for example `eco.config.postcss.ts`). */
 	configFile?: string;
 };
-
-const defaultConfigFilePath = path.join(fixtureRootDir, 'eco.config.ts');
 
 /**
  * Finalizes the fixture app config for unit tests.
@@ -22,10 +21,7 @@ export async function createFixtureAppConfig(options: CreateFixtureAppConfigOpti
 		return await loadEcoPagesConfig({ cwd: fixtureRootDir, configFile: options.configFile });
 	}
 
-	return await finalizeEcoPagesConfig({
-		config: createFixtureUserConfig(),
-		configFilePath: defaultConfigFilePath,
-	});
+	return await finalizeEcoPagesConfig(createFixtureUserConfig());
 }
 
 export type CreateFixtureAppOptions = CreateFixtureAppConfigOptions &

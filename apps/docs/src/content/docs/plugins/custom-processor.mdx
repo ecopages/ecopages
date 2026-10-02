@@ -46,7 +46,7 @@ class CustomProcessor extends Processor {
 	}
 
 	override async prepareBuildContributions(): Promise<void> {
-		// Materialize buildPlugins and plugins before ConfigBuilder.build() seals the manifest
+		// Materialize buildPlugins and plugins before config finalization seals the manifest
 	}
 
 	override async setup(): Promise<void> {
@@ -66,7 +66,7 @@ Shipped processors such as PostCSS and Image expose a factory function (`postcss
 
 ## Declaring Runtime Requirements
 
-Processors can declare runtime assumptions through `runtimeCapability`. Ecopages validates this during `ConfigBuilder.build()`, which means incompatible processors fail before startup proceeds.
+Processors can declare runtime assumptions through `runtimeCapability`. Ecopages validates this during config finalization, which means incompatible processors fail before startup proceeds.
 
 ```typescript
 class CustomProcessor extends Processor {
@@ -95,7 +95,7 @@ Prefer the narrowest declaration that matches the processor's actual runtime nee
 
 Core owns the ordering. Processors participate in these phases:
 
-1. **`prepareBuildContributions()`** — runs during `ConfigBuilder.build()` before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
+1. **`prepareBuildContributions()`** — runs during config finalization, before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
 2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
 3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
 4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
@@ -244,7 +244,7 @@ export default defineConfig({
 });
 ```
 
-`addProcessor(instance)` is also valid when you already hold a configured processor instance.
+`processors` takes instances, so a processor you constructed yourself goes in the same array.
 
 ## Communicating with the Browser (IClientBridge)
 

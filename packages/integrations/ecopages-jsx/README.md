@@ -15,15 +15,10 @@ bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
 Register the `ecopagesJsxPlugin` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [ecopagesJsxPlugin()] });
 ```
 
 ## What This Integration Owns
@@ -100,21 +95,19 @@ Keep `import type` when you only need props from the script module. Do not add `
 Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([
+export default defineConfig({
+	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
 				enabled: true,
 				extensions: ['.mdx', '.md'],
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Mixed Rendering

@@ -5,7 +5,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
-import { ConfigBuilder } from '../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
 import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import { createMockHmrManager, createMockBridge, installDevRuntimeState } from './project-watcher.test-helpers.ts';
@@ -26,7 +26,7 @@ async function handleWatcherFileChange(watcher: ProjectWatcher, filePath: string
 }
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
-	return await new ConfigBuilder().setRootDir(rootDir).build();
+	return await finalizeEcoPagesConfig({ rootDir });
 };
 
 describe('ProjectWatcher', () => {

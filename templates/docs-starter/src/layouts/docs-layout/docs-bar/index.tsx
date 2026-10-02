@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import type { JsxRenderable } from '@ecopages/jsx';
+import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import type { BreadcrumbItem } from '@/components/breadcrumb/breadcrumb';
 import { CopyForLlm } from '@/components/copy-for-llm';
 import './docs-bar.css';
@@ -49,3 +49,9 @@ export const DocsBar = eco.component<DocsBarProps, JsxRenderable>({
 		);
 	},
 });
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'rui-breadcrumb': JsxCustomElementAttributes<HTMLElement, { label?: string }>;
+	}
+}

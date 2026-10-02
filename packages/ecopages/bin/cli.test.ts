@@ -250,6 +250,16 @@ describe('CLI Commands', () => {
 		);
 	});
 
+	it('runs the types command through the app entry with --types', async () => {
+		await runCli(['types']);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
+			['--types'],
+			expect.objectContaining({ nodeEnv: 'production', entryFile: 'app.ts' }),
+			'app.ts',
+			'types',
+		);
+	});
+
 	it('runs build command with custom entry file', async () => {
 		await runCli(['build', '--entry-file', 'server.ts']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(

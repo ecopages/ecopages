@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
 import { BaseLayout } from '@/layouts/base-layout';
 import { LoginForm } from '@/components/login-form';
 import { isGithubAuthEnabled } from '@/lib/auth.server';
@@ -8,7 +9,7 @@ type LoginPageProps = {
 	githubEnabled: boolean;
 };
 
-export default eco.page<LoginPageProps>({
+export default eco.page<LoginPageProps, ReactNode>({
 	layout: BaseLayout,
 	cache: 'dynamic',
 	staticProps: async () => ({

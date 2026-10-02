@@ -1,8 +1,9 @@
 import { eco } from '@ecopages/core';
+import type { ReactNode } from 'react';
 import type { Error500TemplateProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 
-export default eco.page<Error500TemplateProps>({
+export default eco.page<Error500TemplateProps, ReactNode>({
 	layout: BaseLayout,
 	metadata: () => ({
 		title: 'Something went wrong',

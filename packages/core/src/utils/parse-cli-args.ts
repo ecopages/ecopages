@@ -7,6 +7,7 @@ function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
 	return {
 		preview: false,
 		build: false,
+		types: false,
 		start: !isDevelopment,
 		dev: isDevelopment,
 		force: false,
@@ -21,6 +22,7 @@ function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
  * Parsed command line arguments for the Ecopages server.
  * @property preview - Whether to run in preview mode
  * @property build - Whether to run a static build
+ * @property types - Whether to finalize the config, which writes processor-generated types, and exit
  * @property start - Whether to start the server
  * @property dev - Whether to run in development mode
  * @property port - Optional port number
@@ -30,6 +32,7 @@ function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
 export type ReturnParseCliArgs = {
 	preview: boolean;
 	build: boolean;
+	types: boolean;
 	start: boolean;
 	dev: boolean;
 	force: boolean;
@@ -41,7 +44,7 @@ export type ReturnParseCliArgs = {
 
 const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
-const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
+const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview', 'types'];
 
 export type ParseCliArgsOptions = {
 	embeddedRuntime?: boolean;
@@ -67,18 +70,23 @@ function deriveCliCommandFlags(
 		dev?: boolean;
 		build?: boolean;
 		preview?: boolean;
+		types?: boolean;
 	},
 ): {
 	isStartCommand: boolean;
 	isDevCommand: boolean;
 	isBuildCommand: boolean;
 	isPreviewCommand: boolean;
+	isTypesCommand: boolean;
 } {
-	const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
+	const isStartCommand =
+		command === 'start' ||
+		(!values.dev && !values.build && !values.preview && !values.types && command !== 'types');
 	const isDevCommand = command === 'dev' || !!values.dev;
 	const isBuildCommand = command === 'build' || !!values.build;
 	const isPreviewCommand = command === 'preview' || !!values.preview;
-	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand };
+	const isTypesCommand = command === 'types' || !!values.types;
+	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand, isTypesCommand };
 }
 
 function applyNodeEnvForCliCommand(isDevCommand: boolean): void {
@@ -106,6 +114,7 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
+			types: { type: 'boolean' },
 			force: { type: 'boolean' },
 			'serve-only': { type: 'boolean' },
 			port: { type: 'string' },
@@ -116,11 +125,15 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 	});
 
 	const command = resolveEcopagesSubcommand(runtimeArgv);
-	const { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand } = deriveCliCommandFlags(command, values);
+	const { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand, isTypesCommand } = deriveCliCommandFlags(
+		command,
+		values,
+	);
 
 	const parsedCommandOptions = {
 		preview: isPreviewCommand,
 		build: isBuildCommand,
+		types: isTypesCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
 		force: !!values.force,

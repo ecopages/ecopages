@@ -27,7 +27,7 @@ function themeLabel(preference: ThemePreference): string {
 	return 'Dark';
 }
 
-class ThemeToggleElement extends HTMLElement {
+export class ThemeToggleElement extends HTMLElement {
 	private preference: ThemePreference = 'system';
 
 	connectedCallback() {

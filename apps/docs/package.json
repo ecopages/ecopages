@@ -9,7 +9,7 @@
 		"build": "pnpm run generate:llms && ecopages build",
 		"preview": "ecopages preview",
 		"test": "vitest run",
-		"typecheck": "tsx scripts/generate-content-types.ts && tsc --noEmit",
+		"typecheck": "ecopages types && tsc --noEmit",
 		"watch:dev": "pnpm run generate:llms && ecopages dev"
 	},
 	"devDependencies": {

@@ -106,6 +106,10 @@ Mark elements to preserve across navigations. These elements are never recreated
 <radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
 
+## Scripts on navigation
+
+A script that was not already in the same part of the previous page (head or body) runs after the swap; one that was does not run again. New head scripts are inserted first, then new body scripts, in document order, and each waits until earlier blocking scripts (external classic scripts without `async`, `defer`, or `nomodule`) have loaded, as during page parsing. An inline script that uses a library the page loads therefore runs after it. Other external scripts, including modules, run as soon as they load, and an external module script runs at most once per URL in a tab.
+
 ## Script Re-execution
 
 To force a script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun`:

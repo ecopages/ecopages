@@ -115,6 +115,80 @@ describe('DomSwapper service behavior', () => {
 		expect((window as typeof window & { __stable_script_runs__?: number }).__stable_script_runs__).toBe(1);
 	});
 
+	it('runs the head and body scripts a swap adds in document order, after earlier libraries load', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+		document.body.innerHTML = `<script>${record('kept')}</script>`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script>${record('head-inline')}</script></head><body>`,
+				`<script>${record('kept')}</script>`,
+				'<main>Next</main>',
+				`<script>${record('inline')}</script>`,
+				'<script type="application/json">{"data":true}</script>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		const dataScript = document.body.querySelector('script[type="application/json"]');
+		swapper.flushRerunScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'inline']));
+		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
+	});
+
+	it('makes body scripts wait for a library the head of the same swap is still loading', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script></head>`,
+				`<body><script>${record('inline')}</script></body></html>`,
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushRerunScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'inline']));
+	});
+
+	it('does not wait on nomodule or non-JavaScript scripts, which the browser never loads', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				'<html><head></head><body>',
+				`<script nomodule src="data:text/javascript,${encodeURIComponent(record('legacy'))}"></script>`,
+				`<script type="text/plain" src="data:text/javascript,${encodeURIComponent(record('consent'))}"></script>`,
+				`<script>${record('inline')}</script>`,
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushRerunScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['inline']));
+	});
+
 	it('replaces page data before rerun hydration scripts execute', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');

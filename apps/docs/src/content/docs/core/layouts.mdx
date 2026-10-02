@@ -10,7 +10,7 @@ Layouts wrap page content with shared chrome — navigation, sidebars, providers
 
 ## Includes Files
 
-Includes files define the outer document shell. They live under `src/includes` (for example `html.tsx` and `head.tsx` with Ecopages JSX), and every `eco.page()` Page needs the `html` template there. [HTML Pages](/docs/core/pages#html-pages) are the exception: they use a built-in shell when no `src/includes/html.*` exists. They cannot declare a layout, so use an `eco.page()` Page for a route that needs one.
+Includes files define the outer document shell. They live under `src/includes` (for example `html.tsx` and `head.tsx` with Ecopages JSX), and every Page except an HTML Page needs the `html` template there. [HTML Pages](/docs/core/pages#html-pages) are the exception: they use a built-in shell when no `src/includes/html.*` exists. They cannot declare a layout, so use an `eco.page()` Page for a route that needs one.
 
 ### html.tsx
 

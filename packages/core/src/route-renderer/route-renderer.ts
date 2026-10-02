@@ -122,7 +122,10 @@ export class RouteRendererFactory {
 	 */
 	getIntegrationPlugin(filePath: string): AnyIntegrationPlugin {
 		const integrationPlugin = findIntegrationForFile(this.appConfig.integrations, filePath);
-		invariant(!!integrationPlugin, `No integration plugin owns the extension of ${filePath}`);
+		invariant(
+			!!integrationPlugin,
+			`No registered Integration owns ${filePath}. Register an Integration for its extension in eco.config.ts.`,
+		);
 		return integrationPlugin;
 	}
 

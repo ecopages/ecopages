@@ -11,7 +11,7 @@ import { HtmlPageRenderer } from './html-page-renderer.ts';
  * @remarks
  * `finalizeEcoPagesConfig()` appends it after user Integrations unless one of them
  * already owns `.html`, so apps never register it themselves. HTML Pages have no
- * `staticPaths`, so they take no route params.
+ * `staticPaths`, so they receive no Params.
  */
 export class HtmlPagesPlugin extends IntegrationPlugin {
 	renderer = HtmlPageRenderer;
@@ -29,8 +29,8 @@ export class HtmlPagesPlugin extends IntegrationPlugin {
 	 */
 	override compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | undefined {
 		const file = path.resolve(filePath);
-		const { pagesDir, includesDir } = appConfig.absolutePaths;
-		if (!file.startsWith(`${pagesDir}${path.sep}`) && file !== path.join(includesDir, 'html.html')) {
+		const { pagesDir, htmlTemplatePath } = appConfig.absolutePaths;
+		if (!file.startsWith(`${pagesDir}${path.sep}`) && file !== htmlTemplatePath) {
 			return undefined;
 		}
 

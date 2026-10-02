@@ -12,11 +12,12 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		this.hmrManager = hmrManager;
 	}
 
+	/**
+	 * @remarks
+	 * With HMR active, bundled scripts are built and watched by the HMR manager. `bundle: false`
+	 * scripts are copied as written in every mode, so classic scripts keep classic semantics.
+	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
-		/**
-		 * If HMR Manager is active, delegate build/watch of bundled scripts to it.
-		 * `bundle: false` scripts are copied as written so classic scripts keep classic semantics.
-		 */
 		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
 			const resolvedOutput = this.hmrManager.getResolvedScriptOutput?.(dep.filepath);
 			if (resolvedOutput) {

@@ -30,8 +30,9 @@ function applyEdits(html: string, edits: HtmlEdit[]): string {
 function collectShellHeadTags(head: HtmlElementNode): Map<string, HtmlElementNode> {
 	const shellTags = new Map<string, HtmlElementNode>();
 	for (const child of head.children) {
-		const key = child.type === 'element' ? getHeadTagKey(child) : undefined;
-		if (key && child.type === 'element' && !shellTags.has(key)) shellTags.set(key, child);
+		if (child.type !== 'element') continue;
+		const key = getHeadTagKey(child);
+		if (key && !shellTags.has(key)) shellTags.set(key, child);
 	}
 	return shellTags;
 }
@@ -55,15 +56,16 @@ function reconcileHead(html: string, page: RenderedHtmlPageHead): string {
 	let appended = '';
 
 	for (const node of page.nodes) {
-		const shellTag = node.key ? shellTags.get(node.key) : undefined;
 		if (!node.html) continue;
+		const { key } = node;
+		const shellTag = key ? shellTags.get(key) : undefined;
 
-		if (shellTag && node.key === 'charset') {
+		if (shellTag && key === 'charset') {
 			assertMatchingCharset(page, node.charset, shellTag);
-		} else if (shellTag) {
+		} else if (shellTag && key) {
 			edits.push({ start: shellTag.start, end: shellTag.end, html: node.html });
-			shellTags.delete(node.key!);
-		} else if (node.key && EARLY_HEAD_KEYS.has(node.key)) {
+			shellTags.delete(key);
+		} else if (key && EARLY_HEAD_KEYS.has(key)) {
 			early += node.html;
 		} else {
 			appended += node.html;

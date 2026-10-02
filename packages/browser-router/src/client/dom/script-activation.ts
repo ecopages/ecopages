@@ -90,13 +90,17 @@ export async function activateScriptsInOrder(
 	return blockingLoads;
 }
 
+function getActivatableScriptKey(script: HTMLScriptElement): string | null {
+	return isActivatableScript(script) ? getHeadScriptKey(script) : null;
+}
+
 /**
  * Returns the identity keys of the executable scripts in the live body.
  */
 export function collectBodyScriptKeys(): Set<string> {
 	const keys = new Set<string>();
 	for (const script of document.body.querySelectorAll<HTMLScriptElement>('script')) {
-		const key = isActivatableScript(script) ? getHeadScriptKey(script) : null;
+		const key = getActivatableScriptKey(script);
 		if (key) keys.add(key);
 	}
 	return keys;
@@ -113,7 +117,7 @@ export function collectBodyScriptKeys(): Set<string> {
 export function collectEnteringBodyScripts(previousKeys: ReadonlySet<string>): ScriptActivation[] {
 	return Array.from(document.body.querySelectorAll<HTMLScriptElement>('script'))
 		.filter((script) => {
-			const key = isActivatableScript(script) ? getHeadScriptKey(script) : null;
+			const key = getActivatableScriptKey(script);
 			return key !== null && !previousKeys.has(key);
 		})
 		.map((script) => ({

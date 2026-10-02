@@ -13,7 +13,7 @@ It is responsible for:
 - validating integration, processor, and loader registration
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
-- selecting explicit build ownership and creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, and remaining compatibility-only runtime state
+- selecting explicit build ownership and creating app-owned runtime state: the build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
 - enforcing runtime capability requirements before startup
 - carrying host-injected runtime dependencies only through abstract slots such as host module loaders, never through bundler-specific core defaults
 

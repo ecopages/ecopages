@@ -59,6 +59,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 5. Processor build plugins use `EcoBuildPlugin`, not Bun-specific plugin types.
 6. Core owns plugin lifecycle ordering — see `reference/processors-and-plugins.md` before authoring custom plugins.
 7. In mixed-integration apps, compose cross-integration shells with integration-owned `EcoEmbed` (`@ecopages/<integration>/eco-embed`), which wraps `eco.embed()`. Plain opaque objects fail fast at core foreign-subtree queue boundaries — pass already-serialized HTML or use `EcoEmbed` instead of ad-hoc object children.
+8. Type-check with `ecopages types && tsc --noEmit`. Bare `tsc` on a fresh checkout has no types for `ecopages:images` or `ecopages:content/*`.
 
 ## Resources
 

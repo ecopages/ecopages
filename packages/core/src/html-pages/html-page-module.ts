@@ -86,7 +86,7 @@ export function loadHtmlPageModule(appConfig: EcoPagesAppConfig, filePath: strin
 				: undefined,
 	};
 	warnedSourceHashes.set(file, sourceHash);
-	const isShell = file === path.join(appConfig.absolutePaths.includesDir, 'html.html');
+	const isShell = file === appConfig.absolutePaths.htmlTemplatePath;
 	const template = isShell ? compileHtmlShell(file, source, options) : compileHtmlPage(file, source, options);
 	const identity: ComponentIdentity = {
 		id: rapidhash(file).toString(36),

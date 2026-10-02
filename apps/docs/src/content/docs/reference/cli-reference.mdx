@@ -88,8 +88,8 @@ Starts the production server using the existing build in the `dist` directory.
 
 Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, then exits.
 
-- Processors generate these types when the config loads, which otherwise happens only during `dev` or `build`, so a fresh checkout or a CI job has none.
-- It runs your entry file and stops inside `createApp()`, right after the config is finalized, so code after `createApp()` (an RSS step, for example) does not run.
+- Processors generate these types when the app finalizes its config, which otherwise happens only when the app starts (`dev`, `build`, `preview`, or `start`), so a fresh checkout or a CI job has none.
+- It runs your entry file and stops inside `createApp()`, right after the config is finalized. Code after `createApp()` (an RSS step, for example) does not run; code before it, such as top-level imports with side effects, does.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
 > **Note:** Commands that accept `[entry]` default to `app.ts` when omitted.

@@ -51,7 +51,7 @@ export default eco.page({
 });
 ```
 
-**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes with no Integration or config. A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in shell when none exists. `src/includes/html.html` is an HTML shell in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
+**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes that need no Integration or option in `eco.config.ts` (core registers its own). A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in shell when none exists. `src/includes/html.html` is an HTML shell in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
 
 - Page `<title>`, `<base>`, canonical link, and `<meta>` with the same `name`/`property`/`http-equiv` replace the shell's in place; other head tags are added before `</head>`. `<html>`/`<body>` attributes merge (classes join).
 - Relative `<link rel="stylesheet">`, `<style>`, `<script type="module" src>` (bundled), and classic `<script src>` (copied) resolve against the file and are emitted where written. External and root-relative URLs and inline scripts stay literal. Images and fonts go in `src/public/` with root-relative URLs.
@@ -112,6 +112,8 @@ export default eco.page({
 Disabled by default. Enable in `eco.config.ts`:
 
 ```typescript
+import { defineConfig } from '@ecopages/core/config';
+
 export default defineConfig({
 	sitemap: {
 		enabled: true,
@@ -128,6 +130,8 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 **Dynamic routes:** `src/pages/blog/[slug].tsx` with `staticProps` reading `pathname.params`.
 
 **Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
+
+**Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the app finalizes its config, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
 
 ## Best practices
 

@@ -88,13 +88,9 @@ export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}
 		return cached;
 	}
 
-	const loadPromise = (async (): Promise<EcoPagesAppConfig> => {
-		return await finalizeEcoPagesConfig(await loadConfigModule(configFilePath), {
-			configFilePath,
-			buildOwnership: options.buildOwnership,
-			cwd,
-		});
-	})();
+	const loadPromise = loadConfigModule(configFilePath).then((userConfig) =>
+		finalizeEcoPagesConfig(userConfig, { configFilePath, buildOwnership: options.buildOwnership, cwd }),
+	);
 
 	appConfigCache.set(cacheKey, loadPromise);
 

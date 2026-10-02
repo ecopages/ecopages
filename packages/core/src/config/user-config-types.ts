@@ -13,7 +13,7 @@ import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts'
  * @remarks
  * Author this object using `defineConfig({ ... })` in `eco.config.ts`.
  * This type excludes resolved absolute paths, derived integration extensions, and runtime
- * services attached during {@link finalizeEcoPagesConfig}.
+ * services attached when `createApp()` finalizes the config.
  *
  * @example
  * ```typescript

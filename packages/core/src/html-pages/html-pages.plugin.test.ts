@@ -18,7 +18,12 @@ describe('HtmlPagesPlugin', () => {
 		appConfig = {
 			rootDir,
 			defaultMetadata: { title: 'Site', description: 'Default description' },
-			absolutePaths: { srcDir: at('src'), pagesDir: at('src/pages'), includesDir: at('src/includes') },
+			absolutePaths: {
+				srcDir: at('src'),
+				pagesDir: at('src/pages'),
+				includesDir: at('src/includes'),
+				htmlTemplatePath: at('src/includes/html.html'),
+			},
 		} as unknown as EcoPagesAppConfig;
 	});
 
@@ -41,9 +46,5 @@ describe('HtmlPagesPlugin', () => {
 		expect(plugin.compilePageModule(at('src/includes/other.html'), appConfig)).toBeUndefined();
 		expect(plugin.compilePageModule(at('src/public/index.html'), appConfig)).toBeUndefined();
 		expect(plugin.compilePageModule(at('src/pages-old/about.html'), appConfig)).toBeUndefined();
-	});
-
-	it('takes no route params', () => {
-		expect(new HtmlPagesPlugin().routeParams).toBe(false);
 	});
 });

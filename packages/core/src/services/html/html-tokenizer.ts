@@ -6,6 +6,8 @@
  * Both follow lol-html on the rules collected here, so a tag, comment, or
  * raw-text boundary is recognised the same way whether markup is rewritten in a
  * stream or parsed with source offsets.
+ *
+ * @module
  */
 
 export type HtmlStartTagAttribute = {
@@ -26,7 +28,7 @@ export type HtmlStartTagAttribute = {
 	valueStart: number;
 };
 
-export type HtmlStartTag = { rawName: string; attributes: HtmlStartTagAttribute[] };
+type HtmlStartTag = { rawName: string; attributes: HtmlStartTagAttribute[] };
 
 export type Match = 'yes' | 'no' | 'more';
 
@@ -123,7 +125,7 @@ function readAttributeValue(raw: string, index: number): { text: string; start: 
 	return { text: raw.slice(position, valueEnd), start: position, end: valueEnd };
 }
 
-export function skipWhile(raw: string, index: number, predicate: (char: string, at: number) => boolean): number {
+function skipWhile(raw: string, index: number, predicate: (char: string, at: number) => boolean): number {
 	let position = index;
 	while (position < raw.length && predicate(raw[position], position)) position++;
 	return position;
@@ -209,7 +211,7 @@ export function isAsciiAlpha(char: string): boolean {
 	return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
 }
 
-export function isWhitespace(char: string): boolean {
+function isWhitespace(char: string): boolean {
 	return char === ' ' || char === '\n' || char === '\t' || char === '\r' || char === '\f';
 }
 
@@ -224,6 +226,6 @@ export function isWhitespaceCode(code: number): boolean {
 	return code === 32 || code === 10 || code === 9 || code === 13 || code === 12;
 }
 
-export function isTagNameEnd(char: string): boolean {
+function isTagNameEnd(char: string): boolean {
 	return isWhitespace(char) || char === '/' || char === '>';
 }

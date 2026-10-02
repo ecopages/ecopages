@@ -210,6 +210,29 @@ describe('FileScriptProcessor', () => {
 			expect(result.content).toBeDefined();
 		});
 
+		test('should copy a bundle: false script as written even when HMR is enabled', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				getResolvedScriptOutput: vi.fn(),
+				registerScriptEntrypoint: vi.fn(),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+
+			const result = await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/vendor/jquery.js',
+				bundle: false,
+				inline: false,
+			});
+
+			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
+			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
+			expect(copyFileMock).toHaveBeenCalled();
+			expect(result.inline).toBe(false);
+		});
+
 		test('should copy file without bundling when bundle is false', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

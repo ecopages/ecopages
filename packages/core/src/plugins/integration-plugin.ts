@@ -110,7 +110,7 @@ type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => 
  * - which build-time or runtime contributions must be registered for that framework
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
- * hooks on this class, while `finalizeEcoPagesConfig()` and app startup decide when
+ * hooks on this class, while config finalization and app startup decide when
  * those hooks run. Build plugins map to {@link AppBuildManifest} buckets:
  * `plugins` → `runtimePlugins`, `browserBuildPlugins` → `browserBundlePlugins`,
  * `browserRuntimeManifest` → client import rewrite map. For page-browser and
@@ -127,7 +127,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly jsxImportSource?: string;
 
 	/**
-	 * Whether this Integration's Pages can take route params from `[param]` and `[...param]`
+	 * Whether this Integration's Pages can receive Params from `[param]` and `[...param]`
 	 * filenames.
 	 *
 	 * @remarks

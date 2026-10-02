@@ -202,7 +202,7 @@ Core also reads these Page head tags into the page metadata, merged over `defaul
 | `<link rel="canonical">`     | `url`                                                  |
 | `<meta name="robots">`       | `robots`; `noindex` removes the route from the Sitemap |
 
-Core does not write tags from that metadata into an HTML Page. A plain HTML shell and its Pages output only the head tags they contain, so write Open Graph and Twitter tags by hand: site defaults in `html.html`, and `og:title`, `og:description`, `twitter:title`, and `twitter:description` in each Page that sets its own title or description. A JSX or React shell can render them from metadata instead, as the JSX templates' `Seo` include does.
+Apart from a robots `<meta>` built from `metadata.robots` (see [Includes](/docs/core/includes)), core does not write tags from that metadata into an HTML Page. Write Open Graph and Twitter tags by hand: site defaults in `html.html`, and `og:title`, `og:description`, `twitter:title`, and `twitter:description` in each Page that sets its own title or description. A JSX or React shell can render them from metadata instead, as the JSX templates' `Seo` include does.
 
 ### Stylesheets, scripts, and other assets
 

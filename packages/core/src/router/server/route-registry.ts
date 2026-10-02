@@ -276,7 +276,7 @@ export class RouteRegistry {
 			const owner = kind === 'exact' ? undefined : findIntegrationForFile(this.appConfig.integrations, filePath);
 			invariant(
 				owner?.routeParams !== false,
-				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot use dynamic route segments, because they have no staticPaths. Use an eco.page() Page for this route.`,
+				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or render this route with an Integration whose Pages support staticPaths, such as an eco.page() Page.`,
 			);
 
 			templateRoutes.push({

@@ -14,7 +14,7 @@ pnpm dev
 
 Copy `.env.example` to `.env` and adjust port/base URL if needed.
 
-`pnpm typecheck` checks the app with `tsc`; the root `pnpm run typecheck` includes it. Unit tests run with `pnpm test`, and the `*.test.browser.ts` files run in the root `browser` Vitest project.
+`pnpm typecheck` checks the app with `tsc`; the root `pnpm run typecheck` includes it. It first loads `eco.config.ts` so the content processor writes the typed `ecopages:content/*` declarations, which a fresh checkout does not have. Unit tests run with `pnpm test`, and the `*.test.browser.ts` files run in the root `browser` Vitest project.
 
 The docs app deliberately does not prewarm the entire collection in development. Broad route prewarming competes
 with interactive navigation for the same page-build pipeline; pages are rendered on demand instead. Client navigation

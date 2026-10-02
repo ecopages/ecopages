@@ -1,0 +1,39 @@
+@layer components {
+	.site-header {
+		@apply w-full max-w-5xl mx-auto py-3 px-4 flex items-center justify-between;
+	}
+
+	.site-logo {
+		@apply inline-flex items-center gap-2 text-base font-semibold no-underline;
+		font-family: var(--font-display);
+		letter-spacing: -0.01em;
+		color: var(--color-on-background);
+	}
+
+	.site-logo:hover {
+		color: var(--color-muted);
+	}
+
+	.layout-main {
+		@apply w-full max-w-5xl mx-auto mt-2 px-4 pb-6 flex-1;
+	}
+}
+
+@layer components {
+	.error-page {
+		@apply flex flex-col gap-2 py-12;
+	}
+
+	.error-page h1 {
+		@apply m-0 text-2xl font-semibold tracking-tight;
+	}
+
+	.error-page p {
+		@apply m-0 text-sm;
+		color: var(--color-muted);
+	}
+
+	.error-page a {
+		color: var(--color-accent);
+	}
+}

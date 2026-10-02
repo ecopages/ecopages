@@ -1465,6 +1465,27 @@ importers:
         specifier: ^4.4.3
         version: 4.5.4
 
+  templates/html:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/postcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/postcss-processor
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
+
   templates/jsx:
     devDependencies:
       '@ecopages/browser-router':

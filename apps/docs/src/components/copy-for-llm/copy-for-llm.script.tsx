@@ -120,6 +120,6 @@ export class RadiantCopyForLlm extends RadiantElement {
 
 declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
-		'radiant-copy-for-llm': JsxCustomElementAttributes<RadiantCopyForLlm, CopyForLlmProps>;
+		'radiant-copy-for-llm': JsxCustomElementAttributes<RadiantCopyForLlm, Partial<CopyForLlmProps>>;
 	}
 }

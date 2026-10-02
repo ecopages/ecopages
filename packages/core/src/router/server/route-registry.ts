@@ -4,7 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, RouteKind } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
-import { isHtmlPagesEnabled } from '../../html-pages/html-page-module.ts';
+import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
 
 export type RouteParams = Record<string, string | string[]>;
 export type RouteQuery = Record<string, string>;
@@ -262,7 +262,7 @@ export class RouteRegistry {
 
 			const routePathname = this.getRoutePath(file);
 			const filePath = path.join(this.pagesDir, file);
-			const kind = this.classifyRouteKind(filePath);
+			const kind = this.classifyRouteKind(file);
 
 			const duplicateFile = routeFiles.get(routePathname);
 			if (duplicateFile === filePath) {
@@ -273,9 +273,10 @@ export class RouteRegistry {
 				`${duplicateFile} and ${filePath} both define the route "${routePathname}". Keep one of them.`,
 			);
 			routeFiles.set(routePathname, filePath);
+			const owner = kind === 'exact' ? undefined : findIntegrationForFile(this.appConfig.integrations, filePath);
 			invariant(
-				kind === 'exact' || !filePath.endsWith('.html') || !isHtmlPagesEnabled(this.appConfig),
-				`${filePath}: HTML Pages cannot use dynamic route segments because they have no staticPaths. Use an eco.page() Page for this route.`,
+				owner?.routeParams !== false,
+				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot use dynamic route segments, because they have no staticPaths. Use an eco.page() Page for this route.`,
 			);
 
 			templateRoutes.push({
@@ -308,20 +309,28 @@ export class RouteRegistry {
 		});
 	}
 
+	/**
+	 * @remarks
+	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
+	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name.
+	 */
 	private getRoutePath(file: string): string {
-		const cleanedRoute = this.templatesExt
-			.reduce((route, ext) => route.replace(ext, ''), file)
-			.replace(/\/?index$/, '');
+		const extension = findLongestExtension(this.templatesExt, file) ?? '';
+		const cleanedRoute = file.slice(0, file.length - extension.length).replace(/\/?index$/, '');
 
 		return normalizePathname(`/${cleanedRoute}`);
 	}
 
-	private classifyRouteKind(filePath: string): RouteKind {
-		if (filePath.includes('[...')) {
+	/**
+	 * @param file - Path relative to the pages directory, so brackets in the project path do not
+	 * make every route dynamic.
+	 */
+	private classifyRouteKind(file: string): RouteKind {
+		if (file.includes('[...')) {
 			return 'catch-all';
 		}
 
-		if (filePath.includes('[') && filePath.includes(']')) {
+		if (file.includes('[') && file.includes(']')) {
 			return 'dynamic';
 		}
 

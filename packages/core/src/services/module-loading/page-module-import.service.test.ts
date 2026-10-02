@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.js';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
 import {
 	getRequestPipelineMetricsSnapshot,
@@ -77,6 +78,48 @@ describe('PageModuleImportService', () => {
 		service.clearImportCache();
 		delete process.env.NODE_ENV;
 		delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+	});
+
+	it('asks the owning Integration to compile the file before bundling it', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-hook-'));
+		const compiledOutput = join(tempDir, 'skip-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { bundled: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
+		const ownModule = { default: { compiled: true } };
+		const compiled: string[] = [];
+		const templates = {
+			name: 'templates',
+			extensions: ['.tpl'],
+			compilePageModule: async (filePath: string) => {
+				compiled.push(filePath);
+				return filePath.endsWith('skip.tpl') ? undefined : ownModule;
+			},
+		};
+		service = new PageModuleImportService(
+			{ integrations: [templates] } as unknown as EcoPagesAppConfig,
+			fakeDependencies.dependencies,
+		);
+
+		try {
+			const own = await service.importModule({
+				filePath: '/app/pages/page.tpl',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+			assert.equal(own, ownModule);
+			assert.deepEqual(fakeDependencies.calls.buildModule, []);
+
+			const bundled = await service.importModule<{ default: { bundled: boolean } }>({
+				filePath: '/app/pages/skip.tpl',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+			assert.deepEqual(bundled.default, { bundled: true });
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+			assert.deepEqual(compiled, ['/app/pages/page.tpl', '/app/pages/skip.tpl']);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it('should import the transpiled output in node runtimes', async () => {

@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, RouteKind } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { isHtmlPagesEnabled } from '../../html-pages/html-page-module.ts';
 
 export type RouteParams = Record<string, string | string[]>;
 export type RouteQuery = Record<string, string>;
@@ -252,6 +253,7 @@ export class RouteRegistry {
 		);
 
 		const templateRoutes: TemplateRoute[] = [];
+		const routeFiles = new Map<string, string>();
 
 		for await (const file of scannedFiles) {
 			if (file.includes('.ecopages-node.')) {
@@ -261,6 +263,20 @@ export class RouteRegistry {
 			const routePathname = this.getRoutePath(file);
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(filePath);
+
+			const duplicateFile = routeFiles.get(routePathname);
+			if (duplicateFile === filePath) {
+				continue;
+			}
+			invariant(
+				duplicateFile === undefined,
+				`${duplicateFile} and ${filePath} both define the route "${routePathname}". Keep one of them.`,
+			);
+			routeFiles.set(routePathname, filePath);
+			invariant(
+				kind === 'exact' || !filePath.endsWith('.html') || !isHtmlPagesEnabled(this.appConfig),
+				`${filePath}: HTML Pages cannot use dynamic route segments because they have no staticPaths. Use an eco.page() Page for this route.`,
+			);
 
 			templateRoutes.push({
 				pathname: routePathname,

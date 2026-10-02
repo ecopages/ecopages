@@ -58,6 +58,15 @@ export interface InlineContentScriptAsset extends ContentScriptAsset {
 export interface ContentStylesheetAsset extends StylesheetAsset {
 	source: 'content';
 	content: string;
+	/**
+	 * Path processors receive as the stylesheet's location, for example to resolve relative imports.
+	 *
+	 * @remarks
+	 * Use a `.css` path: processors select stylesheets by extension. It also joins the cache
+	 * identity, so identical CSS from two origins is processed separately. Defaults to a shared
+	 * virtual `styles/page-bundle.css` in the dist directory.
+	 */
+	processingOrigin?: string;
 }
 
 export interface InlineContentStylesheetAsset extends ContentStylesheetAsset {

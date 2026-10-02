@@ -23,7 +23,7 @@ For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<
 
 ## Stack choice
 
-Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`.
+Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`. Plain `.html` Pages are built into core: an app made only of HTML Pages registers no Integration.
 
 | Integration        | Owns                    | Notes                                                                                |
 | ------------------ | ----------------------- | ------------------------------------------------------------------------------------ |
@@ -32,6 +32,7 @@ Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`ki
 | **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                              |
 | **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx` |
 | **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                       |
+| **HTML Pages**     | `.html` Pages           | Built into core; no plugin, props, or Layout. See `reference/core.md`                |
 
 Do not treat Ecopages as a React-only framework.
 

@@ -168,6 +168,54 @@ describe('RouteRegistry', () => {
 		}
 	});
 
+	test('rejects two Page files that define the same route', async () => {
+		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		try {
+			await fs.mkdir(path.join(pagesDir, 'about'));
+			await fs.writeFile(path.join(pagesDir, 'about.html'), '');
+			await fs.writeFile(path.join(pagesDir, 'about', 'index.html'), '');
+
+			await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
+				'both define the route "/about"',
+			);
+		} finally {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects dynamic HTML Page filenames unless a user Integration owns .html', async () => {
+		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		try {
+			await fs.writeFile(path.join(pagesDir, '[slug].html'), '');
+
+			await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
+				'HTML Pages cannot use dynamic route segments',
+			);
+
+			const userOwned = createRegistry({
+				pagesDir,
+				templatesExt: ['.html'],
+				appConfig: { ...appConfig, integrations: [{ name: 'custom-html' }] } as EcoPagesAppConfig,
+			});
+			await userOwned.init();
+			expect(userOwned.templateRoutes.map((route) => route.pathname)).toEqual(['/[slug]']);
+		} finally {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps one route when overlapping extension globs return the same file twice', async () => {
+		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue(['about.kita.tsx', 'about.kita.tsx']);
+		try {
+			const registry = createRegistry({ templatesExt: ['.kita.tsx', '.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/about']);
+		} finally {
+			globSpy.mockRestore();
+		}
+	});
+
 	test('fires reload listeners after reload', async () => {
 		const registry = createRegistry();
 		const listener = vi.fn();

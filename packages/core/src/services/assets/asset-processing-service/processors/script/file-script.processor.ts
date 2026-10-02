@@ -14,9 +14,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		/**
-		 * If HMR Manager is active, delegate build/watch to it.
+		 * If HMR Manager is active, delegate build/watch of bundled scripts to it.
+		 * `bundle: false` scripts are copied as written so classic scripts keep classic semantics.
 		 */
-		if (this.hmrManager?.isEnabled() && !dep.inline) {
+		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
 			const resolvedOutput = this.hmrManager.getResolvedScriptOutput?.(dep.filepath);
 			if (resolvedOutput) {
 				return {

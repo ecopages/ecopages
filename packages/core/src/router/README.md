@@ -40,6 +40,8 @@ File patterns determine route kind:
 | `[slug].tsx`    | `dynamic`   | `/blog/[slug]`    |
 | `[...slug].tsx` | `catch-all` | `/docs/[...slug]` |
 
+Discovery rejects two Page files that produce the same template route (for example `about.html` with `about.tsx` or `about/index.html`) and dynamic HTML Page filenames such as `[slug].html`, which have no `staticPaths` source.
+
 The registry stores canonical template routes only. It compiles request-time matching metadata during `init()` and `reload()`, but it does not execute `staticPaths()` during discovery.
 
 Build-time static expansion is a separate operation. The registry invokes `staticPaths()` lazily through an injected page-module adapter and returns concrete static path expansions for the static generator.

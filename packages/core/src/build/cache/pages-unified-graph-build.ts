@@ -10,6 +10,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
+import { isHtmlPageModuleFile } from '../../html-pages/html-page-module.ts';
 import { build } from '../build-adapter.ts';
 import { requireBuildRuntime } from '../runtime/build-runtime.ts';
 import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
@@ -77,9 +78,16 @@ export function shouldBuildPagesUnifiedGraph(): boolean {
 	return isPagesUnifiedGraphEnabled() && process.env.NODE_ENV === 'production';
 }
 
+/**
+ * @remarks
+ * HTML Pages are compiled in-process rather than bundled, so they stay out of the graph.
+ */
 export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesAppConfig): boolean {
 	const normalizedPath = path.normalize(filePath);
-	return appConfig.templatesExt.some((extension) => normalizedPath.endsWith(extension));
+	return (
+		appConfig.templatesExt.some((extension) => normalizedPath.endsWith(extension)) &&
+		!isHtmlPageModuleFile(appConfig, normalizedPath)
+	);
 }
 
 function getPagesUnifiedGraphCachePath(appConfig: EcoPagesAppConfig): string {

@@ -20,6 +20,7 @@ import {
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
+import { htmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -348,9 +349,12 @@ export class ConfigBuilder {
 
 	/**
 	 * Sets the integration plugins to use.
-	 * Rendering apps must register at least one Integration that owns their route file extensions.
 	 *
-	 * @param integrations - An array of integration plugins. Pass an empty array for an intentionally integration-free config.
+	 * @remarks
+	 * `build()` appends the core HTML Pages Integration unless one of these owns `.html`, so an
+	 * app whose routes are all `.html` files can pass an empty array.
+	 *
+	 * @param integrations - The app's own integration plugins.
 	 * @returns The ConfigBuilder instance for method chaining
 	 */
 	setIntegrations(integrations: AnyIntegrationPlugin[]): this {
@@ -616,6 +620,21 @@ export class ConfigBuilder {
 		return path.join(dirPath, `${basename}${extensions[0]}`);
 	}
 
+	/**
+	 * Appends the core HTML Pages Integration unless a user Integration owns `.html`.
+	 *
+	 * @remarks
+	 * It goes last so the first-extension fallback for missing semantic templates,
+	 * and the shell resolution order of existing apps, stay unchanged.
+	 */
+	private appendHtmlPagesIntegration(): void {
+		if (this.config.integrations.some((integration) => integration.extensions.includes('.html'))) {
+			return;
+		}
+
+		this.config.integrations = [...this.config.integrations, htmlPagesPlugin()];
+	}
+
 	private createIntegrationTemplatesExt(integrations: EcoPagesAppConfig['integrations']) {
 		const integrationName = integrations.map((integration) => integration.name);
 		const uniqueName = new Set(integrationName);
@@ -831,6 +850,7 @@ export class ConfigBuilder {
 	 */
 	async build(): Promise<EcoPagesAppConfig> {
 		this.reviewBaseUrl(this.config.baseUrl);
+		this.appendHtmlPagesIntegration();
 		this.createIntegrationTemplatesExt(this.config.integrations);
 		this.createAbsolutePaths(this.config);
 

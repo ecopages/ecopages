@@ -15,15 +15,15 @@
 ```
 project/
 ├── src/
-│   ├── pages/          # Static routes (eco.page, MDX)
+│   ├── pages/          # Static routes (eco.page, MDX, .html)
 │   ├── views/          # Handler-rendered views
 │   ├── layouts/
 │   ├── components/
 │   ├── handlers/
-│   ├── includes/       # html.*, head.*, seo.*
+│   ├── includes/       # html.* (incl. html.html), head.*, seo.*
 │   ├── lib/
+│   ├── public/         # Copied to dist as written
 │   └── styles/
-├── public/
 ├── eco.config.ts
 └── package.json
 ```
@@ -50,6 +50,13 @@ export default eco.page({
 	render: () => <h1>Hello</h1>,
 });
 ```
+
+**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes with no Integration or config. A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in shell when none exists. `src/includes/html.html` is an HTML shell in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
+
+- Page `<title>`, `<base>`, canonical link, and `<meta>` with the same `name`/`property`/`http-equiv` replace the shell's in place; other head tags are added before `</head>`. `<html>`/`<body>` attributes merge (classes join).
+- Relative `<link rel="stylesheet">`, `<style>`, `<script type="module" src>` (bundled), and classic `<script src>` (copied) resolve against the file and are emitted where written. External and root-relative URLs and inline scripts stay literal. Images and fonts go in `src/public/` with root-relative URLs.
+- No props, data hooks, Layout, `[param]` filenames, or SSR of custom elements; use `eco.page()` for those. `404.html` and `500.html` work as error pages. Two files for one route (`about.html` and `about.tsx`) is an error.
+- `html.html` cannot render `metadata`, so `eco.page()` Pages under it keep its static `<title>` and description. Mixed apps whose `eco.page()` Pages set metadata should keep a JSX or React `html.*`; HTML Pages work inside it too.
 
 ## Components and dependency discovery
 

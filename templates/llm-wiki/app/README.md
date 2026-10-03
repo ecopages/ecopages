@@ -37,7 +37,7 @@ pnpm test
 pnpm typecheck
 ```
 
-`pnpm sync:obsidian` shows the destination directory and waits for a yes before copying. `pnpm sync:obsidian -- --yes` copies without asking.
+`pnpm sync:obsidian` shows the destination directory and asks before copying. A second question asks whether to clear that directory. The default is no, so existing unrelated files stay. `pnpm sync:obsidian -- --yes` copies without asking. Add `--clear` to delete the destination first, including with `--yes`. The command throws when `OBSIDIAN_VAULT_PATH` is unset.
 
 ## Agent markdown
 

@@ -14,7 +14,7 @@ vi.mock('@clack/prompts', () => ({
 }));
 
 import { confirm, note } from '@clack/prompts';
-import { mirrorKnowledgeLayers, obsidianCopyMessage, promptObsidianCopy } from './mirror.ts';
+import { mirrorKnowledgeLayers, obsidianCopyMessage, promptObsidianCopy, requireObsidianVaultPath } from './mirror.ts';
 
 const roots: string[] = [];
 
@@ -57,13 +57,14 @@ test('the copy prompt names the destination and the paths it will write', () => 
 	expect(message).toContain('left in place');
 });
 
-test('the copy prompt waits for yes before copying', async () => {
-	vi.mocked(confirm).mockResolvedValueOnce(false);
+test('the copy prompt waits for yes, then asks about a full replace', async () => {
+	vi.mocked(confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 	const tty = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
 	Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
 	try {
-		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe(false);
+		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe('replace-files');
 		expect(note).toHaveBeenCalledWith(expect.stringContaining('/vault/llm-wiki'), 'Confirm the directory');
+		expect(confirm).toHaveBeenCalledTimes(2);
 	} finally {
 		if (tty) {
 			Object.defineProperty(process.stdout, 'isTTY', tty);
@@ -71,11 +72,57 @@ test('the copy prompt waits for yes before copying', async () => {
 	}
 });
 
-test('--yes copies without asking', async () => {
-	process.argv.push('--yes');
+test('a yes on the second prompt selects a full replace', async () => {
+	vi.mocked(confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+	const tty = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+	Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
 	try {
-		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe(true);
+		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe('full');
+	} finally {
+		if (tty) {
+			Object.defineProperty(process.stdout, 'isTTY', tty);
+		}
+	}
+});
+
+test('--yes copies without asking and does not clear the directory', async () => {
+	process.argv.push('--yes');
+	const callsBefore = vi.mocked(confirm).mock.calls.length;
+	try {
+		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe('replace-files');
+		expect(vi.mocked(confirm).mock.calls.length).toBe(callsBefore);
 	} finally {
 		process.argv.pop();
 	}
+});
+
+test('--yes --clear copies and clears the directory without asking', async () => {
+	process.argv.push('--yes', '--clear');
+	try {
+		await expect(promptObsidianCopy('/vault/llm-wiki')).resolves.toBe('full');
+	} finally {
+		process.argv.pop();
+		process.argv.pop();
+	}
+});
+
+test('requireObsidianVaultPath throws when the variable is unset', () => {
+	expect(() => requireObsidianVaultPath({})).toThrow(/OBSIDIAN_VAULT_PATH is unset/);
+});
+
+test('full replace removes files that are not part of the copy', async () => {
+	const root = await mkdtemp(path.join(tmpdir(), 'llm-wiki-mirror-full-'));
+	roots.push(root);
+	const repoRoot = path.join(root, 'repo');
+	const destDir = path.join(root, 'vault', 'llm-wiki');
+	const kept = path.join(destDir, 'notes', 'local.md');
+	await mkdir(path.join(repoRoot, 'wiki'), { recursive: true });
+	await mkdir(path.dirname(kept), { recursive: true });
+	await writeFile(path.join(repoRoot, 'wiki/page.md'), 'page', 'utf8');
+	await writeFile(kept, 'local note', 'utf8');
+
+	await mirrorKnowledgeLayers(repoRoot, destDir, { replaceDirectory: true });
+
+	await expect(readFile(kept, 'utf8')).rejects.toThrow();
+	expect(await readFile(path.join(destDir, 'wiki/page.md'), 'utf8')).toBe('page');
 });

@@ -1,6 +1,6 @@
 import morphdom from 'morphdom';
 
-const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
+export const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
 
 function isPersisted(element: Element, persistAttribute: string): boolean {
 	return element.hasAttribute(persistAttribute) || element.hasAttribute(DEFAULT_PERSIST_ATTR);

@@ -198,15 +198,15 @@ Add the `data-eco-persist` attribute with a unique ID:
 
 ### Script Re-execution
 
-After a navigation, a script that was not already in the same part of the previous page (head or body) runs once; one that was does not run again.
+After a navigation:
 
-- New head scripts are inserted first, then new body scripts, each in document order.
+- A head script runs only if the previous page's head did not have it.
+- Every body script runs, as in Turbo, because the body is new content even when the previous page had the same script. A script inside an element marked `data-eco-persist` is kept as it was and does not run again; use that for a body script that must run once. A body script that adds `window` or `document` listeners adds them again on each navigation, so make it idempotent or persist it.
+- New head scripts are inserted first, then body scripts, each in document order.
 - Each one waits until earlier external classic scripts (without `async`, `defer`, or `nomodule`) have loaded, as during page parsing, so an inline script that uses a library the page loads runs after it.
 - External `defer` and module scripts also keep insertion order; only scripts marked `async` run as soon as they load.
 
-Some scripts, like hydration logic or analytics, need to run on every page load instead.
-
-To force a script to re-execute on navigation, add `data-eco-rerun="true"`:
+Some head scripts, like hydration logic or analytics, need to run on every page load instead. To force a script to re-execute on navigation, add `data-eco-rerun="true"`:
 
 ```html
 <script type="module" data-eco-rerun="true">

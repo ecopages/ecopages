@@ -1,6 +1,6 @@
-<!-- Stacked PR: start the body with
+<!-- Stacked PR: start the body with the stack number from `gh stack view` and the whole chain, bottom first
 > [!NOTE]
-> Part of stack #<first>: … ← #<previous> ← this.
+> Part of stack #<stack>: #<bottom> ← … ← this ← … ← #<top>.
 -->
 
 ## Summary

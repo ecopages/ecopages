@@ -12,6 +12,8 @@ export type FixtureProjectSpec = {
 	name: string;
 	port: number;
 	mode: FixtureServerMode;
+	/** Runs a `static` project on Node through the `ecopages` CLI instead of Bun. */
+	runtime?: 'bun' | 'node';
 	env?: Record<string, string>;
 	testMatch?: string | string[];
 	testIgnore?: string[];
@@ -108,6 +110,11 @@ function buildStaticServerCommand(options: { cwd: string; port: number; env?: Re
 	return `${envPrefix} bun run app.ts --build && ${envPrefix} bun run app.ts --preview`;
 }
 
+function buildNodeStaticServerCommand(options: { port: number; env?: Record<string, string> }): string {
+	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
+	return `${envPrefix} node ${path.join(process.cwd(), 'packages/ecopages/bin/cli.js')} preview --runtime node`;
+}
+
 function buildProductionServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
 	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
 	return `${envPrefix} bun run app.ts`;
@@ -119,7 +126,9 @@ function buildServerCommand(spec: FixtureProjectSpec, fixtureDir: string): strin
 		case 'dev':
 			return buildDevServerCommand({ cwd: fixtureDir, port: spec.port, env });
 		case 'static':
-			return buildStaticServerCommand({ cwd: fixtureDir, port: spec.port, env });
+			return spec.runtime === 'node'
+				? buildNodeStaticServerCommand({ port: spec.port, env })
+				: buildStaticServerCommand({ cwd: fixtureDir, port: spec.port, env });
 		case 'production':
 			return buildProductionServerCommand({ cwd: fixtureDir, port: spec.port, env });
 	}

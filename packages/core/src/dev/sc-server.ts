@@ -67,24 +67,12 @@ export class StaticContentServer {
 				}
 			}
 
-			if (path.includes('.') && fileSystem.exists(basePath)) {
-				const file = fileSystem.readFileAsBuffer(basePath) as BodyInit;
+			const filePath = ServerUtils.resolveStaticFilePath(basePath);
+			if (filePath) {
+				const file = fileSystem.readFileAsBuffer(filePath) as BodyInit;
 				return new Response(file, {
-					headers: { 'Content-Type': contentType },
+					headers: { 'Content-Type': ServerUtils.getContentType(extname(filePath)) },
 				});
-			}
-
-			const htmlCandidates = [`${basePath}.html`, `${basePath}/index.html`];
-
-			for (const candidate of htmlCandidates) {
-				if (fileSystem.exists(candidate)) {
-					const file = fileSystem.readFileAsBuffer(candidate) as BodyInit;
-					return new Response(file, {
-						headers: {
-							'Content-Type': ServerUtils.getContentType(extname(candidate)),
-						},
-					});
-				}
 			}
 
 			return this.sendNotFoundPage();

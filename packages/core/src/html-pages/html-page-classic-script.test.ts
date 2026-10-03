@@ -1,7 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createContext, Script } from 'node:vm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { FileScriptProcessor } from '../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
+import type { IHmrManager } from '../types/internal-types.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
 
 describe('resolveClassicScriptOptions', () => {
@@ -31,8 +36,30 @@ describe('resolveClassicScriptOptions', () => {
 		const filepath = write('greeting.ts', 'function greet(name: string): string { return name; }');
 
 		expect(resolveClassicScriptOptions(page, './greeting.ts', filepath)).toEqual({
-			bundleOptions: { format: 'esm', splitting: false, treeshaking: false, minify: false },
+			skipHmr: true,
+			bundleOptions: { splitting: false, treeshaking: false, minify: false },
 		});
+	});
+
+	it('emits a TypeScript file as a classic script whose functions stay global, even with HMR active', async () => {
+		const filepath = write('greeting.ts', 'function greet(name: string): string { return `Hi ${name}`; }');
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: dir, srcDir: '.' });
+		installBuildRuntime(appConfig);
+		const processor = new FileScriptProcessor({ appConfig });
+		const hmrManager = { isEnabled: () => true, registerScriptEntrypoint: vi.fn() };
+		processor.setHmrManager(hmrManager as unknown as IHmrManager);
+
+		const processed = await processor.process({
+			kind: 'script',
+			source: 'file',
+			filepath,
+			...resolveClassicScriptOptions(page, './greeting.ts', filepath),
+		});
+		const context = createContext({});
+		new Script(readFileSync(processed.filepath!, 'utf8')).runInContext(context);
+
+		expect(hmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
+		expect(context.greet('Ada')).toBe('Hi Ada');
 	});
 
 	it.each([

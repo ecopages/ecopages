@@ -23,12 +23,17 @@ export interface ScriptAsset extends BaseAsset {
 	kind: 'script';
 	inline?: boolean;
 	bundle?: boolean;
+	/**
+	 * Bundles the script in the asset pipeline even while HMR is active, instead of handing it to
+	 * the HMR manager, which rebuilds entries as ES modules.
+	 *
+	 * @remarks
+	 * For scripts that must not become modules, such as HTML Page classic scripts compiled from
+	 * TypeScript. The script is rebuilt when its page renders again, not hot-replaced.
+	 */
+	skipHmr?: boolean;
 	groupedBundle?: GroupedScriptBundle;
 	bundleOptions?: {
-		/**
-		 * Output format. `esm` by default; `iife` wraps the output in a function.
-		 */
-		format?: 'esm' | 'iife';
 		/** Drops unused code. `true` by default; turn it off for a script whose globals other scripts use. */
 		treeshaking?: boolean;
 		define?: Record<string, string>;

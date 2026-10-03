@@ -11,7 +11,8 @@ const TYPESCRIPT_FILE = /\.[cm]?tsx?$/;
  * Classic scripts keep classic semantics, as Parcel does: the browser runs them where they
  * are written, and their top-level functions and variables are globals other scripts use.
  * A JavaScript file is copied as written. A TypeScript file has only its types stripped:
- * nothing is tree-shaken or minified, so its globals survive.
+ * nothing is tree-shaken or minified, so its globals survive, and it stays out of the HMR
+ * pipeline, which would turn it into an ES module.
  *
  * @throws When the file uses `import`, `export`, or `import.meta`, which a classic script
  * cannot; the message names the HTML file and asks for `type="module"`.
@@ -20,7 +21,7 @@ export function resolveClassicScriptOptions(
 	file: string,
 	reference: string,
 	filepath: string,
-): Pick<ScriptAsset, 'bundle' | 'bundleOptions'> {
+): Pick<ScriptAsset, 'bundle' | 'bundleOptions' | 'skipHmr'> {
 	const source = fileSystem.readFileSync(filepath).toString();
 	if (parseModuleSource(filepath, source).module.hasModuleSyntax) {
 		throw new Error(
@@ -29,6 +30,6 @@ export function resolveClassicScriptOptions(
 	}
 
 	return TYPESCRIPT_FILE.test(filepath)
-		? { bundleOptions: { format: 'esm' as const, splitting: false, treeshaking: false, minify: false } }
+		? { skipHmr: true, bundleOptions: { splitting: false, treeshaking: false, minify: false } }
 		: { bundle: false };
 }

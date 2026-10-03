@@ -233,7 +233,7 @@ describe('FileScriptProcessor', () => {
 			expect(result.inline).toBe(false);
 		});
 
-		test('should bundle a script with an explicit format itself, outside the ES-module HMR pipeline', async () => {
+		test('should bundle a skipHmr script itself, outside the ES-module HMR pipeline', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
@@ -250,12 +250,13 @@ describe('FileScriptProcessor', () => {
 				source: 'file',
 				filepath: '/test/project/src/pages/classic.ts',
 				inline: false,
-				bundleOptions: { format: 'iife', splitting: false },
+				skipHmr: true,
+				bundleOptions: { splitting: false },
 			});
 
 			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
 			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
-			expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ format: 'iife', splitting: false }));
+			expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ splitting: false }));
 		});
 
 		test('should copy file without bundling when bundle is false', async () => {

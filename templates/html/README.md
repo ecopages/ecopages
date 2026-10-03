@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Start customization in `src/pages/index.html` and `src/includes/html.html`. A Page's `<title>` and description replace the shell's, and local stylesheets and scripts resolve against the file that references them. Interactive islands are standard custom elements: a Page references the module that defines them.
 
-Open Graph and Twitter tags are written by hand, as in any HTML site. The shell holds the site defaults, and a Page that sets its own title or description repeats it in `og:title`, `og:description`, `twitter:title`, and `twitter:description`; each one replaces the shell tag with the same `property` or `name`.
+The shell holds the site's Open Graph and Twitter defaults. A Page that sets its own title or description gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags automatically, unless it writes them itself.
 
 ## Agent skills
 

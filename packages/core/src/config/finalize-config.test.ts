@@ -437,6 +437,12 @@ describe('finalizeEcoPagesConfig', () => {
 		);
 	});
 
+	test('should explain a clash with the built-in html-pages Integration', async () => {
+		await expect(finalize({ integrations: [createMockIntegration('html-pages', ['.custom'])] })).rejects.toThrow(
+			'Core registers "html-pages" for .html Pages unless an Integration owns .html; rename yours.',
+		);
+	});
+
 	test('should throw error for duplicate integration extensions', async () => {
 		const integrations: IntegrationPlugin[] = [
 			createMockIntegration('test-integration-1', ['.test']),

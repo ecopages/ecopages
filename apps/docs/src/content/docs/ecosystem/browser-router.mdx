@@ -202,7 +202,7 @@ After a navigation, a script that was not already in the same part of the previo
 
 - New head scripts are inserted first, then new body scripts, each in document order.
 - Each one waits until earlier external classic scripts (without `async`, `defer`, or `nomodule`) have loaded, as during page parsing, so an inline script that uses a library the page loads runs after it.
-- Other external scripts, including modules, run as soon as they load.
+- External `defer` and module scripts also keep insertion order; only scripts marked `async` run as soon as they load.
 
 Some scripts, like hydration logic or analytics, need to run on every page load instead.
 

@@ -74,7 +74,7 @@ function deriveCliCommandFlags(
 	isBuildCommand: boolean;
 	isPreviewCommand: boolean;
 } {
-	const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
+	const isStartCommand = command === 'start' || (command === '' && !values.dev && !values.build && !values.preview);
 	const isDevCommand = command === 'dev' || !!values.dev;
 	const isBuildCommand = command === 'build' || !!values.build;
 	const isPreviewCommand = command === 'preview' || !!values.preview;

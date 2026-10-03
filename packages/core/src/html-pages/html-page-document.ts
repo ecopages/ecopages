@@ -41,7 +41,7 @@ function assertMatchingCharset(page: RenderedHtmlPageHead, pageCharset: string |
 	const shellCharset = getAttribute(shellTag, 'charset')?.value.trim().toLowerCase();
 	if (shellCharset !== pageCharset) {
 		throw new Error(
-			`[ecopages] ${page.file}: <meta charset="${pageCharset}"> conflicts with the Html shell charset "${shellCharset}".`,
+			`[ecopages] ${page.file}: <meta charset="${pageCharset}"> conflicts with the HTML template charset "${shellCharset}".`,
 		);
 	}
 }

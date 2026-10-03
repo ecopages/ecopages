@@ -47,3 +47,14 @@ test('ids section headings from their text, including inline code, and dedupes r
 		'custom-id-2',
 	]);
 });
+
+test('gives TOC headings their ids before deeper headings with the same text', () => {
+	const tree: Root = {
+		type: 'root',
+		children: [heading('h4', [text('Options')]), heading('h2', [text('Options')])],
+	};
+
+	const result = unified().use(rehypeHeadingIds).runSync(tree);
+
+	expect(idsOf(result)).toEqual(['options-2', 'options']);
+});

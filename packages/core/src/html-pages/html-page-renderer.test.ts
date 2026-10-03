@@ -80,6 +80,17 @@ describe('HtmlPageRenderer', () => {
 		expect(html).toContain('<meta charset="utf-8"');
 	});
 
+	it('applies the Page head when render() is called directly', async () => {
+		const file = write('src/pages/about.html', '<head><title>About</title></head><main>About</main>');
+
+		const html = String(
+			await renderPage(createRenderer(), file, getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>),
+		);
+
+		expect(html).toContain('<title>About</title>');
+		expect(html).toContain('<meta property="og:title" content="About">');
+	});
+
 	it('wraps the Page in <body> when a JSX shell leaves <body> to its layouts', async () => {
 		const file = write('src/pages/about.html', '<main>About</main>');
 		const BodylessShell = (async ({ children }: HtmlTemplateProps) =>

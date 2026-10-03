@@ -86,7 +86,7 @@ See [Components](/docs/core/components) for more patterns.
 
 ## HTML Pages
 
-A plain `.html` file under `src/pages` is an HTML Page. It needs no Integration, plugin, or config field: `src/pages/about.html` becomes `/about`, rendered inside your HTML shell with the app's default Cache Strategy (`'static'` unless `cache.defaultStrategy` says otherwise).
+A plain `.html` file under `src/pages` is an HTML Page. It needs no Integration, plugin, or config field: `src/pages/about.html` becomes `/about`, rendered inside your HTML template with the app's default Cache Strategy (`'static'` unless `cache.defaultStrategy` says otherwise).
 
 An HTML Page has no props, template expressions, Layout, data hooks, or hydration. Use an `eco.page()` Page when a route needs any of those.
 
@@ -98,7 +98,20 @@ Three rules cover the contract:
 
 ### Minimal app
 
-An HTML-only app needs `@ecopages/core`, the `ecopages` CLI, and three files.
+An HTML-only app needs `@ecopages/core` and the `ecopages` CLI installed, and four files.
+
+`package.json`:
+
+```json
+{
+	"type": "module",
+	"scripts": {
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"typecheck": "ecopages types && tsc --noEmit"
+	}
+}
+```
 
 `app.ts`:
 
@@ -137,9 +150,9 @@ export default defineConfig({});
 
 To start from a complete app instead, run `ecopages init my-app --template html`.
 
-### HTML shell
+### HTML template
 
-HTML Pages render inside your HTML template, `src/includes/html.*`, whichever Integration owns it, so an existing JSX or React shell keeps working. You can also write the shell in plain HTML as `src/includes/html.html`; the app can have only one `html` template file. It needs an `<html>` element with `<head>` and `<body>`, and exactly one `<!-- eco:children -->` comment where Page content goes. The doctype is optional; core always emits one.
+HTML Pages render inside your HTML template, `src/includes/html.*`, whichever Integration owns it, so an existing JSX or React template keeps working. You can also write the template in plain HTML as `src/includes/html.html` (see [Plain HTML template](/docs/core/includes#plain-html-template)); the app can have only one `html` template file. It needs an `<html>` element with `<head>` and `<body>`, and exactly one `<!-- eco:children -->` comment where Page content goes. The doctype is optional; core always emits one.
 
 `src/includes/html.html`:
 
@@ -159,7 +172,7 @@ HTML Pages render inside your HTML template, `src/includes/html.*`, whichever In
 </html>
 ```
 
-Without any `src/includes/html.*`, HTML Pages use a built-in shell with `lang="en"`, a UTF-8 charset, and a responsive viewport. Pages owned by other Integrations still need a shell of their own.
+Without any `src/includes/html.*`, HTML Pages use a built-in HTML template with `lang="en"`, a UTF-8 charset, and a responsive viewport. Pages owned by other Integrations still need an HTML template of their own.
 
 ### Head and root attributes
 

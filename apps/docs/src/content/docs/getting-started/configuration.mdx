@@ -70,7 +70,7 @@ In development, adding, changing, or removing `eco.config.ts` or a supported pro
 
 Ecopages now discovers the document shell and error pages semantically:
 
-- `src/includes/html.*` resolves the HTML shell by basename and integration extension.
+- `src/includes/html.*` resolves the HTML template by basename and integration extension.
 - `src/pages/404.*` resolves the not-found page by basename and integration extension.
 - `src/pages/500.*` resolves the server-error page by basename and integration extension.
 
@@ -128,6 +128,30 @@ Ecopages now discovers the document shell and error pages semantically:
 <ApiField name="sourceTransforms" type="EcoSourceTransform[]" defaultValue="[]">
 	Filter-based module source rewrites for browser and HMR builds. See [Source
 	Transforms](/docs/plugins/source-transforms).
+</ApiField>
+
+<ApiField name="cache" type="CacheConfig">
+	Page cache settings: `store` (default `'memory'`), `defaultStrategy` for Pages that set none (default `'static'`),
+	`enabled` (on in production builds, off in watch mode unless set), and `maxEntries` for the memory store (default
+	`1000`). See [Caching](/docs/server/caching).
+</ApiField>
+
+<ApiField name="devPrewarmPaths" type="string[]" defaultValue="[]">
+	Routes such as `/` or `/docs` to render in the background when the development server starts, so the first visit is
+	fast.
+</ApiField>
+
+<ApiField name="devPrewarmBeforeReadyPaths" type="string[]" defaultValue="[]">
+	Routes the development server renders before it reports ready. Keep this list short.
+</ApiField>
+
+<ApiField name="buildOwnership" type="'rolldown' | 'vite-host'" defaultValue="'rolldown'">
+	Who runs builds. Set `'vite-host'` when the app runs inside Vite through the [Vite plugin](/docs/ecosystem/vite-plugin),
+	where Vite owns client and server module transforms.
+</ApiField>
+
+<ApiField name="experimental" type="{ unsafe?: Record<string, unknown> }">
+	Short-lived private toggles under `unsafe`, with no validation. Do not rely on them.
 </ApiField>
 
 <ApiField name="devToolbar" type="DevToolbarConfig">

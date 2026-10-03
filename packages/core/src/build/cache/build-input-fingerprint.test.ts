@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -121,6 +121,17 @@ describe('hashWatchedBuildInputs', () => {
 		expect(edited).not.toBe(initial);
 		expect(added).not.toBe(edited);
 		expect(hashWatchedBuildInputs(createConfig())).toBe(edited);
+	});
+
+	it('notices a same-size edit through its modification time, without reading file contents', () => {
+		const intro = path.join(rootDir, 'src/content/docs/intro.mdx');
+		utimesSync(intro, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+		const initial = hashWatchedBuildInputs(createConfig());
+
+		writeFileSync(intro, '# Outro');
+		utimesSync(intro, new Date('2026-01-02T00:00:00Z'), new Date('2026-01-02T00:00:00Z'));
+
+		expect(hashWatchedBuildInputs(createConfig())).not.toBe(initial);
 	});
 
 	it('ignores other extensions, node_modules, broken symlinks, and additionalWatchPaths', () => {

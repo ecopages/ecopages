@@ -92,6 +92,20 @@ describe('parseCliArgs', () => {
 		});
 	});
 
+	it.each(['dev', 'build', 'preview'])('does not also report start for the %s subcommand', (command) => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.argv = ['node', '/usr/local/bin/ecopages.js', command];
+
+		expect(parseCliArgs()).toMatchObject({ start: false, [command]: true });
+	});
+
+	it('starts when the entry runs without a command or flag', () => {
+		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
+		process.argv = ['node', '/app/app.ts'];
+
+		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
+	});
+
 	it('parses --force for production build commands', () => {
 		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
 		delete process.env.NODE_ENV;

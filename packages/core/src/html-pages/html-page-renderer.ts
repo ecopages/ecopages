@@ -75,8 +75,15 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		);
 	}
 
+	/**
+	 * @remarks
+	 * Route renders go through the orchestrator adapter, which reconciles the Page head after
+	 * core contributions are in the document. A direct call reconciles here, so the Page head
+	 * is never dropped.
+	 */
 	override async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		return (await this.renderHtmlPage(options)).html;
+		const { html, head } = await this.renderHtmlPage(options);
+		return reconcileHtmlPageDocument(html, head);
 	}
 
 	/**

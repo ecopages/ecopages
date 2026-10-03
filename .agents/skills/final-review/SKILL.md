@@ -1,6 +1,6 @@
 ---
 name: final-review
-description: Ship gate for a finished change. Runs the project's checks, then three parallel reviews (tests, code quality, documentation), fixes the easy findings once, re-checks, and ends with an explicit "ready to ship" or "not ready" verdict. Use for a final review, to ask whether work is ready to ship, to run the gates, or before committing or opening a pull request.
+description: Ship gate for a finished change. Runs the project's checks, then three parallel reviews (tests, code quality, documentation), fixes the easy findings once, re-checks, asks another model for a second review when one is configured, and ends with an explicit "ready to ship" or "not ready" verdict. Use for a final review, to ask whether work is ready to ship, to run the gates, or before committing or opening a pull request.
 ---
 
 # Final review
@@ -39,9 +39,11 @@ The change under review is all three of:
 
 4. **Re-check.** Run step 1 again, then re-run only the reviewers whose findings you fixed. There is no second fix round for these reviewers.
 
-5. **Verdict.** End with exactly one of:
+5. **Second model.** With the checks green, invoke the [adversarial-review](../adversarial-review/SKILL.md) skill by name and run it on the same base, with notes on what steps 2 to 4 found, fixed and left. It runs at most two rounds and uses the same classes, and you verify each of its findings before acting on it. When no harness is configured, it runs on your own harness with another model, as that skill says.
+
+6. **Verdict.** End with exactly one of:
 
    - `ready to ship`: every check is green, no `easy` finding is left, and every `rework` finding is fixed or logged as an issue the user agreed to.
    - `not ready`: anything else.
 
-   After the verdict, list what is left with `file:line` and the reason, rework first, then nits. Nits never block. Do not start rework unless asked.
+   After the verdict, list what is left with `file:line` and the reason, including findings from step 5: rework first, then nits. Nits never block. Do not start rework unless asked.

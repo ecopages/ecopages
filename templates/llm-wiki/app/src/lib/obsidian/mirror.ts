@@ -9,9 +9,10 @@
  * Reads `OBSIDIAN_VAULT_PATH` from the environment or `.env`.
  */
 import { isEnoent } from '../wiki/is-enoent.ts';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { resolveChildDirectory, assertDirectoryTarget } from '../safe-directory.ts';
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const KNOWLEDGE_DIRS = ['wiki', 'sources'];
 const KNOWLEDGE_FILES = ['SCHEMA.md', 'AGENTS.md', 'README.md', 'index.md', 'log.md'];
@@ -24,7 +25,8 @@ One-way copy of the knowledge layers from the llm-wiki repo. Edit in the repo, t
 pnpm sync:obsidian
 \`\`\`
 
-Do not edit mirrored files here — changes will be overwritten on the next sync.
+Do not edit mirrored files here — files copied by the next sync are overwritten.
+Files that are not part of this copy are left in place.
 `;
 
 function repoRootFromThisFile(): string {
@@ -87,20 +89,42 @@ async function main(): Promise<void> {
 	}
 
 	const subdir = process.env.LLM_WIKI_OBSIDIAN_SUBDIR ?? 'llm-wiki';
-	const destDir = path.join(vaultPath, subdir);
-
-	await rm(destDir, { recursive: true, force: true });
-	await mkdir(destDir, { recursive: true });
-
-	for (const dir of KNOWLEDGE_DIRS) {
-		await copyIfExists(path.join(repoRoot, dir), path.join(destDir, dir));
-	}
-	for (const file of KNOWLEDGE_FILES) {
-		await copyIfExists(path.join(repoRoot, file), path.join(destDir, file));
-	}
-
-	await writeFile(path.join(destDir, 'OBSIDIAN_MIRROR.md'), MIRROR_NOTE, 'utf8');
+	const destDir = resolveChildDirectory(vaultPath, subdir);
+	await mirrorKnowledgeLayers(repoRoot, destDir);
 	console.log(`sync:obsidian: synced knowledge layers to ${destDir}`);
 }
 
-await main();
+/**
+ * Copies wiki knowledge files into `destDir`.
+ *
+ * @remarks
+ * Overwrites files that this sync copies. Does not delete `destDir` or anything
+ * already inside it. A destination of `.` is rejected by
+ * {@link resolveChildDirectory} before this runs, because that path is the
+ * vault itself.
+ */
+export async function mirrorKnowledgeLayers(repoRoot: string, destDir: string): Promise<void> {
+	const destination = assertDirectoryTarget(destDir);
+	await mkdir(destination, { recursive: true });
+
+	for (const dir of KNOWLEDGE_DIRS) {
+		await copyIfExists(path.join(repoRoot, dir), path.join(destination, dir));
+	}
+	for (const file of KNOWLEDGE_FILES) {
+		await copyIfExists(path.join(repoRoot, file), path.join(destination, file));
+	}
+
+	await writeFile(path.join(destination, 'OBSIDIAN_MIRROR.md'), MIRROR_NOTE, 'utf8');
+}
+
+function isDirectExecution(): boolean {
+	const entry = process.argv[1];
+	if (!entry) {
+		return false;
+	}
+	return import.meta.url === pathToFileURL(path.resolve(entry)).href;
+}
+
+if (isDirectExecution()) {
+	await main();
+}

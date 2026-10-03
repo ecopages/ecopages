@@ -250,14 +250,15 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it('runs the types command through the app entry with --types', async () => {
-		await runCli(['types']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--types'],
-			expect.objectContaining({ nodeEnv: 'production', entryFile: 'app.ts' }),
-			'app.ts',
-			'types',
-		);
+	it('runs the types command on the core config entry, never the app entry', async () => {
+		vi.mocked(fs.existsSync).mockImplementation((filePath) => String(filePath).endsWith('write-types.ts'));
+		await runCli(['types', '--config', 'eco.staging.ts']);
+		const [args, options, entry, launchMode] = vi.mocked(launchPlan.createLaunchPlan).mock.calls.at(-1)!;
+
+		expect(args).toEqual([]);
+		expect(entry).toMatch(/core\/src\/config\/write-types\.ts$/);
+		expect(options).toMatchObject({ nodeEnv: 'production', entryFile: entry, configFile: 'eco.staging.ts' });
+		expect(launchMode).toBe('types');
 	});
 
 	it('runs build command with custom entry file', async () => {

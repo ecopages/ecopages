@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan } from './launch-plan.js';
@@ -238,16 +239,18 @@ async function runServerCommand(rawArgs, definition) {
 		return;
 	}
 
+	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
 		definition.entryArgs,
-		{ ...parsed.options, ...definition.optionOverrides, entryFile: parsed.entry },
-		parsed.entry,
+		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
+		entry,
 		definition.launchMode ?? definition.name,
 	);
 }
 
 /**
- * Commands that run the app entry, keyed by name. `launchMode` defaults to the name.
+ * Commands that run an entry file, keyed by name. `launchMode` defaults to the name, and
+ * `resolveEntry` replaces the app entry (`app.ts`) with another script.
  */
 const SERVER_COMMANDS = {
 	dev: {
@@ -281,8 +284,9 @@ const SERVER_COMMANDS = {
 	},
 	types: {
 		description:
-			'Run the entry file until createApp() finalizes eco.config.ts, so processors write the types for virtual modules such as ecopages:images, then exit. Run it before tsc.',
-		entryArgs: ['--types'],
+			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
+		entryArgs: [],
+		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {

@@ -32,7 +32,7 @@ bun dev
 | `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
 | `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
 | `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
-| `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | `bun run [entry] --types`                                    |
+| `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` only; the entry does not run           |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.

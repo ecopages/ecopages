@@ -1572,6 +1572,9 @@ importers:
 
   templates/llm-wiki/app:
     devDependencies:
+      '@clack/prompts':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@ecopages/browser-router':
         specifier: workspace:*
         version: link:../../../packages/browser-router

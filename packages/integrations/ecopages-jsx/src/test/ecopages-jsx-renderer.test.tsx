@@ -1,7 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import {
 	eco,
 	type ForeignSubtreeRenderPayload,

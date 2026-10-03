@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
 import { fileSystem } from '@ecopages/file-system';

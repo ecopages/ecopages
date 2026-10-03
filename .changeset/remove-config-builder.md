@@ -9,3 +9,5 @@ Remove `ConfigBuilder` and the `@ecopages/core/config-builder` subpath. Author `
 - `setCacheConfig()` becomes `cache`.
 - `addProcessor()`, `addLoader()`, and `addSourceTransform()` become entries in `processors`, `loaders`, and `sourceTransforms`, keyed by each entry's `name`.
 - `setConfigModulePath()` is gone; Ecopages records the config file path itself.
+
+`@ecopages/core/config` no longer exports `finalizeEcoPagesConfig`. `createApp()` and `loadEcoPagesConfig()` finalize the config.

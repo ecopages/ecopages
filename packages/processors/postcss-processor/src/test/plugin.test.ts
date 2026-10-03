@@ -5,7 +5,7 @@ import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
 import type { IClientBridge } from '@ecopages/core';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 
 const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
 const SRC_DIR = path.join(TMP_DIR, 'src');

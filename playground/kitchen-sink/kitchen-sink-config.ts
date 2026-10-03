@@ -8,7 +8,7 @@
 
 import path from 'node:path';
 import type { EcoPagesUserConfig } from '@ecopages/core/config';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import { devToolbar } from '@ecopages/dev-toolbar/config';

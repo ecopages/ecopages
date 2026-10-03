@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { mdxPlugin } from '../mdx.plugin.ts';
 import type { StandaloneMdxCompilerOptions } from '../mdx.types.ts';
 

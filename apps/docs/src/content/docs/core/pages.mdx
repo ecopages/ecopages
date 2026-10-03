@@ -213,11 +213,12 @@ A relative path, with or without `./`, resolves against the `.html` file that co
 | `<link rel="stylesheet" href="./page.css">`               | Run through your stylesheet processors, linked to the output |
 | `<style>…</style>`                                        | Run through your stylesheet processors, kept inline          |
 | `<script type="module" src="./page.ts">`                  | Bundled as a browser module                                  |
-| `<script src="./legacy.js">`                              | Copied unchanged (plain JavaScript only), loaded classically |
+| `<script src="./legacy.js">`                              | Copied unchanged, loaded classically                         |
+| `<script src="./legacy.ts">`                              | Types stripped, loaded classically                           |
 | A tag with an external or root-relative URL               | Kept as written                                              |
 | An inline `<script>`, or one with a non-JavaScript `type` | Kept as written                                              |
 
-Processed tags keep their other attributes. A file declared by both `html.html` and the Page is emitted once, by the shell, and a file declared twice in one file is emitted at its first occurrence. A classic script is not transpiled, so `<script src="./app.ts">` without `type="module"` ships TypeScript as is. A missing local file, a path outside `src`, or an `integrity` attribute on a processed tag is an error that names the HTML file.
+Processed tags keep their other attributes. A file declared by both `html.html` and the Page is emitted once, by the shell, and a file declared twice in one file is emitted at its first occurrence. A classic script keeps classic semantics: its top-level functions and variables are globals other scripts can use, and a TypeScript one has only its types stripped. A classic script cannot use `import`, `export`, or `import.meta`; that is an error asking for `type="module"`. A missing local file, a path outside `src`, or an `integrity` attribute on a processed tag is an error that names the HTML file.
 
 Images, fonts, media, and icons are not processed. Put them in `src/public/` and reference them with root-relative URLs such as `/images/team.jpg`. In development, core warns about a relative `src`, `srcset`, or `href` that it leaves as written, because the browser resolves it against the route URL rather than the file. Links (`<a>`, `<area>`, `<base>`) are not warned about.
 

@@ -65,6 +65,7 @@ test.describe('HTML Pages in the browser', () => {
 
 		await page.goto('/landing');
 		await expect(page.locator('main')).toHaveClass('ready');
+		await expect(page.locator('main')).toHaveAttribute('data-greeting', 'Bonjour Ecopages');
 		await expect(page.locator('main')).toHaveCSS('outline-color', 'rgb(255, 0, 0)');
 	});
 

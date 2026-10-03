@@ -40,12 +40,12 @@ An Html shell must contain `<html>` with `<head>` and `<body>` and exactly one `
 
 Processed asset tags become slots:
 
-| Tag                                              | Processing                                                              |
-| ------------------------------------------------ | ----------------------------------------------------------------------- |
-| `<link rel="stylesheet">` with a relative `href` | `FileStylesheetProcessor`                                               |
-| `<style>` with no `type`, or `type="text/css"`   | `ContentStylesheetProcessor` inline; `processingOrigin` is `<file>.css` |
-| `<script type="module">` with a relative `src`   | `FileScriptProcessor`, bundled as a browser module                      |
-| classic `<script>` with a relative `src`         | `FileScriptProcessor` with `bundle: false`, copied as written           |
+| Tag                                              | Processing                                                                                                                          |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `<link rel="stylesheet">` with a relative `href` | `FileStylesheetProcessor`                                                                                                           |
+| `<style>` with no `type`, or `type="text/css"`   | `ContentStylesheetProcessor` inline; `processingOrigin` is `<file>.css`                                                             |
+| `<script type="module">` with a relative `src`   | `FileScriptProcessor`, bundled as a browser module                                                                                  |
+| classic `<script>` with a relative `src`         | `FileScriptProcessor`: `.js` copied as written (`bundle: false`); TypeScript has only its types stripped; module syntax is an error |
 
 `processingOrigin` sits beside the HTML file and ends in `.css` because processors resolve relative imports against it and filter by extension.
 

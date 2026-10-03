@@ -8,6 +8,7 @@ import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 } from '../types/public-types.ts';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { AssetFactory } from '../services/assets/asset-processing-service/asset.factory.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
@@ -41,6 +42,33 @@ const BODY_END_MARKER = '<!--/eco:html-page-body-->';
  * declaration wins. Page head tags and root attributes are applied to the
  * finalized document by {@link reconcileHtmlPageDocument}.
  */
+const TYPESCRIPT_FILE = /\.[cm]?tsx?$/;
+
+/**
+ * Picks how a local `<script src>` without `type="module"` is emitted.
+ *
+ * @remarks
+ * Classic scripts keep classic semantics, as Parcel does: the browser runs them where they
+ * are written, and their top-level functions and variables are globals other scripts use.
+ * A JavaScript file is copied as written. A TypeScript file has only its types stripped:
+ * nothing is tree-shaken or minified, so its globals survive.
+ *
+ * @throws When the file uses `import`, `export`, or `import.meta`, which a classic script
+ * cannot; the message names the HTML file and asks for `type="module"`.
+ */
+function classicScriptOptions(file: string, reference: string, filepath: string) {
+	const source = fileSystem.readFileSync(filepath).toString();
+	if (parseModuleSource(filepath, source).module.hasModuleSyntax) {
+		throw new Error(
+			`[ecopages] ${file}: "${reference}" uses import, export, or import.meta, which a classic script cannot. Add type="module" to its <script> tag.`,
+		);
+	}
+
+	return TYPESCRIPT_FILE.test(filepath)
+		? { bundleOptions: { format: 'esm' as const, splitting: false, treeshaking: false, minify: false } }
+		: { bundle: false };
+}
+
 export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
 
@@ -198,7 +226,9 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				? AssetFactory.createFileStylesheet({ filepath: asset.filepath })
 				: AssetFactory.createFileScript({
 						filepath: asset.filepath,
-						...(asset.kind === 'classic-script' ? { bundle: false } : {}),
+						...(asset.kind === 'classic-script'
+							? classicScriptOptions(file, asset.reference, asset.filepath)
+							: {}),
 					}),
 		);
 		invariant(

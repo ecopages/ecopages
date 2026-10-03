@@ -34,15 +34,19 @@ test('ingest overwrites pages and leaves directories it did not write', async ()
 	await mkdir(path.dirname(staleContent), { recursive: true });
 	await mkdir(path.dirname(stalePublic), { recursive: true });
 	await mkdir(path.join(sourceDir, 'app'), { recursive: true });
+	await mkdir(path.join(appRoot, 'src/content/wiki/app'), { recursive: true });
 	await writeFile(staleContent, 'stale content', 'utf8');
 	await writeFile(stalePublic, 'stale public', 'utf8');
+	await writeFile(path.join(appRoot, 'src/content/wiki/app/demo.mdx'), 'previous page', 'utf8');
 	await writeFile(path.join(sourceDir, 'app/demo.md'), demoPage, 'utf8');
 
 	await ingestVault({ appRoot, sourceDir });
 
 	expect(await readFile(staleContent, 'utf8')).toBe('stale content');
 	expect(await readFile(stalePublic, 'utf8')).toBe('stale public');
-	expect(await readFile(path.join(appRoot, 'src/content/wiki/app/demo.mdx'), 'utf8')).toContain('title: "Demo"');
+	const replaced = await readFile(path.join(appRoot, 'src/content/wiki/app/demo.mdx'), 'utf8');
+	expect(replaced).toContain('title: "Demo"');
+	expect(replaced).not.toContain('previous page');
 });
 
 test('copySources leaves files that are no longer in the source directory', async () => {
@@ -52,6 +56,7 @@ test('copySources leaves files that are no longer in the source directory', asyn
 	await mkdir(sourcesDir, { recursive: true });
 	await mkdir(outputDir, { recursive: true });
 	await writeFile(path.join(sourcesDir, 'kept.md'), 'kept', 'utf8');
+	await writeFile(path.join(outputDir, 'kept.md'), 'previous copy', 'utf8');
 	await writeFile(path.join(outputDir, 'removed.md'), 'still here', 'utf8');
 
 	await copySources({ sourcesDir, outputDir });

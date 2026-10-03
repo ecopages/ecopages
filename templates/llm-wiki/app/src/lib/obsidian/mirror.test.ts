@@ -17,9 +17,12 @@ test('mirror copies knowledge files and leaves existing files in place', async (
 	const destDir = path.join(root, 'vault', 'llm-wiki');
 	const kept = path.join(destDir, 'notes', 'local.md');
 	await mkdir(path.join(repoRoot, 'wiki'), { recursive: true });
+	await mkdir(path.join(destDir, 'wiki'), { recursive: true });
 	await mkdir(path.dirname(kept), { recursive: true });
 	await writeFile(path.join(repoRoot, 'wiki/page.md'), 'page', 'utf8');
+	await writeFile(path.join(destDir, 'wiki/page.md'), 'previous page', 'utf8');
 	await writeFile(path.join(repoRoot, 'README.md'), 'readme', 'utf8');
+	await writeFile(path.join(destDir, 'README.md'), 'previous readme', 'utf8');
 	await writeFile(kept, 'local note', 'utf8');
 
 	await mirrorKnowledgeLayers(repoRoot, destDir);

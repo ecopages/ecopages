@@ -1,11 +1,6 @@
 import type { PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
 import { morphBody, replaceBody } from './body-morpher.ts';
-import {
-	activateScriptsInOrder,
-	collectBodyScriptKeys,
-	collectEnteringBodyScripts,
-	type ScriptActivation,
-} from './script-activation.ts';
+import { activateScriptsInOrder, collectBodyScripts, type ScriptActivation } from './script-activation.ts';
 import {
 	flushRerunScripts as flushPendingRerunScripts,
 	morphHead,
@@ -70,14 +65,12 @@ export class DomSwapper {
 	}
 
 	morphBody(newDocument: Document): void {
-		const previousBodyScriptKeys = collectBodyScriptKeys();
 		morphBody(newDocument, this.persistAttribute);
-		this.pendingBodyScripts = collectEnteringBodyScripts(previousBodyScriptKeys);
+		this.pendingBodyScripts = collectBodyScripts(this.persistAttribute);
 	}
 
 	replaceBody(newDocument: Document): void {
-		const previousBodyScriptKeys = collectBodyScriptKeys();
 		replaceBody(newDocument, this.persistAttribute);
-		this.pendingBodyScripts = collectEnteringBodyScripts(previousBodyScriptKeys);
+		this.pendingBodyScripts = collectBodyScripts(this.persistAttribute);
 	}
 }

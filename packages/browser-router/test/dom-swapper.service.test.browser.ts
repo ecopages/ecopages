@@ -115,7 +115,7 @@ describe('DomSwapper service behavior', () => {
 		expect((window as typeof window & { __stable_script_runs__?: number }).__stable_script_runs__).toBe(1);
 	});
 
-	it('runs the head and body scripts a swap adds in document order, after earlier libraries load', async () => {
+	it('runs the head scripts a swap adds and every body script, in document order, after earlier libraries load', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const runs: string[] = [];
@@ -140,9 +140,34 @@ describe('DomSwapper service behavior', () => {
 		const dataScript = document.body.querySelector('script[type="application/json"]');
 		swapper.flushRerunScripts();
 
-		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'inline']));
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'kept', 'inline']));
 		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
 	});
+
+	it.each(['morphBody', 'replaceBody'] as const)(
+		'keeps a script inside a persisted element without running it again (%s)',
+		async (swap) => {
+			resetDocument();
+			const swapper = new DomSwapper('data-eco-persist');
+			const runs: string[] = [];
+			(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+			const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+			const persisted = `<div data-eco-persist="widget"><script>${record('persisted')}</script></div>`;
+			document.body.innerHTML = persisted;
+			const liveScript = document.body.querySelector('script');
+
+			const newDocument = parseDocument(
+				`<html><head></head><body>${persisted}<script>${record('footer')}</script></body></html>`,
+			);
+
+			swapper.morphHead(newDocument);
+			swapper[swap](newDocument);
+			swapper.flushRerunScripts();
+
+			await vi.waitFor(() => expect(runs).toEqual(['footer']));
+			expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
+		},
+	);
 
 	it('makes body scripts wait for a library the head of the same swap is still loading', async () => {
 		resetDocument();

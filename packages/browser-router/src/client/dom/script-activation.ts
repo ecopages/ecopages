@@ -1,5 +1,5 @@
 import { isNonExecutableHeadScript, isRerunScript } from '@ecopages/core/client/navigation-scripts';
-import { getHeadScriptKey } from './head-updater-script-identity.ts';
+import { DEFAULT_PERSIST_ATTR } from './body-morpher.ts';
 
 /**
  * One script to insert as a fresh, executable element.
@@ -90,36 +90,20 @@ export async function activateScriptsInOrder(
 	return blockingLoads;
 }
 
-function getActivatableScriptKey(script: HTMLScriptElement): string | null {
-	return isActivatableScript(script) ? getHeadScriptKey(script) : null;
-}
-
 /**
- * Returns the identity keys of the executable scripts in the live body.
- */
-export function collectBodyScriptKeys(): Set<string> {
-	const keys = new Set<string>();
-	for (const script of document.body.querySelectorAll<HTMLScriptElement>('script')) {
-		const key = getActivatableScriptKey(script);
-		if (key) keys.add(key);
-	}
-	return keys;
-}
-
-/**
- * Returns activations for the executable scripts a body swap added, in document order.
+ * Returns activations for every executable script in the new body, in document order.
  *
  * @remarks
- * Like new head scripts, a body script runs when it enters the document:
- * scripts the previous body already had, `data-eco-rerun` scripts (replayed
- * separately), and non-executable types such as JSON are skipped.
+ * As in Turbo, a body script runs on every navigation that renders it: the body is new
+ * content, even when the previous page had an identical script. The exceptions are scripts
+ * inside an element marked with the persist attribute, which the swap keeps as they were;
+ * `data-eco-rerun` scripts, replayed separately; and non-executable types such as JSON. The
+ * browser runs an external module script once per URL in any case.
  */
-export function collectEnteringBodyScripts(previousKeys: ReadonlySet<string>): ScriptActivation[] {
+export function collectBodyScripts(persistAttribute: string): ScriptActivation[] {
+	const persistedSelector = `[${persistAttribute}], [${DEFAULT_PERSIST_ATTR}]`;
 	return Array.from(document.body.querySelectorAll<HTMLScriptElement>('script'))
-		.filter((script) => {
-			const key = getActivatableScriptKey(script);
-			return key !== null && !previousKeys.has(key);
-		})
+		.filter((script) => isActivatableScript(script) && !script.closest(persistedSelector))
 		.map((script) => ({
 			attributes: Array.from(script.attributes, (attribute): [string, string] => [
 				attribute.name,

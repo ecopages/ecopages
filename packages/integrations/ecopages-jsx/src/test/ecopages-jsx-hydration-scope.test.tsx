@@ -1,6 +1,6 @@
 /** @jsxImportSource @ecopages/jsx */
 import { describe, expect, it, vi } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { renderToString } from '@ecopages/jsx/server';

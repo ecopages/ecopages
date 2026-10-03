@@ -214,8 +214,8 @@ function createAbsolutePaths(
  * Every call returns a new config; nothing is cached.
  *
  * App code never calls this: it exports `defineConfig(...)` and `createApp()` finalizes it.
- * The export exists for core's own callers, `@ecopages/testing`, and test fixtures, so keep
- * it out of user-facing docs.
+ * Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`, a
+ * subpath the npm build drops from the published package, so keep it out of user-facing docs.
  *
  * @internal
  *

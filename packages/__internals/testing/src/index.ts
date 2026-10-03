@@ -6,7 +6,8 @@ import type {
 	EcoPagesElement,
 } from '@ecopages/core';
 import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
-import { finalizeEcoPagesConfig, type EcoPagesUserConfig } from '@ecopages/core/config';
+import { type EcoPagesUserConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {

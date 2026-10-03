@@ -26,7 +26,7 @@ Prefer the helper for:
 - shared fixture apps and playground routes
 - tests that would otherwise repeat the same `robotsTxt`, metadata, base URL, and integration initialization sequence
 
-Call `finalizeEcoPagesConfig()` from `@ecopages/core/config` directly when the test validates finalization itself, or when the helper's defaults would hide the behavior under test. Most `packages/core` tests that assert config semantics do this.
+Call `finalizeEcoPagesConfig()` from `@ecopages/core/internal/finalize-config` directly when the test validates finalization itself, or when the helper's defaults would hide the behavior under test. Most `packages/core` tests that assert config semantics do this.
 
 ## Helper Shape
 

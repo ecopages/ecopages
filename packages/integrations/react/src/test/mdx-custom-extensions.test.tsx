@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from '../render/react-renderer.ts';

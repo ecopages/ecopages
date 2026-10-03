@@ -57,7 +57,7 @@ The script records `key → issue number` in `manifest.json` beside the drafts. 
 A program is one tracking issue plus one sub-issue per change.
 
 - Draft the tracking issue: its goal, its scope and non-goals, and when it is done.
-- Give each change `parent: <tracking key>`, and order the changes with `blockedBy`.
+- Give each change `parent: <tracking key>`, and order the changes with `blockedBy`. A blocked change's PR stacks on its blocker's PR ([pull-requests.md](pull-requests.md#split-and-stack)).
 - A question a maintainer must answer first is its own issue (the decision form, when the project has one), with a parent when it belongs to a program.
 
 Read a program's state:

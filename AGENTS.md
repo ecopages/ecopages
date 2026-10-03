@@ -12,7 +12,8 @@ Contributor skills (reviews, tests, commits, GitHub) live in [.agents/skills](./
 - Agents create issues only from draft files with `pnpm issue <draft.md>`, which validates them against the issue forms and labels in `.github/`.
 - Milestones name the release line: fixes go to the current patch line (for example `0.2.x`), structural refactors to the next minor (for example `0.3.0`).
 - A program is one `tracking` issue with each change as a sub-issue. Order work with "blocked by" links.
-- One PR per issue, against `develop`, using `.github/pull_request_template.md` with `Closes #N`. Stack PRs when one depends on another.
+- One PR per issue, using `.github/pull_request_template.md` with `Closes #N`. An independent PR targets `develop`. The PR for an issue blocked by an open change stacks on that change's PR with `gh stack`, trunk `develop`.
+- Merge with a merge commit; merge a stack with `gh stack merge`.
 - Issues must stand alone: link code at a commit SHA, never to local or gitignored files such as `.audit/`.
 
 ## Comments

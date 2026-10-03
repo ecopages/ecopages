@@ -85,7 +85,7 @@ Write nothing until scope and posture are confirmed.
 
 Work from the program's open change issues in "blocked by" order; [github-cli: Programs](../github-cli/references/issues.md#programs) shows how to read them. Skip a decision issue, and anything it blocks, until a maintainer has answered it; never pick an option yourself.
 
-Use one branch and one PR per issue, branched from the integration branch, or from the blocker's branch while that PR is unmerged. Name branches as [github-cli: Split and stack](../github-cli/references/pull-requests.md#split-and-stack) says, with no audit keys.
+Use one branch and one PR per issue: from the integration branch, or stacked on the blocker's PR while it is open, as [github-cli: Split and stack](../github-cli/references/pull-requests.md#split-and-stack) says. Name branches with no audit keys.
 
 ## Phase 4: Before each PR
 

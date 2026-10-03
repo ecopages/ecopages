@@ -15,14 +15,14 @@ Every agent does GitHub work the same way: formats come from the repository's `.
 - **Issues come from draft files.** Write a draft and run the issue script below. Never call `gh issue create` by hand: the script validates the draft against the issue forms and labels, then sets the type, labels, milestone, parent and "blocked by" links.
 - **The schema is in `.github/`.** The forms in `.github/ISSUE_TEMPLATE/` define each kind of issue and its sections. `.github/labels.yml`, when present, lists the allowed labels. `.github/pull_request_template.md` is the PR body. Read them; do not restate them.
 - **Keep scratch files out of the tree.** Write drafts and PR bodies to a temp or gitignored folder so they are never committed.
-- **Never** put a token on the command line, force-push a shared branch, or link a local or gitignored file from an issue or PR.
+- **Never** put a token on the command line, force-push the integration branch or someone else's branch, or link a local or gitignored file from an issue or PR. Stack branches are rewritten only through `gh stack`, which pushes with `--force-with-lease`.
 
 ## Load what the task needs
 
 | Task | Read |
 |------|------|
 | Create one or many issues, a tracking program or a decision; read a program's state | [references/issues.md](references/issues.md) |
-| Split work, push, open or stack a PR, retarget, merge, close the issues | [references/pull-requests.md](references/pull-requests.md) |
+| Split work, push, open a PR, create or update a stack, merge, close the issues | [references/pull-requests.md](references/pull-requests.md) |
 | Read CI results, failed logs, review comments; answer a review | [references/checks-and-reviews.md](references/checks-and-reviews.md) |
 
 ## Issue script

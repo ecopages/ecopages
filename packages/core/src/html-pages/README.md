@@ -6,13 +6,14 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 
 `finalizeEcoPagesConfig()` appends the internal `html-pages` Integration after user Integrations, unless a user Integration already declares `.html`. Appending last keeps the first-extension fallback for missing semantic templates unchanged for existing apps. There is no public plugin factory.
 
-| File                    | Role                                                                                                                  |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `html-pages.plugin.ts`  | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `acceptsParams = false` |
-| `html-page-template.ts` | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, and metadata                  |
-| `html-page-module.ts`   | Builds the Page or shell module in-process and owns the built-in shell                                                |
-| `html-page-renderer.ts` | `StringMarkupRenderer` subclass: emits assets in place, renders the shell, wires head reconciliation                  |
-| `html-page-document.ts` | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                |
+| File                          | Role                                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `html-pages.plugin.ts`        | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `acceptsParams = false` |
+| `html-page-template.ts`       | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, and metadata                  |
+| `html-page-module.ts`         | Builds the Page or shell module in-process and owns the built-in shell                                                |
+| `html-page-renderer.ts`       | `StringMarkupRenderer` subclass: emits assets in place, renders the shell, wires head reconciliation                  |
+| `html-page-document.ts`       | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                |
+| `html-page-classic-script.ts` | Decides how a classic `<script src>` is emitted: `.js` copied, TypeScript types stripped, module syntax rejected      |
 
 Parsing uses `services/html/html-source-parser.ts`, a positional parser built on the same tokenizer as `HtmlRewriter` (`services/html/html-tokenizer.ts`).
 

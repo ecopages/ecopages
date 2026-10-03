@@ -22,16 +22,17 @@ export class HtmlPagesPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Compiles Pages under the pages directory and the `html.html` shell.
+	 * Compiles Pages under the pages directory and the `html.html` template.
 	 *
-	 * @remarks
-	 * Other `.html` files, such as an include other than the shell, are left to core.
+	 * @throws For any other `.html` file, which is neither a Page nor the HTML template.
 	 */
-	override compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | undefined {
+	override compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile {
 		const file = path.resolve(filePath);
 		const { pagesDir, htmlTemplatePath } = appConfig.absolutePaths;
 		if (!file.startsWith(`${pagesDir}${path.sep}`) && file !== htmlTemplatePath) {
-			return undefined;
+			throw new Error(
+				`[ecopages] ${file} is neither a Page under ${pagesDir} nor the HTML template, so HTML Pages cannot load it.`,
+			);
 		}
 
 		return loadHtmlPageModule(appConfig, file);

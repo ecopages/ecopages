@@ -98,8 +98,8 @@ Use the smallest declaration that matches reality. For example, an integration t
 
 Core bundles an Integration's Page files and imports the result. An Integration whose files are not JavaScript, such as core's own HTML Pages, can compile them itself instead:
 
-- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` shell file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Return `undefined` to let core bundle that file.
-  - Every Page of an Integration that implements it stays out of the production pages graph, including the ones it returns `undefined` for, so a static export compiles or bundles each of those Pages on its own.
+- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
+  - Every Page of an Integration that implements it stays out of the production pages graph, so a static export compiles each one on its own.
   - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
   - Vite-hosted development imports files whose last extension is a JavaScript one, such as `.tpl.ts`, itself and never calls it. Use a non-JavaScript extension.
 - **`acceptsParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.

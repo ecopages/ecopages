@@ -73,49 +73,60 @@ export function createRerunScriptUrl(src: string): string {
 }
 
 /**
- * Replays queued rerun scripts after the incoming page body is in place.
+ * Returns the attributes and text of a fresh element that replays `script`, and how to insert it.
  *
  * @remarks
- * Flushed elements keep `data-eco-rerun` so head cleanup does not treat them
- * as persistable inline scripts on the next navigation.
+ * A script with a registered callback runs that callback instead; its element is inserted only
+ * when an external module needs one in the document. An external module without a callback gets
+ * a fresh URL, so the browser runs it again. Inserted elements keep `data-eco-rerun` so head
+ * cleanup does not treat them as persistable inline scripts on the next navigation.
+ */
+export function toRerunScriptActivation(script: PendingRerunScript): {
+	attributes: Array<[string, string]>;
+	textContent: string;
+	insert(replacement: HTMLScriptElement): void;
+} {
+	const registeredRerun = getRegisteredRerunScript(script.scriptId);
+	const needsScriptElement = isExternalModuleRerunScript(script);
+	const attributes = script.attributes.flatMap(([name, value]): Array<[string, string]> =>
+		name === 'src' && needsScriptElement && !registeredRerun
+			? [
+					[RERUN_SRC_ATTR, value],
+					['src', createRerunScriptUrl(value)],
+				]
+			: [[name, value]],
+	);
+
+	return {
+		attributes,
+		textContent: script.textContent,
+		insert: (replacement) => {
+			const targetParent = script.parent === 'body' ? document.body : document.head;
+			const existingScript = findExistingRerunScript(targetParent, script);
+			if (registeredRerun) {
+				if (!existingScript && needsScriptElement) targetParent.appendChild(replacement);
+				registeredRerun();
+			} else if (existingScript) {
+				existingScript.replaceWith(replacement);
+			} else {
+				targetParent.appendChild(replacement);
+			}
+		},
+	};
+}
+
+/**
+ * Replays queued rerun scripts after the incoming page body is in place.
  */
 export function flushPendingRerunScripts(scripts: readonly PendingRerunScript[]): void {
 	for (const script of scripts) {
-		const targetParent = script.parent === 'body' ? document.body : document.head;
-		const registeredRerun = getRegisteredRerunScript(script.scriptId);
+		const { attributes, textContent, insert } = toRerunScriptActivation(script);
 		const replacement = document.createElement('script');
-		const shouldBustModuleSrc = isExternalModuleRerunScript(script) && !registeredRerun;
-
-		for (const [name, value] of script.attributes) {
-			if (name === 'src' && shouldBustModuleSrc) {
-				replacement.setAttribute(RERUN_SRC_ATTR, value);
-				replacement.setAttribute('src', createRerunScriptUrl(value));
-				continue;
-			}
-
+		for (const [name, value] of attributes) {
 			replacement.setAttribute(name, value);
 		}
-
-		replacement.textContent = script.textContent;
-
-		const existingScript = findExistingRerunScript(targetParent, script);
-
-		if (registeredRerun) {
-			const needsScriptElement = isExternalModuleRerunScript(script);
-			if (!existingScript && needsScriptElement) {
-				targetParent.appendChild(replacement);
-			}
-
-			registeredRerun();
-			continue;
-		}
-
-		if (existingScript) {
-			existingScript.replaceWith(replacement);
-			continue;
-		}
-
-		targetParent.appendChild(replacement);
+		replacement.textContent = textContent;
+		insert(replacement);
 	}
 }
 

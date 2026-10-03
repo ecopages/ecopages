@@ -1,12 +1,7 @@
-import type { PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
+import { toRerunScriptActivation, type PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
 import { morphBody, replaceBody } from './body-morpher.ts';
 import { activateScriptsInOrder, collectBodyScripts, type ScriptActivation } from './script-activation.ts';
-import {
-	flushRerunScripts as flushPendingRerunScripts,
-	morphHead,
-	toHeadScriptActivations,
-	type PendingHeadScript,
-} from './head-updater.ts';
+import { morphHead, toHeadScriptActivations, type PendingHeadScript } from './head-updater.ts';
 import { parseHTML } from './html-parser.ts';
 import { preloadStylesheets } from './stylesheet-preloader.ts';
 
@@ -23,6 +18,7 @@ export class DomSwapper {
 	private pendingHeadScripts: PendingHeadScript[] = [];
 	private pendingRerunScripts: PendingRerunScript[] = [];
 	private pendingBodyScripts: ScriptActivation[] = [];
+	private scriptGeneration = 0;
 
 	constructor(persistAttribute: string) {
 		this.persistAttribute = persistAttribute;
@@ -44,24 +40,27 @@ export class DomSwapper {
 	}
 
 	/**
-	 * Replays queued scripts after the body swap completes.
+	 * Runs the scripts the swap queued: new head scripts, then `data-eco-rerun` scripts, then body
+	 * scripts, as one sequence in that order.
 	 *
 	 * @remarks
-	 * Scripts are intentionally flushed after the new body is in place so DOM-
-	 * dependent bootstraps bind against the incoming page rather than the page
-	 * being replaced. New head scripts, then new body scripts, run in document
-	 * order through {@link activateScriptsInOrder}.
+	 * Scripts run after the new body is in place, so DOM-dependent bootstraps bind against the
+	 * incoming page rather than the page being replaced. {@link activateScriptsInOrder} inserts
+	 * everything up to the first script still loading before this returns. The next call stops
+	 * the previous sequence where it waits, so a slow script from one page never lets that page's
+	 * later scripts run in the next one.
 	 */
-	flushRerunScripts(): void {
-		const headScripts = activateScriptsInOrder(toHeadScriptActivations(this.pendingHeadScripts));
+	flushScripts(): void {
+		const activations = [
+			...toHeadScriptActivations(this.pendingHeadScripts),
+			...this.pendingRerunScripts.map(toRerunScriptActivation),
+			...this.pendingBodyScripts,
+		];
 		this.pendingHeadScripts = [];
-
-		flushPendingRerunScripts(this.pendingRerunScripts);
 		this.pendingRerunScripts = [];
-
-		const bodyScripts = this.pendingBodyScripts;
 		this.pendingBodyScripts = [];
-		void headScripts.then((pendingLoads) => activateScriptsInOrder(bodyScripts, pendingLoads));
+		const generation = ++this.scriptGeneration;
+		void activateScriptsInOrder(activations, () => generation !== this.scriptGeneration);
 	}
 
 	morphBody(newDocument: Document): void {

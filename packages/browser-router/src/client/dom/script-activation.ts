@@ -57,15 +57,14 @@ function whenLoaded(script: HTMLScriptElement): Promise<void> {
  * inserted with `async = false`, so the browser also runs `defer` and module
  * scripts in insertion order. Everything before the first wait runs
  * synchronously, so a queue without parser-blocking scripts is fully inserted
- * when the call returns.
- *
- * @returns Parser-blocking loads still pending at the end, for a later queue to wait on.
+ * when the call returns. After each wait, the sequence stops when `isStale`
+ * returns `true`.
  */
 export async function activateScriptsInOrder(
 	activations: readonly ScriptActivation[],
-	pendingLoads: readonly Promise<void>[] = [],
-): Promise<Promise<void>[]> {
-	let blockingLoads = [...pendingLoads];
+	isStale: () => boolean = () => false,
+): Promise<void> {
+	let blockingLoads: Promise<void>[] = [];
 	for (const activation of activations) {
 		const script = document.createElement('script');
 		for (const [name, value] of activation.attributes) {
@@ -76,18 +75,18 @@ export async function activateScriptsInOrder(
 		if (blockingLoads.length > 0) {
 			await Promise.all(blockingLoads);
 			blockingLoads = [];
+			if (isStale()) return;
 		}
 		if (activation.isDetached?.()) continue;
 
 		if (script.hasAttribute('src') && !script.hasAttribute('async')) {
 			script.async = false;
 		}
-		if (isParserBlocking(script)) {
+		activation.insert(script);
+		if (script.isConnected && isParserBlocking(script)) {
 			blockingLoads.push(whenLoaded(script));
 		}
-		activation.insert(script);
 	}
-	return blockingLoads;
 }
 
 /**

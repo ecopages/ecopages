@@ -1,9 +1,4 @@
-import {
-	collectRerunScripts,
-	flushPendingRerunScripts,
-	shouldPersistExecutableInlineHeadScript,
-} from '@ecopages/core/client/navigation-scripts';
-import type { PendingRerunScript } from '@ecopages/core/client/navigation-scripts';
+import { collectRerunScripts, shouldPersistExecutableInlineHeadScript } from '@ecopages/core/client/navigation-scripts';
 import type { ScriptActivation } from './script-activation.ts';
 import { syncIncomingHeadMetadata } from './head-updater-incoming.ts';
 import { collectPendingHeadScriptsFromIncoming, createHeadScriptDedupState } from './head-updater-scripts.ts';
@@ -93,11 +88,4 @@ export function toHeadScriptActivations(pendingHeadScripts: readonly PendingHead
 			document.head.appendChild(replacement);
 		},
 	}));
-}
-
-/**
- * Replays queued `data-eco-rerun` scripts after the body swap completes.
- */
-export function flushRerunScripts(pendingRerunScripts: PendingRerunScript[]): void {
-	flushPendingRerunScripts(pendingRerunScripts);
 }

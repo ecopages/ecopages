@@ -29,6 +29,7 @@
 		"@tailwindcss/postcss": "^4.0.0",
 		"@types/bun": "^1.4.2",
 		"@types/node": "22.19.9",
+		"@clack/prompts": "^1.7.0",
 		"dotenv": "^16.4.7",
 		"ecopages": "workspace:*",
 		"mdast-util-from-markdown": "^2.0.3",

@@ -9,7 +9,7 @@ Framework skill packs live in the vault root at [`../.agents`](../.agents). See 
 - Source of truth: `../wiki/`. The default auto mode accepts either category
   directories (`wiki/<category>/<page>.md`) or flat files with `category` in
   frontmatter; mixed layouts fail fast.
-- Generated: `src/content/wiki` and `src/public/wiki` are wiped and rewritten from the vault on every `pnpm dev` / `pnpm build`.
+- Generated: `src/content/wiki` and `src/public/wiki` are written from the vault on every `pnpm dev` / `pnpm build`. Ingest replaces a file that already exists and does not delete directories. A page you remove from the vault stays in the generated folders until you delete that file.
 - Ingest: `src/lib/wiki/ingest.ts` validates frontmatter, normalizes both layouts to
   category/page slugs, and regenerates `../index.md`. Link rewrite lives in `src/lib/wiki/links.ts`.
 - Nav / sort: the root `../wiki/sortspec.md` orders categories; each category's `sortspec.md` orders pages. Ingest writes the result to `src/content/wiki-sort-order.json`.
@@ -18,7 +18,7 @@ Framework skill packs live in the vault root at [`../.agents`](../.agents). See 
 
 | System          | Role                                                                                                        |
 | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| **obsidian**    | Build-plugin watch/rebuild and optional `pnpm sync:obsidian` mirror                                         |
+| **obsidian**    | Build-plugin watch/rebuild, and `pnpm sync:obsidian` which asks before copying into the vault               |
 | **wiki**        | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md)) |
 | **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                        |
 | **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser                          |
@@ -36,6 +36,8 @@ pnpm lint:wiki
 pnpm test
 pnpm typecheck
 ```
+
+`pnpm sync:obsidian` shows the destination directory and asks before copying. A second question asks whether to clear that directory. The default is no, so existing unrelated files stay. `pnpm sync:obsidian -- --yes` copies without asking. Add `--clear` to delete the destination first, including with `--yes`. The command throws when `OBSIDIAN_VAULT_PATH` is unset.
 
 ## Agent markdown
 

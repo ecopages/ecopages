@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { assertDirectoryTarget } from '../safe-directory.ts';
 import { renderCatalogMarkdown, writeCatalogIndex } from './catalog';
 import { isEnoent } from './is-enoent';
 import { rewriteWikiMarkdownLinks } from './links';
@@ -73,18 +74,16 @@ async function writeGeneratedPage(page: VaultPage, outputDir: string, publicWiki
  * directory vaults differ only in where their category comes from. Ingest also
  * rewrites the vault-root `index.md` catalog from page `summary` fields and
  * writes `/wiki/<category>/<page>.md` into `src/public/wiki` for static preview.
+ * A generated file that already exists is replaced. Directories are not deleted,
+ * so a page removed from the vault stays on disk until that file is removed by hand.
  */
 export async function ingestVault(options: IngestVaultOptions = {}): Promise<void> {
 	const appRoot = options.appRoot ?? process.cwd();
 	const sourceDir = options.sourceDir ?? resolveVaultDir(appRoot);
-	const outputDir = options.outputDir ?? resolveContentOutputDir(appRoot);
-	const publicWikiDir = resolvePublicWikiDir(appRoot);
+	const outputDir = assertDirectoryTarget(options.outputDir ?? resolveContentOutputDir(appRoot));
+	const publicWikiDir = assertDirectoryTarget(resolvePublicWikiDir(appRoot));
 	const { layout, pages } = await loadVaultPages(sourceDir, env.WIKI_CATEGORY_MODE);
 
-	await Promise.all([
-		rm(outputDir, { recursive: true, force: true }),
-		rm(publicWikiDir, { recursive: true, force: true }),
-	]);
 	await Promise.all([mkdir(outputDir, { recursive: true }), mkdir(publicWikiDir, { recursive: true })]);
 
 	await Promise.all(pages.map((page) => writeGeneratedPage(page, outputDir, publicWikiDir)));
@@ -116,12 +115,17 @@ export type CopySourcesOptions = {
 	outputDir?: string;
 };
 
-/** Copies raw source markdown into public assets. */
+/**
+ * Copies raw source markdown into public assets.
+ *
+ * @remarks
+ * Replaces an output file when the same source file still exists. Does not delete
+ * the output directory or files that are no longer in the source set.
+ */
 export async function copySources(options: CopySourcesOptions = {}): Promise<void> {
 	const appRoot = options.appRoot ?? process.cwd();
 	const sourcesDir = options.sourcesDir ?? resolveSourcesDir(appRoot);
-	const outputDir = options.outputDir ?? resolveSourcesOutputDir(appRoot);
-	await rm(outputDir, { recursive: true, force: true });
+	const outputDir = assertDirectoryTarget(options.outputDir ?? resolveSourcesOutputDir(appRoot));
 
 	let entries;
 	try {
